@@ -70,7 +70,7 @@ protected:
   static int SortCallback(const void *, const void *, void *);
 
   BaseStringEnumerator()
-    : mArray(nullptr),
+    : mArray(nsnull),
       mCount(0),
       mSimpleCurItem(0),
       mStringCurItem(0) { }
@@ -149,7 +149,7 @@ BaseStringEnumerator::SortCallback(const void *e1, const void *e2,
 void
 BaseStringEnumerator::Sort()
 {
-  NS_QuickSort(mArray, mCount, sizeof(mArray[0]), SortCallback, nullptr);
+  NS_QuickSort(mArray, mCount, sizeof(mArray[0]), SortCallback, nsnull);
 }
 
 //
@@ -182,12 +182,12 @@ EntryEnumerator::Create(nsTHashtable<CategoryLeaf>& aTable)
 {
   EntryEnumerator* enumObj = new EntryEnumerator();
   if (!enumObj)
-    return nullptr;
+    return nsnull;
 
   enumObj->mArray = new char const* [aTable.Count()];
   if (!enumObj->mArray) {
     delete enumObj;
-    return nullptr;
+    return nsnull;
   }
 
   aTable.EnumerateEntries(enumfunc_createenumerator, enumObj);
@@ -207,7 +207,7 @@ CategoryNode::Create(PLArenaPool* aArena)
 {
   CategoryNode* node = new(aArena) CategoryNode();
   if (!node)
-    return nullptr;
+    return nsnull;
 
   node->mTable.Init();
   return node;
@@ -361,12 +361,12 @@ CategoryEnumerator::Create(nsClassHashtable<nsDepCharHashKey, CategoryNode>& aTa
 {
   CategoryEnumerator* enumObj = new CategoryEnumerator();
   if (!enumObj)
-    return nullptr;
+    return nsnull;
 
   enumObj->mArray = new const char* [aTable.Count()];
   if (!enumObj->mArray) {
     delete enumObj;
-    return nullptr;
+    return nsnull;
   }
 
   aTable.EnumerateRead(enumfunc_createenumerator, enumObj);
@@ -454,7 +454,7 @@ inline CategoryNode*
 nsCategoryManager::get_category(const char* aName) {
   CategoryNode* node;
   if (!mTable.Get(aName, &node)) {
-    return nullptr;
+    return nsnull;
   }
   return node;
 }
@@ -593,7 +593,7 @@ nsCategoryManager::AddCategoryEntry(const char *aCategoryName,
     return;
 
   // We will need the return value of AddLeaf even if the called doesn't want it
-  char *oldEntry = nullptr;
+  char *oldEntry = nsnull;
 
   nsresult rv = category->AddLeaf(aEntryName,
                                   aValue,
@@ -664,7 +664,7 @@ nsCategoryManager::DeleteCategory( const char *aCategoryName )
   if (category) {
     category->Clear();
     NotifyObservers(NS_XPCOM_CATEGORY_CLEARED_OBSERVER_ID,
-                    aCategoryName, nullptr);
+                    aCategoryName, nsnull);
   }
 
   return NS_OK;

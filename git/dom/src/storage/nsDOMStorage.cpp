@@ -199,12 +199,12 @@ GetQuota(const nsACString &aDomain, PRInt32 *aQuota, PRInt32 *aWarnQuota,
 }
 
 nsSessionStorageEntry::nsSessionStorageEntry(KeyTypePointer aStr)
-  : nsStringHashKey(aStr), mItem(nullptr)
+  : nsStringHashKey(aStr), mItem(nsnull)
 {
 }
 
 nsSessionStorageEntry::nsSessionStorageEntry(const nsSessionStorageEntry& aToCopy)
-  : nsStringHashKey(aToCopy), mItem(nullptr)
+  : nsStringHashKey(aToCopy), mItem(nsnull)
 {
   NS_ERROR("We're horked.");
 }
@@ -284,7 +284,7 @@ void
 nsDOMStorageManager::Shutdown()
 {
   NS_IF_RELEASE(gStorageManager);
-  gStorageManager = nullptr;
+  gStorageManager = nsnull;
 
   ShutdownDB();
 }
@@ -294,7 +294,7 @@ void
 nsDOMStorageManager::ShutdownDB()
 {
   delete DOMStorageImpl::gStorageDB;
-  DOMStorageImpl::gStorageDB = nullptr;
+  DOMStorageImpl::gStorageDB = nsnull;
 }
 
 static PLDHashOperator
@@ -369,7 +369,7 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
                                                    true);
   } else if (!strcmp(aTopic, "cookie-changed") &&
              !nsCRT::strcmp(aData, NS_LITERAL_STRING("cleared").get())) {
-    mStorages.EnumerateEntries(ClearStorage, nullptr);
+    mStorages.EnumerateEntries(ClearStorage, nsnull);
 
     nsresult rv = DOMStorageImpl::InitDB();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -407,7 +407,7 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
   } else if (!strcmp(aTopic, "timer-callback")) {
     nsCOMPtr<nsIObserverService> obsserv = mozilla::services::GetObserverService();
     if (obsserv)
-      obsserv->NotifyObservers(nullptr, NS_DOMSTORAGE_FLUSH_TIMER_TOPIC, nullptr);
+      obsserv->NotifyObservers(nsnull, NS_DOMSTORAGE_FLUSH_TIMER_TOPIC, nsnull);
   } else if (!strcmp(aTopic, "browser:purge-domain-data")) {
     // Convert the domain name to the ACE format
     nsCAutoString aceDomain;
@@ -496,7 +496,7 @@ nsDOMStorageManager::GetLocalStorageForPrincipal(nsIPrincipal *aPrincipal,
                                                  nsIDOMStorage **aResult)
 {
   NS_ENSURE_ARG_POINTER(aPrincipal);
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   nsresult rv;
 
@@ -534,15 +534,15 @@ nsDOMStorageManager::RemoveFromStoragesHash(DOMStorageImpl* aStorage)
 // nsDOMStorage
 //
 
-nsDOMStorageDBWrapper* DOMStorageImpl::gStorageDB = nullptr;
+nsDOMStorageDBWrapper* DOMStorageImpl::gStorageDB = nsnull;
 
 nsDOMStorageEntry::nsDOMStorageEntry(KeyTypePointer aStr)
-  : nsPtrHashKey<const void>(aStr), mStorage(nullptr)
+  : nsPtrHashKey<const void>(aStr), mStorage(nsnull)
 {
 }
 
 nsDOMStorageEntry::nsDOMStorageEntry(const nsDOMStorageEntry& aToCopy)
-  : nsPtrHashKey<const void>(aToCopy), mStorage(nullptr)
+  : nsPtrHashKey<const void>(aToCopy), mStorage(nsnull)
 {
   NS_ERROR("DOMStorage horked.");
 }
@@ -720,7 +720,7 @@ DOMStorageImpl::InitDB()
       // un-initialized DB later on.
 
       delete gStorageDB;
-      gStorageDB = nullptr;
+      gStorageDB = nsnull;
 
       return rv;
     }
@@ -908,7 +908,7 @@ ClearStorageItem(nsSessionStorageEntry* aEntry, void* userArg)
 void
 DOMStorageImpl::ClearAll()
 {
-  mItems.EnumerateEntries(ClearStorageItem, nullptr);
+  mItems.EnumerateEntries(ClearStorageItem, nsnull);
   mItemsCachedVersion = 0;
 }
 
@@ -1053,7 +1053,7 @@ class IndexFinderData
  public:
   IndexFinderData(bool aIsCallerSecure, PRUint32 aWantedIndex)
   : mIsCallerSecure(aIsCallerSecure), mIndex(0), mWantedIndex(aWantedIndex),
-    mItem(nullptr)
+    mItem(nsnull)
   {
   }
 
@@ -1115,7 +1115,7 @@ DOMStorageImpl::GetValue(bool aCallerSecure, const nsAString& aKey,
                          nsresult* aResult)
 {
   nsSessionStorageEntry *entry = mItems.GetEntry(aKey);
-  nsIDOMStorageItem* item = nullptr;
+  nsIDOMStorageItem* item = nsnull;
   if (entry) {
     if (aCallerSecure || !entry->mItem->IsSecure()) {
       item = entry->mItem;
@@ -1128,10 +1128,10 @@ DOMStorageImpl::GetValue(bool aCallerSecure, const nsAString& aKey,
     // return null if access isn't allowed or the key wasn't found
     if (rv == NS_ERROR_DOM_SECURITY_ERR || rv == NS_ERROR_DOM_NOT_FOUND_ERR ||
         (!aCallerSecure && secure))
-      return nullptr;
+      return nsnull;
 
     *aResult = rv;
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     nsRefPtr<nsDOMStorageItem> newitem =
         new nsDOMStorageItem(this, aKey, value, secure);
@@ -1278,7 +1278,7 @@ DOMStorageImpl::PrivateModeChanged(bool enabled)
 
 nsDOMStorage::nsDOMStorage()
   : mStorageType(nsPIDOMStorage::Unknown)
-  , mEventBroadcaster(nullptr)
+  , mEventBroadcaster(nsnull)
 {
   if (XRE_GetProcessType() != GeckoProcessType_Default)
     mStorageImpl = new StorageChild(this);
@@ -1289,7 +1289,7 @@ nsDOMStorage::nsDOMStorage()
 nsDOMStorage::nsDOMStorage(nsDOMStorage& aThat)
   : mStorageType(aThat.mStorageType)
   , mPrincipal(aThat.mPrincipal)
-  , mEventBroadcaster(nullptr)
+  , mEventBroadcaster(nsnull)
 {
   if (XRE_GetProcessType() != GeckoProcessType_Default) {
     StorageChild* other = static_cast<StorageChild*>(aThat.mStorageImpl.get());
@@ -1501,7 +1501,7 @@ nsDOMStorage::GetNamedItem(const nsAString& aKey, nsresult* aResult)
 {
   if (!CacheStoragePermissions()) {
     *aResult = NS_ERROR_DOM_SECURITY_ERR;
-    return nullptr;
+    return nsnull;
   }
 
   *aResult = NS_OK;
@@ -1640,14 +1640,14 @@ already_AddRefed<nsIDOMStorage>
 nsDOMStorage::Clone()
 {
   NS_ASSERTION(false, "Old DOMStorage doesn't implement cloning");
-  return nullptr;
+  return nsnull;
 }
 
 already_AddRefed<nsIDOMStorage>
 nsDOMStorage::Fork(const nsSubstring &aDocumentURI)
 {
   NS_ASSERTION(false, "Old DOMStorage doesn't implement forking");
-  return nullptr;
+  return nsnull;
 }
 
 bool nsDOMStorage::IsForkOf(nsIDOMStorage* aThat)
@@ -1671,7 +1671,7 @@ nsDOMStorage::GetKeys()
 nsIPrincipal*
 nsDOMStorage::Principal()
 {
-  return nullptr;
+  return nsnull;
 }
 
 bool
@@ -1799,7 +1799,7 @@ nsDOMStorage2::Clone()
 {
   nsDOMStorage2* storage = new nsDOMStorage2(*this);
   if (!storage)
-    return nullptr;
+    return nsnull;
 
   storage->mStorage->CloneFrom(mStorage);
   NS_ADDREF(storage);
@@ -1880,7 +1880,7 @@ StorageNotifierRunnable::Run()
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
   if (observerService) {
-    observerService->NotifyObservers(mSubject, "dom-storage2-changed", nullptr);
+    observerService->NotifyObservers(mSubject, "dom-storage2-changed", nsnull);
   }
   return NS_OK;
 }
@@ -1956,7 +1956,7 @@ nsDOMStorage2::Clear()
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMStorageItem)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMStorageItem)
   {
-    tmp->mStorage = nullptr;
+    tmp->mStorage = nsnull;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMStorageItem)

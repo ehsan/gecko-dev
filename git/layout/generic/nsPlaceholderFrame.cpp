@@ -126,7 +126,7 @@ nsPlaceholderFrame::DestroyFrom(nsIFrame* aDestructRoot)
     oof->InvalidateFrameSubtree();
     // Unregister out-of-flow frame
     shell->FrameManager()->UnregisterPlaceholderFrame(this);
-    mOutOfFlowFrame = nullptr;
+    mOutOfFlowFrame = nsnull;
     // If aDestructRoot is not an ancestor of the out-of-flow frame,
     // then call RemoveFrame on it here.
     // Also destroy it here if it's a popup frame. (Bug 96291)
@@ -232,16 +232,16 @@ nsPlaceholderFrame::List(FILE* out, PRInt32 aIndent) const
   }
   nsIFrame* prevInFlow = GetPrevInFlow();
   nsIFrame* nextInFlow = GetNextInFlow();
-  if (nullptr != prevInFlow) {
+  if (nsnull != prevInFlow) {
     fprintf(out, " prev-in-flow=%p", static_cast<void*>(prevInFlow));
   }
-  if (nullptr != nextInFlow) {
+  if (nsnull != nextInFlow) {
     fprintf(out, " next-in-flow=%p", static_cast<void*>(nextInFlow));
   }
-  if (nullptr != mContent) {
+  if (nsnull != mContent) {
     fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   }
-  if (nullptr != mStyleContext) {
+  if (nsnull != mStyleContext) {
     fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
   }
   if (mOutOfFlowFrame) {

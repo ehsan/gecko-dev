@@ -54,7 +54,7 @@ QImage *
 gfxQPainterSurface::GetQImage()
 {
     if (!mSurfaceValid)
-        return nullptr;
+        return nsnull;
 
     return cairo_qt_surface_get_qimage(CairoSurface());
 }
@@ -63,11 +63,11 @@ already_AddRefed<gfxImageSurface>
 gfxQPainterSurface::GetAsImageSurface()
 {
     if (!mSurfaceValid)
-        return nullptr;
+        return nsnull;
 
     cairo_surface_t *isurf = cairo_qt_surface_get_image(CairoSurface());
     if (!isurf)
-        return nullptr;
+        return nsnull;
 
     assert(cairo_surface_get_type(isurf) == CAIRO_SURFACE_TYPE_IMAGE);
 

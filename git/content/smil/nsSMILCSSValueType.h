@@ -72,7 +72,7 @@ public:
    *                                  a different |aValue| depending on other
    *                                  CSS properties on |aTargetElement|
    *                                  or its ancestors (e.g. 'inherit).
-   *                                  false otherwise. May be nullptr.
+   *                                  false otherwise. May be nsnull.
    *                                  Not set if the method fails.
    * @pre  aValue.IsNull()
    * @post aValue.IsNull() || aValue.mType == nsSMILCSSValueType::sSingleton

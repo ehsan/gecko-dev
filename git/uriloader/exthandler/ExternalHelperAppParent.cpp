@@ -55,7 +55,7 @@ ExternalHelperAppParent::Init(ContentParent *parent,
   mContentDispositionHeader = aContentDispositionHeader;
   NS_GetFilenameFromDisposition(mContentDispositionFilename, mContentDispositionHeader, mURI);
   mContentDisposition = NS_GetContentDispositionFromHeader(mContentDispositionHeader, this);
-  helperAppService->DoContent(aMimeContentType, this, nullptr,
+  helperAppService->DoContent(aMimeContentType, this, nsnull,
                               aForceSave, getter_AddRefs(mListener));
 }
 
@@ -64,7 +64,7 @@ ExternalHelperAppParent::RecvOnStartRequest(const nsCString& entityID)
 {
   mEntityID = entityID;
   mPending = true;
-  mStatus = mListener->OnStartRequest(this, nullptr);
+  mStatus = mListener->OnStartRequest(this, nsnull);
   return true;
 }
 
@@ -80,7 +80,7 @@ ExternalHelperAppParent::RecvOnDataAvailable(const nsCString& data,
   nsCOMPtr<nsIInputStream> stringStream;
   DebugOnly<nsresult> rv = NS_NewByteInputStream(getter_AddRefs(stringStream), data.get(), count, NS_ASSIGNMENT_DEPEND);
   NS_ASSERTION(NS_SUCCEEDED(rv), "failed to create dependent string!");
-  mStatus = mListener->OnDataAvailable(this, nullptr, stringStream, offset, count);
+  mStatus = mListener->OnDataAvailable(this, nsnull, stringStream, offset, count);
 
   return true;
 }
@@ -89,7 +89,7 @@ bool
 ExternalHelperAppParent::RecvOnStopRequest(const nsresult& code)
 {
   mPending = false;
-  mListener->OnStopRequest(this, nullptr,
+  mListener->OnStopRequest(this, nsnull,
                            (NS_SUCCEEDED(code) && NS_FAILED(mStatus)) ? mStatus : code);
   unused << Send__delete__(this);
   return true;
@@ -199,7 +199,7 @@ ExternalHelperAppParent::SetLoadFlags(nsLoadFlags aLoadFlags)
 NS_IMETHODIMP
 ExternalHelperAppParent::GetLoadGroup(nsILoadGroup* *aLoadGroup)
 {
-  *aLoadGroup = nullptr;
+  *aLoadGroup = nsnull;
   return NS_OK;
 }
 
@@ -212,7 +212,7 @@ ExternalHelperAppParent::SetLoadGroup(nsILoadGroup* aLoadGroup)
 NS_IMETHODIMP
 ExternalHelperAppParent::GetOwner(nsISupports* *aOwner)
 {
-  *aOwner = nullptr;
+  *aOwner = nsnull;
   return NS_OK;
 }
 
@@ -225,7 +225,7 @@ ExternalHelperAppParent::SetOwner(nsISupports* aOwner)
 NS_IMETHODIMP
 ExternalHelperAppParent::GetNotificationCallbacks(nsIInterfaceRequestor* *aCallbacks)
 {
-  *aCallbacks = nullptr;
+  *aCallbacks = nsnull;
   return NS_OK;
 }
 
@@ -238,7 +238,7 @@ ExternalHelperAppParent::SetNotificationCallbacks(nsIInterfaceRequestor* aCallba
 NS_IMETHODIMP
 ExternalHelperAppParent::GetSecurityInfo(nsISupports * *aSecurityInfo)
 {
-  *aSecurityInfo = nullptr;
+  *aSecurityInfo = nsnull;
   return NS_OK;
 }
 

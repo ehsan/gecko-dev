@@ -55,7 +55,7 @@
 
 WebBrowserChrome::WebBrowserChrome()
 {
-    mNativeWindow = nullptr;
+    mNativeWindow = nsnull;
     mSizeSet = false;
 }
 
@@ -69,7 +69,7 @@ nsresult WebBrowserChrome::CreateBrowser(PRInt32 aX, PRInt32 aY,
                                          nsIWebBrowser **aBrowser)
 {
     NS_ENSURE_ARG_POINTER(aBrowser);
-    *aBrowser = nullptr;
+    *aBrowser = nsnull;
 
     mWebBrowser = do_CreateInstance(NS_WEBBROWSER_CONTRACTID);
     
@@ -86,7 +86,7 @@ nsresult WebBrowserChrome::CreateBrowser(PRInt32 aX, PRInt32 aY,
         return NS_ERROR_FAILURE;
 
     browserBaseWindow->InitWindow( mNativeWindow,
-                             nullptr, 
+                             nsnull, 
                              aX, aY, aCX, aCY);
     browserBaseWindow->Create();
 
@@ -266,7 +266,7 @@ NS_IMETHODIMP WebBrowserChrome::OnStateChange(nsIWebProgress *progress, nsIReque
     {
         WebBrowserChromeUI::UpdateBusyState(this, false);
         WebBrowserChromeUI::UpdateProgress(this, 0, 100);
-        WebBrowserChromeUI::UpdateStatusBarText(this, nullptr);
+        WebBrowserChromeUI::UpdateStatusBarText(this, nsnull);
         ContentFinishedLoading();
     }
 
@@ -364,7 +364,7 @@ WebBrowserChrome::OnHistoryPurge(PRInt32 aNumEntries, bool *aContinue)
 {
     // For now let the operation continue
     *aContinue = false;
-    return SendHistoryStatusMessage(nullptr, "purge", aNumEntries);
+    return SendHistoryStatusMessage(nsnull, "purge", aNumEntries);
 }
 
 static void
@@ -505,7 +505,7 @@ NS_IMETHODIMP WebBrowserChrome::GetTitle(PRUnichar * *aTitle)
 {
    NS_ENSURE_ARG_POINTER(aTitle);
 
-   *aTitle = nullptr;
+   *aTitle = nsnull;
    
    return NS_ERROR_NOT_IMPLEMENTED;
 }

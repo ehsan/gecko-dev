@@ -38,23 +38,23 @@ static const PRInt32 kTxNodeSetGrowFactor = 2;
 
 txNodeSet::txNodeSet(txResultRecycler* aRecycler)
     : txAExprResult(aRecycler),
-      mStart(nullptr),
-      mEnd(nullptr),
-      mStartBuffer(nullptr),
-      mEndBuffer(nullptr),
+      mStart(nsnull),
+      mEnd(nsnull),
+      mStartBuffer(nsnull),
+      mEndBuffer(nsnull),
       mDirection(kForward),
-      mMarks(nullptr)
+      mMarks(nsnull)
 {
 }
 
 txNodeSet::txNodeSet(const txXPathNode& aNode, txResultRecycler* aRecycler)
     : txAExprResult(aRecycler),
-      mStart(nullptr),
-      mEnd(nullptr),
-      mStartBuffer(nullptr),
-      mEndBuffer(nullptr),
+      mStart(nsnull),
+      mEnd(nsnull),
+      mStartBuffer(nsnull),
+      mEndBuffer(nsnull),
       mDirection(kForward),
-      mMarks(nullptr)
+      mMarks(nsnull)
 {
     if (!ensureGrowSize(1)) {
         return;
@@ -66,12 +66,12 @@ txNodeSet::txNodeSet(const txXPathNode& aNode, txResultRecycler* aRecycler)
 
 txNodeSet::txNodeSet(const txNodeSet& aSource, txResultRecycler* aRecycler)
     : txAExprResult(aRecycler),
-      mStart(nullptr),
-      mEnd(nullptr),
-      mStartBuffer(nullptr),
-      mEndBuffer(nullptr),
+      mStart(nsnull),
+      mEnd(nsnull),
+      mStartBuffer(nsnull),
+      mEndBuffer(nsnull),
       mDirection(kForward),
-      mMarks(nullptr)
+      mMarks(nsnull)
 {
     append(aSource);
 }
@@ -125,7 +125,7 @@ nsresult txNodeSet::add(const txXPathNode& aNode)
 
 nsresult txNodeSet::add(const txNodeSet& aNodes)
 {
-    return add(aNodes, copyElements, nullptr);
+    return add(aNodes, copyElements, nsnull);
 }
 
 nsresult txNodeSet::addAndTransfer(txNodeSet* aNodes)
@@ -137,7 +137,7 @@ nsresult txNodeSet::addAndTransfer(txNodeSet* aNodes)
 #ifdef TX_DONT_RECYCLE_BUFFER
     if (aNodes->mStartBuffer) {
         nsMemory::Free(aNodes->mStartBuffer);
-        aNodes->mStartBuffer = aNodes->mEndBuffer = nullptr;
+        aNodes->mStartBuffer = aNodes->mEndBuffer = nsnull;
     }
 #endif
     aNodes->mStart = aNodes->mEnd = aNodes->mStartBuffer;
@@ -400,7 +400,7 @@ txNodeSet::sweep()
     mStart = mStartBuffer;
     mEnd = insertion;
     delete [] mMarks;
-    mMarks = nullptr;
+    mMarks = nsnull;
 
     return NS_OK;
 }
@@ -412,12 +412,12 @@ txNodeSet::clear()
 #ifdef TX_DONT_RECYCLE_BUFFER
     if (mStartBuffer) {
         nsMemory::Free(mStartBuffer);
-        mStartBuffer = mEndBuffer = nullptr;
+        mStartBuffer = mEndBuffer = nsnull;
     }
 #endif
     mStart = mEnd = mStartBuffer;
     delete [] mMarks;
-    mMarks = nullptr;
+    mMarks = nsnull;
     mDirection = kForward;
 }
 
@@ -485,7 +485,7 @@ txNodeSet::stringValue(nsString& aStr)
 const nsString*
 txNodeSet::stringValuePointer()
 {
-    return nullptr;
+    return nsnull;
 }
 
 bool txNodeSet::ensureGrowSize(PRInt32 aSize)

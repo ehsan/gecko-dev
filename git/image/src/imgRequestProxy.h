@@ -68,7 +68,7 @@ public:
   void RemoveFromLoadGroup(bool releaseLoadGroup);
 
   inline bool HasObserver() const {
-    return mListener != nullptr;
+    return mListener != nsnull;
   }
 
   void SetPrincipal(nsIPrincipal *aPrincipal);
@@ -172,7 +172,7 @@ protected:
   nsITimedChannel* TimedChannel()
   {
     if (!mOwner)
-      return nullptr;
+      return nsnull;
     return mOwner->mTimedChannel;
   }
 

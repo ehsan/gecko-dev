@@ -15,7 +15,7 @@
 #include <QHostAddress>
 #include <QTime>
 
-nsQtNetworkManager* nsQtNetworkManager::gQtNetworkManager = nullptr;
+nsQtNetworkManager* nsQtNetworkManager::gQtNetworkManager = nsnull;
 
 void nsQtNetworkManager::create()
 {
@@ -33,7 +33,7 @@ void nsQtNetworkManager::create()
 void nsQtNetworkManager::destroy()
 {
     delete gQtNetworkManager;
-    gQtNetworkManager = nullptr;
+    gQtNetworkManager = nsnull;
 }
 
 nsQtNetworkManager::nsQtNetworkManager(QObject* parent)

@@ -78,7 +78,7 @@ public:
   already_AddRefed<nsIDocument> GetOwnerDocument()
   {
     if (!GetOwner()) {
-      return nullptr;
+      return nsnull;
     }
 
     nsCOMPtr<nsIDocument> doc =

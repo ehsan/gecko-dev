@@ -12,7 +12,7 @@
 nsresult
 txNumberExpr::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
 
     nsRefPtr<txAExprResult> exprRes;
     nsresult rv = mRightExpr->evaluate(aContext, getter_AddRefs(exprRes));

@@ -90,7 +90,7 @@ extern void LogSlimWrapperNotCreated(JSContext *cx, nsISupports *obj,
         }                                                                     \
         else                                                                  \
         {                                                                     \
-          LOG_WILL_MORPH_FOR_PROP(cx, obj, nullptr);                           \
+          LOG_WILL_MORPH_FOR_PROP(cx, obj, nsnull);                           \
         }                                                                     \
     PR_END_MACRO
 #define SLIM_LOG_NOT_CREATED(cx, obj, reason)                                 \
@@ -116,6 +116,6 @@ extern void LogSlimWrapperNotCreated(JSContext *cx, nsISupports *obj,
     PR_END_MACRO
 #endif
 #define SLIM_LOG_WILL_MORPH(cx, obj)                                         \
-    SLIM_LOG_WILL_MORPH_FOR_PROP(cx, obj, nullptr)
+    SLIM_LOG_WILL_MORPH_FOR_PROP(cx, obj, nsnull)
 
 #endif /* xpclog_h___ */

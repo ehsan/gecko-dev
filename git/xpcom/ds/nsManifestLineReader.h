@@ -12,7 +12,7 @@
 class nsManifestLineReader
 {
 public:
-    nsManifestLineReader() : mBase(nullptr) {} 
+    nsManifestLineReader() : mBase(nsnull) {} 
     ~nsManifestLineReader() {}
 
     void Init(char* base, PRUint32 flen) 

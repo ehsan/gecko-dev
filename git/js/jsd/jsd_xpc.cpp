@@ -105,7 +105,7 @@ static struct DeadScript {
     PRCList     links;
     JSDContext *jsdc;
     jsdIScript *script;
-} *gDeadScripts = nullptr;
+} *gDeadScripts = nsnull;
 
 enum PatternType {
     ptIgnore     = 0U,
@@ -123,12 +123,12 @@ static struct FilterRecord {
     PatternType  patternType;
     PRUint32     startLine;
     PRUint32     endLine;
-} *gFilters = nullptr;
+} *gFilters = nsnull;
 
-static struct LiveEphemeral *gLiveValues      = nullptr;
-static struct LiveEphemeral *gLiveProperties  = nullptr;
-static struct LiveEphemeral *gLiveContexts    = nullptr;
-static struct LiveEphemeral *gLiveStackFrames = nullptr;
+static struct LiveEphemeral *gLiveValues      = nsnull;
+static struct LiveEphemeral *gLiveProperties  = nsnull;
+static struct LiveEphemeral *gLiveContexts    = nsnull;
+static struct LiveEphemeral *gLiveStackFrames = nsnull;
 
 /*******************************************************************************
  * utility functions for ephemeral lists
@@ -137,7 +137,7 @@ already_AddRefed<jsdIEphemeral>
 jsds_FindEphemeral (LiveEphemeral **listHead, void *key)
 {
     if (!*listHead)
-        return nullptr;
+        return nsnull;
     
     LiveEphemeral *lv_record = 
         reinterpret_cast<LiveEphemeral *>
@@ -154,7 +154,7 @@ jsds_FindEphemeral (LiveEphemeral **listHead, void *key)
     }
     while (lv_record != *listHead);
 
-    return nullptr;
+    return nsnull;
 }
 
 void
@@ -199,7 +199,7 @@ jsds_RemoveEphemeral (LiveEphemeral **listHead, LiveEphemeral *item)
          * null out the list head */
         NS_ASSERTION (*listHead == item,
                       "How could we not be the head of a one item list?");
-        *listHead = nullptr;
+        *listHead = nsnull;
     }
     else if (item == *listHead)
     {
@@ -229,7 +229,7 @@ jsds_SyncFilter (FilterRecord *rec, jsdIFilter *filter)
     NS_ASSERTION (rec, "jsds_SyncFilter without rec");
     NS_ASSERTION (filter, "jsds_SyncFilter without filter");
     
-    JSObject *glob_proper = nullptr;
+    JSObject *glob_proper = nsnull;
     nsCOMPtr<nsISupports> glob;
     nsresult rv = filter->GetGlobalObject(getter_AddRefs(glob));
     if (NS_FAILED(rv))
@@ -308,7 +308,7 @@ FilterRecord *
 jsds_FindFilter (jsdIFilter *filter)
 {
     if (!gFilters)
-        return nullptr;
+        return nsnull;
     
     FilterRecord *current = gFilters;
     
@@ -319,7 +319,7 @@ jsds_FindFilter (jsdIFilter *filter)
                                   (PR_NEXT_LINK(&current->links));
     } while (current != gFilters);
     
-    return nullptr;
+    return nsnull;
 }
 
 /* returns true if the hook should be executed. */
@@ -437,18 +437,18 @@ jsds_NotifyPendingDeadScripts (JSRuntime *rt)
     if (jsds) {
         NS_ADDREF(jsds);
         jsds->GetScriptHook (getter_AddRefs(hook));
-        jsds->DoPause(nullptr, true);
+        jsds->DoPause(nsnull, true);
     }
 
     DeadScript *deadScripts = gDeadScripts;
-    gDeadScripts = nullptr;
+    gDeadScripts = nsnull;
     while (deadScripts) {
         DeadScript *ds = deadScripts;
         /* get next deleted script */
         deadScripts = reinterpret_cast<DeadScript *>
                                        (PR_NEXT_LINK(&ds->links));
         if (deadScripts == ds)
-            deadScripts = nullptr;
+            deadScripts = nsnull;
 
         if (hook)
         {
@@ -472,7 +472,7 @@ jsds_NotifyPendingDeadScripts (JSRuntime *rt)
     }
 
     if (jsds) {
-        jsds->DoUnPause(nullptr, true);
+        jsds->DoUnPause(nsnull, true);
         NS_RELEASE(jsds);
     }
 }
@@ -541,9 +541,9 @@ jsds_ErrorHookProc (JSDContext *jsdc, JSContext *cx, const char *message,
         errnum   = 0;
     }
     
-    gJsds->DoPause(nullptr, true);
+    gJsds->DoPause(nsnull, true);
     hook->OnError (nsDependentCString(message), fileName, line, pos, flags, errnum, val, &rval);
-    gJsds->DoUnPause(nullptr, true);
+    gJsds->DoUnPause(nsnull, true);
     
     running = false;
     if (!rval)
@@ -584,9 +584,9 @@ jsds_CallHookProc (JSDContext* jsdc, JSDThreadState* jsdthreadstate,
     nsCOMPtr<jsdIStackFrame> frame =
         getter_AddRefs(jsdStackFrame::FromPtr(jsdc, jsdthreadstate,
                                               native_frame));
-    gJsds->DoPause(nullptr, true);
+    gJsds->DoPause(nsnull, true);
     hook->OnCall(frame, type);    
-    gJsds->DoUnPause(nullptr, true);
+    gJsds->DoUnPause(nsnull, true);
     jsdStackFrame::InvalidateAll();
 
     return JS_TRUE;
@@ -646,13 +646,13 @@ jsds_ExecutionHookProc (JSDContext* jsdc, JSDThreadState* jsdthreadstate,
     nsCOMPtr<jsdIStackFrame> frame =
         getter_AddRefs(jsdStackFrame::FromPtr(jsdc, jsdthreadstate,
                                               native_frame));
-    gJsds->DoPause(nullptr, true);
+    gJsds->DoPause(nsnull, true);
     jsdIValue *inout_rv = js_rv;
     NS_IF_ADDREF(inout_rv);
     hook->OnExecute (frame, type, &inout_rv, &hook_rv);
     js_rv = inout_rv;
     NS_IF_RELEASE(inout_rv);
-    gJsds->DoUnPause(nullptr, true);
+    gJsds->DoUnPause(nsnull, true);
     jsdStackFrame::InvalidateAll();
         
     if (hook_rv == JSD_HOOK_RETURN_RET_WITH_VAL ||
@@ -692,9 +692,9 @@ jsds_ScriptHookProc (JSDContext* jsdc, JSDScript* jsdscript, JSBool creating,
 #ifdef CAUTIOUS_SCRIPTHOOK
         JS_UNKEEP_ATOMS(rt);
 #endif
-        gJsds->DoPause(nullptr, true);
+        gJsds->DoPause(nsnull, true);
         hook->OnScriptCreated (script);
-        gJsds->DoUnPause(nullptr, true);
+        gJsds->DoUnPause(nsnull, true);
 #ifdef CAUTIOUS_SCRIPTHOOK
         JS_KEEP_ATOMS(rt);
 #endif
@@ -721,9 +721,9 @@ jsds_ScriptHookProc (JSDContext* jsdc, JSDScript* jsdscript, JSBool creating,
             JS_UNKEEP_ATOMS(rt);
 #endif
                 
-            gJsds->DoPause(nullptr, true);
+            gJsds->DoPause(nsnull, true);
             hook->OnScriptDestroyed (jsdis);
-            gJsds->DoUnPause(nullptr, true);
+            gJsds->DoUnPause(nsnull, true);
 #ifdef CAUTIOUS_SCRIPTHOOK
             JS_KEEP_ATOMS(rt);
 #endif
@@ -1003,17 +1003,17 @@ jsdScript::CreatePPLineMap()
         {
             JSAutoEnterCompartment ac;
             if (!ac.enter(cx, JS_GetFunctionObject(fun)))
-                return nullptr;
+                return nsnull;
 
             nargs = JS_GetFunctionArgumentCount(cx, fun);
             if (nargs > 12)
-                return nullptr;
+                return nsnull;
             jsstr = JS_DecompileFunctionBody (cx, fun, 4);
             if (!jsstr)
-                return nullptr;
+                return nsnull;
 
             if (!(chars = JS_GetStringCharsAndLength(cx, jsstr, &length)))
-                return nullptr;
+                return nsnull;
         }
 
         JS::Anchor<JSString *> kungFuDeathGrip(jsstr);
@@ -1023,7 +1023,7 @@ jsdScript::CreatePPLineMap()
         fun = JS_CompileUCFunction (cx, obj, "ppfun", nargs, argnames, chars,
                                     length, "x-jsd:ppbuffer?type=function", 3);
         if (!fun || !(script = JS_GetFunctionScript(cx, fun)))
-            return nullptr;
+            return nsnull;
         baseLine = 3;
     } else {
         script = JSD_GetJSScript(mCx, mScript);
@@ -1032,20 +1032,20 @@ jsdScript::CreatePPLineMap()
         {
             JS::AutoEnterScriptCompartment ac;
             if (!ac.enter(cx, script))
-                return nullptr;
+                return nsnull;
 
             jsstr = JS_DecompileScript (cx, script, "ppscript", 4);
             if (!jsstr)
-                return nullptr;
+                return nsnull;
 
             if (!(chars = JS_GetStringCharsAndLength(cx, jsstr, &length)))
-                return nullptr;
+                return nsnull;
         }
 
         JS::Anchor<JSString *> kungFuDeathGrip(jsstr);
         script = JS_CompileUCScript (cx, obj, chars, length, "x-jsd:ppbuffer?type=script", 1);
         if (!script)
-            return nullptr;
+            return nsnull;
         baseLine = 1;
     }
 
@@ -1234,7 +1234,7 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
     JSFunction *fun = JSD_GetJSFunction (mCx, mScript);
     if (!fun) {
         *count = 0;
-        *paramNames = nullptr;
+        *paramNames = nsnull;
         return NS_OK;
     }
 
@@ -1247,7 +1247,7 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
     if (!JS_FunctionHasLocalNames(cx, fun) ||
         (nargs = JS_GetFunctionArgumentCount(cx, fun)) == 0) {
         *count = 0;
-        *paramNames = nullptr;
+        *paramNames = nsnull;
         return NS_OK;
     }
 
@@ -1592,7 +1592,7 @@ jsdIContext *
 jsdContext::FromPtr (JSDContext *aJSDCx, JSContext *aJSCx)
 {
     if (!aJSDCx || !aJSCx)
-        return nullptr;
+        return nsnull;
 
     nsCOMPtr<jsdIContext> jsdicx;
     nsCOMPtr<jsdIEphemeral> eph = 
@@ -1609,7 +1609,7 @@ jsdContext::FromPtr (JSDContext *aJSDCx, JSContext *aJSCx)
         jsdicx = new jsdContext (aJSDCx, aJSCx, iscx);
     }
 
-    jsdIContext *ctx = nullptr;
+    jsdIContext *ctx = nsnull;
     jsdicx.swap(ctx);
     return ctx;
 }
@@ -1701,7 +1701,7 @@ jsdContext::GetPrivateData(nsISupports **_rval)
     }
     else
     {
-        *_rval = nullptr;
+        *_rval = nsnull;
     }
     
     return NS_OK;
@@ -1825,7 +1825,7 @@ jsdStackFrame::FromPtr (JSDContext *aCx, JSDThreadState *aThreadState,
                         JSDStackFrameInfo *aStackFrameInfo)
 {
     if (!aStackFrameInfo)
-        return nullptr;
+        return nsnull;
 
     jsdIStackFrame *rv;
     nsCOMPtr<jsdIStackFrame> frame;
@@ -2071,7 +2071,7 @@ jsdStackFrame::Eval (const nsAString &bytes, const nsACString &fileName,
     rv = stack->Pop(&poppedCX);
     NS_ASSERTION(NS_SUCCEEDED(rv) && poppedCX == cx, "bad pop");
 #else
-    (void) stack->Pop(nullptr);
+    (void) stack->Pop(nsnull);
 #endif
 
     JSDValue *jsdv = JSD_NewValue (mCx, jv);
@@ -2092,7 +2092,7 @@ jsdValue::FromPtr (JSDContext *aCx, JSDValue *aValue)
     /* value will be dropped by te jsdValue destructor. */
 
     if (!aValue)
-        return nullptr;
+        return nsnull;
     
     jsdIValue *rv = new jsdValue (aCx, aValue);
     NS_IF_ADDREF(rv);
@@ -2327,7 +2327,7 @@ NS_IMETHODIMP
 jsdValue::GetProperties (jsdIProperty ***propArray, PRUint32 *length)
 {
     ASSERT_VALID_EPHEMERAL;
-    *propArray = nullptr;
+    *propArray = nsnull;
     if (length)
         *length = 0;
 
@@ -2550,8 +2550,8 @@ jsdService::DeactivateDebugger ()
     
     JSD_DebuggerOff (mCx);
 
-    mCx = nullptr;
-    mRuntime = nullptr;
+    mCx = nsnull;
+    mRuntime = nsnull;
     mOn = false;
 
     return NS_OK;
@@ -2928,7 +2928,7 @@ jsdService::RemoveFilter (jsdIFilter *filter)
                                    (PR_NEXT_LINK(&rec->links));
         /* If we're the only filter left, null out the list head. */
         if (gFilters == rec)
-            gFilters = nullptr;
+            gFilters = nsnull;
     }
 
     
@@ -2996,7 +2996,7 @@ jsdService::EnumerateFilters (jsdIFilterEnumerator *enumerator)
 NS_IMETHODIMP
 jsdService::RefreshFilters ()
 {
-    return EnumerateFilters(nullptr);
+    return EnumerateFilters(nsnull);
 }
 
 NS_IMETHODIMP
@@ -3016,7 +3016,7 @@ jsdService::ClearFilters ()
     } while (current != gFilters);
     
     jsds_FreeFilter(current);
-    gFilters = nullptr;
+    gFilters = nsnull;
     
     return NS_OK;
 }
@@ -3060,11 +3060,11 @@ jsdService::EnterNestedEventLoop (jsdINestCallback *callback, PRUint32 *_rval)
     
     nsCOMPtr<nsIThread> thread = do_GetCurrentThread();
 
-    if (NS_SUCCEEDED(stack->Push(nullptr))) {
+    if (NS_SUCCEEDED(stack->Push(nsnull))) {
         if (callback) {
-            DoPause(nullptr, true);
+            DoPause(nsnull, true);
             rv = callback->OnNest();
-            DoUnPause(nullptr, true);
+            DoUnPause(nsnull, true);
         }
         
         while (NS_SUCCEEDED(rv) && mNestedLoopLevel >= nestLevel) {
@@ -3074,7 +3074,7 @@ jsdService::EnterNestedEventLoop (jsdINestCallback *callback, PRUint32 *_rval)
 
         JSContext* cx;
         stack->Pop(&cx);
-        NS_ASSERTION(cx == nullptr, "JSContextStack mismatch");
+        NS_ASSERTION(cx == nsnull, "JSContextStack mismatch");
     }
     else
         rv = NS_ERROR_FAILURE;
@@ -3346,17 +3346,17 @@ jsdService::GetFunctionHook (jsdICallHook **aHook)
 jsdService::~jsdService()
 {
     ClearFilters();
-    mErrorHook = nullptr;
-    mBreakpointHook = nullptr;
-    mDebugHook = nullptr;
-    mDebuggerHook = nullptr;
-    mInterruptHook = nullptr;
-    mScriptHook = nullptr;
-    mThrowHook = nullptr;
-    mTopLevelHook = nullptr;
-    mFunctionHook = nullptr;
+    mErrorHook = nsnull;
+    mBreakpointHook = nsnull;
+    mDebugHook = nsnull;
+    mDebuggerHook = nsnull;
+    mInterruptHook = nsnull;
+    mScriptHook = nsnull;
+    mThrowHook = nsnull;
+    mTopLevelHook = nsnull;
+    mFunctionHook = nsnull;
     Off();
-    gJsds = nullptr;
+    gJsds = nsnull;
 }
 
 jsdService *

@@ -100,7 +100,7 @@ NS_IMETHODIMP nsExtProtocolChannel::SetNotificationCallbacks(nsIInterfaceRequest
 NS_IMETHODIMP 
 nsExtProtocolChannel::GetSecurityInfo(nsISupports * *aSecurityInfo)
 {
-  *aSecurityInfo = nullptr;
+  *aSecurityInfo = nsnull;
   return NS_OK;
 }
 

@@ -13,7 +13,7 @@ class WGLLibrary
 public:
     WGLLibrary() 
       : mInitialized(false), 
-        mOGLLibrary(nullptr),
+        mOGLLibrary(nsnull),
         mHasRobustness(false), 
         mWindow (0),
         mWindowDC(0),
@@ -69,7 +69,7 @@ public:
     PFNWGLCREATECONTEXTATTRIBSPROC fCreateContextAttribs;
 
     bool EnsureInitialized(bool aUseMesaLlvmPipe);
-    HWND CreateDummyWindow(HDC *aWindowDC = nullptr);
+    HWND CreateDummyWindow(HDC *aWindowDC = nsnull);
 
     bool HasRobustness() const { return mHasRobustness; }
     bool IsInitialized() const { return mInitialized; }

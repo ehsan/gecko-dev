@@ -241,7 +241,7 @@ public:
    *        its create is called.
    * @return error status
    */
-  nsresult CreateWidget(nsWidgetInitData *aWidgetInitData = nullptr,
+  nsresult CreateWidget(nsWidgetInitData *aWidgetInitData = nsnull,
                         bool aEnableDragDrop = true,
                         bool aResetVisibility = true);
 
@@ -251,7 +251,7 @@ public:
    * as for |CreateWidget()|.
    */
   nsresult CreateWidgetForParent(nsIWidget* aParentWidget,
-                                 nsWidgetInitData *aWidgetInitData = nullptr,
+                                 nsWidgetInitData *aWidgetInitData = nsnull,
                                  bool aEnableDragDrop = true,
                                  bool aResetVisibility = true);
 
@@ -263,7 +263,7 @@ public:
    * |aWidgetInitData| must be nonnull.
    */
   nsresult CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
-                                nsIWidget* aParentWidget = nullptr,
+                                nsIWidget* aParentWidget = nsnull,
                                 bool aEnableDragDrop = true,
                                 bool aResetVisibility = true);
 
@@ -299,14 +299,14 @@ public:
    * If we believe that all cutout view have a native widget, this
    * could be a replacement.
    * @param aWidget out parameter for widget that this view contains,
-   *        or nullptr if there is none.
+   *        or nsnull if there is none.
    */
   nsIWidget* GetWidget() const { return mWindow; }
 
   /**
    * Returns true if the view has a widget associated with it.
    */
-  bool HasWidget() const { return mWindow != nullptr; }
+  bool HasWidget() const { return mWindow != nsnull; }
 
   /**
    * Make aWidget direct its events to this view.
@@ -382,7 +382,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIView, NS_IVIEW_IID)
 class nsWeakView
 {
 public:
-  nsWeakView(nsIView* aView) : mPrev(nullptr), mView(aView)
+  nsWeakView(nsIView* aView) : mPrev(nsnull), mView(aView)
   {
     if (mView) {
       mView->SetDeletionObserver(this);
@@ -395,7 +395,7 @@ public:
       NS_ASSERTION(mView->mDeletionObserver == this,
                    "nsWeakViews deleted in wrong order!");
       // Clear deletion observer temporarily.
-      mView->SetDeletionObserver(nullptr);
+      mView->SetDeletionObserver(nsnull);
       // Put back the previous deletion observer.
       mView->SetDeletionObserver(mPrev);
     }
@@ -412,7 +412,7 @@ public:
     if (mPrev) {
       mPrev->Clear();
     }
-    mView = nullptr;
+    mView = nsnull;
   }
 private:
   static void* operator new(size_t) CPP_THROW_NEW { return 0; }

@@ -30,7 +30,7 @@ public:
    * Constructor. Used to expose default text attributes.
    */
   TextAttrsMgr(HyperTextAccessible* aHyperTextAcc) :
-    mOffsetAcc(nullptr),  mHyperTextAcc(aHyperTextAcc),
+    mOffsetAcc(nsnull),  mHyperTextAcc(aHyperTextAcc),
     mOffsetAccIdx(-1), mIncludeDefAttrs(true) { }
 
   /**
@@ -64,8 +64,8 @@ public:
    * @param aEndHTOffset   [out, optional] end hyper text offset
    */
   void GetAttributes(nsIPersistentProperties* aAttributes,
-                     PRInt32* aStartHTOffset = nullptr,
-                     PRInt32* aEndHTOffset = nullptr);
+                     PRInt32* aStartHTOffset = nsnull,
+                     PRInt32* aEndHTOffset = nsnull);
 
 protected:
   /**

@@ -64,7 +64,7 @@ GetContextFromStack(nsIJSContextStack *aStack, JSContext **aContext)
     }
   }
 
-  *aContext = nullptr;
+  *aContext = nsnull;
 
   return NS_OK;
 }
@@ -143,20 +143,20 @@ static already_AddRefed<nsIDocument>
 GetFrameDocument(JSContext *cx, JSStackFrame *fp)
 {
   if (!cx || !fp)
-    return nullptr;
+    return nsnull;
 
   JSObject* scope = JS_GetGlobalForFrame(fp);
   if (!scope)
-    return nullptr;
+    return nsnull;
 
   JSAutoEnterCompartment ac;
   if (!ac.enter(cx, scope))
-     return nullptr;
+     return nsnull;
 
   nsCOMPtr<nsIDOMWindow> window =
     do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, scope));
   if (!window)
-    return nullptr;
+    return nsnull;
 
   // If it's a window, get its document.
   nsCOMPtr<nsIDOMDocument> domDoc;
@@ -168,7 +168,7 @@ GetFrameDocument(JSContext *cx, JSStackFrame *fp)
 nsresult
 nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
 {
-  *aLoadInfo = nullptr;
+  *aLoadInfo = nsnull;
   JSContext* cx;
   if ((cx = nsContentUtils::GetCurrentJSContext())) {
     nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
@@ -265,7 +265,7 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
 nsresult
 nsLocation::GetURI(nsIURI** aURI, bool aGetInnermostURI)
 {
-  *aURI = nullptr;
+  *aURI = nsnull;
 
   nsresult rv;
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocShell));
@@ -303,7 +303,7 @@ nsLocation::GetURI(nsIURI** aURI, bool aGetInnermostURI)
 nsresult
 nsLocation::GetWritableURI(nsIURI** aURI)
 {
-  *aURI = nullptr;
+  *aURI = nsnull;
 
   nsCOMPtr<nsIURI> uri;
 
@@ -578,7 +578,7 @@ nsLocation::SetHrefWithBase(const nsAString& aHref, nsIURI* aBase,
   if (NS_SUCCEEDED(GetDocumentCharacterSetForURI(aHref, docCharset)))
     result = NS_NewURI(getter_AddRefs(newUri), aHref, docCharset.get(), aBase);
   else
-    result = NS_NewURI(getter_AddRefs(newUri), aHref, nullptr, aBase);
+    result = NS_NewURI(getter_AddRefs(newUri), aHref, nsnull, aBase);
 
   if (newUri) {
     /* Check with the scriptContext if it is currently processing a script tag.
@@ -935,7 +935,7 @@ nsLocation::GetSourceDocument(JSContext* cx, nsIDocument** aDocument)
       return CallQueryInterface(domDoc, aDocument);
     }
   } else {
-    *aDocument = nullptr;
+    *aDocument = nsnull;
   }
 
   return rv;
@@ -949,7 +949,7 @@ nsLocation::GetSourceBaseURL(JSContext* cx, nsIURI** sourceURL)
   if (doc) {
     *sourceURL = doc->GetBaseURI().get();
   } else {
-    *sourceURL = nullptr;
+    *sourceURL = nsnull;
   }
 
   return rv;

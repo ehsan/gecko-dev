@@ -38,7 +38,7 @@ class nsConverterInputStream : public nsIConverterInputStream,
         mUnicharDataOffset(0),
         mUnicharDataLength(0),
         mReplacementChar(DEFAULT_REPLACEMENT_CHARACTER),
-        mLineBuffer(nullptr) { }
+        mLineBuffer(nsnull) { }
     
     virtual ~nsConverterInputStream() { Close(); }
 

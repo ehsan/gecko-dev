@@ -100,10 +100,10 @@ public:
   NS_IMETHOD              HideWindowChrome(bool aShouldHide);
   NS_IMETHOD              MakeFullScreen(bool aFullScreen);
   virtual nsDeviceContext* GetDeviceContext();
-  virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nullptr,
+  virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nsnull,
                                           LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                                          bool* aAllowRetaining = nullptr);
+                                          bool* aAllowRetaining = nsnull);
 
   virtual void            CreateCompositor();
   virtual void            DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect) {}
@@ -152,7 +152,7 @@ public:
   CreateChild(const nsIntRect  &aRect,
               EVENT_CALLBACK   aHandleEventFunction,
               nsDeviceContext *aContext,
-              nsWidgetInitData *aInitData = nullptr,
+              nsWidgetInitData *aInitData = nsnull,
               bool             aForceUseIWidgetParent = false);
   NS_IMETHOD              SetEventCallback(EVENT_CALLBACK aEventFunction, nsDeviceContext *aContext);
   NS_IMETHOD              AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction, nsDeviceContext *aContext);

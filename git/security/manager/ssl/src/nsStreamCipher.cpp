@@ -46,7 +46,7 @@ nsStreamCipher::InitWithIV_(nsIKeyObject *aKey, SECItem* aIV)
 
   CK_MECHANISM_TYPE cipherMech = PK11_GetMechanism(symkey);
 
-  SECItem *param = nullptr;
+  SECItem *param = nsnull;
   // aIV may be null
   param = PK11_ParamFromIV(cipherMech, aIV);
   if (!param)
@@ -71,7 +71,7 @@ nsStreamCipher::InitWithIV_(nsIKeyObject *aKey, SECItem* aIV)
 
 NS_IMETHODIMP nsStreamCipher::Init(nsIKeyObject *aKey)
 {
-  return InitWithIV_(aKey, nullptr);
+  return InitWithIV_(aKey, nsnull);
 }
 
 NS_IMETHODIMP nsStreamCipher::InitWithIV(nsIKeyObject *aKey,

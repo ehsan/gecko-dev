@@ -91,7 +91,7 @@ ResetRenderingContext() {
     return;
   if (NS_FAILED(ctxI->Reset())) {
     NS_RELEASE(gCtx);
-    gCtx = nullptr;
+    gCtx = nsnull;
   }
 }
 
@@ -116,7 +116,7 @@ TaskbarPreview::TaskbarPreview(ITaskbarList4 *aTaskbar, nsITaskbarPreviewControl
 TaskbarPreview::~TaskbarPreview() {
   // Avoid dangling pointer
   if (sActivePreview == this)
-    sActivePreview = nullptr;
+    sActivePreview = nsnull;
 
   // Our subclass should have invoked DetachFromNSWindow already.
   NS_ASSERTION(!mWnd, "TaskbarPreview::DetachFromNSWindow was not called before destruction");
@@ -221,7 +221,7 @@ TaskbarPreview::UpdateTaskbarProperties() {
       if (NS_FAILED(rvActive))
         rv = rvActive;
     } else {
-      sActivePreview = nullptr;
+      sActivePreview = nsnull;
     }
   }
   return rv;
@@ -426,7 +426,7 @@ TaskbarPreview::MainWindowHook(void *aContext,
 }
 
 TaskbarPreview *
-TaskbarPreview::sActivePreview = nullptr;
+TaskbarPreview::sActivePreview = nsnull;
 
 } // namespace widget
 } // namespace mozilla

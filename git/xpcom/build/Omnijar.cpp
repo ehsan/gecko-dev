@@ -13,8 +13,8 @@
 
 namespace mozilla {
 
-nsIFile *Omnijar::sPath[2] = { nullptr, nullptr };
-nsZipArchive *Omnijar::sReader[2] = { nullptr, nullptr };
+nsIFile *Omnijar::sPath[2] = { nsnull, nsnull };
+nsZipArchive *Omnijar::sReader[2] = { nsnull, nsnull };
 bool Omnijar::sInitialized = false;
 static bool sIsUnified = false;
 static bool sIsNested[2] = { false, false };
@@ -31,7 +31,7 @@ Omnijar::CleanUpOne(Type aType)
         sReader[aType]->CloseArchive();
         NS_IF_RELEASE(sReader[aType]);
     }
-    sReader[aType] = nullptr;
+    sReader[aType] = nsnull;
     NS_IF_RELEASE(sPath[aType]);
 }
 
@@ -127,7 +127,7 @@ Omnijar::GetReader(nsIFile *aPath)
         if (NS_SUCCEEDED(rv) && equals)
             return GetReader(APP);
     }
-    return nullptr;
+    return nsnull;
 }
 
 nsresult

@@ -161,7 +161,7 @@ public:
     if (mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::usemap, usemap)) {
       return mContent->OwnerDoc()->FindImageMap(usemap);
     }
-    return nullptr;
+    return nsnull;
   }
 
   /**

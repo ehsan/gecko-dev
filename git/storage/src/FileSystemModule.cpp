@@ -288,16 +288,16 @@ int RegisterFileSystemModule(sqlite3* aDB, const char* aName)
     Eof,
     Column,
     RowId,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr
+    nsnull,
+    nsnull,
+    nsnull,
+    nsnull,
+    nsnull,
+    nsnull,
+    nsnull
   };
 
-  return sqlite3_create_module(aDB, aName, &module, nullptr);
+  return sqlite3_create_module(aDB, aName, &module, nsnull);
 }
 
 } // namespace storage

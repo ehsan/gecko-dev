@@ -74,13 +74,13 @@ AutoConfigSecMan::CanAccess(PRUint32 aAction,
 
 //*****************************************************************************
 
-static  JSContext *autoconfig_cx = nullptr;
+static  JSContext *autoconfig_cx = nsnull;
 static  JSObject *autoconfig_glob;
 
 static JSClass global_class = {
     "autoconfig_global", JSCLASS_GLOBAL_FLAGS,
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   nullptr
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   nsnull
 };
 
 static void
@@ -146,7 +146,7 @@ nsresult CentralizedAdminPrefManagerInit()
 
     // failue exit... clean up the JS context
     JS_DestroyContext(autoconfig_cx);
-    autoconfig_cx = nullptr;
+    autoconfig_cx = nsnull;
     return NS_ERROR_FAILURE;
 }
 
@@ -199,7 +199,7 @@ nsresult EvaluateAdminConfigScript(const char *js_buffer, size_t length,
     nsContentUtils::GetSecurityManager()->GetSystemPrincipal(getter_AddRefs(principal));
     ok = JS_EvaluateScriptForPrincipals(autoconfig_cx, autoconfig_glob, 
                                         nsJSPrincipals::get(principal),
-                                        js_buffer, length, filename, 0, nullptr);
+                                        js_buffer, length, filename, 0, nsnull);
     JS_EndRequest(autoconfig_cx);
 
     JS_MaybeGC(autoconfig_cx);

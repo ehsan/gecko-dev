@@ -142,8 +142,8 @@ public:
       mIsContext(aIsContext),
       mOnMenuBar(false),
       mIgnoreKeys(false),
-      mParent(nullptr),
-      mChild(nullptr)
+      mParent(nsnull),
+      mChild(nsnull)
   {
     NS_ASSERTION(aFrame, "null frame passed to nsMenuChainItem constructor");
     MOZ_COUNT_CTOR(nsMenuChainItem);
@@ -445,7 +445,7 @@ public:
                  bool aHideChain,
                  bool aDeselectMenu,
                  bool aAsynchronous,
-                 nsIContent* aLastPopup = nullptr);
+                 nsIContent* aLastPopup = nsnull);
 
   /**
    * Hide the popup aFrame. This method is called by the view manager when the
@@ -594,7 +594,7 @@ public:
   bool HandleKeyboardNavigationInPopup(nsMenuPopupFrame* aFrame,
                                          nsNavigationDirection aDir)
   {
-    return HandleKeyboardNavigationInPopup(nullptr, aFrame, aDir);
+    return HandleKeyboardNavigationInPopup(nsnull, aFrame, aDir);
   }
 
   nsresult KeyUp(nsIDOMKeyEvent* aKeyEvent);

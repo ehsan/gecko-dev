@@ -216,7 +216,7 @@ nsTextServicesDocument::GetDocument(nsIDOMDocument **aDoc)
 {
   NS_ENSURE_TRUE(aDoc, NS_ERROR_NULL_POINTER);
 
-  *aDoc = nullptr; // init out param
+  *aDoc = nsnull; // init out param
   NS_ENSURE_TRUE(mDOMDocument, NS_ERROR_NOT_INITIALIZED);
 
   *aDoc = mDOMDocument;
@@ -366,7 +366,7 @@ nsTextServicesDocument::ExpandRangeToWordBoundaries(nsIDOMRange *aRange)
   nsAutoString blockStr;
 
   result = CreateOffsetTable(&offsetTable, docIter, &iterStatus,
-                             nullptr, &blockStr);
+                             nsnull, &blockStr);
   if (NS_FAILED(result))
   {
     ClearOffsetTable(&offsetTable);
@@ -397,7 +397,7 @@ nsTextServicesDocument::ExpandRangeToWordBoundaries(nsIDOMRange *aRange)
   iterStatus = nsTextServicesDocument::eValid;
 
   result = CreateOffsetTable(&offsetTable, docIter, &iterStatus,
-                             nullptr, &blockStr);
+                             nsnull, &blockStr);
   if (NS_FAILED(result))
   {
     ClearOffsetTable(&offsetTable);
@@ -483,15 +483,15 @@ nsTextServicesDocument::FirstBlock()
 
   if (mIteratorStatus == nsTextServicesDocument::eValid)
   {
-    mPrevTextBlock  = nullptr;
+    mPrevTextBlock  = nsnull;
     result = GetFirstTextNodeInNextBlock(getter_AddRefs(mNextTextBlock));
   }
   else
   {
     // There's no text block in the document!
 
-    mPrevTextBlock  = nullptr;
-    mNextTextBlock  = nullptr;
+    mPrevTextBlock  = nsnull;
+    mNextTextBlock  = nsnull;
   }
 
   UNLOCK_DOC(this);
@@ -621,7 +621,7 @@ nsTextServicesDocument::LastSelectedBlock(TSDBlockSelectionStatus *aSelStatus,
       mIteratorStatus = nsTextServicesDocument::eValid;
 
       result = CreateOffsetTable(&mOffsetTable, mIterator, &mIteratorStatus,
-                                 mExtent, nullptr);
+                                 mExtent, nsnull);
 
       if (NS_FAILED(result))
       {
@@ -690,7 +690,7 @@ nsTextServicesDocument::LastSelectedBlock(TSDBlockSelectionStatus *aSelStatus,
         if (IsTextNode(content))
           break;
 
-        content = nullptr;
+        content = nsnull;
 
         iter->Next();
       }
@@ -720,7 +720,7 @@ nsTextServicesDocument::LastSelectedBlock(TSDBlockSelectionStatus *aSelStatus,
       mIteratorStatus = nsTextServicesDocument::eValid;
 
       result = CreateOffsetTable(&mOffsetTable, mIterator, &mIteratorStatus,
-                                 mExtent, nullptr);
+                                 mExtent, nsnull);
 
       if (NS_FAILED(result))
       {
@@ -820,7 +820,7 @@ nsTextServicesDocument::LastSelectedBlock(TSDBlockSelectionStatus *aSelStatus,
         mIteratorStatus = nsTextServicesDocument::eValid;
 
         result = CreateOffsetTable(&mOffsetTable, mIterator, &mIteratorStatus,
-                                   mExtent, nullptr);
+                                   mExtent, nsnull);
 
         if (NS_FAILED(result))
         {
@@ -943,7 +943,7 @@ nsTextServicesDocument::LastSelectedBlock(TSDBlockSelectionStatus *aSelStatus,
       mIteratorStatus = nsTextServicesDocument::eValid;
 
       result = CreateOffsetTable(&mOffsetTable, mIterator, &mIteratorStatus,
-                                 mExtent, nullptr);
+                                 mExtent, nsnull);
 
       if (NS_FAILED(result))
       {
@@ -1031,8 +1031,8 @@ nsTextServicesDocument::PrevBlock()
   {
     // We must be done!
 
-    mPrevTextBlock = nullptr;
-    mNextTextBlock = nullptr;
+    mPrevTextBlock = nsnull;
+    mNextTextBlock = nsnull;
   }
 
   UNLOCK_DOC(this);
@@ -1109,8 +1109,8 @@ nsTextServicesDocument::NextBlock()
   {
     // We must be done.
 
-    mPrevTextBlock = nullptr;
-    mNextTextBlock = nullptr;
+    mPrevTextBlock = nsnull;
+    mNextTextBlock = nsnull;
   }
 
 
@@ -2693,7 +2693,7 @@ nsTextServicesDocument::GetCollapsedSelection(nsITextServicesDocument::TSDBlockS
   // the text block, to find the first text node you
   // come across.
 
-  nsIContent* node = nullptr;
+  nsIContent* node = nsnull;
   while (!iter->IsDone()) {
     nsINode* current = iter->GetCurrentNode();
     if (current->NodeType() == nsIDOMNode::TEXT_NODE) {
@@ -2718,7 +2718,7 @@ nsTextServicesDocument::GetCollapsedSelection(nsITextServicesDocument::TSDBlockS
     result = iter->PositionAt(saveNode);
     NS_ENSURE_SUCCESS(result, result);
 
-    node = nullptr;
+    node = nsnull;
     while (!iter->IsDone()) {
       nsINode* current = iter->GetCurrentNode();
 
@@ -3168,7 +3168,7 @@ nsTextServicesDocument::FirstTextNodeInCurrentBlock(nsIContentIterator *iter)
   {
     nsCOMPtr<nsIContent> content = iter->GetCurrentNode()->IsContent()
                                    ? iter->GetCurrentNode()->AsContent()
-                                   : nullptr;
+                                   : nsnull;
 
     if (IsTextNode(content))
     {
@@ -3241,7 +3241,7 @@ nsTextServicesDocument::FirstTextNodeInNextBlock(nsIContentIterator *aIterator)
   {
     nsCOMPtr<nsIContent> content = aIterator->GetCurrentNode()->IsContent()
                                    ? aIterator->GetCurrentNode()->AsContent()
-                                   : nullptr;
+                                   : nsnull;
 
     if (IsTextNode(content))
     {
@@ -3289,7 +3289,7 @@ nsTextServicesDocument::GetFirstTextNodeInPrevBlock(nsIContent **aContent)
   {
     nsCOMPtr<nsIContent> current = mIterator->GetCurrentNode()->IsContent()
                                    ? mIterator->GetCurrentNode()->AsContent()
-                                   : nullptr;
+                                   : nsnull;
     current.forget(aContent);
   }
 
@@ -3325,7 +3325,7 @@ nsTextServicesDocument::GetFirstTextNodeInNextBlock(nsIContent **aContent)
   {
     nsCOMPtr<nsIContent> current = mIterator->GetCurrentNode()->IsContent()
                                    ? mIterator->GetCurrentNode()->AsContent()
-                                   : nullptr;
+                                   : nsnull;
     current.forget(aContent);
   }
 
@@ -3387,7 +3387,7 @@ nsTextServicesDocument::CreateOffsetTable(nsTArray<OffsetEntry*> *aOffsetTable,
   {
     nsCOMPtr<nsIContent> content = aIterator->GetCurrentNode()->IsContent()
                                    ? aIterator->GetCurrentNode()->AsContent()
-                                   : nullptr;
+                                   : nsnull;
 
     if (IsTextNode(content))
     {
@@ -3609,11 +3609,11 @@ nsTextServicesDocument::FindWordBounds(nsTArray<OffsetEntry*> *aOffsetTable,
   // Initialize return values.
 
   if (aWordStartNode)
-    *aWordStartNode = nullptr;
+    *aWordStartNode = nsnull;
   if (aWordStartOffset)
     *aWordStartOffset = 0;
   if (aWordEndNode)
-    *aWordEndNode = nullptr;
+    *aWordEndNode = nsnull;
   if (aWordEndOffset)
     *aWordEndOffset = 0;
 

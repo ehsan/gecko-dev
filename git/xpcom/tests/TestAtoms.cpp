@@ -253,7 +253,7 @@ tests[] =
     { "test_atomtable", test_atomtable },
     { "test_permanent", test_permanent },
 #endif
-    { nullptr, nullptr }
+    { nsnull, nsnull }
   };
 
 }
@@ -264,15 +264,15 @@ int main()
   {
     {
       nsCOMPtr<nsIServiceManager> servMan;
-      NS_InitXPCOM2(getter_AddRefs(servMan), nullptr, nullptr);
+      NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
   
-      for (const Test* t = tests; t->name != nullptr; ++t)
+      for (const Test* t = tests; t->name != nsnull; ++t)
         {
           printf("%25s : %s\n", t->name, t->func() ? "SUCCESS" : "FAILURE <--");
         }
     }
 
-    NS_ShutdownXPCOM(nullptr);
+    NS_ShutdownXPCOM(nsnull);
 
     return 0;
   }

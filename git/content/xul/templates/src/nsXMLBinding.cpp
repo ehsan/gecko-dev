@@ -15,7 +15,7 @@ NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(nsXMLBindingSet)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXMLBindingSet)
   nsXMLBinding* binding = tmp->mFirst;
   while (binding) {
-    binding->mExpr = nullptr;
+    binding->mExpr = nsnull;
     binding = binding->mNext;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -79,7 +79,7 @@ nsXMLBindingSet::LookupTargetIndex(nsIAtom* aTargetVariable,
     binding = binding->mNext;
   }
 
-  *aBinding = nullptr;
+  *aBinding = nsnull;
   return -1;
 }
 
@@ -98,7 +98,7 @@ nsXMLBindingValues::GetAssignmentFor(nsXULTemplateResultXML* aResult,
     if (contextNode) {
       nsCOMPtr<nsISupports> resultsupports;
       aBinding->mExpr->Evaluate(contextNode, aType,
-                                nullptr, getter_AddRefs(resultsupports));
+                                nsnull, getter_AddRefs(resultsupports));
 
       nsCOMPtr<nsIDOMXPathResult> result = do_QueryInterface(resultsupports);
       if (result && mValues.ReplaceObjectAt(result, aIndex))
@@ -123,7 +123,7 @@ nsXMLBindingValues::GetNodeAssignmentFor(nsXULTemplateResultXML* aResult,
   if (result)
     result->GetSingleNodeValue(aNode);
   else
-    *aNode = nullptr;
+    *aNode = nsnull;
 }
 
 void

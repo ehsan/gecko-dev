@@ -211,7 +211,7 @@ public:
    */
   nsIFrame* GetPrimaryFrameOfOwningContent() const
   {
-    return mOwnerContent ? mOwnerContent->GetPrimaryFrame() : nullptr;
+    return mOwnerContent ? mOwnerContent->GetPrimaryFrame() : nsnull;
   }
 
   /** 
@@ -219,7 +219,7 @@ public:
    * an owner.
    */
   nsIDocument* GetOwnerDoc() const
-  { return mOwnerContent ? mOwnerContent->OwnerDoc() : nullptr; }
+  { return mOwnerContent ? mOwnerContent->OwnerDoc() : nsnull; }
 
   PBrowserParent* GetRemoteBrowser();
 

@@ -72,7 +72,7 @@ TestOpensParent::AllocPTestOpensOpened(Transport* transport,
 
     ProcessHandle h;
     if (!base::OpenProcessHandle(otherProcess, &h)) {
-        return nullptr;
+        return nsnull;
     }
 
     gParentThread = new Thread("ParentThread");
@@ -185,7 +185,7 @@ TestOpensChild::AllocPTestOpensOpened(Transport* transport,
 
     ProcessHandle h;
     if (!base::OpenProcessHandle(otherProcess, &h)) {
-        return nullptr;
+        return nsnull;
     }
 
     gChildThread = new Thread("ChildThread");

@@ -20,7 +20,7 @@
 #include "nsBoxFrame.h"
 #include "StackArena.h"
 
-nsBoxLayout* nsSprocketLayout::gInstance = nullptr;
+nsBoxLayout* nsSprocketLayout::gInstance = nsnull;
 
 //#define DEBUG_GROW
 
@@ -205,8 +205,8 @@ nsSprocketLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
   GetFrameState(aBox, frameState);
 
   // Build a list of our children's desired sizes and computed sizes
-  nsBoxSize*         boxSizes = nullptr;
-  nsComputedBoxSize* computedBoxSizes = nullptr;
+  nsBoxSize*         boxSizes = nsnull;
+  nsComputedBoxSize* computedBoxSizes = nsnull;
 
   nscoord min = 0;
   nscoord max = 0;
@@ -308,7 +308,7 @@ nsSprocketLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
     { 
       // If for some reason, our lists are not the same length, we guard
       // by bailing out of the loop.
-      if (childBoxSize == nullptr) {
+      if (childBoxSize == nsnull) {
         NS_NOTREACHED("Lists not the same length.");
         break;
       }
@@ -681,7 +681,7 @@ nsSprocketLayout::PopulateBoxSizes(nsIBox* aBox, nsBoxLayoutState& aState, nsBox
   nsIBox* child = aBox->GetChildBox();
 
   aFlexes = 0;
-  nsBoxSize* currentBox = nullptr;
+  nsBoxSize* currentBox = nsnull;
 
 #if 0
   nsBoxSize* start = aBoxSizes;
@@ -722,7 +722,7 @@ nsSprocketLayout::PopulateBoxSizes(nsIBox* aBox, nsBoxLayoutState& aState, nsBox
   // get pref, min, max
   child = aBox->GetChildBox();
   currentBox = aBoxSizes;
-  nsBoxSize* last = nullptr;
+  nsBoxSize* last = nsnull;
 
   nscoord maxFlex = 0;
   PRInt32 childCount = 0;
@@ -1613,7 +1613,7 @@ nsComputedBoxSize::nsComputedBoxSize()
   resized = false;
   valid = false;
   size = 0;
-  next = nullptr;
+  next = nsnull;
 }
 
 nsBoxSize::nsBoxSize()
@@ -1625,7 +1625,7 @@ nsBoxSize::nsBoxSize()
   left = 0;
   right = 0;
   flex = 0;
-  next = nullptr;
+  next = nsnull;
   bogus = false;
 }
 

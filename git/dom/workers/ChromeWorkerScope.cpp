@@ -28,12 +28,12 @@ UnicodeToNative(JSContext* aCx, const jschar* aSource, size_t aSourceLen)
   nsCAutoString native;
   if (NS_FAILED(NS_CopyUnicodeToNative(unicode, native))) {
     JS_ReportError(aCx, "Could not convert string to native charset!");
-    return nullptr;
+    return nsnull;
   }
 
   char* result = static_cast<char*>(JS_malloc(aCx, native.Length() + 1));
   if (!result) {
-    return nullptr;
+    return nsnull;
   }
 
   memcpy(result, native.get(), native.Length());

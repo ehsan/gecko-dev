@@ -69,7 +69,7 @@ PRInt32 nsExceptionManager::totalInstances = 0;
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsExceptionManager, nsIExceptionManager)
 
 nsExceptionManager::nsExceptionManager(nsExceptionService *svc) :
-  mNextThread(nullptr),
+  mNextThread(nsnull),
   mService(svc)
 {
   /* member initializers and constructor code */
@@ -114,8 +114,8 @@ NS_IMETHODIMP nsExceptionManager::GetExceptionFromProvider(nsresult rc, nsIExcep
 /* The Exception Service */
 
 PRUintn nsExceptionService::tlsIndex = BAD_TLS_INDEX;
-Mutex *nsExceptionService::sLock = nullptr;
-nsExceptionManager *nsExceptionService::firstThread = nullptr;
+Mutex *nsExceptionService::sLock = nsnull;
+nsExceptionManager *nsExceptionService::firstThread = nsnull;
 
 #ifdef DEBUG
 PRInt32 nsExceptionService::totalInstances = 0;
@@ -176,9 +176,9 @@ void nsExceptionService::Shutdown()
   if (sLock) {
     DropAllThreads();
     delete sLock;
-    sLock = nullptr;
+    sLock = nsnull;
   }
-  PR_SetThreadPrivate(tlsIndex, nullptr);
+  PR_SetThreadPrivate(tlsIndex, nsnull);
 }
 
 /* void setCurrentException (in nsIException error); */
@@ -216,7 +216,7 @@ NS_IMETHODIMP nsExceptionService::GetCurrentExceptionManager(nsIExceptionManager
 {
     CHECK_SERVICE_USE_OK();
     nsExceptionManager *mgr = (nsExceptionManager *)PR_GetThreadPrivate(tlsIndex);
-    if (mgr == nullptr) {
+    if (mgr == nsnull) {
         // Stick the new exception object in with no reference count.
         mgr = new nsExceptionManager(this);
         PR_SetThreadPrivate(tlsIndex, mgr);

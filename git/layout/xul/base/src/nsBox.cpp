@@ -175,7 +175,7 @@ nsBox::EndLayout(nsBoxLayoutState& aState)
 }
 
 bool nsBox::gGotTheme = false;
-nsITheme* nsBox::gTheme = nullptr;
+nsITheme* nsBox::gTheme = nsnull;
 
 nsBox::nsBox()
 {
@@ -949,10 +949,10 @@ nsBox::GetDebugBoxAt( const nsPoint& aPoint,
     return NS_ERROR_FAILURE;
 
   nsIBox* child = GetChildBox();
-  nsIBox* hit = nullptr;
+  nsIBox* hit = nsnull;
 
-  *aBox = nullptr;
-  while (nullptr != child) {
+  *aBox = nsnull;
+  while (nsnull != child) {
     nsresult rv = child->GetDebugBoxAt(aPoint - child->GetOffsetTo(this), &hit);
 
     if (NS_SUCCEEDED(rv) && hit) {

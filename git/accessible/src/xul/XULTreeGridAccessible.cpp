@@ -137,16 +137,16 @@ XULTreeGridAccessible::CellAt(PRUint32 aRowIndex, PRUint32 aColumnIndex)
 { 
   Accessible* row = GetTreeItemAccessible(aRowIndex);
   if (!row)
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<nsITreeColumn> column =
     nsCoreUtils::GetSensibleColumnAt(mTree, aColumnIndex);
   if (!column)
-    return nullptr;
+    return nsnull;
 
   nsRefPtr<XULTreeItemAccessibleBase> rowAcc = do_QueryObject(row);
   if (!rowAcc)
-    return nullptr;
+    return nsnull;
 
   return rowAcc->GetCellAccessible(column);
 }
@@ -232,7 +232,7 @@ XULTreeGridAccessible::UnselectRow(PRUint32 aRowIdx)
 void
 XULTreeGridAccessible::Shutdown()
 {
-  mTable = nullptr;
+  mTable = nsnull;
   XULTreeAccessible::Shutdown();
 }
 
@@ -351,13 +351,13 @@ XULTreeGridRowAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
 {
   nsIFrame *frame = GetFrame();
   if (!frame)
-    return nullptr;
+    return nsnull;
 
   nsPresContext *presContext = frame->PresContext();
   nsIPresShell* presShell = presContext->PresShell();
 
   nsIFrame *rootFrame = presShell->GetRootFrame();
-  NS_ENSURE_TRUE(rootFrame, nullptr);
+  NS_ENSURE_TRUE(rootFrame, nsnull);
 
   nsIntRect rootRect = rootFrame->GetScreenRect();
 
@@ -372,7 +372,7 @@ XULTreeGridRowAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
 
   // Return if we failed to find tree cell in the row for the given point.
   if (row != mRow || !column)
-    return nullptr;
+    return nsnull;
 
   return GetCellAccessible(column);
 }
@@ -381,12 +381,12 @@ Accessible*
 XULTreeGridRowAccessible::GetChildAt(PRUint32 aIndex)
 {
   if (IsDefunct())
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<nsITreeColumn> column =
     nsCoreUtils::GetSensibleColumnAt(mTree, aIndex);
   if (!column)
-    return nullptr;
+    return nsnull;
 
   return GetCellAccessible(column);
 }
@@ -415,13 +415,13 @@ XULTreeGridRowAccessible::GetCellAccessible(nsITreeColumn* aColumn)
                                       mTreeView, mRow, aColumn);
   if (cell) {
     mAccessibleCache.Put(key, cell);
-    if (Document()->BindToDocument(cell, nullptr))
+    if (Document()->BindToDocument(cell, nsnull))
       return cell;
 
     mAccessibleCache.Remove(key);
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 void
@@ -501,14 +501,14 @@ NS_IMPL_RELEASE_INHERITED(XULTreeGridCellAccessible, LeafAccessible)
   void
   XULTreeGridCellAccessible::Shutdown()
 {
-  mTableCell = nullptr;
+  mTableCell = nsnull;
   LeafAccessible::Shutdown();
 }
 
 Accessible*
 XULTreeGridCellAccessible::FocusedChild()
 {
-  return nullptr;
+  return nsnull;
 }
 
 ENameValueFlag
@@ -657,7 +657,7 @@ NS_IMETHODIMP
 XULTreeGridCellAccessible::GetTable(nsIAccessibleTable** aTable)
 {
   NS_ENSURE_ARG_POINTER(aTable);
-  *aTable = nullptr;
+  *aTable = nsnull;
 
   if (IsDefunct())
     return NS_OK;
@@ -717,7 +717,7 @@ NS_IMETHODIMP
 XULTreeGridCellAccessible::GetColumnHeaderCells(nsIArray** aHeaderCells)
 {
   NS_ENSURE_ARG_POINTER(aHeaderCells);
-  *aHeaderCells = nullptr;
+  *aHeaderCells = nsnull;
 
   if (IsDefunct() || !mDoc)
     return NS_ERROR_FAILURE;
@@ -745,7 +745,7 @@ NS_IMETHODIMP
 XULTreeGridCellAccessible::GetRowHeaderCells(nsIArray** aHeaderCells)
 {
   NS_ENSURE_ARG_POINTER(aHeaderCells);
-  *aHeaderCells = nullptr;
+  *aHeaderCells = nsnull;
 
   if (IsDefunct())
     return NS_ERROR_FAILURE;
@@ -971,7 +971,7 @@ XULTreeGridCellAccessible::GetSiblingAtOffset(PRInt32 aOffset,
   }
 
   if (!columnAtOffset)
-    return nullptr;
+    return nsnull;
 
   nsRefPtr<XULTreeItemAccessibleBase> rowAcc = do_QueryObject(Parent());
   return rowAcc->GetCellAccessible(columnAtOffset);

@@ -27,11 +27,11 @@ public:
 
 private:
   TextUpdater(DocAccessible* aDocument, TextLeafAccessible* aTextLeaf) :
-    mDocument(aDocument), mTextLeaf(aTextLeaf), mHyperText(nullptr),
+    mDocument(aDocument), mTextLeaf(aTextLeaf), mHyperText(nsnull),
     mTextOffset(-1) { }
 
   ~TextUpdater()
-    { mDocument = nullptr; mTextLeaf = nullptr; mHyperText = nullptr; }
+    { mDocument = nsnull; mTextLeaf = nsnull; mHyperText = nsnull; }
 
   /**
    * Update text of the text leaf accessible, fire text change and value change

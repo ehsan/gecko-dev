@@ -46,7 +46,7 @@
 //
 //-------------------------------------------------------------------------
 nsDragService::nsDragService()
-  : mDataObject(nullptr), mSentLocalDropEvent(false)
+  : mDataObject(nsnull), mSentLocalDropEvent(false)
 {
 }
 
@@ -160,7 +160,7 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Try and get source URI of the items that are being dragged
-  nsIURI *uri = nullptr;
+  nsIURI *uri = nsnull;
 
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(mSourceDocument));
   if (doc) {
@@ -318,7 +318,7 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
 nsDataObjCollection*
 nsDragService::GetDataObjCollection(IDataObject* aDataObj)
 {
-  nsDataObjCollection * dataObjCol = nullptr;
+  nsDataObjCollection * dataObjCol = nsnull;
   if (aDataObj) {
     nsIDataObjCollection* dataObj;
     if (aDataObj->QueryInterface(IID_IDataObjCollection,
@@ -399,7 +399,7 @@ nsDragService::GetData(nsITransferable * aTransferable, PRUint32 anItem)
     PRUint32 cnt = dataObjCol->GetNumDataObjects();
     if (anItem >= 0 && anItem < cnt) {
       IDataObject * dataObj = dataObjCol->GetDataObjectAt(anItem);
-      dataFound = nsClipboard::GetDataFromDataObject(dataObj, 0, nullptr,
+      dataFound = nsClipboard::GetDataFromDataObject(dataObj, 0, nsnull,
                                                      aTransferable);
     }
     else
@@ -409,14 +409,14 @@ nsDragService::GetData(nsITransferable * aTransferable, PRUint32 anItem)
     // If they are asking for item "0", we can just get it...
     if (anItem == 0) {
        dataFound = nsClipboard::GetDataFromDataObject(mDataObject, anItem,
-                                                      nullptr, aTransferable);
+                                                      nsnull, aTransferable);
     } else {
       // It better be a file drop, or else non-zero indexes are invalid!
       FORMATETC fe2;
       SET_FORMATETC(fe2, CF_HDROP, 0, DVASPECT_CONTENT, -1, TYMED_HGLOBAL);
       if (mDataObject->QueryGetData(&fe2) == S_OK)
         dataFound = nsClipboard::GetDataFromDataObject(mDataObject, anItem,
-                                                       nullptr, aTransferable);
+                                                       nsnull, aTransferable);
       else
         NS_WARNING("Reqesting non-zero index, but clipboard data is not a collection!");
     }

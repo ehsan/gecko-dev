@@ -289,7 +289,7 @@ iconv_t nsNativeCharsetConverter::gUTF8ToNative    = INVALID_ICONV_T;
 iconv_t nsNativeCharsetConverter::gUnicodeToUTF8   = INVALID_ICONV_T;
 iconv_t nsNativeCharsetConverter::gUTF8ToUnicode   = INVALID_ICONV_T;
 #endif
-Mutex  *nsNativeCharsetConverter::gLock            = nullptr;
+Mutex  *nsNativeCharsetConverter::gLock            = nsnull;
 bool    nsNativeCharsetConverter::gInitialized     = false;
 bool    nsNativeCharsetConverter::gIsNativeUTF8    = false;
 
@@ -299,7 +299,7 @@ nsNativeCharsetConverter::LazyInit()
     const char  *blank_list[] = { "", NULL };
     const char **native_charset_list = blank_list;
     const char  *native_charset = nl_langinfo(CODESET);
-    if (native_charset == nullptr) {
+    if (native_charset == nsnull) {
         NS_ERROR("native charset is unknown");
         // fallback to ISO-8859-1
         native_charset_list = ISO_8859_1_NAMES;
@@ -379,7 +379,7 @@ nsNativeCharsetConverter::GlobalShutdown()
 {
     if (gLock) {
         delete gLock;
-        gLock = nullptr;
+        gLock = nsnull;
     }
 
     if (gNativeToUnicode != INVALID_ICONV_T) {

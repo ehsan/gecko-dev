@@ -18,7 +18,7 @@
 class nsAutoJSValHolder
 {
 public:
-  nsAutoJSValHolder() : mVal(JSVAL_NULL), mRt(nullptr)
+  nsAutoJSValHolder() : mVal(JSVAL_NULL), mRt(nsnull)
   {
     // nothing to do
   }
@@ -63,7 +63,7 @@ public:
     // Do we really care about different runtimes?
     if (mRt && aRt != mRt) {
       js_RemoveRoot(mRt, &mVal);
-      mRt = nullptr;
+      mRt = nsnull;
     }
 
     if (!mRt && js_AddRootRT(aRt, &mVal, "nsAutoJSValHolder")) {
@@ -82,7 +82,7 @@ public:
 
     if (mRt) {
       js_RemoveRoot(mRt, &mVal); // infallible
-      mRt = nullptr;
+      mRt = nsnull;
     }
 
     mVal = JSVAL_NULL;
@@ -103,7 +103,7 @@ public:
   JSObject* ToJSObject() const {
     return mVal.isObject()
          ? &mVal.toObject()
-         : nullptr;
+         : nsnull;
   }
 
   jsval* ToJSValPtr() {

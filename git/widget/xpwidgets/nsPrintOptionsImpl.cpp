@@ -944,7 +944,7 @@ GetAdjustedPrinterName(nsIPrintSettings* aPS, bool aUsePNP,
 
   // Get the Printer Name from the PrintSettings 
   // to use as a prefix for Pref Names
-  PRUnichar* prtName = nullptr;
+  PRUnichar* prtName = nsnull;
 
   nsresult rv = aPS->GetPrinterName(&prtName);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1252,11 +1252,11 @@ Tester::Tester()
       {kPrintPageDelay, nsIPrintSettings::kInitSavePageDelay},
       {"Margins", nsIPrintSettings::kInitSaveMargins},
       {"All", nsIPrintSettings::kInitSaveAll},
-      {nullptr, 0}};
+      {nsnull, 0}};
 
       nsString prefix; prefix.AssignLiteral("Printer Name");
       PRInt32 i = 0;
-      while (gSettings[i].mName != nullptr) {
+      while (gSettings[i].mName != nsnull) {
         printf("------------------------------------------------\n");
         printf("%d) %s -> 0x%X\n", i, gSettings[i].mName, gSettings[i].mFlag);
         printService->SavePrintSettingsToPrefs(ps, true, gSettings[i].mFlag);

@@ -228,7 +228,7 @@ XPCOMGlueUnload()
 
     if (sXULLibrary) {
         FreeLibrary(sXULLibrary);
-        sXULLibrary = nullptr;
+        sXULLibrary = nsnull;
     }
 }
 

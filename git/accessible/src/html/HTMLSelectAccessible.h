@@ -113,7 +113,7 @@ private:
       return combobox && combobox->IsCombobox() ? combobox : mParent.get();
     }
 
-    return nullptr;
+    return nsnull;
   }
 
   /**
@@ -123,10 +123,10 @@ private:
   {
     if (mParent && mParent->IsListControl()) {
       Accessible* combobox = mParent->Parent();
-      return combobox && combobox->IsCombobox() ? combobox : nullptr;
+      return combobox && combobox->IsCombobox() ? combobox : nsnull;
     }
 
-    return nullptr;
+    return nsnull;
   }
 };
 

@@ -142,7 +142,7 @@ struct RVAMap {
                                 sizeof(T) + (offset - alignedOffset));
 
     mMappedView = mRealView ? reinterpret_cast<T*>((char*)mRealView + (offset - alignedOffset)) :
-                              nullptr;
+                              nsnull;
   }
   ~RVAMap() {
     if (mRealView) {
@@ -258,13 +258,13 @@ wchar_t* getFullPath (PWCHAR filePath, wchar_t* fname)
   // figure out the length of the string that we need
   DWORD pathlen = SearchPathW(sanitizedFilePath, fname, L".dll", 0, NULL, NULL);
   if (pathlen == 0) {
-    return nullptr;
+    return nsnull;
   }
 
   wchar_t* full_fname = new wchar_t[pathlen+1];
   if (!full_fname) {
     // couldn't allocate memory?
-    return nullptr;
+    return nsnull;
   }
 
   // now actually grab it

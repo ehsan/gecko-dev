@@ -15,7 +15,7 @@
 #include "nsICancelable.h"
 
 static NS_DEFINE_CID(kDNSServiceCID, NS_DNSSERVICE_CID);
-static nsIDNSService *sDNSService = nullptr;
+static nsIDNSService *sDNSService = nsnull;
 
 nsresult
 nsDNSPrefetch::Initialize(nsIDNSService *aDNSService)
@@ -57,7 +57,7 @@ nsDNSPrefetch::Prefetch(PRUint16 flags)
     // mEndTimestamp will be a null timestamp and callers should check
     // TimingsValid() before using the timing.
     return sDNSService->AsyncResolve(mHostname, flags | nsIDNSService::RESOLVE_SPECULATE,
-                                     this, nullptr, getter_AddRefs(tmpOutstanding));
+                                     this, nsnull, getter_AddRefs(tmpOutstanding));
 }
 
 nsresult

@@ -272,7 +272,7 @@ public:
     void reset() {
         PRUint32 i;
         for (i = 0; i < mBlocks.Length(); i++)
-            mBlocks[i] = nullptr;    
+            mBlocks[i] = nsnull;    
     }
 
     // set this bitset to the union of its current contents and another

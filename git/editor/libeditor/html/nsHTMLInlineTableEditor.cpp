@@ -93,7 +93,7 @@ nsHTMLEditor::ShowInlineTableEditingUI(nsIDOMElement * aCell)
 NS_IMETHODIMP
 nsHTMLEditor::HideInlineTableEditingUI()
 {
-  mInlineEditedCell = nullptr;
+  mInlineEditedCell = nsnull;
 
   RemoveMouseClickListener(mAddColumnBeforeButton);
   RemoveMouseClickListener(mRemoveColumnButton);
@@ -113,17 +113,17 @@ nsHTMLEditor::HideInlineTableEditingUI()
   NS_ENSURE_TRUE(bodyContent, NS_ERROR_FAILURE);
 
   DeleteRefToAnonymousNode(mAddColumnBeforeButton, bodyContent, ps);
-  mAddColumnBeforeButton = nullptr;
+  mAddColumnBeforeButton = nsnull;
   DeleteRefToAnonymousNode(mRemoveColumnButton, bodyContent, ps);
-  mRemoveColumnButton = nullptr;
+  mRemoveColumnButton = nsnull;
   DeleteRefToAnonymousNode(mAddColumnAfterButton, bodyContent, ps);
-  mAddColumnAfterButton = nullptr;
+  mAddColumnAfterButton = nsnull;
   DeleteRefToAnonymousNode(mAddRowBeforeButton, bodyContent, ps);
-  mAddRowBeforeButton = nullptr;
+  mAddRowBeforeButton = nsnull;
   DeleteRefToAnonymousNode(mRemoveRowButton, bodyContent, ps);
-  mRemoveRowButton = nullptr;
+  mRemoveRowButton = nsnull;
   DeleteRefToAnonymousNode(mAddRowAfterButton, bodyContent, ps);
-  mAddRowAfterButton = nullptr;
+  mAddRowAfterButton = nsnull;
 
   return NS_OK;
 }

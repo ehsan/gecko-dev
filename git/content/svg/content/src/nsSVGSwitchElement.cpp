@@ -138,7 +138,7 @@ nsSVGSwitchElement::FindActiveChild() const
 
   if (allowReorder && !acceptLangs.IsEmpty()) {
     PRInt32 bestLanguagePreferenceRank = -1;
-    nsIContent *bestChild = nullptr;
+    nsIContent *bestChild = nsnull;
     for (nsIContent* child = nsINode::GetFirstChild();
          child;
          child = child->GetNextSibling()) {
@@ -186,5 +186,5 @@ nsSVGSwitchElement::FindActiveChild() const
       return child;
     }
   }
-  return nullptr;
+  return nsnull;
 }

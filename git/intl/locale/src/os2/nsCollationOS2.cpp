@@ -123,7 +123,7 @@ nsresult nsCollationOS2::AllocateRawSortKey(PRInt32 strength,
     if (iBufferLength < length*2) {
       if ( pLocalBuffer ) {
         free(pLocalBuffer);
-        pLocalBuffer = nullptr;
+        pLocalBuffer = nsnull;
       }
       iBufferLength = length*4;
     }

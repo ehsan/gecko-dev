@@ -151,7 +151,7 @@ public:
                                bool *triedToWrap)
   {
     *triedToWrap = false;
-    return nullptr;
+    return nsnull;
   }
 
   /**

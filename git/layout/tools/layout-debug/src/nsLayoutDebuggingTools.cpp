@@ -38,8 +38,8 @@ static already_AddRefed<nsIContentViewer>
 doc_viewer(nsIDocShell *aDocShell)
 {
     if (!aDocShell)
-        return nullptr;
-    nsIContentViewer *result = nullptr;
+        return nsnull;
+    nsIContentViewer *result = nsnull;
     aDocShell->GetContentViewer(&result);
     return result;
 }
@@ -49,7 +49,7 @@ pres_shell(nsIDocShell *aDocShell)
 {
     nsCOMPtr<nsIContentViewer> cv = doc_viewer(aDocShell);
     if (!cv)
-        return nullptr;
+        return nsnull;
     nsCOMPtr<nsIPresShell> result;
     cv->GetPresShell(getter_AddRefs(result));
     return result.forget();
@@ -60,7 +60,7 @@ view_manager(nsIDocShell *aDocShell)
 {
     nsCOMPtr<nsIPresShell> shell(pres_shell(aDocShell));
     if (!shell)
-        return nullptr;
+        return nsnull;
     return shell->GetViewManager();
 }
 
@@ -70,12 +70,12 @@ document(nsIDocShell *aDocShell)
 {
     nsCOMPtr<nsIContentViewer> cv(doc_viewer(aDocShell));
     if (!cv)
-        return nullptr;
+        return nsnull;
     nsCOMPtr<nsIDOMDocument> domDoc;
     cv->GetDOMDocument(getter_AddRefs(domDoc));
     if (!domDoc)
-        return nullptr;
-    nsIDocument *result = nullptr;
+        return nsnull;
+    nsIDocument *result = nsnull;
     CallQueryInterface(domDoc, &result);
     return result;
 }
@@ -352,7 +352,7 @@ void
 DumpContentRecur(nsIDocShell* aDocShell, FILE* out)
 {
 #ifdef DEBUG
-    if (nullptr != aDocShell) {
+    if (nsnull != aDocShell) {
         fprintf(out, "docshell=%p \n", static_cast<void*>(aDocShell));
         nsCOMPtr<nsIDocument> doc(document(aDocShell));
         if (doc) {
@@ -543,7 +543,7 @@ nsLayoutDebuggingTools::SetBoolPrefAndRefresh(const char * aPrefName,
     NS_ENSURE_TRUE(prefService && aPrefName, NS_OK);
 
     Preferences::SetBool(aPrefName, aNewVal);
-    prefService->SavePrefFile(nullptr);
+    prefService->SavePrefFile(nsnull);
 
     ForceRefresh();
 

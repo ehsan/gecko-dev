@@ -65,11 +65,11 @@ nsFeedSniffer::ConvertEncodedData(nsIRequest* request,
 
       nsCOMPtr<nsIStreamListener> converter;
       rv = converterService->AsyncConvertData(contentEncoding.get(), 
-                                              "uncompressed", this, nullptr, 
+                                              "uncompressed", this, nsnull, 
                                               getter_AddRefs(converter));
       NS_ENSURE_SUCCESS(rv, rv);
 
-      converter->OnStartRequest(request, nullptr);
+      converter->OnStartRequest(request, nsnull);
 
       nsCOMPtr<nsIStringInputStream> rawStream =
         do_CreateInstance(NS_STRINGINPUTSTREAM_CONTRACTID);
@@ -79,10 +79,10 @@ nsFeedSniffer::ConvertEncodedData(nsIRequest* request,
       rv = rawStream->SetData((const char*)data, length);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = converter->OnDataAvailable(request, nullptr, rawStream, 0, length);
+      rv = converter->OnDataAvailable(request, nsnull, rawStream, 0, length);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      converter->OnStopRequest(request, nullptr, NS_OK);
+      converter->OnStopRequest(request, nsnull, NS_OK);
     }
   }
   return rv;
@@ -113,7 +113,7 @@ HasAttachmentDisposition(nsIHttpChannel* httpChannel)
 
 /**
  * @return the first occurrence of a character within a string buffer,
- *         or nullptr if not found
+ *         or nsnull if not found
  */
 static const char*
 FindChar(char c, const char *begin, const char *end)
@@ -122,7 +122,7 @@ FindChar(char c, const char *begin, const char *end)
     if (*begin == c)
       return begin;
   }
-  return nullptr;
+  return nsnull;
 }
 
 /**

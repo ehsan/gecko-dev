@@ -83,10 +83,10 @@ enum { WM_XP_THEMECHANGED = 0x031A };
 PRUnichar gAppMessageWindowName[256] = { 0 };
 PRInt32 gAppMessageWindowNameLength = 0;
 
-nsTArray<HWND>* gNeuteredWindows = nullptr;
+nsTArray<HWND>* gNeuteredWindows = nsnull;
 
 typedef nsTArray<nsAutoPtr<DeferredMessage> > DeferredMessageArray;
-DeferredMessageArray* gDeferredMessages = nullptr;
+DeferredMessageArray* gDeferredMessages = nsnull;
 
 HHOOK gDeferredGetMsgHook = NULL;
 HHOOK gDeferredCallWndProcHook = NULL;
@@ -123,7 +123,7 @@ DeferredMessageHook(int nCode,
 
     // Unset the global and make sure we delete it when we're done here.
     nsAutoPtr<DeferredMessageArray> messages(gDeferredMessages);
-    gDeferredMessages = nullptr;
+    gDeferredMessages = nsnull;
 
     // Run all the deferred messages in order.
     PRUint32 count = messages->Length();
@@ -159,7 +159,7 @@ ProcessOrDeferMessage(HWND hwnd,
                       WPARAM wParam,
                       LPARAM lParam)
 {
-  DeferredMessage* deferred = nullptr;
+  DeferredMessage* deferred = nsnull;
 
   // Most messages ask for 0 to be returned if the message is processed.
   LRESULT res = 0;

@@ -18,7 +18,7 @@ class GLXLibrary
 public:
     GLXLibrary() : mInitialized(false), mTriedInitializing(false),
                    mUseTextureFromPixmap(false), mDebug(false),
-                   mHasRobustness(false), mOGLLibrary(nullptr) {}
+                   mHasRobustness(false), mOGLLibrary(nsnull) {}
 
     void xDestroyContext(Display* display, GLXContext context);
     Bool xMakeCurrent(Display* display, 

@@ -82,7 +82,7 @@ static PRUint32 CalculateVariantCount(char* mimeTypes)
 {
   PRUint32 variants = 1;
 
-  if(mimeTypes == nullptr)
+  if(mimeTypes == nsnull)
     return 0;
 
   char* index = mimeTypes;
@@ -98,18 +98,18 @@ static PRUint32 CalculateVariantCount(char* mimeTypes)
 
 static char** MakeStringArray(PRUint32 variants, char* data)
 {
-  if((variants <= 0) || (data == nullptr))
-    return nullptr;
+  if((variants <= 0) || (data == nsnull))
+    return nsnull;
 
   char ** array = (char **)PR_Calloc(variants, sizeof(char *));
-  if(array == nullptr)
-    return nullptr;
+  if(array == nsnull)
+    return nsnull;
 
   char * start = data;
   for(PRUint32 i = 0; i < variants; i++)
   {
     char * p = PL_strchr(start, '|');
-    if(p != nullptr)
+    if(p != nsnull)
       *p = 0;
 
     array[i] = PL_strdup(start);
@@ -120,15 +120,15 @@ static char** MakeStringArray(PRUint32 variants, char* data)
 
 static void FreeStringArray(PRUint32 variants, char ** array)
 {
-  if((variants == 0) || (array == nullptr))
+  if((variants == 0) || (array == nsnull))
     return;
 
   for(PRUint32 i = 0; i < variants; i++)
   {
-    if(array[i] != nullptr)
+    if(array[i] != nsnull)
     {
       PL_strfree(array[i]);
-      array[i] = nullptr;
+      array[i] = nsnull;
     }
   }
   PR_Free(array);
@@ -144,7 +144,7 @@ bool nsPluginsDir::IsPluginFile(nsIFile* file)
 
     const char *leafname = leaf.get();
     
-    if( nullptr != leafname)
+    if( nsnull != leafname)
     {
       int len = strlen( leafname);
       if( len > 6 &&                 // np*.dll
@@ -176,13 +176,13 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
     mPlugin->GetNativePath(temp);
 
     *outLibrary = PR_LoadLibrary(temp.get());
-    return *outLibrary == nullptr ? NS_ERROR_FAILURE : NS_OK;
+    return *outLibrary == nsnull ? NS_ERROR_FAILURE : NS_OK;
 }
 
 // Obtains all of the information currently available for this plugin.
 nsresult nsPluginFile::GetPluginInfo(nsPluginInfo &info, PRLibrary **outLibrary)
 {
-   *outLibrary = nullptr;
+   *outLibrary = nsnull;
 
    nsresult   rv = NS_ERROR_FAILURE;
    HMODULE    hPlug = 0; // Need a HMODULE to query resource statements
@@ -198,7 +198,7 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo &info, PRLibrary **outLibrary)
      return rv;
 
    ret = DosLoadModule( failure, CCHMAXPATH, path.get(), &hPlug);
-   info.fVersion = nullptr;
+   info.fVersion = nsnull;
 
    while( ret == NO_ERROR)
    {
@@ -210,24 +210,24 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo &info, PRLibrary **outLibrary)
       info.fDescription = LoadRCDATAString( hPlug, NP_INFO_FileDescription);
 
       char * mimeType = LoadRCDATAString( hPlug, NP_INFO_MIMEType);
-      if( nullptr == mimeType) break;
+      if( nsnull == mimeType) break;
 
       char * mimeDescription = LoadRCDATAString( hPlug, NP_INFO_FileOpenName);
-      if( nullptr == mimeDescription) break;
+      if( nsnull == mimeDescription) break;
 
       char * extensions = LoadRCDATAString( hPlug, NP_INFO_FileExtents);
-      if( nullptr == extensions) break;
+      if( nsnull == extensions) break;
 
       info.fVariantCount = CalculateVariantCount(mimeType);
 
       info.fMimeTypeArray = MakeStringArray(info.fVariantCount, mimeType);
-      if( info.fMimeTypeArray == nullptr) break;
+      if( info.fMimeTypeArray == nsnull) break;
 
       info.fMimeDescriptionArray = MakeStringArray(info.fVariantCount, mimeDescription);
-      if( nullptr == info.fMimeDescriptionArray) break;
+      if( nsnull == info.fMimeDescriptionArray) break;
 
       info.fExtensionArray = MakeStringArray(info.fVariantCount, extensions);
-      if( nullptr == info.fExtensionArray) break;
+      if( nsnull == info.fExtensionArray) break;
 
       info.fFullPath = PL_strdup(path.get());
       info.fFileName = PL_strdup(fileName.get());
@@ -244,28 +244,28 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo &info, PRLibrary **outLibrary)
 
 nsresult nsPluginFile::FreePluginInfo(nsPluginInfo& info)
 {
-   if(info.fName != nullptr)
+   if(info.fName != nsnull)
      PL_strfree(info.fName);
 
-   if(info.fFullPath != nullptr)
+   if(info.fFullPath != nsnull)
      PL_strfree(info.fFullPath);
 
-   if(info.fFileName != nullptr)
+   if(info.fFileName != nsnull)
      PL_strfree(info.fFileName);
  
-   if(info.fVersion != nullptr)
+   if(info.fVersion != nsnull)
      PL_strfree(info.fVersion);
  
-   if(info.fDescription != nullptr)
+   if(info.fDescription != nsnull)
      PL_strfree(info.fDescription);
  
-   if(info.fMimeTypeArray != nullptr)
+   if(info.fMimeTypeArray != nsnull)
      FreeStringArray(info.fVariantCount, info.fMimeTypeArray);
  
-   if(info.fMimeDescriptionArray != nullptr)
+   if(info.fMimeDescriptionArray != nsnull)
      FreeStringArray(info.fVariantCount, info.fMimeDescriptionArray);
  
-   if(info.fExtensionArray != nullptr)
+   if(info.fExtensionArray != nsnull)
      FreeStringArray(info.fVariantCount, info.fExtensionArray);
  
    memset((void *)&info, 0, sizeof(info));

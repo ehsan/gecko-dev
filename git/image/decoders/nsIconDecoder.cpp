@@ -22,7 +22,7 @@ nsIconDecoder::nsIconDecoder(RasterImage &aImage, imgIDecoderObserver* aObserver
    mHeight(-1),
    mPixBytesRead(0),
    mPixBytesTotal(0),
-   mImageData(nullptr),
+   mImageData(nsnull),
    mState(iconStateStart)
 {
   // Nothing to do

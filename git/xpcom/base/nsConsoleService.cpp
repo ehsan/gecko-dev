@@ -32,7 +32,7 @@ NS_IMPL_QUERY_INTERFACE1_CI(nsConsoleService, nsIConsoleService)
 NS_IMPL_CI_INTERFACE_GETTER1(nsConsoleService, nsIConsoleService)
 
 nsConsoleService::nsConsoleService()
-    : mMessages(nullptr)
+    : mMessages(nsnull)
     , mCurrent(0)
     , mFull(false)
     , mDeliveringMessage(false)
@@ -47,7 +47,7 @@ nsConsoleService::nsConsoleService()
 nsConsoleService::~nsConsoleService()
 {
     PRUint32 i = 0;
-    while (i < mBufferSize && mMessages[i] != nullptr) {
+    while (i < mBufferSize && mMessages[i] != nsnull) {
         NS_RELEASE(mMessages[i]);
         i++;
     }
@@ -124,7 +124,7 @@ CollectCurrentListeners(nsISupports* aKey, nsIConsoleListener* aValue,
 NS_IMETHODIMP
 nsConsoleService::LogMessage(nsIConsoleMessage *message)
 {
-    if (message == nullptr)
+    if (message == nsnull)
         return NS_ERROR_INVALID_ARG;
 
     if (NS_IsMainThread() && mDeliveringMessage) {
@@ -173,7 +173,7 @@ nsConsoleService::LogMessage(nsIConsoleMessage *message)
          */
         mListeners.EnumerateRead(CollectCurrentListeners, r);
     }
-    if (retiredMessage != nullptr)
+    if (retiredMessage != nsnull)
         NS_RELEASE(retiredMessage);
 
     NS_DispatchToMainThread(r);
@@ -207,7 +207,7 @@ nsConsoleService::GetMessageArray(nsIConsoleMessage ***messages, PRUint32 *count
          */
         messageArray = (nsIConsoleMessage **)
             nsMemory::Alloc(sizeof (nsIConsoleMessage *));
-        *messageArray = nullptr;
+        *messageArray = nsnull;
         *messages = messageArray;
         *count = 0;
         
@@ -219,8 +219,8 @@ nsConsoleService::GetMessageArray(nsIConsoleMessage ***messages, PRUint32 *count
         (nsIConsoleMessage **)nsMemory::Alloc((sizeof (nsIConsoleMessage *))
                                               * resultSize);
 
-    if (messageArray == nullptr) {
-        *messages = nullptr;
+    if (messageArray == nsnull) {
+        *messages = nsnull;
         *count = 0;
         return NS_ERROR_FAILURE;
     }
@@ -298,7 +298,7 @@ nsConsoleService::Reset()
     /*
      * Free all messages stored so far (cf. destructor)
      */
-    for (PRUint32 i = 0; i < mBufferSize && mMessages[i] != nullptr; i++)
+    for (PRUint32 i = 0; i < mBufferSize && mMessages[i] != nsnull; i++)
         NS_RELEASE(mMessages[i]);
 
     return NS_OK;

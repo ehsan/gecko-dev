@@ -104,7 +104,7 @@ NS_IMETHODIMP TypeInState::NotifySelectionChanged(nsIDOMDocument *, nsISelection
     }
     else
     {
-      mLastSelectionContainer = nullptr;
+      mLastSelectionContainer = nsnull;
       mLastSelectionOffset = 0;
     }
   }
@@ -159,7 +159,7 @@ void
 TypeInState::ClearAllProps()
 {
   // null prop means "all" props
-  ClearProp(nullptr, EmptyString());
+  ClearProp(nsnull, EmptyString());
 }
 
 void
@@ -230,7 +230,7 @@ TypeInState::TakeRelativeFontSize()
 void
 TypeInState::GetTypingState(bool &isSet, bool &theSetting, nsIAtom *aProp)
 {
-  GetTypingState(isSet, theSetting, aProp, EmptyString(), nullptr);
+  GetTypingState(isSet, theSetting, aProp, EmptyString(), nsnull);
 }
 
 void
@@ -275,7 +275,7 @@ TypeInState::RemovePropFromSetList(nsIAtom* aProp, const nsAString& aAttr)
     mSetArray.Clear();
     mRelativeFontSize=0;
   }
-  else if (FindPropInList(aProp, aAttr, nullptr, mSetArray, index))
+  else if (FindPropInList(aProp, aAttr, nsnull, mSetArray, index))
   {
     delete mSetArray[index];
     mSetArray.RemoveElementAt(index);
@@ -287,7 +287,7 @@ void
 TypeInState::RemovePropFromClearedList(nsIAtom* aProp, const nsAString& aAttr)
 {
   PRInt32 index;
-  if (FindPropInList(aProp, aAttr, nullptr, mClearedArray, index))
+  if (FindPropInList(aProp, aAttr, nsnull, mClearedArray, index))
   {
     delete mClearedArray[index];
     mClearedArray.RemoveElementAt(index);
@@ -338,9 +338,9 @@ bool TypeInState::IsPropCleared(nsIAtom* aProp,
                                 const nsAString& aAttr,
                                 PRInt32& outIndex)
 {
-  if (FindPropInList(aProp, aAttr, nullptr, mClearedArray, outIndex))
+  if (FindPropInList(aProp, aAttr, nsnull, mClearedArray, outIndex))
     return true;
-  if (FindPropInList(0, EmptyString(), nullptr, mClearedArray, outIndex))
+  if (FindPropInList(0, EmptyString(), nsnull, mClearedArray, outIndex))
   {
     // special case for all props cleared
     outIndex = -1;
@@ -378,7 +378,7 @@ bool TypeInState::FindPropInList(nsIAtom *aProp,
  *******************************************************************/
 
 PropItem::PropItem() : 
- tag(nullptr)
+ tag(nsnull)
 ,attr()
 ,value()
 {

@@ -49,7 +49,7 @@ nsFrameList::DestroyFrames()
   while (nsIFrame* frame = RemoveFirstChild()) {
     frame->Destroy();
   }
-  mLastChild = nullptr;
+  mLastChild = nsnull;
 }
 
 void
@@ -60,7 +60,7 @@ nsFrameList::DestroyFramesFrom(nsIFrame* aDestructRoot)
   while (nsIFrame* frame = RemoveFirstChild()) {
     frame->DestroyFrom(aDestructRoot);
   }
-  mLastChild = nullptr;
+  mLastChild = nsnull;
 }
 
 void
@@ -84,9 +84,9 @@ nsFrameList::RemoveFrame(nsIFrame* aFrame)
   nsIFrame* nextFrame = aFrame->GetNextSibling();
   if (aFrame == mFirstChild) {
     mFirstChild = nextFrame;
-    aFrame->SetNextSibling(nullptr);
+    aFrame->SetNextSibling(nsnull);
     if (!nextFrame) {
-      mLastChild = nullptr;
+      mLastChild = nsnull;
     }
   }
   else {
@@ -94,7 +94,7 @@ nsFrameList::RemoveFrame(nsIFrame* aFrame)
     NS_ASSERTION(prevSibling && prevSibling->GetNextSibling() == aFrame,
                  "Broken frame linkage");
     prevSibling->SetNextSibling(nextFrame);
-    aFrame->SetNextSibling(nullptr);
+    aFrame->SetNextSibling(nsnull);
     if (!nextFrame) {
       mLastChild = prevSibling;
     }
@@ -120,7 +120,7 @@ nsFrameList::RemoveFramesAfter(nsIFrame* aAfterFrame)
 {
   if (!aAfterFrame) {
     nsFrameList result;
-    result.InsertFrames(nullptr, nullptr, *this);
+    result.InsertFrames(nsnull, nsnull, *this);
     return result;
   }
 
@@ -133,8 +133,8 @@ nsFrameList::RemoveFramesAfter(nsIFrame* aAfterFrame)
   // if (!tail) return EmptyList();  -- worth optimizing this case?
   nsIFrame* oldLastChild = mLastChild;
   mLastChild = aAfterFrame;
-  aAfterFrame->SetNextSibling(nullptr);
-  return nsFrameList(tail, tail ? oldLastChild : nullptr);
+  aAfterFrame->SetNextSibling(nsnull);
+  return nsFrameList(tail, tail ? oldLastChild : nsnull);
 }
 
 nsIFrame*
@@ -145,7 +145,7 @@ nsFrameList::RemoveFirstChild()
     RemoveFrame(firstChild);
     return firstChild;
   }
-  return nullptr;
+  return nsnull;
 }
 
 void
@@ -227,22 +227,22 @@ nsFrameList::ExtractHead(FrameLinkEnumerator& aLink)
   NS_PRECONDITION(!aLink.PrevFrame() ||
                   aLink.NextFrame() != FirstChild(),
                   "Unexpected NextFrame()");
-  NS_PRECONDITION(aLink.mEnd == nullptr,
+  NS_PRECONDITION(aLink.mEnd == nsnull,
                   "Unexpected mEnd for frame link enumerator");
 
   nsIFrame* prev = aLink.PrevFrame();
-  nsIFrame* newFirstFrame = nullptr;
+  nsIFrame* newFirstFrame = nsnull;
   if (prev) {
     // Truncate the list after |prev| and hand the first part to our new list.
-    prev->SetNextSibling(nullptr);
+    prev->SetNextSibling(nsnull);
     newFirstFrame = mFirstChild;
     mFirstChild = aLink.NextFrame();
     if (!mFirstChild) { // we handed over the whole list
-      mLastChild = nullptr;
+      mLastChild = nsnull;
     }
 
     // Now make sure aLink doesn't point to a frame we no longer have.
-    aLink.mPrev = nullptr;
+    aLink.mPrev = nsnull;
   }
   // else aLink is pointing to before our first frame.  Nothing to do.
 
@@ -263,7 +263,7 @@ nsFrameList::ExtractTail(FrameLinkEnumerator& aLink)
   NS_PRECONDITION(!aLink.PrevFrame() ||
                   aLink.NextFrame() != FirstChild(),
                   "Unexpected NextFrame()");
-  NS_PRECONDITION(aLink.mEnd == nullptr,
+  NS_PRECONDITION(aLink.mEnd == nsnull,
                   "Unexpected mEnd for frame link enumerator");
 
   nsIFrame* prev = aLink.PrevFrame();
@@ -271,9 +271,9 @@ nsFrameList::ExtractTail(FrameLinkEnumerator& aLink)
   nsIFrame* newLastFrame;
   if (prev) {
     // Truncate the list after |prev| and hand the second part to our new list
-    prev->SetNextSibling(nullptr);
+    prev->SetNextSibling(nsnull);
     newFirstFrame = aLink.NextFrame();
-    newLastFrame = newFirstFrame ? mLastChild : nullptr;
+    newLastFrame = newFirstFrame ? mLastChild : nsnull;
     mLastChild = prev;
   } else {
     // Hand the whole list over to our new list
@@ -283,7 +283,7 @@ nsFrameList::ExtractTail(FrameLinkEnumerator& aLink)
   }
 
   // Now make sure aLink doesn't point to a frame we no longer have.
-  aLink.mFrame = nullptr;
+  aLink.mFrame = nsnull;
 
   NS_POSTCONDITION(aLink.AtEnd(), "What's going on here?");
 
@@ -294,7 +294,7 @@ nsIFrame*
 nsFrameList::FrameAt(PRInt32 aIndex) const
 {
   NS_PRECONDITION(aIndex >= 0, "invalid arg");
-  if (aIndex < 0) return nullptr;
+  if (aIndex < 0) return nsnull;
   nsIFrame* frame = mFirstChild;
   while ((aIndex-- > 0) && frame) {
     frame = frame->GetNextSibling();
@@ -369,7 +369,7 @@ nsIFrame*
 nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 {
   if (!mFirstChild)
-    return nullptr;
+    return nsnull;
   
   nsIFrame* parent = mFirstChild->GetParent();
   if (!parent)
@@ -405,12 +405,12 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
   if (aFrame) {
     thisLine = iter->FindLineContaining(aFrame);
     if (thisLine < 0)
-      return nullptr;
+      return nsnull;
   } else {
     thisLine = iter->GetNumLines();
   }
 
-  nsIFrame* frame = nullptr;
+  nsIFrame* frame = nsnull;
   nsIFrame* firstFrameOnLine;
   PRInt32 numFramesOnLine;
   nsRect lineBounds;
@@ -431,9 +431,9 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
     iter->GetLine(thisLine - 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
 
     if (baseLevel == NSBIDI_LTR) {
-      frame = nsBidiPresUtils::GetFrameToLeftOf(nullptr, firstFrameOnLine, numFramesOnLine);
+      frame = nsBidiPresUtils::GetFrameToLeftOf(nsnull, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
-      frame = nsBidiPresUtils::GetFrameToRightOf(nullptr, firstFrameOnLine, numFramesOnLine);
+      frame = nsBidiPresUtils::GetFrameToRightOf(nsnull, firstFrameOnLine, numFramesOnLine);
     }
   }
   return frame;
@@ -443,7 +443,7 @@ nsIFrame*
 nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
 {
   if (!mFirstChild)
-    return nullptr;
+    return nsnull;
   
   nsIFrame* parent = mFirstChild->GetParent();
   if (!parent)
@@ -479,12 +479,12 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   if (aFrame) {
     thisLine = iter->FindLineContaining(aFrame);
     if (thisLine < 0)
-      return nullptr;
+      return nsnull;
   } else {
     thisLine = -1;
   }
 
-  nsIFrame* frame = nullptr;
+  nsIFrame* frame = nsnull;
   nsIFrame* firstFrameOnLine;
   PRInt32 numFramesOnLine;
   nsRect lineBounds;
@@ -506,9 +506,9 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
     iter->GetLine(thisLine + 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
     
     if (baseLevel == NSBIDI_LTR) {
-      frame = nsBidiPresUtils::GetFrameToRightOf(nullptr, firstFrameOnLine, numFramesOnLine);
+      frame = nsBidiPresUtils::GetFrameToRightOf(nsnull, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
-      frame = nsBidiPresUtils::GetFrameToLeftOf(nullptr, firstFrameOnLine, numFramesOnLine);
+      frame = nsBidiPresUtils::GetFrameToLeftOf(nsnull, firstFrameOnLine, numFramesOnLine);
     }
   }
   return frame;
@@ -519,7 +519,7 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
 void
 nsFrameList::VerifyList() const
 {
-  NS_ASSERTION((mFirstChild == nullptr) == (mLastChild == nullptr),
+  NS_ASSERTION((mFirstChild == nsnull) == (mLastChild == nsnull),
                "bad list state");
 
   if (IsEmpty()) {

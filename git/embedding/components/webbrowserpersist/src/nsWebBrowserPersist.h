@@ -103,19 +103,19 @@ private:
     nsresult StoreURI(
         const char *aURI,
         bool aNeedsPersisting = true,
-        URIData **aData = nullptr);
+        URIData **aData = nsnull);
     nsresult StoreURI(
         nsIURI *aURI,
         bool aNeedsPersisting = true,
-        URIData **aData = nullptr);
+        URIData **aData = nsnull);
     nsresult StoreURIAttributeNS(
         nsIDOMNode *aNode, const char *aNamespaceURI, const char *aAttribute,
         bool aNeedsPersisting = true,
-        URIData **aData = nullptr);
+        URIData **aData = nsnull);
     nsresult StoreURIAttribute(
         nsIDOMNode *aNode, const char *aAttribute,
         bool aNeedsPersisting = true,
-        URIData **aData = nullptr)
+        URIData **aData = nsnull)
     {
         return StoreURIAttributeNS(aNode, "", aAttribute, aNeedsPersisting, aData);
     }

@@ -23,7 +23,7 @@ const PRUint32 kBatchSize = 0x1000;
 const char kTypeChars[eventtracer::eLast] = {' ','N','S','W','E','D'};
 
 // Flushing thread and records queue monitor
-mozilla::Monitor * gMonitor = nullptr;
+mozilla::Monitor * gMonitor = nsnull;
 
 // Accessed concurently but since this flag is not functionally critical
 // for optimization purposes is not accessed under a lock
@@ -35,9 +35,9 @@ public:
   Record() 
     : mType(::mozilla::eventtracer::eNone)
     , mTime(0)
-    , mItem(nullptr)
-    , mText(nullptr)
-    , mText2(nullptr) 
+    , mItem(nsnull)
+    , mText(nsnull)
+    , mText2(nsnull) 
   {
     MOZ_COUNT_CTOR(Record);
   } 
@@ -78,7 +78,7 @@ public:
     : mRecordsHead(new Record[kBatchSize])
     , mRecordsTail(mRecordsHead + kBatchSize)
     , mNextRecord(mRecordsHead)
-    , mNextBatch(nullptr)
+    , mNextBatch(nsnull)
     , mThreadNameCopy(DupCurrentThreadName())
   {
     MOZ_COUNT_CTOR(RecordBatch);
@@ -103,8 +103,8 @@ public:
 
 // Protected by gMonitor, accessed concurently
 // Linked list of batches threads want to flush on disk
-RecordBatch * gLogHead = nullptr;
-RecordBatch * gLogTail = nullptr;
+RecordBatch * gLogHead = nsnull;
+RecordBatch * gLogTail = nsnull;
 
 // Registered as thread private data destructor
 void
@@ -159,7 +159,7 @@ EventFilter *
 EventFilter::Build(const char * filterVar)
 {
   if (!filterVar || !*filterVar)
-    return nullptr;
+    return nsnull;
 
   // Reads a comma serpatated list of events.
 
@@ -170,7 +170,7 @@ EventFilter::Build(const char * filterVar)
   // Read up to a comma or EOF -> get name of an event first in the list
   count = sscanf(filterVar, "%63[^,]%n", eventName, &delta);
   if (count == 0) 
-    return nullptr;
+    return nsnull;
 
   pos = delta;
 
@@ -202,9 +202,9 @@ bool gStopFlushingThread = false;
 
 // State and control variables, initialized in Init() method, after it 
 // immutable and read concurently.
-EventFilter * gEventFilter = nullptr;
-const char * gLogFilePath = nullptr;
-PRThread * gFlushingThread = nullptr;
+EventFilter * gEventFilter = nsnull;
+const char * gLogFilePath = nsnull;
+PRThread * gFlushingThread = nsnull;
 PRUintn gThreadPrivateIndex;
 mozilla::TimeStamp gProfilerStart;
 
@@ -244,8 +244,8 @@ void FlushingThread(void * aArg)
 
     // Grab the current log list head and start a new blank global list
     RecordBatch * batch = gLogHead;
-    gLogHead = nullptr;
-    gLogTail = nullptr;
+    gLogHead = nsnull;
+    gLogTail = nsnull;
 
     MonitorAutoUnlock unlock(*gMonitor); // no need to block on I/O :-)
 
@@ -355,7 +355,7 @@ void Init()
 
   gFlushingThread = PR_CreateThread(PR_USER_THREAD, 
                                     &FlushingThread,
-                                    nullptr,
+                                    nsnull,
                                     PR_PRIORITY_LOW,
                                     PR_LOCAL_THREAD,
                                     PR_JOINABLE_THREAD,
@@ -380,7 +380,7 @@ void Shutdown()
   // (i.e. their private data had been 'released').
 
   // Release the private data of this thread to flush all the remaning writes.
-  PR_SetThreadPrivate(gThreadPrivateIndex, nullptr);
+  PR_SetThreadPrivate(gThreadPrivateIndex, nsnull);
 
   if (gFlushingThread) {
     {
@@ -391,17 +391,17 @@ void Shutdown()
     }
 
     PR_JoinThread(gFlushingThread);
-    gFlushingThread = nullptr;
+    gFlushingThread = nsnull;
   }
 
   if (gMonitor) {
     delete gMonitor;
-    gMonitor = nullptr;
+    gMonitor = nsnull;
   }
 
   if (gEventFilter) {
     delete gEventFilter;
-    gEventFilter = nullptr;
+    gEventFilter = nsnull;
   }
 #endif
 }
@@ -432,12 +432,12 @@ void Mark(PRUint32 aType, void * aItem, const char * aText, const char * aText2)
   record->mTime = (mozilla::TimeStamp::Now() - gProfilerStart).ToMilliseconds();
   record->mItem = aItem;
   record->mText = PL_strdup(aText);
-  record->mText2 = aText2 ? PL_strdup(aText2) : nullptr;
+  record->mText2 = aText2 ? PL_strdup(aText2) : nsnull;
 
   ++threadLogPrivate->mNextRecord;
   if (threadLogPrivate->mNextRecord == threadLogPrivate->mRecordsTail) {
     // This calls RecordBatch::FlushBatch(threadLogPrivate)
-    PR_SetThreadPrivate(gThreadPrivateIndex, nullptr);
+    PR_SetThreadPrivate(gThreadPrivateIndex, nsnull);
   }
 #endif
 }

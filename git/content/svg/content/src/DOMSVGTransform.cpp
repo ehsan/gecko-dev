@@ -24,7 +24,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(DOMSVGTransform)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGTransform)
   // We may not belong to a list, so we must null check tmp->mList.
   if (tmp->mList) {
-    tmp->mList->mItems[tmp->mListIndex] = nullptr;
+    tmp->mList->mItems[tmp->mListIndex] = nsnull;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -56,8 +56,8 @@ DOMSVGTransform::DOMSVGTransform(DOMSVGTransformList *aList,
   : mList(aList)
   , mListIndex(aListIndex)
   , mIsAnimValItem(aIsAnimValItem)
-  , mTransform(nullptr)
-  , mMatrixTearoff(nullptr)
+  , mTransform(nsnull)
+  , mMatrixTearoff(nsnull)
 {
   // These shifts are in sync with the members in the header.
   NS_ABORT_IF_FALSE(aList &&
@@ -68,31 +68,31 @@ DOMSVGTransform::DOMSVGTransform(DOMSVGTransformList *aList,
 }
 
 DOMSVGTransform::DOMSVGTransform()
-  : mList(nullptr)
+  : mList(nsnull)
   , mListIndex(0)
   , mIsAnimValItem(false)
   , mTransform(new SVGTransform()) // Default ctor for objects not in a list
                                    // initialises to matrix type with identity
                                    // matrix
-  , mMatrixTearoff(nullptr)
+  , mMatrixTearoff(nsnull)
 {
 }
 
 DOMSVGTransform::DOMSVGTransform(const gfxMatrix &aMatrix)
-  : mList(nullptr)
+  : mList(nsnull)
   , mListIndex(0)
   , mIsAnimValItem(false)
   , mTransform(new SVGTransform(aMatrix))
-  , mMatrixTearoff(nullptr)
+  , mMatrixTearoff(nsnull)
 {
 }
 
 DOMSVGTransform::DOMSVGTransform(const SVGTransform &aTransform)
-  : mList(nullptr)
+  : mList(nsnull)
   , mListIndex(0)
   , mIsAnimValItem(false)
   , mTransform(new SVGTransform(aTransform))
-  , mMatrixTearoff(nullptr)
+  , mMatrixTearoff(nsnull)
 {
 }
 
@@ -269,7 +269,7 @@ DOMSVGTransform::InsertingIntoList(DOMSVGTransformList *aList,
   mList = aList;
   mListIndex = aListIndex;
   mIsAnimValItem = aIsAnimValItem;
-  mTransform = nullptr;
+  mTransform = nsnull;
 
   NS_ABORT_IF_FALSE(IndexIsValid(), "Bad index for DOMSVGLength!");
 }
@@ -281,7 +281,7 @@ DOMSVGTransform::RemovingFromList()
       "Item in list also has another non-list value associated with it");
 
   mTransform = new SVGTransform(InternalItem());
-  mList = nullptr;
+  mList = nsnull;
   mIsAnimValItem = false;
 }
 
@@ -337,7 +337,7 @@ DOMSVGTransform::ClearMatrixTearoff(DOMSVGMatrix* aMatrix)
 {
   NS_ABORT_IF_FALSE(mMatrixTearoff == aMatrix,
       "Unexpected matrix pointer to be cleared");
-  mMatrixTearoff = nullptr;
+  mMatrixTearoff = nsnull;
 }
 
 

@@ -10,7 +10,7 @@
 #include "nsHTMLFormElement.h"
 
 nsFormData::nsFormData()
-  : nsFormSubmission(NS_LITERAL_CSTRING("UTF-8"), nullptr)
+  : nsFormSubmission(NS_LITERAL_CSTRING("UTF-8"), nsnull)
 {
 }
 
@@ -88,7 +88,7 @@ nsFormData::Append(const nsAString& aName, nsIVariant* aValue)
     }
   }
 
-  PRUnichar* stringData = nullptr;
+  PRUnichar* stringData = nsnull;
   PRUint32 stringLen = 0;
   rv = aValue->GetAsWStringWithSize(&stringLen, &stringData);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -106,7 +106,7 @@ NS_IMETHODIMP
 nsFormData::GetSendInfo(nsIInputStream** aBody, nsACString& aContentType,
                         nsACString& aCharset)
 {
-  nsFSMultipartFormData fs(NS_LITERAL_CSTRING("UTF-8"), nullptr);
+  nsFSMultipartFormData fs(NS_LITERAL_CSTRING("UTF-8"), nsnull);
   
   for (PRUint32 i = 0; i < mFormData.Length(); ++i) {
     if (mFormData[i].valueIsFile) {

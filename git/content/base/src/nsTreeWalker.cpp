@@ -65,7 +65,7 @@ NS_IMETHODIMP nsTreeWalker::GetRoot(nsIDOMNode * *aRoot)
         return CallQueryInterface(mRoot, aRoot);
     }
 
-    *aRoot = nullptr;
+    *aRoot = nsnull;
 
     return NS_OK;
 }
@@ -102,7 +102,7 @@ NS_IMETHODIMP nsTreeWalker::GetCurrentNode(nsIDOMNode * *aCurrentNode)
         return CallQueryInterface(mCurrentNode, aCurrentNode);
     }
 
-    *aCurrentNode = nullptr;
+    *aCurrentNode = nsnull;
 
     return NS_OK;
 }
@@ -128,7 +128,7 @@ NS_IMETHODIMP nsTreeWalker::SetCurrentNode(nsIDOMNode * aCurrentNode)
 /* nsIDOMNode parentNode (); */
 NS_IMETHODIMP nsTreeWalker::ParentNode(nsIDOMNode **_retval)
 {
-    *_retval = nullptr;
+    *_retval = nsnull;
 
     nsresult rv;
 
@@ -181,7 +181,7 @@ NS_IMETHODIMP nsTreeWalker::PreviousNode(nsIDOMNode **_retval)
     nsresult rv;
     PRInt16 filtered;
 
-    *_retval = nullptr;
+    *_retval = nsnull;
 
     nsCOMPtr<nsINode> node = mCurrentNode;
 
@@ -231,7 +231,7 @@ NS_IMETHODIMP nsTreeWalker::NextNode(nsIDOMNode **_retval)
     nsresult rv;
     PRInt16 filtered = nsIDOMNodeFilter::FILTER_ACCEPT; // pre-init for inner loop
 
-    *_retval = nullptr;
+    *_retval = nsnull;
 
     nsCOMPtr<nsINode> node = mCurrentNode;
 
@@ -252,7 +252,7 @@ NS_IMETHODIMP nsTreeWalker::NextNode(nsIDOMNode **_retval)
             }
         }
 
-        nsINode *sibling = nullptr;
+        nsINode *sibling = nsnull;
         nsINode *temp = node;
         do {
             if (temp == mRoot)
@@ -300,7 +300,7 @@ nsresult nsTreeWalker::FirstChildInternal(bool aReversed, nsIDOMNode **_retval)
     nsresult rv;
     PRInt16 filtered;
 
-    *_retval = nullptr;
+    *_retval = nsnull;
 
     nsCOMPtr<nsINode> node = aReversed ? mCurrentNode->GetLastChild()
                                        : mCurrentNode->GetFirstChild();
@@ -362,7 +362,7 @@ nsresult nsTreeWalker::NextSiblingInternal(bool aReversed, nsIDOMNode **_retval)
     nsresult rv;
     PRInt16 filtered;
 
-    *_retval = nullptr;
+    *_retval = nsnull;
 
     nsCOMPtr<nsINode> node = mCurrentNode;
 

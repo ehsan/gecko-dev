@@ -51,7 +51,7 @@ public:
   void Invalidate()
   {
     // NB: This will cause GetMimeTypes to fail from now on.
-    mNavigator = nullptr;
+    mNavigator = nsnull;
     Clear();
   }
 
@@ -80,7 +80,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMMIMETYPE
 
-  void DetachPlugin() { mPlugin = nullptr; }
+  void DetachPlugin() { mPlugin = nsnull; }
 
 protected:
   nsIDOMPlugin* mPlugin;

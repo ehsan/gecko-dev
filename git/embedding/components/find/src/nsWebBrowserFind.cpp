@@ -109,7 +109,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
                                      mFindBackwards? upStr.get(): dnStr.get());
         windowSupportsData->GetData(getter_AddRefs(searchWindowSupports));
         // findnext performed if search window data cleared out
-        *outDidFind = searchWindowSupports == nullptr;
+        *outDidFind = searchWindowSupports == nsnull;
         if (*outDidFind)
             return NS_OK;
     }
@@ -193,7 +193,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
 
     // because nsISimpleEnumerator is totally lame and isn't resettable, I
     // have to make a new one
-    docShellEnumerator = nullptr;
+    docShellEnumerator = nsnull;
     rv = rootDocShell->GetDocShellEnumerator(nsIDocShellTreeItem::typeAll,
             enumDirection, getter_AddRefs(docShellEnumerator));    
     if (NS_FAILED(rv)) return rv;
@@ -373,7 +373,7 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
   
   // since the match could be an anonymous textnode inside a
   // <textarea> or text <input>, we need to get the outer frame
-  nsITextControlFrame *tcFrame = nullptr;
+  nsITextControlFrame *tcFrame = nsnull;
   for ( ; content; content = content->GetParent()) {
     if (!IsInNativeAnonymousSubtree(content)) {
       nsIFrame* f = content->GetPrimaryFrame();
@@ -401,7 +401,7 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
       }
       else  {
         nsCOMPtr<nsIDOMElement> result;
-        fm->MoveFocus(aWindow, nullptr, nsIFocusManager::MOVEFOCUS_CARET,
+        fm->MoveFocus(aWindow, nsnull, nsIFocusManager::MOVEFOCUS_CARET,
                       nsIFocusManager::FLAG_NOSCROLL,
                       getter_AddRefs(result));
       }
@@ -787,7 +787,7 @@ void
 nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow, 
                                     nsISelection** aSel)
 {
-    *aSel = nullptr;
+    *aSel = nsnull;
 
     nsCOMPtr<nsIDOMDocument> domDoc;    
     aWindow->GetDocument(getter_AddRefs(domDoc));
@@ -801,7 +801,7 @@ nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow,
     // that we must use when they have focus.
     nsPresContext *presContext = presShell->GetPresContext();
 
-    nsIFrame *frame = nullptr;
+    nsIFrame *frame = nsnull;
     nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
     if (fm) {
       nsCOMPtr<nsIDOMElement> focusedElement;
@@ -810,7 +810,7 @@ nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow,
       if (focusedContent) {
         frame = focusedContent->GetPrimaryFrame();
         if (frame && frame->PresContext() != presContext)
-          frame = nullptr;
+          frame = nsnull;
       }
     }
 
@@ -873,14 +873,14 @@ nsresult nsWebBrowserFind::OnFind(nsIDOMWindow *aFoundWindow)
 
   GetDocShellFromWindow
 
-  Utility method. This will always return nullptr if no docShell
+  Utility method. This will always return nsnull if no docShell
   is returned. Oh why isn't there a better way to do this?
 ----------------------------------------------------------------------------*/
 nsIDocShell *
 nsWebBrowserFind::GetDocShellFromWindow(nsIDOMWindow *inWindow)
 {
     nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(inWindow));
-    if (!window) return nullptr;
+    if (!window) return nsnull;
 
     return window->GetDocShell();
 }

@@ -26,7 +26,7 @@ public:
 public:
   AtkHyperlink *GetAtkHyperlink(void);
   Accessible* GetAccHyperlink()
-    { return mHyperlink && mHyperlink->IsLink() ? mHyperlink : nullptr; }
+    { return mHyperlink && mHyperlink->IsLink() ? mHyperlink : nsnull; }
 
 protected:
   Accessible* mHyperlink;

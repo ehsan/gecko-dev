@@ -112,7 +112,7 @@ public:
     static JavaVM *GetVM() {
         if (NS_LIKELY(sBridge))
             return sBridge->mJavaVM;
-        return nullptr;
+        return nsnull;
     }
 
     static JNIEnv *GetJNIEnv() {
@@ -121,12 +121,12 @@ public:
                 __android_log_print(ANDROID_LOG_INFO, "AndroidBridge",
                                     "###!!!!!!! Something's grabbing the JNIEnv from the wrong thread! (thr %p should be %p)",
                                     (void*)pthread_self(), (void*)sBridge->mThread);
-                return nullptr;
+                return nsnull;
             }
             return sBridge->mJNIEnv;
 
         }
-        return nullptr;
+        return nsnull;
     }
     
     static jclass GetGeckoAppShellClass() {
@@ -181,13 +181,13 @@ public:
     AndroidGeckoSurfaceView& SurfaceView() { return mSurfaceView; }
 
     bool GetHandlersForURL(const char *aURL, 
-                             nsIMutableArray* handlersArray = nullptr,
-                             nsIHandlerApp **aDefaultApp = nullptr,
+                             nsIMutableArray* handlersArray = nsnull,
+                             nsIHandlerApp **aDefaultApp = nsnull,
                              const nsAString& aAction = EmptyString());
 
     bool GetHandlersForMimeType(const char *aMimeType,
-                                  nsIMutableArray* handlersArray = nullptr,
-                                  nsIHandlerApp **aDefaultApp = nullptr,
+                                  nsIMutableArray* handlersArray = nsnull,
+                                  nsIHandlerApp **aDefaultApp = nsnull,
                                   const nsAString& aAction = EmptyString());
 
     bool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType,
@@ -263,9 +263,9 @@ public:
     void RegisterCompositor(JNIEnv* env = NULL, bool resetting = false);
     EGLSurface ProvideEGLSurface();
 
-    bool GetStaticStringField(const char *classID, const char *field, nsAString &result, JNIEnv* env = nullptr);
+    bool GetStaticStringField(const char *classID, const char *field, nsAString &result, JNIEnv* env = nsnull);
 
-    bool GetStaticIntField(const char *className, const char *fieldName, PRInt32* aInt, JNIEnv* env = nullptr);
+    bool GetStaticIntField(const char *className, const char *fieldName, PRInt32* aInt, JNIEnv* env = nsnull);
 
     void SetKeepScreenOn(bool on);
 

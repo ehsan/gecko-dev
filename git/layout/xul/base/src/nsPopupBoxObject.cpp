@@ -33,7 +33,7 @@ protected:
     nsIFrame* frame = GetFrame(false);
     if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame)
       return static_cast<nsMenuPopupFrame*>(frame);
-    return nullptr;
+    return nsnull;
   }
 };
 
@@ -44,7 +44,7 @@ nsPopupBoxObject::GetPopupSetFrame()
 {
   nsIRootBox* rootBox = nsIRootBox::GetRootBox(GetPresShell(false));
   if (!rootBox)
-    return nullptr;
+    return nsnull;
 
   return rootBox->GetPopupSetFrame();
 }
@@ -230,7 +230,7 @@ nsPopupBoxObject::GetPopupState(nsAString& aState)
 NS_IMETHODIMP
 nsPopupBoxObject::GetTriggerNode(nsIDOMNode** aTriggerNode)
 {
-  *aTriggerNode = nullptr;
+  *aTriggerNode = nsnull;
 
   nsIContent* triggerContent = nsMenuPopupFrame::GetTriggerContent(GetMenuPopupFrame());
   if (triggerContent)
@@ -242,7 +242,7 @@ nsPopupBoxObject::GetTriggerNode(nsIDOMNode** aTriggerNode)
 NS_IMETHODIMP
 nsPopupBoxObject::GetAnchorNode(nsIDOMElement** aAnchor)
 {
-  *aAnchor = nullptr;
+  *aAnchor = nsnull;
 
   nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (!menuPopupFrame)

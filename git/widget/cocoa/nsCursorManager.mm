@@ -9,7 +9,7 @@
 #include <math.h>
 
 static nsCursorManager *gInstance;
-static imgIContainer *sCursorImgContainer = nullptr;
+static imgIContainer *sCursorImgContainer = nsnull;
 static const nsCursor sCustomCursor = eCursorCount;
 
 /*! @category nsCursorManager(PrivateMethods)

@@ -218,7 +218,7 @@ nsDeviceSensors::FireDOMLightEvent(nsIDOMEventTarget *aTarget,
                                   double aValue)
 {
   nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMDeviceLightEvent(getter_AddRefs(event), nullptr, nullptr);
+  NS_NewDOMDeviceLightEvent(getter_AddRefs(event), nsnull, nsnull);
 
   nsCOMPtr<nsIDOMDeviceLightEvent> oe = do_QueryInterface(event);
   oe->InitDeviceLightEvent(NS_LITERAL_STRING("devicelight"),
@@ -239,7 +239,7 @@ nsDeviceSensors::FireDOMProximityEvent(nsIDOMEventTarget *aTarget,
                                        double aMax)
 {
   nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMDeviceProximityEvent(getter_AddRefs(event), nullptr, nullptr);
+  NS_NewDOMDeviceProximityEvent(getter_AddRefs(event), nsnull, nsnull);
   nsCOMPtr<nsIDOMDeviceProximityEvent> oe = do_QueryInterface(event);
 
   oe->InitDeviceProximityEvent(NS_LITERAL_STRING("deviceproximity"),
@@ -270,7 +270,7 @@ void
 nsDeviceSensors::FireDOMUserProximityEvent(nsIDOMEventTarget *aTarget, bool aNear)
 {
   nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMUserProximityEvent(getter_AddRefs(event), nullptr, nullptr);
+  NS_NewDOMUserProximityEvent(getter_AddRefs(event), nsnull, nsnull);
   nsCOMPtr<nsIDOMUserProximityEvent> pe = do_QueryInterface(event);
 
   pe->InitUserProximityEvent(NS_LITERAL_STRING("userproximity"),
@@ -362,8 +362,8 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
   bool defaultActionEnabled = true;
   target->DispatchEvent(event, &defaultActionEnabled);
 
-  mLastRotationRate = nullptr;
-  mLastAccelerationIncluduingGravity = nullptr;
-  mLastAcceleration = nullptr;
+  mLastRotationRate = nsnull;
+  mLastAccelerationIncluduingGravity = nsnull;
+  mLastAcceleration = nsnull;
   mLastDOMMotionEventTime = TimeStamp::Now();
 }

@@ -144,7 +144,7 @@ nsChannelClassifier::MarkEntryClassified(nsresult status)
     }
 
     cacheEntry->SetMetaDataElement("necko:classified",
-                                   NS_SUCCEEDED(status) ? "1" : nullptr);
+                                   NS_SUCCEEDED(status) ? "1" : nsnull);
 }
 
 bool
@@ -198,7 +198,7 @@ nsChannelClassifier::OnClassifyComplete(nsresult aErrorCode)
              "OnClassifyComplete", this, mSuspendedChannel.get()));
 #endif
         mSuspendedChannel->Resume();
-        mSuspendedChannel = nullptr;
+        mSuspendedChannel = nsnull;
     }
 
     return NS_OK;

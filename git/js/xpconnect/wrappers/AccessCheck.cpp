@@ -182,7 +182,7 @@ IsFrameId(JSContext *cx, JSObject *obj, jsid id)
         return false;
     }
 
-    return domwin != nullptr;
+    return domwin != nsnull;
 }
 
 static bool
@@ -243,9 +243,9 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
         return false;
     }
 
-    JSScript *script = nullptr;
+    JSScript *script = nsnull;
     if (!fp) {
-        if (!JS_DescribeScriptedCaller(cx, &script, nullptr)) {
+        if (!JS_DescribeScriptedCaller(cx, &script, nsnull)) {
             // No code at all is running. So we must be arriving here as the result
             // of C++ code asking us to do something. Allow access.
             return true;

@@ -929,7 +929,7 @@ BooleanHistogram::BooleanHistogram(const std::string& name)
 Histogram *
 FlagHistogram::FactoryGet(const std::string &name, Flags flags)
 {
-  Histogram *h(nullptr);
+  Histogram *h(nsnull);
 
   if (!StatisticsRecorder::FindHistogram(name, &h)) {
     // To avoid racy destruction at shutdown, the following will be leaked.

@@ -57,9 +57,9 @@ static gfxMatrix sRotationMatrix;
 
 static nsRefPtr<GLContext> sGLContext;
 static nsTArray<nsWindow *> sTopWindows;
-static nsWindow *gWindowToRedraw = nullptr;
-static nsWindow *gFocusedWindow = nullptr;
-static android::FramebufferNativeWindow *gNativeWindow = nullptr;
+static nsWindow *gWindowToRedraw = nsnull;
+static nsWindow *gFocusedWindow = nsnull;
+static android::FramebufferNativeWindow *gNativeWindow = nsnull;
 static bool sFramebufferOpen;
 static bool sUsingOMTC;
 static bool sScreenInitialized;
@@ -309,9 +309,9 @@ nsWindow::Destroy(void)
 {
     sTopWindows.RemoveElement(this);
     if (this == gWindowToRedraw)
-        gWindowToRedraw = nullptr;
+        gWindowToRedraw = nsnull;
     if (this == gFocusedWindow)
-        gFocusedWindow = nullptr;
+        gFocusedWindow = nsnull;
     return NS_OK;
 }
 
@@ -466,7 +466,7 @@ nsWindow::GetNativeData(PRUint32 aDataType)
     case NS_NATIVE_WIDGET:
         return this;
     }
-    return nullptr;
+    return nsnull;
 }
 
 NS_IMETHODIMP
@@ -519,7 +519,7 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
 
     if (!topWindow) {
         LOGW(" -- no topwindow\n");
-        return nullptr;
+        return nsnull;
     }
 
     if (sUsingOMTC) {
@@ -767,7 +767,7 @@ NS_IMPL_ISUPPORTS1(nsScreenManagerGonk, nsIScreenManager)
 
 nsScreenManagerGonk::nsScreenManagerGonk()
 {
-    mOneScreen = new nsScreenGonk(nullptr);
+    mOneScreen = new nsScreenGonk(nsnull);
 }
 
 nsScreenManagerGonk::~nsScreenManagerGonk()

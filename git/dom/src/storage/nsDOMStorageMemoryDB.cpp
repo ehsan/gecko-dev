@@ -45,7 +45,7 @@ nsDOMStorageMemoryDB::GetItemsTable(DOMStorageImpl* aStorage,
   if (mData.Get(aStorage->GetScopeDBKey(), aMemoryStorage))
     return NS_OK;
 
-  *aMemoryStorage = nullptr;
+  *aMemoryStorage = nsnull;
 
   nsInMemoryStorage* storageData = new nsInMemoryStorage();
   if (!storageData)

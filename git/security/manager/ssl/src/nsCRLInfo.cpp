@@ -68,7 +68,7 @@ nsCRLInfo::nsCRLInfo(CERTSignedCrl *signedCrl)
   if (crl->lastUpdate.len) {
     sec_rv = DER_UTCTimeToTime(&lastUpdate, &(crl->lastUpdate));
     if (sec_rv == SECSuccess && dateFormatter) {
-      dateFormatter->FormatPRTime(nullptr, kDateFormatShort, kTimeFormatNone,
+      dateFormatter->FormatPRTime(nsnull, kDateFormatShort, kTimeFormatNone,
                             lastUpdate, lastUpdateLocale);
     }
   }
@@ -77,7 +77,7 @@ nsCRLInfo::nsCRLInfo(CERTSignedCrl *signedCrl)
     // Next update time
     sec_rv = DER_UTCTimeToTime(&nextUpdate, &(crl->nextUpdate));
     if (sec_rv == SECSuccess && dateFormatter) {
-      dateFormatter->FormatPRTime(nullptr, kDateFormatShort, kTimeFormatNone,
+      dateFormatter->FormatPRTime(nsnull, kDateFormatShort, kTimeFormatNone,
                             nextUpdate, nextUpdateLocale);
     }
   }

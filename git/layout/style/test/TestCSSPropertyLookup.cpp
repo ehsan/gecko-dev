@@ -10,7 +10,7 @@
 #include "nsXPCOM.h"
 
 static const char* const kJunkNames[] = {
-  nullptr,
+  nsnull,
   "",
   "123",
   "backgroundz",
@@ -154,14 +154,14 @@ TestKeywords()
 int
 main(void)
 {
-  nsresult rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+  nsresult rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
   NS_ENSURE_SUCCESS(rv, 2);
 
   bool testOK = true;
   testOK &= TestProps();
   testOK &= TestKeywords();
 
-  rv = NS_ShutdownXPCOM(nullptr);
+  rv = NS_ShutdownXPCOM(nsnull);
   NS_ENSURE_SUCCESS(rv, 2);
 
   return testOK ? 0 : 1;

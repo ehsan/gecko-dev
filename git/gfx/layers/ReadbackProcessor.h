@@ -59,7 +59,7 @@ public:
    */
   void GetThebesLayerUpdates(ThebesLayer* aLayer,
                              nsTArray<Update>* aUpdates,
-                             nsIntRegion* aUpdateRegion = nullptr);
+                             nsIntRegion* aUpdateRegion = nsnull);
 
   ~ReadbackProcessor();
 

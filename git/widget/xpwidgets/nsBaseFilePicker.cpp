@@ -162,7 +162,7 @@ NS_IMETHODIMP nsBaseFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
 NS_IMETHODIMP nsBaseFilePicker::SetDisplayDirectory(nsIFile *aDirectory)
 {
   if (!aDirectory) {
-    mDisplayDirectory = nullptr;
+    mDisplayDirectory = nsnull;
     return NS_OK;
   }
   nsCOMPtr<nsIFile> directory;
@@ -176,7 +176,7 @@ NS_IMETHODIMP nsBaseFilePicker::SetDisplayDirectory(nsIFile *aDirectory)
 // Get the display directory
 NS_IMETHODIMP nsBaseFilePicker::GetDisplayDirectory(nsIFile **aDirectory)
 {
-  *aDirectory = nullptr;
+  *aDirectory = nsnull;
   if (!mDisplayDirectory)
     return NS_OK;
   nsCOMPtr<nsIFile> directory;

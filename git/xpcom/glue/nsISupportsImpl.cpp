@@ -21,6 +21,6 @@ NS_TableDrivenQI(void* aThis, const QITableEntry* entries,
     ++entries;
   }
 
-  *aInstancePtr = nullptr;
+  *aInstancePtr = nsnull;
   return NS_ERROR_NO_INTERFACE;
 }

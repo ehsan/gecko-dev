@@ -23,7 +23,7 @@ NullHttpTransaction::NullHttpTransaction(nsHttpConnectionInfo *ci,
   , mCallbacks(callbacks)
   , mEventTarget(target)
   , mConnectionInfo(ci)
-  , mRequestHead(nullptr)
+  , mRequestHead(nsnull)
   , mIsDone(false)
 {
 }
@@ -31,7 +31,7 @@ NullHttpTransaction::NullHttpTransaction(nsHttpConnectionInfo *ci,
 NullHttpTransaction::~NullHttpTransaction()
 {
   if (mCallbacks) {
-    nsIInterfaceRequestor *cbs = nullptr;
+    nsIInterfaceRequestor *cbs = nsnull;
     mCallbacks.swap(cbs);
     NS_ProxyRelease(mEventTarget, cbs);
   }
@@ -160,7 +160,7 @@ void
 NullHttpTransaction::Close(nsresult reason)
 {
   mStatus = reason;
-  mConnection = nullptr;
+  mConnection = nsnull;
   mIsDone = true;
 }
 

@@ -113,7 +113,7 @@ protected:
     virtual ~nsInputStreamTeeWriteEvent()
     {
         if (mBuf) free(mBuf);
-        mBuf = nullptr;
+        mBuf = nsnull;
     }
     
 private:
@@ -124,7 +124,7 @@ private:
     nsRefPtr<nsInputStreamTee> mTee;
 };
 
-nsInputStreamTee::nsInputStreamTee(): mLock(nullptr)
+nsInputStreamTee::nsInputStreamTee(): mLock(nsnull)
                                     , mSinkIsValid(true)
 {
 }
@@ -336,5 +336,5 @@ NS_NewInputStreamTee(nsIInputStream **result,
                      nsIInputStream *source,
                      nsIOutputStream *sink)
 {
-    return NS_NewInputStreamTeeAsync(result, source, sink, nullptr);
+    return NS_NewInputStreamTeeAsync(result, source, sink, nsnull);
 }

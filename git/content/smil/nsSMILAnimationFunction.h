@@ -57,7 +57,7 @@ public:
    *          attribute; false otherwise.
    */
   virtual bool SetAttr(nsIAtom* aAttribute, const nsAString& aValue,
-                         nsAttrValue& aResult, nsresult* aParseResult = nullptr);
+                         nsAttrValue& aResult, nsresult* aParseResult = nsnull);
 
   /*
    * Unsets the given attribute.

@@ -49,7 +49,7 @@ nsSVGClipPathFrame::ClipPaint(nsRenderingContext* aContext,
 
   gfxContext *gfx = aContext->ThebesContext();
 
-  nsISVGChildFrame *singleClipPathChild = nullptr;
+  nsISVGChildFrame *singleClipPathChild = nsnull;
 
   if (IsTrivial(&singleClipPathChild)) {
     // Notify our child that it's painting as part of a clipPath, and that
@@ -62,7 +62,7 @@ nsSVGClipPathFrame::ClipPaint(nsRenderingContext* aContext,
     } else {
       singleClipPathChild->NotifySVGChanged(
                              nsISVGChildFrame::TRANSFORM_CHANGED);
-      singleClipPathChild->PaintSVG(aContext, nullptr);
+      singleClipPathChild->PaintSVG(aContext, nsnull);
     }
     gfx->Clip();
     gfx->NewPath();
@@ -76,7 +76,7 @@ nsSVGClipPathFrame::ClipPaint(nsRenderingContext* aContext,
 
   // Check if this clipPath is itself clipped by another clipPath:
   nsSVGClipPathFrame *clipPathFrame =
-    nsSVGEffects::GetEffectProperties(this).GetClipPathFrame(nullptr);
+    nsSVGEffects::GetEffectProperties(this).GetClipPathFrame(nsnull);
   bool referencedClipIsTrivial;
   if (clipPathFrame) {
     referencedClipIsTrivial = clipPathFrame->IsTrivial();
@@ -114,7 +114,7 @@ nsSVGClipPathFrame::ClipPaint(nsRenderingContext* aContext,
         }
       }
 
-      SVGFrame->PaintSVG(aContext, nullptr);
+      SVGFrame->PaintSVG(aContext, nsnull);
 
       if (clipPathFrame) {
         if (!isTrivial) {
@@ -177,7 +177,7 @@ nsSVGClipPathFrame::ClipHitTest(nsIFrame* aParent,
   }
 
   nsSVGClipPathFrame *clipPathFrame =
-    nsSVGEffects::GetEffectProperties(this).GetClipPathFrame(nullptr);
+    nsSVGEffects::GetEffectProperties(this).GetClipPathFrame(nsnull);
   if (clipPathFrame && !clipPathFrame->ClipHitTest(aParent, aMatrix, aPoint))
     return false;
 
@@ -201,14 +201,14 @@ bool
 nsSVGClipPathFrame::IsTrivial(nsISVGChildFrame **aSingleChild)
 {
   // If the clip path is clipped then it's non-trivial
-  if (nsSVGEffects::GetEffectProperties(this).GetClipPathFrame(nullptr))
+  if (nsSVGEffects::GetEffectProperties(this).GetClipPathFrame(nsnull))
     return false;
 
   if (aSingleChild) {
-    *aSingleChild = nullptr;
+    *aSingleChild = nsnull;
   }
 
-  nsISVGChildFrame *foundChild = nullptr;
+  nsISVGChildFrame *foundChild = nsnull;
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
@@ -220,7 +220,7 @@ nsSVGClipPathFrame::IsTrivial(nsISVGChildFrame **aSingleChild)
         return false;
 
       // or where the child is itself clipped
-      if (nsSVGEffects::GetEffectProperties(kid).GetClipPathFrame(nullptr))
+      if (nsSVGEffects::GetEffectProperties(kid).GetClipPathFrame(nsnull))
         return false;
 
       foundChild = svgChild;

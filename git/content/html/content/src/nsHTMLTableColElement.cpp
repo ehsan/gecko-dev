@@ -194,7 +194,7 @@ nsHTMLTableColElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     { &nsGkAtoms::align },
     { &nsGkAtoms::valign },
     { &nsGkAtoms::span },
-    { nullptr }
+    { nsnull }
   };
 
   static const MappedAttributeEntry* const map[] = {

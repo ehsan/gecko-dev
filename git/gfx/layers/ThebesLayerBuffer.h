@@ -66,7 +66,7 @@ public:
    */
   void Clear()
   {
-    mBuffer = nullptr;
+    mBuffer = nsnull;
     mBufferRect.SetEmpty();
   }
 
@@ -149,8 +149,8 @@ protected:
                           gfxASurface* aMask,
                           const gfxMatrix* aMaskTransform);
   void DrawBufferWithRotation(gfxContext* aTarget, float aOpacity,
-                              gfxASurface* aMask = nullptr,
-                              const gfxMatrix* aMaskTransform = nullptr);
+                              gfxASurface* aMask = nsnull,
+                              const gfxMatrix* aMaskTransform = nsnull);
 
   /**
    * |BufferRect()| is the rect of device pixels that this

@@ -63,7 +63,7 @@ struct FramePropertyDescriptor {
  */
 class FramePropertyTable {
 public:
-  FramePropertyTable() : mLastFrame(nullptr), mLastEntry(nullptr)
+  FramePropertyTable() : mLastFrame(nsnull), mLastEntry(nsnull)
   {
     mEntries.Init();
   }
@@ -91,7 +91,7 @@ public:
    * 'property value is null'.
    */
   void* Get(const nsIFrame* aFrame, const FramePropertyDescriptor* aProperty,
-            bool* aFoundResult = nullptr);
+            bool* aFoundResult = nsnull);
   /**
    * Remove a property value for a frame. This requires one hashtable
    * lookup (using the frame as the key) and a linear search through
@@ -104,7 +104,7 @@ public:
    * 'property value is null'.
    */
   void* Remove(nsIFrame* aFrame, const FramePropertyDescriptor* aProperty,
-               bool* aFoundResult = nullptr);
+               bool* aFoundResult = nsnull);
   /**
    * Remove and destroy a property value for a frame. This requires one
    * hashtable lookup (using the frame as the key) and a linear search
@@ -130,7 +130,7 @@ protected:
    * store an nsTArray of PropertyValues.
    */
   struct PropertyValue {
-    PropertyValue() : mProperty(nullptr), mValue(nullptr) {}
+    PropertyValue() : mProperty(nsnull), mValue(nsnull) {}
     PropertyValue(const FramePropertyDescriptor* aProperty, void* aValue)
       : mProperty(aProperty), mValue(aValue) {}
 
@@ -224,12 +224,12 @@ public:
     mTable->Set(mFrame, aProperty, aValue);
   }
   void* Get(const FramePropertyDescriptor* aProperty,
-            bool* aFoundResult = nullptr) const
+            bool* aFoundResult = nsnull) const
   {
     return mTable->Get(mFrame, aProperty, aFoundResult);
   }
   void* Remove(const FramePropertyDescriptor* aProperty,
-               bool* aFoundResult = nullptr) const
+               bool* aFoundResult = nsnull) const
   {
     return mTable->Remove(mFrame, aProperty, aFoundResult);
   }

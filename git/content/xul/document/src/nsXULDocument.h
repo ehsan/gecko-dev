@@ -105,7 +105,7 @@ public:
                                        nsISupports* aContainer,
                                        nsIStreamListener **aDocListener,
                                        bool aReset = true,
-                                       nsIContentSink* aSink = nullptr);
+                                       nsIContentSink* aSink = nsnull);
 
     virtual void SetContentType(const nsAString& aContentType);
 

@@ -125,10 +125,10 @@ protected:
                                      // parent frame pointer
 
     InlineReflowState()  {
-      mPrevFrame = nullptr;
-      mNextInFlow = nullptr;
-      mLineContainer = nullptr;
-      mLineLayout = nullptr;
+      mPrevFrame = nsnull;
+      mNextInFlow = nsnull;
+      mLineContainer = nsnull;
+      mLineLayout = nsnull;
       mSetParentPointer = false;
     }
   };

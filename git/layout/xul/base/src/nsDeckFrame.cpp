@@ -129,7 +129,7 @@ nsDeckFrame::GetSelectedIndex()
 nsIFrame* 
 nsDeckFrame::GetSelectedBox()
 {
-  return (mIndex >= 0) ? mFrames.FrameAt(mIndex) : nullptr; 
+  return (mIndex >= 0) ? mFrames.FrameAt(mIndex) : nsnull; 
 }
 
 NS_IMETHODIMP

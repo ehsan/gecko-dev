@@ -133,7 +133,7 @@ nsSMILCompositor::CreateSMILAttr()
     return mKey.mElement->GetAnimatedAttr(mKey.mAttributeNamespaceID,
                                           mKey.mAttributeName);
   }
-  return nullptr;
+  return nsnull;
 }
 
 PRUint32

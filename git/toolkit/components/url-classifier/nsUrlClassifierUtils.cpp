@@ -71,7 +71,7 @@ IsOctal(const nsACString & num)
   return true;
 }
 
-nsUrlClassifierUtils::nsUrlClassifierUtils() : mEscapeCharmap(nullptr)
+nsUrlClassifierUtils::nsUrlClassifierUtils() : mEscapeCharmap(nsnull)
 {
 }
 

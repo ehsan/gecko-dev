@@ -18,7 +18,7 @@ nsresult
 xpcAccessibleTable::GetCaption(nsIAccessible** aCaption)
 {
   NS_ENSURE_ARG_POINTER(aCaption);
-  *aCaption = nullptr;
+  *aCaption = nsnull;
   if (!mTable)
     return NS_ERROR_FAILURE;
 
@@ -57,7 +57,7 @@ xpcAccessibleTable::GetCellAt(PRInt32 aRowIdx, PRInt32 aColIdx,
                               nsIAccessible** aCell)
 {
   NS_ENSURE_ARG_POINTER(aCell);
-  *aCell = nullptr;
+  *aCell = nsnull;
 
   if (!mTable)
     return NS_ERROR_FAILURE;
@@ -250,7 +250,7 @@ nsresult
 xpcAccessibleTable::GetSelectedCells(nsIArray** aSelectedCells)
 {
   NS_ENSURE_ARG_POINTER(aSelectedCells);
-  *aSelectedCells = nullptr;
+  *aSelectedCells = nsnull;
 
   if (!mTable)
     return NS_ERROR_FAILURE;

@@ -57,15 +57,15 @@ public:
 
   TNotification(Class* aInstance, Callback aCallback, Arg* aArg) :
     mInstance(aInstance), mCallback(aCallback), mArg(aArg) { }
-  virtual ~TNotification() { mInstance = nullptr; }
+  virtual ~TNotification() { mInstance = nsnull; }
 
   virtual void Process()
   {
     (mInstance->*mCallback)(mArg);
 
-    mInstance = nullptr;
-    mCallback = nullptr;
-    mArg = nullptr;
+    mInstance = nsnull;
+    mCallback = nsnull;
+    mArg = nsnull;
   }
 
 private:
@@ -270,7 +270,7 @@ private:
   {
   public:
     ContentInsertion(DocAccessible* aDocument, Accessible* aContainer);
-    virtual ~ContentInsertion() { mDocument = nullptr; }
+    virtual ~ContentInsertion() { mDocument = nsnull; }
 
     NS_INLINE_DECL_REFCOUNTING(ContentInsertion)
     NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(ContentInsertion)

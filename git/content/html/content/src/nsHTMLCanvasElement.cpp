@@ -402,7 +402,7 @@ nsHTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
   rv = stream->Available(&imgSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  void* imgData = nullptr;
+  void* imgData = nsnull;
   rv = NS_ReadInputStreamToBuffer(stream, &imgData, imgSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -447,11 +447,11 @@ nsHTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
   nsCOMPtr<nsICanvasRenderingContextInternal> ctx =
     do_CreateInstance(ctxString.get(), &rv);
   if (rv == NS_ERROR_OUT_OF_MEMORY) {
-    *aContext = nullptr;
+    *aContext = nsnull;
     return NS_ERROR_OUT_OF_MEMORY;
   }
   if (NS_FAILED(rv)) {
-    *aContext = nullptr;
+    *aContext = nsnull;
     // XXX ERRMSG we need to report an error to developers here! (bug 329026)
     return NS_OK;
   }
@@ -479,10 +479,10 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
 
     // Ensure that the context participates in CC.  Note that returning a
     // CC participant from QI doesn't addref.
-    nsXPCOMCycleCollectionParticipant *cp = nullptr;
+    nsXPCOMCycleCollectionParticipant *cp = nsnull;
     CallQueryInterface(mCurrentContext, &cp);
     if (!cp) {
-      mCurrentContext = nullptr;
+      mCurrentContext = nsnull;
       return NS_ERROR_FAILURE;
     }
 
@@ -509,7 +509,7 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
         JSString *propnameString = JS_ValueToString(cx, propname);
         nsDependentJSString pstr;
         if (!propnameString || !pstr.init(cx, propnameString)) {
-          mCurrentContext = nullptr;
+          mCurrentContext = nsnull;
           return NS_ERROR_FAILURE;
         }
 
@@ -523,7 +523,7 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
           JSString *propvalString = JS_ValueToString(cx, propval);
           nsDependentJSString vstr;
           if (!propvalString || !vstr.init(cx, propvalString)) {
-            mCurrentContext = nullptr;
+            mCurrentContext = nsnull;
             return NS_ERROR_FAILURE;
           }
 
@@ -600,21 +600,21 @@ nsHTMLCanvasElement::UpdateContext(nsIPropertyBag *aNewContextOptions)
 
   nsresult rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
   if (NS_FAILED(rv)) {
-    mCurrentContext = nullptr;
+    mCurrentContext = nsnull;
     mCurrentContextId.Truncate();
     return rv;
   }
 
   rv = mCurrentContext->SetContextOptions(aNewContextOptions);
   if (NS_FAILED(rv)) {
-    mCurrentContext = nullptr;
+    mCurrentContext = nsnull;
     mCurrentContextId.Truncate();
     return rv;
   }
 
   rv = mCurrentContext->SetDimensions(sz.width, sz.height);
   if (NS_FAILED(rv)) {
-    mCurrentContext = nullptr;
+    mCurrentContext = nsnull;
     mCurrentContextId.Truncate();
     return rv;
   }
@@ -737,7 +737,7 @@ nsHTMLCanvasElement::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
                                     LayerManager *aManager)
 {
   if (!mCurrentContext)
-    return nullptr;
+    return nsnull;
 
   return mCurrentContext->GetCanvasLayer(aBuilder, aOldLayer, aManager);
 }

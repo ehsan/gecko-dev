@@ -224,7 +224,7 @@ nsHttpDigestAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
      * TODO: somehow?
      */
 #if 0
-    if (http_channel != nullptr)
+    if (http_channel != nsnull)
     {
       nsIInputStream * upload;
       nsCOMPtr<nsIUploadChannel> uc = do_QueryInterface(http_channel);

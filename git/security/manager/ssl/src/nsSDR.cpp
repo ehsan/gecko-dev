@@ -140,7 +140,7 @@ EncryptString(const char *text, char **_retval)
   unsigned char *encrypted = 0;
   PRInt32 eLen;
 
-  if (text == nullptr || _retval == nullptr) {
+  if (text == nsnull || _retval == nsnull) {
     rv = NS_ERROR_INVALID_POINTER;
     goto loser;
   }
@@ -168,7 +168,7 @@ DecryptString(const char *crypt, char **_retval)
   unsigned char *decrypted = 0;
   PRInt32 decryptedLen;
 
-  if (crypt == nullptr || _retval == nullptr) {
+  if (crypt == nsnull || _retval == nsnull) {
     rv = NS_ERROR_INVALID_POINTER;
     goto loser;
   }
@@ -278,7 +278,7 @@ LogoutAndTeardown()
   // bug 517584.
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (os)
-    os->NotifyObservers(nullptr, "net:prune-dead-connections", nullptr);
+    os->NotifyObservers(nsnull, "net:prune-dead-connections", nsnull);
 
   return rv;
 }

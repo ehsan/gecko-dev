@@ -21,7 +21,7 @@ struct nsXBLParameter {
   nsXBLParameter(const nsAString& aName) {
     MOZ_COUNT_CTOR(nsXBLParameter);
     mName = ToNewCString(aName);
-    mNext = nullptr;
+    mNext = nsnull;
   }
 
   ~nsXBLParameter() {
@@ -37,8 +37,8 @@ struct nsXBLUncompiledMethod {
   nsXBLTextWithLineNumber mBodyText;
 
   nsXBLUncompiledMethod() :
-    mParameters(nullptr),
-    mLastParameter(nullptr),
+    mParameters(nsnull),
+    mLastParameter(nsnull),
     mBodyText()
   {
     MOZ_COUNT_CTOR(nsXBLUncompiledMethod);

@@ -197,7 +197,7 @@ nsDOMGeoPositionError::NotifyCallback(nsIDOMGeoPositionErrorCallback* aCallback)
   
   // Ensure that the proper context is on the stack (bug 452762)
   nsCOMPtr<nsIJSContextStack> stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1"));
-  if (!stack || NS_FAILED(stack->Push(nullptr))) {
+  if (!stack || NS_FAILED(stack->Push(nsnull))) {
     return;
   }
 
@@ -275,7 +275,7 @@ nsGeolocationRequest::Notify(nsITimer* aTimer)
   mLocator->RemoveRequest(this);
   NotifyError(nsIDOMGeoPositionError::TIMEOUT);
 
-  mTimeoutTimer = nullptr;
+  mTimeoutTimer = nsnull;
   return NS_OK;
 }
  
@@ -312,7 +312,7 @@ NS_IMETHODIMP
 nsGeolocationRequest::GetElement(nsIDOMElement * *aRequestingElement)
 {
   NS_ENSURE_ARG_POINTER(aRequestingElement);
-  *aRequestingElement = nullptr;
+  *aRequestingElement = nsnull;
   return NS_OK;
 }
 
@@ -371,7 +371,7 @@ nsGeolocationRequest::Allow()
 
     nsCOMPtr<nsIRunnable> ev = new RequestSendLocationEvent(lastPosition,
 							    this,
-							    mIsWatchPositionRequest ? nullptr : mLocator);
+							    mIsWatchPositionRequest ? nsnull : mLocator);
     NS_DispatchToMainThread(ev);
   }
 
@@ -386,7 +386,7 @@ nsGeolocationRequest::SetTimeoutTimer()
 {
   if (mTimeoutTimer) {
     mTimeoutTimer->Cancel();
-    mTimeoutTimer = nullptr;
+    mTimeoutTimer = nsnull;
   }
 
   PRInt32 timeout;
@@ -408,7 +408,7 @@ nsGeolocationRequest::MarkCleared()
 {
   if (mTimeoutTimer) {
     mTimeoutTimer->Cancel();
-    mTimeoutTimer = nullptr;
+    mTimeoutTimer = nsnull;
   }
   mCleared = true;
 }
@@ -422,7 +422,7 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
 
   if (mTimeoutTimer) {
     mTimeoutTimer->Cancel();
-    mTimeoutTimer = nullptr;
+    mTimeoutTimer = nsnull;
   }
 
   // we should not pass null back to the DOM.
@@ -433,7 +433,7 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
 
   // Ensure that the proper context is on the stack (bug 452762)
   nsCOMPtr<nsIJSContextStack> stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1"));
-  if (!stack || NS_FAILED(stack->Push(nullptr))) {
+  if (!stack || NS_FAILED(stack->Push(nsnull))) {
     return; // silently fail
   }
 
@@ -458,7 +458,7 @@ nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition)
 
   nsCOMPtr<nsIRunnable> ev  = new RequestSendLocationEvent(aPosition,
 							   this,
-							   mIsWatchPositionRequest ? nullptr : mLocator);
+							   mIsWatchPositionRequest ? nsnull : mLocator);
   NS_DispatchToMainThread(ev);
   return true;
 }
@@ -475,11 +475,11 @@ nsGeolocationRequest::Shutdown()
 
   if (mTimeoutTimer) {
     mTimeoutTimer->Cancel();
-    mTimeoutTimer = nullptr;
+    mTimeoutTimer = nsnull;
   }
   mCleared = true;
-  mCallback = nullptr;
-  mErrorCallback = nullptr;
+  mCallback = nsnull;
+  mErrorCallback = nsnull;
 }
 
 bool nsGeolocationRequest::Recv__delete__(const bool& allow)
@@ -643,8 +643,8 @@ nsGeolocationService::HandleMozsettingChanged(const PRUnichar* aData)
         mGeolocators[i]->Shutdown();
       }
       StopDevice();
-      Update(nullptr);
-      mLastPosition = nullptr;
+      Update(nsnull);
+      mLastPosition = nsnull;
       sGeoEnabled = false;
     } else {
       sGeoEnabled = true;
@@ -686,7 +686,7 @@ nsGeolocationService::Observe(nsISupports* aSubject,
     
     // okay to close up.
     StopDevice();
-    Update(nullptr);
+    Update(nsnull);
     return NS_OK;
   }
 
@@ -788,7 +788,7 @@ nsGeolocationService::StopDevice()
 {
   if(mDisconnectTimer) {
     mDisconnectTimer->Cancel();
-    mDisconnectTimer = nullptr;
+    mDisconnectTimer = nsnull;
   }
 
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
@@ -810,7 +810,7 @@ nsGeolocationService::StopDevice()
   }
 }
 
-nsGeolocationService* nsGeolocationService::gService = nullptr;
+nsGeolocationService* nsGeolocationService::gService = nsnull;
 
 nsGeolocationService*
 nsGeolocationService::GetInstance()
@@ -822,7 +822,7 @@ nsGeolocationService::GetInstance()
     if (nsGeolocationService::gService) {
       if (NS_FAILED(nsGeolocationService::gService->Init())) {
         delete nsGeolocationService::gService;
-        nsGeolocationService::gService = nullptr;
+        nsGeolocationService::gService = nsnull;
       }        
     }
   }
@@ -946,8 +946,8 @@ nsGeolocation::Shutdown()
     mService->RemoveLocator(this);
   }
 
-  mService = nullptr;
-  mURI = nullptr;
+  mService = nsnull;
+  mURI = nsnull;
 }
 
 bool
@@ -1123,7 +1123,7 @@ nsGeolocation::WindowOwnerStillExists()
   // an owner was never set when nsGeolocation
   // was created, which means that this object
   // is being used without a window.
-  if (mOwner == nullptr) {
+  if (mOwner == nsnull) {
     return true;
   }
 

@@ -139,17 +139,17 @@ const js::Class ObjectWrapperParent::sCPOW_JSClass = {
       (JSResolveOp) ObjectWrapperParent::CPOW_NewResolve,
       ObjectWrapperParent::CPOW_Convert,
       ObjectWrapperParent::CPOW_Finalize,
-      nullptr, // checkAccess
+      nsnull, // checkAccess
       ObjectWrapperParent::CPOW_Call,
       ObjectWrapperParent::CPOW_HasInstance,
       ObjectWrapperParent::CPOW_Construct,
-      nullptr, // trace
+      nsnull, // trace
       {
           ObjectWrapperParent::CPOW_Equality,
-          nullptr, // outerObject
-          nullptr, // innerObject
-          nullptr, // iteratorObject
-          nullptr, // wrappedObject
+          nsnull, // outerObject
+          nsnull, // innerObject
+          nsnull, // iteratorObject
+          nsnull, // wrappedObject
     }
 };
 

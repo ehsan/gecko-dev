@@ -46,7 +46,7 @@ public:
     NS_DECL_NSIOBSERVER
 
     bool IsCached(nsIURI* aURI) {
-        return GetPrototype(aURI) != nullptr;
+        return GetPrototype(aURI) != nsnull;
     }
     void AbortCaching();
 
@@ -79,7 +79,7 @@ public:
 
     /**
      * Get a style sheet by URI. If the style sheet is not in the cache,
-     * returns nullptr.
+     * returns nsnull.
      */
     nsCSSStyleSheet* GetStyleSheet(nsIURI* aURI) {
         return mStyleSheetTable.GetWeak(aURI);

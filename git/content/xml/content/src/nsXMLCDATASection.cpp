@@ -50,11 +50,11 @@ NS_NewXMLCDATASection(nsIContent** aInstancePtrResult,
 {
   NS_PRECONDITION(aNodeInfoManager, "Missing nodeinfo manager");
 
-  *aInstancePtrResult = nullptr;
+  *aInstancePtrResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni;
   ni = aNodeInfoManager->GetNodeInfo(nsGkAtoms::cdataTagName,
-                                     nullptr, kNameSpaceID_None,
+                                     nsnull, kNameSpaceID_None,
                                      nsIDOMNode::CDATA_SECTION_NODE);
   NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 

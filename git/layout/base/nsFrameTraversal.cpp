@@ -120,7 +120,7 @@ protected:
 nsresult NS_CreateFrameTraversal(nsIFrameTraversal** aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   nsCOMPtr<nsIFrameTraversal> t(new nsFrameTraversal());
 
@@ -204,7 +204,7 @@ nsIFrame*
 nsFrameIterator::CurrentItem()
 {
   if (mOffEdge)
-    return nullptr;
+    return nsnull;
 
   return mCurrent;
 }
@@ -256,7 +256,7 @@ void
 nsFrameIterator::Next()
 {
   // recursive-oid method to get next frame
-  nsIFrame *result = nullptr;
+  nsIFrame *result = nsnull;
   nsIFrame *parent = getCurrent();
   if (!parent)
     parent = getLast();
@@ -291,7 +291,7 @@ nsFrameIterator::Next()
         result = GetParentFrameNotPopup(parent);
         if (!result || IsRootFrame(result) ||
             (mLockScroll && result->GetType() == nsGkAtoms::scrollFrame)) {
-          result = nullptr;
+          result = nsnull;
           break;
         }
         if (mType == ePostOrder)
@@ -312,7 +312,7 @@ void
 nsFrameIterator::Prev()
 {
   // recursive-oid method to get prev frame
-  nsIFrame *result = nullptr;
+  nsIFrame *result = nsnull;
   nsIFrame *parent = getCurrent();
   if (!parent)
     parent = getLast();
@@ -346,7 +346,7 @@ nsFrameIterator::Prev()
         result = GetParentFrameNotPopup(parent);
         if (!result || IsRootFrame(result) ||
             (mLockScroll && result->GetType() == nsGkAtoms::scrollFrame)) {
-          result = nullptr;
+          result = nsnull;
           break;
         }
         if (mType == ePreOrder)
@@ -371,7 +371,7 @@ nsFrameIterator::GetParentFrame(nsIFrame* aFrame)
   if (aFrame)
     return aFrame->GetParent();
   
-  return nullptr;
+  return nsnull;
 }
 
 nsIFrame*
@@ -385,7 +385,7 @@ nsFrameIterator::GetParentFrameNotPopup(nsIFrame* aFrame)
       return parent;
   }
     
-  return nullptr;
+  return nsnull;
 }
 
 nsIFrame*
@@ -393,7 +393,7 @@ nsFrameIterator::GetFirstChild(nsIFrame* aFrame)
 {
   nsIFrame* result = GetFirstChildInner(aFrame);
   if (mLockScroll && result && result->GetType() == nsGkAtoms::scrollFrame)
-    return nullptr;
+    return nsnull;
   if (result && mFollowOOFs) {
     result = nsPlaceholderFrame::GetRealFrameFor(result);
     
@@ -408,7 +408,7 @@ nsFrameIterator::GetLastChild(nsIFrame* aFrame)
 {
   nsIFrame* result = GetLastChildInner(aFrame);
   if (mLockScroll && result && result->GetType() == nsGkAtoms::scrollFrame)
-    return nullptr;
+    return nsnull;
   if (result && mFollowOOFs) {
     result = nsPlaceholderFrame::GetRealFrameFor(result);
     
@@ -421,7 +421,7 @@ nsFrameIterator::GetLastChild(nsIFrame* aFrame)
 nsIFrame*
 nsFrameIterator::GetNextSibling(nsIFrame* aFrame)
 {
-  nsIFrame* result = nullptr;
+  nsIFrame* result = nsnull;
   if (mFollowOOFs)
     aFrame = GetPlaceholderFrame(aFrame);
   if (aFrame) {
@@ -439,7 +439,7 @@ nsFrameIterator::GetNextSibling(nsIFrame* aFrame)
 nsIFrame*
 nsFrameIterator::GetPrevSibling(nsIFrame* aFrame)
 {
-  nsIFrame* result = nullptr;
+  nsIFrame* result = nsnull;
   if (mFollowOOFs)
     aFrame = GetPlaceholderFrame(aFrame);
   if (aFrame) {
@@ -503,19 +503,19 @@ nsFrameIterator::IsPopupFrame(nsIFrame* aFrame)
 
 nsIFrame*
 nsVisualIterator::GetFirstChildInner(nsIFrame* aFrame) {
-  return aFrame->PrincipalChildList().GetNextVisualFor(nullptr);
+  return aFrame->PrincipalChildList().GetNextVisualFor(nsnull);
 }
 
 nsIFrame*
 nsVisualIterator::GetLastChildInner(nsIFrame* aFrame) {
-  return aFrame->PrincipalChildList().GetPrevVisualFor(nullptr);
+  return aFrame->PrincipalChildList().GetPrevVisualFor(nsnull);
 }
 
 nsIFrame*
 nsVisualIterator::GetNextSiblingInner(nsIFrame* aFrame) {
   nsIFrame* parent = GetParentFrame(aFrame);
   if (!parent)
-    return nullptr;
+    return nsnull;
   return parent->PrincipalChildList().GetNextVisualFor(aFrame);
 }
 
@@ -523,6 +523,6 @@ nsIFrame*
 nsVisualIterator::GetPrevSiblingInner(nsIFrame* aFrame) {
   nsIFrame* parent = GetParentFrame(aFrame);
   if (!parent)
-    return nullptr;
+    return nsnull;
   return parent->PrincipalChildList().GetPrevVisualFor(aFrame);
 }

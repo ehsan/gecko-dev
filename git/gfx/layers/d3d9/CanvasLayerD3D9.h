@@ -75,7 +75,7 @@ protected:
 
   void DiscardTempBlob()
   {
-      mCachedTempBlob = nullptr;
+      mCachedTempBlob = nsnull;
   }
 };
 

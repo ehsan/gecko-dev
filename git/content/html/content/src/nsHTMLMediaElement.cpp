@@ -261,7 +261,7 @@ nsHTMLMediaElement::MediaLoadListener::Observe(nsISupports* aSubject,
   nsContentUtils::UnregisterShutdownObserver(this);
 
   // Clear mElement to break cycle so we don't leak on shutdown
-  mElement = nullptr;
+  mElement = nsnull;
   return NS_OK;
 }
 
@@ -441,7 +441,7 @@ nsHTMLMediaElement::GetSrc(JSContext* aCtx, jsval *aParams)
   }
 
   nsAutoString str;
-  nsresult rv = GetURIAttr(nsGkAtoms::src, nullptr, str);
+  nsresult rv = GetURIAttr(nsGkAtoms::src, nsnull, str);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!xpc::StringToJsval(aCtx, str, aParams)) {
     return NS_ERROR_FAILURE;
@@ -464,7 +464,7 @@ nsHTMLMediaElement::SetSrc(JSContext* aCtx, const jsval & aParams)
     }
   }
 
-  mSrcAttrStream = nullptr;
+  mSrcAttrStream = nsnull;
   JSString* jsStr = JS_ValueToString(aCtx, aParams);
   if (!jsStr)
     return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
@@ -553,7 +553,7 @@ void nsHTMLMediaElement::ShutdownDecoder()
   RemoveMediaElementFromURITable();
   NS_ASSERTION(mDecoder, "Must have decoder to shut down");
   mDecoder->Shutdown();
-  mDecoder = nullptr;
+  mDecoder = nsnull;
   // Discard all output streams. mDecoder->Shutdown() will have finished all
   // its output streams.
   // XXX For now we ignore mFinishWhenEnded. We'll fix this later. The
@@ -580,7 +580,7 @@ void nsHTMLMediaElement::AbortExistingLoads()
   if (mStream) {
     EndMediaStreamPlayback();
   }
-  mLoadingSrc = nullptr;
+  mLoadingSrc = nsnull;
 
   if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING ||
       mNetworkState == nsIDOMHTMLMediaElement::NETWORK_IDLE)
@@ -588,7 +588,7 @@ void nsHTMLMediaElement::AbortExistingLoads()
     DispatchEvent(NS_LITERAL_STRING("abort"));
   }
 
-  mError = nullptr;
+  mError = nsnull;
   mLoadedFirstFrame = false;
   mAutoplaying = true;
   mIsLoadingFromSourceChildren = false;
@@ -597,7 +597,7 @@ void nsHTMLMediaElement::AbortExistingLoads()
   mHaveQueuedSelectResource = false;
   mSuspendedForPreloadNone = false;
   mDownloadSuspendedByCache = false;
-  mSourcePointer = nullptr;
+  mSourcePointer = nsnull;
 
   // TODO: The playback rate must be set to the default playback rate.
 
@@ -1024,12 +1024,12 @@ nsresult nsHTMLMediaElement::LoadResource()
   // in order to use this new src instead.
   if (mAudioStream) {
     mAudioStream->Shutdown();
-    mAudioStream = nullptr;
+    mAudioStream = nsnull;
   }
 
   if (mChannel) {
     mChannel->Cancel(NS_BINDING_ABORTED);
-    mChannel = nullptr;
+    mChannel = nsnull;
   }
 
   // Set the media element's CORS mode only when loading a resource
@@ -1049,7 +1049,7 @@ nsresult nsHTMLMediaElement::LoadResource()
                                           NodePrincipal(),
                                           static_cast<nsGenericElement*>(this),
                                           EmptyCString(), // mime type
-                                          nullptr, // extra
+                                          nsnull, // extra
                                           &shouldLoad,
                                           nsContentUtils::GetContentPolicy(),
                                           nsContentUtils::GetSecurityManager());
@@ -1074,9 +1074,9 @@ nsresult nsHTMLMediaElement::LoadResource()
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewChannel(getter_AddRefs(channel),
                      mLoadingSrc,
-                     nullptr,
+                     nsnull,
                      loadGroup,
-                     nullptr,
+                     nsnull,
                      nsICachingChannel::LOAD_BYPASS_LOCAL_CACHE_IF_BUSY,
                      channelPolicy);
   NS_ENSURE_SUCCESS(rv,rv);
@@ -1120,7 +1120,7 @@ nsresult nsHTMLMediaElement::LoadResource()
     SetRequestHeaders(hc);
   }
 
-  rv = channel->AsyncOpen(listener, nullptr);
+  rv = channel->AsyncOpen(listener, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Else the channel must be open and starting to download. If it encounters
@@ -1140,7 +1140,7 @@ nsresult nsHTMLMediaElement::LoadWithChannel(nsIChannel *aChannel,
   NS_ENSURE_ARG_POINTER(aChannel);
   NS_ENSURE_ARG_POINTER(aListener);
 
-  *aListener = nullptr;
+  *aListener = nsnull;
 
   // Make sure we don't reenter during synchronous abort events.
   if (mIsRunningLoadMethod)
@@ -1585,7 +1585,7 @@ nsHTMLMediaElement::RemoveMediaElementFromURITable()
     gElementTable->RemoveEntry(mLoadingSrc);
     if (gElementTable->Count() == 0) {
       delete gElementTable;
-      gElementTable = nullptr;
+      gElementTable = nsnull;
     }
   }
   NS_ASSERTION(MediaElementTableCount(this, mLoadingSrc) == 0,
@@ -1596,10 +1596,10 @@ nsHTMLMediaElement*
 nsHTMLMediaElement::LookupMediaElementURITable(nsIURI* aURI)
 {
   if (!gElementTable)
-    return nullptr;
+    return nsnull;
   MediaElementSetForURI* entry = gElementTable->GetEntry(aURI);
   if (!entry)
-    return nullptr;
+    return nsnull;
   for (PRUint32 i = 0; i < entry->mElements.Length(); ++i) {
     nsHTMLMediaElement* elem = entry->mElements[i];
     bool equal;
@@ -1614,12 +1614,12 @@ nsHTMLMediaElement::LookupMediaElementURITable(nsIURI* aURI)
       }
     }
   }
-  return nullptr;
+  return nsnull;
 }
 
 nsHTMLMediaElement::nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
-    mStreamListener(nullptr),
+    mStreamListener(nsnull),
     mCurrentLoadID(0),
     mNetworkState(nsIDOMHTMLMediaElement::NETWORK_EMPTY),
     mReadyState(nsIDOMHTMLMediaElement::HAVE_NOTHING),
@@ -1920,7 +1920,7 @@ static const char gRawTypes[][16] = {
 };
 
 static const char* gRawCodecs[] = {
-  nullptr
+  nsnull
 };
 
 bool
@@ -1956,14 +1956,14 @@ const char nsHTMLMediaElement::gOggTypes[3][16] = {
 char const *const nsHTMLMediaElement::gOggCodecs[3] = {
   "vorbis",
   "theora",
-  nullptr
+  nsnull
 };
 
 char const *const nsHTMLMediaElement::gOggCodecsWithOpus[4] = {
   "vorbis",
   "opus",
   "theora",
-  nullptr
+  nsnull
 };
 
 bool
@@ -2012,7 +2012,7 @@ const char nsHTMLMediaElement::gWaveTypes[4][16] = {
 
 char const *const nsHTMLMediaElement::gWaveCodecs[2] = {
   "1", // Microsoft PCM Format
-  nullptr
+  nsnull
 };
 
 bool
@@ -2048,7 +2048,7 @@ char const *const nsHTMLMediaElement::gWebMCodecs[4] = {
   "vp8",
   "vp8.0",
   "vorbis",
-  nullptr
+  nsnull
 };
 
 bool
@@ -2088,7 +2088,7 @@ char const *const nsHTMLMediaElement::gH264Codecs[7] = {
   "avc1.4D401E",
   "avc1.64001E",
   "mp4a.40.2",
-  nullptr
+  nsnull
 };
 
 bool
@@ -2329,13 +2329,13 @@ nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
     }
   }
 #endif
-  return nullptr;
+  return nsnull;
 }
 
 nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
 {
   NS_ASSERTION(mLoadingSrc, "mLoadingSrc must already be set");
-  NS_ASSERTION(mDecoder == nullptr, "Shouldn't have a decoder");
+  NS_ASSERTION(mDecoder == nsnull, "Shouldn't have a decoder");
 
   MediaResource* originalResource = aOriginal->GetResource();
   if (!originalResource)
@@ -2363,14 +2363,14 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
     return NS_ERROR_FAILURE;
   }
 
-  return FinishDecoderSetup(decoder, resource, nullptr, aOriginal);
+  return FinishDecoderSetup(decoder, resource, nsnull, aOriginal);
 }
 
 nsresult nsHTMLMediaElement::InitializeDecoderForChannel(nsIChannel *aChannel,
                                                          nsIStreamListener **aListener)
 {
   NS_ASSERTION(mLoadingSrc, "mLoadingSrc must already be set");
-  NS_ASSERTION(mDecoder == nullptr, "Shouldn't have a decoder");
+  NS_ASSERTION(mDecoder == nsnull, "Shouldn't have a decoder");
 
   nsCAutoString mimeType;
   aChannel->GetContentType(mimeType);
@@ -2392,9 +2392,9 @@ nsresult nsHTMLMediaElement::InitializeDecoderForChannel(nsIChannel *aChannel,
     return NS_ERROR_OUT_OF_MEMORY;
 
   // stream successfully created, the stream now owns the channel.
-  mChannel = nullptr;
+  mChannel = nsnull;
 
-  return FinishDecoderSetup(decoder, resource, aListener, nullptr);
+  return FinishDecoderSetup(decoder, resource, aListener, nsnull);
 }
 
 nsresult nsHTMLMediaElement::FinishDecoderSetup(nsMediaDecoder* aDecoder,
@@ -2426,7 +2426,7 @@ nsresult nsHTMLMediaElement::FinishDecoderSetup(nsMediaDecoder* aDecoder,
 
   // Decoder successfully created, the decoder now owns the MediaResource
   // which owns the channel.
-  mChannel = nullptr;
+  mChannel = nsnull;
 
   mDecoder = aDecoder;
   AddMediaElementToURITable();
@@ -2465,7 +2465,7 @@ public:
     mMutex("nsHTMLMediaElement::StreamListener"),
     mPendingNotifyOutput(false)
   {}
-  void Forget() { mElement = nullptr; }
+  void Forget() { mElement = nsnull; }
 
   // Main thread
   void DoNotifyFinished()
@@ -2576,18 +2576,18 @@ void nsHTMLMediaElement::EndMediaStreamPlayback()
   if (mPaused) {
     GetMediaStream()->ChangeExplicitBlockerCount(-1);
   }
-  mVideoFrameContainer->GetImageContainer()->SetCurrentImage(nullptr);
+  mVideoFrameContainer->GetImageContainer()->SetCurrentImage(nsnull);
   if (mPausedForInactiveDocument) {
     GetMediaStream()->ChangeExplicitBlockerCount(-1);
   }
-  mStream = nullptr;
+  mStream = nsnull;
 }
 
 nsresult nsHTMLMediaElement::NewURIFromString(const nsAutoString& aURISpec, nsIURI** aURI)
 {
   NS_ENSURE_ARG_POINTER(aURI);
 
-  *aURI = nullptr;
+  *aURI = nsnull;
 
   nsCOMPtr<nsIDocument> doc = OwnerDoc();
 
@@ -2717,9 +2717,9 @@ void nsHTMLMediaElement::DecodeError()
   if (mDecoder) {
     ShutdownDecoder();
   }
-  mLoadingSrc = nullptr;
+  mLoadingSrc = nsnull;
   if (mIsLoadingFromSourceChildren) {
-    mError = nullptr;
+    mError = nsnull;
     if (mSourceLoadCandidate) {
       DispatchAsyncSourceError(mSourceLoadCandidate);
       QueueLoadFromSourceTask();
@@ -2985,12 +2985,12 @@ VideoFrameContainer* nsHTMLMediaElement::GetVideoFrameContainer()
   // If we have a print surface, this is just a static image so
   // no image container is required
   if (mPrintSurface)
-    return nullptr;
+    return nsnull;
 
   // Only video frames need an image container.
   nsCOMPtr<nsIDOMHTMLVideoElement> video = do_QueryObject(this);
   if (!video)
-    return nullptr;
+    return nsnull;
 
   mVideoFrameContainer =
     new VideoFrameContainer(this, LayerManager::CreateAsynchronousImageContainer());
@@ -3100,7 +3100,7 @@ already_AddRefed<nsIPrincipal> nsHTMLMediaElement::GetCurrentPrincipal()
     nsRefPtr<nsIPrincipal> principal = mStream->GetPrincipal();
     return principal.forget();
   }
-  return nullptr;
+  return nsnull;
 }
 
 void nsHTMLMediaElement::NotifyDecoderPrincipalChanged()
@@ -3241,7 +3241,7 @@ nsIContent* nsHTMLMediaElement::GetNextSource()
 {
   nsCOMPtr<nsIDOMNode> thisDomNode = do_QueryObject(this);
 
-  mSourceLoadCandidate = nullptr;
+  mSourceLoadCandidate = nsnull;
 
   nsresult rv = NS_OK;
   if (!mSourcePointer) {
@@ -3249,31 +3249,31 @@ nsIContent* nsHTMLMediaElement::GetNextSource()
     mSourcePointer = new nsRange();
 
     rv = mSourcePointer->SelectNodeContents(thisDomNode);
-    if (NS_FAILED(rv)) return nullptr;
+    if (NS_FAILED(rv)) return nsnull;
 
     rv = mSourcePointer->Collapse(true);
-    if (NS_FAILED(rv)) return nullptr;
+    if (NS_FAILED(rv)) return nsnull;
   }
 
   while (true) {
 #ifdef DEBUG
     nsCOMPtr<nsIDOMNode> startContainer;
     rv = mSourcePointer->GetStartContainer(getter_AddRefs(startContainer));
-    if (NS_FAILED(rv)) return nullptr;
+    if (NS_FAILED(rv)) return nsnull;
     NS_ASSERTION(startContainer == thisDomNode,
                 "Should only iterate over direct children");
 #endif
 
     PRInt32 startOffset = 0;
     rv = mSourcePointer->GetStartOffset(&startOffset);
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     if (PRUint32(startOffset) == GetChildCount())
-      return nullptr; // No more children.
+      return nsnull; // No more children.
 
     // Advance the range to the next child.
     rv = mSourcePointer->SetStart(thisDomNode, startOffset + 1);
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     nsIContent* child = GetChildAt(startOffset);
 
@@ -3284,7 +3284,7 @@ nsIContent* nsHTMLMediaElement::GetNextSource()
     }
   }
   NS_NOTREACHED("Execution should not reach here!");
-  return nullptr;
+  return nsnull;
 }
 
 void nsHTMLMediaElement::ChangeDelayLoadStatus(bool aDelay)
@@ -3306,7 +3306,7 @@ void nsHTMLMediaElement::ChangeDelayLoadStatus(bool aDelay)
     // mLoadBlockedDoc might be null due to GC unlinking
     if (mLoadBlockedDoc) {
       mLoadBlockedDoc->UnblockOnload(false);
-      mLoadBlockedDoc = nullptr;
+      mLoadBlockedDoc = nsnull;
     }
   }
 

@@ -60,7 +60,7 @@ NS_IMETHODIMP nsMenuBoxObject::OpenMenu(bool aOpenFlag)
 
 NS_IMETHODIMP nsMenuBoxObject::GetActiveChild(nsIDOMElement** aResult)
 {
-  *aResult = nullptr;
+  *aResult = nsnull;
   nsIFrame* frame = GetFrame(false);
   if (frame && frame->GetType() == nsGkAtoms::menuFrame)
     return static_cast<nsMenuFrame *>(frame)->GetActiveChild(aResult);

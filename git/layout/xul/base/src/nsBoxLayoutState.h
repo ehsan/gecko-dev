@@ -28,9 +28,9 @@ class NS_STACK_CLASS nsBoxLayoutState
 {
 public:
   nsBoxLayoutState(nsPresContext* aPresContext,
-                   nsRenderingContext* aRenderingContext = nullptr,
+                   nsRenderingContext* aRenderingContext = nsnull,
                    // see OuterReflowState() below
-                   const nsHTMLReflowState* aOuterReflowState = nullptr,
+                   const nsHTMLReflowState* aOuterReflowState = nsnull,
                    PRUint16 aReflowDepth = 0) NS_HIDDEN;
   nsBoxLayoutState(const nsBoxLayoutState& aState) NS_HIDDEN;
 

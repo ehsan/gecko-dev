@@ -132,7 +132,7 @@ public:
 
     nsFileInputStream()
     {
-        mLineBuffer = nullptr;
+        mLineBuffer = nsnull;
     }
     virtual ~nsFileInputStream() 
     {

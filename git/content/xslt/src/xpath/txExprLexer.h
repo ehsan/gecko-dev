@@ -94,14 +94,14 @@ public:
         : mStart(aStart),
           mEnd(aEnd),
           mType(aType),
-          mNext(nullptr)
+          mNext(nsnull)
     {
     }
     Token(iterator aChar, Type aType)
         : mStart(aChar),
           mEnd(aChar + 1),
           mType(aType),
-          mNext(nullptr)
+          mNext(nsnull)
     {
     }
 

@@ -33,14 +33,14 @@ FindBackgroundLayer(ReadbackLayer* aLayer, nsIntPoint* aOffset)
   gfxMatrix transform;
   if (!aLayer->GetTransform().Is2D(&transform) ||
       transform.HasNonIntegerTranslation())
-    return nullptr;
+    return nsnull;
   nsIntPoint transformOffset(PRInt32(transform.x0), PRInt32(transform.y0));
 
   for (Layer* l = aLayer->GetPrevSibling(); l; l = l->GetPrevSibling()) {
     gfxMatrix backgroundTransform;
     if (!l->GetTransform().Is2D(&backgroundTransform) ||
         backgroundTransform.HasNonIntegerTranslation())
-      return nullptr;
+      return nsnull;
 
     nsIntPoint backgroundOffset(PRInt32(backgroundTransform.x0), PRInt32(backgroundTransform.y0));
     nsIntRect rectInBackground(transformOffset - backgroundOffset, aLayer->GetSize());
@@ -50,26 +50,26 @@ FindBackgroundLayer(ReadbackLayer* aLayer, nsIntPoint* aOffset)
     // Since l is present in the background, from here on we either choose l
     // or nothing.
     if (!visibleRegion.Contains(rectInBackground))
-      return nullptr;
+      return nsnull;
 
     if (l->GetEffectiveOpacity() != 1.0 ||
         !(l->GetContentFlags() & Layer::CONTENT_OPAQUE))
-      return nullptr;
+      return nsnull;
 
     // cliprects are post-transform
     const nsIntRect* clipRect = l->GetEffectiveClipRect();
     if (clipRect && !clipRect->Contains(nsIntRect(transformOffset, aLayer->GetSize())))
-      return nullptr;
+      return nsnull;
 
     Layer::LayerType type = l->GetType();
     if (type != Layer::TYPE_COLOR && type != Layer::TYPE_THEBES)
-      return nullptr;
+      return nsnull;
 
     *aOffset = backgroundOffset - transformOffset;
     return l;
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 void
@@ -88,7 +88,7 @@ ReadbackProcessor::BuildUpdatesForLayer(ReadbackLayer* aLayer)
   if (newBackground->GetType() == Layer::TYPE_COLOR) {
     ColorLayer* colorLayer = static_cast<ColorLayer*>(newBackground);
     if (aLayer->mBackgroundColor != colorLayer->GetColor()) {
-      aLayer->mBackgroundLayer = nullptr;
+      aLayer->mBackgroundLayer = nsnull;
       aLayer->mBackgroundColor = colorLayer->GetColor();
       NS_ASSERTION(aLayer->mBackgroundColor.a == 1.0,
                    "Color layer said it was opaque!");

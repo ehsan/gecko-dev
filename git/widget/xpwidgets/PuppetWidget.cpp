@@ -88,7 +88,7 @@ PuppetWidget::Create(nsIWidget        *aParent,
 {
   NS_ABORT_IF_FALSE(!aNativeParent, "got a non-Puppet native parent");
 
-  BaseCreate(nullptr, aRect, aHandleEventFunction, aContext, aInitData);
+  BaseCreate(nsnull, aRect, aHandleEventFunction, aContext, aInitData);
 
   mBounds = aRect;
   mEnabled = true;
@@ -127,10 +127,10 @@ PuppetWidget::CreateChild(const nsIntRect  &aRect,
   bool isPopup = IsPopup(aInitData);
   nsCOMPtr<nsIWidget> widget = nsIWidget::CreatePuppetWidget(mTabChild);
   return ((widget &&
-           NS_SUCCEEDED(widget->Create(isPopup ? nullptr: this, nullptr, aRect,
+           NS_SUCCEEDED(widget->Create(isPopup ? nsnull: this, nsnull, aRect,
                                        aHandleEventFunction,
                                        aContext, aInitData))) ?
-          widget.forget() : nullptr);
+          widget.forget() : nsnull);
 }
 
 NS_IMETHODIMP
@@ -139,12 +139,12 @@ PuppetWidget::Destroy()
   Base::OnDestroy();
   Base::Destroy();
   mPaintTask.Revoke();
-  mChild = nullptr;
+  mChild = nsnull;
   if (mLayerManager) {
     mLayerManager->Destroy();
   }
-  mLayerManager = nullptr;
-  mTabChild = nullptr;
+  mLayerManager = nsnull;
+  mTabChild = nsnull;
   return NS_OK;
 }
 
@@ -224,7 +224,7 @@ PuppetWidget::Invalidate(const nsIntRect& aRect)
 void
 PuppetWidget::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
 {
-  if (nullptr == aPoint) {
+  if (nsnull == aPoint) {
     event.refPoint.x = 0;
     event.refPoint.y = 0;
   }
@@ -320,7 +320,7 @@ PuppetWidget::IMEEndComposition(bool aCancel)
 {
   nsEventStatus status;
   nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
-  InitEvent(textEvent, nullptr);
+  InitEvent(textEvent, nsnull);
   textEvent.seqno = mIMELastReceivedSeqno;
   // SendEndIMEComposition is always called since ResetInputState
   // should always be called even if we aren't composing something.
@@ -335,7 +335,7 @@ PuppetWidget::IMEEndComposition(bool aCancel)
   DispatchEvent(&textEvent, status);
 
   nsCompositionEvent compEvent(true, NS_COMPOSITION_END, this);
-  InitEvent(compEvent, nullptr);
+  InitEvent(compEvent, nsnull);
   compEvent.seqno = mIMELastReceivedSeqno;
   DispatchEvent(&compEvent, status);
   return NS_OK;
@@ -391,7 +391,7 @@ PuppetWidget::OnIMEFocusChange(bool aFocus)
   if (aFocus) {
     nsEventStatus status;
     nsQueryContentEvent queryEvent(true, NS_QUERY_TEXT_CONTENT, this);
-    InitEvent(queryEvent, nullptr);
+    InitEvent(queryEvent, nsnull);
     // Query entire content
     queryEvent.InitForQueryTextContent(0, PR_UINT32_MAX);
     DispatchEvent(&queryEvent, status);
@@ -430,7 +430,7 @@ PuppetWidget::OnIMETextChange(PRUint32 aStart, PRUint32 aEnd, PRUint32 aNewEnd)
   if (mIMEPreference.mWantHints) {
     nsEventStatus status;
     nsQueryContentEvent queryEvent(true, NS_QUERY_TEXT_CONTENT, this);
-    InitEvent(queryEvent, nullptr);
+    InitEvent(queryEvent, nsnull);
     queryEvent.InitForQueryTextContent(0, PR_UINT32_MAX);
     DispatchEvent(&queryEvent, status);
 
@@ -453,7 +453,7 @@ PuppetWidget::OnIMESelectionChange(void)
   if (mIMEPreference.mWantUpdates) {
     nsEventStatus status;
     nsQueryContentEvent queryEvent(true, NS_QUERY_SELECTED_TEXT, this);
-    InitEvent(queryEvent, nullptr);
+    InitEvent(queryEvent, nsnull);
     DispatchEvent(&queryEvent, status);
 
     if (queryEvent.mSucceeded) {
@@ -585,7 +585,7 @@ PuppetWidget::GetNativeData(PRUint32 aDataType)
     NS_WARNING("nsWindow::GetNativeData called with bad value");
     break;
   }
-  return nullptr;
+  return nsnull;
 }
 
 PuppetScreen::PuppetScreen(void *nativeScreen)
@@ -656,7 +656,7 @@ NS_IMPL_ISUPPORTS1(PuppetScreenManager, nsIScreenManager)
 
 PuppetScreenManager::PuppetScreenManager()
 {
-    mOneScreen = new PuppetScreen(nullptr);
+    mOneScreen = new PuppetScreen(nsnull);
 }
 
 PuppetScreenManager::~PuppetScreenManager()

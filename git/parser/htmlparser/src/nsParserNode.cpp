@@ -16,12 +16,12 @@
  *  Default Constructor
  */
 nsCParserNode::nsCParserNode()
-  : mRefCnt(0), mGenericState(false), mUseCount(0), mToken(nullptr),
-    mTokenAllocator(nullptr)
+  : mRefCnt(0), mGenericState(false), mUseCount(0), mToken(nsnull),
+    mTokenAllocator(nsnull)
 {
   MOZ_COUNT_CTOR(nsCParserNode);
 #ifdef HEAP_ALLOCATED_NODES
-  mNodeAllocator = nullptr;
+  mNodeAllocator = nsnull;
 #endif
 }
 
@@ -66,7 +66,7 @@ nsCParserNode::~nsCParserNode() {
   if(mNodeAllocator) {
     mNodeAllocator->Recycle(this);
   }
-  mNodeAllocator = nullptr;
+  mNodeAllocator = nsnull;
 #endif
   mTokenAllocator = 0;
 }

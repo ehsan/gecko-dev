@@ -9,7 +9,7 @@
 //
 // set NSPR_LOG_MODULES=Test:5
 //
-static PRLogModuleInfo *gTestLog = nullptr;
+static PRLogModuleInfo *gTestLog = nsnull;
 #endif
 #define LOG(args) PR_LOG(gTestLog, PR_LOG_DEBUG, args)
 
@@ -53,7 +53,7 @@ int main(int argc, char **argv)
   gTestLog = PR_NewLogModule("Test");
 #endif
 
-  nsresult rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+  nsresult rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
   if (NS_FAILED(rv))
     return -1;
 
@@ -77,13 +77,13 @@ int main(int argc, char **argv)
     if (NS_FAILED(rv))
       return -1;
 
-    rv = chan->AsyncOpen(loader, nullptr);
+    rv = chan->AsyncOpen(loader, nsnull);
     if (NS_FAILED(rv))
       return -1;
 
     PumpEvents();
   } // this scopes the nsCOMPtrs
   // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
-  NS_ShutdownXPCOM(nullptr);
+  NS_ShutdownXPCOM(nsnull);
   return rv;
 }

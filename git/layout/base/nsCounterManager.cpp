@@ -104,8 +104,8 @@ nsCounterList::SetScope(nsCounterNode *aNode)
     // appropriate.
 
     if (aNode == First()) {
-        aNode->mScopeStart = nullptr;
-        aNode->mScopePrev = nullptr;
+        aNode->mScopeStart = nsnull;
+        aNode->mScopePrev = nsnull;
         return;
     }
 
@@ -146,8 +146,8 @@ nsCounterList::SetScope(nsCounterNode *aNode)
         }
     }
 
-    aNode->mScopeStart = nullptr;
-    aNode->mScopePrev  = nullptr;
+    aNode->mScopeStart = nsnull;
+    aNode->mScopePrev  = nsnull;
 }
 
 void
@@ -259,7 +259,7 @@ RecalcDirtyLists(const nsAString& aKey, nsCounterList* aList, void* aClosure)
 void
 nsCounterManager::RecalcAll()
 {
-    mNames.EnumerateRead(RecalcDirtyLists, nullptr);
+    mNames.EnumerateRead(RecalcDirtyLists, nsnull);
 }
 
 struct DestroyNodesData {
@@ -323,7 +323,7 @@ void
 nsCounterManager::Dump()
 {
     printf("\n\nCounter Manager Lists:\n");
-    mNames.EnumerateRead(DumpList, nullptr);
+    mNames.EnumerateRead(DumpList, nsnull);
     printf("\n\n");
 }
 #endif

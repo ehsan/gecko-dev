@@ -147,7 +147,7 @@ protected:
     }
 
     void Revoke() {
-      mFrame = nullptr;
+      mFrame = nsnull;
     }
 
     nsListBoxBodyFrame* mFrame;

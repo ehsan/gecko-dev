@@ -106,7 +106,7 @@ NS_NewHTMLNOTUSEDElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                          FromParser aFromParser)
 {
   NS_NOTREACHED("The element ctor should never be called");
-  return nullptr;
+  return nsnull;
 }
 
 #define HTML_TAG(_tag, _classname) NS_NewHTML##_classname##Element,
@@ -264,9 +264,9 @@ public:
 
   nsresult GrowStack();
   nsresult AddText(const nsAString& aText);
-  nsresult FlushText(bool* aDidFlush = nullptr,
+  nsresult FlushText(bool* aDidFlush = nsnull,
                      bool aReleaseLast = false);
-  nsresult FlushTextAndRelease(bool* aDidFlush = nullptr)
+  nsresult FlushTextAndRelease(bool* aDidFlush = nsnull)
   {
     return FlushText(aDidFlush, true);
   }
@@ -433,7 +433,7 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
     nsAutoString lower;
     nsContentUtils::ASCIIToLower(aNode.GetText(), lower);
     nsCOMPtr<nsIAtom> name = do_GetAtom(lower);
-    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nullptr, kNameSpaceID_XHTML,
+    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_XHTML,
                                              nsIDOMNode::ELEMENT_NODE);
   }
   else if (mNodeInfoCache[aNodeType]) {
@@ -442,17 +442,17 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
   else {
     nsIParserService *parserService = nsContentUtils::GetParserService();
     if (!parserService)
-      return nullptr;
+      return nsnull;
 
     nsIAtom *name = parserService->HTMLIdToAtomTag(aNodeType);
     NS_ASSERTION(name, "What? Reverse mapping of id to string broken!!!");
 
-    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nullptr, kNameSpaceID_XHTML,
+    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_XHTML,
                                              nsIDOMNode::ELEMENT_NODE);
     NS_IF_ADDREF(mNodeInfoCache[aNodeType] = nodeInfo);
   }
 
-  NS_ENSURE_TRUE(nodeInfo, nullptr);
+  NS_ENSURE_TRUE(nodeInfo, nsnull);
 
   // Make the content object
   return CreateHTMLElement(aNodeType, nodeInfo.forget(), FROM_PARSER_NETWORK);
@@ -462,7 +462,7 @@ nsresult
 NS_NewHTMLElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
                   FromParser aFromParser)
 {
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> nodeInfo = aNodeInfo;
 
@@ -506,10 +506,10 @@ SinkContext::SinkContext(HTMLContentSink* aSink)
   : mSink(aSink),
     mNotifyLevel(0),
     mLastTextNodeSize(0),
-    mStack(nullptr),
+    mStack(nsnull),
     mStackSize(0),
     mStackPos(0),
-    mText(nullptr),
+    mText(nsnull),
     mTextLength(0),
     mTextSize(0),
     mLastTextCharWasCR(false)
@@ -1150,7 +1150,7 @@ SinkContext::FlushText(bool* aDidFlush, bool aReleaseLast)
     if (mLastTextNode) {
       if ((mLastTextNodeSize + mTextLength) > mSink->mMaxTextRun) {
         mLastTextNodeSize = 0;
-        mLastTextNode = nullptr;
+        mLastTextNode = nsnull;
         FlushText(aDidFlush, aReleaseLast);
       } else {
         bool notify = HaveNotifiedForCurrentContent();
@@ -1197,7 +1197,7 @@ SinkContext::FlushText(bool* aDidFlush, bool aReleaseLast)
 
   if (aReleaseLast) {
     mLastTextNodeSize = 0;
-    mLastTextNode = nullptr;
+    mLastTextNode = nsnull;
     mLastTextCharWasCR = false;
   }
 
@@ -1268,7 +1268,7 @@ HTMLContentSink::~HTMLContentSink()
     if (sc) {
       sc->End();
       if (sc == mCurrentContext) {
-        mCurrentContext = nullptr;
+        mCurrentContext = nsnull;
       }
 
       delete sc;
@@ -1276,7 +1276,7 @@ HTMLContentSink::~HTMLContentSink()
   }
 
   if (mCurrentContext == mHeadContext) {
-    mCurrentContext = nullptr;
+    mCurrentContext = nsnull;
   }
 
   delete mCurrentContext;
@@ -1392,7 +1392,7 @@ HTMLContentSink::Init(nsIDocument* aDoc,
   mMaxTextRun = Preferences::GetInt("content.maxtextrun", 8191);
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::html, nullptr,
+  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::html, nsnull,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
@@ -1410,7 +1410,7 @@ HTMLContentSink::Init(nsIDocument* aDoc,
 
   // Make head part
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::head,
-                                           nullptr, kNameSpaceID_XHTML,
+                                           nsnull, kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
@@ -1602,13 +1602,13 @@ HTMLContentSink::EndContext(PRInt32 aPosition)
 
   delete [] mCurrentContext->mStack;
 
-  mCurrentContext->mStack      = nullptr;
+  mCurrentContext->mStack      = nsnull;
   mCurrentContext->mStackPos   = 0;
   mCurrentContext->mStackSize  = 0;
 
   delete [] mCurrentContext->mText;
 
-  mCurrentContext->mText       = nullptr;
+  mCurrentContext->mText       = nsnull;
   mCurrentContext->mTextLength = 0;
   mCurrentContext->mTextSize   = 0;
 
@@ -1642,7 +1642,7 @@ HTMLContentSink::CloseHTML()
     mHeadContext->End();
 
     delete mHeadContext;
-    mHeadContext = nullptr;
+    mHeadContext = nsnull;
   }
 
   return NS_OK;
@@ -1984,7 +1984,7 @@ HTMLContentSink::NotifyRootInsertion()
   mNotifiedRootInsertion = true;
   PRInt32 index = mDocument->IndexOf(mRoot);
   NS_ASSERTION(index != -1, "mRoot not child of document?");
-  NotifyInsert(nullptr, mRoot, index);
+  NotifyInsert(nsnull, mRoot, index);
 
   // Now update the notification information in all our
   // contexts, since we just inserted the root and notified on

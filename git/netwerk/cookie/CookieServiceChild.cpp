@@ -65,7 +65,7 @@ CookieServiceChild::CookieServiceChild()
 
 CookieServiceChild::~CookieServiceChild()
 {
-  gCookieService = nullptr;
+  gCookieService = nsnull;
 }
 
 void
@@ -181,7 +181,7 @@ CookieServiceChild::SetCookieString(nsIURI *aHostURI,
                                     nsIChannel *aChannel)
 {
   return SetCookieStringInternal(aHostURI, aChannel, aCookieString,
-                                 nullptr, false);
+                                 nsnull, false);
 }
 
 NS_IMETHODIMP

@@ -439,7 +439,7 @@ nsHTMLObjectElement::GetContentDocument(nsIDOMDocument **aContentDocument)
 {
   NS_ENSURE_ARG_POINTER(aContentDocument);
 
-  *aContentDocument = nullptr;
+  *aContentDocument = nsnull;
 
   if (!IsInDoc()) {
     return NS_OK;
@@ -525,7 +525,7 @@ nsHTMLObjectElement::StartObjectLoad(bool aNotify)
     // Be sure to call the nsIURI version if we have no attribute
     // That handles the case where no URI is specified. An empty string would
     // get interpreted as the page itself, instead of absence of URI.
-    LoadObject(nullptr, aNotify, ctype);
+    LoadObject(nsnull, aNotify, ctype);
   }
   SetIsNetworkCreated(false);
 }

@@ -16,7 +16,7 @@ nsDOMMutationEvent::nsDOMMutationEvent(nsPresContext* aPresContext,
   : nsDOMEvent(aPresContext, aEvent ? aEvent :
                new nsMutationEvent(false, 0))
 {
-  mEventIsInternal = (aEvent == nullptr);
+  mEventIsInternal = (aEvent == nsnull);
 }
 
 nsDOMMutationEvent::~nsDOMMutationEvent()
@@ -24,7 +24,7 @@ nsDOMMutationEvent::~nsDOMMutationEvent()
   if (mEventIsInternal) {
     nsMutationEvent* mutation = static_cast<nsMutationEvent*>(mEvent);
     delete mutation;
-    mEvent = nullptr;
+    mEvent = nsnull;
   }
 }
 
@@ -41,7 +41,7 @@ NS_IMPL_RELEASE_INHERITED(nsDOMMutationEvent, nsDOMEvent)
 NS_IMETHODIMP
 nsDOMMutationEvent::GetRelatedNode(nsIDOMNode** aRelatedNode)
 {
-  *aRelatedNode = nullptr;
+  *aRelatedNode = nsnull;
   nsMutationEvent* mutation = static_cast<nsMutationEvent*>(mEvent);
   *aRelatedNode = mutation->mRelatedNode;
   NS_IF_ADDREF(*aRelatedNode);
@@ -110,7 +110,7 @@ nsresult NS_NewDOMMutationEvent(nsIDOMEvent** aInstancePtrResult,
                                 nsMutationEvent *aEvent) 
 {
   nsDOMMutationEvent* it = new nsDOMMutationEvent(aPresContext, aEvent);
-  if (nullptr == it) {
+  if (nsnull == it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

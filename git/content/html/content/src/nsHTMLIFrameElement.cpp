@@ -184,7 +184,7 @@ nsHTMLIFrameElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     { &nsGkAtoms::width },
     { &nsGkAtoms::height },
     { &nsGkAtoms::frameborder },
-    { nullptr },
+    { nsnull },
   };
 
   static const MappedAttributeEntry* const map[] = {

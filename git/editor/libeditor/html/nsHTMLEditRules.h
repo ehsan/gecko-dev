@@ -161,7 +161,7 @@ protected:
                         bool aEntireList,
                         const nsAString* aBulletType,
                         bool* aCancel, bool* aHandled,
-                        const nsAString* aItemType = nullptr);
+                        const nsAString* aItemType = nsnull);
   nsresult WillRemoveList(mozilla::Selection* aSelection,
                           bool aOrdered, bool* aCancel, bool* aHandled);
   nsresult WillIndent(mozilla::Selection* aSelection,

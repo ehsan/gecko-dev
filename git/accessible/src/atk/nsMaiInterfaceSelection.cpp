@@ -38,11 +38,11 @@ refSelectionCB(AtkSelection *aSelection, gint i)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aSelection));
   if (!accWrap || !accWrap->IsSelect())
-    return nullptr;
+    return nsnull;
 
   Accessible* selectedItem = accWrap->GetSelectedItem(i);
   if (!selectedItem)
-    return nullptr;
+    return nsnull;
 
   AtkObject* atkObj = AccessibleWrap::GetAtkObject(selectedItem);
   if (atkObj)

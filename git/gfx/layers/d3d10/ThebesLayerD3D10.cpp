@@ -198,9 +198,9 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
   if (mTexture) {
     if (!mTextureRect.IsEqualInterior(newTextureRect)) {
       nsRefPtr<ID3D10Texture2D> oldTexture = mTexture;
-      mTexture = nullptr;
+      mTexture = nsnull;
       nsRefPtr<ID3D10Texture2D> oldTextureOnWhite = mTextureOnWhite;
-      mTextureOnWhite = nullptr;
+      mTextureOnWhite = nsnull;
 
       nsIntRegion retainRegion = mTextureRect;
       // Old visible region will become the region that is covered by both the
@@ -283,7 +283,7 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
 void
 ThebesLayerD3D10::LayerManagerDestroyed()
 {
-  mD3DManager = nullptr;
+  mD3DManager = nsnull;
 }
 
 Layer*
@@ -304,7 +304,7 @@ ThebesLayerD3D10::VerifyContentType(SurfaceMode aMode)
 
       if (!mD2DSurface || mD2DSurface->CairoStatus()) {
         NS_WARNING("Failed to create surface for ThebesLayerD3D10.");
-        mD2DSurface = nullptr;
+        mD2DSurface = nsnull;
         return;
       }
 
@@ -328,9 +328,9 @@ ThebesLayerD3D10::VerifyContentType(SurfaceMode aMode)
 
   if (aMode != SURFACE_COMPONENT_ALPHA && mTextureOnWhite) {
     // If we've transitioned away from component alpha, we can delete those resources.
-    mD2DSurfaceOnWhite = nullptr;
-    mSRViewOnWhite = nullptr;
-    mTextureOnWhite = nullptr;
+    mD2DSurfaceOnWhite = nsnull;
+    mSRViewOnWhite = nsnull;
+    mTextureOnWhite = nsnull;
     mValidRegion.SetEmpty();
   }
 }
@@ -496,7 +496,7 @@ ThebesLayerD3D10::CreateNewTextures(const gfxIntSize &aSize, SurfaceMode aMode)
         return;
       }
     } else {
-      mDrawTarget = nullptr;
+      mDrawTarget = nsnull;
     }
   }
 
@@ -519,11 +519,11 @@ ThebesLayerD3D10::CreateNewTextures(const gfxIntSize &aSize, SurfaceMode aMode)
 
       if (!mD2DSurfaceOnWhite || mD2DSurfaceOnWhite->CairoStatus()) {
         NS_WARNING("Failed to create surface for ThebesLayerD3D10.");
-        mD2DSurfaceOnWhite = nullptr;
+        mD2DSurfaceOnWhite = nsnull;
         return;
       }
     } else {
-      mDrawTarget = nullptr;
+      mDrawTarget = nsnull;
     }
   }
 
@@ -537,7 +537,7 @@ ThebesLayerD3D10::CreateNewTextures(const gfxIntSize &aSize, SurfaceMode aMode)
 
     if (!mDrawTarget) {
       NS_WARNING("Failed to create DrawTarget for ThebesLayerD3D10.");
-      mDrawTarget = nullptr;
+      mDrawTarget = nsnull;
       return;
     }
   }

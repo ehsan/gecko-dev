@@ -184,7 +184,7 @@ public:
 protected:
   // Accessible
   virtual Accessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                         nsresult* aError = nullptr) const;
+                                         nsresult* aError = nsnull) const;
   virtual void DispatchClickEvent(nsIContent* aContent, PRUint32 aActionIndex);
 
   // XULTreeGridCellAccessible

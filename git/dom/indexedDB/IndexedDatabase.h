@@ -70,7 +70,7 @@ struct StructuredCloneReadInfo
 struct SerializedStructuredCloneReadInfo
 {
   SerializedStructuredCloneReadInfo()
-  : data(nullptr), dataLength(0)
+  : data(nsnull), dataLength(0)
   { }
 
   bool
@@ -144,7 +144,7 @@ struct StructuredCloneWriteInfo
 struct SerializedStructuredCloneWriteInfo
 {
   SerializedStructuredCloneWriteInfo()
-  : data(nullptr), dataLength(0), offsetToKeyProp(0)
+  : data(nsnull), dataLength(0), offsetToKeyProp(0)
   { }
 
   bool

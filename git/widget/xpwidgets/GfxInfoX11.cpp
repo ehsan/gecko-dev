@@ -104,7 +104,7 @@ GfxInfo::GetData()
     bool error = waiting_for_glxtest_process_failed || exited_with_error_code || received_signal;
 
     nsCString textureFromPixmap; 
-    nsCString *stringToFill = nullptr;
+    nsCString *stringToFill = nsnull;
     char *bufptr = buf;
     if (!error) {
         while(true) {
@@ -113,7 +113,7 @@ GfxInfo::GetData()
                 break;
             if (stringToFill) {
                 stringToFill->Assign(line);
-                stringToFill = nullptr;
+                stringToFill = nsnull;
             }
             else if(!strcmp(line, "VENDOR"))
                 stringToFill = &mVendor;
@@ -200,7 +200,7 @@ GfxInfo::GetData()
 
     // determine driver type (vendor) and where in the version string
     // the actual driver version numbers should be expected to be found (whereToReadVersionNumbers)
-    const char *whereToReadVersionNumbers = nullptr;
+    const char *whereToReadVersionNumbers = nsnull;
     const char *Mesa_in_version_string = strstr(mVersion.get(), "Mesa");
     if (Mesa_in_version_string) {
         mIsMesa = true;
@@ -266,7 +266,7 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
                               PRInt32 *aStatus, 
                               nsAString & aSuggestedDriverVersion, 
                               const nsTArray<GfxDriverInfo>& aDriverInfo, 
-                              OperatingSystem* aOS /* = nullptr */)
+                              OperatingSystem* aOS /* = nsnull */)
 
 {
   GetData();

@@ -331,7 +331,7 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
 {
     LOG(("nsHttpNTLMAuth::GenerateCredentials\n"));
 
-    *creds = nullptr;
+    *creds = nsnull;
     *aFlags = 0;
 
     // if user or password is empty, ChallengeReceived returned
@@ -411,11 +411,11 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
         } else { 
             // If there is no server certificate, we don't pass anything.
             inBufLen = 0;
-            inBuf = nullptr;
+            inBuf = nsnull;
         }
 #else // Extended protection update is just for Linux and Windows machines.
         inBufLen = 0;
-        inBuf = nullptr;
+        inBuf = nsnull;
 #endif
     }
     else {
@@ -437,7 +437,7 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
         if (!inBuf)
             return NS_ERROR_OUT_OF_MEMORY;
 
-        if (PL_Base64Decode(challenge, len, (char *) inBuf) == nullptr) {
+        if (PL_Base64Decode(challenge, len, (char *) inBuf) == nsnull) {
             nsMemory::Free(inBuf);
             return NS_ERROR_UNEXPECTED; // improper base64 encoding
         }

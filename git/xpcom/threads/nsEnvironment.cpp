@@ -21,9 +21,9 @@ nsEnvironment::Create(nsISupports *aOuter, REFNSIID aIID,
                       void **aResult)
 {
     nsresult rv;
-    *aResult = nullptr;
+    *aResult = nsnull;
 
-    if (aOuter != nullptr) {
+    if (aOuter != nsnull) {
         return NS_ERROR_NO_AGGREGATION;
     }
 
@@ -99,7 +99,7 @@ nsEnvironment::Get(const nsAString& aName, nsAString& aOutValue)
 typedef nsBaseHashtableET<nsCharPtrHashKey,char*> EnvEntryType;
 typedef nsTHashtable<EnvEntryType> EnvHashType;
 
-static EnvHashType *gEnvHash = nullptr;
+static EnvHashType *gEnvHash = nsnull;
 
 static bool
 EnsureEnvHash()

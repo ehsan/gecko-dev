@@ -68,8 +68,8 @@ private:
         Interval(coord_type aBegin, coord_type aEnd)
             : mBegin(aBegin),
               mEnd(aEnd),
-              mPrev(nullptr),
-              mNext(nullptr)
+              mPrev(nsnull),
+              mNext(nsnull)
         {
         }
 

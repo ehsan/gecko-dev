@@ -298,8 +298,8 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
   , mClipSubdocument(true)
   , mClampScrollPosition(true)
   , mRemoteBrowserInitialized(false)
-  , mCurrentRemoteFrame(nullptr)
-  , mRemoteBrowser(nullptr)
+  , mCurrentRemoteFrame(nsnull)
+  , mRemoteBrowser(nsnull)
   , mRenderMode(RENDER_MODE_DEFAULT)
   , mEventMode(EVENT_MODE_NORMAL_DISPATCH)
 {
@@ -308,12 +308,12 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
 nsFrameLoader*
 nsFrameLoader::Create(Element* aOwner, bool aNetworkCreated)
 {
-  NS_ENSURE_TRUE(aOwner, nullptr);
+  NS_ENSURE_TRUE(aOwner, nsnull);
   nsIDocument* doc = aOwner->OwnerDoc();
   NS_ENSURE_TRUE(!doc->GetDisplayDocument() &&
                  ((!doc->IsLoadedAsData() && aOwner->GetCurrentDoc()) ||
                    doc->IsStaticDocument()),
-                 nullptr);
+                 nsnull);
 
   return new nsFrameLoader(aOwner, aNetworkCreated);
 }
@@ -339,7 +339,7 @@ nsFrameLoader::LoadFrame()
 
   nsCOMPtr<nsIURI> base_uri = mOwnerContent->GetBaseURI();
   const nsAFlatCString &doc_charset = doc->GetDocumentCharacterSet();
-  const char *charset = doc_charset.IsEmpty() ? nullptr : doc_charset.get();
+  const char *charset = doc_charset.IsEmpty() ? nsnull : doc_charset.get();
 
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), src, charset, base_uri);
@@ -389,7 +389,7 @@ nsFrameLoader::LoadURI(nsIURI* aURI)
   mURIToLoad = aURI;
   rv = doc->InitializeFrameLoader(this);
   if (NS_FAILED(rv)) {
-    mURIToLoad = nullptr;
+    mURIToLoad = nsnull;
   }
   return rv;
 }
@@ -463,7 +463,7 @@ nsFrameLoader::ReallyStartLoadingInternal()
   rv = mDocShell->LoadURI(mURIToLoad, loadInfo,
                           nsIWebNavigation::LOAD_FLAGS_NONE, false);
   mNeedsAsyncDestroy = tmpState;
-  mURIToLoad = nullptr;
+  mURIToLoad = nsnull;
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -513,7 +513,7 @@ nsFrameLoader::CheckURILoad(nsIURI* aURI)
 NS_IMETHODIMP
 nsFrameLoader::GetDocShell(nsIDocShell **aDocShell)
 {
-  *aDocShell = nullptr;
+  *aDocShell = nsnull;
   nsresult rv = NS_OK;
 
   // If we have an owner, make sure we have a docshell and return
@@ -544,7 +544,7 @@ nsFrameLoader::Finalize()
   if (base_win) {
     base_win->Destroy();
   }
-  mDocShell = nullptr;
+  mDocShell = nsnull;
 }
 
 static void
@@ -795,7 +795,7 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
     // code here used to do.
     size.SizeTo(10, 10);
   }
-  baseWindow->InitWindow(nullptr, view->GetWidget(), 0, 0,
+  baseWindow->InitWindow(nsnull, view->GetWidget(), 0, 0,
                          size.width, size.height);
   // This is kinda whacky, this "Create()" call doesn't really
   // create anything, one starts to wonder why this was named
@@ -952,7 +952,7 @@ nsFrameLoader::Hide()
   NS_ASSERTION(baseWin,
                "Found an nsIDocShell which doesn't implement nsIBaseWindow.");
   baseWin->SetVisibility(false);
-  baseWin->SetParentWidget(nullptr);
+  baseWin->SetParentWidget(nsnull);
 }
 
 nsresult
@@ -1191,16 +1191,16 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
                                                   ourChromeEventHandler);
 
   AddTreeItemToTreeOwner(ourTreeItem, otherContent, otherOwner,
-                         otherParentType, nullptr);
+                         otherParentType, nsnull);
   AddTreeItemToTreeOwner(otherTreeItem, ourContent, ourOwner, ourParentType,
-                         nullptr);
+                         nsnull);
 
   // SetSubDocumentFor nulls out parent documents on the old child doc if a
   // new non-null document is passed in, so just go ahead and remove both
   // kids before reinserting in the parent subdoc maps, to avoid
   // complications.
-  ourParentDocument->SetSubDocumentFor(ourContent, nullptr);
-  otherParentDocument->SetSubDocumentFor(otherContent, nullptr);
+  ourParentDocument->SetSubDocumentFor(ourContent, nsnull);
+  otherParentDocument->SetSubDocumentFor(otherContent, nsnull);
   ourParentDocument->SetSubDocumentFor(ourContent, otherChildDocument);
   otherParentDocument->SetSubDocumentFor(otherContent, ourChildDocument);
 
@@ -1227,13 +1227,13 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   }
   // Swap and setup things in parent message managers.
   nsFrameMessageManager* ourParentManager = mMessageManager ?
-    mMessageManager->GetParentManager() : nullptr;
+    mMessageManager->GetParentManager() : nsnull;
   nsFrameMessageManager* otherParentManager = aOther->mMessageManager ?
-    aOther->mMessageManager->GetParentManager() : nullptr;
+    aOther->mMessageManager->GetParentManager() : nsnull;
   JSContext* thisCx =
-    mMessageManager ? mMessageManager->GetJSContext() : nullptr;
+    mMessageManager ? mMessageManager->GetJSContext() : nsnull;
   JSContext* otherCx = 
-    aOther->mMessageManager ? aOther->mMessageManager->GetJSContext() : nullptr;
+    aOther->mMessageManager ? aOther->mMessageManager->GetJSContext() : nsnull;
   if (mMessageManager) {
     mMessageManager->RemoveFromParent();
     mMessageManager->SetJSContext(otherCx);
@@ -1282,9 +1282,9 @@ void
 nsFrameLoader::DestroyChild()
 {
   if (mRemoteBrowser) {
-    mRemoteBrowser->SetOwnerElement(nullptr);
+    mRemoteBrowser->SetOwnerElement(nsnull);
     mRemoteBrowser->Destroy();
-    mRemoteBrowser = nullptr;
+    mRemoteBrowser = nsnull;
   }
 }
 
@@ -1308,9 +1308,9 @@ nsFrameLoader::Destroy()
   if (mOwnerContent) {
     doc = mOwnerContent->OwnerDoc();
     dynamicSubframeRemoval = !mIsTopLevelContent && !doc->InUnlinkOrDeletion();
-    doc->SetSubDocumentFor(mOwnerContent, nullptr);
+    doc->SetSubDocumentFor(mOwnerContent, nsnull);
 
-    SetOwnerContent(nullptr);
+    SetOwnerContent(nsnull);
   }
   DestroyChild();
 
@@ -1338,7 +1338,7 @@ nsFrameLoader::Destroy()
   // Let our window know that we are gone
   nsCOMPtr<nsPIDOMWindow> win_private(do_GetInterface(mDocShell));
   if (win_private) {
-    win_private->SetFrameElementInternal(nullptr);
+    win_private->SetFrameElementInternal(nsnull);
   }
 
   if ((mNeedsAsyncDestroy || !doc ||
@@ -1350,7 +1350,7 @@ nsFrameLoader::Destroy()
     // Let go of our docshell now that the async destroyer holds on to
     // the docshell.
 
-    mDocShell = nullptr;
+    mDocShell = nsnull;
   }
 
   // NOTE: 'this' may very well be gone by now.
@@ -1778,7 +1778,7 @@ nsFrameLoader::UpdateBaseWindowPositionAndSize(nsIFrame *aIFrame)
 
     nsWeakFrame weakFrame(aIFrame);
 
-    baseWindow->GetPositionAndSize(&x, &y, nullptr, nullptr);
+    baseWindow->GetPositionAndSize(&x, &y, nsnull, nsnull);
 
     if (!weakFrame.IsAlive()) {
       // GetPositionAndSize() killed us
@@ -2167,7 +2167,7 @@ public:
       nsFrameScriptCx cx(static_cast<nsIDOMEventTarget*>(tabChild), tabChild);
       nsRefPtr<nsFrameMessageManager> mm = tabChild->GetInnerManager();
       mm->ReceiveMessage(static_cast<nsIDOMEventTarget*>(tabChild), mMessage,
-                         false, mJSON, nullptr, nullptr);
+                         false, mJSON, nsnull, nsnull);
     }
     return NS_OK;
   }
@@ -2220,7 +2220,7 @@ nsFrameLoader::GetContentViewsIn(float aXPx, float aYPx,
   nsTArray<ViewID> ids;
   nsLayoutUtils::GetRemoteContentIds(frame, target, ids, true);
   if (ids.Length() == 0 || !GetCurrentRemoteFrame()) {
-    *aResult = nullptr;
+    *aResult = nsnull;
     *aLength = 0;
     return NS_OK;
   }
@@ -2245,7 +2245,7 @@ nsFrameLoader::GetRootContentView(nsIContentView** aContentView)
 {
   RenderFrameParent* rfp = GetCurrentRemoteFrame();
   if (!rfp) {
-    *aContentView = nullptr;
+    *aContentView = nsnull;
     return NS_OK;
   }
 
@@ -2272,7 +2272,7 @@ nsFrameLoader::EnsureMessageManager()
 
   if (mMessageManager) {
     if (ShouldUseRemoteProcess()) {
-      mMessageManager->SetCallbackData(mRemoteBrowserShown ? this : nullptr);
+      mMessageManager->SetCallbackData(mRemoteBrowserShown ? this : nsnull);
     }
     return NS_OK;
   }
@@ -2292,18 +2292,18 @@ nsFrameLoader::EnsureMessageManager()
 
   if (ShouldUseRemoteProcess()) {
     mMessageManager = new nsFrameMessageManager(true,
-                                                nullptr,
+                                                nsnull,
                                                 SendAsyncMessageToChild,
                                                 LoadScript,
-                                                mRemoteBrowserShown ? this : nullptr,
+                                                mRemoteBrowserShown ? this : nsnull,
                                                 static_cast<nsFrameMessageManager*>(parentManager.get()),
                                                 cx);
   } else {
     mMessageManager = new nsFrameMessageManager(true,
-                                                nullptr,
+                                                nsnull,
                                                 SendAsyncMessageToChild,
                                                 LoadScript,
-                                                nullptr,
+                                                nsnull,
                                                 static_cast<nsFrameMessageManager*>(parentManager.get()),
                                                 cx);
     mChildMessageManager =

@@ -24,7 +24,7 @@ public:
 
   static void Shutdown() {
     delete gToolkit;
-    gToolkit = nullptr;
+    gToolkit = nsnull;
   }
 
   static void        PostSleepWakeNotification(const char* aNotification);

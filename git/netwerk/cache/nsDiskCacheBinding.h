@@ -37,7 +37,7 @@ public:
     virtual ~nsDiskCacheBinding();
 
     nsresult EnsureStreamIO();
-    bool     IsActive() { return mCacheEntry != nullptr;}
+    bool     IsActive() { return mCacheEntry != nsnull;}
 
 // XXX make friends
 public:

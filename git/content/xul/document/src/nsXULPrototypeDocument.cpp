@@ -126,7 +126,7 @@ JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
 //
 
 nsXULPrototypeDocument::nsXULPrototypeDocument()
-    : mRoot(nullptr),
+    : mRoot(nsnull),
       mLoaded(false),
       mCCGeneration(0)
 {
@@ -140,7 +140,7 @@ nsXULPrototypeDocument::Init()
     mNodeInfoManager = new nsNodeInfoManager();
     NS_ENSURE_TRUE(mNodeInfoManager, NS_ERROR_OUT_OF_MEMORY);
 
-    return mNodeInfoManager->Init(nullptr);
+    return mNodeInfoManager->Init(nsnull);
 }
 
 nsXULPrototypeDocument::~nsXULPrototypeDocument()
@@ -197,7 +197,7 @@ NS_NewXULPrototypeDocument(nsXULPrototypeDocument** aResult)
     rv = (*aResult)->Init();
     if (NS_FAILED(rv)) {
         delete *aResult;
-        *aResult = nullptr;
+        *aResult = nsnull;
         return rv;
     }
 
@@ -221,16 +221,16 @@ nsXULPrototypeDocument::NewXULPDGlobalObject()
     nsXULPDGlobalObject *global;
     if (DocumentPrincipal() == gSystemPrincipal) {
         if (!gSystemGlobal) {
-            gSystemGlobal = new nsXULPDGlobalObject(nullptr);
+            gSystemGlobal = new nsXULPDGlobalObject(nsnull);
             if (! gSystemGlobal)
-                return nullptr;
+                return nsnull;
             NS_ADDREF(gSystemGlobal);
         }
         global = gSystemGlobal;
     } else {
         global = new nsXULPDGlobalObject(this); // does not refcount
         if (! global)
-            return nullptr;
+            return nsnull;
     }
     return global;
 }
@@ -287,7 +287,7 @@ nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
         rv |= aStream->ReadString(namespaceURI);
         rv |= aStream->ReadBoolean(&prefixIsNull);
         if (prefixIsNull) {
-            prefix = nullptr;
+            prefix = nsnull;
         } else {
             rv |= aStream->ReadString(prefixStr);
             prefix = do_GetAtom(prefixStr);
@@ -351,7 +351,7 @@ GetNodeInfos(nsXULPrototypeElement* aPrototype,
         nsAttrName* name = &aPrototype->mAttributes[i].mName;
         if (name->IsAtom()) {
             ni = aPrototype->mNodeInfo->NodeInfoManager()->
-                GetNodeInfo(name->Atom(), nullptr, kNameSpaceID_None,
+                GetNodeInfo(name->Atom(), nsnull, kNameSpaceID_None,
                             nsIDOMNode::ATTRIBUTE_NODE);
             NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
         }
@@ -674,7 +674,7 @@ nsXULPDGlobalObject::EnsureScriptEnvironment()
     JSObject *newGlob;
     JSCompartment *compartment;
 
-    rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nullptr,
+    rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nsnull,
                                 false, &newGlob, &compartment);
     NS_ENSURE_SUCCESS(rv, NS_OK);
 

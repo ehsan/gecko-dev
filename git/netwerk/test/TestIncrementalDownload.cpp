@@ -93,7 +93,7 @@ DoIncrementalFetch(const char *uriSpec, const char *resultPath, PRInt32 chunkSiz
   if (NS_FAILED(rv))
     return rv;
 
-  rv = download->Start(observer, nullptr);
+  rv = download->Start(observer, nsnull);
   if (NS_FAILED(rv))
     return rv;
 
@@ -112,7 +112,7 @@ main(int argc, char **argv)
     return -1;
   }
 
-  nsresult rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+  nsresult rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
   if (NS_FAILED(rv))
     return -1;
 
@@ -123,6 +123,6 @@ main(int argc, char **argv)
   if (NS_FAILED(rv))
     fprintf(stderr, "ERROR: DoIncrementalFetch failed [%x]\n", rv);
 
-  NS_ShutdownXPCOM(nullptr);
+  NS_ShutdownXPCOM(nsnull);
   return 0;
 }

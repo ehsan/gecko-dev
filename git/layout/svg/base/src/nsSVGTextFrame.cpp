@@ -172,7 +172,7 @@ nsSVGTextFrame::NotifySVGChanged(PRUint32 aFlags)
       updateGlyphMetrics = true;
     }
     // make sure our cached transform matrix gets (lazily) updated
-    mCanvasTM = nullptr;
+    mCanvasTM = nsnull;
   }
 
   if (updateGlyphMetrics) {

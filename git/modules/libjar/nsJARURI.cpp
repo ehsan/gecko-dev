@@ -88,7 +88,7 @@ nsJARURI::CreateEntryURL(const nsACString& entryFilename,
                          const char* charset,
                          nsIURL** url)
 {
-    *url = nullptr;
+    *url = nsnull;
 
     nsCOMPtr<nsIStandardURL> stdURL(do_CreateInstance(NS_STANDARDURL_CONTRACTID));
     if (!stdURL) {
@@ -98,7 +98,7 @@ nsJARURI::CreateEntryURL(const nsACString& entryFilename,
     // Flatten the concatenation, just in case.  See bug 128288
     nsCAutoString spec(NS_BOGUS_ENTRY_SCHEME + entryFilename);
     nsresult rv = stdURL->Init(nsIStandardURL::URLTYPE_NO_AUTHORITY, -1,
-                               spec, charset, nullptr);
+                               spec, charset, nsnull);
     if (NS_FAILED(rv)) {
         return rv;
     }
@@ -148,28 +148,28 @@ NS_IMETHODIMP
 nsJARURI::GetInterfaces(PRUint32 *count, nsIID * **array)
 {
     *count = 0;
-    *array = nullptr;
+    *array = nsnull;
     return NS_OK;
 }
 
 NS_IMETHODIMP 
 nsJARURI::GetHelperForLanguage(PRUint32 language, nsISupports **_retval)
 {
-    *_retval = nullptr;
+    *_retval = nsnull;
     return NS_OK;
 }
 
 NS_IMETHODIMP 
 nsJARURI::GetContractID(char * *aContractID)
 {
-    *aContractID = nullptr;
+    *aContractID = nsnull;
     return NS_OK;
 }
 
 NS_IMETHODIMP 
 nsJARURI::GetClassDescription(char * *aClassDescription)
 {
-    *aClassDescription = nullptr;
+    *aClassDescription = nsnull;
     return NS_OK;
 }
 
@@ -232,7 +232,7 @@ nsJARURI::GetHasRef(bool *result)
 NS_IMETHODIMP
 nsJARURI::SetSpec(const nsACString& aSpec)
 {
-    return SetSpecWithBase(aSpec, nullptr);
+    return SetSpecWithBase(aSpec, nsnull);
 }
 
 nsresult

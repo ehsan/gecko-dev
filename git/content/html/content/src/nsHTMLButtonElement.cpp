@@ -347,11 +347,11 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
             nsEventStatus status = nsEventStatus_eIgnore;
 
             nsMouseEvent event(NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
-                               NS_MOUSE_CLICK, nullptr,
+                               NS_MOUSE_CLICK, nsnull,
                                nsMouseEvent::eReal);
             event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
             nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
-                                        aVisitor.mPresContext, &event, nullptr,
+                                        aVisitor.mPresContext, &event, nsnull,
                                         &status);
             aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
           }
@@ -416,7 +416,7 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       case NS_MOUSE_EXIT_SYNTH:
         {
           aVisitor.mPresContext->EventStateManager()->
-            SetContentState(nullptr, NS_EVENT_STATE_HOVER);
+            SetContentState(nsnull, NS_EVENT_STATE_HOVER);
           aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
         }
         break;
@@ -586,7 +586,7 @@ nsHTMLButtonElement::SaveState()
     return NS_OK;
   }
   
-  nsPresState *state = nullptr;
+  nsPresState *state = nsnull;
   nsresult rv = GetPrimaryPresState(this, &state);
   if (state) {
     // We do not want to save the real disabled state but the disabled

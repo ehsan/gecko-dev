@@ -87,7 +87,7 @@ void nsSMimeVerificationJob::Run()
 }
 
 nsCertVerificationThread::nsCertVerificationThread()
-: mJobQ(nullptr)
+: mJobQ(nsnull)
 {
   NS_ASSERTION(!verification_thread_singleton, 
                "nsCertVerificationThread is a singleton, caller attempts"
@@ -98,7 +98,7 @@ nsCertVerificationThread::nsCertVerificationThread()
 
 nsCertVerificationThread::~nsCertVerificationThread()
 {
-  verification_thread_singleton = nullptr;
+  verification_thread_singleton = nsnull;
 }
 
 nsresult nsCertVerificationThread::addJob(nsBaseVerificationJob *aJob)
@@ -121,7 +121,7 @@ void nsCertVerificationThread::Run(void)
 {
   while (true) {
 
-    nsBaseVerificationJob *job = nullptr;
+    nsBaseVerificationJob *job = nsnull;
 
     {
       MutexAutoLock threadLock(verification_thread_singleton->mMutex);

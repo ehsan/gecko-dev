@@ -39,11 +39,11 @@ getActionDescriptionCB(AtkAction *aAction, gint aActionIndex)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aAction));
   if (!accWrap)
-    return nullptr;
+    return nsnull;
 
   nsAutoString description;
   nsresult rv = accWrap->GetActionDescription(aActionIndex, description);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
   return AccessibleWrap::ReturnString(description);
 }
 
@@ -52,11 +52,11 @@ getActionNameCB(AtkAction *aAction, gint aActionIndex)
 {
     AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aAction));
     if (!accWrap)
-        return nullptr;
+        return nsnull;
 
     nsAutoString autoStr;
     nsresult rv = accWrap->GetActionName(aActionIndex, autoStr);
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
     return AccessibleWrap::ReturnString(autoStr);
 }
 
@@ -65,7 +65,7 @@ getKeyBindingCB(AtkAction *aAction, gint aActionIndex)
 {
   AccessibleWrap* acc = GetAccessibleWrap(ATK_OBJECT(aAction));
   if (!acc)
-    return nullptr;
+    return nsnull;
 
   // Return all key bindings including access key and keyboard shortcut.
   nsAutoString keyBindingsStr;

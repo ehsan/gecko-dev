@@ -16,7 +16,7 @@ const PRUint16 nsIConstraintValidation::sContentSpecifiedMaxLengthMessage = 256;
 
 nsIConstraintValidation::nsIConstraintValidation()
   : mValidityBitField(0)
-  , mValidity(nullptr)
+  , mValidity(nsnull)
   // By default, all elements are subjects to constraint validation.
   , mBarredFromConstraintValidation(false)
 {

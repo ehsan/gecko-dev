@@ -127,7 +127,7 @@ nsCertOverrideService::Init()
     observerService->AddObserver(this, "profile-before-change", true);
     observerService->AddObserver(this, "profile-do-change", true);
     // simulate a profile change so we read the current profile's settings file
-    Observe(nullptr, "profile-do-change", nullptr);
+    Observe(nsnull, "profile-do-change", nsnull);
   }
 
   return NS_OK;
@@ -166,7 +166,7 @@ nsCertOverrideService::Observe(nsISupports     *,
     if (NS_SUCCEEDED(rv)) {
       mSettingsFile->AppendNative(NS_LITERAL_CSTRING(kCertOverrideFileName));
     } else {
-      mSettingsFile = nullptr;
+      mSettingsFile = nsnull;
     }
     Read();
 
@@ -187,7 +187,7 @@ RemoveTemporariesCallback(nsCertOverrideEntry *aEntry,
                           void *aArg)
 {
   if (aEntry && aEntry->mSettings.mIsTemporary) {
-    aEntry->mSettings.mCert = nullptr;
+    aEntry->mSettings.mCert = nsnull;
     return PL_DHASH_REMOVE;
   }
 
@@ -199,7 +199,7 @@ nsCertOverrideService::RemoveAllTemporaryOverrides()
 {
   {
     ReentrantMonitorAutoEnter lock(monitor);
-    mSettingsTable.EnumerateEntries(RemoveTemporariesCallback, nullptr);
+    mSettingsTable.EnumerateEntries(RemoveTemporariesCallback, nsnull);
     // no need to write, as temporaries are never written to disk
   }
 }
@@ -281,7 +281,7 @@ nsCertOverrideService::Read()
     host.Truncate(portIndex);
     
     AddEntryToList(host, port, 
-                   nullptr, // don't have the cert
+                   nsnull, // don't have the cert
                    false, // not temporary
                    algo_string, fingerprint, bits, db_key);
   }
@@ -428,9 +428,9 @@ GetCertFingerprintByDottedOidString(CERTCertificate* nsscert,
                                     nsCString &fp)
 {
   SECItem oid;
-  oid.data = nullptr;
+  oid.data = nsnull;
   oid.len = 0;
-  SECStatus srv = SEC_StringToOID(nullptr, &oid, 
+  SECStatus srv = SEC_StringToOID(nsnull, &oid, 
                     dottedOid.get(), dottedOid.Length());
   if (srv != SECSuccess)
     return NS_ERROR_FAILURE;
@@ -527,7 +527,7 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, PR
   {
     ReentrantMonitorAutoEnter lock(monitor);
     AddEntryToList(aHostName, aPort,
-                   aTemporary ? aCert : nullptr,
+                   aTemporary ? aCert : nsnull,
                      // keep a reference to the cert for temporary overrides
                    aTemporary, 
                    mDottedOidForStoringNewHashes, fpStr, 

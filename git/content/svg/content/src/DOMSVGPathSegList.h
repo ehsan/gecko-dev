@@ -91,7 +91,7 @@ public:
   /**
    * This method returns the DOMSVGPathSegList wrapper for an internal
    * SVGPathData object if it currently has a wrapper. If it does
-   * not, then nullptr is returned.
+   * not, then nsnull is returned.
    */
   static DOMSVGPathSegList*
   GetDOMWrapperIfExists(void *aList);

@@ -20,7 +20,7 @@ static const char* gQuitApplicationMessage = "quit-application";
 
 // NSPR_LOG_MODULES=UrlClassifierStreamUpdater:5
 #if defined(PR_LOGGING)
-static const PRLogModuleInfo *gUrlClassifierStreamUpdaterLog = nullptr;
+static const PRLogModuleInfo *gUrlClassifierStreamUpdaterLog = nsnull;
 #define LOG(args) PR_LOG(gUrlClassifierStreamUpdaterLog, PR_LOG_DEBUG, args)
 #else
 #define LOG(args)
@@ -33,7 +33,7 @@ static const PRLogModuleInfo *gUrlClassifierStreamUpdaterLog = nullptr;
 
 nsUrlClassifierStreamUpdater::nsUrlClassifierStreamUpdater()
   : mIsUpdating(false), mInitialized(false), mDownloadError(false),
-    mBeganStream(false), mUpdateUrl(nullptr), mChannel(nullptr)
+    mBeganStream(false), mUpdateUrl(nsnull), mChannel(nsnull)
 {
 #if defined(PR_LOGGING)
   if (!gUrlClassifierStreamUpdaterLog)
@@ -64,9 +64,9 @@ nsUrlClassifierStreamUpdater::DownloadDone()
 
   mPendingUpdates.Clear();
   mDownloadError = false;
-  mSuccessCallback = nullptr;
-  mUpdateErrorCallback = nullptr;
-  mDownloadErrorCallback = nullptr;
+  mSuccessCallback = nsnull;
+  mUpdateErrorCallback = nsnull;
+  mDownloadErrorCallback = nsnull;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -103,7 +103,7 @@ nsUrlClassifierStreamUpdater::FetchUpdate(nsIURI *aUpdateUrl,
   nsresult rv;
   PRUint32 loadFlags = nsIChannel::INHIBIT_CACHING |
                        nsIChannel::LOAD_BYPASS_CACHE;
-  rv = NS_NewChannel(getter_AddRefs(mChannel), aUpdateUrl, nullptr, nullptr, this,
+  rv = NS_NewChannel(getter_AddRefs(mChannel), aUpdateUrl, nsnull, nsnull, this,
                      loadFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -123,7 +123,7 @@ nsUrlClassifierStreamUpdater::FetchUpdate(nsIURI *aUpdateUrl,
   }
 
   // Make the request
-  rv = mChannel->AsyncOpen(this, nullptr);
+  rv = mChannel->AsyncOpen(this, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mStreamTable = aStreamTable;
@@ -249,7 +249,7 @@ nsUrlClassifierStreamUpdater::RekeyRequested()
 
   return observerService->NotifyObservers(static_cast<nsIUrlClassifierStreamUpdater*>(this),
                                           "url-classifier-rekey-requested",
-                                          nullptr);
+                                          nsnull);
 }
 
 nsresult
@@ -314,7 +314,7 @@ nsUrlClassifierStreamUpdater::UpdateSuccess(PRUint32 requestedTimeout)
   }
 
   // DownloadDone() clears mSuccessCallback, so we save it off here.
-  nsCOMPtr<nsIUrlClassifierCallback> successCallback = mDownloadError ? nullptr : mSuccessCallback.get();
+  nsCOMPtr<nsIUrlClassifierCallback> successCallback = mDownloadError ? nsnull : mSuccessCallback.get();
   DownloadDone();
 
   nsCAutoString strTimeout;
@@ -332,7 +332,7 @@ nsUrlClassifierStreamUpdater::UpdateError(PRUint32 result)
   LOG(("nsUrlClassifierStreamUpdater::UpdateError [this=%p]", this));
 
   // DownloadDone() clears mUpdateErrorCallback, so we save it off here.
-  nsCOMPtr<nsIUrlClassifierCallback> errorCallback = mDownloadError ? nullptr : mUpdateErrorCallback.get();
+  nsCOMPtr<nsIUrlClassifierCallback> errorCallback = mDownloadError ? nsnull : mUpdateErrorCallback.get();
 
   DownloadDone();
 
@@ -485,7 +485,7 @@ nsUrlClassifierStreamUpdater::OnStopRequest(nsIRequest *request, nsISupports* co
     rv = mDBService->FinishUpdate();
   }
 
-  mChannel = nullptr;
+  mChannel = nsnull;
 
   return rv;
 }
@@ -504,11 +504,11 @@ nsUrlClassifierStreamUpdater::Observe(nsISupports *aSubject, const char *aTopic,
       rv = mChannel->Cancel(NS_ERROR_ABORT);
       NS_ENSURE_SUCCESS(rv, rv);
       mIsUpdating = false;
-      mChannel = nullptr;
+      mChannel = nsnull;
     }
     if (mTimer) {
       mTimer->Cancel();
-      mTimer = nullptr;
+      mTimer = nsnull;
     }
   }
   return NS_OK;
@@ -557,7 +557,7 @@ nsUrlClassifierStreamUpdater::Notify(nsITimer *timer)
 {
   LOG(("nsUrlClassifierStreamUpdater::Notify [%p]", this));
 
-  mTimer = nullptr;
+  mTimer = nsnull;
 
   // Start the update process up again.
   FetchNext();

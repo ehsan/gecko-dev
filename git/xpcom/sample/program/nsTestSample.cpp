@@ -26,11 +26,11 @@ main(void)
 {
     nsresult rv;
 
-    XPCOMGlueStartup(nullptr);
+    XPCOMGlueStartup(nsnull);
 
     // Initialize XPCOM
     nsCOMPtr<nsIServiceManager> servMan;
-    rv = NS_InitXPCOM2(getter_AddRefs(servMan), nullptr, nullptr);
+    rv = NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
     if (NS_FAILED(rv))
     {
         printf("ERROR: XPCOM intialization error [%x].\n", rv);
@@ -42,7 +42,7 @@ main(void)
     // Create an instance of our component
     nsCOMPtr<nsISample> mysample;
     rv = manager->CreateInstanceByContractID(NS_SAMPLE_CONTRACTID,
-                                             nullptr,
+                                             nsnull,
                                              NS_GET_IID(nsISample),
                                              getter_AddRefs(mysample));
     if (NS_FAILED(rv))
@@ -99,7 +99,7 @@ main(void)
     mysample = 0;
     
     // Shutdown XPCOM
-    NS_ShutdownXPCOM(nullptr);
+    NS_ShutdownXPCOM(nsnull);
 
     XPCOMGlueShutdown();
     return 0;

@@ -152,9 +152,9 @@ nsScriptError::ToString(nsACString& /*UTF8*/ aResult)
     const char* severity = !(mFlags & JSREPORT_WARNING) ? error : warning;
 
     char* temp;
-    char* tempMessage = nullptr;
-    char* tempSourceName = nullptr;
-    char* tempSourceLine = nullptr;
+    char* tempMessage = nsnull;
+    char* tempSourceName = nsnull;
+    char* tempSourceLine = nsnull;
 
     if (!mMessage.IsEmpty())
         tempMessage = ToNewUTF8String(mMessage);
@@ -163,7 +163,7 @@ nsScriptError::ToString(nsACString& /*UTF8*/ aResult)
     if (!mSourceLine.IsEmpty())
         tempSourceLine = ToNewUTF8String(mSourceLine);
 
-    if (nullptr != tempSourceName && nullptr != tempSourceLine)
+    if (nsnull != tempSourceName && nsnull != tempSourceLine)
         temp = JS_smprintf(format0,
                            severity,
                            tempMessage,
@@ -182,11 +182,11 @@ nsScriptError::ToString(nsACString& /*UTF8*/ aResult)
                            severity,
                            tempMessage);
 
-    if (nullptr != tempMessage)
+    if (nsnull != tempMessage)
         nsMemory::Free(tempMessage);
-    if (nullptr != tempSourceName)
+    if (nsnull != tempSourceName)
         nsMemory::Free(tempSourceName);
-    if (nullptr != tempSourceLine)
+    if (nsnull != tempSourceLine)
         nsMemory::Free(tempSourceLine);
 
     if (!temp)

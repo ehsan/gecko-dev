@@ -72,7 +72,7 @@ NS_SetThreadName(nsIThread *thread, const char (&name)[LEN])
  */
 extern NS_COM_GLUE NS_METHOD
 NS_NewThread(nsIThread **result,
-             nsIRunnable *initialEvent = nullptr,
+             nsIRunnable *initialEvent = nsnull,
              PRUint32 stackSize = nsIThreadManager::DEFAULT_STACK_SIZE);
 
 /**
@@ -82,7 +82,7 @@ template <size_t LEN>
 inline NS_METHOD
 NS_NewNamedThread(const char (&name)[LEN],
                   nsIThread **result,
-                  nsIRunnable *initialEvent = nullptr,
+                  nsIRunnable *initialEvent = nsnull,
                   PRUint32 stackSize = nsIThreadManager::DEFAULT_STACK_SIZE)
 {
     nsresult rv = NS_NewThread(result, initialEvent, stackSize);
@@ -191,7 +191,7 @@ NS_ProcessPendingEvents(nsIThread *thread,
  *   in the current thread's event queue.
  */
 extern NS_COM_GLUE bool
-NS_HasPendingEvents(nsIThread *thread = nullptr);
+NS_HasPendingEvents(nsIThread *thread = nsnull);
 
 /**
  * Shortcut for nsIThread::ProcessNextEvent.
@@ -211,21 +211,21 @@ NS_HasPendingEvents(nsIThread *thread = nullptr);
  *   thread's event queue was processed.
  */
 extern NS_COM_GLUE bool
-NS_ProcessNextEvent(nsIThread *thread = nullptr, bool mayWait = true);
+NS_ProcessNextEvent(nsIThread *thread = nsnull, bool mayWait = true);
 
 //-----------------------------------------------------------------------------
 // Helpers that work with nsCOMPtr:
 
 inline already_AddRefed<nsIThread>
 do_GetCurrentThread() {
-  nsIThread *thread = nullptr;
+  nsIThread *thread = nsnull;
   NS_GetCurrentThread(&thread);
   return already_AddRefed<nsIThread>(thread);
 }
 
 inline already_AddRefed<nsIThread>
 do_GetMainThread() {
-  nsIThread *thread = nullptr;
+  nsIThread *thread = nsnull;
   NS_GetMainThread(&thread);
   return already_AddRefed<nsIThread>(thread);
 }
@@ -308,7 +308,7 @@ template <class ClassType>
 struct nsRunnableMethodReceiver<ClassType, false> {
   ClassType *mObj;
   nsRunnableMethodReceiver(ClassType *obj) : mObj(obj) {}
-  void Revoke() { mObj = nullptr; }
+  void Revoke() { mObj = nsnull; }
 };
 
 template <typename Method, bool Owning> struct nsRunnableMethodTraits;
@@ -392,7 +392,7 @@ NS_NewNonOwningRunnableMethod(PtrType ptr, Method method)
 //   class E : public nsRunnable {
 //   public:
 //     void Revoke() {
-//       mResource = nullptr;
+//       mResource = nsnull;
 //     }
 //   private:
 //     R *mResource;
@@ -430,7 +430,7 @@ template <class T>
 class nsRevocableEventPtr {
 public:
   nsRevocableEventPtr()
-    : mEvent(nullptr) {
+    : mEvent(nsnull) {
   }
 
   ~nsRevocableEventPtr() {
@@ -448,16 +448,16 @@ public:
   void Revoke() {
     if (mEvent) {
       mEvent->Revoke();
-      mEvent = nullptr;
+      mEvent = nsnull;
     }
   }
 
   void Forget() {
-    mEvent = nullptr;
+    mEvent = nsnull;
   }
 
   bool IsPending() {
-    return mEvent != nullptr;
+    return mEvent != nsnull;
   }
   
   T *get() { return mEvent; }
@@ -485,7 +485,7 @@ public:
    * is null) then the name is synchronously set on the current thread.
    */
   void SetThreadPoolName(const nsACString & aPoolName,
-                         nsIThread * aThread = nullptr);
+                         nsIThread * aThread = nsnull);
 
 private:
   volatile PRUint32 mCounter;

@@ -29,7 +29,7 @@ nsDOMAnimationEvent::~nsDOMAnimationEvent()
 {
   if (mEventIsInternal) {
     delete AnimationEvent();
-    mEvent = nullptr;
+    mEvent = nsnull;
   }
 }
 

@@ -76,7 +76,7 @@ IsFullyClipped(nsTextFrame* aFrame, nscoord aLeft, nscoord aRight,
 static bool
 IsHorizontalOverflowVisible(nsIFrame* aFrame)
 {
-  NS_PRECONDITION(nsLayoutUtils::GetAsBlock(aFrame) != nullptr,
+  NS_PRECONDITION(nsLayoutUtils::GetAsBlock(aFrame) != nsnull,
                   "expected a block frame");
 
   nsIFrame* f = aFrame;
@@ -269,7 +269,7 @@ TextOverflow::WillProcessLines(nsDisplayListBuilder*   aBuilder,
                                nsIFrame*               aBlockFrame)
 {
   if (!CanHaveTextOverflow(aBuilder, aBlockFrame)) {
-    return nullptr;
+    return nsnull;
   }
   nsAutoPtr<TextOverflow> textOverflow(new TextOverflow);
   textOverflow->Init(aBuilder, aBlockFrame);
@@ -617,7 +617,7 @@ TextOverflow::PruneDisplayListContents(nsDisplayList*        aList,
     }
 
     nsCharClipDisplayItem* charClip = itemFrame ? 
-      nsCharClipDisplayItem::CheckCast(item) : nullptr;
+      nsCharClipDisplayItem::CheckCast(item) : nsnull;
     if (charClip && GetSelfOrNearestBlock(itemFrame) == mBlock) {
       nsRect rect = itemFrame->GetScrollableOverflowRect() +
                     itemFrame->GetOffsetTo(mBlock);

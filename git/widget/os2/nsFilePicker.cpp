@@ -50,8 +50,8 @@ MRESULT EXPENTRY FileDialogProc( HWND hwndDlg, ULONG msg, MPARAM mp1, MPARAM mp2
 nsFilePicker::nsFilePicker()
 {
   mWnd = NULL;
-  mUnicodeEncoder = nullptr;
-  mUnicodeDecoder = nullptr;
+  mUnicodeEncoder = nsnull;
+  mUnicodeDecoder = nsnull;
   mSelectedType   = 0;
 }
 
@@ -91,7 +91,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
   bool result = false;
   nsCAutoString fileBuffer;
   char *converted = ConvertToFileSystemCharset(mDefault);
-  if (nullptr == converted) {
+  if (nsnull == converted) {
     LossyCopyUTF16toASCII(mDefault, fileBuffer);
   }
   else {
@@ -100,7 +100,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
   }
 
   char *title = ConvertToFileSystemCharset(mTitle);
-  if (nullptr == title)
+  if (nsnull == title)
     title = ToNewCString(mTitle);
   nsCAutoString initialDir;
   if (mDisplayDirectory)
@@ -366,7 +366,7 @@ NS_IMETHODIMP nsFilePicker::GetFile(nsIFile **aFile)
 //-------------------------------------------------------------------------
 NS_IMETHODIMP nsFilePicker::GetFileURL(nsIURI **aFileURL)
 {
-  *aFileURL = nullptr;
+  *aFileURL = nsnull;
   nsCOMPtr<nsIFile> file;
   nsresult rv = GetFile(getter_AddRefs(file));
   if (!file)
@@ -497,11 +497,11 @@ void nsFilePicker::GetFileSystemCharset(nsCString & fileSystemCharset)
 //-------------------------------------------------------------------------
 char * nsFilePicker::ConvertToFileSystemCharset(const nsAString& inString)
 {
-  char *outString = nullptr;
+  char *outString = nsnull;
   nsresult rv = NS_OK;
 
   // get file system charset and create a unicode encoder
-  if (nullptr == mUnicodeEncoder) {
+  if (nsnull == mUnicodeEncoder) {
     nsCAutoString fileSystemCharset;
     GetFileSystemCharset(fileSystemCharset);
 
@@ -523,8 +523,8 @@ char * nsFilePicker::ConvertToFileSystemCharset(const nsAString& inString)
                                        &outLength);
     if (NS_SUCCEEDED(rv)) {
       outString = static_cast<char*>(nsMemory::Alloc( outLength+1 ));
-      if (nullptr == outString) {
-        return nullptr;
+      if (nsnull == outString) {
+        return nsnull;
       }
       rv = mUnicodeEncoder->Convert(flatInString.get(), &inLength, outString,
                                     &outLength);
@@ -534,17 +534,17 @@ char * nsFilePicker::ConvertToFileSystemCharset(const nsAString& inString)
     }
   }
   
-  return NS_SUCCEEDED(rv) ? outString : nullptr;
+  return NS_SUCCEEDED(rv) ? outString : nsnull;
 }
 
 //-------------------------------------------------------------------------
 PRUnichar * nsFilePicker::ConvertFromFileSystemCharset(const char *inString)
 {
-  PRUnichar *outString = nullptr;
+  PRUnichar *outString = nsnull;
   nsresult rv = NS_OK;
 
   // get file system charset and create a unicode encoder
-  if (nullptr == mUnicodeDecoder) {
+  if (nsnull == mUnicodeDecoder) {
     nsCAutoString fileSystemCharset;
     GetFileSystemCharset(fileSystemCharset);
 
@@ -562,8 +562,8 @@ PRUnichar * nsFilePicker::ConvertFromFileSystemCharset(const char *inString)
     rv = mUnicodeDecoder->GetMaxLength(inString, inLength, &outLength);
     if (NS_SUCCEEDED(rv)) {
       outString = static_cast<PRUnichar*>(nsMemory::Alloc( (outLength+1) * sizeof( PRUnichar ) ));
-      if (nullptr == outString) {
-        return nullptr;
+      if (nsnull == outString) {
+        return nsnull;
       }
       rv = mUnicodeDecoder->Convert(inString, &inLength, outString, &outLength);
       if (NS_SUCCEEDED(rv)) {
@@ -573,7 +573,7 @@ PRUnichar * nsFilePicker::ConvertFromFileSystemCharset(const char *inString)
   }
 
   NS_ASSERTION(NS_SUCCEEDED(rv), "error charset conversion");
-  return NS_SUCCEEDED(rv) ? outString : nullptr;
+  return NS_SUCCEEDED(rv) ? outString : nsnull;
 }
 
 

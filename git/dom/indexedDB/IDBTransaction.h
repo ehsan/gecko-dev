@@ -283,7 +283,7 @@ public:
         NS_ERROR("Out of memory!");
         return false;
       }
-      aCOMPtr = nullptr;
+      aCOMPtr = nsnull;
     }
     return true;
   }
@@ -339,7 +339,7 @@ public:
 
   void UpdateFileInfos()
   {
-    mFileInfoEntries.EnumerateRead(FileInfoUpdateCallback, nullptr);
+    mFileInfoEntries.EnumerateRead(FileInfoUpdateCallback, nsnull);
   }
 
 private:

@@ -86,13 +86,13 @@ protected:
   static inline JSObject* GetListenerAsJSObject(nsDOMEventListenerWrapper* aWrapper)
   {
     if (!aWrapper) {
-      return nullptr;
+      return nsnull;
     }
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder =
         do_QueryInterface(aWrapper->GetInner());
     JSObject* obj;
-    return holder && NS_SUCCEEDED(holder->GetJSObject(&obj)) ? obj : nullptr;
+    return holder && NS_SUCCEEDED(holder->GetJSObject(&obj)) ? obj : nsnull;
   }
   inline nsresult SetJSObjectListener(JSContext* aCx,
                                       const nsAString& aType,
@@ -352,7 +352,7 @@ private:
   nsresult Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody);
   nsresult Send(const Nullable<RequestBody>& aBody)
   {
-    return Send(nullptr, aBody);
+    return Send(nsnull, aBody);
   }
   nsresult Send(const RequestBody& aBody)
   {
@@ -748,7 +748,7 @@ public:
     if (xhr) {
       static_cast<nsXMLHttpRequest*>(xhr.get())->ChangeStateToDone();
     }
-    mXHR = nullptr;
+    mXHR = nsnull;
     return NS_OK;
   }
   nsXHRParseEndListener(nsIXMLHttpRequest* aXHR)

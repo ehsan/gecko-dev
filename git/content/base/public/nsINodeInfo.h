@@ -49,8 +49,8 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_INODEINFO_IID)
 
   nsINodeInfo()
-    : mInner(nullptr, nullptr, kNameSpaceID_None, 0, nullptr),
-      mOwnerManager(nullptr)
+    : mInner(nsnull, nsnull, kNameSpaceID_None, 0, nsnull),
+      mOwnerManager(nsnull)
   {
   }
 
@@ -299,20 +299,20 @@ protected:
   {
   public:
     nsNodeInfoInner()
-      : mName(nullptr), mPrefix(nullptr), mNamespaceID(kNameSpaceID_Unknown),
-        mNodeType(0), mNameString(nullptr), mExtraName(nullptr)
+      : mName(nsnull), mPrefix(nsnull), mNamespaceID(kNameSpaceID_Unknown),
+        mNodeType(0), mNameString(nsnull), mExtraName(nsnull)
     {
     }
     nsNodeInfoInner(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
                     PRUint16 aNodeType, nsIAtom* aExtraName)
       : mName(aName), mPrefix(aPrefix), mNamespaceID(aNamespaceID),
-        mNodeType(aNodeType), mNameString(nullptr), mExtraName(aExtraName)
+        mNodeType(aNodeType), mNameString(nsnull), mExtraName(aExtraName)
     {
     }
     nsNodeInfoInner(const nsAString& aTmpName, nsIAtom *aPrefix,
                     PRInt32 aNamespaceID, PRUint16 aNodeType)
-      : mName(nullptr), mPrefix(aPrefix), mNamespaceID(aNamespaceID),
-        mNodeType(aNodeType), mNameString(&aTmpName), mExtraName(nullptr)
+      : mName(nsnull), mPrefix(aPrefix), mNamespaceID(aNamespaceID),
+        mNodeType(aNodeType), mNameString(&aTmpName), mExtraName(nsnull)
     {
     }
 

@@ -32,10 +32,10 @@ GetInstance(NPObject* aObject)
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
   if (object->invalidated) {
     NS_WARNING("Calling method on an invalidated object!");
-    return nullptr;
+    return nsnull;
   }
   if (!object->parent) {
-    return nullptr;
+    return nsnull;
   }
   return object->parent->GetInstance();
 }
@@ -62,7 +62,7 @@ NPObjectFromVariant(const Variant& aRemoteVariant)
 
     default:
       NS_NOTREACHED("Shouldn't get here!");
-      return nullptr;
+      return nsnull;
   }
 }
 
@@ -79,7 +79,7 @@ GetNetscapeFuncs(PluginInstanceParent* aInstance)
   PluginModuleParent* module = aInstance->Module();
   if (!module) {
     NS_WARNING("Null module?!");
-    return nullptr;
+    return nsnull;
   }
   return module->GetNetscapeFuncs();
 }
@@ -92,7 +92,7 @@ GetNetscapeFuncs(NPObject* aObject)
 
   PluginInstanceParent* instance = GetInstance(aObject);
   if (!instance) {
-    return nullptr;
+    return nsnull;
   }
 
   return GetNetscapeFuncs(instance);
@@ -132,7 +132,7 @@ ReleaseRemoteVariant(Variant& aVariant)
 bool
 ConvertToVariant(const Variant& aRemoteVariant,
                  NPVariant& aVariant,
-                 PluginInstanceParent* aInstance = nullptr);
+                 PluginInstanceParent* aInstance = nsnull);
 
 template <class InstanceType>
 bool

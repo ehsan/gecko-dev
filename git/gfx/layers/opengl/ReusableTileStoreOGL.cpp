@@ -210,7 +210,7 @@ ReusableTileStoreOGL::DrawTiles(TiledThebesLayerOGL* aLayer,
   // to establish the screen coordinates to which the content area will be
   // rendered.
   gfxRect contentBounds, displayPort;
-  ContainerLayer* scrollableLayer = nullptr;
+  ContainerLayer* scrollableLayer = nsnull;
   for (ContainerLayer* parent = aLayer->GetParent(); parent; parent = parent->GetParent()) {
       const FrameMetrics& parentMetrics = parent->GetFrameMetrics();
       if (parentMetrics.IsScrollable())

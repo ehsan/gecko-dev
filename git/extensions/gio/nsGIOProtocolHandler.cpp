@@ -142,13 +142,13 @@ class nsGIOInputStream : public nsIInputStream
 
     nsGIOInputStream(const nsCString &uriSpec)
       : mSpec(uriSpec)
-      , mChannel(nullptr)
-      , mHandle(nullptr)
-      , mStream(nullptr)
+      , mChannel(nsnull)
+      , mHandle(nsnull)
+      , mStream(nsnull)
       , mBytesRemaining(PR_UINT32_MAX)
       , mStatus(NS_OK)
-      , mDirList(nullptr)
-      , mDirListPtr(nullptr)
+      , mDirList(nsnull)
+      , mDirListPtr(nsnull)
       , mDirBufCursor(0)
       , mDirOpen(false)
       , mMonitorMountInProgress("GIOInputStream::MountFinished") { }
@@ -350,7 +350,7 @@ nsGIOInputStream::DoOpen()
   nsresult rv;
   GError *error = NULL;
 
-  NS_ASSERTION(mHandle == nullptr, "already open");
+  NS_ASSERTION(mHandle == nsnull, "already open");
 
   mHandle = g_file_new_for_uri( mSpec.get() );
 
@@ -590,22 +590,22 @@ nsGIOInputStream::Close()
   if (mStream)
   {
     g_object_unref(mStream);
-    mStream = nullptr;
+    mStream = nsnull;
   }
 
   if (mHandle)
   {
     g_object_unref(mHandle);
-    mHandle = nullptr;
+    mHandle = nsnull;
   }
 
   if (mDirList)
   {
     // Destroy the list of GIOFileInfo objects...
-    g_list_foreach(mDirList, (GFunc) g_object_unref, nullptr);
+    g_list_foreach(mDirList, (GFunc) g_object_unref, nsnull);
     g_list_free(mDirList);
-    mDirList = nullptr;
-    mDirListPtr = nullptr;
+    mDirList = nsnull;
+    mDirListPtr = nsnull;
   }
 
   if (mChannel)
@@ -617,7 +617,7 @@ nsGIOInputStream::Close()
       rv = NS_ProxyRelease(thread, mChannel);
 
     NS_ASSERTION(thread && NS_SUCCEEDED(rv), "leaking channel reference");
-    mChannel = nullptr;
+    mChannel = nsnull;
   }
 
   mSpec.Truncate(); // free memory
@@ -854,18 +854,18 @@ mount_operation_ask_password (GMountOperation   *mount_op,
   // Prompt the user...
   nsresult rv;
   bool retval = false;
-  PRUnichar *user = nullptr, *pass = nullptr;
+  PRUnichar *user = nsnull, *pass = nsnull;
   if (default_user) {
     // user will be freed by PromptUsernameAndPassword
     user = ToNewUnicode(NS_ConvertUTF8toUTF16(default_user));
   }
   if (flags & G_ASK_PASSWORD_NEED_USERNAME) {
-    rv = prompt->PromptUsernameAndPassword(nullptr, nsmessage.get(),
+    rv = prompt->PromptUsernameAndPassword(nsnull, nsmessage.get(),
                                            key.get(),
                                            nsIAuthPrompt::SAVE_PASSWORD_PERMANENTLY,
                                            &user, &pass, &retval);
   } else {
-    rv = prompt->PromptPassword(nullptr, nsmessage.get(),
+    rv = prompt->PromptPassword(nsnull, nsmessage.get(),
                                 key.get(),
                                 nsIAuthPrompt::SAVE_PASSWORD_PERMANENTLY,
                                 &pass, &retval);

@@ -42,7 +42,7 @@ nsresult
 GetPresContextFromEditor(nsIEditor *aEditor, nsPresContext **aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = nullptr;
+  *aResult = nsnull;
   NS_ENSURE_ARG_POINTER(aEditor);
 
   nsCOMPtr<nsISelectionController> selCon;

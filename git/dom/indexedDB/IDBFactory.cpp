@@ -53,7 +53,7 @@ namespace {
 struct ObjectStoreInfoMap
 {
   ObjectStoreInfoMap()
-  : id(LL_MININT), info(nullptr) { }
+  : id(LL_MININT), info(nsnull) { }
 
   PRInt64 id;
   ObjectStoreInfo* info;
@@ -62,7 +62,7 @@ struct ObjectStoreInfoMap
 } // anonymous namespace
 
 IDBFactory::IDBFactory()
-: mOwningObject(nullptr), mActorChild(nullptr), mActorParent(nullptr),
+: mOwningObject(nsnull), mActorChild(nsnull), mActorParent(nsnull),
   mRootedOwningObject(false)
 {
 }
@@ -110,7 +110,7 @@ IDBFactory::Create(nsPIDOMWindow* aWindow,
     rv = IndexedDatabaseManager::GetASCIIOriginFromWindow(aWindow, origin);
     if (NS_FAILED(rv)) {
       // Not allowed.
-      *aFactory = nullptr;
+      *aFactory = nsnull;
       return NS_OK;
     }
   }
@@ -130,7 +130,7 @@ IDBFactory::Create(nsPIDOMWindow* aWindow,
 
     if (!allowed) {
       actor->Send__delete__(actor);
-      *aFactory = nullptr;
+      *aFactory = nsnull;
       return NS_OK;
     }
 
@@ -156,7 +156,7 @@ IDBFactory::Create(JSContext* aCx,
 
   nsCString origin;
   nsresult rv =
-    IndexedDatabaseManager::GetASCIIOriginFromWindow(nullptr, origin);
+    IndexedDatabaseManager::GetASCIIOriginFromWindow(nsnull, origin);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<IDBFactory> factory = new IDBFactory();
@@ -203,7 +203,7 @@ IDBFactory::Create(IDBFactory** aFactory)
 
   nsCString origin;
   nsresult rv =
-    IndexedDatabaseManager::GetASCIIOriginFromWindow(nullptr, origin);
+    IndexedDatabaseManager::GetASCIIOriginFromWindow(nsnull, origin);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIPrincipal> principal =
@@ -262,24 +262,24 @@ IDBFactory::GetConnection(const nsAString& aDatabaseFilePath)
                "Bad file path!");
 
   nsCOMPtr<nsIFile> dbFile(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID));
-  NS_ENSURE_TRUE(dbFile, nullptr);
+  NS_ENSURE_TRUE(dbFile, nsnull);
 
   nsresult rv = dbFile->InitWithPath(aDatabaseFilePath);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   bool exists;
   rv = dbFile->Exists(&exists);
-  NS_ENSURE_SUCCESS(rv, nullptr);
-  NS_ENSURE_TRUE(exists, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
+  NS_ENSURE_TRUE(exists, nsnull);
 
   nsCOMPtr<mozIStorageServiceQuotaManagement> ss =
     do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(ss, nullptr);
+  NS_ENSURE_TRUE(ss, nsnull);
 
   nsCOMPtr<mozIStorageConnection> connection;
   rv = ss->OpenDatabaseWithVFS(dbFile, NS_LITERAL_CSTRING("quota"),
                                getter_AddRefs(connection));
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   // Turn on foreign key constraints and recursive triggers.
   // The "INSERT OR REPLACE" statement doesn't fire the update trigger,
@@ -291,7 +291,7 @@ IDBFactory::GetConnection(const nsAString& aDatabaseFilePath)
     "PRAGMA foreign_keys = ON; "
     "PRAGMA recursive_triggers = ON;"
   ));
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   return connection.forget();
 }
@@ -376,7 +376,7 @@ IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
   while (NS_SUCCEEDED((rv = stmt->ExecuteStep(&hasResult))) && hasResult) {
     PRInt64 objectStoreId = stmt->AsInt64(0);
 
-    ObjectStoreInfo* objectStoreInfo = nullptr;
+    ObjectStoreInfo* objectStoreInfo = nsnull;
     for (PRUint32 index = 0; index < infoMap.Length(); index++) {
       if (infoMap[index].id == objectStoreId) {
         objectStoreInfo = infoMap[index].info;
@@ -483,7 +483,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBFactory)
   if (tmp->mOwningObject) {
-    tmp->mOwningObject = nullptr;
+    tmp->mOwningObject = nsnull;
   }
   if (tmp->mRootedOwningObject) {
     NS_DROP_JS_OBJECTS(tmp, IDBFactory);
@@ -509,7 +509,7 @@ IDBFactory::OpenCommon(const nsAString& aName,
   NS_ASSERTION(mWindow || mOwningObject, "Must have one of these!");
 
   nsCOMPtr<nsPIDOMWindow> window;
-  JSObject* scriptOwner = nullptr;
+  JSObject* scriptOwner = nsnull;
 
   if (mWindow) {
     window = mWindow;

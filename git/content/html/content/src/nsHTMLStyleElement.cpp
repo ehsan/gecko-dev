@@ -66,7 +66,7 @@ public:
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
-    return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
+    return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
   }
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
@@ -201,7 +201,7 @@ void
 nsHTMLStyleElement::ContentChanged(nsIContent* aContent)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aContent)) {
-    UpdateStyleSheetInternal(nullptr);
+    UpdateStyleSheetInternal(nsnull);
   }
 }
 
@@ -241,7 +241,7 @@ nsHTMLStyleElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       (aName == nsGkAtoms::title ||
        aName == nsGkAtoms::media ||
        aName == nsGkAtoms::type)) {
-    UpdateStyleSheetInternal(nullptr, true);
+    UpdateStyleSheetInternal(nsnull, true);
   }
 
   return rv;
@@ -257,7 +257,7 @@ nsHTMLStyleElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
       (aAttribute == nsGkAtoms::title ||
        aAttribute == nsGkAtoms::media ||
        aAttribute == nsGkAtoms::type)) {
-    UpdateStyleSheetInternal(nullptr, true);
+    UpdateStyleSheetInternal(nsnull, true);
   }
 
   return rv;
@@ -279,7 +279,7 @@ nsHTMLStyleElement::SetInnerHTML(const nsAString& aInnerHTML)
   
   SetEnableUpdates(true);
   
-  UpdateStyleSheetInternal(nullptr);
+  UpdateStyleSheetInternal(nsnull);
   return rv;
 }
 
@@ -287,7 +287,7 @@ already_AddRefed<nsIURI>
 nsHTMLStyleElement::GetStyleSheetURL(bool* aIsInline)
 {
   *aIsInline = true;
-  return nullptr;
+  return nsnull;
 }
 
 void

@@ -34,7 +34,7 @@ struct AutoAttachJavaThread {
         attached = mozilla_AndroidBridge_SetMainThread((void*)pthread_self());
     }
     ~AutoAttachJavaThread() {
-        mozilla_AndroidBridge_SetMainThread(nullptr);
+        mozilla_AndroidBridge_SetMainThread(nsnull);
         attached = false;
     }
 
@@ -68,7 +68,7 @@ GeckoStart(void *data, const nsXREAppData *appData)
         targs.AppendElement(arg);
         arg = strtok(NULL, " ");
     }
-    targs.AppendElement(static_cast<char *>(nullptr));
+    targs.AppendElement(static_cast<char *>(nsnull));
 
     int result = XRE_main(targs.Length() - 1, targs.Elements(), appData, 0);
 

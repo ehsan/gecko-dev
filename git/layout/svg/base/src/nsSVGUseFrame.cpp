@@ -122,7 +122,7 @@ nsSVGUseFrame::AttributeChanged(PRInt32         aNameSpaceID,
     if (aAttribute == nsGkAtoms::x ||
         aAttribute == nsGkAtoms::y) {
       // make sure our cached transform matrix gets (lazily) updated
-      mCanvasTM = nullptr;
+      mCanvasTM = nsnull;
       nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
       nsSVGUtils::NotifyChildrenOfSVGChange(this, TRANSFORM_CHANGED);
     } else if (aAttribute == nsGkAtoms::width ||
@@ -144,7 +144,7 @@ nsSVGUseFrame::AttributeChanged(PRInt32         aNameSpaceID,
              aAttribute == nsGkAtoms::href) {
     // we're changing our nature, clear out the clone information
     nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
-    useElement->mOriginal = nullptr;
+    useElement->mOriginal = nsnull;
     useElement->UnlinkSource();
     useElement->TriggerReclone();
   }
@@ -179,7 +179,7 @@ nsSVGUseFrame::ReflowSVG()
   // created for that purpose.
   float x, y;
   static_cast<nsSVGUseElement*>(mContent)->
-    GetAnimatedLengthValues(&x, &y, nullptr);
+    GetAnimatedLengthValues(&x, &y, nsnull);
   mRect.MoveTo(nsLayoutUtils::RoundGfxRectToAppRect(
                  gfxRect(x, y, 0.0, 0.0),
                  PresContext()->AppUnitsPerCSSPixel()).TopLeft());

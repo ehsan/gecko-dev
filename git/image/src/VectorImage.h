@@ -53,7 +53,7 @@ public:
   NS_IMETHOD_(void) RequestRefresh(const mozilla::TimeStamp& aTime);
   // END NS_DECL_IMGICONTAINER
 
-  VectorImage(imgStatusTracker* aStatusTracker = nullptr);
+  VectorImage(imgStatusTracker* aStatusTracker = nsnull);
   virtual ~VectorImage();
 
   // Methods inherited from Image

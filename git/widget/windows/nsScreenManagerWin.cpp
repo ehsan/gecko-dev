@@ -38,7 +38,7 @@ NS_IMPL_ISUPPORTS1(nsScreenManagerWin, nsIScreenManager)
 nsIScreen* 
 nsScreenManagerWin :: CreateNewScreenObject ( HMONITOR inScreen )
 {
-  nsIScreen* retScreen = nullptr;
+  nsIScreen* retScreen = nsnull;
   
   // look through our screen list, hoping to find it. If it's not there,
   // add it and return the new one.
@@ -72,7 +72,7 @@ nsScreenManagerWin :: ScreenForRect ( PRInt32 inLeft, PRInt32 inTop, PRInt32 inW
 {
   if ( !(inWidth || inHeight) ) {
     NS_WARNING ( "trying to find screen for sizeless window, using primary monitor" );
-    *outScreen = CreateNewScreenObject ( nullptr );    // addrefs
+    *outScreen = CreateNewScreenObject ( nsnull );    // addrefs
     return NS_OK;
   }
 
@@ -96,7 +96,7 @@ nsScreenManagerWin :: ScreenForRect ( PRInt32 inLeft, PRInt32 inTop, PRInt32 inW
 NS_IMETHODIMP 
 nsScreenManagerWin :: GetPrimaryScreen(nsIScreen** aPrimaryScreen) 
 {
-  *aPrimaryScreen = CreateNewScreenObject ( nullptr );    // addrefs  
+  *aPrimaryScreen = CreateNewScreenObject ( nsnull );    // addrefs  
   return NS_OK;
   
 } // GetPrimaryScreen
@@ -132,7 +132,7 @@ nsScreenManagerWin :: GetNumberOfScreens(PRUint32 *aNumberOfScreens)
     *aNumberOfScreens = mNumberOfScreens;
   else {
     PRUint32 count = 0;
-    BOOL result = ::EnumDisplayMonitors(nullptr, nullptr, (MONITORENUMPROC)CountMonitors, (LPARAM)&count);
+    BOOL result = ::EnumDisplayMonitors(nsnull, nsnull, (MONITORENUMPROC)CountMonitors, (LPARAM)&count);
     if (!result)
       return NS_ERROR_FAILURE;
     *aNumberOfScreens = mNumberOfScreens = count;

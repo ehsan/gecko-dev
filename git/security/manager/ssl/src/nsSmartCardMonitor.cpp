@@ -87,7 +87,7 @@ SmartCardThreadList::Remove(SECMODModule *aModule)
 nsresult
 SmartCardThreadList::Add(SmartCardMonitoringThread *thread)
 {
-  SmartCardThreadEntry *current = new SmartCardThreadEntry(thread, head, nullptr,
+  SmartCardThreadEntry *current = new SmartCardThreadEntry(thread, head, nsnull,
                                                            &head);
   if (current) {  
      // OK to forget current here, it's on the list
@@ -102,13 +102,13 @@ static PR_CALLBACK PLHashNumber
 unity(const void *key) { return PLHashNumber(NS_PTR_TO_INT32(key)); }
 
 SmartCardMonitoringThread::SmartCardMonitoringThread(SECMODModule *module_)
-  : mThread(nullptr)
+  : mThread(nsnull)
 {
   mModule = SECMOD_ReferenceModule(module_);
   // simple hash functions, most modules have less than 3 slots, so 10 buckets
   // should be plenty
   mHash = PL_NewHashTable(10, unity, PL_CompareValues, 
-                           PL_CompareStrings, nullptr, 0);
+                           PL_CompareStrings, nsnull, 0);
 }
 
 //
@@ -202,7 +202,7 @@ SmartCardMonitoringThread::SetTokenName(CK_SLOT_ID slotid,
 const char *
 SmartCardMonitoringThread::GetTokenName(CK_SLOT_ID slotid)
 {
-  const char *tokenName = nullptr;
+  const char *tokenName = nsnull;
   const char *entry;
 
   if (mHash) {
@@ -254,13 +254,13 @@ SmartCardMonitoringThread::SendEvent(const nsAString &eventType,
 void SmartCardMonitoringThread::Execute()
 {
   PK11SlotInfo *slot;
-  const char *tokenName = nullptr;
+  const char *tokenName = nsnull;
 
   //
   // populate token names for already inserted tokens.
   //
   PK11SlotList *sl =
-            PK11_FindSlotsByNames(mModule->dllName, nullptr, nullptr, true);
+            PK11_FindSlotsByNames(mModule->dllName, nsnull, nsnull, true);
   PK11SlotListElement *sle;
  
   if (sl) {
@@ -275,7 +275,7 @@ void SmartCardMonitoringThread::Execute()
   // loop starts..
   do {
     slot = SECMOD_WaitForAnyTokenEvent(mModule, 0, PR_SecondsToInterval(1)  );
-    if (slot == nullptr) {
+    if (slot == nsnull) {
       break;
     }
 
@@ -308,7 +308,7 @@ void SmartCardMonitoringThread::Execute()
       if (tokenName) {
         SendEvent(NS_LITERAL_STRING(SMARTCARDEVENT_REMOVE), tokenName);
         // clear the token name (after we send it)
-        SetTokenName(slotID, nullptr, 0);
+        SetTokenName(slotID, nsnull, 0);
       }
     }
     PK11_FreeSlot(slot);

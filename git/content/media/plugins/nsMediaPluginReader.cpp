@@ -75,7 +75,7 @@ nsresult nsMediaPluginReader::ReadMetadata(nsVideoInfo* aInfo)
     VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
     if (container) {
       container->SetCurrentFrame(gfxIntSize(displaySize.width, displaySize.height),
-                                 nullptr,
+                                 nsnull,
                                  mozilla::TimeStamp::Now());
     }
   }

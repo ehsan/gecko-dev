@@ -112,7 +112,7 @@ nsSyncStreamListener::Close()
     // pipe so that the next OnDataAvailable event will fail.
     if (mPipeIn) {
         mPipeIn->Close();
-        mPipeIn = nullptr;
+        mPipeIn = nsnull;
     }
     return NS_OK;
 }

@@ -79,12 +79,12 @@ NS_NewXMLContentSink(nsIXMLContentSink** aResult,
                      nsISupports* aContainer,
                      nsIChannel* aChannel)
 {
-  NS_PRECONDITION(nullptr != aResult, "null ptr");
-  if (nullptr == aResult) {
+  NS_PRECONDITION(nsnull != aResult, "null ptr");
+  if (nsnull == aResult) {
     return NS_ERROR_NULL_POINTER;
   }
   nsXMLContentSink* it = new nsXMLContentSink();
-  if (nullptr == it) {
+  if (nsnull == it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   
@@ -126,7 +126,7 @@ nsXMLContentSink::Init(nsIDocument* aDoc,
   }
   
   mState = eXMLContentSinkState_InProlog;
-  mDocElement = nullptr;
+  mDocElement = nsnull;
 
   return NS_OK;
 }
@@ -296,7 +296,7 @@ nsXMLContentSink::DidBuildModel(bool aTerminated)
     mXSLTProcessor->SetSourceContentModel(currentDOMDoc);
     // Since the processor now holds a reference to us we drop our reference
     // to it to avoid owning cycles
-    mXSLTProcessor = nullptr;
+    mXSLTProcessor = nsnull;
   }
   else {
     // Kick off layout for non-XSLT transformed documents.
@@ -461,7 +461,7 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
 {
   NS_ASSERTION(aNodeInfo, "can't create element without nodeinfo");
 
-  *aResult = nullptr;
+  *aResult = nsnull;
   *aAppendContent = true;
   nsresult rv = NS_OK;
 
@@ -599,7 +599,7 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
       ssle->SetEnableUpdates(true);
       bool willNotify;
       bool isAlternate;
-      rv = ssle->UpdateStyleSheet(mRunsToCompletion ? nullptr : this,
+      rv = ssle->UpdateStyleSheet(mRunsToCompletion ? nsnull : this,
                                   &willNotify,
                                   &isAlternate);
       if (NS_SUCCEEDED(rv) && willNotify && !isAlternate && !mRunsToCompletion) {
@@ -718,7 +718,7 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
       return NS_OK;
 
     nsCOMPtr<nsIURI> url;
-    rv = NS_NewURI(getter_AddRefs(url), aHref, nullptr,
+    rv = NS_NewURI(getter_AddRefs(url), aHref, nsnull,
                    mDocument->GetDocBaseURI());
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -736,7 +736,7 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
                                    mDocument->NodePrincipal(),
                                    aElement,
                                    type,
-                                   nullptr,
+                                   nsnull,
                                    &decision,
                                    nsContentUtils::GetContentPolicy(),
                                    nsContentUtils::GetSecurityManager());
@@ -791,7 +791,7 @@ nsXMLContentSink::FlushText(bool aReleaseTextNode)
     if (mLastTextNode) {
       if ((mLastTextNodeSize + mTextLength) > mTextSize && !mXSLTProcessor) {
         mLastTextNodeSize = 0;
-        mLastTextNode = nullptr;
+        mLastTextNode = nsnull;
         FlushText(aReleaseTextNode);
       } else {
         bool notify = HaveNotifiedForCurrentContent();
@@ -829,7 +829,7 @@ nsXMLContentSink::FlushText(bool aReleaseTextNode)
 
   if (aReleaseTextNode) {
     mLastTextNodeSize = 0;
-    mLastTextNode = nullptr;
+    mLastTextNode = nsnull;
   }
   
   return rv;
@@ -839,7 +839,7 @@ nsIContent*
 nsXMLContentSink::GetCurrentContent()
 {
   if (mContentStack.Length() == 0) {
-    return nullptr;
+    return nsnull;
   }
   return GetCurrentStackNode()->mContent;
 }
@@ -848,7 +848,7 @@ StackNode*
 nsXMLContentSink::GetCurrentStackNode()
 {
   PRInt32 count = mContentStack.Length();
-  return count != 0 ? &mContentStack[count-1] : nullptr;
+  return count != 0 ? &mContentStack[count-1] : nsnull;
 }
 
 
@@ -1119,7 +1119,7 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
   result = CloseElement(content);
 
   if (mCurrentHead == content) {
-    mCurrentHead = nullptr;
+    mCurrentHead = nsnull;
   }
   
   if (mDocElement == content) {
@@ -1295,7 +1295,7 @@ nsXMLContentSink::HandleProcessingInstruction(const PRUnichar *aTarget,
     ssle->SetEnableUpdates(true);
     bool willNotify;
     bool isAlternate;
-    rv = ssle->UpdateStyleSheet(mRunsToCompletion ? nullptr : this,
+    rv = ssle->UpdateStyleSheet(mRunsToCompletion ? nsnull : this,
                                 &willNotify,
                                 &isAlternate);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1413,7 +1413,7 @@ nsXMLContentSink::ReportError(const PRUnichar* aErrorText,
   if (mXSLTProcessor) {
     // Get rid of the XSLT processor.
     mXSLTProcessor->CancelLoads();
-    mXSLTProcessor = nullptr;
+    mXSLTProcessor = nsnull;
   }
 
   // release the nodes on stack
@@ -1491,7 +1491,7 @@ nsXMLContentSink::AddText(const PRUnichar* aText,
   // Create buffer when we first need it
   if (0 == mTextSize) {
     mText = (PRUnichar *) PR_MALLOC(sizeof(PRUnichar) * NS_ACCUMULATION_BUFFER_SIZE);
-    if (nullptr == mText) {
+    if (nsnull == mText) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
     mTextSize = NS_ACCUMULATION_BUFFER_SIZE;
@@ -1514,7 +1514,7 @@ nsXMLContentSink::AddText(const PRUnichar* aText,
       else {
         mTextSize += aLength;
         mText = (PRUnichar *) PR_REALLOC(mText, sizeof(PRUnichar) * mTextSize);
-        if (nullptr == mText) {
+        if (nsnull == mText) {
           mTextSize = 0;
 
           return NS_ERROR_OUT_OF_MEMORY;

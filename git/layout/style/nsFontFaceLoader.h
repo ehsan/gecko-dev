@@ -109,7 +109,7 @@ public:
   // cancel the load and remove its reference to mFontSet
   void Cancel();
 
-  void DropChannel() { mChannel = nullptr; }
+  void DropChannel() { mChannel = nsnull; }
 
   void StartedLoading(nsIStreamLoader *aStreamLoader);
 

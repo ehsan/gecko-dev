@@ -15,7 +15,7 @@ void PR_CALLBACK nsPSMBackgroundThread::nsThreadRunner(void *arg)
 }
 
 nsPSMBackgroundThread::nsPSMBackgroundThread()
-: mThreadHandle(nullptr),
+: mThreadHandle(nsnull),
   mMutex("nsPSMBackgroundThread.mMutex"),
   mCond(mMutex, "nsPSMBackgroundThread.mCond"),
   mExitState(ePSMThreadRunning)
@@ -86,5 +86,5 @@ void nsPSMBackgroundThread::requestExit()
   }
 
   PR_JoinThread(mThreadHandle);
-  mThreadHandle = nullptr;
+  mThreadHandle = nsnull;
 }

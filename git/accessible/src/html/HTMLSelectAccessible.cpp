@@ -114,7 +114,7 @@ HTMLSelectListAccessible::CurrentItem()
         return document->GetAccessible(activeOptionNode);
     }
   }
-  return nullptr;
+  return nsnull;
 }
 
 void
@@ -358,7 +358,7 @@ HTMLSelectOptionAccessible::SetSelected(bool aSelect)
 Accessible*
 HTMLSelectOptionAccessible::ContainerWidget() const
 {
-  return mParent && mParent->IsListControl() ? mParent : nullptr;
+  return mParent && mParent->IsListControl() ? mParent : nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -464,7 +464,7 @@ HTMLComboboxAccessible::CacheChildren()
       new HTMLComboboxListAccessible(mParent, mContent, mDoc);
 
     // Initialize and put into cache.
-    if (!Document()->BindToDocument(mListAccessible, nullptr))
+    if (!Document()->BindToDocument(mListAccessible, nsnull))
       return;
   }
 
@@ -482,7 +482,7 @@ HTMLComboboxAccessible::Shutdown()
 
   if (mListAccessible) {
     mListAccessible->Shutdown();
-    mListAccessible = nullptr;
+    mListAccessible = nsnull;
   }
 }
 
@@ -601,7 +601,7 @@ HTMLComboboxAccessible::AreItemsOperable() const
 Accessible*
 HTMLComboboxAccessible::CurrentItem()
 {
-  return AreItemsOperable() ? mListAccessible->CurrentItem() : nullptr;
+  return AreItemsOperable() ? mListAccessible->CurrentItem() : nsnull;
 }
 
 void
@@ -620,7 +620,7 @@ HTMLComboboxAccessible::SelectedOption() const
   nsIFrame* frame = GetFrame();
   nsIComboboxControlFrame* comboboxFrame = do_QueryFrame(frame);
   if (!comboboxFrame)
-    return nullptr;
+    return nsnull;
 
   nsIListControlFrame* listControlFrame =
     do_QueryFrame(comboboxFrame->GetDropDown());
@@ -633,7 +633,7 @@ HTMLComboboxAccessible::SelectedOption() const
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 
@@ -663,7 +663,7 @@ HTMLComboboxListAccessible::GetFrame() const
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 bool
@@ -705,7 +705,7 @@ HTMLComboboxListAccessible::NativeState()
 void
 HTMLComboboxListAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame)
 {
-  *aBoundingFrame = nullptr;
+  *aBoundingFrame = nsnull;
 
   Accessible* comboAcc = Parent();
   if (!comboAcc)
@@ -723,7 +723,7 @@ HTMLComboboxListAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingF
   }
   nsIFrame* frame = content->GetPrimaryFrame();
   if (!frame) {
-    *aBoundingFrame = nullptr;
+    *aBoundingFrame = nsnull;
     return;
   }
 

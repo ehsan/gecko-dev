@@ -76,7 +76,7 @@ NS_IMETHODIMP nsScriptableDateFormat::FormatDateTime(
 
   nsresult rv;
   nsAutoString localeName(aLocale);
-  *dateTimeString = nullptr;
+  *dateTimeString = nsnull;
 
   nsCOMPtr<nsILocale> locale;
   // re-initialise locale pointer only if the locale was given explicitly

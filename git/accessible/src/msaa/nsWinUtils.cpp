@@ -29,13 +29,13 @@ nsWinUtils::GetComputedStyleDeclaration(nsIContent* aContent)
 {
   nsIContent* elm = nsCoreUtils::GetDOMElementFor(aContent);
   if (!elm)
-    return nullptr;
+    return nsnull;
 
   // Returns number of items in style declaration
   nsCOMPtr<nsIDOMWindow> window =
     do_QueryInterface(elm->OwnerDoc()->GetWindow());
   if (!window)
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
   nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(elm));

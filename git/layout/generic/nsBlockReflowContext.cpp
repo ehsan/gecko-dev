@@ -75,14 +75,14 @@ nsBlockReflowContext::ComputeCollapsedTopMargin(const nsHTMLReflowState& aRS,
   // reasons.
   nsIFrame* frame = DescendIntoBlockLevelFrame(aRS.frame);
   nsPresContext* prescontext = frame->PresContext();
-  nsBlockFrame* block = nullptr;
+  nsBlockFrame* block = nsnull;
   if (0 == aRS.mComputedBorderPadding.top) {
     block = nsLayoutUtils::GetAsBlock(frame);
     if (block) {
       bool topMarginRoot, unused;
       block->IsMarginRoot(&topMarginRoot, &unused);
       if (topMarginRoot) {
-        block = nullptr;
+        block = nsnull;
       }
     }
   }
@@ -100,7 +100,7 @@ nsBlockReflowContext::ComputeCollapsedTopMargin(const nsHTMLReflowState& aRS,
       bool anyLines = true;
       if (overflowLines) {
         nsBlockFrame::FrameLines* frames = block->GetOverflowLines();
-        nsLineList* lines = frames ? &frames->mLines : nullptr;
+        nsLineList* lines = frames ? &frames->mLines : nsnull;
         if (!lines) {
           anyLines = false;
         } else {
@@ -296,7 +296,7 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
     // a next-in-flow where it ends up), unless it is an out of flow frame.
     if (NS_FRAME_IS_FULLY_COMPLETE(aFrameReflowStatus)) {
       nsIFrame* kidNextInFlow = mFrame->GetNextInFlow();
-      if (nullptr != kidNextInFlow) {
+      if (nsnull != kidNextInFlow) {
         // Remove all of the childs next-in-flows. Make sure that we ask
         // the right parent to do the removal (it's possible that the
         // parent is not this because we are executing pullup code).

@@ -114,7 +114,7 @@ TestTargetedTimers()
   rv = timer->SetTarget(target);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIThread* notifiedThread = nullptr;
+  nsIThread* notifiedThread = nsnull;
 
   nsCOMPtr<nsITimerCallback> callback =
     new TimerCallback(&notifiedThread, newMon);

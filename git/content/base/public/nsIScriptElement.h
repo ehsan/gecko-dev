@@ -43,7 +43,7 @@ public:
                      mozilla::dom::NOT_FROM_PARSER : aFromParser),
                      // Fragment parser-created scripts (if executable)
                      // behave like script-created scripts.
-      mCreatorParser(nullptr)
+      mCreatorParser(nsnull)
   {
   }
 
@@ -138,8 +138,8 @@ public:
   void LoseParserInsertedness()
   {
     mFrozen = false;
-    mUri = nullptr;
-    mCreatorParser = nullptr;
+    mUri = nsnull;
+    mCreatorParser = nsnull;
     mParserCreated = mozilla::dom::NOT_FROM_PARSER;
     bool async = false;
     nsCOMPtr<nsIDOMHTMLScriptElement> htmlScript = do_QueryInterface(this);

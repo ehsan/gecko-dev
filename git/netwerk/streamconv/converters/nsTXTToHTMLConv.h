@@ -76,7 +76,7 @@ public:
             return NS_ERROR_NO_AGGREGATION;
 
         nsTXTToHTMLConv* _s = new nsTXTToHTMLConv();
-        if (_s == nullptr)
+        if (_s == nsnull)
             return NS_ERROR_OUT_OF_MEMORY;
         NS_ADDREF(_s);
         rv = _s->Init();

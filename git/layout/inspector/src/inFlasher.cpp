@@ -134,7 +134,7 @@ inFlasher::DrawElementOutline(nsIDOMElement* aElement)
         rcontext->InvertRect(rect);
       }
 
-      bool isLastFrame = frame->GetNextContinuation() == nullptr;
+      bool isLastFrame = frame->GetNextContinuation() == nsnull;
       DrawOutline(rect.x, rect.y, rect.width, rect.height, rcontext,
                   isFirstFrame, isLastFrame);
       isFirstFrame = false;

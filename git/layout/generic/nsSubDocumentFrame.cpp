@@ -72,8 +72,8 @@ GetDocumentFromView(nsIView* aView)
   NS_PRECONDITION(aView, "");
 
   nsIFrame* f = aView->GetFrame();
-  nsIPresShell* ps =  f ? f->PresContext()->PresShell() : nullptr;
-  return ps ? ps->GetDocument() : nullptr;
+  nsIPresShell* ps =  f ? f->PresContext()->PresShell() : nsnull;
+  return ps ? ps->GetDocument() : nsnull;
 }
 
 class AsyncFrameInit;
@@ -94,7 +94,7 @@ nsSubDocumentFrame::CreateAccessible()
   nsAccessibilityService* accService = nsIPresShell::AccService();
   return accService ?
     accService->CreateOuterDocAccessible(mContent, PresContext()->PresShell()) :
-    nullptr;
+    nsnull;
 }
 #endif
 
@@ -213,9 +213,9 @@ nsIFrame*
 nsSubDocumentFrame::GetSubdocumentRootFrame()
 {
   if (!mInnerView)
-    return nullptr;
+    return nsnull;
   nsIView* subdocView = mInnerView->GetFirstChild();
-  return subdocView ? subdocView->GetFrame() : nullptr;
+  return subdocView ? subdocView->GetFrame() : nsnull;
 }
 
 NS_IMETHODIMP
@@ -248,7 +248,7 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!subdocView)
     return NS_OK;
 
-  nsCOMPtr<nsIPresShell> presShell = nullptr;
+  nsCOMPtr<nsIPresShell> presShell = nsnull;
 
   nsIFrame* subdocRootFrame = subdocView->GetFrame();
   if (subdocRootFrame) {
@@ -262,7 +262,7 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // first being the new page that may not have any frame, and the second
     // being the old page that will probably have a frame.
     nsIView* nextView = subdocView->GetNextSibling();
-    nsIFrame* frame = nullptr;
+    nsIFrame* frame = nsnull;
     if (nextView) {
       frame = nextView->GetFrame();
     }
@@ -298,7 +298,7 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsRect dirty;
   if (subdocRootFrame) {
     nsIDocument* doc = subdocRootFrame->PresContext()->Document();
-    nsIContent* root = doc ? doc->GetRootElement() : nullptr;
+    nsIContent* root = doc ? doc->GetRootElement() : nsnull;
     nsRect displayPort;
     if (root && nsLayoutUtils::GetDisplayPort(root, &displayPort)) {
       dirty = displayPort;
@@ -406,7 +406,7 @@ nsSubDocumentFrame::GetIntrinsicWidth()
     return 0;  // XUL <iframe> and <browser> have no useful intrinsic width
   }
 
-  NS_ASSERTION(ObtainIntrinsicSizeFrame() == nullptr,
+  NS_ASSERTION(ObtainIntrinsicSizeFrame() == nsnull,
                "Intrinsic width should come from the embedded document.");
 
   // We must be an HTML <iframe>.  Default to a width of 300, for IE
@@ -424,7 +424,7 @@ nsSubDocumentFrame::GetIntrinsicHeight()
     return 0;
   }
 
-  NS_ASSERTION(ObtainIntrinsicSizeFrame() == nullptr,
+  NS_ASSERTION(ObtainIntrinsicSizeFrame() == nsnull,
                "Intrinsic height should come from the embedded document.");
 
   // Use 150px, for compatibility with IE, and per CSS2.1 draft.
@@ -799,7 +799,7 @@ nsSubDocumentFrame::FrameLoader()
 {
   nsIContent* content = GetContent();
   if (!content)
-    return nullptr;
+    return nsnull;
 
   if (!mFrameLoader) {
     nsCOMPtr<nsIFrameLoaderOwner> loaderOwner = do_QueryInterface(content);
@@ -817,7 +817,7 @@ nsSubDocumentFrame::FrameLoader()
 nsresult
 nsSubDocumentFrame::GetDocShell(nsIDocShell **aDocShell)
 {
-  *aDocShell = nullptr;
+  *aDocShell = nsnull;
 
   NS_ENSURE_STATE(FrameLoader());
   return mFrameLoader->GetDocShell(aDocShell);
@@ -843,13 +843,13 @@ BeginSwapDocShellsForDocument(nsIDocument* aDocument, void*)
   NS_PRECONDITION(aDocument, "");
 
   nsIPresShell* shell = aDocument->GetShell();
-  nsIFrame* rootFrame = shell ? shell->GetRootFrame() : nullptr;
+  nsIFrame* rootFrame = shell ? shell->GetRootFrame() : nsnull;
   if (rootFrame) {
     ::DestroyDisplayItemDataForFrames(rootFrame);
   }
   aDocument->EnumerateFreezableElements(
-    nsObjectFrame::BeginSwapDocShells, nullptr);
-  aDocument->EnumerateSubDocuments(BeginSwapDocShellsForDocument, nullptr);
+    nsObjectFrame::BeginSwapDocShells, nsnull);
+  aDocument->EnumerateSubDocuments(BeginSwapDocShellsForDocument, nsnull);
   return true;
 }
 
@@ -857,11 +857,11 @@ static nsIView*
 BeginSwapDocShellsForViews(nsIView* aSibling)
 {
   // Collect the removed sibling views in reverse order in 'removedViews'.
-  nsIView* removedViews = nullptr;
+  nsIView* removedViews = nsnull;
   while (aSibling) {
     nsIDocument* doc = ::GetDocumentFromView(aSibling);
     if (doc) {
-      ::BeginSwapDocShellsForDocument(doc, nullptr);
+      ::BeginSwapDocShellsForDocument(doc, nsnull);
     }
     nsIView* next = aSibling->GetNextSibling();
     aSibling->GetViewManager()->RemoveChild(aSibling);
@@ -881,10 +881,10 @@ InsertViewsInReverseOrder(nsIView* aSibling, nsIView* aParent)
   nsIViewManager* vm = aParent->GetViewManager();
   while (aSibling) {
     nsIView* next = aSibling->GetNextSibling();
-    aSibling->SetNextSibling(nullptr);
+    aSibling->SetNextSibling(nsnull);
     // true means 'after' in document order which is 'before' in view order,
     // so this call prepends the child, thus reversing the siblings as we go.
-    vm->InsertChild(aParent, aSibling, nullptr, true);
+    vm->InsertChild(aParent, aSibling, nsnull, true);
     aSibling = next;
   }
 }
@@ -931,10 +931,10 @@ EndSwapDocShellsForDocument(nsIDocument* aDocument, void*)
     while (cv) {
       nsCOMPtr<nsPresContext> pc;
       cv->GetPresContext(getter_AddRefs(pc));
-      nsDeviceContext* dc = pc ? pc->DeviceContext() : nullptr;
+      nsDeviceContext* dc = pc ? pc->DeviceContext() : nsnull;
       if (dc) {
         nsIView* v = cv->FindContainerView();
-        dc->Init(v ? v->GetNearestWidget(nullptr) : nullptr);
+        dc->Init(v ? v->GetNearestWidget(nsnull) : nsnull);
       }
       nsCOMPtr<nsIContentViewer> prev;
       cv->GetPreviousViewer(getter_AddRefs(prev));
@@ -943,8 +943,8 @@ EndSwapDocShellsForDocument(nsIDocument* aDocument, void*)
   }
 
   aDocument->EnumerateFreezableElements(
-    nsObjectFrame::EndSwapDocShells, nullptr);
-  aDocument->EnumerateSubDocuments(EndSwapDocShellsForDocument, nullptr);
+    nsObjectFrame::EndSwapDocShells, nsnull);
+  aDocument->EnumerateSubDocuments(EndSwapDocShellsForDocument, nsnull);
   return true;
 }
 
@@ -954,7 +954,7 @@ EndSwapDocShellsForViews(nsIView* aSibling)
   for ( ; aSibling; aSibling = aSibling->GetNextSibling()) {
     nsIDocument* doc = ::GetDocumentFromView(aSibling);
     if (doc) {
-      ::EndSwapDocShellsForDocument(doc, nullptr);
+      ::EndSwapDocShellsForDocument(doc, nsnull);
     }
   }
 }
@@ -1005,10 +1005,10 @@ nsSubDocumentFrame::EnsureInnerView()
   nsIView* innerView = viewMan->CreateView(viewBounds, outerView);
   if (!innerView) {
     NS_ERROR("Could not create inner view");
-    return nullptr;
+    return nsnull;
   }
   mInnerView = innerView;
-  viewMan->InsertChild(outerView, innerView, nullptr, true);
+  viewMan->InsertChild(outerView, innerView, nsnull, true);
 
   return mInnerView;
 }
@@ -1021,7 +1021,7 @@ nsSubDocumentFrame::ObtainIntrinsicSizeFrame()
     // We are an HTML <object>, <embed> or <applet> (a replaced element).
 
     // Try to get an nsIFrame for our sub-document's document element
-    nsIFrame* subDocRoot = nullptr;
+    nsIFrame* subDocRoot = nsnull;
 
     nsCOMPtr<nsIDocShell> docShell;
     GetDocShell(getter_AddRefs(docShell));
@@ -1044,5 +1044,5 @@ nsSubDocumentFrame::ObtainIntrinsicSizeFrame()
       return subDocRoot; // SVG documents have an intrinsic size
     }
   }
-  return nullptr;
+  return nsnull;
 }

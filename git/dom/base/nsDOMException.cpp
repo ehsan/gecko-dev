@@ -70,7 +70,7 @@ static struct ResultStruct
   const char* mMessage;
 } gDOMErrorMsgMap[] = {
 #include "domerr.msg"
-  {0, 0, nullptr, nullptr}   // sentinel to mark end of array
+  {0, 0, nsnull, nsnull}   // sentinel to mark end of array
 };
 
 #undef DOM4_MSG_DEF
@@ -82,8 +82,8 @@ NSResultToNameAndMessage(nsresult aNSResult,
                          const char** aMessage,
                          PRUint16* aCode)
 {
-  *aName = nullptr;
-  *aMessage = nullptr;
+  *aName = nsnull;
+  *aMessage = nsnull;
   *aCode = 0;
   ResultStruct* result_struct = gDOMErrorMsgMap;
 
@@ -107,8 +107,8 @@ nsresult
 NS_GetNameAndMessageForDOMNSResult(nsresult aNSResult, const char** aName,
                                    const char** aMessage, PRUint16* aCode)
 {
-  const char* name = nullptr;
-  const char* message = nullptr;
+  const char* name = nsnull;
+  const char* message = nsnull;
   PRUint16 code = 0;
   NSResultToNameAndMessage(aNSResult, &name, &message, &code);
 
@@ -198,7 +198,7 @@ nsDOMException::GetMessageMoz(char **aMessage)
   if (mMessage) {
     *aMessage = NS_strdup(mMessage);
   } else {
-    *aMessage = nullptr;
+    *aMessage = nsnull;
   }
 
   return NS_OK;
@@ -222,7 +222,7 @@ nsDOMException::GetName(char **aName)
   if (mName) {
     *aName = NS_strdup(mName);
   } else {
-    *aName = nullptr;
+    *aName = nsnull;
   }
 
   return NS_OK;
@@ -237,7 +237,7 @@ nsDOMException::GetFilename(char **aFilename)
 
   NS_ENSURE_ARG_POINTER(aFilename);
 
-  *aFilename = nullptr;
+  *aFilename = nsnull;
 
   return NS_OK;
 }
@@ -279,7 +279,7 @@ nsDOMException::GetLocation(nsIStackFrame **aLocation)
 
   NS_ENSURE_ARG_POINTER(aLocation);
 
-  *aLocation = nullptr;
+  *aLocation = nsnull;
 
   return NS_OK;
 }
@@ -289,7 +289,7 @@ nsDOMException::GetInner(nsIException **aInner)
 {
   NS_ENSURE_ARG_POINTER(aInner);
 
-  *aInner = nullptr;
+  *aInner = nsnull;
 
   return NS_OK;
 }
@@ -303,7 +303,7 @@ nsDOMException::GetData(nsISupports **aData)
 
   NS_ENSURE_ARG_POINTER(aData);
 
-  *aData = nullptr;
+  *aData = nsnull;
 
   return NS_OK;
 }
@@ -311,7 +311,7 @@ nsDOMException::GetData(nsISupports **aData)
 NS_IMETHODIMP
 nsDOMException::ToString(char **aReturn)
 {
-  *aReturn = nullptr;
+  *aReturn = nsnull;
 
   static const char defaultMsg[] = "<no message>";
   static const char defaultLocation[] = "<unknown>";

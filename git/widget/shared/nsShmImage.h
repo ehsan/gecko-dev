@@ -71,7 +71,7 @@ public:
 
 private:
     nsShmImage()
-        : mImage(nullptr)
+        : mImage(nsnull)
         , mXAttached(false)
     { mInfo.shmid = SharedMemorySysV::NULLHandle(); }
 

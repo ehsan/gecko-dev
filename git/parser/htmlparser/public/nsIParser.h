@@ -184,7 +184,7 @@ class nsIParser : public nsParserBase {
     NS_IMETHOD_(bool) IsComplete() = 0;
     
     NS_IMETHOD Parse(nsIURI* aURL,
-                     nsIRequestObserver* aListener = nullptr,
+                     nsIRequestObserver* aListener = nsnull,
                      void* aKey = 0,
                      nsDTDMode aMode = eDTDMode_autodetect) = 0;
 

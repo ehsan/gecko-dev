@@ -127,7 +127,7 @@ CheckPermissionsHelper::Run()
   else if (permission == PERMISSION_PROMPT && mPromptAllowed) {
     nsCOMPtr<nsIObserverService> obs = GetObserverService();
     rv = obs->NotifyObservers(static_cast<nsIRunnable*>(this),
-                              TOPIC_PERMISSIONS_PROMPT, nullptr);
+                              TOPIC_PERMISSIONS_PROMPT, nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return NS_OK;
@@ -168,7 +168,7 @@ CheckPermissionsHelper::GetInterface(const nsIID& aIID,
     return mWindow->QueryInterface(aIID, aResult);
   }
 
-  *aResult = nullptr;
+  *aResult = nsnull;
   return NS_ERROR_NOT_AVAILABLE;
 }
 

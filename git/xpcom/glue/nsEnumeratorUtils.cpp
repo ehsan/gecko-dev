@@ -156,7 +156,7 @@ NS_NewSingletonEnumerator(nsISimpleEnumerator* *result,
                           nsISupports* singleton)
 {
     nsSingletonEnumerator* enumer = new nsSingletonEnumerator(singleton);
-    if (enumer == nullptr)
+    if (enumer == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     *result = enumer; 
     NS_ADDREF(*result);
@@ -256,14 +256,14 @@ NS_NewUnionEnumerator(nsISimpleEnumerator* *result,
                       nsISimpleEnumerator* firstEnumerator,
                       nsISimpleEnumerator* secondEnumerator)
 {
-    *result = nullptr;
+    *result = nsnull;
     if (! firstEnumerator) {
         *result = secondEnumerator;
     } else if (! secondEnumerator) {
         *result = firstEnumerator;
     } else {
         nsUnionEnumerator* enumer = new nsUnionEnumerator(firstEnumerator, secondEnumerator);
-        if (enumer == nullptr)
+        if (enumer == nsnull)
             return NS_ERROR_OUT_OF_MEMORY;
         *result = enumer; 
     }

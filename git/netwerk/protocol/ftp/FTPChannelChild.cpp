@@ -158,7 +158,7 @@ FTPChannelChild::AsyncOpen(::nsIStreamListener* listener, nsISupports* aContext)
 
   // add ourselves to the load group. 
   if (mLoadGroup)
-    mLoadGroup->AddRequest(this, nullptr);
+    mLoadGroup->AddRequest(this, nsnull);
 
   // Get info from nsILoadContext, if any
   bool haveLoadContext = false;
@@ -370,11 +370,11 @@ FTPChannelChild::DoOnStopRequest(const nsresult& statusCode)
     mIsPending = false;
     AutoEventEnqueuer ensureSerialDispatch(mEventQ);
     (void)mListener->OnStopRequest(this, mListenerContext, statusCode);
-    mListener = nullptr;
-    mListenerContext = nullptr;
+    mListener = nsnull;
+    mListenerContext = nsnull;
 
     if (mLoadGroup)
-      mLoadGroup->RemoveRequest(this, nullptr, statusCode);
+      mLoadGroup->RemoveRequest(this, nsnull, statusCode);
   }
 
   // This calls NeckoChild::DeallocPFTPChannel(), which deletes |this| if IPDL
@@ -410,7 +410,7 @@ FTPChannelChild::DoFailedAsyncOpen(const nsresult& statusCode)
   mStatus = statusCode;
 
   if (mLoadGroup)
-    mLoadGroup->RemoveRequest(this, nullptr, statusCode);
+    mLoadGroup->RemoveRequest(this, nsnull, statusCode);
 
   if (mListener) {
     mListener->OnStartRequest(this, mListenerContext);
@@ -420,8 +420,8 @@ FTPChannelChild::DoFailedAsyncOpen(const nsresult& statusCode)
     mIsPending = false;
   }
 
-  mListener = nullptr;
-  mListenerContext = nullptr;
+  mListener = nsnull;
+  mListenerContext = nsnull;
 
   if (mIPCOpen)
     Send__delete__(this);
@@ -548,7 +548,7 @@ FTPChannelChild::CompleteRedirectSetup(nsIStreamListener *listener,
 
   // add ourselves to the load group.
   if (mLoadGroup)
-    mLoadGroup->AddRequest(this, nullptr);
+    mLoadGroup->AddRequest(this, nsnull);
 
   // We already have an open IPDL connection to the parent. If on-modify-request
   // listeners or load group observers canceled us, let the parent handle it

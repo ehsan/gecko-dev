@@ -631,19 +631,19 @@ class nsGUIEvent : public nsEvent
 protected:
   nsGUIEvent(bool isTrusted, PRUint32 msg, nsIWidget *w, PRUint8 structType)
     : nsEvent(isTrusted, msg, structType),
-      widget(w), pluginEvent(nullptr)
+      widget(w), pluginEvent(nsnull)
   {
   }
 
   nsGUIEvent()
-    : pluginEvent(nullptr)
+    : pluginEvent(nsnull)
   {
   }
 
 public:
   nsGUIEvent(bool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsEvent(isTrusted, msg, NS_GUI_EVENT),
-      widget(w), pluginEvent(nullptr)
+      widget(w), pluginEvent(nsnull)
   {
   }
 
@@ -663,7 +663,7 @@ class nsScriptErrorEvent : public nsEvent
 public:
   nsScriptErrorEvent(bool isTrusted, PRUint32 msg)
     : nsEvent(isTrusted, msg, NS_SCRIPT_ERROR_EVENT),
-      lineNr(0), errorMsg(nullptr), fileName(nullptr)
+      lineNr(0), errorMsg(nsnull), fileName(nsnull)
   {
   }
 
@@ -681,7 +681,7 @@ class nsSizeEvent : public nsGUIEvent
 public:
   nsSizeEvent(bool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsGUIEvent(isTrusted, msg, w, NS_SIZE_EVENT),
-      windowSize(nullptr), mWinWidth(0), mWinHeight(0)
+      windowSize(nsnull), mWinWidth(0), mWinHeight(0)
   {
   }
 
@@ -718,7 +718,7 @@ class nsZLevelEvent : public nsGUIEvent
 public:
   nsZLevelEvent(bool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsGUIEvent(isTrusted, msg, w, NS_ZLEVEL_EVENT),
-      mPlacement(nsWindowZTop), mReqBelow(nullptr), mActualBelow(nullptr),
+      mPlacement(nsWindowZTop), mReqBelow(nsnull), mActualBelow(nsnull),
       mImmediate(false), mAdjusted(false)
   {
   }
@@ -1060,7 +1060,7 @@ class nsAccessibleEvent : public nsInputEvent
 public:
   nsAccessibleEvent(bool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_ACCESSIBLE_EVENT),
-      mAccessible(nullptr)
+      mAccessible(nsnull)
   {
   }
 
@@ -1251,7 +1251,7 @@ public:
 public:
   nsTextEvent(bool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_TEXT_EVENT),
-      rangeCount(0), rangeArray(nullptr), isChar(false)
+      rangeCount(0), rangeArray(nsnull), isChar(false)
   {
   }
 
@@ -1421,8 +1421,8 @@ private:
 
   nsQueryContentEvent()
   {
-    mReply.mContentsRoot = nullptr;
-    mReply.mFocusedWidget = nullptr;
+    mReply.mContentsRoot = nsnull;
+    mReply.mFocusedWidget = nsnull;
   }
 
 public:
@@ -1664,7 +1664,7 @@ class nsFormEvent : public nsEvent
 public:
   nsFormEvent(bool isTrusted, PRUint32 msg)
     : nsEvent(isTrusted, msg, NS_FORM_EVENT),
-      originator(nullptr)
+      originator(nsnull)
   {
   }
 

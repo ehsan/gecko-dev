@@ -1112,7 +1112,7 @@ nsIncreaseZIndexCommand::IsCommandEnabled(const char * aCommandName,
 
   nsCOMPtr<nsIDOMElement> positionedElement;
   htmlEditor->GetPositionedElement(getter_AddRefs(positionedElement));
-  *outCmdEnabled = (nullptr != positionedElement);
+  *outCmdEnabled = (nsnull != positionedElement);
   return NS_OK;
 }
 

@@ -375,7 +375,7 @@ nsDOMStorageDBWrapper::EnsureTempTableFlushTimer()
     mTempTableFlushTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
 
     if (!NS_SUCCEEDED(rv)) {
-      mTempTableFlushTimer = nullptr;
+      mTempTableFlushTimer = nsnull;
       return;
     }
 
@@ -389,7 +389,7 @@ nsDOMStorageDBWrapper::StopTempTableFlushTimer()
 {
   if (mTempTableFlushTimer) {
     mTempTableFlushTimer->Cancel();
-    mTempTableFlushTimer = nullptr;
+    mTempTableFlushTimer = nsnull;
   }
 }
 

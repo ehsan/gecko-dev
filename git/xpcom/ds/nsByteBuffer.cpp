@@ -30,9 +30,9 @@ NS_IMPL_ISUPPORTS1(ByteBufferImpl,nsIByteBuffer)
 
 ByteBufferImpl::~ByteBufferImpl()
 {
-  if (nullptr != mBuffer) {
+  if (nsnull != mBuffer) {
     delete[] mBuffer;
-    mBuffer = nullptr;
+    mBuffer = nsnull;
   }
   mLength = 0;
 }
@@ -44,7 +44,7 @@ ByteBufferImpl::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
     return NS_ERROR_NO_AGGREGATION;
 
   ByteBufferImpl* it = new ByteBufferImpl();
-  if (nullptr == it) 
+  if (nsnull == it) 
     return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(it);
@@ -78,7 +78,7 @@ ByteBufferImpl::Grow(PRUint32 aNewSize)
     aNewSize = MIN_BUFFER_SIZE;
   }
   char* newbuf = new char[aNewSize];
-  if (nullptr != newbuf) {
+  if (nsnull != newbuf) {
     if (0 != mLength) {
       memcpy(newbuf, mBuffer, mLength);
     }
@@ -93,9 +93,9 @@ NS_IMETHODIMP_(PRInt32)
 ByteBufferImpl::Fill(nsresult* aErrorCode, nsIInputStream* aStream,
                      PRUint32 aKeep)
 {
-  NS_PRECONDITION(nullptr != aStream, "null stream");
+  NS_PRECONDITION(nsnull != aStream, "null stream");
   NS_PRECONDITION(aKeep <= mLength, "illegal keep count");
-  if ((nullptr == aStream) || (PRUint32(aKeep) > PRUint32(mLength))) {
+  if ((nsnull == aStream) || (PRUint32(aKeep) > PRUint32(mLength))) {
     // whoops
     *aErrorCode = NS_BASE_STREAM_ILLEGAL_ARGS;
     return -1;

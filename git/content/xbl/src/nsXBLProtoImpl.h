@@ -19,11 +19,11 @@ class nsXBLProtoImpl
 {
 public:
   nsXBLProtoImpl() 
-    : mClassObject(nullptr),
-      mMembers(nullptr),
-      mFields(nullptr),
-      mConstructor(nullptr),
-      mDestructor(nullptr)
+    : mClassObject(nsnull),
+      mMembers(nsnull),
+      mFields(nsnull),
+      mConstructor(nsnull),
+      mDestructor(nsnull)
   { 
     MOZ_COUNT_CTOR(nsXBLProtoImpl); 
   }
@@ -69,7 +69,7 @@ public:
   void UndefineFields(JSContext* cx, JSObject* obj) const;
 
   bool CompiledMembers() const {
-    return mClassObject != nullptr;
+    return mClassObject != nsnull;
   }
 
   nsresult Read(nsIScriptContext* aContext,

@@ -102,11 +102,11 @@ static PRUintn gActivityTLS = BAD_TLS_INDEX;
 static bool gInitialized;
 static nsrefcnt gInitCount;
 
-static FILE *gBloatLog = nullptr;
-static FILE *gRefcntsLog = nullptr;
-static FILE *gAllocLog = nullptr;
-static FILE *gLeakyLog = nullptr;
-static FILE *gCOMPtrLog = nullptr;
+static FILE *gBloatLog = nsnull;
+static FILE *gRefcntsLog = nsnull;
+static FILE *gAllocLog = nsnull;
+static FILE *gLeakyLog = nsnull;
+static FILE *gCOMPtrLog = nsnull;
 
 struct serialNumberRecord {
   PRInt32 serialNumber;
@@ -480,10 +480,10 @@ nsresult
 nsTraceRefcntImpl::DumpStatistics(StatisticsType type, FILE* out)
 {
 #ifdef NS_IMPL_REFCNT_LOGGING
-  if (gBloatLog == nullptr || gBloatView == nullptr) {
+  if (gBloatLog == nsnull || gBloatView == nsnull) {
     return NS_ERROR_FAILURE;
   }
-  if (out == nullptr) {
+  if (out == nsnull) {
     out = gBloatLog;
   }
 
@@ -546,7 +546,7 @@ nsTraceRefcntImpl::ResetStatistics()
   LOCK_TRACELOG();
   if (gBloatView) {
     PL_HashTableDestroy(gBloatView);
-    gBloatView = nullptr;
+    gBloatView = nsnull;
   }
   UNLOCK_TRACELOG();
 #endif
@@ -556,7 +556,7 @@ nsTraceRefcntImpl::ResetStatistics()
 static bool LogThisType(const char* aTypeName)
 {
   void* he = PL_HashTableLookup(gTypesToLog, aTypeName);
-  return nullptr != he;
+  return nsnull != he;
 }
 
 static PRInt32 GetSerialNumber(void* aPtr, bool aCreate)
@@ -584,7 +584,7 @@ static PRInt32* GetRefCount(void* aPtr)
   if (hep && *hep) {
     return &((reinterpret_cast<serialNumberRecord*>((*hep)->value))->refCount);
   } else {
-    return nullptr;
+    return nsnull;
   }
 }
 
@@ -594,7 +594,7 @@ static PRInt32* GetCOMPtrCount(void* aPtr)
   if (hep && *hep) {
     return &((reinterpret_cast<serialNumberRecord*>((*hep)->value))->COMPtrCount);
   } else {
-    return nullptr;
+    return nsnull;
   }
 }
 
@@ -605,7 +605,7 @@ static void RecycleSerialNumberPtr(void* aPtr)
 
 static bool LogThisObj(PRInt32 aSerialNumber)
 {
-  return nullptr != PL_HashTableLookup(gObjectsToLog, (const void*)(aSerialNumber));
+  return nsnull != PL_HashTableLookup(gObjectsToLog, (const void*)(aSerialNumber));
 }
 
 #ifdef XP_WIN
@@ -681,7 +681,7 @@ static void InitTraceLog(void)
     RecreateBloatView();
     if (!gBloatView) {
       NS_WARNING("out of memory");
-      gBloatLog = nullptr;
+      gBloatLog = nsnull;
       gLogLeaksOnly = false;
     }
   }
@@ -693,14 +693,14 @@ static void InitTraceLog(void)
   defined = InitLog("XPCOM_MEM_LEAKY_LOG", "for leaky", &gLeakyLog);
   if (defined) {
     gLogToLeaky = true;
-    PRFuncPtr p = nullptr, q = nullptr;
+    PRFuncPtr p = nsnull, q = nsnull;
 #ifdef HAVE_DLOPEN
     {
-      PRLibrary *lib = nullptr;
+      PRLibrary *lib = nsnull;
       p = PR_FindFunctionSymbolAndLibrary("__log_addref", &lib);
       if (lib) {
         PR_UnloadLibrary(lib);
-        lib = nullptr;
+        lib = nsnull;
       }
       q = PR_FindFunctionSymbolAndLibrary("__log_release", &lib);
       if (lib) {
@@ -869,8 +869,8 @@ nsTraceRefcntImpl::DemangleSymbol(const char * aSymbol,
                               char * aBuffer,
                               int aBufLen)
 {
-  NS_ASSERTION(nullptr != aSymbol,"null symbol");
-  NS_ASSERTION(nullptr != aBuffer,"null buffer");
+  NS_ASSERTION(nsnull != aSymbol,"null symbol");
+  NS_ASSERTION(nsnull != aBuffer,"null buffer");
   NS_ASSERTION(aBufLen >= 32 ,"pulled 32 out of you know where");
 
   aBuffer[0] = '\0';
@@ -1245,7 +1245,7 @@ static void maybeUnregisterAndCloseFile(FILE *&f) {
   fclose(f);
   if (fd != 1 && fd != 2)
     MozillaUnRegisterDebugFD(fd);
-  f = nullptr;
+  f = nsnull;
 }
 
 void
@@ -1255,19 +1255,19 @@ nsTraceRefcntImpl::Shutdown()
 
   if (gBloatView) {
     PL_HashTableDestroy(gBloatView);
-    gBloatView = nullptr;
+    gBloatView = nsnull;
   }
   if (gTypesToLog) {
     PL_HashTableDestroy(gTypesToLog);
-    gTypesToLog = nullptr;
+    gTypesToLog = nsnull;
   }
   if (gObjectsToLog) {
     PL_HashTableDestroy(gObjectsToLog);
-    gObjectsToLog = nullptr;
+    gObjectsToLog = nsnull;
   }
   if (gSerialNumbers) {
     PL_HashTableDestroy(gSerialNumbers);
-    gSerialNumbers = nullptr;
+    gSerialNumbers = nsnull;
   }
   maybeUnregisterAndCloseFile(gBloatLog);
   maybeUnregisterAndCloseFile(gRefcntsLog);
@@ -1282,7 +1282,7 @@ nsTraceRefcntImpl::SetActivityIsLegal(bool aLegal)
 {
 #ifdef NS_IMPL_REFCNT_LOGGING
   if (gActivityTLS == BAD_TLS_INDEX)
-    PR_NewThreadPrivateIndex(&gActivityTLS, nullptr);
+    PR_NewThreadPrivateIndex(&gActivityTLS, nsnull);
 
   PR_SetThreadPrivate(gActivityTLS, NS_INT32_TO_PTR(!aLegal));
 #endif

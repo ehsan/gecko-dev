@@ -118,7 +118,7 @@ public:
                        const nsRect *aPostFilterDirtyRect,
                        const nsRect *aPreFilterDirtyRect,
                        const nsRect *aOverridePreFilterVisualOverflowRect,
-                       const gfxRect *aOverrideBBox = nullptr);
+                       const gfxRect *aOverrideBBox = nsnull);
   ~nsAutoFilterInstance() {}
 
   // If this returns null, then draw nothing. Either the filter draws
@@ -349,7 +349,7 @@ nsSVGFilterFrame *
 nsSVGFilterFrame::GetReferencedFilter()
 {
   if (mNoHRefURI)
-    return nullptr;
+    return nsnull;
 
   nsSVGPaintingProperty *property = static_cast<nsSVGPaintingProperty*>
     (Properties().Get(nsSVGEffects::HrefProperty()));
@@ -361,7 +361,7 @@ nsSVGFilterFrame::GetReferencedFilter()
     filter->mStringAttributes[nsSVGFilterElement::HREF].GetAnimValue(href, filter);
     if (href.IsEmpty()) {
       mNoHRefURI = true;
-      return nullptr; // no URL
+      return nsnull; // no URL
     }
 
     // Convert href to an nsIURI
@@ -373,16 +373,16 @@ nsSVGFilterFrame::GetReferencedFilter()
     property =
       nsSVGEffects::GetPaintingProperty(targetURI, this, nsSVGEffects::HrefProperty());
     if (!property)
-      return nullptr;
+      return nsnull;
   }
 
   nsIFrame *result = property->GetReferencedFrame();
   if (!result)
-    return nullptr;
+    return nsnull;
 
   nsIAtom* frameType = result->GetType();
   if (frameType != nsGkAtoms::svgFilterFrame)
-    return nullptr;
+    return nsnull;
 
   return static_cast<nsSVGFilterFrame*>(result);
 }
@@ -392,12 +392,12 @@ nsSVGFilterFrame::GetReferencedFilterIfNotInUse()
 {
   nsSVGFilterFrame *referenced = GetReferencedFilter();
   if (!referenced)
-    return nullptr;
+    return nsnull;
 
   if (referenced->mLoopFlag) {
     // XXXjwatt: we should really send an error to the JavaScript Console here:
     NS_WARNING("Filter reference loop detected while inheriting attribute!");
-    return nullptr;
+    return nsnull;
   }
 
   return referenced;
@@ -436,7 +436,7 @@ nsSVGFilterFrame::PaintFilteredFrame(nsRenderingContext *aContext,
                                      const nsRect *aDirtyArea)
 {
   nsAutoFilterInstance instance(aFilteredFrame, this, aPaintCallback,
-                                aDirtyArea, nullptr, nullptr);
+                                aDirtyArea, nsnull, nsnull);
   if (!instance.get()) {
     return NS_OK;
   }
@@ -463,8 +463,8 @@ nsRect
 nsSVGFilterFrame::GetPostFilterDirtyArea(nsIFrame *aFilteredFrame,
                                          const nsRect& aPreFilterDirtyRect)
 {
-  nsAutoFilterInstance instance(aFilteredFrame, this, nullptr, nullptr,
-                                &aPreFilterDirtyRect, nullptr);
+  nsAutoFilterInstance instance(aFilteredFrame, this, nsnull, nsnull,
+                                &aPreFilterDirtyRect, nsnull);
   if (!instance.get()) {
     return nsRect();
   }
@@ -483,8 +483,8 @@ nsRect
 nsSVGFilterFrame::GetPreFilterNeededArea(nsIFrame *aFilteredFrame,
                                          const nsRect& aPostFilterDirtyRect)
 {
-  nsAutoFilterInstance instance(aFilteredFrame, this, nullptr,
-                                &aPostFilterDirtyRect, nullptr, nullptr);
+  nsAutoFilterInstance instance(aFilteredFrame, this, nsnull,
+                                &aPostFilterDirtyRect, nsnull, nsnull);
   if (!instance.get()) {
     return nsRect();
   }
@@ -503,7 +503,7 @@ nsSVGFilterFrame::GetPostFilterBounds(nsIFrame *aFilteredFrame,
                                       const gfxRect *aOverrideBBox,
                                       const nsRect *aPreFilterBounds)
 {
-  nsAutoFilterInstance instance(aFilteredFrame, this, nullptr, nullptr,
+  nsAutoFilterInstance instance(aFilteredFrame, this, nsnull, nsnull,
                                 aPreFilterBounds, aPreFilterBounds,
                                 aOverrideBBox);
   if (!instance.get()) {

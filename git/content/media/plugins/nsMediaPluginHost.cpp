@@ -85,7 +85,7 @@ nsMediaPluginHost::~nsMediaPluginHost() {
 bool nsMediaPluginHost::FindDecoder(const nsACString& aMimeType, const char* const** aCodecs)
 {
   const char *chars;
-  size_t len = NS_CStringGetData(aMimeType, &chars, nullptr);
+  size_t len = NS_CStringGetData(aMimeType, &chars, nsnull);
   for (size_t n = 0; n < mPlugins.Length(); ++n) {
     Manifest *plugin = mPlugins[n];
     const char* const *codecs;
@@ -106,11 +106,11 @@ Decoder::Decoder() :
 MPAPI::Decoder *nsMediaPluginHost::CreateDecoder(MediaResource *aResource, const nsACString& aMimeType)
 {
   const char *chars;
-  size_t len = NS_CStringGetData(aMimeType, &chars, nullptr);
+  size_t len = NS_CStringGetData(aMimeType, &chars, nsnull);
 
   Decoder *decoder = new Decoder();
   if (!decoder) {
-    return nullptr;
+    return nsnull;
   }
   decoder->mResource = aResource;
 
@@ -125,7 +125,7 @@ MPAPI::Decoder *nsMediaPluginHost::CreateDecoder(MediaResource *aResource, const
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 void nsMediaPluginHost::DestroyDecoder(Decoder *aDecoder)
@@ -134,7 +134,7 @@ void nsMediaPluginHost::DestroyDecoder(Decoder *aDecoder)
   delete aDecoder;
 }
 
-nsMediaPluginHost *sMediaPluginHost = nullptr;
+nsMediaPluginHost *sMediaPluginHost = nsnull;
 nsMediaPluginHost *GetMediaPluginHost()
 {
   if (!sMediaPluginHost) {
@@ -147,7 +147,7 @@ void nsMediaPluginHost::Shutdown()
 {
   if (sMediaPluginHost) {
     delete sMediaPluginHost;
-    sMediaPluginHost = nullptr;
+    sMediaPluginHost = nsnull;
   }
 }
 

@@ -22,7 +22,7 @@ nsresult
 txNamedAttributeStep::evaluate(txIEvalContext* aContext,
                                txAExprResult** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
 
     nsRefPtr<txNodeSet> nodes;
     nsresult rv = aContext->recycler()->getNodeSet(getter_AddRefs(nodes));

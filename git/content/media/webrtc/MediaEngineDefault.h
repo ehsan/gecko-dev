@@ -38,7 +38,7 @@ class MediaEngineDefaultVideoSource : public nsITimerCallback,
                                       public MediaEngineVideoSource
 {
 public:
-  MediaEngineDefaultVideoSource() : mTimer(nullptr), mState(kReleased) {}
+  MediaEngineDefaultVideoSource() : mTimer(nsnull), mState(kReleased) {}
   ~MediaEngineDefaultVideoSource(){};
 
   virtual void GetName(nsAString&);
@@ -69,7 +69,7 @@ class MediaEngineDefaultAudioSource : public nsITimerCallback,
                                       public MediaEngineAudioSource
 {
 public:
-  MediaEngineDefaultAudioSource() : mTimer(nullptr), mState(kReleased) {}
+  MediaEngineDefaultAudioSource() : mTimer(nsnull), mState(kReleased) {}
   ~MediaEngineDefaultAudioSource(){};
 
   virtual void GetName(nsAString&);

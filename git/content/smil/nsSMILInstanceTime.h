@@ -52,8 +52,8 @@ public:
 
   nsSMILInstanceTime(const nsSMILTimeValue& aTime,
                      nsSMILInstanceTimeSource aSource = SOURCE_NONE,
-                     nsSMILTimeValueSpec* aCreator = nullptr,
-                     nsSMILInterval* aBaseInterval = nullptr);
+                     nsSMILTimeValueSpec* aCreator = nsnull,
+                     nsSMILInterval* aBaseInterval = nsnull);
   ~nsSMILInstanceTime();
   void Unlink();
   void HandleChangedInterval(const nsSMILTimeContainer* aSrcContainer,

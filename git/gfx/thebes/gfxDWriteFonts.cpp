@@ -77,8 +77,8 @@ gfxDWriteFont::gfxDWriteFont(gfxFontEntry *aFontEntry,
                              bool aNeedsBold,
                              AntialiasOption anAAOption)
     : gfxFont(aFontEntry, aFontStyle, anAAOption)
-    , mCairoFontFace(nullptr)
-    , mMetrics(nullptr)
+    , mCairoFontFace(nsnull)
+    , mMetrics(nsnull)
     , mNeedsOblique(false)
     , mNeedsBold(aNeedsBold)
     , mUseSubpixelPositions(false)
@@ -652,7 +652,7 @@ gfxDWriteFont::GetFontTable(PRUint32 aTag)
         }
     }
 
-    return nullptr;
+    return nsnull;
 }
 
 bool
@@ -721,7 +721,7 @@ gfxDWriteFont::MeasureGlyphWidth(PRUint16 aGlyph)
         }
     } else {
         hr = mFontFace->GetGdiCompatibleGlyphMetrics(
-                  FLOAT(mAdjustedSize), 1.0f, nullptr,
+                  FLOAT(mAdjustedSize), 1.0f, nsnull,
                   GetMeasuringMode() == DWRITE_MEASURING_MODE_GDI_NATURAL,
                   &aGlyph, 1, &metrics, FALSE);
         if (SUCCEEDED(hr)) {
@@ -737,7 +737,7 @@ gfxDWriteFont::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
 {
     gfxFont::SizeOfExcludingThis(aMallocSizeOf, aSizes);
     aSizes->mFontInstances += aMallocSizeOf(mMetrics) +
-        mGlyphWidths.SizeOfExcludingThis(nullptr, aMallocSizeOf);
+        mGlyphWidths.SizeOfExcludingThis(nsnull, aMallocSizeOf);
 }
 
 void

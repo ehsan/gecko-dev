@@ -31,7 +31,7 @@ public:
     ~XPCShellEnvironment();
 
     bool EvaluateString(const nsString& aString,
-                        nsString* aResult = nullptr);
+                        nsString* aResult = nsnull);
 
     JSPrincipals* GetPrincipal() {
         return mJSPrincipals;

@@ -22,7 +22,7 @@ nsMappedAttributeElement::SetMappedAttribute(nsIDocument* aDocument,
 {
   NS_PRECONDITION(aDocument == GetCurrentDoc(), "Unexpected document");
   nsHTMLStyleSheet* sheet = aDocument ?
-    aDocument->GetAttributeStyleSheet() : nullptr;
+    aDocument->GetAttributeStyleSheet() : nsnull;
 
   *aRetval = mAttrsAndChildren.SetAndTakeMappedAttr(aName, aValue,
                                                     this, sheet);

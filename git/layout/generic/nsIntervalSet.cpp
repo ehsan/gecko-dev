@@ -12,7 +12,7 @@
 
 nsIntervalSet::nsIntervalSet(IntervalSetAlloc aAlloc, IntervalSetFree aFree,
                              void* aAllocatorClosure)
-    : mList(nullptr),
+    : mList(nsnull),
       mAlloc(aAlloc),
       mFree(aFree),
       mAllocatorClosure(aAllocatorClosure)

@@ -65,28 +65,28 @@ public:
       return NS_OK;
     }
 
-    *_helper = nullptr;
+    *_helper = nsnull;
     return NS_OK;
   }
 
   NS_IMETHODIMP
   GetContractID(char **_contractID)
   {
-    *_contractID = nullptr;
+    *_contractID = nsnull;
     return NS_OK;
   }
 
   NS_IMETHODIMP
   GetClassDescription(char **_desc)
   {
-    *_desc = nullptr;
+    *_desc = nsnull;
     return NS_OK;
   }
 
   NS_IMETHODIMP
   GetClassID(nsCID **_id)
   {
-    *_id = nullptr;
+    *_id = nsnull;
     return NS_OK;
   }
 
@@ -189,7 +189,7 @@ AsyncStatement::getParams()
   if (!mParamsArray) {
     nsCOMPtr<mozIStorageBindingParamsArray> array;
     rv = NewBindingParamsArray(getter_AddRefs(array));
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     mParamsArray = static_cast<BindingParamsArray *>(array.get());
   }
@@ -197,14 +197,14 @@ AsyncStatement::getParams()
   // If there isn't already any rows added, we'll have to add one to use.
   if (mParamsArray->length() == 0) {
     nsRefPtr<AsyncBindingParams> params(new AsyncBindingParams(mParamsArray));
-    NS_ENSURE_TRUE(params, nullptr);
+    NS_ENSURE_TRUE(params, nsnull);
 
     rv = mParamsArray->AddParams(params);
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     // We have to unlock our params because AddParams locks them.  This is safe
     // because no reference to the params object was, or ever will be given out.
-    params->unlock(nullptr);
+    params->unlock(nsnull);
 
     // We also want to lock our array at this point - we don't want anything to
     // be added to it.
@@ -235,7 +235,7 @@ AsyncStatement::~AsyncStatement()
   if (!onCallingThread) {
     // NS_ProxyRelase only magic forgets for us if mDBConnection is an
     // nsCOMPtr.  Which it is not; it's an nsRefPtr.
-    Connection *forgottenConn = nullptr;
+    Connection *forgottenConn = nsnull;
     mDBConnection.swap(forgottenConn);
     (void)::NS_ProxyRelease(forgottenConn->threadOpenedOn,
                             static_cast<mozIStorageConnection *>(forgottenConn));
@@ -254,8 +254,8 @@ AsyncStatement::cleanupJSHelpers()
       do_QueryWrappedNative(wrapper);
     AsyncStatementParams *params =
       static_cast<AsyncStatementParams *>(iParams.get());
-    params->mStatement = nullptr;
-    mStatementParamsHolder = nullptr;
+    params->mStatement = nsnull;
+    mStatementParamsHolder = nsnull;
   }
 }
 
@@ -308,7 +308,7 @@ AsyncStatement::getAsyncStatement(sqlite3_stmt **_stmt)
       PR_LOG(gStorageLog, PR_LOG_ERROR,
              ("Statement was: '%s'", mSQLString.get()));
 #endif
-      *_stmt = nullptr;
+      *_stmt = nsnull;
       return rc;
     }
 
@@ -331,7 +331,7 @@ AsyncStatement::getAsynchronousStatementData(StatementData &_data)
 
   // Pass null for the sqlite3_stmt; it will be requested on demand from the
   // async thread.
-  _data = StatementData(nullptr, bindingParamsArray(), this);
+  _data = StatementData(nsnull, bindingParamsArray(), this);
 
   return NS_OK;
 }
@@ -340,7 +340,7 @@ already_AddRefed<mozIStorageBindingParams>
 AsyncStatement::newBindingParams(mozIStorageBindingParamsArray *aOwner)
 {
   if (mFinalized)
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<mozIStorageBindingParams> params(new AsyncBindingParams(aOwner));
   return params.forget();

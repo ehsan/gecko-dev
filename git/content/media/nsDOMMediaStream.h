@@ -26,7 +26,7 @@ class nsDOMMediaStream : public nsIDOMMediaStream
   typedef mozilla::MediaStream MediaStream;
 
 public:
-  nsDOMMediaStream() : mStream(nullptr) {}
+  nsDOMMediaStream() : mStream(nsnull) {}
   virtual ~nsDOMMediaStream();
 
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMMediaStream)

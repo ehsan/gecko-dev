@@ -274,8 +274,8 @@ ThebesLayerD3D9::RenderThebesLayer(ReadbackProcessor* aReadback)
 void
 ThebesLayerD3D9::CleanResources()
 {
-  mTexture = nullptr;
-  mTextureOnWhite = nullptr;
+  mTexture = nsnull;
+  mTextureOnWhite = nsnull;
   mValidRegion.SetEmpty();
 }
 
@@ -283,7 +283,7 @@ void
 ThebesLayerD3D9::LayerManagerDestroyed()
 {
   mD3DManager->deviceManager()->mLayersWithResources.RemoveElement(this);
-  mD3DManager = nullptr;
+  mD3DManager = nsnull;
 }
 
 Layer*
@@ -328,8 +328,8 @@ ThebesLayerD3D9::VerifyContentType(SurfaceMode aMode)
 
   // The new format isn't compatible with the old texture(s), toss out the old
   // texture(s).
-  mTexture = nullptr;
-  mTextureOnWhite = nullptr;
+  mTexture = nsnull;
+  mTextureOnWhite = nsnull;
   mValidRegion.SetEmpty();
 }
 
@@ -360,7 +360,7 @@ OpaqueRenderer::Begin(LayerD3D9* aLayer)
 
   if (FAILED(hr)) {
     aLayer->ReportFailure(NS_LITERAL_CSTRING("Failed to create temporary texture in system memory."), hr);
-    return nullptr;
+    return nsnull;
   }
 
   hr = mTmpTexture->GetSurfaceLevel(0, getter_AddRefs(mSurface));
@@ -368,13 +368,13 @@ OpaqueRenderer::Begin(LayerD3D9* aLayer)
   if (FAILED(hr)) {
     // Uh-oh, bail.
     NS_WARNING("Failed to get texture surface level.");
-    return nullptr;
+    return nsnull;
   }
 
   hr = mSurface->GetDC(&mDC);
   if (FAILED(hr)) {
     NS_WARNING("Failed to get device context for texture surface.");
-    return nullptr;
+    return nsnull;
   }
 
   nsRefPtr<gfxWindowsSurface> result = new gfxWindowsSurface(mDC);
@@ -570,8 +570,8 @@ ThebesLayerD3D9::CreateNewTextures(const gfxIntSize &aSize,
     return;
   }
 
-  mTexture = nullptr;
-  mTextureOnWhite = nullptr;
+  mTexture = nsnull;
+  mTextureOnWhite = nsnull;
   HRESULT hr = device()->CreateTexture(aSize.width, aSize.height, 1,
                                        D3DUSAGE_RENDERTARGET,
                                        aMode != SURFACE_SINGLE_CHANNEL_ALPHA ? D3DFMT_X8R8G8B8 : D3DFMT_A8R8G8B8,
@@ -596,7 +596,7 @@ ThebesLayerD3D9::CreateNewTextures(const gfxIntSize &aSize,
 }
 
 ShadowThebesLayerD3D9::ShadowThebesLayerD3D9(LayerManagerD3D9 *aManager)
-  : ShadowThebesLayer(aManager, nullptr)
+  : ShadowThebesLayer(aManager, nsnull)
   , LayerD3D9(aManager)
 {
   mImplData = static_cast<LayerD3D9*>(this);
@@ -631,13 +631,13 @@ ShadowThebesLayerD3D9::Swap(const ThebesBuffer& aNewFront,
 void
 ShadowThebesLayerD3D9::DestroyFrontBuffer()
 {
-  mBuffer = nullptr;
+  mBuffer = nsnull;
 }
 
 void
 ShadowThebesLayerD3D9::Disconnect()
 {
-  mBuffer = nullptr;
+  mBuffer = nsnull;
 }
 
 Layer*
@@ -666,7 +666,7 @@ ShadowThebesLayerD3D9::RenderThebesLayer()
 void
 ShadowThebesLayerD3D9::CleanResources()
 {
-  mBuffer = nullptr;
+  mBuffer = nsnull;
   mValidRegion.SetEmpty();
 }
 
@@ -674,7 +674,7 @@ void
 ShadowThebesLayerD3D9::LayerManagerDestroyed()
 {
   mD3DManager->deviceManager()->mLayersWithResources.RemoveElement(this);
-  mD3DManager = nullptr;
+  mD3DManager = nsnull;
 }
 
 } /* namespace layers */

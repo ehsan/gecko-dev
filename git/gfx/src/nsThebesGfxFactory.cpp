@@ -35,7 +35,7 @@ nsScriptableRegionConstructor(nsISupports *aOuter, REFNSIID aIID, void **aResult
   if (!aResult) {
     return NS_ERROR_NULL_POINTER;
   }
-  *aResult = nullptr;
+  *aResult = nsnull;
   if (aOuter) {
     return NS_ERROR_NO_AGGREGATION;
   }

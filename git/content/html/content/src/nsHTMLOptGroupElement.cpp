@@ -143,7 +143,7 @@ nsHTMLOptGroupElement::GetSelect()
     }
   }
   
-  return nullptr;
+  return nsnull;
 }
 
 nsresult
@@ -162,7 +162,7 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
 void
 nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, bool aNotify)
 {
-  nsSafeOptionListMutation safeMutation(GetSelect(), this, nullptr, aIndex,
+  nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex,
                                         aNotify);
   nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify);
 }

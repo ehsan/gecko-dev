@@ -24,7 +24,7 @@ struct StackBlock {
    // to grow on a stack overflow
    StackBlock* mNext;
 
-   StackBlock() : mNext(nullptr) { }
+   StackBlock() : mNext(nsnull) { }
    ~StackBlock() { }
 };
 
@@ -44,7 +44,7 @@ StackArena* AutoStackArena::gStackArena;
 StackArena::StackArena()
 {
   mMarkLength = 0;
-  mMarks = nullptr;
+  mMarks = nsnull;
 
   // allocate our stack memory
   mBlocks = new StackBlock();
@@ -129,7 +129,7 @@ StackArena::Allocate(size_t aSize)
   {
     NS_ASSERTION(aSize <= STACK_ARENA_BLOCK_INCREMENT,
                  "Requested memory is greater that our block size!!");
-    if (mCurBlock->mNext == nullptr)
+    if (mCurBlock->mNext == nsnull)
       mCurBlock->mNext = new StackBlock();
 
     mCurBlock =  mCurBlock->mNext;

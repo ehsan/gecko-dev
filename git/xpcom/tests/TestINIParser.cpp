@@ -23,7 +23,7 @@ SectionCB(const char *aSection, void* aClosure)
 
   printf("[%s]\n", aSection);
 
-  ini->GetStrings(aSection, StringCB, nullptr);
+  ini->GetStrings(aSection, StringCB, nsnull);
 
   printf("\n");
 

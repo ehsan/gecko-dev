@@ -67,13 +67,13 @@ const PRUnichar * kMozillaWindowClass = L"MozillaWindowClass";
 #endif
 
 namespace {
-PluginModuleChild* gInstance = nullptr;
+PluginModuleChild* gInstance = nsnull;
 }
 
 #ifdef MOZ_WIDGET_QT
 typedef void (*_gtk_init_fn)(int argc, char **argv);
-static _gtk_init_fn s_gtk_init = nullptr;
-static PRLibrary *sGtkLib = nullptr;
+static _gtk_init_fn s_gtk_init = nsnull;
+static PRLibrary *sGtkLib = nsnull;
 #endif
 
 #ifdef XP_WIN
@@ -123,7 +123,7 @@ PluginModuleChild::~PluginModuleChild()
 
     DeinitGraphics();
 
-    gInstance = nullptr;
+    gInstance = nsnull;
 }
 
 // static
@@ -567,8 +567,8 @@ PluginModuleChild::DeinitGraphics()
     nsQAppInstance::Release();
     if (sGtkLib) {
         PR_UnloadLibrary(sGtkLib);
-        sGtkLib = nullptr;
-        s_gtk_init = nullptr;
+        sGtkLib = nsnull;
+        s_gtk_init = nsnull;
     }
 #endif
 
@@ -1306,7 +1306,7 @@ const char* NP_CALLBACK
 _useragent(NPP aNPP)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
-    ENSURE_PLUGIN_THREAD(nullptr);
+    ENSURE_PLUGIN_THREAD(nsnull);
     return PluginModuleChild::current()->GetUserAgent();
 }
 
@@ -2072,7 +2072,7 @@ NPObject* NP_CALLBACK
 PluginModuleChild::NPN_CreateObject(NPP aNPP, NPClass* aClass)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
-    ENSURE_PLUGIN_THREAD(nullptr);
+    ENSURE_PLUGIN_THREAD(nsnull);
 
     PluginInstanceChild* i = InstCast(aNPP);
     if (i->mDeletingHash) {
@@ -2276,7 +2276,7 @@ PluginModuleChild::NPN_UTF8FromIdentifier(NPIdentifier aIdentifier)
     if (static_cast<PluginIdentifierChild*>(aIdentifier)->IsString()) {
       return static_cast<PluginIdentifierChildString*>(aIdentifier)->ToString();
     }
-    return nullptr;
+    return nsnull;
 }
 
 int32_t NP_CALLBACK

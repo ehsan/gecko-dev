@@ -28,7 +28,7 @@ public:
     //-------------------------------------------------------------------------
     // these methods may be called on any thread
 
-    bool IsComplete(nsresult *status = nullptr);
+    bool IsComplete(nsresult *status = nsnull);
     void   Complete(nsresult status);
 
 private:

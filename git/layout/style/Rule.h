@@ -30,8 +30,8 @@ virtual nsIDOMCSSRule* GetDOMRule();
 class Rule : public nsIStyleRule {
 protected:
   Rule()
-    : mSheet(nullptr),
-      mParentRule(nullptr)
+    : mSheet(nsnull),
+      mParentRule(nsnull)
   {
   }
 

@@ -79,9 +79,9 @@ public:
     // OK to treat this as an infalible allocation
     nsHttpConnectionInfo* Clone() const;
 
-    const char *ProxyHost() const { return mProxyInfo ? mProxyInfo->Host().get() : nullptr; }
+    const char *ProxyHost() const { return mProxyInfo ? mProxyInfo->Host().get() : nsnull; }
     PRInt32     ProxyPort() const { return mProxyInfo ? mProxyInfo->Port() : -1; }
-    const char *ProxyType() const { return mProxyInfo ? mProxyInfo->Type() : nullptr; }
+    const char *ProxyType() const { return mProxyInfo ? mProxyInfo->Type() : nsnull; }
 
     // Compare this connection info to another...
     // Two connections are 'equal' if they end up talking the same

@@ -29,8 +29,8 @@ nsBinHexDecoder::nsBinHexDecoder() :
   mDonePos(3), mInCRC(0), mCount(0), mMarker(0), mPosInbuff(0),
   mPosOutputBuff(0)
 {
-  mDataBuffer = nullptr;
-  mOutgoingBuffer = nullptr;
+  mDataBuffer = nsnull;
+  mOutgoingBuffer = nsnull;
 
   mOctetBuf.val = 0;
   mHeader.type = 0;

@@ -124,7 +124,7 @@ convertJSValToVariant(
   if (aValue.isString()) {
     nsDependentJSString value;
     if (!value.init(aCtx, aValue))
-        return nullptr;
+        return nsnull;
     return new TextVariant(value);
   }
 
@@ -138,7 +138,7 @@ convertJSValToVariant(
     JSObject* obj = &aValue.toObject();
     // We only support Date instances, all others fail.
     if (!::js_DateIsValid(aCtx, obj))
-      return nullptr;
+      return nsnull;
 
     double msecd = ::js_DateGetMsecSinceEpoch(aCtx, obj);
     msecd *= 1000.0;
@@ -148,7 +148,7 @@ convertJSValToVariant(
     return new IntegerVariant(msec);
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 namespace {

@@ -167,7 +167,7 @@ public:
                                      nsISupports* aContainer,
                                      nsIStreamListener **aDocListener,
                                      bool aReset,
-                                     nsIContentSink* aSink = nullptr) = 0;
+                                     nsIContentSink* aSink = nsnull) = 0;
   virtual void StopDocumentLoad() = 0;
 
   /**
@@ -219,7 +219,7 @@ public:
    */
   already_AddRefed<nsILoadGroup> GetDocumentLoadGroup() const
   {
-    nsILoadGroup *group = nullptr;
+    nsILoadGroup *group = nsnull;
     if (mDocumentLoadGroup)
       CallQueryReferent(mDocumentLoadGroup.get(), &group);
 
@@ -435,7 +435,7 @@ public:
 
   nsIPresShell* GetShell() const
   {
-    return GetBFCacheEntry() ? nullptr : mPresShell;
+    return GetBFCacheEntry() ? nsnull : mPresShell;
   }
 
   void SetBFCacheEntry(nsIBFCacheEntry* aEntry)
@@ -500,7 +500,7 @@ public:
   // if the root isn't <html>)
   Element* GetHtmlElement();
   // Returns the first child of GetHtmlContent which has the given tag,
-  // or nullptr if that doesn't exist.
+  // or nsnull if that doesn't exist.
   Element* GetHtmlChildElement(nsIAtom* aTag);
   // Get the canonical <body> element, or return null if there isn't one (e.g.
   // if the root isn't <html> or if the <body> isn't there)
@@ -662,7 +662,7 @@ public:
 
   bool IsInBackgroundWindow() const
   {
-    nsPIDOMWindow* outer = mWindow ? mWindow->GetOuterWindow() : nullptr;
+    nsPIDOMWindow* outer = mWindow ? mWindow->GetOuterWindow() : nsnull;
     return outer && outer->IsBackground();
   }
   
@@ -861,7 +861,7 @@ public:
    */
   already_AddRefed<nsISupports> GetContainer() const
   {
-    nsISupports* container = nullptr;
+    nsISupports* container = nsnull;
     if (mDocumentContainer)
       CallQueryReferent(mDocumentContainer.get(), &container);
 
@@ -878,7 +878,7 @@ public:
       nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(container);
       return loadContext;
     }
-    return nullptr;
+    return nsnull;
   }
 
   /**
@@ -1480,7 +1480,7 @@ public:
   void SetStateObject(nsIStructuredCloneContainer *scContainer)
   {
     mStateObjectContainer = scContainer;
-    mStateObjectCached = nullptr;
+    mStateObjectCached = nsnull;
   }
 
   /**
@@ -1699,7 +1699,7 @@ protected:
 
   void SetContentTypeInternal(const nsACString& aType)
   {
-    mCachedEncoder = nullptr;
+    mCachedEncoder = nsnull;
     mContentType = aType;
   }
 
@@ -1946,7 +1946,7 @@ public:
   /**
    * @param aSubTreeOwner The document in which a subtree will be modified.
    * @param aTarget       The target of the possible DOMSubtreeModified event.
-   *                      Can be nullptr, in which case mozAutoSubtreeModified
+   *                      Can be nsnull, in which case mozAutoSubtreeModified
    *                      is just used to batch DOM mutations.
    */
   mozAutoSubtreeModified(nsIDocument* aSubtreeOwner, nsINode* aTarget)
@@ -1956,7 +1956,7 @@ public:
 
   ~mozAutoSubtreeModified()
   {
-    UpdateTarget(nullptr, nullptr);
+    UpdateTarget(nsnull, nsnull);
   }
 
   void UpdateTarget(nsIDocument* aSubtreeOwner, nsINode* aTarget)
@@ -2040,7 +2040,7 @@ nsINode::GetOwnerDocument() const
 {
   nsIDocument* ownerDoc = OwnerDoc();
 
-  return ownerDoc != this ? ownerDoc : nullptr;
+  return ownerDoc != this ? ownerDoc : nsnull;
 }
 
 inline nsINode*

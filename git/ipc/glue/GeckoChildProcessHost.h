@@ -28,7 +28,7 @@ public:
   typedef base::ProcessHandle ProcessHandle;
 
   GeckoChildProcessHost(GeckoProcessType aProcessType=GeckoProcessType_Default,
-                        base::WaitableEventWatcher::Delegate* aDelegate=nullptr);
+                        base::WaitableEventWatcher::Delegate* aDelegate=nsnull);
 
   ~GeckoChildProcessHost();
 

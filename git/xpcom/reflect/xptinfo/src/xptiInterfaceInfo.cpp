@@ -296,7 +296,7 @@ xptiInterfaceEntry::GetEntryForParam(PRUint16 methodIndex,
     if(!theEntry)
     {
         NS_WARNING("Declared InterfaceInfo not found");
-        *entry = nullptr;
+        *entry = nsnull;
         return NS_ERROR_FAILURE;
     }
 
@@ -550,7 +550,7 @@ xptiInterfaceEntry::GetInterfaceInfo(xptiInterfaceInfo** info)
         mInfo = new xptiInterfaceInfo(this);
         if(!mInfo)
         {
-            *info = nullptr;    
+            *info = nsnull;    
             return NS_ERROR_OUT_OF_MEMORY;
         }
     }
@@ -565,7 +565,7 @@ xptiInterfaceEntry::LockedInvalidateInterfaceInfo()
     if(mInfo)
     {
         mInfo->Invalidate(); 
-        mInfo = nullptr;
+        mInfo = nsnull;
     }
 }
 
@@ -587,7 +587,7 @@ xptiInterfaceInfo::BuildParent()
 NS_IMPL_QUERY_INTERFACE1(xptiInterfaceInfo, nsIInterfaceInfo)
 
 xptiInterfaceInfo::xptiInterfaceInfo(xptiInterfaceEntry* entry)
-    : mEntry(entry), mParent(nullptr)
+    : mEntry(entry), mParent(nsnull)
 {
     LOG_INFO_CREATE(this);
 }
@@ -637,7 +637,7 @@ xptiInterfaceInfo::Release(void)
         if(mEntry)
         {
             mEntry->LockedInterfaceInfoDeathNotification();
-            mEntry = nullptr;
+            mEntry = nsnull;
         }
 
         delete this;

@@ -39,8 +39,8 @@ bool
 WebSocketChannelParent::RecvDeleteSelf()
 {
   LOG(("WebSocketChannelParent::RecvDeleteSelf() %p\n", this));
-  mChannel = nullptr;
-  mAuthProvider = nullptr;
+  mChannel = nsnull;
+  mAuthProvider = nsnull;
   return mIPCOpen ? Send__delete__(this) : true;
 }
 
@@ -83,14 +83,14 @@ WebSocketChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
   if (NS_FAILED(rv))
     goto fail;
 
-  rv = mChannel->AsyncOpen(aURI, aOrigin, this, nullptr);
+  rv = mChannel->AsyncOpen(aURI, aOrigin, this, nsnull);
   if (NS_FAILED(rv))
     goto fail;
 
   return true;
 
 fail:
-  mChannel = nullptr;
+  mChannel = nsnull;
   return SendOnStop(rv);
 }
 

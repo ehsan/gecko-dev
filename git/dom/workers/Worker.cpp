@@ -120,7 +120,7 @@ protected:
       parent->AssertIsOnWorkerThread();
     }
 
-    JSObject* obj = JS_NewObject(aCx, aClass, nullptr, nullptr);
+    JSObject* obj = JS_NewObject(aCx, aClass, nsnull, nsnull);
     if (!obj) {
       return false;
     }

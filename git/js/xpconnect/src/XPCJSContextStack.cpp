@@ -24,7 +24,7 @@ XPCJSContextStack::~XPCJSContextStack()
 {
     if (mOwnSafeJSContext) {
         JS_DestroyContext(mOwnSafeJSContext);
-        mOwnSafeJSContext = nullptr;
+        mOwnSafeJSContext = nsnull;
     }
 }
 
@@ -70,7 +70,7 @@ GetPrincipalFromCx(JSContext *cx)
         if (globalData)
             return globalData->GetPrincipal();
     }
-    return nullptr;
+    return nsnull;
 }
 
 bool
@@ -197,7 +197,7 @@ XPCJSContextStack::GetSafeJSContext()
                                              principal, principal, false,
                                              &glob, &compartment);
         if (NS_FAILED(rv))
-            glob = nullptr;
+            glob = nsnull;
 
         if (glob) {
             // Make sure the context is associated with a proper compartment
@@ -206,7 +206,7 @@ XPCJSContextStack::GetSafeJSContext()
 
             // Note: make sure to set the private before calling
             // InitClasses
-            nsIScriptObjectPrincipal* priv = nullptr;
+            nsIScriptObjectPrincipal* priv = nsnull;
             sop.swap(priv);
             JS_SetPrivate(glob, priv);
         }
@@ -216,14 +216,14 @@ XPCJSContextStack::GetSafeJSContext()
         // nsCOMPtr or dealt with, or we'll release in the finalize
         // hook.
         if (glob && NS_FAILED(xpc->InitClasses(mSafeJSContext, glob))) {
-            glob = nullptr;
+            glob = nsnull;
         }
     }
     if (mSafeJSContext && !glob) {
         // Destroy the context outside the scope of JSAutoRequest that
         // uses the context in its destructor.
         JS_DestroyContext(mSafeJSContext);
-        mSafeJSContext = nullptr;
+        mSafeJSContext = nsnull;
     }
 
     // Save it off so we can destroy it later.
@@ -243,7 +243,7 @@ nsXPCJSContextStackIterator::Reset(nsIJSContextStack *aStack)
                  "aStack must be implemented by XPConnect singleton");
     mStack = XPCJSRuntime::Get()->GetJSContextStack()->GetStack();
     if (mStack->IsEmpty())
-        mStack = nullptr;
+        mStack = nsnull;
     else
         mPosition = mStack->Length() - 1;
 
@@ -266,7 +266,7 @@ nsXPCJSContextStackIterator::Prev(JSContext **aContext)
     *aContext = mStack->ElementAt(mPosition).cx;
 
     if (mPosition == 0)
-        mStack = nullptr;
+        mStack = nsnull;
     else
         --mPosition;
 

@@ -16,7 +16,7 @@ nsAppleFileDecoder::nsAppleFileDecoder()
   m_state = parseHeaders;
   m_dataBufferLength = 0;
   m_dataBuffer = (unsigned char*) PR_MALLOC(MAX_BUFFERSIZE);
-  m_entries = nullptr;
+  m_entries = nsnull;
   m_rfRefNum = -1;
   m_totalDataForkWritten = 0;
   m_totalResourceForkWritten = 0;

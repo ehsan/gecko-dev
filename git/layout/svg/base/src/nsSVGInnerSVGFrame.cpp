@@ -67,7 +67,7 @@ nsSVGInnerSVGFrame::PaintSVG(nsRenderingContext *aContext,
   if (GetStyleDisplay()->IsScrollableOverflow()) {
     float x, y, width, height;
     static_cast<nsSVGSVGElement*>(mContent)->
-      GetAnimatedLengthValues(&x, &y, &width, &height, nullptr);
+      GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
 
     if (width <= 0 || height <= 0) {
       return NS_OK;
@@ -93,7 +93,7 @@ nsSVGInnerSVGFrame::ReflowSVG()
   // for our overflow areas to be clipped correctly.
   float x, y, width, height;
   static_cast<nsSVGSVGElement*>(mContent)->
-    GetAnimatedLengthValues(&x, &y, &width, &height, nullptr);
+    GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
   mRect = nsLayoutUtils::RoundGfxRectToAppRect(
                            gfxRect(x, y, width, height),
                            PresContext()->AppUnitsPerCSSPixel());
@@ -151,7 +151,7 @@ nsSVGInnerSVGFrame::NotifySVGChanged(PRUint32 aFlags)
 
   if (aFlags & TRANSFORM_CHANGED) {
     // make sure our cached transform matrix gets (lazily) updated
-    mCanvasTM = nullptr;
+    mCanvasTM = nsnull;
   }
 
   nsSVGInnerSVGFrameBase::NotifySVGChanged(aFlags);
@@ -172,13 +172,13 @@ nsSVGInnerSVGFrame::AttributeChanged(PRInt32  aNameSpaceID,
 
       if (content->HasViewBoxOrSyntheticViewBox()) {
         // make sure our cached transform matrix gets (lazily) updated
-        mCanvasTM = nullptr;
+        mCanvasTM = nsnull;
         content->ChildrenOnlyTransformChanged();
         nsSVGUtils::NotifyChildrenOfSVGChange(this, TRANSFORM_CHANGED);
       } else {
         PRUint32 flags = COORD_CONTEXT_CHANGED;
         if (mCanvasTM && mCanvasTM->IsSingular()) {
-          mCanvasTM = nullptr;
+          mCanvasTM = nsnull;
           flags |= TRANSFORM_CHANGED;
         }
         nsSVGUtils::NotifyChildrenOfSVGChange(this, flags);
@@ -190,7 +190,7 @@ nsSVGInnerSVGFrame::AttributeChanged(PRInt32  aNameSpaceID,
                aAttribute == nsGkAtoms::x ||
                aAttribute == nsGkAtoms::y) {
       // make sure our cached transform matrix gets (lazily) updated
-      mCanvasTM = nullptr;
+      mCanvasTM = nsnull;
 
       nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
 
@@ -222,13 +222,13 @@ nsSVGInnerSVGFrame::GetFrameForPoint(const nsPoint &aPoint)
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
 
     float clipX, clipY, clipWidth, clipHeight;
-    content->GetAnimatedLengthValues(&clipX, &clipY, &clipWidth, &clipHeight, nullptr);
+    content->GetAnimatedLengthValues(&clipX, &clipY, &clipWidth, &clipHeight, nsnull);
 
     if (!nsSVGUtils::HitTestRect(parent->GetCanvasTM(FOR_HIT_TESTING),
                                  clipX, clipY, clipWidth, clipHeight,
                                  PresContext()->AppUnitsToDevPixels(aPoint.x),
                                  PresContext()->AppUnitsToDevPixels(aPoint.y))) {
-      return nullptr;
+      return nsnull;
     }
   }
 

@@ -38,7 +38,7 @@ public:
 
   const nsAttrValue* GetParsedAttr() {
     if (!mElement) {
-      return nullptr;
+      return nsnull;
     }
     return mElement->GetAttrInfo(kNameSpaceID_None, mAttrAtom).mValue;
   }

@@ -18,8 +18,8 @@ XPCContext::XPCContext(XPCJSRuntime* aRuntime,
         mJSContext(aJSContext),
         mLastResult(NS_OK),
         mPendingResult(NS_OK),
-        mSecurityManager(nullptr),
-        mException(nullptr),
+        mSecurityManager(nsnull),
+        mException(nsnull),
         mCallingLangType(LANG_UNKNOWN),
         mSecurityManagerFlags(0)
 {
@@ -35,7 +35,7 @@ XPCContext::~XPCContext()
 {
     MOZ_COUNT_DTOR(XPCContext);
     NS_ASSERTION(JS_GetSecondContextPrivate(mJSContext) == this, "Must match this");
-    JS_SetSecondContextPrivate(mJSContext, nullptr);
+    JS_SetSecondContextPrivate(mJSContext, nsnull);
     NS_IF_RELEASE(mException);
     NS_IF_RELEASE(mSecurityManager);
 

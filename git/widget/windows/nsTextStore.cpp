@@ -28,7 +28,7 @@ nsTextStore*  nsTextStore::sTsfTextStore = NULL;
 UINT nsTextStore::sFlushTIPInputMessage  = 0;
 
 #ifdef PR_LOGGING
-PRLogModuleInfo* sTextStoreLog = nullptr;
+PRLogModuleInfo* sTextStoreLog = nsnull;
 #endif
 
 nsTextStore::nsTextStore()
@@ -36,21 +36,21 @@ nsTextStore::nsTextStore()
   mRefCnt = 1;
   mEditCookie = 0;
   mSinkMask = 0;
-  mWindow = nullptr;
+  mWindow = nsnull;
   mLock = 0;
   mLockQueued = 0;
   mTextChange.acpStart = PR_INT32_MAX;
   mTextChange.acpOldEnd = mTextChange.acpNewEnd = 0;
-  mLastDispatchedTextEvent = nullptr;
+  mLastDispatchedTextEvent = nsnull;
 }
 
 nsTextStore::~nsTextStore()
 {
   if (mCompositionTimer) {
     mCompositionTimer->Cancel();
-    mCompositionTimer = nullptr;
+    mCompositionTimer = nsnull;
   }
-  SaveTextEvent(nullptr);
+  SaveTextEvent(nsnull);
 }
 
 bool
@@ -506,17 +506,17 @@ nsTextStore::SaveTextEvent(const nsTextEvent* aEvent)
     if (mLastDispatchedTextEvent->rangeArray)
       delete [] mLastDispatchedTextEvent->rangeArray;
     delete mLastDispatchedTextEvent;
-    mLastDispatchedTextEvent = nullptr;
+    mLastDispatchedTextEvent = nsnull;
   }
   if (!aEvent)
     return S_OK;
 
-  mLastDispatchedTextEvent = new nsTextEvent(true, NS_TEXT_TEXT, nullptr);
+  mLastDispatchedTextEvent = new nsTextEvent(true, NS_TEXT_TEXT, nsnull);
   if (!mLastDispatchedTextEvent)
     return E_OUTOFMEMORY;
   mLastDispatchedTextEvent->rangeCount = aEvent->rangeCount;
   mLastDispatchedTextEvent->theText = aEvent->theText;
-  mLastDispatchedTextEvent->rangeArray = nullptr;
+  mLastDispatchedTextEvent->rangeArray = nsnull;
 
   if (aEvent->rangeCount == 0)
     return S_OK;
@@ -526,7 +526,7 @@ nsTextStore::SaveTextEvent(const nsTextEvent* aEvent)
   mLastDispatchedTextEvent->rangeArray = new nsTextRange[aEvent->rangeCount];
   if (!mLastDispatchedTextEvent->rangeArray) {
     delete mLastDispatchedTextEvent;
-    mLastDispatchedTextEvent = nullptr;
+    mLastDispatchedTextEvent = nsnull;
     return E_OUTOFMEMORY;
   }
   memcpy(mLastDispatchedTextEvent->rangeArray, aEvent->rangeArray,
@@ -800,7 +800,7 @@ nsTextStore::SetSelectionInternal(const TS_SELECTION_ACP* pSelection,
           pSelection->acpStart, pSelection->acpEnd));
   if (mCompositionView) {
     if (aDispatchTextEvent) {
-      HRESULT hr = UpdateCompositionExtent(nullptr);
+      HRESULT hr = UpdateCompositionExtent(nsnull);
       NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
     }
     // Emulate selection during compositions
@@ -1379,11 +1379,11 @@ nsTextStore::OnEndComposition(ITfCompositionView* pComposition)
          ("TSF: OnEndComposition\n"));
 
   // Clear the saved text event
-  SaveTextEvent(nullptr);
+  SaveTextEvent(nsnull);
 
   if (mCompositionTimer) {
     mCompositionTimer->Cancel();
-    mCompositionTimer = nullptr;
+    mCompositionTimer = nsnull;
   }
 
   if (mCompositionString != mLastDispatchedCompositionString) {

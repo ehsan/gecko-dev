@@ -135,7 +135,7 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
     if (SVGFrame) {
       // The CTM of each frame referencing us may be different.
       SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
-      nsSVGUtils::PaintFrameWithEffects(aContext, nullptr, kid);
+      nsSVGUtils::PaintFrameWithEffects(aContext, nsnull, kid);
     }
   }
 
@@ -224,8 +224,8 @@ nsSVGMarkerFrame::AutoMarkerReferencer::AutoMarkerReferencer(
 
 nsSVGMarkerFrame::AutoMarkerReferencer::~AutoMarkerReferencer()
 {
-  mFrame->SetParentCoordCtxProvider(nullptr);
+  mFrame->SetParentCoordCtxProvider(nsnull);
 
-  mFrame->mMarkedFrame = nullptr;
+  mFrame->mMarkedFrame = nsnull;
   mFrame->mInUse = false;
 }

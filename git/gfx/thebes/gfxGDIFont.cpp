@@ -39,8 +39,8 @@ gfxGDIFont::gfxGDIFont(GDIFontEntry *aFontEntry,
                        AntialiasOption anAAOption)
     : gfxFont(aFontEntry, aFontStyle, anAAOption),
       mFont(NULL),
-      mFontFace(nullptr),
-      mMetrics(nullptr),
+      mFontFace(nsnull),
+      mMetrics(nsnull),
       mSpaceGlyph(0),
       mNeedsBold(aNeedsBold)
 {
@@ -310,9 +310,9 @@ gfxGDIFont::Initialize()
 
             // delete the temporary font and metrics
             ::DeleteObject(mFont);
-            mFont = nullptr;
+            mFont = nsnull;
             delete mMetrics;
-            mMetrics = nullptr;
+            mMetrics = nsnull;
         }
     }
 
@@ -352,7 +352,7 @@ gfxGDIFont::Initialize()
 
             const MAT2 kIdentityMatrix = { {0, 1}, {0, 0}, {0, 0}, {0, 1} };
             GLYPHMETRICS gm;
-            DWORD len = GetGlyphOutlineW(dc.GetDC(), PRUnichar('x'), GGO_METRICS, &gm, 0, nullptr, &kIdentityMatrix);
+            DWORD len = GetGlyphOutlineW(dc.GetDC(), PRUnichar('x'), GGO_METRICS, &gm, 0, nsnull, &kIdentityMatrix);
             if (len == GDI_ERROR || gm.gmptGlyphOrigin.y <= 0) {
                 // 56% of ascent, best guess for true type
                 mMetrics->xHeight =
@@ -561,7 +561,7 @@ gfxGDIFont::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
 {
     gfxFont::SizeOfExcludingThis(aMallocSizeOf, aSizes);
     aSizes->mFontInstances += aMallocSizeOf(mMetrics) +
-        mGlyphWidths.SizeOfExcludingThis(nullptr, aMallocSizeOf);
+        mGlyphWidths.SizeOfExcludingThis(nsnull, aMallocSizeOf);
 }
 
 void

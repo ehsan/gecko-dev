@@ -15,7 +15,7 @@ NS_IMPL_ISUPPORTS0(nsHtml5StringParser)
 
 nsHtml5StringParser::nsHtml5StringParser()
   : mExecutor(new nsHtml5TreeOpExecutor(true))
-  , mTreeBuilder(new nsHtml5TreeBuilder(mExecutor, nullptr))
+  , mTreeBuilder(new nsHtml5TreeBuilder(mExecutor, nsnull))
   , mTokenizer(new nsHtml5Tokenizer(mTreeBuilder, false))
 {
   MOZ_COUNT_CTOR(nsHtml5StringParser);
@@ -76,9 +76,9 @@ nsHtml5StringParser::ParseDocument(const nsAString& aSourceBuffer,
   NS_ENSURE_TRUE(aSourceBuffer.Length() <= PR_INT32_MAX,
                  NS_ERROR_OUT_OF_MEMORY);
 
-  mTreeBuilder->setFragmentContext(nullptr,
+  mTreeBuilder->setFragmentContext(nsnull,
                                    kNameSpaceID_None,
-                                   nullptr,
+                                   nsnull,
                                    false);
 
   mTreeBuilder->SetPreventScriptExecution(true);
@@ -94,7 +94,7 @@ nsHtml5StringParser::Tokenize(const nsAString& aSourceBuffer,
 
   nsIURI* uri = aDocument->GetDocumentURI();
 
-  mExecutor->Init(aDocument, uri, nullptr, nullptr);
+  mExecutor->Init(aDocument, uri, nsnull, nsnull);
 
   mExecutor->SetParser(this);
   mExecutor->SetNodeInfoManager(aDocument->NodeInfoManager());

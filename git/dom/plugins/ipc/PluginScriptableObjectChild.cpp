@@ -335,7 +335,7 @@ PluginScriptableObjectChild::ScriptableEnumerate(NPObject* aObject,
 
   *aCount = identifiers.Length();
   if (!*aCount) {
-    *aIdentifiers = nullptr;
+    *aIdentifiers = nsnull;
     return true;
   }
 
@@ -412,8 +412,8 @@ const NPClass PluginScriptableObjectChild::sNPClass = {
 
 PluginScriptableObjectChild::PluginScriptableObjectChild(
                                                      ScriptableObjectType aType)
-: mInstance(nullptr),
-  mObject(nullptr),
+: mInstance(nsnull),
+  mObject(nsnull),
   mInvalidated(false),
   mProtectCount(0),
   mType(aType)
@@ -430,7 +430,7 @@ PluginScriptableObjectChild::~PluginScriptableObjectChild()
 
     if (mObject->_class == GetClass()) {
       NS_ASSERTION(mType == Proxy, "Wrong type!");
-      static_cast<ChildNPObject*>(mObject)->parent = nullptr;
+      static_cast<ChildNPObject*>(mObject)->parent = nsnull;
     }
     else {
       NS_ASSERTION(mType == LocalObject, "Wrong type!");
@@ -536,7 +536,7 @@ PluginScriptableObjectChild::GetObject(bool aCanResurrect)
 {
   if (!mObject && aCanResurrect && !ResurrectProxyObject()) {
     NS_ERROR("Null object!");
-    return nullptr;
+    return nsnull;
   }
   return mObject;
 }
@@ -575,7 +575,7 @@ PluginScriptableObjectChild::DropNPObject()
   // We think we're about to be deleted, but we could be racing with the other
   // process.
   PluginModuleChild::current()->UnregisterActorForNPObject(mObject);
-  mObject = nullptr;
+  mObject = nsnull;
 
   SendUnprotect();
 }

@@ -32,11 +32,11 @@ void StopSSLServerCertVerificationThreads();
 using namespace mozilla;
 
 #if defined(PR_LOGGING)
-PRLogModuleInfo *gSocketTransportLog = nullptr;
+PRLogModuleInfo *gSocketTransportLog = nsnull;
 #endif
 
-nsSocketTransportService *gSocketTransportService = nullptr;
-PRThread                 *gSocketThread           = nullptr;
+nsSocketTransportService *gSocketTransportService = nsnull;
+PRThread                 *gSocketThread           = nsnull;
 
 #define SEND_BUFFER_PREF "network.tcp.sendbuffer"
 #define SOCKET_LIMIT_TARGET 550U
@@ -49,8 +49,8 @@ PRCallOnceType nsSocketTransportService::gMaxCountInitOnce;
 // ctor/dtor (called on the main/UI thread by the service manager)
 
 nsSocketTransportService::nsSocketTransportService()
-    : mThread(nullptr)
-    , mThreadEvent(nullptr)
+    : mThread(nsnull)
+    , mThreadEvent(nsnull)
     , mAutodialEnabled(false)
     , mLock("nsSocketTransportService::mLock")
     , mInitialized(false)
@@ -91,7 +91,7 @@ nsSocketTransportService::~nsSocketTransportService()
     moz_free(mActiveList);
     moz_free(mIdleList);
     moz_free(mPollList);
-    gSocketTransportService = nullptr;
+    gSocketTransportService = nsnull;
 }
 
 //-----------------------------------------------------------------------------
@@ -181,7 +181,7 @@ nsSocketTransportService::DetachSocket(SocketContext *listHead, SocketContext *s
     sock->mHandler->OnSocketDetached(sock->mFD);
 
     // cleanup
-    sock->mFD = nullptr;
+    sock->mFD = nsnull;
     NS_RELEASE(sock->mHandler);
 
     if (listHead == mActiveList)
@@ -377,7 +377,7 @@ nsSocketTransportService::Poll(bool wait, PRUint32 *interval)
         if (pollCount)
             pollList = &mPollList[1];
         else
-            pollList = nullptr;
+            pollList = nsnull;
         pollTimeout = PR_MillisecondsToInterval(25);
     }
 
@@ -503,7 +503,7 @@ nsSocketTransportService::Shutdown()
         MutexAutoLock lock(mLock);
         // Drop our reference to mThread and make sure that any concurrent
         // readers are excluded
-        mThread = nullptr;
+        mThread = nsnull;
     }
 
     nsCOMPtr<nsIPrefBranch> tmpPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
@@ -645,7 +645,7 @@ nsSocketTransportService::Run()
     // socket detach handlers get processed.
     NS_ProcessPendingEvents(thread);
 
-    gSocketThread = nullptr;
+    gSocketThread = nsnull;
 
     psm::StopSSLServerCertVerificationThreads();
 

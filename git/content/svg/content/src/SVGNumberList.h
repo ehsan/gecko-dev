@@ -149,7 +149,7 @@ class SVGNumberListAndInfo : public SVGNumberList
 public:
 
   SVGNumberListAndInfo()
-    : mElement(nullptr)
+    : mElement(nsnull)
   {}
 
   SVGNumberListAndInfo(nsSVGElement *aElement)

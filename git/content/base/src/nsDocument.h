@@ -113,11 +113,11 @@ public:
   typedef mozilla::dom::Element Element;
   
   nsIdentifierMapEntry(const nsAString& aKey) :
-    nsStringHashKey(&aKey), mNameContentList(nullptr)
+    nsStringHashKey(&aKey), mNameContentList(nsnull)
   {
   }
   nsIdentifierMapEntry(const nsAString *aKey) :
-    nsStringHashKey(aKey), mNameContentList(nullptr)
+    nsStringHashKey(aKey), mNameContentList(nsnull)
   {
   }
   nsIdentifierMapEntry(const nsIdentifierMapEntry& aOther) :
@@ -172,7 +172,7 @@ public:
    */
   void SetImageElement(Element* aElement);
 
-  bool HasContentChangeCallback() { return mChangeCallbacks != nullptr; }
+  bool HasContentChangeCallback() { return mChangeCallbacks != nsnull; }
   void AddContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
                                 void* aData, bool aForImage);
   void RemoveContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
@@ -236,7 +236,7 @@ class nsDocHeaderData
 {
 public:
   nsDocHeaderData(nsIAtom* aField, const nsAString& aData)
-    : mField(aField), mData(aData), mNext(nullptr)
+    : mField(aField), mData(aData), mNext(nsnull)
   {
   }
 
@@ -496,7 +496,7 @@ public:
                                      nsISupports* aContainer,
                                      nsIStreamListener **aDocListener,
                                      bool aReset = true,
-                                     nsIContentSink* aContentSink = nullptr) = 0;
+                                     nsIContentSink* aContentSink = nsnull) = 0;
 
   virtual void StopDocumentLoad();
 

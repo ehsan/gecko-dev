@@ -107,7 +107,7 @@ public:
   GetStatement(const char (&aQuery)[N])
   {
     mozIStorageConnection* dbConn = GetDBConn();
-    NS_ENSURE_TRUE(dbConn, nullptr);
+    NS_ENSURE_TRUE(dbConn, nsnull);
     return mDB->GetStatement(aQuery);
   }
 

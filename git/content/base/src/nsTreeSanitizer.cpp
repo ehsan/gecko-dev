@@ -147,7 +147,7 @@ nsIAtom** const kElementsHTML[] = {
   &nsGkAtoms::video,
 #endif
   &nsGkAtoms::wbr,
-  nullptr
+  nsnull
 };
 
 nsIAtom** const kAttributesHTML[] = {
@@ -264,7 +264,7 @@ nsIAtom** const kAttributesHTML[] = {
   &nsGkAtoms::value,
   &nsGkAtoms::width,
   &nsGkAtoms::wrap,
-  nullptr
+  nsnull
 };
 
 nsIAtom** const kPresAttributesHTML[] = {
@@ -283,7 +283,7 @@ nsIAtom** const kPresAttributesHTML[] = {
   &nsGkAtoms::size,
   &nsGkAtoms::valign,
   &nsGkAtoms::vspace,
-  nullptr
+  nsnull
 };
 
 nsIAtom** const kURLAttributesHTML[] = {
@@ -293,7 +293,7 @@ nsIAtom** const kURLAttributesHTML[] = {
   &nsGkAtoms::longdesc,
   &nsGkAtoms::cite,
   &nsGkAtoms::background,
-  nullptr
+  nsnull
 };
 
 nsIAtom** const kElementsSVG[] = {
@@ -380,7 +380,7 @@ nsIAtom** const kElementsSVG[] = {
   &nsGkAtoms::use, // use
   &nsGkAtoms::view, // view
   &nsGkAtoms::vkern, // vkern
-  nullptr
+  nsnull
 };
 
 nsIAtom** const kAttributesSVG[] = {
@@ -616,11 +616,11 @@ nsIAtom** const kAttributesSVG[] = {
   &nsGkAtoms::yChannelSelector, // yChannelSelector
   &nsGkAtoms::z, // z
   &nsGkAtoms::zoomAndPan, // zoomAndPan
-  nullptr
+  nsnull
 };
 
 nsIAtom** const kURLAttributesSVG[] = {
-  nullptr
+  nsnull
 };
 
 nsIAtom** const kElementsMathML[] = {
@@ -819,7 +819,7 @@ nsIAtom** const kElementsMathML[] = {
    &nsGkAtoms::vector_, // vector
    &nsGkAtoms::vectorproduct_, // vectorproduct
    &nsGkAtoms::xor_, // xor
-  nullptr
+  nsnull
 };
 
 nsIAtom** const kAttributesMathML[] = {
@@ -937,7 +937,7 @@ nsIAtom** const kAttributesMathML[] = {
    &nsGkAtoms::voffset_, // voffset
    &nsGkAtoms::width, // width
    &nsGkAtoms::xref_, // xref
-  nullptr
+  nsnull
 };
 
 nsIAtom** const kURLAttributesMathML[] = {
@@ -946,17 +946,17 @@ nsIAtom** const kURLAttributesMathML[] = {
   &nsGkAtoms::cdgroup_,
   &nsGkAtoms::altimg_,
   &nsGkAtoms::definitionURL_,
-  nullptr
+  nsnull
 };
 
-nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sElementsHTML = nullptr;
-nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sAttributesHTML = nullptr;
-nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sPresAttributesHTML = nullptr;
-nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sElementsSVG = nullptr;
-nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sAttributesSVG = nullptr;
-nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sElementsMathML = nullptr;
-nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sAttributesMathML = nullptr;
-nsIPrincipal* nsTreeSanitizer::sNullPrincipal = nullptr;
+nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sElementsHTML = nsnull;
+nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sAttributesHTML = nsnull;
+nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sPresAttributesHTML = nsnull;
+nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sElementsSVG = nsnull;
+nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sAttributesSVG = nsnull;
+nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sElementsMathML = nsnull;
+nsTHashtable<nsISupportsHashKey>* nsTreeSanitizer::sAttributesMathML = nsnull;
+nsIPrincipal* nsTreeSanitizer::sNullPrincipal = nsnull;
 
 nsTreeSanitizer::nsTreeSanitizer(PRUint32 aFlags)
  : mAllowStyles(aFlags & nsIParserUtils::SanitizerAllowStyle)
@@ -1123,10 +1123,10 @@ nsTreeSanitizer::SanitizeStyleSheet(const nsAString& aOriginal,
   nsRefPtr<nsCSSStyleSheet> sheet;
   rv = NS_NewCSSStyleSheet(getter_AddRefs(sheet));
   NS_ENSURE_SUCCESS(rv, true);
-  sheet->SetURIs(aDocument->GetDocumentURI(), nullptr, aBaseURI);
+  sheet->SetURIs(aDocument->GetDocumentURI(), nsnull, aBaseURI);
   sheet->SetPrincipal(aDocument->NodePrincipal());
   // Create the CSS parser, and parse the CSS text.
-  nsCSSParser parser(nullptr, sheet);
+  nsCSSParser parser(nsnull, sheet);
   rv = parser.ParseSheet(aOriginal, aDocument->GetDocumentURI(), aBaseURI,
                          aDocument->NodePrincipal(), 0, false);
   NS_ENSURE_SUCCESS(rv, true);
@@ -1331,7 +1331,7 @@ nsTreeSanitizer::SanitizeURL(mozilla::dom::Element* aElement,
 
   nsCOMPtr<nsIURI> baseURI = aElement->GetBaseURI();
   nsCOMPtr<nsIURI> attrURI;
-  nsresult rv = NS_NewURI(getter_AddRefs(attrURI), v, nullptr, baseURI);
+  nsresult rv = NS_NewURI(getter_AddRefs(attrURI), v, nsnull, baseURI);
   if (NS_SUCCEEDED(rv)) { 
     if (mCidEmbedsOnly &&
         kNameSpaceID_None == aNamespace) {
@@ -1577,25 +1577,25 @@ void
 nsTreeSanitizer::ReleaseStatics()
 {
   delete sElementsHTML;
-  sElementsHTML = nullptr;
+  sElementsHTML = nsnull;
 
   delete sAttributesHTML;
-  sAttributesHTML = nullptr;
+  sAttributesHTML = nsnull;
 
   delete sPresAttributesHTML;
-  sPresAttributesHTML = nullptr;
+  sPresAttributesHTML = nsnull;
 
   delete sElementsSVG;
-  sElementsSVG = nullptr;
+  sElementsSVG = nsnull;
 
   delete sAttributesSVG;
-  sAttributesSVG = nullptr;
+  sAttributesSVG = nsnull;
 
   delete sElementsMathML;
-  sElementsMathML = nullptr;
+  sElementsMathML = nsnull;
 
   delete sAttributesMathML;
-  sAttributesMathML = nullptr;
+  sAttributesMathML = nsnull;
 
   NS_IF_RELEASE(sNullPrincipal);
 }

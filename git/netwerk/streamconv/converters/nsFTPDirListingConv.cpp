@@ -35,7 +35,7 @@
 // this enables PR_LOG_DEBUG level information and places all output in
 // the file nspr.log
 //
-PRLogModuleInfo* gFTPDirListConvLog = nullptr;
+PRLogModuleInfo* gFTPDirListConvLog = nsnull;
 
 #endif /* PR_LOGGING */
 
@@ -185,7 +185,7 @@ nsFTPDirListingConv::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
 
 // nsFTPDirListingConv methods
 nsFTPDirListingConv::nsFTPDirListingConv() {
-    mFinalListener      = nullptr;
+    mFinalListener      = nsnull;
     mSentHeading        = false;
 }
 
@@ -200,7 +200,7 @@ nsFTPDirListingConv::Init() {
     // Initialize the global PRLogModule for FTP Protocol logging 
     // if necessary...
     //
-    if (nullptr == gFTPDirListConvLog) {
+    if (nsnull == gFTPDirListConvLog) {
         gFTPDirListConvLog = PR_NewLogModule("nsFTPDirListingConv");
     }
 #endif /* PR_LOGGING */
@@ -356,7 +356,7 @@ nsFTPDirListingConv::DigestBufferLines(char *aBuffer, nsCString &aString) {
 nsresult
 NS_NewFTPDirListingConv(nsFTPDirListingConv** aFTPDirListingConv)
 {
-    NS_PRECONDITION(aFTPDirListingConv != nullptr, "null ptr");
+    NS_PRECONDITION(aFTPDirListingConv != nsnull, "null ptr");
     if (! aFTPDirListingConv)
         return NS_ERROR_NULL_POINTER;
 

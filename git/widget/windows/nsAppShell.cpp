@@ -234,7 +234,7 @@ nsAppShell::Run(void)
   mozilla::widget::StopAudioSession();
 
   // Don't forget to null this out!
-  sLoadedModules = nullptr;
+  sLoadedModules = nsnull;
 
   return rv;
 }
@@ -268,7 +268,7 @@ nsAppShell::DoProcessMoreGeckoEvents()
   // if we need it, which insures NS_ProcessPendingEvents gets called and all
   // gecko events get processed.
   if (mEventloopNestingLevel < 2) {
-    OnDispatchedEvent(nullptr);
+    OnDispatchedEvent(nsnull);
     mNativeCallbackPending = false;
   } else {
     mNativeCallbackPending = true;

@@ -131,11 +131,11 @@ public:
     nsCString url;
     URL *next;
 
-    URL() : next(nullptr) {}
+    URL() : next(nsnull) {}
     URL(const URL& aOther)
       : func(aOther.func)
       , url(aOther.url)
-      , next(aOther.next ? new URL(*aOther.next) : nullptr)
+      , next(aOther.next ? new URL(*aOther.next) : nsnull)
     {
     }
     ~URL();
@@ -293,7 +293,7 @@ public:
   virtual ~nsCSSKeyframeStyleDeclaration();
 
   NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent);
-  void DropReference() { mRule = nullptr; }
+  void DropReference() { mRule = nsnull; }
   virtual mozilla::css::Declaration* GetCSSDeclaration(bool aAllocate);
   virtual nsresult SetCSSDeclaration(mozilla::css::Declaration* aDecl);
   virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv);
@@ -304,7 +304,7 @@ public:
 
   virtual nsINode *GetParentObject()
   {
-    return nullptr;
+    return nsnull;
   }
 
 protected:

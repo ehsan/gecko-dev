@@ -23,7 +23,7 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISCRIPTTIMEOUTHANDLER_IID)
 
   // Get a script object for the language suitable for passing back to
-  // the language's context as an event handler.  If this returns nullptr,
+  // the language's context as an event handler.  If this returns nsnull,
   // GetHandlerText() will be called to get the string.
   virtual JSObject *GetScriptObject() = 0;
 

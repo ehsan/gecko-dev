@@ -353,7 +353,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(
   mozIStorageServiceQuotaManagement
 )
 
-Service *Service::gService = nullptr;
+Service *Service::gService = nsnull;
 
 Service *
 Service::getSingleton()
@@ -374,7 +374,7 @@ Service::getSingleton()
       message.AppendASCII("The application has been updated, but your version "
                           "of SQLite is too old and the application cannot "
                           "run.");
-      (void)ps->Alert(nullptr, title.get(), message.get());
+      (void)ps->Alert(nsnull, title.get(), message.get());
     }
     ::PR_Abort();
   }
@@ -389,7 +389,7 @@ Service::getSingleton()
   return gService;
 }
 
-nsIXPConnect *Service::sXPConnect = nullptr;
+nsIXPConnect *Service::sXPConnect = nsnull;
 
 // static
 already_AddRefed<nsIXPConnect>
@@ -420,11 +420,11 @@ Service::getSynchronousPref()
 
 Service::Service()
 : mMutex("Service::mMutex")
-, mSqliteVFS(nullptr)
+, mSqliteVFS(nsnull)
 , mRegistrationMutex("Service::mRegistrationMutex")
 , mConnections()
-, mStorageSQLiteReporter(nullptr)
-, mStorageSQLiteMultiReporter(nullptr)
+, mStorageSQLiteReporter(nsnull)
+, mStorageSQLiteMultiReporter(nsnull)
 {
 }
 
@@ -450,9 +450,9 @@ Service::~Service()
   DebugOnly<bool> shutdownObserved = !sXPConnect;
   NS_ASSERTION(shutdownObserved, "Shutdown was not observed!");
 
-  gService = nullptr;
+  gService = nsnull;
   delete mSqliteVFS;
-  mSqliteVFS = nullptr;
+  mSqliteVFS = nsnull;
 }
 
 void
@@ -654,27 +654,27 @@ Service::getLocaleCollation()
   nsCOMPtr<nsILocaleService> svc(do_GetService(NS_LOCALESERVICE_CONTRACTID));
   if (!svc) {
     NS_WARNING("Could not get locale service");
-    return nullptr;
+    return nsnull;
   }
 
   nsCOMPtr<nsILocale> appLocale;
   nsresult rv = svc->GetApplicationLocale(getter_AddRefs(appLocale));
   if (NS_FAILED(rv)) {
     NS_WARNING("Could not get application locale");
-    return nullptr;
+    return nsnull;
   }
 
   nsCOMPtr<nsICollationFactory> collFact =
     do_CreateInstance(NS_COLLATIONFACTORY_CONTRACTID);
   if (!collFact) {
     NS_WARNING("Could not create collation factory");
-    return nullptr;
+    return nsnull;
   }
 
   rv = collFact->CreateCollation(appLocale, getter_AddRefs(mLocaleCollation));
   if (NS_FAILED(rv)) {
     NS_WARNING("Could not create collation");
-    return nullptr;
+    return nsnull;
   }
 
   return mLocaleCollation;

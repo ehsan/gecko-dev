@@ -148,7 +148,7 @@ LookupExpandoObject(JSContext *cx, JSObject *target, nsIPrincipal *origin,
     }
 
     // Not found.
-    return nullptr;
+    return nsnull;
 }
 
 // Convenience method for the above.
@@ -158,7 +158,7 @@ LookupExpandoObject(JSContext *cx, JSObject *target, JSObject *consumer)
     JSObject *consumerGlobal = js::GetGlobalForObjectCrossCompartment(consumer);
     bool isSandbox = !strcmp(js::GetObjectJSClass(consumerGlobal)->name, "Sandbox");
     return LookupExpandoObject(cx, target, ObjectPrincipal(consumer),
-                               isSandbox ? consumerGlobal : nullptr);
+                               isSandbox ? consumerGlobal : nsnull);
 }
 
 JSObject *
@@ -177,9 +177,9 @@ AttachExpandoObject(JSContext *cx, JSObject *target, nsIPrincipal *origin,
 
     // Create the expando object. We parent it directly to the target object.
     JSObject *expandoObject = JS_NewObjectWithGivenProto(cx, &ExpandoObjectClass,
-                                                         nullptr, target);
+                                                         nsnull, target);
     if (!expandoObject)
-        return nullptr;
+        return nsnull;
 
     // AddRef and store the principal.
     NS_ADDREF(origin);
@@ -215,7 +215,7 @@ EnsureExpandoObject(JSContext *cx, JSObject *wrapper, JSObject *target)
     // Expando objects live in the target compartment.
     JSAutoEnterCompartment ac;
     if (!ac.enter(cx, target))
-        return nullptr;
+        return nsnull;
 
     JSObject *expandoObject = LookupExpandoObject(cx, target, wrapper);
     if (!expandoObject) {
@@ -229,7 +229,7 @@ EnsureExpandoObject(JSContext *cx, JSObject *wrapper, JSObject *target)
         if (!JS_WrapObject(cx, &consumerGlobal))
             return NULL;
         expandoObject = AttachExpandoObject(cx, target, ObjectPrincipal(wrapper),
-                                            isSandbox ? consumerGlobal : nullptr);
+                                            isSandbox ? consumerGlobal : nsnull);
     }
     return expandoObject;
 }
@@ -238,7 +238,7 @@ bool
 CloneExpandoChain(JSContext *cx, JSObject *dst, JSObject *src)
 {
     MOZ_ASSERT(js::IsObjectInContextCompartment(dst, cx));
-    MOZ_ASSERT(GetExpandoChain(dst) == nullptr);
+    MOZ_ASSERT(GetExpandoChain(dst) == nsnull);
 
     JSObject *oldHead = GetExpandoChain(src);
     while (oldHead) {
@@ -259,9 +259,9 @@ CloneExpandoChain(JSContext *cx, JSObject *dst, JSObject *src)
 JSObject *
 createHolder(JSContext *cx, JSObject *wrappedNative, JSObject *parent)
 {
-    JSObject *holder = JS_NewObjectWithGivenProto(cx, &HolderClass, nullptr, parent);
+    JSObject *holder = JS_NewObjectWithGivenProto(cx, &HolderClass, nsnull, parent);
     if (!holder)
-        return nullptr;
+        return nsnull;
 
     JSObject *inner = JS_ObjectToInnerObject(cx, wrappedNative);
     XPCWrappedNative *wn = GetWrappedNative(inner);
@@ -372,7 +372,7 @@ private:
             return &js::GetProxyExtra(wrapper, 0).toObject();
 
         if (!createHolder)
-            return nullptr;
+            return nsnull;
 
         return createHolderObject(cx, wrapper);
     }
@@ -421,7 +421,7 @@ private:
             return &js::GetProxyExtra(wrapper, 0).toObject();
 
         if (!createHolder)
-            return nullptr;
+            return nsnull;
 
         return createHolderObject(cx, wrapper);
     }
@@ -570,7 +570,7 @@ XPCWrappedNativeXrayTraits::resolveNativeProperty(JSContext *cx, JSObject *wrapp
     XPCWrappedNative *wn = GetWrappedNative(wnObject);
 
     // This will do verification and the method lookup for us.
-    XPCCallContext ccx(JS_CALLER, cx, wnObject, nullptr, id);
+    XPCCallContext ccx(JS_CALLER, cx, wnObject, nsnull, id);
 
     // There are no native numeric properties, so we can shortcut here. We will not
     // find the property.
@@ -672,9 +672,9 @@ WrapURI(JSContext *cx, nsIURI *uri, jsval *vp)
 {
     JSObject *scope = JS_GetGlobalForScopeChain(cx);
     nsresult rv =
-        nsXPConnect::FastGetXPConnect()->WrapNativeToJSVal(cx, scope, uri, nullptr,
+        nsXPConnect::FastGetXPConnect()->WrapNativeToJSVal(cx, scope, uri, nsnull,
                                                            &NS_GET_IID(nsIURI), true,
-                                                           vp, nullptr);
+                                                           vp, nsnull);
     if (NS_FAILED(rv)) {
         XPCThrower::Throw(rv, cx);
         return false;
@@ -749,9 +749,9 @@ nodePrincipal_getter(JSContext *cx, JSHandleObject wrapper, JSHandleId id, jsval
 
     JSObject *scope = JS_GetGlobalForScopeChain(cx);
     nsresult rv =
-        nsXPConnect::FastGetXPConnect()->WrapNativeToJSVal(cx, scope, node->NodePrincipal(), nullptr,
+        nsXPConnect::FastGetXPConnect()->WrapNativeToJSVal(cx, scope, node->NodePrincipal(), nsnull,
                                                            &NS_GET_IID(nsIPrincipal), true,
-                                                           vp, nullptr);
+                                                           vp, nsnull);
     if (NS_FAILED(rv)) {
         XPCThrower::Throw(rv, cx);
         return false;
@@ -1043,10 +1043,10 @@ ProxyXrayTraits::enumerateNames(JSContext *cx, JSObject *wrapper, unsigned flags
 JSObject*
 ProxyXrayTraits::createHolderObject(JSContext *cx, JSObject *wrapper)
 {
-    JSObject *obj = JS_NewObjectWithGivenProto(cx, nullptr, nullptr,
+    JSObject *obj = JS_NewObjectWithGivenProto(cx, nsnull, nsnull,
                                                JS_GetGlobalForObject(cx, wrapper));
     if (!obj)
-        return nullptr;
+        return nsnull;
     js::SetProxyExtra(wrapper, 0, ObjectValue(*obj));
     return obj;
 }
@@ -1122,10 +1122,10 @@ DOMXrayTraits::enumerateNames(JSContext *cx, JSObject *wrapper, unsigned flags,
 JSObject*
 DOMXrayTraits::createHolderObject(JSContext *cx, JSObject *wrapper)
 {
-    JSObject *obj = JS_NewObjectWithGivenProto(cx, nullptr, nullptr,
+    JSObject *obj = JS_NewObjectWithGivenProto(cx, nsnull, nsnull,
                                                JS_GetGlobalForObject(cx, wrapper));
     if (!obj)
-        return nullptr;
+        return nsnull;
     js::SetProxyExtra(wrapper, 0, ObjectValue(*obj));
     return obj;
 }
@@ -1361,7 +1361,7 @@ XrayWrapper<Base, Traits>::getOwnPropertyDescriptor(JSContext *cx, JSObject *wra
             }
         }
 
-        desc->obj = (desc->obj == obj) ? wrapper : nullptr;
+        desc->obj = (desc->obj == obj) ? wrapper : nsnull;
         return JS_WrapPropertyDescriptor(cx, desc);
     }
 
@@ -1549,7 +1549,7 @@ XrayWrapper<Base, Traits>::call(JSContext *cx, JSObject *wrapper, unsigned argc,
 
     // Run the resolve hook of the wrapped native.
     if (NATIVE_HAS_FLAG(wn, WantCall)) {
-        XPCCallContext ccx(JS_CALLER, cx, wrapper, nullptr, JSID_VOID, argc,
+        XPCCallContext ccx(JS_CALLER, cx, wrapper, nsnull, JSID_VOID, argc,
                            vp + 2, vp);
         if (!ccx.IsValid())
             return false;
@@ -1576,7 +1576,7 @@ XrayWrapper<Base, Traits>::construct(JSContext *cx, JSObject *wrapper, unsigned 
 
     // Run the resolve hook of the wrapped native.
     if (NATIVE_HAS_FLAG(wn, WantConstruct)) {
-        XPCCallContext ccx(JS_CALLER, cx, wrapper, nullptr, JSID_VOID, argc, argv, rval);
+        XPCCallContext ccx(JS_CALLER, cx, wrapper, nsnull, JSID_VOID, argc, argv, rval);
         if (!ccx.IsValid())
             return false;
         bool ok = true;

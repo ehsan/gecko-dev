@@ -24,11 +24,11 @@ using mozilla::TimeStamp;
 
 inline char* new_str(const char* str)
 {
-  if (str == nullptr)
-    return nullptr;
+  if (str == nsnull)
+    return nsnull;
   
   char* result = new char[strlen(str) + 1];
-  if (result != nullptr)
+  if (result != nsnull)
     return strcpy(result, str);
   return result;
 }
@@ -36,13 +36,13 @@ inline char* new_str(const char* str)
 /* nsPluginTag */
 
 nsPluginTag::nsPluginTag(nsPluginTag* aPluginTag)
-: mPluginHost(nullptr),
+: mPluginHost(nsnull),
 mName(aPluginTag->mName),
 mDescription(aPluginTag->mDescription),
 mMimeTypes(aPluginTag->mMimeTypes),
 mMimeDescriptions(aPluginTag->mMimeDescriptions),
 mExtensions(aPluginTag->mExtensions),
-mLibrary(nullptr),
+mLibrary(nsnull),
 mIsJavaPlugin(aPluginTag->mIsJavaPlugin),
 mIsFlashPlugin(aPluginTag->mIsFlashPlugin),
 mFileName(aPluginTag->mFileName),
@@ -54,10 +54,10 @@ mFlags(NS_PLUGIN_FLAG_ENABLED)
 }
 
 nsPluginTag::nsPluginTag(nsPluginInfo* aPluginInfo)
-: mPluginHost(nullptr),
+: mPluginHost(nsnull),
 mName(aPluginInfo->fName),
 mDescription(aPluginInfo->fDescription),
-mLibrary(nullptr),
+mLibrary(nsnull),
 mIsJavaPlugin(false),
 mIsFlashPlugin(false),
 mFileName(aPluginInfo->fFileName),
@@ -84,10 +84,10 @@ nsPluginTag::nsPluginTag(const char* aName,
                          PRInt32 aVariants,
                          PRInt64 aLastModifiedTime,
                          bool aArgsAreUTF8)
-: mPluginHost(nullptr),
+: mPluginHost(nsnull),
 mName(aName),
 mDescription(aDescription),
-mLibrary(nullptr),
+mLibrary(nsnull),
 mIsJavaPlugin(false),
 mIsFlashPlugin(false),
 mFileName(aFileName),
@@ -340,7 +340,7 @@ nsPluginTag::SetClicktoplay(bool aClicktoplay)
     UnMark(NS_PLUGIN_FLAG_CLICKTOPLAY);
   }
   
-  mPluginHost->UpdatePluginInfo(nullptr);
+  mPluginHost->UpdatePluginInfo(nsnull);
   return NS_OK;
 }
 
@@ -408,6 +408,6 @@ void nsPluginTag::TryUnloadPlugin(bool inShutdown)
 
   if (mPlugin) {
     mPlugin->Shutdown();
-    mPlugin = nullptr;
+    mPlugin = nsnull;
   }
 }

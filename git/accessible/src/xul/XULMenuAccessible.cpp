@@ -60,7 +60,7 @@ XULMenuitemAccessible::NativeState()
 
   // Checkable/checked?
   static nsIContent::AttrValuesArray strings[] =
-    { &nsGkAtoms::radio, &nsGkAtoms::checkbox, nullptr };
+    { &nsGkAtoms::radio, &nsGkAtoms::checkbox, nsnull };
 
   if (mContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::type, strings,
                                 eCaseMatters) >= 0) {
@@ -374,7 +374,7 @@ XULMenuitemAccessible::ContainerWidget() const
       // shouldn't be a real case.
     }
   }
-  return nullptr;
+  return nsnull;
 }
 
 
@@ -536,11 +536,11 @@ XULMenupopupAccessible::ContainerWidget() const
     Accessible* menuPopup =
       document->GetAccessible(menuPopupFrame->GetContent());
     if (!menuPopup) // shouldn't be a real case
-      return nullptr;
+      return nsnull;
 
     nsMenuFrame* menuFrame = menuPopupFrame->GetParentMenu();
     if (!menuFrame) // context menu or popups
-      return nullptr;
+      return nsnull;
 
     nsMenuParent* menuParent = menuFrame->GetMenuParent();
     if (!menuParent) // menulist or menubutton
@@ -553,13 +553,13 @@ XULMenupopupAccessible::ContainerWidget() const
 
     // different kind of popups like panel or tooltip
     if (!menuParent->IsMenu())
-      return nullptr;
+      return nsnull;
 
     menuPopupFrame = static_cast<nsMenuPopupFrame*>(menuParent);
   }
 
   NS_NOTREACHED("Shouldn't be a real case.");
-  return nullptr;
+  return nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -612,7 +612,7 @@ XULMenubarAccessible::CurrentItem()
       return mDoc->GetAccessible(menuItemNode);
     }
   }
-  return nullptr;
+  return nsnull;
 }
 
 void

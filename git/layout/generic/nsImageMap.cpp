@@ -60,7 +60,7 @@ Area::Area(nsIContent* aArea)
 {
   MOZ_COUNT_CTOR(Area);
   NS_PRECONDITION(mArea, "How did that happen?");
-  mCoords = nullptr;
+  mCoords = nsnull;
   mNumCoords = 0;
   mHasFocus = false;
 }
@@ -94,9 +94,9 @@ static void logMessage(nsIContent*      aContent,
      aFlags, "ImageMap", doc,
      nsContentUtils::eLAYOUT_PROPERTIES,
      aMessageName,
-     nullptr,  /* params */
+     nsnull,  /* params */
      0, /* params length */
-     nullptr,
+     nsnull,
      PromiseFlatString(NS_LITERAL_STRING("coords=\"") +
                        aCoordsSpec +
                        NS_LITERAL_STRING("\""))); /* source line */
@@ -115,7 +115,7 @@ void Area::ParseCoords(const nsAString& aSpec)
      * Nothing in an empty list
      */
     mNumCoords = 0;
-    mCoords = nullptr;
+    mCoords = nsnull;
     if (*cp == '\0')
     {
       nsMemory::Free(cp);
@@ -659,7 +659,7 @@ void CircleArea::GetRect(nsIFrame* aFrame, nsRect& aRect)
 
 
 nsImageMap::nsImageMap() :
-  mImageFrame(nullptr),
+  mImageFrame(nsnull),
   mContainsBlockContents(false)
 {
 }
@@ -702,7 +702,7 @@ nsImageMap::FreeAreas()
       NS_ASSERTION(area->mArea->GetPrimaryFrame() == mImageFrame,
                    "Unexpected primary frame");
 
-      area->mArea->SetPrimaryFrame(nullptr);
+      area->mArea->SetPrimaryFrame(nsnull);
     }
 
     area->mArea->RemoveSystemEventListener(NS_LITERAL_STRING("focus"), this,
@@ -805,7 +805,7 @@ nsImageMap::AddArea(nsIContent* aArea)
      &nsGkAtoms::circle, &nsGkAtoms::circ,
      &nsGkAtoms::_default,
      &nsGkAtoms::poly, &nsGkAtoms::polygon,
-     nullptr};
+     nsnull};
 
   Area* area;
   switch (aArea->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::shape,
@@ -866,7 +866,7 @@ nsImageMap::GetArea(nscoord aX, nscoord aY) const
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 nsIContent*
@@ -997,6 +997,6 @@ void
 nsImageMap::Destroy(void)
 {
   FreeAreas();
-  mImageFrame = nullptr;
+  mImageFrame = nsnull;
   mMap->RemoveMutationObserver(this);
 }

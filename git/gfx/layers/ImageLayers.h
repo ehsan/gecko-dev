@@ -434,7 +434,7 @@ public:
    * image.
    */
   already_AddRefed<gfxASurface> LockCurrentAsSurface(gfxIntSize* aSizeResult,
-                                                     Image** aCurrentImage = nullptr);
+                                                     Image** aCurrentImage = nsnull);
 
   /**
    * Returns the size of the image in pixels.
@@ -608,9 +608,9 @@ public:
 
   void Unlock() { 
     if (mContainer) {
-      mImage = nullptr;
+      mImage = nsnull;
       mContainer->UnlockCurrentImage();
-      mContainer = nullptr;
+      mContainer = nsnull;
     }
   }
 
@@ -687,8 +687,8 @@ public:
     // was drawn into a ThebesLayer (gfxContext would snap using the local
     // transform, then we'd snap again when compositing the ThebesLayer).
     mEffectiveTransform =
-        SnapTransform(GetLocalTransform(), snap, nullptr)*
-        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nullptr);
+        SnapTransform(GetLocalTransform(), snap, nsnull)*
+        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nsnull);
     ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
   }
 
@@ -1002,7 +1002,7 @@ public:
   virtual already_AddRefed<gfxASurface> GetAsSurface()
   {
     // We need to fix this and return a ASurface at some point.
-    return nullptr;
+    return nsnull;
   }
 
   void* GetNativeBuffer()

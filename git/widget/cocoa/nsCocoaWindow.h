@@ -205,7 +205,7 @@ public:
                                    const nsIntRect &aRect,
                                    EVENT_CALLBACK aHandleEventFunction,
                                    nsDeviceContext *aContext,
-                                   nsWidgetInitData *aInitData = nullptr);
+                                   nsWidgetInitData *aInitData = nsnull);
 
     NS_IMETHOD              Destroy();
 
@@ -244,10 +244,10 @@ public:
 
     NS_IMETHOD Invalidate(const nsIntRect &aRect);
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-    virtual LayerManager* GetLayerManager(PLayersChild* aShadowManager = nullptr,
+    virtual LayerManager* GetLayerManager(PLayersChild* aShadowManager = nsnull,
                                           LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                                          bool* aAllowRetaining = nullptr);
+                                          bool* aAllowRetaining = nsnull);
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, bool aDoCapture, bool aConsumeRollupEvent);
     NS_IMETHOD GetAttention(PRInt32 aCycleCount);

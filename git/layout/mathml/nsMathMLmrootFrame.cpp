@@ -174,8 +174,8 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   // Reflow Children
 
   PRInt32 count = 0;
-  nsIFrame* baseFrame = nullptr;
-  nsIFrame* indexFrame = nullptr;
+  nsIFrame* baseFrame = nsnull;
+  nsIFrame* indexFrame = nsnull;
   nsHTMLReflowMetrics baseSize;
   nsHTMLReflowMetrics indexSize;
   nsIFrame* childFrame = mFrames.FirstChild();
@@ -334,7 +334,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   // place the index
   nscoord dx = dxIndex;
   nscoord dy = aDesiredSize.ascent - (indexRaisedAscent + indexSize.ascent - bmIndex.ascent);
-  FinishReflowChild(indexFrame, aPresContext, nullptr, indexSize,
+  FinishReflowChild(indexFrame, aPresContext, nsnull, indexSize,
                     MirrorIfRTL(aDesiredSize.width, indexSize.width, dx),
                     dy, 0);
 
@@ -349,7 +349,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
 
   // place the base
   dy = aDesiredSize.ascent - baseSize.ascent;
-  FinishReflowChild(baseFrame, aPresContext, nullptr, baseSize,
+  FinishReflowChild(baseFrame, aPresContext, nsnull, baseSize,
                     MirrorIfRTL(aDesiredSize.width, baseSize.width, dx),
                     dy, 0);
 
@@ -365,7 +365,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
 nsMathMLmrootFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext)
 {
   nsIFrame* baseFrame = mFrames.FirstChild();
-  nsIFrame* indexFrame = nullptr;
+  nsIFrame* indexFrame = nsnull;
   if (baseFrame)
     indexFrame = baseFrame->GetNextSibling();
   if (!indexFrame || indexFrame->GetNextSibling()) {
@@ -384,7 +384,7 @@ nsMathMLmrootFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext)
 
   nscoord dxSqr;
   GetRadicalXOffsets(indexWidth, sqrWidth, aRenderingContext->FontMetrics(),
-                     nullptr, &dxSqr);
+                     nsnull, &dxSqr);
 
   return dxSqr + sqrWidth + baseWidth;
 }
@@ -399,7 +399,7 @@ nsMathMLmrootFrame::GetAdditionalStyleContext(PRInt32 aIndex) const
     return mSqrChar.GetStyleContext();
     break;
   default:
-    return nullptr;
+    return nsnull;
   }
 }
 

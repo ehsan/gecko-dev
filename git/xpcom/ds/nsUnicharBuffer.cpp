@@ -20,7 +20,7 @@ UnicharBufferImpl::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
     return NS_ERROR_NO_AGGREGATION;
 
   UnicharBufferImpl* it = new UnicharBufferImpl();
-  if (it == nullptr) 
+  if (it == nsnull) 
     return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(it);
@@ -45,9 +45,9 @@ NS_IMPL_ISUPPORTS1(UnicharBufferImpl, nsIUnicharBuffer)
 
 UnicharBufferImpl::~UnicharBufferImpl()
 {
-  if (nullptr != mBuffer) {
+  if (nsnull != mBuffer) {
     delete[] mBuffer;
-    mBuffer = nullptr;
+    mBuffer = nsnull;
   }
   mLength = 0;
 }
@@ -77,7 +77,7 @@ UnicharBufferImpl::Grow(PRInt32 aNewSize)
     aNewSize = MIN_BUFFER_SIZE;
   }
   PRUnichar* newbuf = new PRUnichar[aNewSize];
-  if (nullptr != newbuf) {
+  if (nsnull != newbuf) {
     if (0 != mLength) {
       memcpy(newbuf, mBuffer, mLength * sizeof(PRUnichar));
     }

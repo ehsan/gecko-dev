@@ -220,7 +220,7 @@ int main(int argc, char *argv[]) {
         cmdLineURL = true;
     }
 
-    rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+    rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
     if (NS_FAILED(rv)) return rv;
 
     if (cmdLineURL) {
@@ -233,7 +233,7 @@ int main(int argc, char *argv[]) {
     // Enter the message pump to allow the URL load to proceed.
     PumpEvents();
 
-    NS_ShutdownXPCOM(nullptr);
+    NS_ShutdownXPCOM(nsnull);
     if (gError) {
         fprintf(stderr, "\n\n-------ERROR-------\n\n");
     }

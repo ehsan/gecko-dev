@@ -23,7 +23,7 @@ static NS_DEFINE_CID(kStreamTransportServiceCID, NS_STREAMTRANSPORTSERVICE_CID);
 //
 // NSPR_LOG_MODULES=nsStreamPump:5
 //
-static PRLogModuleInfo *gStreamPumpLog = nullptr;
+static PRLogModuleInfo *gStreamPumpLog = nsnull;
 #endif
 #define LOG(args) PR_LOG(gStreamPumpLog, PR_LOG_DEBUG, args)
 
@@ -66,7 +66,7 @@ nsInputStreamPump::Create(nsInputStreamPump  **result,
         rv = pump->Init(stream, streamPos, streamLen,
                         segsize, segcount, closeWhenDone);
         if (NS_SUCCEEDED(rv)) {
-            *result = nullptr;
+            *result = nsnull;
             pump.swap(*result);
         }
     }
@@ -334,7 +334,7 @@ nsInputStreamPump::AsyncRead(nsIStreamListener *listener, nsISupports *ctxt)
     if (NS_FAILED(rv)) return rv;
 
     if (mLoadGroup)
-        mLoadGroup->AddRequest(this, nullptr);
+        mLoadGroup->AddRequest(this, nsnull);
 
     mState = STATE_START;
     mListener = listener;
@@ -557,7 +557,7 @@ nsInputStreamPump::OnStateStop()
     mListenerContext = 0;
 
     if (mLoadGroup)
-        mLoadGroup->RemoveRequest(this, nullptr, mStatus);
+        mLoadGroup->RemoveRequest(this, nsnull, mStatus);
 
     return STATE_IDLE;
 }

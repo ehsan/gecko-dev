@@ -205,7 +205,7 @@ nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(nsIFrame* aNonSVGFrame)
   nsIFrame* firstFrame =
     nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aNonSVGFrame);
   // 'r' is in "user space":
-  nsRect r = GetPreEffectsVisualOverflowUnion(firstFrame, nullptr, nsRect(),
+  nsRect r = GetPreEffectsVisualOverflowUnion(firstFrame, nsnull, nsRect(),
                                               GetOffsetToUserSpace(firstFrame));
   return nsLayoutUtils::RectToGfxRect(r,
            aNonSVGFrame->PresContext()->AppUnitsPerCSSPixel());
@@ -256,7 +256,7 @@ nsRect
   nsSVGEffects::EffectProperties effectProperties =
     nsSVGEffects::GetEffectProperties(firstFrame);
   nsSVGFilterFrame *filterFrame = effectProperties.mFilter ?
-    effectProperties.mFilter->GetFilterFrame() : nullptr;
+    effectProperties.mFilter->GetFilterFrame() : nsnull;
   if (!filterFrame)
     return aPreEffectsOverflowRect;
 
@@ -504,7 +504,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
 
   nsRefPtr<gfxPattern> maskSurface =
     maskFrame ? maskFrame->ComputeMaskAlpha(aCtx, aFrame,
-                                            cssPxToDevPxMatrix, opacity) : nullptr;
+                                            cssPxToDevPxMatrix, opacity) : nsnull;
 
   nsRefPtr<gfxPattern> clipMaskSurface;
   if (clipPathFrame && !isTrivialClip) {
@@ -649,7 +649,7 @@ DrawableFromPaintServer(nsIFrame*         aFrame,
                                     &nsStyleSVG::mFill, 1.0, &overrideBounds);
 
     if (!pattern)
-      return nullptr;
+      return nsnull;
 
     // pattern is now set up to fill aPaintServerSize. But we want it to
     // fill aRenderSize, so we need to add a scaling transform.

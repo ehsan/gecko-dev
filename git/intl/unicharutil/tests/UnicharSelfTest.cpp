@@ -695,7 +695,7 @@ void TestNormalization()
 
 int main(int argc, char** argv) {
    
-   nsresult rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+   nsresult rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
    if (NS_FAILED(rv)) {
       printf("NS_InitXPCOM2 failed\n");
       return 1;

@@ -60,7 +60,7 @@ ClearHashtableOnShutdown::Observe(nsISupports* aSubject, const char* aTopic, con
   MOZ_ASSERT(!strcmp(aTopic, "xpcom-shutdown"));
 
   sIsShuttingDown = true;
-  sLockTable = nullptr;
+  sLockTable = nsnull;
 
   return NS_OK;
 }

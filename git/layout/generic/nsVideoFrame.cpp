@@ -68,7 +68,7 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     // image. We may not have a poster image now, but one could be added
     // before we load, or on a subsequent load.
     nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::img,
-                                            nullptr,
+                                            nsnull,
                                             kNameSpaceID_XHTML,
                                             nsIDOMNode::ELEMENT_NODE);
     NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
@@ -103,7 +103,7 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   // Set up "videocontrols" XUL element which will be XBL-bound to the
   // actual controls.
   nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::videocontrols,
-                                          nullptr,
+                                          nsnull,
                                           kNameSpaceID_XUL,
                                           nsIDOMNode::ELEMENT_NODE);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
@@ -162,19 +162,19 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
   nsIntSize videoSize;
   if (NS_FAILED(element->GetVideoSize(&videoSize)) || area.IsEmpty()) {
-    return nullptr;
+    return nsnull;
   }
 
   nsRefPtr<ImageContainer> container = element->GetImageContainer();
   if (!container)
-    return nullptr;
+    return nsnull;
   
   // Retrieve the size of the decoded video frame, before being scaled
   // by pixel aspect ratio.
   gfxIntSize frameSize = container->GetCurrentSize();
   if (frameSize.width == 0 || frameSize.height == 0) {
     // No image, or zero-sized image. No point creating a layer.
-    return nullptr;
+    return nsnull;
   }
 
   // Compute the rectangle in which to paint the video. We need to use
@@ -196,7 +196,7 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   if (!layer) {
     layer = aManager->CreateImageLayer();
     if (!layer)
-      return nullptr;
+      return nsnull;
   }
 
   layer->SetContainer(container);
@@ -206,7 +206,7 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   gfxMatrix transform;
   transform.Translate(r.TopLeft());
   transform.Scale(r.Width()/frameSize.width, r.Height()/frameSize.height);
-  layer->SetTransform(gfx3DMatrix::From2D(transform));
+  layer->SetBaseTransform(gfx3DMatrix::From2D(transform));
   layer->SetVisibleRegion(nsIntRect(0, 0, frameSize.width, frameSize.height));
   nsRefPtr<Layer> result = layer.forget();
   return result.forget();
@@ -422,7 +422,7 @@ nsVideoFrame::CreateAccessible()
   nsAccessibilityService* accService = nsIPresShell::AccService();
   return accService ?
     accService->CreateHTMLMediaAccessible(mContent, PresContext()->PresShell()) :
-    nullptr;
+    nsnull;
 }
 #endif
 
@@ -476,7 +476,7 @@ nscoord nsVideoFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 
 nsSize nsVideoFrame::GetIntrinsicRatio()
 {
-  return GetVideoIntrinsicSize(nullptr);
+  return GetVideoIntrinsicSize(nsnull);
 }
 
 bool nsVideoFrame::ShouldDisplayPoster()
@@ -573,7 +573,7 @@ nsVideoFrame::AttributeChanged(PRInt32 aNameSpaceID,
 
 bool nsVideoFrame::HasVideoElement() {
   nsCOMPtr<nsIDOMHTMLVideoElement> videoDomElement = do_QueryInterface(mContent);
-  return videoDomElement != nullptr;
+  return videoDomElement != nsnull;
 }
 
 bool nsVideoFrame::HasVideoData()

@@ -54,7 +54,7 @@ GetICCProfile(struct jpeg_decompress_struct &info)
 {
   JOCTET* profilebuf;
   PRUint32 profileLength;
-  qcms_profile* profile = nullptr;
+  qcms_profile* profile = nsnull;
 
   if (read_icc_profile(&info, &profilebuf, &profileLength)) {
     profile = qcms_profile_from_memory(profilebuf, profileLength);
@@ -79,21 +79,21 @@ nsJPEGDecoder::nsJPEGDecoder(RasterImage &aImage, imgIDecoderObserver* aObserver
 {
   mState = JPEG_HEADER;
   mReading = true;
-  mImageData = nullptr;
+  mImageData = nsnull;
 
   mBytesToSkip = 0;
   memset(&mInfo, 0, sizeof(jpeg_decompress_struct));
   memset(&mSourceMgr, 0, sizeof(mSourceMgr));
   mInfo.client_data = (void*)this;
 
-  mSegment = nullptr;
+  mSegment = nsnull;
   mSegmentLen = 0;
 
-  mBackBuffer = nullptr;
+  mBackBuffer = nsnull;
   mBackBufferLen = mBackBufferSize = mBackBufferUnreadLen = 0;
 
-  mInProfile = nullptr;
-  mTransform = nullptr;
+  mInProfile = nsnull;
+  mTransform = nsnull;
 
   mCMSMode = 0;
 
@@ -105,7 +105,7 @@ nsJPEGDecoder::nsJPEGDecoder(RasterImage &aImage, imgIDecoderObserver* aObserver
 nsJPEGDecoder::~nsJPEGDecoder()
 {
   // Step 8: Release JPEG decompression object
-  mInfo.src = nullptr;
+  mInfo.src = nsnull;
   jpeg_destroy_decompress(&mInfo);
 
   PR_FREEIF(mBackBuffer);
@@ -176,7 +176,7 @@ nsJPEGDecoder::FinishInternal()
   if ((mState != JPEG_DONE && mState != JPEG_SINK_NON_JPEG_TRAILER) &&
       (mState != JPEG_ERROR) &&
       !IsSizeDecode())
-    this->Write(nullptr, 0);
+    this->Write(nsnull, 0);
 }
 
 void
@@ -239,7 +239,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
 
     /* We're doing a full decode. */
     if (mCMSMode != eCMSMode_Off &&
-        (mInProfile = GetICCProfile(mInfo)) != nullptr) {
+        (mInProfile = GetICCProfile(mInfo)) != nsnull) {
       PRUint32 profileSpace = qcms_profile_get_color_space(mInProfile);
       bool mismatch = false;
 

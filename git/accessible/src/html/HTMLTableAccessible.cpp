@@ -62,7 +62,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(HTMLTableCellAccessible,
   void
   HTMLTableCellAccessible::Shutdown()
 {
-  mTableCell = nullptr;
+  mTableCell = nsnull;
   HyperTextAccessibleWrap::Shutdown();
 }
 
@@ -153,7 +153,7 @@ NS_IMETHODIMP
 HTMLTableCellAccessible::GetTable(nsIAccessibleTable** aTable)
 {
   NS_ENSURE_ARG_POINTER(aTable);
-  *aTable = nullptr;
+  *aTable = nsnull;
 
   if (IsDefunct())
     return NS_OK;
@@ -228,7 +228,7 @@ NS_IMETHODIMP
 HTMLTableCellAccessible::GetColumnHeaderCells(nsIArray** aHeaderCells)
 {
   NS_ENSURE_ARG_POINTER(aHeaderCells);
-  *aHeaderCells = nullptr;
+  *aHeaderCells = nsnull;
 
   if (IsDefunct())
     return NS_ERROR_FAILURE;
@@ -240,7 +240,7 @@ NS_IMETHODIMP
 HTMLTableCellAccessible::GetRowHeaderCells(nsIArray** aHeaderCells)
 {
   NS_ENSURE_ARG_POINTER(aHeaderCells);
-  *aHeaderCells = nullptr;
+  *aHeaderCells = nsnull;
 
   if (IsDefunct())
     return NS_ERROR_FAILURE;
@@ -276,13 +276,13 @@ HTMLTableCellAccessible::GetTableAccessible()
   while ((parent = parent->Parent())) {
     roles::Role role = parent->Role();
     if (role == roles::TABLE || role == roles::TREE_TABLE) {
-      nsIAccessibleTable* tableAcc = nullptr;
+      nsIAccessibleTable* tableAcc = nsnull;
       CallQueryInterface(parent, &tableAcc);
       return tableAcc;
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 nsITableCellLayout*
@@ -291,7 +291,7 @@ HTMLTableCellAccessible::GetCellLayout()
   nsIFrame *frame = mContent->GetPrimaryFrame();
   NS_ASSERTION(frame, "The frame cannot be obtaied for HTML table cell.");
   if (!frame)
-    return nullptr;
+    return nsnull;
 
   nsITableCellLayout *cellLayout = do_QueryFrame(frame);
   return cellLayout;
@@ -365,7 +365,7 @@ HTMLTableHeaderCellAccessible::NativeRole()
 {
   // Check value of @scope attribute.
   static nsIContent::AttrValuesArray scopeValues[] =
-    {&nsGkAtoms::col, &nsGkAtoms::row, nullptr};
+    {&nsGkAtoms::col, &nsGkAtoms::row, nsnull};
   PRInt32 valueIdx =
     mContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::scope,
                               scopeValues, eCaseMatters);
@@ -428,7 +428,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(HTMLTableAccessible, Accessible,
 void
 HTMLTableAccessible::Shutdown()
 {
-  mTable = nullptr;
+  mTable = nsnull;
   AccessibleWrap::Shutdown();
 }
 
@@ -445,7 +445,7 @@ HTMLTableAccessible::CacheChildren()
   // visible.
   nsAccTreeWalker walker(mDoc, mContent, CanHaveAnonChildren());
 
-  Accessible* child = nullptr;
+  Accessible* child = nsnull;
   while ((child = walker.NextChild())) {
     if (child->Role() == roles::CAPTION) {
       InsertChildAt(0, child);
@@ -525,8 +525,8 @@ HTMLTableAccessible::RelationByType(PRUint32 aType)
 Accessible*
 HTMLTableAccessible::Caption()
 {
-  Accessible* child = mChildren.SafeElementAt(0, nullptr);
-  return child && child->Role() == roles::CAPTION ? child : nullptr;
+  Accessible* child = mChildren.SafeElementAt(0, nsnull);
+  return child && child->Role() == roles::CAPTION ? child : nsnull;
 }
 
 void
@@ -705,17 +705,17 @@ HTMLTableAccessible::CellAt(PRUint32 aRowIndex, PRUint32 aColumnIndex)
   nsCOMPtr<nsIDOMElement> cellElement;
   GetCellAt(aRowIndex, aColumnIndex, *getter_AddRefs(cellElement));
   if (!cellElement)
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<nsIContent> cellContent(do_QueryInterface(cellElement));
   if (!cellContent)
-    return nullptr;
+    return nsnull;
 
   Accessible* cell = mDoc->GetAccessible(cellContent);
 
   // XXX bug 576838: crazy tables (like table6 in tables/test_table2.html) may
   // return itself as a cell what makes Orca hang.
-  return cell == this ? nullptr : cell;
+  return cell == this ? nsnull : cell;
 }
 
 PRInt32
@@ -978,7 +978,7 @@ HTMLTableAccessible::GetTableLayout()
 {
   nsIFrame *frame = mContent->GetPrimaryFrame();
   if (!frame)
-    return nullptr;
+    return nsnull;
 
   nsITableLayout *tableLayout = do_QueryFrame(frame);
   return tableLayout;

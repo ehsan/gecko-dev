@@ -306,7 +306,7 @@ LayerManagerD3D10::Destroy()
     if (mRoot) {
       static_cast<LayerD3D10*>(mRoot->ImplData())->LayerManagerDestroyed();
     }
-    mRootForShadowTree = nullptr;
+    mRootForShadowTree = nsnull;
     // XXX need to be careful here about surface destruction
     // racing with share-to-chrome message
   }
@@ -340,7 +340,7 @@ LayerManagerD3D10::EndEmptyTransaction()
   if (!mRoot)
     return false;
 
-  EndTransaction(nullptr, nullptr);
+  EndTransaction(nsnull, nsnull);
   return true;
 }
 
@@ -363,8 +363,8 @@ LayerManagerD3D10::EndTransaction(DrawThebesLayerCallback aCallback,
 #endif
 
     Render();
-    mCurrentCallbackInfo.Callback = nullptr;
-    mCurrentCallbackInfo.CallbackData = nullptr;
+    mCurrentCallbackInfo.Callback = nsnull;
+    mCurrentCallbackInfo.CallbackData = nsnull;
   }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
@@ -372,7 +372,7 @@ LayerManagerD3D10::EndTransaction(DrawThebesLayerCallback aCallback,
   MOZ_LAYERS_LOG(("]----- EndTransaction"));
 #endif
 
-  mTarget = nullptr;
+  mTarget = nsnull;
 }
 
 already_AddRefed<ThebesLayer>
@@ -633,7 +633,7 @@ LayerManagerD3D10::VerifyBufferSize()
       return;
     }
 
-    mRTView = nullptr;
+    mRTView = nsnull;
     if (gfxWindowsPlatform::IsOptimus()) { 
       mSwapChain->ResizeBuffers(1, rect.width, rect.height,
                                 DXGI_FORMAT_B8G8R8A8_UNORM,
@@ -665,7 +665,7 @@ LayerManagerD3D10::VerifyBufferSize()
     desc.MiscFlags = D3D10_RESOURCE_MISC_SHARED
                      // FIXME/bug 662109: synchronize using KeyedMutex
                      /*D3D10_RESOURCE_MISC_SHARED_KEYEDMUTEX*/;
-    HRESULT hr = device()->CreateTexture2D(&desc, nullptr, getter_AddRefs(mBackBuffer));
+    HRESULT hr = device()->CreateTexture2D(&desc, nsnull, getter_AddRefs(mBackBuffer));
     if (FAILED(hr)) {
       ReportFailure(NS_LITERAL_CSTRING("LayerManagerD3D10::VerifyBufferSize(): Failed to create shared texture"),
                     hr);
@@ -673,7 +673,7 @@ LayerManagerD3D10::VerifyBufferSize()
     }
 
     // XXX resize texture?
-    mRTView = nullptr;
+    mRTView = nsnull;
   }
 }
 
@@ -752,7 +752,7 @@ LayerManagerD3D10::Render()
         windowLayer = new WindowLayer(this);
         windowLayer->SetShadow(ConstructShadowFor(windowLayer));
         CreatedThebesLayer(windowLayer);
-        mRootForShadowTree->InsertAfter(windowLayer, nullptr);
+        mRootForShadowTree->InsertAfter(windowLayer, nsnull);
         ShadowLayerForwarder::InsertAfter(mRootForShadowTree, windowLayer);
     }
 
@@ -910,7 +910,7 @@ LayerD3D10::SelectShader(PRUint8 aFlags)
     return effect()->GetTechniqueByName("RenderYCbCrLayer");
   default:
     NS_ERROR("Invalid shader.");
-    return nullptr;
+    return nsnull;
   }
 }
 
@@ -948,7 +948,7 @@ LayerD3D10::LoadMaskTexture()
 }
 
 WindowLayer::WindowLayer(LayerManagerD3D10* aManager)
-  : ThebesLayer(aManager, nullptr)
+  : ThebesLayer(aManager, nsnull)
 {
  }
 
@@ -958,13 +958,13 @@ WindowLayer::~WindowLayer()
 }
 
 DummyRoot::DummyRoot(LayerManagerD3D10* aManager)
-  : ContainerLayer(aManager, nullptr)
+  : ContainerLayer(aManager, nsnull)
 {
 }
 
 DummyRoot::~DummyRoot()
 {
-  RemoveChild(nullptr);
+  RemoveChild(nsnull);
   PLayerChild::Send__delete__(GetShadow());
 }
 

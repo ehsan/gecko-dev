@@ -88,7 +88,7 @@ nsSVGGradientFrame::AttributeChanged(PRInt32         aNameSpaceID,
 PRUint32
 nsSVGGradientFrame::GetStopCount()
 {
-  return GetStopFrame(-1, nullptr);
+  return GetStopFrame(-1, nsnull);
 }
 
 void
@@ -101,7 +101,7 @@ nsSVGGradientFrame::GetStopInformation(PRInt32 aIndex,
   *aStopColor = NS_RGBA(0, 0, 0, 0);
   *aStopOpacity = 1.0f;
 
-  nsIFrame *stopFrame = nullptr;
+  nsIFrame *stopFrame = nsnull;
   GetStopFrame(aIndex, &stopFrame);
   nsCOMPtr<nsIDOMSVGStopElement> stopElement =
     do_QueryInterface(stopFrame->GetContent());
@@ -247,7 +247,7 @@ nsSVGGradientFrame::GetPaintServerPattern(nsIFrame *aSource,
   gfxMatrix patternMatrix = GetGradientTransform(aSource, aOverrideBounds);
 
   if (patternMatrix.IsSingular())
-    return nullptr;
+    return nsnull;
 
   PRUint32 nStops = GetStopCount();
 
@@ -267,7 +267,7 @@ nsSVGGradientFrame::GetPaintServerPattern(nsIFrame *aSource,
 
   nsRefPtr<gfxPattern> gradient = CreateGradient();
   if (!gradient || gradient->CairoStatus())
-    return nullptr;
+    return nsnull;
 
   PRUint16 aSpread = GetSpreadMethod();
   if (aSpread == nsIDOMSVGGradientElement::SVG_SPREADMETHOD_PAD)
@@ -310,7 +310,7 @@ nsSVGGradientFrame *
 nsSVGGradientFrame::GetReferencedGradient()
 {
   if (mNoHRefURI)
-    return nullptr;
+    return nsnull;
 
   nsSVGPaintingProperty *property = static_cast<nsSVGPaintingProperty*>
     (Properties().Get(nsSVGEffects::HrefProperty()));
@@ -322,7 +322,7 @@ nsSVGGradientFrame::GetReferencedGradient()
     grad->mStringAttributes[nsSVGGradientElement::HREF].GetAnimValue(href, grad);
     if (href.IsEmpty()) {
       mNoHRefURI = true;
-      return nullptr; // no URL
+      return nsnull; // no URL
     }
 
     // Convert href to an nsIURI
@@ -334,17 +334,17 @@ nsSVGGradientFrame::GetReferencedGradient()
     property =
       nsSVGEffects::GetPaintingProperty(targetURI, this, nsSVGEffects::HrefProperty());
     if (!property)
-      return nullptr;
+      return nsnull;
   }
 
   nsIFrame *result = property->GetReferencedFrame();
   if (!result)
-    return nullptr;
+    return nsnull;
 
   nsIAtom* frameType = result->GetType();
   if (frameType != nsGkAtoms::svgLinearGradientFrame &&
       frameType != nsGkAtoms::svgRadialGradientFrame)
-    return nullptr;
+    return nsnull;
 
   return static_cast<nsSVGGradientFrame*>(result);
 }
@@ -354,12 +354,12 @@ nsSVGGradientFrame::GetReferencedGradientIfNotInUse()
 {
   nsSVGGradientFrame *referenced = GetReferencedGradient();
   if (!referenced)
-    return nullptr;
+    return nsnull;
 
   if (referenced->mLoopFlag) {
     // XXXjwatt: we should really send an error to the JavaScript Console here:
     NS_WARNING("gradient reference loop detected while inheriting attribute!");
-    return nullptr;
+    return nsnull;
   }
 
   return referenced;
@@ -369,7 +369,7 @@ PRInt32
 nsSVGGradientFrame::GetStopFrame(PRInt32 aIndex, nsIFrame * *aStopFrame)
 {
   PRInt32 stopCount = 0;
-  nsIFrame *stopFrame = nullptr;
+  nsIFrame *stopFrame = nsnull;
   for (stopFrame = mFrames.FirstChild(); stopFrame;
        stopFrame = stopFrame->GetNextSibling()) {
     if (stopFrame->GetType() == nsGkAtoms::svgStopFrame) {
@@ -461,7 +461,7 @@ nsSVGLinearGradientFrame::GetLengthValue(PRUint32 aIndex)
     gradientUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX,
     "Unknown gradientUnits type");
 
-  return length.GetAnimValue(static_cast<nsSVGSVGElement*>(nullptr));
+  return length.GetAnimValue(static_cast<nsSVGSVGElement*>(nsnull));
 }
 
 nsSVGLinearGradientElement *
@@ -555,7 +555,7 @@ float
 nsSVGRadialGradientFrame::GetLengthValue(PRUint32 aIndex, float aDefaultValue)
 {
   nsSVGRadialGradientElement* lengthElement =
-    GetRadialGradientWithLength(aIndex, nullptr);
+    GetRadialGradientWithLength(aIndex, nsnull);
 
   return lengthElement ? GetLengthValueFromElement(aIndex, *lengthElement)
                        : aDefaultValue;
@@ -580,7 +580,7 @@ nsSVGRadialGradientFrame::GetLengthValueFromElement(PRUint32 aIndex,
     gradientUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX,
     "Unknown gradientUnits type");
 
-  return length.GetAnimValue(static_cast<nsSVGSVGElement*>(nullptr));
+  return length.GetAnimValue(static_cast<nsSVGSVGElement*>(nsnull));
 }
 
 nsSVGRadialGradientElement *

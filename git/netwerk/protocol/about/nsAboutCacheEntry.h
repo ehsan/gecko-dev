@@ -29,7 +29,7 @@ public:
     NS_DECL_NSICACHEMETADATAVISITOR
 
     nsAboutCacheEntry()
-        : mBuffer(nullptr)
+        : mBuffer(nsnull)
     {}
 
     virtual ~nsAboutCacheEntry() {}

@@ -70,7 +70,7 @@ public:
   typedef const char* KeyType;
   typedef const char* KeyTypePointer;
 
-  EntityToUnicodeEntry(const char* aKey) { mNode = nullptr; }
+  EntityToUnicodeEntry(const char* aKey) { mNode = nsnull; }
   EntityToUnicodeEntry(const EntityToUnicodeEntry& aEntry) { mNode = aEntry.mNode; }
   ~EntityToUnicodeEntry() { };
 
@@ -151,7 +151,7 @@ testTHashtable(nsTHashtable<EntityToUnicodeEntry>& hash, PRUint32 numEntries) {
   printf("not found; good.\n");
 
   printf("Enumerating:\n");
-  PRUint32 count = hash.EnumerateEntries(nsTEnumGo, nullptr);
+  PRUint32 count = hash.EnumerateEntries(nsTEnumGo, nsnull);
   if (count != numEntries) {
     printf("  Bad count!\n");
     exit (6);
@@ -383,7 +383,7 @@ main(void) {
   testTHashtable(EntityToUnicode, 5);
 
   printf("Enumerate-removing...\n");
-  PRUint32 count = EntityToUnicode.EnumerateEntries(nsTEnumStop, nullptr);
+  PRUint32 count = EntityToUnicode.EnumerateEntries(nsTEnumStop, nsnull);
   if (count != 5) {
     printf("wrong count\n");
     exit (7);
@@ -391,7 +391,7 @@ main(void) {
   printf("OK\n");
 
   printf("Check enumeration...");
-  count = EntityToUnicode.EnumerateEntries(nsTEnumGo, nullptr);
+  count = EntityToUnicode.EnumerateEntries(nsTEnumGo, nsnull);
   if (count) {
     printf("entries remain in table!\n");
     exit (8);
@@ -406,7 +406,7 @@ main(void) {
   printf("OK\n");
 
   printf("Check enumeration...");
-  count = EntityToUnicode.EnumerateEntries(nsTEnumGo, nullptr);
+  count = EntityToUnicode.EnumerateEntries(nsTEnumGo, nsnull);
   if (count) {
     printf("entries remain in table!\n");
     exit (9);
@@ -455,7 +455,7 @@ main(void) {
       
   printf("Enumerating:\n");
   
-  count = UniToEntity.EnumerateRead(nsDEnumRead, nullptr);
+  count = UniToEntity.EnumerateRead(nsDEnumRead, nsnull);
   if (count != ENTITY_COUNT) {
     printf("  Bad count!\n");
     exit (14);
@@ -466,7 +466,7 @@ main(void) {
   printf("OK\n");
 
   printf("Checking count...");
-  count = UniToEntity.Enumerate(nsDEnum, nullptr);
+  count = UniToEntity.Enumerate(nsDEnum, nsnull);
   if (count) {
     printf("  Clear did not remove all entries.\n");
     exit (15);
@@ -514,7 +514,7 @@ main(void) {
       
   printf("Enumerating:\n");
   
-  count = UniToEntityL.EnumerateRead(nsDEnumRead, nullptr);
+  count = UniToEntityL.EnumerateRead(nsDEnumRead, nsnull);
   if (count != ENTITY_COUNT) {
     printf("  Bad count!\n");
     exit (14);
@@ -525,7 +525,7 @@ main(void) {
   printf("OK\n");
 
   printf("Checking count...");
-  count = UniToEntityL.Enumerate(nsDEnum, nullptr);
+  count = UniToEntityL.Enumerate(nsDEnum, nsnull);
   if (count) {
     printf("  Clear did not remove all entries.\n");
     exit (15);
@@ -576,7 +576,7 @@ main(void) {
       
   printf("Enumerating:\n");
   
-  count = EntToUniClass.EnumerateRead(nsCEnumRead, nullptr);
+  count = EntToUniClass.EnumerateRead(nsCEnumRead, nsnull);
   if (count != ENTITY_COUNT) {
     printf("  Bad count!\n");
     exit (20);
@@ -587,7 +587,7 @@ main(void) {
   printf("  Clearing OK\n");
 
   printf("Checking count...");
-  count = EntToUniClass.Enumerate(nsCEnum, nullptr);
+  count = EntToUniClass.Enumerate(nsCEnum, nsnull);
   if (count) {
     printf("  Clear did not remove all entries.\n");
     exit (21);
@@ -637,7 +637,7 @@ main(void) {
       
   printf("Enumerating:\n");
   
-  count = EntToUniClassL.EnumerateRead(nsCEnumRead, nullptr);
+  count = EntToUniClassL.EnumerateRead(nsCEnumRead, nsnull);
   if (count != ENTITY_COUNT) {
     printf("  Bad count!\n");
     exit (20);
@@ -648,7 +648,7 @@ main(void) {
   printf("  Clearing OK\n");
 
   printf("Checking count...");
-  count = EntToUniClassL.Enumerate(nsCEnum, nullptr);
+  count = EntToUniClassL.Enumerate(nsCEnum, nsnull);
   if (count) {
     printf("  Clear did not remove all entries.\n");
     exit (21);
@@ -707,7 +707,7 @@ main(void) {
       
   printf("Enumerating:\n");
   
-  count = EntToUniClass2.EnumerateRead(nsIEnum2Read, nullptr);
+  count = EntToUniClass2.EnumerateRead(nsIEnum2Read, nsnull);
   if (count != ENTITY_COUNT) {
     printf("  Bad count!\n");
     exit (26);
@@ -718,7 +718,7 @@ main(void) {
   printf("  Clearing OK\n");
 
   printf("Checking count...");
-  count = EntToUniClass2.Enumerate(nsIEnum2, nullptr);
+  count = EntToUniClass2.Enumerate(nsIEnum2, nsnull);
   if (count) {
     printf("  Clear did not remove all entries.\n");
     exit (27);
@@ -775,7 +775,7 @@ main(void) {
       
   printf("Enumerating:\n");
   
-  count = UniToEntClass2.EnumerateRead(nsIEnumRead, nullptr);
+  count = UniToEntClass2.EnumerateRead(nsIEnumRead, nsnull);
   if (count != ENTITY_COUNT) {
     printf("  Bad count!\n");
     exit (32);
@@ -786,7 +786,7 @@ main(void) {
   printf("  Clearing OK\n");
 
   printf("Checking count...");
-  count = UniToEntClass2.Enumerate(nsIEnum, nullptr);
+  count = UniToEntClass2.Enumerate(nsIEnum, nsnull);
   if (count) {
     printf("  Clear did not remove all entries.\n");
     exit (33);
@@ -842,7 +842,7 @@ main(void) {
       
   printf("Enumerating:\n");
   
-  count = UniToEntClass2L.EnumerateRead(nsIEnumRead, nullptr);
+  count = UniToEntClass2L.EnumerateRead(nsIEnumRead, nsnull);
   if (count != ENTITY_COUNT) {
     printf("  Bad count!\n");
     exit (32);
@@ -853,7 +853,7 @@ main(void) {
   printf("  Clearing OK\n");
 
   printf("Checking count...");
-  count = UniToEntClass2L.Enumerate(nsIEnum, nullptr);
+  count = UniToEntClass2L.Enumerate(nsIEnum, nsnull);
   if (count) {
     printf("  Clear did not remove all entries.\n");
     exit (33);

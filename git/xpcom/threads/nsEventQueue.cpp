@@ -18,8 +18,8 @@ static PRLogModuleInfo *sLog = PR_NewLogModule("nsEventQueue");
 
 nsEventQueue::nsEventQueue()
   : mReentrantMonitor("nsEventQueue.mReentrantMonitor")
-  , mHead(nullptr)
-  , mTail(nullptr)
+  , mHead(nsnull)
+  , mTail(nsnull)
   , mOffsetHead(0)
   , mOffsetTail(0)
 {
@@ -44,7 +44,7 @@ nsEventQueue::GetEvent(bool mayWait, nsIRunnable **result)
     while (IsEmpty()) {
       if (!mayWait) {
         if (result)
-          *result = nullptr;
+          *result = nsnull;
         return false;
       }
       LOG(("EVENTQ(%p): wait begin\n", this)); 

@@ -79,7 +79,7 @@ nsresult
 txToDocHandlerFactory::createHandlerWith(txOutputFormat* aFormat,
                                          txAXMLEventHandler** aHandler)
 {
-    *aHandler = nullptr;
+    *aHandler = nsnull;
     switch (aFormat->mMethod) {
         case eMethodNotSet:
         case eXMLOutput:
@@ -128,7 +128,7 @@ txToDocHandlerFactory::createHandlerWith(txOutputFormat* aFormat,
                                          PRInt32 aNsID,
                                          txAXMLEventHandler** aHandler)
 {
-    *aHandler = nullptr;
+    *aHandler = nsnull;
     switch (aFormat->mMethod) {
         case eMethodNotSet:
         {
@@ -174,7 +174,7 @@ nsresult
 txToFragmentHandlerFactory::createHandlerWith(txOutputFormat* aFormat,
                                               txAXMLEventHandler** aHandler)
 {
-    *aHandler = nullptr;
+    *aHandler = nsnull;
     switch (aFormat->mMethod) {
         case eMethodNotSet:
         {
@@ -218,7 +218,7 @@ txToFragmentHandlerFactory::createHandlerWith(txOutputFormat* aFormat,
                                               PRInt32 aNsID,
                                               txAXMLEventHandler** aHandler)
 {
-    *aHandler = nullptr;
+    *aHandler = nsnull;
     NS_ASSERTION(aFormat->mMethod != eMethodNotSet,
                  "How can method not be known when root element is?");
     NS_ENSURE_TRUE(aFormat->mMethod != eMethodNotSet, NS_ERROR_UNEXPECTED);
@@ -264,12 +264,12 @@ public:
     {
         NS_ASSERTION(aValue, "setting variablevalue to null");
         mValue = aValue;
-        mTxValue = nullptr;
+        mTxValue = nsnull;
     }
     void setValue(txAExprResult* aValue)
     {
         NS_ASSERTION(aValue, "setting variablevalue to null");
-        mValue = nullptr;
+        mValue = nsnull;
         mTxValue = aValue;
     }
 
@@ -316,7 +316,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(txMozillaXSLTProcessor)
     NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XSLTProcessor)
 NS_INTERFACE_MAP_END
 
-txMozillaXSLTProcessor::txMozillaXSLTProcessor() : mStylesheetDocument(nullptr),
+txMozillaXSLTProcessor::txMozillaXSLTProcessor() : mStylesheetDocument(nsnull),
                                                    mTransformResult(NS_OK),
                                                    mCompileResult(NS_OK),
                                                    mFlags(0)
@@ -399,7 +399,7 @@ public:
     nsresult getVariable(PRInt32 aNamespace, nsIAtom* aLName,
                          txAExprResult*& aResult)
     {
-        aResult = nullptr;
+        aResult = nsnull;
         return NS_ERROR_INVALID_ARG;
     }
     bool isStripSpaceAllowed(const txXPathNode& aNode)
@@ -408,7 +408,7 @@ public:
     }
     void* getPrivateContext()
     {
-        return nullptr;
+        return nsnull;
     }
     txResultRecycler* recycler()
     {
@@ -481,7 +481,7 @@ txMozillaXSLTProcessor::AddXSLTParam(const nsString& aName,
         NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
-        value = new StringResult(aValue, nullptr);
+        value = new StringResult(aValue, nsnull);
         NS_ENSURE_TRUE(value, NS_ERROR_OUT_OF_MEMORY);
     }
 
@@ -522,7 +522,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    mProcessor->TransformToDoc(nullptr);
+    mProcessor->TransformToDoc(nsnull);
     return NS_OK;
   }
 };
@@ -550,7 +550,7 @@ txMozillaXSLTProcessor::DoTransform()
     if (NS_FAILED(rv)) {
         // XXX Maybe we should just display the source document in this case?
         //     Also, set up context information, see bug 204655.
-        reportError(rv, nullptr, nullptr);
+        reportError(rv, nsnull, nsnull);
     }
 
     return rv;
@@ -661,7 +661,7 @@ txMozillaXSLTProcessor::TransformToDoc(nsIDOMDocument **aResult)
     }
     else if (mObserver) {
         // XXX set up context information, bug 204655
-        reportError(rv, nullptr, nullptr);
+        reportError(rv, nsnull, nsnull);
     }
 
     return rv;
@@ -968,9 +968,9 @@ txMozillaXSLTProcessor::Reset()
     if (mStylesheetDocument) {
         mStylesheetDocument->RemoveMutationObserver(this);
     }
-    mStylesheet = nullptr;
-    mStylesheetDocument = nullptr;
-    mEmbeddedStylesheetRoot = nullptr;
+    mStylesheet = nsnull;
+    mStylesheetDocument = nsnull;
+    mEmbeddedStylesheetRoot = nsnull;
     mCompileResult = NS_OK;
     mVariables.clear();
 
@@ -1011,7 +1011,7 @@ txMozillaXSLTProcessor::LoadStyleSheet(nsIURI* aUri, nsILoadGroup* aLoadGroup)
         CopyUTF8toUTF16(spec, mSourceText);
         nsresult status = NS_ERROR_GET_MODULE(rv) == NS_ERROR_MODULE_XSLT ? rv :
                           NS_ERROR_XSLT_NETWORK_ERROR;
-        reportError(status, nullptr, nullptr);
+        reportError(status, nsnull, nsnull);
     }
     return rv;
 }
@@ -1186,8 +1186,8 @@ txMozillaXSLTProcessor::NodeWillBeDestroyed(const nsINode* aNode)
     }
 
     mCompileResult = ensureStylesheet();
-    mStylesheetDocument = nullptr;
-    mEmbeddedStylesheetRoot = nullptr;
+    mStylesheetDocument = nsnull;
+    mEmbeddedStylesheetRoot = nsnull;
 }
 
 void
@@ -1195,7 +1195,7 @@ txMozillaXSLTProcessor::CharacterDataChanged(nsIDocument* aDocument,
                                              nsIContent *aContent,
                                              CharacterDataChangeInfo* aInfo)
 {
-    mStylesheet = nullptr;
+    mStylesheet = nsnull;
 }
 
 void
@@ -1205,7 +1205,7 @@ txMozillaXSLTProcessor::AttributeChanged(nsIDocument* aDocument,
                                          nsIAtom* aAttribute,
                                          PRInt32 aModType)
 {
-    mStylesheet = nullptr;
+    mStylesheet = nsnull;
 }
 
 void
@@ -1214,7 +1214,7 @@ txMozillaXSLTProcessor::ContentAppended(nsIDocument* aDocument,
                                         nsIContent* aFirstNewContent,
                                         PRInt32 /* unused */)
 {
-    mStylesheet = nullptr;
+    mStylesheet = nsnull;
 }
 
 void
@@ -1223,7 +1223,7 @@ txMozillaXSLTProcessor::ContentInserted(nsIDocument* aDocument,
                                         nsIContent* aChild,
                                         PRInt32 /* unused */)
 {
-    mStylesheet = nullptr;
+    mStylesheet = nsnull;
 }
 
 void
@@ -1233,7 +1233,7 @@ txMozillaXSLTProcessor::ContentRemoved(nsIDocument* aDocument,
                                        PRInt32 aIndexInContainer,
                                        nsIContent* aPreviousSibling)
 {
-    mStylesheet = nullptr;
+    mStylesheet = nsnull;
 }
 
 NS_IMETHODIMP
@@ -1295,7 +1295,7 @@ txMozillaXSLTProcessor::Shutdown()
 nsresult
 txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
 
     PRUint16 dataType;
     aValue->GetDataType(&dataType);
@@ -1316,7 +1316,7 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
             nsresult rv = aValue->GetAsDouble(&value);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            *aResult = new NumberResult(value, nullptr);
+            *aResult = new NumberResult(value, nsnull);
             NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
 
             NS_ADDREF(*aResult);
@@ -1355,7 +1355,7 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
             nsresult rv = aValue->GetAsAString(value);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            *aResult = new StringResult(value, nullptr);
+            *aResult = new StringResult(value, nsnull);
             NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
 
             NS_ADDREF(*aResult);
@@ -1378,7 +1378,7 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
                     return NS_ERROR_FAILURE;
                 }
 
-                *aResult = new txNodeSet(*xpathNode, nullptr);
+                *aResult = new txNodeSet(*xpathNode, nsnull);
                 if (!*aResult) {
                     return NS_ERROR_OUT_OF_MEMORY;
                 }
@@ -1395,7 +1395,7 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
 
             nsCOMPtr<nsIDOMNodeList> nodeList = do_QueryInterface(supports);
             if (nodeList) {
-                nsRefPtr<txNodeSet> nodeSet = new txNodeSet(nullptr);
+                nsRefPtr<txNodeSet> nodeSet = new txNodeSet(nsnull);
                 if (!nodeSet) {
                     return NS_ERROR_OUT_OF_MEMORY;
                 }
@@ -1439,7 +1439,7 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
                 nsDependentJSString value;
                 NS_ENSURE_TRUE(value.init(cx, str), NS_ERROR_FAILURE);
 
-                *aResult = new StringResult(value, nullptr);
+                *aResult = new StringResult(value, nsnull);
                 if (!*aResult) {
                     return NS_ERROR_OUT_OF_MEMORY;
                 }
@@ -1467,7 +1467,7 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
 
             nsISupports** values = static_cast<nsISupports**>(array);
 
-            nsRefPtr<txNodeSet> nodeSet = new txNodeSet(nullptr);
+            nsRefPtr<txNodeSet> nodeSet = new txNodeSet(nsnull);
             if (!nodeSet) {
                 NS_FREE_XPCOM_ISUPPORTS_POINTER_ARRAY(count, values);
 
