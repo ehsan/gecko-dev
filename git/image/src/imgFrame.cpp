@@ -7,6 +7,8 @@
 #include "imgFrame.h"
 #include "DiscardTracker.h"
 
+#include <limits.h>
+
 #include "prenv.h"
 
 #include "gfxPlatform.h"
@@ -18,7 +20,6 @@ static bool gDisableOptimize = false;
 #include "GeckoProfiler.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MemoryReporting.h"
-#include "nsMargin.h"
 
 #if defined(XP_WIN)
 

@@ -44,8 +44,8 @@ class GLTexture
   typedef mozilla::gl::GLContext GLContext;
 
 public:
-  GLTexture();
-  ~GLTexture();
+  GLTexture() : mTexture(0) {}
+  ~GLTexture() { Release(); }
 
   /**
    * Allocate the texture. This can only be called on the main thread.

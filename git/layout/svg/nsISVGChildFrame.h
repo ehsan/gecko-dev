@@ -8,6 +8,7 @@
 
 #include "gfxRect.h"
 #include "nsQueryFrame.h"
+#include "nsRect.h"
 
 class nsIFrame;
 class nsRenderingContext;
@@ -15,8 +16,6 @@ class nsRenderingContext;
 struct gfxMatrix;
 struct nsPoint;
 class SVGBBox;
-struct nsRect;
-struct nsIntRect;
 
 namespace mozilla {
 class SVGAnimatedLengthList;

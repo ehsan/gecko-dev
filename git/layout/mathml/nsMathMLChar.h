@@ -16,6 +16,7 @@ class nsGlyphTable;
 class nsIFrame;
 class nsDisplayListBuilder;
 class nsDisplayListSet;
+class nsRect;
 class nsPresContext;
 class nsRenderingContext;
 class nsBoundingMetrics;

@@ -3907,18 +3907,17 @@ js::ValueToSource(JSContext *cx, HandleValue v)
         return ToString<CanGC>(cx, v);
     }
 
+    RootedValue rval(cx, NullValue());
     RootedValue fval(cx);
     RootedObject obj(cx, &v.toObject());
     if (!JSObject::getProperty(cx, obj, obj, cx->names().toSource, &fval))
         return NULL;
     if (js_IsCallable(fval)) {
-        RootedValue rval(cx);
         if (!Invoke(cx, ObjectValue(*obj), fval, 0, NULL, &rval))
             return NULL;
-        return ToString<CanGC>(cx, rval);
     }
 
-    return ObjectToSource(cx, obj);
+    return ToString<CanGC>(cx, rval);
 }
 
 JSString *

@@ -19,7 +19,6 @@
 #include "nsIServiceManager.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsPIDOMWindow.h"
-#include "nsIURI.h"
 
 using namespace mozilla::a11y;
 

@@ -7,12 +7,22 @@
 #include "imgRequestProxy.h"
 #include "imgIOnloadBlocker.h"
 
+#include "nsIInputStream.h"
+#include "nsIComponentManager.h"
+#include "nsIServiceManager.h"
+#include "nsIMultiPartChannel.h"
+
+#include "nsString.h"
+#include "nsXPIDLString.h"
+#include "nsReadableUtils.h"
+#include "nsCRT.h"
+
 #include "Image.h"
 #include "ImageOps.h"
 #include "nsError.h"
 #include "ImageLogging.h"
-#include "nsCRTGlue.h"
-#include "imgINotificationObserver.h"
+
+#include "nspr.h"
 
 using namespace mozilla::image;
 

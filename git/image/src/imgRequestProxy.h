@@ -8,8 +8,11 @@
 #define imgRequestProxy_h__
 
 #include "imgIRequest.h"
+#include "imgINotificationObserver.h"
 #include "nsISecurityInfoProvider.h"
 
+#include "nsIRequestObserver.h"
+#include "nsIChannel.h"
 #include "nsILoadGroup.h"
 #include "nsISupportsPriority.h"
 #include "nsITimedChannel.h"
@@ -27,10 +30,8 @@
     {0x8f, 0x65, 0x9c, 0x46, 0x2e, 0xe2, 0xbc, 0x95} \
 }
 
-class imgINotificationObserver;
 class imgRequestNotifyRunnable;
 class imgStatusNotifyRunnable;
-class nsIntRect;
 class ProxyBehaviour;
 
 namespace mozilla {

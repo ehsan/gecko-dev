@@ -11,6 +11,7 @@
 #include <android/log.h>
 
 #include "nsGeoPosition.h"
+#include "nsPoint.h"
 #include "nsRect.h"
 #include "nsString.h"
 #include "nsTArray.h"
