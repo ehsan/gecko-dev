@@ -166,6 +166,7 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
 {
   DO_GLOBAL_REFLOW_COUNT("nsFirstLetterFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aMetrics, aReflowStatus);
+  nsresult rv = NS_OK;
 
   // Grab overflow list
   DrainOverflowFrames(aPresContext);
@@ -271,7 +272,12 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
       // Create a continuation for the child frame if it doesn't already
       // have one.
       if (!IsFloating()) {
-        CreateNextInFlow(kid);
+        nsIFrame* nextInFlow;
+        rv = CreateNextInFlow(kid, nextInFlow);
+        if (NS_FAILED(rv)) {
+          return;
+        }
+    
         // And then push it to our overflow list
         const nsFrameList& overflow = mFrames.RemoveFramesAfter(kid);
         if (overflow.NotEmpty()) {

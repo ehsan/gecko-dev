@@ -26,8 +26,9 @@
 #include "OggReader.h"
 
 // IntelWebMVideoDecoder uses the WMF backend, which is Windows Vista+ only.
-#if defined(MOZ_PDM_VPX)
+#if defined(MOZ_FMP4) && defined(MOZ_WMF)
 #include "IntelWebMVideoDecoder.h"
+#define MOZ_PDM_VPX 1
 #endif
 
 // Un-comment to enable logging of seek bisections.
@@ -221,9 +222,8 @@ WebMReader::~WebMReader()
 void WebMReader::Shutdown()
 {
 #if defined(MOZ_PDM_VPX)
-  if (mVideoTaskQueue) {
-    mVideoTaskQueue->BeginShutdown();
-    mVideoTaskQueue->AwaitShutdownAndIdle();
+  if (mTaskQueue) {
+    mTaskQueue->Shutdown();
   }
 #endif
 
@@ -231,8 +231,6 @@ void WebMReader::Shutdown()
     mVideoDecoder->Shutdown();
     mVideoDecoder = nullptr;
   }
-
-  MediaDecoderReader::Shutdown();
 }
 
 nsresult WebMReader::Init(MediaDecoderReader* aCloneDonor)
@@ -248,9 +246,9 @@ nsresult WebMReader::Init(MediaDecoderReader* aCloneDonor)
 
     InitLayersBackendType();
 
-    mVideoTaskQueue = new MediaTaskQueue(
+    mTaskQueue = new MediaTaskQueue(
       SharedThreadPool::Get(NS_LITERAL_CSTRING("IntelVP8 Video Decode")));
-    NS_ENSURE_TRUE(mVideoTaskQueue, NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(mTaskQueue, NS_ERROR_FAILURE);
   }
 #endif
 

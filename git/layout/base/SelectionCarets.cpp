@@ -565,12 +565,6 @@ SelectionCarets::SelectWord()
     return NS_OK;
   }
 
-  bool selectable;
-  ptFrame->IsSelectable(&selectable, nullptr);
-  if (!selectable) {
-    return NS_OK;
-  }
-
   nsPoint ptInFrame = mDownPoint;
   nsLayoutUtils::TransformPoint(rootFrame, ptFrame, ptInFrame);
 

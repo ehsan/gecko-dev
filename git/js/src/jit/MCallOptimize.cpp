@@ -550,14 +550,14 @@ IonBuilder::InliningStatus
 IonBuilder::inlineArrayJoin(CallInfo &callInfo)
 {
     if (callInfo.argc() != 1 || callInfo.constructing())
-        return InliningStatus_NotInlined;
+        return InliningStatus_Error;
 
     if (getInlineReturnType() != MIRType_String)
-        return InliningStatus_NotInlined;
+        return InliningStatus_Error;
     if (callInfo.thisArg()->type() != MIRType_Object)
-        return InliningStatus_NotInlined;
+        return InliningStatus_Error;
     if (callInfo.getArg(0)->type() != MIRType_String)
-        return InliningStatus_NotInlined;
+        return InliningStatus_Error;
 
     callInfo.setImplicitlyUsedUnchecked();
 

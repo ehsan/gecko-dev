@@ -14,14 +14,12 @@
 #include "nscore.h"
 
 class nsCaret;
-class nsIContent;
 class nsIDOMDragEvent;
 class nsIDOMEvent;
 class nsIDOMKeyEvent;
 class nsIDOMMouseEvent;
 class nsIPresShell;
 class nsEditor;
-class nsPresContext;
 
 // X.h defines KeyPress
 #ifdef KeyPress

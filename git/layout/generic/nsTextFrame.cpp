@@ -3382,16 +3382,13 @@ PropertyProvider::SetupJustificationSpacing(bool aPostReflow)
     return;
   }
 
-  // Remember that textrun measurements are in the run's orientation,
-  // so its advance "width" is actually a height in vertical writing modes,
-  // corresponding to the inline-direction of the frame.
   gfxFloat naturalWidth =
     mTextRun->GetAdvanceWidth(mStart.GetSkippedOffset(),
                               GetSkippedDistance(mStart, realEnd), this);
   if (mFrame->GetStateBits() & TEXT_HYPHEN_BREAK) {
     naturalWidth += GetHyphenWidth();
   }
-  mJustificationSpacing = mFrame->ISize() - naturalWidth;
+  mJustificationSpacing = mFrame->GetSize().width - naturalWidth;
   if (mJustificationSpacing <= 0) {
     // No space available
     return;
