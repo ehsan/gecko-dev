@@ -109,6 +109,7 @@ function getJSONPref(aName) {
 // or the registration was successful. This is null if a registration attempt was
 // unsuccessful.
 let gRegisteredDeferred = null;
+let gPushHandler = null;
 let gHawkClient = null;
 let gLocalizedStrings = null;
 let gInitializeTimer = null;
@@ -125,12 +126,7 @@ let gErrors = new Map();
  * and register with the Loop server.
  */
 let MozLoopServiceInternal = {
-  mocks: {
-    pushHandler: undefined,
-    webSocket: undefined,
-  },
-
-  get pushHandler() this.mocks.pushHandler || MozLoopPushHandler,
+  _mocks: {webSocket: undefined},
 
   // The uri of the Loop server.
   get loopServerUri() Services.prefs.getCharPref("loop.server"),
@@ -311,13 +307,20 @@ let MozLoopServiceInternal = {
    * Starts registration of Loop with the push server, and then will register
    * with the Loop server. It will return early if already registered.
    *
+   * @param {Object} mockPushHandler Optional, test-only mock push handler. Used
+   *                                 to allow mocking of the MozLoopPushHandler.
+   * @param {Object} mockWebSocket Optional, test-only mock webSocket. To be passed
+   *                               through to MozLoopPushHandler.
    * @returns {Promise} a promise that is resolved with no params on completion, or
    *          rejected with an error code or string.
    */
-  promiseRegisteredWithServers: function() {
+  promiseRegisteredWithServers: function(mockPushHandler, mockWebSocket) {
     if (gRegisteredDeferred) {
       return gRegisteredDeferred.promise;
     }
+
+    this._mocks.webSocket = mockWebSocket;
+    this._mocks.pushHandler = mockPushHandler;
 
     // Wrap push notification registration call-back in a Promise.
     let registerForNotification = function(channelID, onNotification) {
@@ -329,7 +332,7 @@ let MozLoopServiceInternal = {
             resolve(pushUrl);
           }
         };
-        MozLoopServiceInternal.pushHandler.register(channelID, onRegistered, onNotification);
+        gPushHandler.register(channelID, onRegistered, onNotification);
       });
     };
 
@@ -338,28 +341,27 @@ let MozLoopServiceInternal = {
     // it back to null on error.
     let result = gRegisteredDeferred.promise;
 
-    let options = this.mocks.webSocket ? { mockWebSocket: this.mocks.webSocket } : {};
-    this.pushHandler.initialize(options);
+    gPushHandler = mockPushHandler || MozLoopPushHandler;
+    let options = mockWebSocket ? {mockWebSocket: mockWebSocket} : {};
+    gPushHandler.initialize(options);
 
     let callsRegGuest = registerForNotification(MozLoopService.channelIDs.callsGuest,
                                                 LoopCalls.onNotification);
-
+ 
     let roomsRegGuest = registerForNotification(MozLoopService.channelIDs.roomsGuest,
                                                 roomsPushNotification);
-
+ 
     let callsRegFxA = registerForNotification(MozLoopService.channelIDs.callsFxA,
                                               LoopCalls.onNotification);
-
+ 
     let roomsRegFxA = registerForNotification(MozLoopService.channelIDs.roomsFxA,
                                               roomsPushNotification);
 
     Promise.all([callsRegGuest, roomsRegGuest, callsRegFxA, roomsRegFxA])
     .then((pushUrls) => {
-      return this.registerWithLoopServer(LOOP_SESSION_TYPE.GUEST,{
-        calls: pushUrls[0],
-        rooms: pushUrls[1],
-      });
-    }).then(() => {
+      return this.registerWithLoopServer(LOOP_SESSION_TYPE.GUEST,
+                                         {calls: pushUrls[0], rooms: pushUrls[1]}) })
+    .then(() => {
       // storeSessionToken could have rejected and nulled the promise if the token was malformed.
       if (!gRegisteredDeferred) {
         return;
@@ -871,13 +873,13 @@ let MozLoopServiceInternal = {
 };
 Object.freeze(MozLoopServiceInternal);
 
-let gInitializeTimerFunc = (deferredInitialization) => {
+let gInitializeTimerFunc = (deferredInitialization, mockPushHandler, mockWebSocket) => {
   // Kick off the push notification service into registering after a timeout.
   // This ensures we're not doing too much straight after the browser's finished
   // starting up.
   gInitializeTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
   gInitializeTimer.initWithCallback(Task.async(function* initializationCallback() {
-    yield MozLoopService.register().then(Task.async(function*() {
+    yield MozLoopService.register(mockPushHandler, mockWebSocket).then(Task.async(function*() {
       if (!MozLoopServiceInternal.fxAOAuthTokenData) {
         log.debug("MozLoopService: Initialized without an already logged-in account");
         deferredInitialization.resolve("initialized to guest status");
@@ -888,8 +890,8 @@ let gInitializeTimerFunc = (deferredInitialization) => {
       let registeredPromise =
             MozLoopServiceInternal.registerWithLoopServer(
               LOOP_SESSION_TYPE.FXA, {
-                calls: MozLoopServiceInternal.pushHandler.registeredChannels[MozLoopService.channelIDs.callsFxA],
-                rooms: MozLoopServiceInternal.pushHandler.registeredChannels[MozLoopService.channelIDs.roomsFxA]
+                calls: gPushHandler.registeredChannels[MozLoopService.channelIDs.callsFxA],
+                rooms: gPushHandler.registeredChannels[MozLoopService.channelIDs.roomsFxA]
               });
       registeredPromise.then(() => {
         deferredInitialization.resolve("initialized to logged-in status");
@@ -934,7 +936,7 @@ this.MozLoopService = {
    *
    * @return {Promise}
    */
-  initialize: Task.async(function*() {
+  initialize: Task.async(function*(mockPushHandler, mockWebSocket) {
     // Do this here, rather than immediately after definition, so that we can
     // stub out API functions for unit testing
     Object.freeze(this);
@@ -960,7 +962,7 @@ this.MozLoopService = {
     }
 
     let deferredInitialization = Promise.defer();
-    gInitializeTimerFunc(deferredInitialization);
+    gInitializeTimerFunc(deferredInitialization, mockPushHandler, mockWebSocket);
 
     return deferredInitialization.promise.catch(error => {
       if (typeof(error) == "object") {
@@ -1086,10 +1088,12 @@ this.MozLoopService = {
    * Starts registration of Loop with the push server, and then will register
    * with the Loop server. It will return early if already registered.
    *
+   * @param {Object} mockPushHandler Optional, test-only mock push handler. Used
+   *                                 to allow mocking of the MozLoopPushHandler.
    * @returns {Promise} a promise that is resolved with no params on completion, or
    *          rejected with an error code or string.
    */
-  register: function() {
+  register: function(mockPushHandler, mockWebSocket) {
     log.debug("registering");
     // Don't do anything if loop is not enabled.
     if (!Services.prefs.getBoolPref("loop.enabled")) {
@@ -1100,7 +1104,7 @@ this.MozLoopService = {
       throw new Error("Loop is disabled by the soft-start mechanism");
     }
 
-    return MozLoopServiceInternal.promiseRegisteredWithServers();
+    return MozLoopServiceInternal.promiseRegisteredWithServers(mockPushHandler, mockWebSocket);
   },
 
   /**
@@ -1297,8 +1301,8 @@ this.MozLoopService = {
       return tokenData;
     }).then(tokenData => {
       return gRegisteredDeferred.promise.then(Task.async(function*() {
-        let callsUrl = MozLoopServiceInternal.pushHandler.registeredChannels[MozLoopService.channelIDs.callsFxA],
-            roomsUrl = MozLoopServiceInternal.pushHandler.registeredChannels[MozLoopService.channelIDs.roomsFxA];
+        let callsUrl = gPushHandler.registeredChannels[MozLoopService.channelIDs.callsFxA],
+            roomsUrl = gPushHandler.registeredChannels[MozLoopService.channelIDs.roomsFxA];
         if (callsUrl && roomsUrl) {
           yield MozLoopServiceInternal.registerWithLoopServer(
             LOOP_SESSION_TYPE.FXA, {calls: callsUrl, rooms: roomsUrl});
@@ -1344,19 +1348,23 @@ this.MozLoopService = {
    */
   logOutFromFxA: Task.async(function*() {
     log.debug("logOutFromFxA");
-    let pushHandler = MozLoopServiceInternal.pushHandler;
-    let callsPushUrl = pushHandler.registeredChannels[MozLoopService.channelIDs.callsFxA];
-    let roomsPushUrl = pushHandler.registeredChannels[MozLoopService.channelIDs.roomsFxA];
+    let callsPushUrl, roomsPushUrl;
+    if (gPushHandler) {
+      callsPushUrl = gPushHandler.registeredChannels[MozLoopService.channelIDs.callsFxA];
+      roomsPushUrl = gPushHandler.registeredChannels[MozLoopService.channelIDs.roomsFxA];
+    }
     try {
       if (callsPushUrl) {
-        yield MozLoopServiceInternal.unregisterFromLoopServer(LOOP_SESSION_TYPE.FXA, callsPushUrl);
+        yield MozLoopServiceInternal.unregisterFromLoopServer(
+          LOOP_SESSION_TYPE.FXA, callsPushUrl);
       }
       if (roomsPushUrl) {
-        yield MozLoopServiceInternal.unregisterFromLoopServer(LOOP_SESSION_TYPE.FXA, roomsPushUrl);
+        yield MozLoopServiceInternal.unregisterFromLoopServer(
+          LOOP_SESSION_TYPE.FXA, roomsPushUrl);
       }
-    } catch (error) {
-      throw error;
-    } finally {
+    }
+    catch (error) {throw error}
+    finally {
       MozLoopServiceInternal.clearSessionToken(LOOP_SESSION_TYPE.FXA);
     }
 

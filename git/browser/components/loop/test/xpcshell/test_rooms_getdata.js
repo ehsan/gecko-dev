@@ -83,7 +83,7 @@ add_test(function test_getAllRooms() {
     returnRoomDetails(response, "Third Room Name");
   });
 
-  MozLoopService.register().then(() => {
+  MozLoopService.register(mockPushHandler).then(() => {
 
     LoopRooms.getAll((error, rooms) => {
       do_check_false(error);
@@ -113,7 +113,8 @@ add_test(function test_getAllRooms() {
   });
 });
 
-function run_test() {
+function run_test()
+{
   setupFakeLoopServer();
   mockPushHandler.registrationPushURL = kEndPointUrl;
 

@@ -102,7 +102,6 @@ function acceptDialog()
   gDialogParams.objects.insertElementAt(profileLock.nsIProfileLock, 0, false);
 
   gProfileService.selectedProfile = selectedProfile.profile;
-  gProfileService.defaultProfile = selectedProfile.profile;
   updateStartupPrefs();
 
   gDialogParams.SetInt(0, 1);

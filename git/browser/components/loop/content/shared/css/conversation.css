@@ -434,25 +434,19 @@
   cursor: pointer;
 }
 
-.feedback-category-label {
+.feedback label {
   display: block;
   line-height: 1.5em;
 }
 
-.feedback-category-radio {
+.feedback form input[type="radio"] {
   margin-right: .5em;
 }
 
-.feedback > form > .btn-success,
-.feedback-description {
+.feedback form button[type="submit"],
+.feedback form input[type="text"] {
   width: 100%;
   margin-top: 14px;
-}
-
-.feedback > form > .btn-success {
-  padding-top: .5em;
-  padding-bottom: .5em;
-  border-radius: 2px;
 }
 
 .feedback .info {

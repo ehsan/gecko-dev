@@ -1041,7 +1041,8 @@ MobileConnection::NotifyDataError(const nsAString& aMessage)
 }
 
 NS_IMETHODIMP
-MobileConnection::NotifyCFStateChanged(unsigned short aAction,
+MobileConnection::NotifyCFStateChanged(bool aSuccess,
+                                       unsigned short aAction,
                                        unsigned short aReason,
                                        const nsAString& aNumber,
                                        unsigned short aSeconds,
@@ -1054,6 +1055,7 @@ MobileConnection::NotifyCFStateChanged(unsigned short aAction,
   CFStateChangeEventInit init;
   init.mBubbles = false;
   init.mCancelable = false;
+  init.mSuccess = aSuccess;
   init.mAction = aAction;
   init.mReason = aReason;
   init.mNumber = aNumber;
