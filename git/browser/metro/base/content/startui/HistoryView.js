@@ -109,7 +109,7 @@ HistoryView.prototype = Util.extend(Object.create(View.prototype), {
   _setContextActions: function bv__setContextActions(aItem) {
     let uri = aItem.getAttribute("value");
     aItem.setAttribute("data-contextactions", "delete," + (this._pinHelper.isPinned(uri) ? "unpin" : "pin"));
-    if ("refresh" in aItem) aItem.refresh();
+    if (aItem.refresh) aItem.refresh();
   },
 
   _sendNeedsRefresh: function bv__sendNeedsRefresh(){
@@ -273,8 +273,6 @@ HistoryView.prototype = Util.extend(Object.create(View.prototype), {
         let currIcon = item.getAttribute("iconURI");
         if (currIcon != aValue) {
           item.setAttribute("iconURI", aValue);
-          if("refresh" in item)
-            item.refresh();
         }
       }
     }
