@@ -43,8 +43,6 @@
 #include "nsApplicationAccessibleWrap.h"
 #include "nsARIAGridAccessibleWrap.h"
 #include "nsARIAMap.h"
-#include "FocusManager.h"
-
 #include "nsIContentViewer.h"
 #include "nsCURILoader.h"
 #include "nsDocAccessible.h"
@@ -119,8 +117,7 @@ using namespace mozilla::a11y;
 nsAccessibilityService *nsAccessibilityService::gAccessibilityService = nsnull;
 PRBool nsAccessibilityService::gIsShutdown = PR_TRUE;
 
-nsAccessibilityService::nsAccessibilityService() :
-  nsAccDocManager(), FocusManager()
+nsAccessibilityService::nsAccessibilityService() : nsAccDocManager()
 {
   NS_TIME_FUNCTION;
 }
@@ -1855,13 +1852,3 @@ nsAccessibilityService::CreateAccessibleForXULTree(nsIContent* aContent,
   return accessible;
 }
 #endif
-
-////////////////////////////////////////////////////////////////////////////////
-// Services
-////////////////////////////////////////////////////////////////////////////////
-
-mozilla::a11y::FocusManager*
-mozilla::a11y::FocusMgr()
-{
-  return nsAccessibilityService::gAccessibilityService;
-}

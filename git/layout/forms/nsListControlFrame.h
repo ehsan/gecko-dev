@@ -152,8 +152,7 @@ public:
 
     // nsIListControlFrame
   virtual void SetComboboxFrame(nsIFrame* aComboboxFrame);
-  virtual PRInt32 GetSelectedIndex();
-  virtual already_AddRefed<nsIContent> GetCurrentOption();
+  virtual PRInt32 GetSelectedIndex(); 
 
   /**
    * Gets the text of the currently selected item.

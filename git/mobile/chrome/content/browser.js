@@ -601,7 +601,8 @@ var Browser = {
         this.closeTab(oldTab, { forceClose: true });
         oldTab = null;
       }
-    } else {
+    }
+    else {
       let params = aParams || {};
       let flags = params.flags || Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
       browser.loadURIWithFlags(aURI, flags, params.referrerURI, params.charset, params.postData);
@@ -2941,7 +2942,7 @@ Tab.prototype = {
 
     try {
       let flags = aParams.flags || Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
-      let postData = ("postData" in aParams && aParams.postData) ? aParams.postData.value : null;
+      let postData = "postData" in aParams ? aParams.postData.value : null;
       let referrerURI = "referrerURI" in aParams ? aParams.referrerURI : null;
       let charset = "charset" in aParams ? aParams.charset : null;
       browser.loadURIWithFlags(aURI, flags, referrerURI, charset, postData);

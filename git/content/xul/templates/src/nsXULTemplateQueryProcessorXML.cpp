@@ -305,10 +305,9 @@ nsXULTemplateQueryProcessorXML::CompileQuery(nsIXULTemplateBuilder* aBuilder,
         new nsXMLQuery(this, aMemberVariable, compiledexpr);
     NS_ENSURE_TRUE(query, NS_ERROR_OUT_OF_MEMORY);
 
-    for (nsIContent* condition = content->GetFirstChild();
-         condition;
-         condition = condition->GetNextSibling()) {
-
+    PRUint32 count = content->GetChildCount();
+    for (PRUint32 i = 0; i < count; ++i) {
+        nsIContent *condition = content->GetChildAt(i);
         if (condition->NodeInfo()->Equals(nsGkAtoms::assign,
                                           kNameSpaceID_XUL)) {
             nsAutoString var;

@@ -458,7 +458,7 @@ nsINode::GetChildNodes(nsIDOMNodeList** aChildNodes)
 nsresult
 nsINode::GetFirstChild(nsIDOMNode** aNode)
 {
-  nsIContent* child = GetFirstChild();
+  nsIContent* child = GetChildAt(0);
   if (child) {
     return CallQueryInterface(child, aNode);
   }
@@ -2875,9 +2875,9 @@ BindNodesInInsertPoints(nsXBLBinding* aBinding, nsIContent* aInsertParent,
       nsCOMPtr<nsIContent> insertRoot =
         inserts->ElementAt(i)->GetDefaultContent();
       if (insertRoot) {
-        for (nsCOMPtr<nsIContent> child = insertRoot->GetFirstChild();
-             child;
-             child = child->GetNextSibling()) {
+        PRUint32 j;
+        for (j = 0; j < insertRoot->GetChildCount(); ++j) {
+          nsCOMPtr<nsIContent> child = insertRoot->GetChildAt(j);
           rv = child->BindToTree(aDocument, aInsertParent,
                                  aBinding->GetBoundElement(), allowScripts);
           NS_ENSURE_SUCCESS(rv, rv);
@@ -3009,9 +3009,9 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
       if (contBinding) {
         nsCOMPtr<nsIContent> anonRoot = contBinding->GetAnonymousContent();
         PRBool allowScripts = contBinding->AllowScripts();
-        for (nsCOMPtr<nsIContent> child = anonRoot->GetFirstChild();
-             child;
-             child = child->GetNextSibling()) {
+        PRUint32 i;
+        for (i = 0; i < anonRoot->GetChildCount(); ++i) {
+          nsCOMPtr<nsIContent> child = anonRoot->GetChildAt(i);
           rv = child->BindToTree(aDocument, this, this, allowScripts);
           NS_ENSURE_SUCCESS(rv, rv);
         }
@@ -3941,10 +3941,11 @@ PRBool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
       }
 
       PRBool sawElement = PR_FALSE;
-      for (nsIContent* child = aNewChild->GetFirstChild();
-           child;
-           child = child->GetNextSibling()) {
-        if (child->IsElement()) {
+      PRUint32 count = aNewChild->GetChildCount();
+      for (PRUint32 index = 0; index < count; ++index) {
+        nsIContent* childContent = aNewChild->GetChildAt(index);
+        NS_ASSERTION(childContent, "Something went wrong");
+        if (childContent->IsElement()) {
           if (sawElement) {
             // Can't put two elements into a document
             return PR_FALSE;
@@ -3953,7 +3954,7 @@ PRBool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
         }
         // If we can put this content at the the right place, we might be ok;
         // if not, we bail out.
-        if (!IsAllowedAsChild(child, aParent, aIsReplace, aRefChild)) {
+        if (!IsAllowedAsChild(childContent, aParent, aIsReplace, aRefChild)) {
           return PR_FALSE;
         }
       }
@@ -4127,9 +4128,8 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
     // mutations to the fragment while we're inserting.
     nsAutoTArray<nsCOMPtr<nsIContent>, 50> fragChildren;
     fragChildren.SetCapacity(count);
-    for (nsIContent* child = newContent->GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
+    for (PRUint32 i = 0; i < count; i++) {
+      nsIContent* child = newContent->GetChildAt(i);
       NS_ASSERTION(child->GetCurrentDoc() == nsnull,
                    "How did we get a child with a current doc?");
       fragChildren.AppendElement(child);
@@ -4210,10 +4210,6 @@ nsINode::IsEqualNode(nsIDOMNode* aOther, PRBool* aReturn)
 nsresult
 nsINode::IsSameNode(nsIDOMNode* aOther, PRBool* aReturn)
 {
-  nsIDocument* owner = GetOwnerDoc();
-  if (owner) {
-    owner->WarnOnceAbout(nsIDocument::eIsSameNode);
-  }
   nsCOMPtr<nsINode> other = do_QueryInterface(aOther);
   *aReturn = other == this;
   return NS_OK;
@@ -5004,12 +5000,13 @@ nsGenericElement::List(FILE* out, PRInt32 aIndent,
   fprintf(out, " primaryframe=%p", static_cast<void*>(GetPrimaryFrame()));
   fprintf(out, " refcount=%d<", mRefCnt.get());
 
-  nsIContent* child = GetFirstChild();
-  if (child) {
+  PRUint32 i, length = GetChildCount();
+  if (length > 0) {
     fputs("\n", out);
-    
-    for (; child; child = child->GetNextSibling()) {
-      child->List(out, aIndent + 1);
+
+    for (i = 0; i < length; ++i) {
+      nsIContent *kid = GetChildAt(i);
+      kid->List(out, aIndent + 1);
     }
 
     for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
@@ -5030,13 +5027,12 @@ nsGenericElement::List(FILE* out, PRInt32 aIndent,
                                          getter_AddRefs(anonymousChildren));
 
     if (anonymousChildren) {
-      PRUint32 length;
       anonymousChildren->GetLength(&length);
       if (length > 0) {
         for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
         fputs("anonymous-children<\n", out);
 
-        for (PRUint32 i = 0; i < length; ++i) {
+        for (i = 0; i < length; ++i) {
           nsCOMPtr<nsIDOMNode> node;
           anonymousChildren->Item(i, getter_AddRefs(node));
           nsCOMPtr<nsIContent> child = do_QueryInterface(node);
@@ -5054,14 +5050,13 @@ nsGenericElement::List(FILE* out, PRInt32 aIndent,
                                         getter_AddRefs(contentList));
 
       NS_ASSERTION(contentList != nsnull, "oops, binding manager lied");
-      
-      PRUint32 length;
+
       contentList->GetLength(&length);
       if (length > 0) {
         for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
         fputs("content-list<\n", out);
 
-        for (PRUint32 i = 0; i < length; ++i) {
+        for (i = 0; i < length; ++i) {
           nsCOMPtr<nsIDOMNode> node;
           contentList->Item(i, getter_AddRefs(node));
           nsCOMPtr<nsIContent> child = do_QueryInterface(node);
@@ -5092,11 +5087,11 @@ nsGenericElement::DumpContent(FILE* out, PRInt32 aIndent,
 
   if(aIndent) fputs("\n", out);
 
-  for (nsIContent* child = GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  PRInt32 index, kids = GetChildCount();
+  for (index = 0; index < kids; index++) {
+    nsIContent *kid = GetChildAt(index);
     PRInt32 indent = aIndent ? aIndent + 1 : 0;
-    child->DumpContent(out, indent, aDumpAll);
+    kid->DumpContent(out, indent, aDumpAll);
   }
   for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
   fputs("</", out);

@@ -174,8 +174,7 @@ nsWindow::DumpWindows(const nsTArray<nsWindow*>& wins, int indent)
 nsWindow::nsWindow() :
     mIsVisible(PR_FALSE),
     mParent(nsnull),
-    mFocus(nsnull),
-    mIMEComposing(PR_FALSE)
+    mFocus(nsnull)
 {
 }
 

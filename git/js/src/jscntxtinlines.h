@@ -293,7 +293,7 @@ CallJSNative(JSContext *cx, Native native, const CallArgs &args)
     JSBool alreadyThrowing = cx->isExceptionPending();
 #endif
     assertSameCompartment(cx, args);
-    bool ok = native(cx, args.length(), args.base());
+    JSBool ok = native(cx, args.argc(), args.base());
     if (ok) {
         assertSameCompartment(cx, args.rval());
         JS_ASSERT_IF(!alreadyThrowing, !cx->isExceptionPending());

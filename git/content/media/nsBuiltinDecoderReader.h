@@ -50,7 +50,7 @@
 
 class nsBuiltinDecoderStateMachine;
 
-// Stores info relevant to presenting media frames.
+// Stores info relevant to presenting media samples.
 class nsVideoInfo {
 public:
   nsVideoInfo()
@@ -70,7 +70,7 @@ public:
                                     const nsIntRect& aPicture,
                                     const nsIntSize& aDisplay);
 
-  // Sample rate.
+  // Samples per second.
   PRUint32 mAudioRate;
 
   // Number of audio channels.
@@ -116,19 +116,34 @@ typedef float AudioDataValue;
 
 #endif
 
-// Holds chunk a decoded audio frames.
+// Holds chunk a decoded audio samples.
 class AudioData {
 public:
   AudioData(PRInt64 aOffset,
             PRInt64 aTime,
             PRInt64 aDuration,
-            PRUint32 aFrames,
+            PRUint32 aSamples,
             AudioDataValue* aData,
             PRUint32 aChannels)
   : mOffset(aOffset),
     mTime(aTime),
     mDuration(aDuration),
-    mFrames(aFrames),
+    mSamples(aSamples),
+    mChannels(aChannels),
+    mAudioData(aData)
+  {
+    MOZ_COUNT_CTOR(AudioData);
+  }
+
+  AudioData(PRInt64 aOffset,
+            PRInt64 aDuration,
+            PRUint32 aSamples,
+            AudioDataValue* aData,
+            PRUint32 aChannels)
+  : mOffset(aOffset),
+    mTime(-1),
+    mDuration(aDuration),
+    mSamples(aSamples),
     mChannels(aChannels),
     mAudioData(aData)
   {
@@ -140,13 +155,17 @@ public:
     MOZ_COUNT_DTOR(AudioData);
   }
 
-  // Approximate byte offset of the end of the page on which this chunk
-  // ends.
+  PRUint32 AudioDataLength() {
+    return mChannels * mSamples;
+  }
+
+  // Approximate byte offset of the end of the page on which this sample
+  // chunk ends.
   const PRInt64 mOffset;
 
-  PRInt64 mTime; // Start time of data in usecs.
+  PRInt64 mTime; // Start time of samples in usecs.
   const PRInt64 mDuration; // In usecs.
-  const PRUint32 mFrames;
+  const PRUint32 mSamples;
   const PRUint32 mChannels;
   nsAutoArrayPtr<AudioDataValue> mAudioData;
 };
@@ -343,24 +362,24 @@ template <class T> class MediaQueue : private nsDeque {
 
   PRBool AtEndOfStream() {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    return GetSize() == 0 && mEndOfStream;
+    return GetSize() == 0 && mEndOfStream;    
   }
 
-  // Returns PR_TRUE if the media queue has had it last item added to it.
+  // Returns PR_TRUE if the media queue has had it last sample added to it.
   // This happens when the media stream has been completely decoded. Note this
   // does not mean that the corresponding stream has finished playback.
   PRBool IsFinished() {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    return mEndOfStream;
+    return mEndOfStream;    
   }
 
-  // Informs the media queue that it won't be receiving any more items.
+  // Informs the media queue that it won't be receiving any more samples.
   void Finish() {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    mEndOfStream = PR_TRUE;
+    mEndOfStream = PR_TRUE;    
   }
 
-  // Returns the approximate number of microseconds of items in the queue.
+  // Returns the approximate number of microseconds of samples in the queue.
   PRInt64 Duration() {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     if (GetSize() < 2) {
@@ -380,7 +399,7 @@ private:
   mutable ReentrantMonitor mReentrantMonitor;
 
   // PR_TRUE when we've decoded the last frame of data in the
-  // bitstream for which we're queueing frame data.
+  // bitstream for which we're queueing sample-data.
   PRBool mEndOfStream;
 };
 
@@ -423,9 +442,9 @@ public:
   // or NS_ERROR_FAILURE on failure.
   virtual nsresult ReadMetadata(nsVideoInfo* aInfo) = 0;
 
-  // Stores the presentation time of the first frame we'd be able to play if
-  // we started playback at the current position. Returns the first video
-  // frame, if we have video.
+  // Stores the presentation time of the first frame/sample we'd be
+  // able to play if we started playback at the current position. Returns
+  // the first video sample, if we have video.
   VideoData* FindStartTime(PRInt64& aOutStartTime);
 
   // Moves the decode head to aTime microseconds. aStartTime and aEndTime
@@ -436,16 +455,16 @@ public:
                         PRInt64 aEndTime,
                         PRInt64 aCurrentTime) = 0;
 
-  // Queue of audio frames. This queue is threadsafe, and is accessed from
+  // Queue of audio samples. This queue is threadsafe, and is accessed from
   // the audio, decoder, state machine, and main threads.
   MediaQueue<AudioData> mAudioQueue;
 
-  // Queue of video frames. This queue is threadsafe, and is accessed from
+  // Queue of video samples. This queue is threadsafe, and is accessed from
   // the decoder, state machine, and main threads.
   MediaQueue<VideoData> mVideoQueue;
 
   // Populates aBuffered with the time ranges which are buffered. aStartTime
-  // must be the presentation time of the first frame in the media, e.g.
+  // must be the presentation time of the first sample/frame in the media, e.g.
   // the media time corresponding to playback time/position 0. This function
   // should only be called on the main thread.
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered,
@@ -483,7 +502,7 @@ public:
 
     virtual void* operator()(void* anObject) {
       const AudioData* audioData = static_cast<const AudioData*>(anObject);
-      mResult += audioData->mFrames * audioData->mChannels * sizeof(AudioDataValue);
+      mResult += audioData->mSamples * audioData->mChannels * sizeof(AudioDataValue);
       return nsnull;
     }
 
@@ -502,16 +521,16 @@ public:
 
 protected:
 
-  // Pumps the decode until we reach frames required to play at time aTarget
-  // (usecs).
+  // Pumps the decode until we reach frames/samples required to play at
+  // time aTarget (usecs).
   nsresult DecodeToTarget(PRInt64 aTarget);
 
   // Reader decode function. Matches DecodeVideoFrame() and
   // DecodeAudioData().
   typedef PRBool (nsBuiltinDecoderReader::*DecodeFn)();
 
-  // Calls aDecodeFn on *this until aQueue has an item, whereupon
-  // we return the first item.
+  // Calls aDecodeFn on *this until aQueue has a sample, whereupon
+  // we return the first sample.
   template<class Data>
   Data* DecodeToFirstData(DecodeFn aDecodeFn,
                           MediaQueue<Data>& aQueue);

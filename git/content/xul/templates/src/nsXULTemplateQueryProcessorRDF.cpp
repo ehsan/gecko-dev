@@ -1273,13 +1273,14 @@ nsXULTemplateQueryProcessorRDF::CompileExtendedQuery(nsRDFQuery* aQuery,
 
     TestNode* prevnode = idnode;
 
-    for (nsIContent* condition = aConditions->GetFirstChild();
-         condition;
-         condition = condition->GetNextSibling()) {
+    PRUint32 count = aConditions->GetChildCount();
+
+    for (PRUint32 i = 0; i < count; ++i) {
+        nsIContent *condition = aConditions->GetChildAt(i);
 
         // the <content> condition should always be the first child
         if (condition->Tag() == nsGkAtoms::content) {
-            if (condition != aConditions->GetFirstChild()) {
+            if (i) {
                 nsXULContentUtils::LogTemplateError(ERROR_TEMPLATE_CONTENT_NOT_FIRST);
                 continue;
             }

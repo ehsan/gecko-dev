@@ -72,7 +72,6 @@
 #include "nsIPresShell.h"
 #include "nsStyleAnimation.h"
 #include "nsCSSProps.h"
-#include "nsDOMFile.h"
 
 #if defined(MOZ_X11) && defined(MOZ_WIDGET_GTK2)
 #include <gdk/gdk.h>
@@ -1839,13 +1838,6 @@ nsDOMWindowUtils::GetOuterWindowWithId(PRUint64 aWindowID,
 
   *aWindow = nsGlobalWindow::GetOuterWindowWithId(aWindowID);
   NS_IF_ADDREF(*aWindow);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::WrapDOMFile(nsIFile *aFile,
-                              nsIDOMFile **aDOMFile) {
-  NS_ADDREF(*aDOMFile = new nsDOMFileFile(aFile));
   return NS_OK;
 }
 

@@ -236,10 +236,10 @@ private:
 // nsOuterWindow: Outer Window Proxy
 //*****************************************************************************
 
-class nsOuterWindowProxy : public js::Wrapper
+class nsOuterWindowProxy : public JSWrapper
 {
 public:
-  nsOuterWindowProxy() : js::Wrapper((uintN)0) {}
+  nsOuterWindowProxy() : JSWrapper((uintN)0) {}
 
   virtual bool isOuterWindow() {
     return true;

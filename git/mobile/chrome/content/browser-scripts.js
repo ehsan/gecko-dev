@@ -114,8 +114,7 @@ XPCOMUtils.defineLazyGetter(this, "CommonUI", function() {
   ["WeaveGlue", "chrome://browser/content/sync.js"],
 #endif
   ["WebappsUI", "chrome://browser/content/WebappsUI.js"],
-  ["SSLExceptions", "chrome://browser/content/exceptions.js"],
-  ["CapturePickerUI", "chrome://browser/content/CapturePickerUI.js"]
+  ["SSLExceptions", "chrome://browser/content/exceptions.js"]
 ].forEach(function (aScript) {
   let [name, script] = aScript;
   XPCOMUtils.defineLazyGetter(window, name, function() {

@@ -3782,9 +3782,9 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
 
 static void AppendNodeTextContentsRecurse(nsINode* aNode, nsAString& aResult)
 {
-  for (nsIContent* child = aNode->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  nsIContent* child;
+  PRUint32 i;
+  for (i = 0; (child = aNode->GetChildAt(i)); ++i) {
     if (child->IsElement()) {
       AppendNodeTextContentsRecurse(child, aResult);
     }
@@ -3806,9 +3806,9 @@ nsContentUtils::AppendNodeTextContent(nsINode* aNode, PRBool aDeep,
     AppendNodeTextContentsRecurse(aNode, aResult);
   }
   else {
-    for (nsIContent* child = aNode->GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
+    nsIContent* child;
+    PRUint32 i;
+    for (i = 0; (child = aNode->GetChildAt(i)); ++i) {
       if (child->IsNodeOfType(nsINode::eTEXT)) {
         child->AppendTextTo(aResult);
       }
@@ -3819,9 +3819,9 @@ nsContentUtils::AppendNodeTextContent(nsINode* aNode, PRBool aDeep,
 PRBool
 nsContentUtils::HasNonEmptyTextContent(nsINode* aNode)
 {
-  for (nsIContent* child = aNode->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  nsIContent* child;
+  PRUint32 i;
+  for (i = 0; (child = aNode->GetChildAt(i)); ++i) {
     if (child->IsNodeOfType(nsINode::eTEXT) &&
         child->TextLength() > 0) {
       return PR_TRUE;

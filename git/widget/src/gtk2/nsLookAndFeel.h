@@ -53,7 +53,6 @@ public:
     virtual nsresult GetFloatImpl(FloatID aID, float &aResult);
     virtual void RefreshImpl();
     virtual PRUnichar GetPasswordCharacterImpl();
-    virtual PRBool GetEchoPasswordImpl();
 
 protected:
     GtkStyle *mStyle;

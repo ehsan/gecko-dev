@@ -418,7 +418,6 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument *aDocument)
   }
 
   NS_LOG_ACCDOCCREATE("document creation finished", aDocument)
-  NS_LOG_ACCDOCCREATE_STACK
 
   AddListeners(aDocument, isRootDoc);
   return docAcc;

@@ -306,9 +306,9 @@ nsXMLContentSink::DidBuildModel(PRBool aTerminated)
     mIsDocumentObserver = PR_FALSE;
 
     // Check for xslt-param and xslt-param-namespace PIs
-    for (nsIContent* child = mDocument->GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
+    PRUint32 i;
+    nsIContent* child;
+    for (i = 0; (child = mDocument->GetChildAt(i)); ++i) {
       if (child->IsNodeOfType(nsINode::ePROCESSING_INSTRUCTION)) {
         nsCOMPtr<nsIDOMProcessingInstruction> pi = do_QueryInterface(child);
         CheckXSLTParamPI(pi, mXSLTProcessor, mDocument);

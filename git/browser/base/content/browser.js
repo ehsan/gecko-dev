@@ -4683,7 +4683,7 @@ var LinkTargetDisplay = {
      return this.DELAY_SHOW = Services.prefs.getIntPref("browser.overlink-delay");
   },
 
-  DELAY_HIDE: 250,
+  DELAY_HIDE: 150,
   _timer: 0,
 
   get _isVisible () XULBrowserWindow.statusTextField.label != "",

@@ -156,11 +156,6 @@ struct TokenPos;
 struct TokenPtr;
 class UpvarCookie;
 
-class Proxy;
-class ProxyHandler;
-class Wrapper;
-class CrossCompartmentWrapper;
-
 class TempAllocPolicy;
 class RuntimeAllocPolicy;
 

@@ -672,7 +672,7 @@ NS_IMETHODIMP nsTreeSelection::SetCurrentIndex(PRInt32 aIndex)
   if (aIndex != -1)
     mTree->InvalidateRow(aIndex);
 
-  // Fire DOMMenuItemActive or DOMMenuItemInactive event for tree.
+  // Fire DOMMenuItemActive event for tree
   nsCOMPtr<nsIBoxObject> boxObject = do_QueryInterface(mTree);
   NS_ASSERTION(boxObject, "no box object!");
   if (!boxObject)
@@ -683,13 +683,12 @@ NS_IMETHODIMP nsTreeSelection::SetCurrentIndex(PRInt32 aIndex)
   nsCOMPtr<nsINode> treeDOMNode(do_QueryInterface(treeElt));
   NS_ENSURE_STATE(treeDOMNode);
 
-  NS_NAMED_LITERAL_STRING(DOMMenuItemActive, "DOMMenuItemActive");
-  NS_NAMED_LITERAL_STRING(DOMMenuItemInactive, "DOMMenuItemInactive");
-
   nsRefPtr<nsPLDOMEvent> event =
-    new nsPLDOMEvent(treeDOMNode,
-                     (aIndex != -1 ? DOMMenuItemActive : DOMMenuItemInactive),
+    new nsPLDOMEvent(treeDOMNode, NS_LITERAL_STRING("DOMMenuItemActive"),
                      PR_TRUE, PR_FALSE);
+  if (!event)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   return event->PostDOMEvent();
 }
 

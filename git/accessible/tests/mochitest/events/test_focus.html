@@ -15,15 +15,11 @@
           src="../common.js"></script>
   <script type="application/javascript"
           src="../events.js"></script>
-  <script type="application/javascript"
-          src="../states.js"></script>
 
   <script type="application/javascript">
     function openCloseDialog(aID)
     {
-      this.eventSeq = [
-        new focusChecker(getNode(aID))
-      ];
+      this.DOMNode = getNode(aID);
 
       this.invoke = function openCloseDialog_invoke()
       {
@@ -33,47 +29,30 @@
 
       this.getID = function openCloseDialog_getID()
       {
-        return "Open close dialog while focus on " + prettyName(aID);
+        return "Open close dialog on " + prettyName(aID);
       }
     }
 
-    var gDialogWnd = null;
-    function getDialogDocument()
+    function focusElmWhileSubdocIsFocused(aID)
     {
-      return gDialogWnd.document;
-    }
+      this.DOMNode = getNode(aID);
 
-    function openDialog(aID)
-    {
+      this.invoke = function focusElmWhileSubdocIsFocused_invoke()
+      {
+        this.DOMNode.focus();
+      }
+
       this.eventSeq = [
-        new focusChecker(getDialogDocument)
+        new invokerChecker(EVENT_FOCUS, this.DOMNode)
       ];
 
-      this.invoke = function openDialog_invoke()
-      {
-        gDialogWnd = window.open("focus.html");
-      }
-
-      this.getID = function openDialog_getID()
-      {
-        return "Open dialog while focus on " + prettyName(aID);
-      }
-    }
-
-    function closeDialog(aID)
-    {
-      this.eventSeq = [
-        new focusChecker(aID)
+      this.unexpectedEventSeq = [
+        new invokerChecker(EVENT_FOCUS, this.DOMNode.ownerDocument)
       ];
 
-      this.invoke = function closeDialog_invoke()
+      this.getID = function focusElmWhileSubdocIsFocused_getID()
       {
-        gDialogWnd.close();
-      }
-
-      this.getID = function closeDialog_getID()
-      {
-        return "Close dialog while focus on " + prettyName(aID);
+        return "Focus element while subdocument is focused " + prettyName(aID);
       }
     }
 
@@ -90,7 +69,7 @@
 
       this.eventSeq = [
         new invokerChecker(EVENT_SHOW, this.DOMNode),
-        new focusChecker(this.DOMNode)
+        new invokerChecker(EVENT_FOCUS, this.DOMNode)
       ];
 
       this.getID = function showNFocusAlertDialog_getID()
@@ -104,7 +83,6 @@
      */
 
     //gA11yEventDumpID = "eventdump"; // debug stuff
-    //gA11yEventDumpToConsole = true;
 
     var gQueue = null;
 
@@ -112,13 +90,17 @@
     {
       gQueue = new eventQueue(EVENT_FOCUS);
 
+      gQueue.push(new synthFocus("editablearea"));
+      gQueue.push(new synthFocus("textbox"));
+
       gQueue.push(new synthFocus("button"));
-      gQueue.push(new openDialog("button"));
-      gQueue.push(new closeDialog("button"));
+      gQueue.push(new openCloseDialog("button"));
 
       var frameNode = getNode("editabledoc");
       gQueue.push(new synthFocusOnFrame(frameNode));
       gQueue.push(new openCloseDialog(frameNode.contentDocument));
+
+      gQueue.push(new focusElmWhileSubdocIsFocused("button"));
 
       gQueue.push(new showNFocusAlertDialog());
 
@@ -138,6 +120,11 @@
     Mozilla Bug 551679
   </a>
   <a target="_blank"
+     href="https://bugzilla.mozilla.org/show_bug.cgi?id=352220"
+     title=" Inconsistent focus events when returning to a document frame">
+    Mozilla Bug 352220
+  </a>
+  <a target="_blank"
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=580464"
      title="Accessible focus incorrect after JS focus() but correct after switching apps or using menu bar">
     Mozilla Bug 580464
@@ -147,6 +134,8 @@
   <pre id="test">
   </pre>
 
+  <div id="editablearea" contentEditable="true">editable area</div>
+  <input id="textbox">
   <button id="button">button</button>
   <iframe id="editabledoc" src="focus.html"></iframe>
 

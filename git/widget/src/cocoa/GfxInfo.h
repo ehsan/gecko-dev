@@ -50,8 +50,6 @@ namespace widget {
 class GfxInfo : public GfxInfoBase
 {
 public:
-
-  GfxInfo();
   // We only declare the subset of nsIGfxInfo that we actually implement. The
   // rest is brought forward from GfxInfoBase.
   NS_SCRIPTABLE NS_IMETHOD GetD2DEnabled(PRBool *aD2DEnabled);
@@ -86,7 +84,6 @@ protected:
 
 private:
 
-  void GetDeviceInfo();
   void AddCrashReportAnnotations();
   nsString mRendererIDsString;
   nsString mAdapterRAMString;
@@ -95,9 +92,6 @@ private:
   nsString mDriverVersion;
   nsString mDriverDate;
   nsString mDeviceKey;
-
-  PRUint32 mAdapterVendorID;
-  PRUint32 mAdapterDeviceID;
 
   PRUint32 mRendererIDs[16];
 };

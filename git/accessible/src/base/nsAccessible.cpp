@@ -693,12 +693,14 @@ nsAccessible::NativeState()
     state |= states::UNAVAILABLE;
   }
   else if (mContent->IsElement()) {
-    nsIFrame* frame = GetFrame();
-    if (frame && frame->IsFocusable())
+    nsIFrame *frame = GetFrame();
+    if (frame && frame->IsFocusable()) {
       state |= states::FOCUSABLE;
+    }
 
-    if (FocusMgr()->IsFocused(this))
+    if (gLastFocusedNode == mContent) {
       state |= states::FOCUSED;
+    }
   }
 
   // Check if states::INVISIBLE and
@@ -744,11 +746,16 @@ nsAccessible::GetFocusedChild(nsIAccessible** aChild)
 nsAccessible*
 nsAccessible::FocusedChild()
 {
-  nsAccessible* focus = FocusMgr()->FocusedAccessible();
-  if (focus && (focus == this || focus->Parent() == this))
-    return focus;
+  if (!gLastFocusedNode)
+    return nsnull;
+  if (gLastFocusedNode == mContent)
+    return this;
 
-  return nsnull;
+  nsAccessible* focusedChild = GetDocAccessible()->GetAccessible(gLastFocusedNode);
+  if (!focusedChild || focusedChild->Parent() != this)
+    return nsnull;
+
+  return focusedChild;
 }
 
 // nsAccessible::ChildAtPoint()
@@ -1524,7 +1531,7 @@ nsAccessible::State()
       nsAccessible* relTarget = nsnull;
       while ((relTarget = rel.Next())) {
         if (relTarget->Role() == nsIAccessibleRole::ROLE_PROPERTYPAGE &&
-            FocusMgr()->IsFocusWithin(relTarget))
+            nsCoreUtils::IsAncestorOf(relTarget->GetNode(), gLastFocusedNode))
           state |= states::SELECTED;
       }
     }
@@ -2733,14 +2740,6 @@ nsAccessible::EndOffset()
   return hyperText ? (hyperText->GetChildOffset(this) + 1) : 0;
 }
 
-bool
-nsAccessible::IsLinkSelected()
-{
-  NS_PRECONDITION(IsLink(),
-                  "IsLinkSelected() called on something that is not a hyper link!");
-  return FocusMgr()->IsFocused(this);
-}
-
 PRUint32
 nsAccessible::AnchorCount()
 {
@@ -2911,67 +2910,6 @@ nsAccessible::UnselectAll()
   return success;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Widgets
-
-bool
-nsAccessible::IsWidget() const
-{
-  return false;
-}
-
-bool
-nsAccessible::IsActiveWidget() const
-{
-  return FocusMgr()->IsFocused(this);
-}
-
-bool
-nsAccessible::AreItemsOperable() const
-{
-  return mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::aria_activedescendant);
-}
-
-nsAccessible*
-nsAccessible::CurrentItem()
-{
-  // Check for aria-activedescendant, which changes which element has focus.
-  // For activedescendant, the ARIA spec does not require that the user agent
-  // checks whether pointed node is actually a DOM descendant of the element
-  // with the aria-activedescendant attribute.
-  nsAutoString id;
-  if (mContent->GetAttr(kNameSpaceID_None,
-                        nsGkAtoms::aria_activedescendant, id)) {
-    nsIDocument* DOMDoc = mContent->GetOwnerDoc();
-    dom::Element* activeDescendantElm = DOMDoc->GetElementById(id);
-    if (activeDescendantElm) {
-      nsDocAccessible* document = GetDocAccessible();
-      if (document)
-        return document->GetAccessible(activeDescendantElm);
-    }
-  }
-  return nsnull;
-}
-
-nsAccessible*
-nsAccessible::ContainerWidget() const
-{
-  nsIAtom* idAttribute = mContent->GetIDAttributeName();
-  if (idAttribute) {
-    if (mContent->HasAttr(kNameSpaceID_None, idAttribute)) {
-      nsAccessible* parent = Parent();
-      do {
-        nsIContent* parentContent = parent->GetContent();
-        if (parentContent &&
-            parentContent->HasAttr(kNameSpaceID_None,
-                                   nsGkAtoms::aria_activedescendant)) {
-          return parent;
-        }
-      } while ((parent = parent->Parent()));
-    }
-  }
-  return nsnull;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible protected methods

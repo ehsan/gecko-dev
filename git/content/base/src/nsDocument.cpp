@@ -4933,11 +4933,12 @@ GetElementByAttribute(nsIContent* aContent, nsIAtom* aAttrName,
     return CallQueryInterface(aContent, aResult);
   }
 
-  for (nsIContent* child = aContent->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  PRUint32 childCount = aContent->GetChildCount();
 
-    GetElementByAttribute(child, aAttrName, aAttrValue, aUniversalMatch,
+  for (PRUint32 i = 0; i < childCount; ++i) {
+    nsIContent *current = aContent->GetChildAt(i);
+
+    GetElementByAttribute(current, aAttrName, aAttrValue, aUniversalMatch,
                           aResult);
 
     if (*aResult)
@@ -5114,11 +5115,10 @@ nsIDocument::GetHtmlChildElement(nsIAtom* aTag)
 
   // Look for the element with aTag inside html. This needs to run
   // forwards to find the first such element.
-  for (nsIContent* child = html->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    if (child->IsHTML(aTag))
-      return child->AsElement();
+  for (PRUint32 i = 0; i < html->GetChildCount(); ++i) {
+    nsIContent* result = html->GetChildAt(i);
+    if (result->Tag() == aTag && result->IsHTML())
+      return result->AsElement();
   }
   return nsnull;
 }
@@ -5826,7 +5826,6 @@ nsDocument::SetTextContent(const nsAString & aTextContent)
 NS_IMETHODIMP
 nsDocument::IsSameNode(nsIDOMNode *other, PRBool *aResult)
 {
-  WarnOnceAbout(eIsSameNode);
   *aResult = other == this;
   return NS_OK;
 }
@@ -5878,7 +5877,6 @@ nsDocument::Contains(nsIDOMNode* aOther, PRBool* aReturn)
 NS_IMETHODIMP
 nsDocument::GetInputEncoding(nsAString& aInputEncoding)
 {
-  WarnOnceAbout(eInputEncoding);
   if (mHaveInputEncoding) {
     return GetCharacterSet(aInputEncoding);
   }
@@ -5890,7 +5888,6 @@ nsDocument::GetInputEncoding(nsAString& aInputEncoding)
 NS_IMETHODIMP
 nsDocument::GetXmlEncoding(nsAString& aXmlEncoding)
 {
-  WarnOnceAbout(eXmlEncoding);
   if (!IsHTML() &&
       mXMLDeclarationBits & XML_DECLARATION_BITS_DECLARATION_EXISTS &&
       mXMLDeclarationBits & XML_DECLARATION_BITS_ENCODING_EXISTS) {
@@ -5907,7 +5904,6 @@ nsDocument::GetXmlEncoding(nsAString& aXmlEncoding)
 NS_IMETHODIMP
 nsDocument::GetXmlStandalone(PRBool *aXmlStandalone)
 {
-  WarnOnceAbout(eXmlStandalone);
   *aXmlStandalone = 
     !IsHTML() &&
     mXMLDeclarationBits & XML_DECLARATION_BITS_DECLARATION_EXISTS &&
@@ -5933,7 +5929,6 @@ nsDocument::GetMozSyntheticDocument(PRBool *aSyntheticDocument)
 NS_IMETHODIMP
 nsDocument::GetXmlVersion(nsAString& aXmlVersion)
 {
-  WarnOnceAbout(eXmlVersion);
   if (IsHTML()) {
     SetDOMStringToNull(aXmlVersion);
     return NS_OK;
@@ -6018,7 +6013,7 @@ BlastSubtreeToPieces(nsINode *aNode)
 
   count = aNode->GetChildCount();
   for (i = 0; i < count; ++i) {
-    BlastSubtreeToPieces(aNode->GetFirstChild());
+    BlastSubtreeToPieces(aNode->GetChildAt(0));
 #ifdef DEBUG
     nsresult rv =
 #endif
@@ -8161,7 +8156,7 @@ static const char* kWarnings[] = {
 void
 nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation)
 {
-  PR_STATIC_ASSERT(eDeprecatedOperationCount <= 64);
+  PR_STATIC_ASSERT(eDeprecatedOperationCount <= 32);
   if (mWarnedAbout & (1 << aOperation)) {
     return;
   }
