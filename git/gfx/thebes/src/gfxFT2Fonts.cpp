@@ -289,6 +289,8 @@ gfxTextRun *gfxFT2FontGroup::MakeTextRun(const PRUnichar* aString, PRUint32 aLen
     if (!textRun)
         return nsnull;
 
+    textRun->RecordSurrogates(aString);
+
     mString.Assign(nsDependentSubstring(aString, aString + aLength));
 
     InitTextRun(textRun);

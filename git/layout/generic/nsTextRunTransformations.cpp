@@ -173,13 +173,15 @@ MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
       // to merge S's (uppercase &szlig;), so it's not worth it.
 
       if (k + 1 < iter.GetStringEnd() && aCharsToMerge[k + 1]) {
-        NS_ASSERTION(g.IsClusterStart() && g.IsLigatureGroupStart(),
+        NS_ASSERTION(g.IsClusterStart() && g.IsLigatureGroupStart() &&
+                     !g.IsLowSurrogate(),
                      "Don't know how to merge this stuff");
         continue;
       }
 
       NS_ASSERTION(mergeRunStart == k ||
-                   (g.IsClusterStart() && g.IsLigatureGroupStart()),
+                   (g.IsClusterStart() && g.IsLigatureGroupStart() &&
+                    !g.IsLowSurrogate()),
                    "Don't know how to merge this stuff");
 
       // If the start of the merge run is actually a character that should

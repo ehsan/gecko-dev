@@ -714,6 +714,7 @@ gfxAtsuiFontGroup::MakeTextRun(const PRUnichar *aString, PRUint32 aLength,
     if (!textRun)
         return nsnull;
 
+    textRun->RecordSurrogates(aString);
     gfxPlatformMac::SetupClusterBoundaries(textRun, aString);
 
     PRUint32 maxLen;

@@ -53,7 +53,11 @@
 #endif
 
 int
-ArchiveReader::Open(const NS_tchar *path)
+#ifdef XP_WIN
+ArchiveReader::Open(const WCHAR *path)
+#else
+ArchiveReader::Open(const char *path)
+#endif
 {
   if (mArchive)
     Close();
@@ -79,14 +83,14 @@ ArchiveReader::Close()
 }
 
 int
-ArchiveReader::ExtractFile(const char *name, const NS_tchar *dest)
+ArchiveReader::ExtractFile(const char *name, const char *dest)
 {
   const MarItem *item = mar_find_item(mArchive, name);
   if (!item)
     return READ_ERROR;
 
 #ifdef XP_WIN
-  FILE* fp = _wfopen(dest, L"wb+");
+  FILE* fp = fopen(dest, "wb+");
 #else
   int fd = creat(dest, item->flags);
   if (fd == -1)
