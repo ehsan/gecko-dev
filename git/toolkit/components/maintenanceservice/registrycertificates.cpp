@@ -10,7 +10,6 @@
 #include "pathhash.h"
 #include "nsWindowsHelpers.h"
 #include "servicebase.h"
-#include "updatehelper.h"
 #define MAX_KEY_LENGTH 255
 
 /**

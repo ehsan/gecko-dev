@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 """
 A representation of makefile data structures.
 """
@@ -101,7 +105,7 @@ class StringExpansion(object):
         assert i == 0
         return self.s, False
 
-    def __repr__(self):
+    def __str__(self):
         return "Exp<%s>(%r)" % (self.loc, self.s)
 
 class Expansion(list):
@@ -109,13 +113,14 @@ class Expansion(list):
     A representation of expanded data, such as that for a recursively-expanded variable, a command, etc.
     """
 
-    __slots__ = ('loc',)
+    __slots__ = ('loc', 'hasfunc')
     simple = False
 
     def __init__(self, loc=None):
         # A list of (element, isfunc) tuples
         # element is either a string or a function
         self.loc = loc
+        self.hasfunc = False
 
     @staticmethod
     def fromstring(s, path):
@@ -136,6 +141,7 @@ class Expansion(list):
     def appendfunc(self, func):
         assert isinstance(func, functions.Function)
         self.append((func, True))
+        self.hasfunc = True
 
     def concat(self, o):
         """Concatenate the other expansion on to this one."""
@@ -143,6 +149,7 @@ class Expansion(list):
             self.appendstr(o.s)
         else:
             self.extend(o)
+            self.hasfunc = self.hasfunc or o.hasfunc
 
     def isempty(self):
         return (not len(self)) or self[0] == ('', False)
@@ -176,33 +183,10 @@ class Expansion(list):
             del self[-1]
 
     def finish(self):
-        # Merge any adjacent literal strings:
-        strings = []
-        elements = []
-        for (e, isfunc) in self:
-            if isfunc:
-                if strings:
-                    s = ''.join(strings)
-                    if s:
-                        elements.append((s, False))
-                    strings = []
-                elements.append((e, True))
-            else:
-                strings.append(e)
+        if self.hasfunc:
+            return self
 
-        if not elements:
-            # This can only happen if there were no function elements.
-            return StringExpansion(''.join(strings), self.loc)
-
-        if strings:
-            s = ''.join(strings)
-            if s:
-                elements.append((s, False))
-
-        if len(elements) < len(self):
-            self[:] = elements
-
-        return self
+        return StringExpansion(''.join([i for i, isfunc in self]), self.loc)
 
     def resolve(self, makefile, variables, fd, setting=[]):
         """
@@ -714,10 +698,7 @@ class RemakeRuleContext(object):
             else:
                 for d, weak in self.deps:
                     if mtimeislater(d.mtime, self.target.mtime):
-                        if d.mtime is None:
-                            self.target.beingremade()
-                        else:
-                            _log.info("%sNot remaking %s ubecause it would have no effect, even though %s is newer.", indent, self.target.target, d.target)
+                        self.target.beingremade()
                         break
             cb(error=False)
             return
