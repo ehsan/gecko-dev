@@ -162,6 +162,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIUGenCategory.h"
 #include "nsIDragService.h"
 #include "nsIChannelEventSink.h"
+#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIOfflineCacheUpdate.h"
 #include "nsCPrefetchService.h"
@@ -1013,7 +1014,7 @@ nsContentUtils::ParseIntMarginValue(const nsAString& aString, nsIntMargin& resul
 
   PRInt32 start = 0, end = 0;
   for (int count = 0; count < 4; count++) {
-    if (end >= marginStr.Length())
+    if ((PRUint32)end >= marginStr.Length())
       return PR_FALSE;
 
     // top, right, bottom, left
@@ -5020,6 +5021,21 @@ nsContentUtils::GetCurrentJSContext()
 
 /* static */
 void
+nsContentUtils::ASCIIToLower(nsAString& aStr)
+{
+  PRUnichar* iter = aStr.BeginWriting();
+  PRUnichar* end = aStr.EndWriting();
+  while (iter != end) {
+    PRUnichar c = *iter;
+    if (c >= 'A' && c <= 'Z') {
+      *iter = c + ('a' - 'A');
+    }
+    ++iter;
+  }
+}
+
+/* static */
+void
 nsContentUtils::ASCIIToLower(const nsAString& aSource, nsAString& aDest)
 {
   PRUint32 len = aSource.Length();
@@ -5050,6 +5066,26 @@ nsContentUtils::ASCIIToUpper(nsAString& aStr)
       *iter = c + ('A' - 'a');
     }
     ++iter;
+  }
+}
+
+/* static */
+void
+nsContentUtils::ASCIIToUpper(const nsAString& aSource, nsAString& aDest)
+{
+  PRUint32 len = aSource.Length();
+  aDest.SetLength(len);
+  if (aDest.Length() == len) {
+    PRUnichar* dest = aDest.BeginWriting();
+    const PRUnichar* iter = aSource.BeginReading();
+    const PRUnichar* end = aSource.EndReading();
+    while (iter != end) {
+      PRUnichar c = *iter;
+      *dest = (c >= 'a' && c <= 'z') ?
+         c + ('A' - 'a') : c;
+      ++iter;
+      ++dest;
+    }
   }
 }
 
@@ -5114,14 +5150,14 @@ NS_IMPL_ISUPPORTS2(nsSameOriginChecker,
                    nsIInterfaceRequestor)
 
 NS_IMETHODIMP
-nsSameOriginChecker::OnChannelRedirect(nsIChannel *aOldChannel,
-                                       nsIChannel *aNewChannel,
-                                       PRUint32    aFlags)
+nsSameOriginChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
+                                            nsIChannel *aNewChannel,
+                                            PRUint32 aFlags,
+                                            nsIAsyncVerifyRedirectCallback *cb)
 {
   NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
-  if (!nsContentUtils::GetSecurityManager()) {
+  if (!nsContentUtils::GetSecurityManager())
     return NS_ERROR_NOT_AVAILABLE;
-  }
 
   nsCOMPtr<nsIPrincipal> oldPrincipal;
   nsContentUtils::GetSecurityManager()->
@@ -5138,7 +5174,12 @@ nsSameOriginChecker::OnChannelRedirect(nsIChannel *aOldChannel,
   if (NS_SUCCEEDED(rv) && newOriginalURI != newURI) {
     rv = oldPrincipal->CheckMayLoad(newOriginalURI, PR_FALSE);
   }
-  return rv;
+
+  if (NS_FAILED(rv))
+      return rv;
+
+  cb->OnRedirectVerifyCallback(NS_OK);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -6277,7 +6318,7 @@ nsIContentUtils::FindInternalContentViewer(const char* aType,
 #ifdef MOZ_MEDIA
 #ifdef MOZ_OGG
   if (nsHTMLMediaElement::IsOggEnabled()) {
-    for (int i = 0; i < NS_ARRAY_LENGTH(nsHTMLMediaElement::gOggTypes); ++i) {
+    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(nsHTMLMediaElement::gOggTypes); ++i) {
       const char* type = nsHTMLMediaElement::gOggTypes[i];
       if (!strcmp(aType, type)) {
         docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
@@ -6292,7 +6333,7 @@ nsIContentUtils::FindInternalContentViewer(const char* aType,
 
 #ifdef MOZ_WEBM
   if (nsHTMLMediaElement::IsWebMEnabled()) {
-    for (int i = 0; i < NS_ARRAY_LENGTH(nsHTMLMediaElement::gWebMTypes); ++i) {
+    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(nsHTMLMediaElement::gWebMTypes); ++i) {
       const char* type = nsHTMLMediaElement::gWebMTypes[i];
       if (!strcmp(aType, type)) {
         docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
