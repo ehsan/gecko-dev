@@ -40,9 +40,9 @@ function cmd(typed, expectedNumEvents=1, output=null) {
     audit.output = output;
   }
 
-  return helpers.audit(gOptions, [audit]).then(function() {
-    return deferred.promise;
-  });
+  helpers.audit(gOptions, [audit]);
+
+  return deferred.promise;
 }
 
 function test() {

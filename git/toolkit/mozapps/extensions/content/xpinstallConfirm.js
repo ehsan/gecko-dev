@@ -4,6 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+var args
+
 var XPInstallConfirm = {};
 
 XPInstallConfirm.init = function XPInstallConfirm_init()
@@ -13,12 +15,9 @@ XPInstallConfirm.init = function XPInstallConfirm_init()
   var _focused;
   var _timeout;
 
-  // Default to cancelling the install when the window unloads
-  XPInstallConfirm._installOK = false;
-
   var bundle = document.getElementById("xpinstallConfirmStrings");
 
-  let args = window.arguments[0].wrappedJSObject;
+  args = window.arguments[0].wrappedJSObject;
 
   var _installCountdownLength = 5;
   try {
@@ -123,17 +122,6 @@ XPInstallConfirm.init = function XPInstallConfirm_init()
     document.removeEventListener("focus", myfocus, true);
     document.removeEventListener("blur", myblur, true);
     window.removeEventListener("unload", myUnload, false);
-
-    // Now perform the desired action - either install the
-    // addons or cancel the installations
-    if (XPInstallConfirm._installOK) {
-      for (let install of args.installs)
-        install.install();
-    }
-    else {
-      for (let install of args.installs)
-        install.cancel();
-    }
   }
 
   if (_installCountdownLength > 0) {
@@ -154,14 +142,14 @@ XPInstallConfirm.onOK = function XPInstallConfirm_onOk()
     getService(Components.interfaces.nsITelemetry).
     getHistogramById("SECURITY_UI").
     add(Components.interfaces.nsISecurityUITelemetry.WARNING_CONFIRM_ADDON_INSTALL_CLICK_THROUGH);
-  // Perform the install or cancel after the window has unloaded
-  XPInstallConfirm._installOK = true;
+  for (let install of args.installs)
+    install.install();
   return true;
 }
 
 XPInstallConfirm.onCancel = function XPInstallConfirm_onCancel()
 {
-  // Perform the install or cancel after the window has unloaded
-  XPInstallConfirm._installOK = false;
+  for (let install of args.installs)
+    install.cancel();
   return true;
 }

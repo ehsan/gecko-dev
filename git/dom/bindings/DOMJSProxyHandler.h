@@ -9,7 +9,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
 
-#include "jsapi.h"
 #include "jsproxy.h"
 #include "nsStringGlue.h"
 

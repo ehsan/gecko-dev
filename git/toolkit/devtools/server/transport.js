@@ -192,11 +192,7 @@ DebuggerTransport.prototype = {
     dumpn("Got: " + packet);
     let self = this;
     Services.tm.currentThread.dispatch(makeInfallible(function() {
-      // Ensure the hooks are still around by the time this runs (they will go
-      // away when the transport is closed).
-      if (self.hooks) {
-        self.hooks.onPacket(parsed);
-      }
+      self.hooks.onPacket(parsed);
     }, "DebuggerTransport instance's this.hooks.onPacket"), 0);
 
     return true;

@@ -10,7 +10,11 @@
  * debugging global.
  */
 
-const { Ci, Cc, CC, Cu, Cr, components: Components } = require("chrome");
+const Ci = Components.interfaces;
+const Cc = Components.classes;
+const CC = Components.Constructor;
+const Cu = Components.utils;
+const Cr = Components.results;
 const DBG_STRINGS_URI = "chrome://global/locale/devtools/debugger.properties";
 
 Cu.import("resource://gre/modules/Services.jsm");
@@ -21,24 +25,7 @@ const promptConnections = Services.prefs.getBoolPref("devtools.debugger.prompt-c
 Cu.import("resource://gre/modules/jsdebugger.jsm");
 addDebuggerToGlobal(this);
 
-function loadSubScript(aURL)
-{
-  try {
-    let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
-      .getService(Ci.mozIJSSubScriptLoader);
-    loader.loadSubScript(aURL, this);
-  } catch(e) {
-    let errorStr = "Error loading: " + aURL + ": " + e + " - " + e.stack + "\n";
-    dump(errorStr);
-    Cu.reportError(errorStr);
-    throw e;
-  }
-}
-
-let loaderRequire = require;
-this.require = null;
 loadSubScript.call(this, "resource://gre/modules/commonjs/sdk/core/promise.js");
-this.require = loaderRequire;
 
 Cu.import("resource://gre/modules/devtools/SourceMap.jsm");
 
@@ -272,7 +259,9 @@ var DebuggerServer = {
     }
 
     let moduleAPI = ModuleAPI();
-    let mod = require(id);
+
+    let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
+    let mod = devtools.require(id);
     mod.register(moduleAPI);
     gRegisteredModules[id] = { module: mod, api: moduleAPI };
   },
@@ -618,7 +607,6 @@ var DebuggerServer = {
   }
 };
 
-exports.DebuggerServer = DebuggerServer;
 
 /**
  * Construct an ActorPool.
@@ -633,8 +621,6 @@ function ActorPool(aConnection)
   this._cleanups = {};
   this._actors = {};
 }
-
-exports.ActorPool = ActorPool;
 
 ActorPool.prototype = {
   /**

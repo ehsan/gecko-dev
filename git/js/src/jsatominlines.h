@@ -193,26 +193,14 @@ TypeName(JSType type, JSContext *cx)
 }
 
 inline Handle<PropertyName*>
-ClassName(JSProtoKey key, JSAtomState &atomState)
+ClassName(JSProtoKey key, ExclusiveContext *cx)
 {
     JS_ASSERT(key < JSProto_LIMIT);
     JS_STATIC_ASSERT(offsetof(JSAtomState, Null) +
                      JSProto_LIMIT * sizeof(FixedHeapPtr<PropertyName>) <=
                      sizeof(JSAtomState));
     JS_STATIC_ASSERT(JSProto_Null == 0);
-    return (&atomState.Null)[key];
-}
-
-inline Handle<PropertyName*>
-ClassName(JSProtoKey key, JSRuntime *rt)
-{
-    return ClassName(key, rt->atomState);
-}
-
-inline Handle<PropertyName*>
-ClassName(JSProtoKey key, ExclusiveContext *cx)
-{
-    return ClassName(key, cx->names());
+    return (&cx->names().Null)[key];
 }
 
 } // namespace js
