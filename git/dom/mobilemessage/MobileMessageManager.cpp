@@ -439,10 +439,9 @@ MobileMessageManager::GetMessages(const MobileMessageFilter& aFilter,
     return nullptr;
   }
 
-  cursorCallback->mDOMCursor =
-    new MobileMessageCursor(GetOwner(), continueCallback);
+  cursorCallback->mDOMCursor = new DOMCursor(GetOwner(), continueCallback);
 
-  nsRefPtr<DOMCursor> cursor(cursorCallback->mDOMCursor);
+  nsRefPtr<DOMCursor> cursor = cursorCallback->mDOMCursor;
   return cursor.forget();
 }
 
@@ -492,10 +491,9 @@ MobileMessageManager::GetThreads(ErrorResult& aRv)
     return nullptr;
   }
 
-  cursorCallback->mDOMCursor =
-    new MobileMessageCursor(GetOwner(), continueCallback);
+  cursorCallback->mDOMCursor = new DOMCursor(GetOwner(), continueCallback);
 
-  nsRefPtr<DOMCursor> cursor(cursorCallback->mDOMCursor);
+  nsRefPtr<DOMCursor> cursor = cursorCallback->mDOMCursor;
   return cursor.forget();
 }
 

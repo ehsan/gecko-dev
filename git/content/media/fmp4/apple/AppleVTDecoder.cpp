@@ -17,7 +17,6 @@
 #include "AppleVTLinker.h"
 #include "prlog.h"
 #include "MediaData.h"
-#include "mozilla/ArrayUtils.h"
 #include "VideoUtils.h"
 
 #ifdef PR_LOGGING
@@ -464,31 +463,11 @@ AppleVTDecoder::InitializeSession()
       kCFBooleanTrue);
 #endif
 
-  // Contruct output configuration.
-  SInt32 PixelFormatTypeValue = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
-  AutoCFRelease<CFNumberRef> PixelFormatTypeNumber =
-    CFNumberCreate(kCFAllocatorDefault,
-                   kCFNumberSInt32Type,
-                   &PixelFormatTypeValue);
-
-  const void* outputKeys[] = { kCVPixelBufferPixelFormatTypeKey };
-  const void* outputValues[] = { PixelFormatTypeNumber };
-  static_assert(ArrayLength(outputKeys) == ArrayLength(outputValues),
-                "Non matching keys/values array size");
-
-  AutoCFRelease<CFDictionaryRef> outputConfiguration =
-    CFDictionaryCreate(kCFAllocatorDefault,
-                       outputKeys,
-                       outputValues,
-                       ArrayLength(outputKeys),
-                       &kCFTypeDictionaryKeyCallBacks,
-                       &kCFTypeDictionaryValueCallBacks);
-
   VTDecompressionOutputCallbackRecord cb = { PlatformCallback, this };
   rv = VTDecompressionSessionCreate(NULL, // Allocator.
                                     mFormat,
                                     spec, // Video decoder selection.
-                                    outputConfiguration, // Output video format.
+                                    NULL, // Output video format.
                                     &cb,
                                     &mSession);
   if (rv != noErr) {

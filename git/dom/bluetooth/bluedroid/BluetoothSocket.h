@@ -13,7 +13,6 @@
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothSocketObserver;
-class BluetoothSocketResultHandler;
 class DroidSocketImpl;
 
 class BluetoothSocket : public mozilla::ipc::SocketConsumerBase
@@ -48,14 +47,8 @@ public:
     mDeviceAddress = aDeviceAddress;
   }
 
-  inline void SetCurrentResultHandler(BluetoothSocketResultHandler* aRes)
-  {
-    mCurrentRes = aRes;
-  }
-
 private:
   BluetoothSocketObserver* mObserver;
-  BluetoothSocketResultHandler* mCurrentRes;
   DroidSocketImpl* mImpl;
   nsString mDeviceAddress;
   bool mAuth;

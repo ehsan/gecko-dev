@@ -23,7 +23,7 @@
 #include "mozilla/gfx/Logging.h"        // for gfx::TreeLog
 #include "UnitTransforms.h"             // for ViewAs
 #include "gfxPrefs.h"                   // for gfxPrefs
-#include "OverscrollHandoffState.h"     // for OverscrollHandoffState
+#include "OverscrollHandoffChain.h"     // for OverscrollHandoffChain
 #include "LayersLogging.h"              // for Stringify
 
 #define APZCTM_LOG(...)
@@ -893,19 +893,18 @@ bool
 APZCTreeManager::DispatchScroll(AsyncPanZoomController* aPrev,
                                 ScreenPoint aStartPoint,
                                 ScreenPoint aEndPoint,
-                                OverscrollHandoffState& aOverscrollHandoffState)
+                                const OverscrollHandoffChain& aOverscrollHandoffChain,
+                                uint32_t aOverscrollHandoffChainIndex)
 {
-  const OverscrollHandoffChain& overscrollHandoffChain = aOverscrollHandoffState.mChain;
-  uint32_t overscrollHandoffChainIndex = aOverscrollHandoffState.mChainIndex;
   nsRefPtr<AsyncPanZoomController> next;
   // If we have reached the end of the overscroll handoff chain, there is
   // nothing more to scroll, so we ignore the rest of the pan gesture.
-  if (overscrollHandoffChainIndex >= overscrollHandoffChain.Length()) {
+  if (aOverscrollHandoffChainIndex >= aOverscrollHandoffChain.Length()) {
     // Nothing more to scroll - ignore the rest of the pan gesture.
     return false;
   }
 
-  next = overscrollHandoffChain.GetApzcAtIndex(overscrollHandoffChainIndex);
+  next = aOverscrollHandoffChain.GetApzcAtIndex(aOverscrollHandoffChainIndex);
 
   if (next == nullptr || next->IsDestroyed()) {
     return false;
@@ -922,7 +921,8 @@ APZCTreeManager::DispatchScroll(AsyncPanZoomController* aPrev,
 
   // Scroll |next|. If this causes overscroll, it will call DispatchScroll()
   // again with an incremented index.
-  return next->AttemptScroll(aStartPoint, aEndPoint, aOverscrollHandoffState);
+  return next->AttemptScroll(aStartPoint, aEndPoint, aOverscrollHandoffChain,
+      aOverscrollHandoffChainIndex);
 }
 
 bool

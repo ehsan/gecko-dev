@@ -66,7 +66,7 @@ public:
 
   void BindEGLImage();
 
-  bool Lock();
+  void Lock();
 
 protected:
   CompositorOGL* mCompositor;

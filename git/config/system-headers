@@ -200,8 +200,6 @@ atlwin.cpp
 ATSTypes.h
 ATSUnicode.h
 #ifdef ANDROID
-audio_effects/effect_aec.h
-audio_effects/effect_ns.h
 AudioParameter.h
 AudioSystem.h
 AudioTrack.h
@@ -733,8 +731,6 @@ Math64.h
 math.h
 mbstring.h
 #ifdef ANDROID
-media/AudioEffect.h
-media/AudioSystem.h
 media/ICrypto.h
 media/IOMX.h
 media/MediaProfiles.h

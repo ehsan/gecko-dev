@@ -268,11 +268,7 @@ let OpenH264Provider = {
 
     if (this.gmpPath && enabled) {
       this._log.info("startup() - adding gmp directory " + this.gmpPath);
-      try {
-        gmpService.addPluginDirectory(this.gmpPath);
-      } catch (e if e.name == 'NS_ERROR_NOT_AVAILABLE') {
-        this._log.warning("startup() - adding gmp directory failed with " + e.name + " - sandboxing not available?");
-      }
+      gmpService.addPluginDirectory(this.gmpPath);
     }
   },
 

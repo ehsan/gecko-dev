@@ -346,16 +346,11 @@ pref("media.peerconnection.identity.timeout", 10000);
 // kXxxUnchanged = 0, kXxxDefault = 1, and higher values are specific to each
 // setting (for Xxx = Ec, Agc, or Ns).  Defaults are all set to kXxxDefault here.
 pref("media.peerconnection.turn.disable", false);
-#if defined(MOZ_WEBRTC_HARDWARE_AEC_NS)
-pref("media.getusermedia.aec_enabled", false);
-pref("media.getusermedia.noise_enabled", false);
-#else
 pref("media.getusermedia.aec_enabled", true);
-pref("media.getusermedia.noise_enabled", true);
-#endif
-pref("media.getusermedia.noise", 1);
 pref("media.getusermedia.agc_enabled", false);
 pref("media.getusermedia.agc", 1);
+pref("media.getusermedia.noise_enabled", true);
+pref("media.getusermedia.noise", 1);
 // Adjustments for OS-specific input delay (lower bound)
 // Adjustments for OS-specific AudioStream+cubeb+output delay (lower bound)
 #if defined(XP_MACOSX)
@@ -463,7 +458,6 @@ pref("apz.num_paint_duration_samples", 3);
 pref("apz.overscroll.enabled", false);
 pref("apz.overscroll.fling_friction", "0.02");
 pref("apz.overscroll.fling_stopped_threshold", "0.4");
-pref("apz.overscroll.min_pan_distance_ratio", "1.0");
 pref("apz.overscroll.stretch_factor", "0.5");
 pref("apz.overscroll.snap_back.spring_stiffness", "0.6");
 pref("apz.overscroll.snap_back.spring_friction", "0.1");
@@ -3966,12 +3960,6 @@ pref("dom.sms.requestStatusReport", true);
 // Numeric default service id for SMS API calls with |serviceId| parameter
 // omitted.
 pref("dom.sms.defaultServiceId", 0);
-// MobileMessage GetMessages/GetThreads read ahead aggressiveness.
-//
-// positive: finite read-ahead entries,
-// 0: don't read ahead unless explicitly requested, (default)
-// negative: read ahead all IDs if possible.
-pref("dom.sms.maxReadAheadEntries", 0);
 
 // WebContacts
 pref("dom.mozContacts.enabled", false);

@@ -65,8 +65,6 @@ public:
 
   void Accept(int aFd, BluetoothSocketResultHandler* aRes);
 
-  void Close(BluetoothSocketResultHandler* aRes);
-
 protected:
   BluetoothSocketInterface(const btsock_interface_t* aInterface);
   ~BluetoothSocketInterface();

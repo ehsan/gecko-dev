@@ -313,19 +313,30 @@ Navigator::Invalidate()
 NS_IMETHODIMP
 Navigator::GetUserAgent(nsAString& aUserAgent)
 {
-  nsCOMPtr<nsIURI> codebaseURI;
-  nsCOMPtr<nsPIDOMWindow> window;
+  nsresult rv = NS_GetNavigatorUserAgent(aUserAgent);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  if (mWindow && mWindow->GetDocShell()) {
-    window = mWindow;
-    nsIDocument* doc = mWindow->GetExtantDoc();
-    if (doc) {
-      doc->NodePrincipal()->GetURI(getter_AddRefs(codebaseURI));
-    }
+  if (!mWindow || !mWindow->GetDocShell()) {
+    return NS_OK;
   }
 
-  return GetUserAgent(window, codebaseURI, nsContentUtils::IsCallerChrome(),
-                      aUserAgent);
+  nsIDocument* doc = mWindow->GetExtantDoc();
+  if (!doc) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIURI> codebaseURI;
+  doc->NodePrincipal()->GetURI(getter_AddRefs(codebaseURI));
+  if (!codebaseURI) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsISiteSpecificUserAgent> siteSpecificUA =
+    do_GetService("@mozilla.org/dom/site-specific-user-agent;1");
+  NS_ENSURE_TRUE(siteSpecificUA, NS_OK);
+
+  return siteSpecificUA->GetUserAgentForURIAndWindow(codebaseURI, mWindow,
+                                                     aUserAgent);
 }
 
 NS_IMETHODIMP
@@ -347,13 +358,13 @@ Navigator::GetAppCodeName(nsAString& aAppCodeName)
 NS_IMETHODIMP
 Navigator::GetAppVersion(nsAString& aAppVersion)
 {
-  return GetAppVersion(aAppVersion, /* aUsePrefOverriddenValue */ true);
+  return NS_GetNavigatorAppVersion(aAppVersion);
 }
 
 NS_IMETHODIMP
 Navigator::GetAppName(nsAString& aAppName)
 {
-  AppName(aAppName, /* aUsePrefOverriddenValue */ true);
+  NS_GetNavigatorAppName(aAppName);
   return NS_OK;
 }
 
@@ -444,7 +455,7 @@ Navigator::GetLanguages(nsTArray<nsString>& aLanguages)
 NS_IMETHODIMP
 Navigator::GetPlatform(nsAString& aPlatform)
 {
-  return GetPlatform(aPlatform, /* aUsePrefOverriddenValue */ true);
+  return NS_GetNavigatorPlatform(aPlatform);
 }
 
 NS_IMETHODIMP
@@ -2442,12 +2453,29 @@ Navigator::GetWindowFromGlobal(JSObject* aGlobal)
   return win.forget();
 }
 
-nsresult
-Navigator::GetPlatform(nsAString& aPlatform, bool aUsePrefOverriddenValue)
-{
-  MOZ_ASSERT(NS_IsMainThread());
+} // namespace dom
+} // namespace mozilla
 
-  if (aUsePrefOverriddenValue && !nsContentUtils::IsCallerChrome()) {
+nsresult
+NS_GetNavigatorUserAgent(nsAString& aUserAgent)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsIHttpProtocolHandler>
+    service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAutoCString ua;
+  rv = service->GetUserAgent(ua);
+  CopyASCIItoUTF16(ua, aUserAgent);
+
+  return rv;
+}
+
+nsresult
+NS_GetNavigatorPlatform(nsAString& aPlatform)
+{
+  if (!nsContentUtils::IsCallerChrome()) {
     const nsAdoptingString& override =
       mozilla::Preferences::GetString("general.platform.override");
 
@@ -2486,13 +2514,10 @@ Navigator::GetPlatform(nsAString& aPlatform, bool aUsePrefOverriddenValue)
 
   return rv;
 }
-
-/* static */ nsresult
-Navigator::GetAppVersion(nsAString& aAppVersion, bool aUsePrefOverriddenValue)
+nsresult
+NS_GetNavigatorAppVersion(nsAString& aAppVersion)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (aUsePrefOverriddenValue && !nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsCallerChrome()) {
     const nsAdoptingString& override =
       mozilla::Preferences::GetString("general.appversion.override");
 
@@ -2524,12 +2549,10 @@ Navigator::GetAppVersion(nsAString& aAppVersion, bool aUsePrefOverriddenValue)
   return rv;
 }
 
-/* static */ void
-Navigator::AppName(nsAString& aAppName, bool aUsePrefOverriddenValue)
+void
+NS_GetNavigatorAppName(nsAString& aAppName)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (aUsePrefOverriddenValue && !nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsCallerChrome()) {
     const nsAdoptingString& override =
       mozilla::Preferences::GetString("general.appname.override");
 
@@ -2541,53 +2564,3 @@ Navigator::AppName(nsAString& aAppName, bool aUsePrefOverriddenValue)
 
   aAppName.AssignLiteral("Netscape");
 }
-
-nsresult
-Navigator::GetUserAgent(nsPIDOMWindow* aWindow, nsIURI* aURI,
-                        bool aIsCallerChrome,
-                        nsAString& aUserAgent)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (!aIsCallerChrome) {
-    const nsAdoptingString& override =
-      mozilla::Preferences::GetString("general.useragent.override");
-
-    if (override) {
-      aUserAgent = override;
-      return NS_OK;
-    }
-  }
-
-  nsresult rv;
-  nsCOMPtr<nsIHttpProtocolHandler>
-    service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  nsAutoCString ua;
-  rv = service->GetUserAgent(ua);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  CopyASCIItoUTF16(ua, aUserAgent);
-
-  if (!aWindow || !aURI) {
-    return NS_OK;
-  }
-
-  MOZ_ASSERT(aWindow->GetDocShell());
-
-  nsCOMPtr<nsISiteSpecificUserAgent> siteSpecificUA =
-    do_GetService("@mozilla.org/dom/site-specific-user-agent;1");
-  if (!siteSpecificUA) {
-    return NS_OK;
-  }
-
-  return siteSpecificUA->GetUserAgentForURIAndWindow(aURI, aWindow, aUserAgent);
-}
-
-} // namespace dom
-} // namespace mozilla

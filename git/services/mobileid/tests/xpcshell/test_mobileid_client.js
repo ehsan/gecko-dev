@@ -9,6 +9,11 @@ Cu.import("resource://gre/modules/MobileIdentityClient.jsm");
 
 /* Setup */
 
+do_get_profile();
+
+const PREF_FORCE_HTTPS = "services.mobileid.forcehttps";
+Services.prefs.setBoolPref(PREF_FORCE_HTTPS, false);
+
 let client;
 let server = new HttpServer();
 

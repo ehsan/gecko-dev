@@ -61,7 +61,6 @@
 #include "nsThreadManager.h"
 #endif
 
-#include "Principal.h"
 #include "ServiceWorker.h"
 #include "SharedWorker.h"
 #include "WorkerPrivate.h"
@@ -123,10 +122,6 @@ static_assert(MAX_WORKERS_PER_DOMAIN >= 1,
 #define GC_REQUEST_OBSERVER_TOPIC "child-gc-request"
 #define CC_REQUEST_OBSERVER_TOPIC "child-cc-request"
 #define MEMORY_PRESSURE_OBSERVER_TOPIC "memory-pressure"
-
-#define PREF_GENERAL_APPNAME_OVERRIDE "general.appname.override"
-#define PREF_GENERAL_APPVERSION_OVERRIDE "general.appversion.override"
-#define PREF_GENERAL_PLATFORM_OVERRIDE "general.platform.override"
 
 #define BROADCAST_ALL_WORKERS(_func, ...)                                      \
   PR_BEGIN_MACRO                                                               \
@@ -856,7 +851,6 @@ public:
                               WORKER_DEFAULT_NURSERY_SIZE),
     mWorkerPrivate(aWorkerPrivate)
   {
-    JS_InitDestroyPrincipalsCallback(Runtime(), DestroyWorkerPrincipals);
   }
 
   ~WorkerJSRuntime()
@@ -1030,48 +1024,6 @@ private:
     return mTask->RunTask(aCx);
   }
 };
-
-void
-AppNameOverrideChanged(const char* /* aPrefName */, void* /* aClosure */)
-{
-  AssertIsOnMainThread();
-
-  const nsAdoptingString& override =
-    mozilla::Preferences::GetString(PREF_GENERAL_APPNAME_OVERRIDE);
-
-  RuntimeService* runtime = RuntimeService::GetService();
-  if (runtime) {
-    runtime->UpdateAppNameOverridePreference(override);
-  }
-}
-
-void
-AppVersionOverrideChanged(const char* /* aPrefName */, void* /* aClosure */)
-{
-  AssertIsOnMainThread();
-
-  const nsAdoptingString& override =
-    mozilla::Preferences::GetString(PREF_GENERAL_APPVERSION_OVERRIDE);
-
-  RuntimeService* runtime = RuntimeService::GetService();
-  if (runtime) {
-    runtime->UpdateAppVersionOverridePreference(override);
-  }
-}
-
-void
-PlatformOverrideChanged(const char* /* aPrefName */, void* /* aClosure */)
-{
-  AssertIsOnMainThread();
-
-  const nsAdoptingString& override =
-    mozilla::Preferences::GetString(PREF_GENERAL_PLATFORM_OVERRIDE);
-
-  RuntimeService* runtime = RuntimeService::GetService();
-  if (runtime) {
-    runtime->UpdatePlatformOverridePreference(override);
-  }
-}
 
 } /* anonymous namespace */
 
@@ -1495,18 +1447,14 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   }
   else {
     if (!mNavigatorPropertiesLoaded) {
-      Navigator::AppName(mNavigatorProperties.mAppName,
-                         false /* aUsePrefOverriddenValue */);
-      if (NS_FAILED(Navigator::GetAppVersion(mNavigatorProperties.mAppVersion,
-                                             false /* aUsePrefOverriddenValue */)) ||
-          NS_FAILED(Navigator::GetPlatform(mNavigatorProperties.mPlatform,
-                                           false /* aUsePrefOverriddenValue */))) {
+      NS_GetNavigatorAppName(mNavigatorProperties.mAppName);
+      if (NS_FAILED(NS_GetNavigatorAppVersion(mNavigatorProperties.mAppVersion)) ||
+          NS_FAILED(NS_GetNavigatorPlatform(mNavigatorProperties.mPlatform)) ||
+          NS_FAILED(NS_GetNavigatorUserAgent(mNavigatorProperties.mUserAgent))) {
         JS_ReportError(aCx, "Failed to load navigator strings!");
         UnregisterWorker(aCx, aWorkerPrivate);
         return false;
       }
-
-      // The navigator overridden properties should have already been read.
 
       mNavigatorPropertiesLoaded = true;
     }
@@ -1848,18 +1796,6 @@ RuntimeService::Init()
                                                    PREF_WORKERS_OPTIONS_PREFIX,
                                                    nullptr)) ||
       NS_FAILED(Preferences::RegisterCallbackAndCall(
-                                                  AppNameOverrideChanged,
-                                                  PREF_GENERAL_APPNAME_OVERRIDE,
-                                                  nullptr)) ||
-      NS_FAILED(Preferences::RegisterCallbackAndCall(
-                                               AppVersionOverrideChanged,
-                                               PREF_GENERAL_APPVERSION_OVERRIDE,
-                                               nullptr)) ||
-      NS_FAILED(Preferences::RegisterCallbackAndCall(
-                                                 PlatformOverrideChanged,
-                                                 PREF_GENERAL_PLATFORM_OVERRIDE,
-                                                 nullptr)) ||
-      NS_FAILED(Preferences::RegisterCallbackAndCall(
                                                  JSVersionChanged,
                                                  PREF_WORKERS_LATEST_JS_VERSION,
                                                  nullptr))) {
@@ -2004,15 +1940,6 @@ RuntimeService::Cleanup()
   if (mObserved) {
     if (NS_FAILED(Preferences::UnregisterCallback(JSVersionChanged,
                                                   PREF_WORKERS_LATEST_JS_VERSION,
-                                                  nullptr)) ||
-        NS_FAILED(Preferences::UnregisterCallback(AppNameOverrideChanged,
-                                                  PREF_GENERAL_APPNAME_OVERRIDE,
-                                                  nullptr)) ||
-        NS_FAILED(Preferences::UnregisterCallback(AppVersionOverrideChanged,
-                                                  PREF_GENERAL_APPVERSION_OVERRIDE,
-                                                  nullptr)) ||
-        NS_FAILED(Preferences::UnregisterCallback(PlatformOverrideChanged,
-                                                  PREF_GENERAL_PLATFORM_OVERRIDE,
                                                   nullptr)) ||
         NS_FAILED(Preferences::UnregisterCallback(LoadRuntimeOptions,
                                                   PREF_JS_OPTIONS_PREFIX,
@@ -2472,27 +2399,6 @@ void
 RuntimeService::UpdateAllWorkerRuntimeOptions()
 {
   BROADCAST_ALL_WORKERS(UpdateRuntimeOptions, sDefaultJSSettings.runtimeOptions);
-}
-
-void
-RuntimeService::UpdateAppNameOverridePreference(const nsAString& aValue)
-{
-  AssertIsOnMainThread();
-  mNavigatorProperties.mAppNameOverridden = aValue;
-}
-
-void
-RuntimeService::UpdateAppVersionOverridePreference(const nsAString& aValue)
-{
-  AssertIsOnMainThread();
-  mNavigatorProperties.mAppVersionOverridden = aValue;
-}
-
-void
-RuntimeService::UpdatePlatformOverridePreference(const nsAString& aValue)
-{
-  AssertIsOnMainThread();
-  mNavigatorProperties.mPlatformOverridden = aValue;
 }
 
 void

@@ -881,7 +881,7 @@ PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
       this,
       &PeerConnectionImpl::IceConnectionStateChange);
 
-  mMedia->SignalCandidate.connect(this, &PeerConnectionImpl::CandidateReady);
+  mMedia->SignalCandidate.connect(this, &PeerConnectionImpl::CandidateReady_s);
 
   // Initialize the media object.
   res = mMedia->Init(aConfiguration->getStunServers(),
@@ -2090,10 +2090,54 @@ toDomIceGatheringState(NrIceCtx::GatheringState state) {
   MOZ_CRASH();
 }
 
+// This is called from the STS thread and so we need to thunk
+// to the main thread.
+void PeerConnectionImpl::IceConnectionStateChange(
+    NrIceCtx* ctx,
+    NrIceCtx::ConnectionState state) {
+  (void)ctx;
+  // Do an async call here to unwind the stack. refptr keeps the PC alive.
+  nsRefPtr<PeerConnectionImpl> pc(this);
+  RUN_ON_THREAD(mThread,
+                WrapRunnable(pc,
+                             &PeerConnectionImpl::IceConnectionStateChange_m,
+                             toDomIceConnectionState(state)),
+                NS_DISPATCH_NORMAL);
+}
+
 void
-PeerConnectionImpl::CandidateReady(const std::string& candidate,
-                                   uint16_t level) {
-  PC_AUTO_ENTER_API_CALL_VOID_RETURN(false);
+PeerConnectionImpl::IceGatheringStateChange(
+    NrIceCtx* ctx,
+    NrIceCtx::GatheringState state)
+{
+  (void)ctx;
+  // Do an async call here to unwind the stack. refptr keeps the PC alive.
+  nsRefPtr<PeerConnectionImpl> pc(this);
+  RUN_ON_THREAD(mThread,
+                WrapRunnable(pc,
+                             &PeerConnectionImpl::IceGatheringStateChange_m,
+                             toDomIceGatheringState(state)),
+                NS_DISPATCH_NORMAL);
+}
+
+void
+PeerConnectionImpl::CandidateReady_s(const std::string& candidate,
+                                     uint16_t level)
+{
+  ASSERT_ON_THREAD(mSTSThread);
+  nsRefPtr<PeerConnectionImpl> pc(this);
+  RUN_ON_THREAD(mThread,
+                WrapRunnable(pc,
+                             &PeerConnectionImpl::CandidateReady_m,
+                             candidate,
+                             level),
+                NS_DISPATCH_NORMAL);
+}
+
+nsresult
+PeerConnectionImpl::CandidateReady_m(const std::string& candidate,
+                                     uint16_t level) {
+  PC_AUTO_ENTER_API_CALL(false);
 
   if (mLocalSDP.empty()) {
     // It is not appropriate to trickle yet; buffer.
@@ -2103,6 +2147,8 @@ PeerConnectionImpl::CandidateReady(const std::string& candidate,
       mInternal->mCall->foundICECandidate(candidate, "", level, nullptr);
     }
   }
+
+  return NS_OK;
 }
 
 void
@@ -2114,7 +2160,7 @@ PeerConnectionImpl::StartTrickle() {
   }
 
   // If the buffer was empty to begin with, we have already sent the
-  // end-of-candidates event in IceGatheringStateChange.
+  // end-of-candidates event in IceGatheringStateChange_m.
   if (mIceGatheringState == PCImplIceGatheringState::Complete &&
       !mCandidateBuffer.empty()) {
     SendEndOfCandidates();
@@ -2160,35 +2206,33 @@ static bool isFailed(PCImplIceConnectionState state) {
 }
 #endif
 
-void PeerConnectionImpl::IceConnectionStateChange(
-    NrIceCtx* ctx,
-    NrIceCtx::ConnectionState state) {
-  PC_AUTO_ENTER_API_CALL_VOID_RETURN(false);
+nsresult
+PeerConnectionImpl::IceConnectionStateChange_m(PCImplIceConnectionState aState)
+{
+  PC_AUTO_ENTER_API_CALL(false);
 
   CSFLogDebug(logTag, "%s", __FUNCTION__);
 
-  auto domState = toDomIceConnectionState(state);
-
 #ifdef MOZILLA_INTERNAL_API
-  if (!isDone(mIceConnectionState) && isDone(domState)) {
+  if (!isDone(mIceConnectionState) && isDone(aState)) {
     // mIceStartTime can be null if going directly from New to Closed, in which
     // case we don't count it as a success or a failure.
     if (!mIceStartTime.IsNull()){
       TimeDuration timeDelta = TimeStamp::Now() - mIceStartTime;
-      if (isSucceeded(domState)) {
+      if (isSucceeded(aState)) {
         Telemetry::Accumulate(Telemetry::WEBRTC_ICE_SUCCESS_TIME,
                               timeDelta.ToMilliseconds());
-      } else if (isFailed(domState)) {
+      } else if (isFailed(aState)) {
         Telemetry::Accumulate(Telemetry::WEBRTC_ICE_FAILURE_TIME,
                               timeDelta.ToMilliseconds());
       }
     }
 
-    if (isSucceeded(domState)) {
+    if (isSucceeded(aState)) {
       Telemetry::Accumulate(
           Telemetry::WEBRTC_ICE_ADD_CANDIDATE_ERRORS_GIVEN_SUCCESS,
           mAddCandidateErrorCount);
-    } else if (isFailed(domState)) {
+    } else if (isFailed(aState)) {
       Telemetry::Accumulate(
           Telemetry::WEBRTC_ICE_ADD_CANDIDATE_ERRORS_GIVEN_FAILURE,
           mAddCandidateErrorCount);
@@ -2196,7 +2240,7 @@ void PeerConnectionImpl::IceConnectionStateChange(
   }
 #endif
 
-  mIceConnectionState = domState;
+  mIceConnectionState = aState;
 
   // Would be nice if we had a means of converting one of these dom enums
   // to a string that wasn't almost as much text as this switch statement...
@@ -2232,7 +2276,7 @@ void PeerConnectionImpl::IceConnectionStateChange(
 
   nsRefPtr<PeerConnectionObserver> pco = do_QueryObjectReferent(mPCObserver);
   if (!pco) {
-    return;
+    return NS_OK;
   }
   WrappableJSErrorResult rv;
   RUN_ON_THREAD(mThread,
@@ -2241,18 +2285,17 @@ void PeerConnectionImpl::IceConnectionStateChange(
                              PCObserverStateType::IceConnectionState,
                              rv, static_cast<JSCompartment*>(nullptr)),
                 NS_DISPATCH_NORMAL);
+  return NS_OK;
 }
 
-void
-PeerConnectionImpl::IceGatheringStateChange(
-    NrIceCtx* ctx,
-    NrIceCtx::GatheringState state)
+nsresult
+PeerConnectionImpl::IceGatheringStateChange_m(PCImplIceGatheringState aState)
 {
-  PC_AUTO_ENTER_API_CALL_VOID_RETURN(false);
+  PC_AUTO_ENTER_API_CALL(false);
 
   CSFLogDebug(logTag, "%s", __FUNCTION__);
 
-  mIceGatheringState = toDomIceGatheringState(state);
+  mIceGatheringState = aState;
 
   // Would be nice if we had a means of converting one of these dom enums
   // to a string that wasn't almost as much text as this switch statement...
@@ -2272,7 +2315,7 @@ PeerConnectionImpl::IceGatheringStateChange(
 
   nsRefPtr<PeerConnectionObserver> pco = do_QueryObjectReferent(mPCObserver);
   if (!pco) {
-    return;
+    return NS_OK;
   }
   WrappableJSErrorResult rv;
   RUN_ON_THREAD(mThread,
@@ -2286,6 +2329,8 @@ PeerConnectionImpl::IceGatheringStateChange(
       mCandidateBuffer.empty()) {
     SendEndOfCandidates();
   }
+
+  return NS_OK;
 }
 
 #ifdef MOZILLA_INTERNAL_API

@@ -937,7 +937,8 @@ public:
    * an overscrolled state itself if it can.
    */
   bool AttemptScroll(const ScreenPoint& aStartPoint, const ScreenPoint& aEndPoint,
-                     OverscrollHandoffState& aOverscrollHandoffState);
+                     const OverscrollHandoffChain& aOverscrollHandoffChain,
+                     uint32_t aOverscrollHandoffChainIndex = 0);
 
   void FlushRepaintForOverscrollHandoff();
 
@@ -955,15 +956,8 @@ private:
    */
   bool CallDispatchScroll(const ScreenPoint& aStartPoint,
                           const ScreenPoint& aEndPoint,
-                          OverscrollHandoffState& aOverscrollHandoffState);
-
-  /**
-   * A helper function for overscrolling during panning. This is a wrapper
-   * around OverscrollBy() that also implements restrictions on entering
-   * overscroll based on the pan angle.
-   */
-  bool OverscrollForPanning(ScreenPoint aOverscroll,
-                            const ScreenPoint& aPanDistance);
+                          const OverscrollHandoffChain& aOverscrollHandoffChain,
+                          uint32_t aOverscrollHandoffChainIndex);
 
   /**
    * Try to overscroll by 'aOverscroll'.
@@ -971,7 +965,7 @@ private:
    * and the function returns true.
    * Otherwise, nothing happens and the function return false.
    */
-  bool OverscrollBy(const ScreenPoint& aOverscroll);
+  bool OverscrollBy(const CSSPoint& aOverscroll);
 
   /**
    * Build the chain of APZCs along which scroll will be handed off when

@@ -148,10 +148,7 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       NS_ASSERTION(tileComposer, "compositable is not a tile composer");
 
       const SurfaceDescriptorTiles& tileDesc = op.tileLayerDescriptor();
-      bool success = tileComposer->UseTiledLayerBuffer(this, tileDesc);
-      if (!success) {
-        return false;
-      }
+      tileComposer->UseTiledLayerBuffer(this, tileDesc);
       break;
     }
     case CompositableOperation::TOpRemoveTexture: {

@@ -949,12 +949,6 @@ gfxWindowsPlatform::IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlag
     return true;
 }
 
-bool
-gfxWindowsPlatform::DidRenderingDeviceReset()
-{
-  return GetD3D10Device() && GetD3D10Device()->GetDeviceRemovedReason() != S_OK;
-}
-
 gfxFontFamily *
 gfxWindowsPlatform::FindFontFamily(const nsAString& aName)
 {

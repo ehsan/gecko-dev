@@ -595,12 +595,7 @@ function onTabSharingMenuPopupShowing(e) {
     let types = streamInfo.types;
     if (types.Camera.value)
       stringName += "Camera";
-    if (types.Microphone.value ||
-        // If there's a shared camera and a screen/app/window share,
-        // pretend the microphone is also shared to workaround bug 1063957.
-        types.Camera.value && (types.Screen.value ||
-                               types.Application.value ||
-                               types.Window.value))
+    if (types.Microphone.value)
       stringName += "Microphone";
     if (types.Screen.value)
       stringName += "Screen";

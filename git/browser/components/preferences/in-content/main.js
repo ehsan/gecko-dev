@@ -590,12 +590,7 @@ var gMainPane = {
     let shellSvc = getShellService();
     if (!shellSvc)
       return;
-    try {
-      shellSvc.setDefaultBrowser(true, false);
-    } catch (ex) {
-      Cu.reportError(ex);
-      return;
-    }
+    shellSvc.setDefaultBrowser(true, false);
     let selectedIndex =
       shellSvc.isDefaultBrowser(false, true) ? 1 : 0;
     document.getElementById("setDefaultPane").selectedIndex = selectedIndex;

@@ -66,6 +66,7 @@ private:
   bool mResamplingEnabled;
   bool mTouchEventsFiltered;
   bool mEnabledUniformityInfo;
+  int mTouchDownCount;
 
   // All times below are in nanoseconds
   int32_t mVsyncAdjust;     // Time from vsync we create sample times from

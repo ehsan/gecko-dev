@@ -230,12 +230,6 @@ public:
   void ConstructMediaTracks(AudioTrackList* aAudioTrackList,
                             VideoTrackList* aVideoTrackList);
 
-  /**
-   * MUST call this before the AudioTrackList or VideoTrackList go away
-   */
-  void DisconnectTrackListListeners(const AudioTrackList* aAudioTrackList,
-                                    const VideoTrackList* aVideoTrackList);
-
   virtual void NotifyMediaStreamTrackCreated(MediaStreamTrack* aTrack);
 
   virtual void NotifyMediaStreamTrackEnded(MediaStreamTrack* aTrack);

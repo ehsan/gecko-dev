@@ -620,24 +620,13 @@ WinUtils::GetMessage(LPMSG aMsg, HWND aWnd, UINT aFirstMessage,
 
 /* static */
 void
-WinUtils::WaitForMessage(DWORD aTimeoutMs)
+WinUtils::WaitForMessage()
 {
-  const DWORD waitStart = ::GetTickCount();
-  DWORD elapsed = 0;
   while (true) {
-    if (aTimeoutMs != INFINITE) {
-      elapsed = ::GetTickCount() - waitStart;
-    }
-    if (elapsed >= aTimeoutMs) {
-      break;
-    }
-    DWORD result = ::MsgWaitForMultipleObjectsEx(0, NULL, aTimeoutMs - elapsed,
+    DWORD result = ::MsgWaitForMultipleObjectsEx(0, NULL, INFINITE,
                                                  MOZ_QS_ALLEVENT,
                                                  MWMO_INPUTAVAILABLE);
     NS_WARN_IF_FALSE(result != WAIT_FAILED, "Wait failed");
-    if (result == WAIT_TIMEOUT) {
-      break;
-    }
 
     // Sent messages (via SendMessage and friends) are processed differently
     // than queued messages (via PostMessage); the destination window procedure

@@ -153,9 +153,8 @@ public:
    * not aware of (e.g., from a different thread).
    * Note that this method may cause sync dispatch of sent (as opposed to
    * posted) messages.
-   * @param aTimeoutMs Timeout for waiting in ms, defaults to INFINITE
    */
-  static void WaitForMessage(DWORD aTimeoutMs = INFINITE);
+  static void WaitForMessage();
 
   /**
    * Gets the value of a string-typed registry value.
