@@ -338,6 +338,7 @@ WebGLContext::GetCanvasLayer(LayerManager *manager)
     return canvasLayer.forget().get();
 }
 
+
 //
 // XPCOM goop
 //

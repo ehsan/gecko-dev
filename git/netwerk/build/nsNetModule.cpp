@@ -37,11 +37,6 @@
 
 #include "necko-config.h"
 
-#ifdef MOZ_IPC
-#define ALLOW_LATE_NSHTTP_H_INCLUDE 1
-#include "base/basictypes.h"
-#endif 
-
 #include "nsCOMPtr.h"
 #include "nsIModule.h"
 #include "nsIClassInfoImpl.h"
@@ -175,9 +170,9 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsStreamListenerTee)
 
 #ifdef NECKO_COOKIES
 #include "nsCookieService.h"
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsICookieService,
-  nsCookieService::GetXPCOMSingleton)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsCookieService, nsCookieService::GetSingleton)
 #endif
+
 
 ///////////////////////////////////////////////////////////////////////////////
 #ifdef NECKO_WIFI
@@ -1098,13 +1093,13 @@ static const nsModuleComponentInfo gNetModuleInfo[] = {
     { NS_COOKIEMANAGER_CLASSNAME,
       NS_COOKIEMANAGER_CID,
       NS_COOKIEMANAGER_CONTRACTID,
-      nsICookieServiceConstructor
+      nsCookieServiceConstructor
     },
 
     { NS_COOKIESERVICE_CLASSNAME,
       NS_COOKIESERVICE_CID,
       NS_COOKIESERVICE_CONTRACTID,
-      nsICookieServiceConstructor
+      nsCookieServiceConstructor
     },
 #endif
 

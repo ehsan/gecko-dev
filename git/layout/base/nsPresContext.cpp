@@ -107,7 +107,6 @@
 #endif // IBMBIDI
 
 #include "nsContentUtils.h"
-#include "nsPIWindowRoot.h"
 
 // Needed for Start/Stop of Image Animation
 #include "imgIContainer.h"
@@ -1756,7 +1755,7 @@ InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet,
   unit = val.GetUnit();
   if (unit == eCSSUnit_Array) {
     nsCSSValue::Array *srcArr = val.GetArrayValue();
-    PRUint32 i, numSrc = srcArr->Count();
+    size_t i, numSrc = srcArr->Count();
     
     for (i = 0; i < numSrc; i++) {
       val = srcArr->Item(i);

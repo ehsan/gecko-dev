@@ -36,10 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_IPC
-#include "base/basictypes.h"
-#endif
-
 #include "xpcmodule.h"
 #include "nsLayoutStatics.h"
 #include "nsContentCID.h"

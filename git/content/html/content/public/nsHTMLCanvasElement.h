@@ -169,8 +169,6 @@ protected:
   nsresult ToDataURLImpl(const nsAString& aMimeType,
                          const nsAString& aEncoderOptions,
                          nsAString& aDataURL);
-  nsresult GetContextHelper(const nsAString& aContextId,
-                            nsICanvasRenderingContextInternal **aContext);
 
   nsString mCurrentContextId;
   nsCOMPtr<nsICanvasRenderingContextInternal> mCurrentContext;

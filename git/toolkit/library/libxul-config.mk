@@ -93,12 +93,9 @@ endif
 # dependent libraries
 ifdef MOZ_IPC
 STATIC_LIBS += \
-  jsipc_s \
-  domipc_s \
   domplugins_s \
   mozipc_s \
   mozipdlgen_s \
-  ipcshell_s \
   gfxipc_s \
   $(NULL)
 
