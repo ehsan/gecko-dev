@@ -1536,11 +1536,6 @@ GK_ATOM(onMozRotateGesture, "onMozRotateGesture")
 GK_ATOM(onMozTapGesture, "onMozTapGesture")
 GK_ATOM(onMozPressTapGesture, "onMozPressTapGesture")
 
-// Touch events
-GK_ATOM(onMozTouchDown, "onMozTouchDown")
-GK_ATOM(onMozTouchMove, "onMozTouchMove")
-GK_ATOM(onMozTouchUp, "onMozTouchUp")
-
 // orientation support
 GK_ATOM(onMozOrientation, "onMozOrientation")
 

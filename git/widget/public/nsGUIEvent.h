@@ -114,7 +114,6 @@ class nsHashKey;
 #define NS_CONTENT_COMMAND_EVENT          39
 #define NS_GESTURENOTIFY_EVENT            40
 #define NS_UISTATECHANGE_EVENT            41
-#define NS_MOZTOUCH_EVENT                 42
 
 // These flags are sort of a mess. They're sort of shared between event
 // listener flags and event flags, but only some of them. You've been
@@ -470,11 +469,6 @@ class nsHashKey;
 #define NS_SMIL_END                  (NS_SMIL_TIME_EVENT_START + 1)
 #define NS_SMIL_REPEAT               (NS_SMIL_TIME_EVENT_START + 2)
 #endif // MOZ_SMIL
-
-#define NS_MOZTOUCH_EVENT_START      4400
-#define NS_MOZTOUCH_DOWN             (NS_MOZTOUCH_EVENT_START)
-#define NS_MOZTOUCH_MOVE             (NS_MOZTOUCH_EVENT_START+1)
-#define NS_MOZTOUCH_UP               (NS_MOZTOUCH_EVENT_START+2)
 
 /**
  * Return status for event processors, nsEventStatus, is defined in
@@ -1102,11 +1096,8 @@ public:
                             // will compute the appropriate height/width based on
                             // view lineHeight and generate line scroll events
                             // as needed.
-    kNoDefer =      1 << 5, // For scrollable views, indicates scroll should not
+    kNoDefer =      1 << 5  // For scrollable views, indicates scroll should not
                             // occur asynchronously.
-    kIsMomentum =   1 << 6  // Marks scroll events that aren't controlled by the
-                            // user but fire automatically as the result of a
-                            // "momentum" scroll.
   };
 
   nsMouseScrollEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -1272,19 +1263,6 @@ public:
 
   PRPackedBool mSucceeded;                                 // [out]
   PRPackedBool mIsEnabled;                                 // [out]
-};
-
-class nsMozTouchEvent : public nsMouseEvent_base
-{
-public:
-  nsMozTouchEvent(PRBool isTrusted, PRUint32 msg, nsIWidget* w,
-                  PRUint32 streamIdArg)
-    : nsMouseEvent_base(isTrusted, msg, w, NS_MOZTOUCH_EVENT),
-      streamId(streamIdArg)
-  {
-  }
-
-  PRUint32 streamId;
 };
 
 /**

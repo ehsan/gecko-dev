@@ -448,8 +448,6 @@ DOMCI_CLASS(NotifyPaintEvent)
 
 DOMCI_CLASS(SimpleGestureEvent)
 
-DOMCI_CLASS(MozTouchEvent)
-
 #ifdef MOZ_MATHML
 DOMCI_CLASS(MathMLElement)
 #endif

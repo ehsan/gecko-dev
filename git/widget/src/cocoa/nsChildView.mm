@@ -3663,9 +3663,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
     // No sense in firing off a Gecko event.
      return;
 
-  BOOL isMomentumScroll = [theEvent respondsToSelector:@selector(_scrollPhase)] &&
-                          [theEvent _scrollPhase] != 0;
-
   if (scrollDelta != 0) {
     // Send the line scroll event.
     nsMouseScrollEvent geckoEvent(PR_TRUE, NS_MOUSE_SCROLL, nsnull);
@@ -3674,9 +3671,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
     if (hasPixels)
       geckoEvent.scrollFlags |= nsMouseScrollEvent::kHasPixels;
-
-    if (isMomentumScroll)
-      geckoEvent.scrollFlags |= nsMouseScrollEvent::kIsMomentum;
 
     // Gecko only understands how to scroll by an integer value. Using floor
     // and ceil is better than truncating the fraction, especially when
@@ -3763,8 +3757,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
     nsMouseScrollEvent geckoEvent(PR_TRUE, NS_MOUSE_PIXEL_SCROLL, nsnull);
     [self convertCocoaMouseEvent:theEvent toGeckoEvent:&geckoEvent];
     geckoEvent.scrollFlags |= inAxis;
-    if (isMomentumScroll)
-      geckoEvent.scrollFlags |= nsMouseScrollEvent::kIsMomentum;
     geckoEvent.delta = NSToIntRound(scrollDeltaPixels);
     nsAutoRetainCocoaObject kungFuDeathGrip(self);
     mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -6445,16 +6437,21 @@ static BOOL WindowNumberIsUnderPoint(NSInteger aWindowNumber, NSPoint aPoint) {
   return CGRectContainsPoint(rect, point);
 }
 
+@interface NSWindow(SnowLeopardWindowUnderPointAPI)
++ (NSInteger)windowNumberAtPoint:(NSPoint)point belowWindowWithWindowNumber:(NSInteger)windowNumber;
+@end
+
 // Find the window number of the window under the given point, regardless of
 // which app the window belongs to. Returns 0 if no window was found.
 static NSInteger WindowNumberAtPoint(NSPoint aPoint) {
-  // We'd like to use the new windowNumberAtPoint API on 10.6 but we can't rely
-  // on it being up-to-date. For example, if we've just opened a window,
-  // windowNumberAtPoint might not know about it yet, so we'd send events to the
-  // wrong window. See bug 557986.
-  // So we'll have to find the right window manually by iterating over all
-  // windows on the screen and testing whether the mouse is inside the window's
-  // rect. We do this using private CGS functions.
+  // Use the awesome new API on 10.6+.
+  if ([NSWindow respondsToSelector:@selector(windowNumberAtPoint:belowWindowWithWindowNumber:)])
+    return [NSWindow windowNumberAtPoint:aPoint belowWindowWithWindowNumber:0];
+
+  // windowNumberAtPoint is not supported, so we'll have to find the right
+  // window manually by iterating over all windows on the screen and testing
+  // whether the mouse is inside the window's rect. We do this using private CGS
+  // functions.
   // Another way of doing it would be to use tracking rects, but those are
   // view-controlled, so they need to be reset whenever an NSView changes its
   // size or position, which is expensive. See bug 300904 comment 20.
