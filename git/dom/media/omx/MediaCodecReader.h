@@ -179,8 +179,8 @@ protected:
 
   // Receive a notify from ResourceListener.
   // Called on Binder thread.
-  virtual void VideoCodecReserved();
-  virtual void VideoCodecCanceled();
+  virtual void codecReserved(Track& aTrack);
+  virtual void codecCanceled(Track& aTrack);
 
   virtual bool CreateExtractor();
 
@@ -194,6 +194,25 @@ protected:
   bool mIsWaitingResources;
 
 private:
+  // An intermediary class that can be managed by android::sp<T>.
+  // Redirect onMessageReceived() to MediaCodecReader.
+  class MessageHandler : public android::AHandler
+  {
+  public:
+    MessageHandler(MediaCodecReader* aReader);
+    ~MessageHandler();
+
+    virtual void onMessageReceived(const android::sp<android::AMessage>& aMessage);
+
+  private:
+    // Forbidden
+    MessageHandler() = delete;
+    MessageHandler(const MessageHandler& rhs) = delete;
+    const MessageHandler& operator=(const MessageHandler& rhs) = delete;
+
+    MediaCodecReader *mReader;
+  };
+  friend class MessageHandler;
 
   // An intermediary class that can be managed by android::sp<T>.
   // Redirect codecReserved() and codecCanceled() to MediaCodecReader.
@@ -413,6 +432,7 @@ private:
 
   void ReleaseAllTextureClients();
 
+  android::sp<MessageHandler> mHandler;
   android::sp<VideoResourceListener> mVideoListener;
 
   android::sp<android::ALooper> mLooper;

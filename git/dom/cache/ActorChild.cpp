@@ -15,14 +15,7 @@ namespace cache {
 void
 ActorChild::SetFeature(Feature* aFeature)
 {
-  // Some of the Cache actors can have multiple DOM objects associated with
-  // them.  In this case the feature will be added multiple times.  This is
-  // permitted, but the feature should be the same each time.
-  if (mFeature) {
-    MOZ_ASSERT(mFeature == aFeature);
-    return;
-  }
-
+  MOZ_ASSERT(!mFeature);
   mFeature = aFeature;
   if (mFeature) {
     mFeature->AddActor(this);

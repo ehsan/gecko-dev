@@ -128,13 +128,13 @@ this.ReaderMode = {
   /**
    * Retrieves an article from the cache given an article URI.
    *
-   * @param url The article URL.
+   * @param uri The article URI.
    * @return {Promise}
    * @resolves JS object representing the article, or null if no article is found.
    * @rejects OS.File.Error
    */
-  getArticleFromCache: Task.async(function* (url) {
-    let path = this._toHashedPath(url);
+  getArticleFromCache: Task.async(function* (uri) {
+    let path = this._toHashedPath(uri.specIgnoringRef);
     try {
       let array = yield OS.File.read(path);
       return JSON.parse(new TextDecoder().decode(array));
@@ -161,13 +161,13 @@ this.ReaderMode = {
   /**
    * Removes an article from the cache given an article URI.
    *
-   * @param url The article URL.
+   * @param uri The article URI.
    * @return {Promise}
    * @resolves When the article is removed.
    * @rejects OS.File.Error
    */
-  removeArticleFromCache: Task.async(function* (url) {
-    let path = this._toHashedPath(url);
+  removeArticleFromCache: Task.async(function* (uri) {
+    let path = this._toHashedPath(uri.specIgnoringRef);
     yield OS.File.remove(path);
   }),
 
@@ -218,10 +218,9 @@ this.ReaderMode = {
           return;
         }
 
-        // Readability returns a URI object, but we only care about the URL.
-        article.url = article.uri.spec;
-        delete article.uri;
-
+        // Append URL to the article data. specIgnoringRef will ignore any hash
+        // in the URL.
+        article.url = uri.specIgnoringRef;
         let flags = Ci.nsIDocumentEncoder.OutputSelectionOnly | Ci.nsIDocumentEncoder.OutputAbsoluteLinks;
         article.title = Cc["@mozilla.org/parserutils;1"].getService(Ci.nsIParserUtils)
                                                         .convertToPlainText(article.title, flags, 0);

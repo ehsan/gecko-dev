@@ -563,9 +563,8 @@ public:
     static const uint32_t FIXED_SLOTS_SHIFT = 27;
 };
 
-// This layout is shared by all native objects. For non-native objects, the
-// group may always be accessed safely, and other members may be as well,
-// depending on the object's specific layout.
+// This layout is shared by all objects except for Typed Objects (which still
+// have a shape and group).
 struct Object {
     shadow::ObjectGroup *group;
     shadow::Shape       *shape;
@@ -684,14 +683,10 @@ IsScopeObject(JSObject *obj);
 JS_FRIEND_API(bool)
 IsCallObject(JSObject *obj);
 
-JS_FRIEND_API(bool)
-CanAccessObjectShape(JSObject *obj);
-
 inline JSObject *
 GetObjectParent(JSObject *obj)
 {
     MOZ_ASSERT(!IsScopeObject(obj));
-    MOZ_ASSERT(CanAccessObjectShape(obj));
     return reinterpret_cast<shadow::Object*>(obj)->shape->base->parent;
 }
 
@@ -700,6 +695,9 @@ GetObjectCompartment(JSObject *obj)
 {
     return reinterpret_cast<shadow::Object*>(obj)->group->compartment;
 }
+
+JS_FRIEND_API(JSObject *)
+GetObjectParentMaybeScope(JSObject *obj);
 
 JS_FRIEND_API(JSObject *)
 GetGlobalForObjectCrossCompartment(JSObject *obj);

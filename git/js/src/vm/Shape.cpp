@@ -499,7 +499,7 @@ NativeObject::addProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleId
 }
 
 static bool
-ShouldConvertToDictionary(NativeObject *obj)
+ShouldConvertToDictionary(JSObject *obj)
 {
     /*
      * Use a lower limit if this object is likely a hashmap (SETELEM was used
@@ -1138,25 +1138,21 @@ JSObject::setParent(JSContext *cx, HandleObject obj, HandleObject parent)
         return false;
 
     if (obj->isNative() && obj->as<NativeObject>().inDictionaryMode()) {
-        StackBaseShape base(obj->as<NativeObject>().lastProperty());
+        StackBaseShape base(obj->lastProperty());
         base.parent = parent;
         UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
         if (!nbase)
             return false;
 
-        obj->as<NativeObject>().lastProperty()->base()->adoptUnowned(nbase);
+        obj->lastProperty()->base()->adoptUnowned(nbase);
         return true;
     }
 
-    Shape *existingShape = obj->ensureShape(cx);
-    if (!existingShape)
-        return false;
-
-    Shape *newShape = Shape::setObjectParent(cx, parent, obj->getTaggedProto(), existingShape);
+    Shape *newShape = Shape::setObjectParent(cx, parent, obj->getTaggedProto(), obj->shape_);
     if (!newShape)
         return false;
 
-    obj->setShapeMaybeNonNative(newShape);
+    obj->shape_ = newShape;
     return true;
 }
 
@@ -1177,25 +1173,21 @@ Shape::setObjectParent(ExclusiveContext *cx, JSObject *parent, TaggedProto proto
 JSObject::setMetadata(JSContext *cx, HandleObject obj, HandleObject metadata)
 {
     if (obj->isNative() && obj->as<NativeObject>().inDictionaryMode()) {
-        StackBaseShape base(obj->as<NativeObject>().lastProperty());
+        StackBaseShape base(obj->lastProperty());
         base.metadata = metadata;
         UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
         if (!nbase)
             return false;
 
-        obj->as<NativeObject>().lastProperty()->base()->adoptUnowned(nbase);
+        obj->lastProperty()->base()->adoptUnowned(nbase);
         return true;
     }
 
-    Shape *existingShape = obj->ensureShape(cx);
-    if (!existingShape)
-        return false;
-
-    Shape *newShape = Shape::setObjectMetadata(cx, metadata, obj->getTaggedProto(), existingShape);
+    Shape *newShape = Shape::setObjectMetadata(cx, metadata, obj->getTaggedProto(), obj->shape_);
     if (!newShape)
         return false;
 
-    obj->setShapeMaybeNonNative(newShape);
+    obj->shape_ = newShape;
     return true;
 }
 
@@ -1213,9 +1205,12 @@ Shape::setObjectMetadata(JSContext *cx, JSObject *metadata, TaggedProto proto, S
 }
 
 bool
-JSObject::setFlags(ExclusiveContext *cx, BaseShape::Flag flags, GenerateShape generateShape)
+JSObject::setFlags(ExclusiveContext *cx, /*BaseShape::Flag*/ uint32_t flags_,
+                   GenerateShape generateShape)
 {
-    if (hasAllFlags(flags))
+    BaseShape::Flag flags = (BaseShape::Flag) flags_;
+
+    if ((lastProperty()->getObjectFlags() & flags) == flags)
         return true;
 
     RootedObject self(cx, this);
@@ -1223,25 +1218,22 @@ JSObject::setFlags(ExclusiveContext *cx, BaseShape::Flag flags, GenerateShape ge
     if (isNative() && as<NativeObject>().inDictionaryMode()) {
         if (generateShape == GENERATE_SHAPE && !as<NativeObject>().generateOwnShape(cx))
             return false;
-        StackBaseShape base(self->as<NativeObject>().lastProperty());
+        StackBaseShape base(self->lastProperty());
         base.flags |= flags;
         UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
         if (!nbase)
             return false;
 
-        self->as<NativeObject>().lastProperty()->base()->adoptUnowned(nbase);
+        self->lastProperty()->base()->adoptUnowned(nbase);
         return true;
     }
 
-    Shape *existingShape = self->ensureShape(cx);
-    if (!existingShape)
-        return false;
-
-    Shape *newShape = Shape::setObjectFlags(cx, flags, self->getTaggedProto(), existingShape);
+    Shape *newShape =
+        Shape::setObjectFlags(cx, flags, self->getTaggedProto(), self->lastProperty());
     if (!newShape)
         return false;
 
-    self->setShapeMaybeNonNative(newShape);
+    self->shape_ = newShape;
     return true;
 }
 
@@ -1249,9 +1241,9 @@ bool
 NativeObject::clearFlag(ExclusiveContext *cx, BaseShape::Flag flag)
 {
     MOZ_ASSERT(inDictionaryMode());
+    MOZ_ASSERT(lastProperty()->getObjectFlags() & flag);
 
-    RootedNativeObject self(cx, &as<NativeObject>());
-    MOZ_ASSERT(self->lastProperty()->getObjectFlags() & flag);
+    RootedObject self(cx, this);
 
     StackBaseShape base(self->lastProperty());
     base.flags &= ~flag;

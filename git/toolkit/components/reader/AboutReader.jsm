@@ -49,7 +49,9 @@ let AboutReader = function(mm, win) {
 
   this._scrollOffset = win.pageYOffset;
 
-  doc.getElementById("container").addEventListener("click", this, false);
+  let body = doc.body;
+  body.addEventListener("touchstart", this, false);
+  body.addEventListener("click", this, false);
 
   win.addEventListener("unload", this, false);
   win.addEventListener("scroll", this, false);
@@ -86,12 +88,12 @@ let AboutReader = function(mm, win) {
     { name: fontTypeSample,
       description: gStrings.GetStringFromName("aboutReader.fontType.sans-serif"),
       value: "sans-serif",
-      itemClass: "sans-serif-button"
+      linkClass: "sans-serif"
     },
     { name: fontTypeSample,
       description: gStrings.GetStringFromName("aboutReader.fontType.serif"),
       value: "serif",
-      itemClass: "serif-button" },
+      linkClass: "serif" },
   ];
 
   let fontType = Services.prefs.getCharPref("reader.font_type");
@@ -203,6 +205,7 @@ AboutReader.prototype = {
 
     switch (aEvent.type) {
       case "click":
+        // XXX: Don't toggle the toolbar on double click. (See the "Gesture:DoubleTap" handler in Reader.js)
         this._toggleToolbarVisibility();
         break;
       case "scroll":
@@ -348,10 +351,6 @@ AboutReader.prototype = {
   _setupFontSizeButtons: function() {
     const FONT_SIZE_MIN = 1;
     const FONT_SIZE_MAX = 9;
-
-    // Sample text shown in Android UI.
-    let sampleText = this._doc.getElementById("font-size-sample");
-    sampleText.textContent = gStrings.GetStringFromName("aboutReader.fontTypeSample");
 
     let currentSize = Services.prefs.getIntPref("reader.font_size");
     currentSize = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, currentSize));
@@ -757,15 +756,16 @@ AboutReader.prototype = {
     for (let i = 0; i < options.length; i++) {
       let option = options[i];
 
-      let item = doc.createElement("button");
-
-      // We make this extra span so that we can hide it if necessary.
-      let span = doc.createElement("span");
-      span.textContent = option.name;
-      item.appendChild(span);
+      let item = doc.createElement("li");
+      let link = doc.createElement("a");
+      link.textContent = option.name;
+      item.appendChild(link);
 
       if (option.itemClass !== undefined)
         item.classList.add(option.itemClass);
+
+      if (option.linkClass !== undefined)
+        link.classList.add(option.linkClass);
 
       if (option.description !== undefined) {
         let description = doc.createElement("div");
@@ -773,6 +773,7 @@ AboutReader.prototype = {
         item.appendChild(description);
       }
 
+      link.style.MozUserSelect = 'none';
       segmentedButton.appendChild(item);
 
       item.addEventListener("click", function(aEvent) {
@@ -830,25 +831,37 @@ AboutReader.prototype = {
     let dropdown = doc.getElementById("style-dropdown");
     let dropdownToggle = dropdown.querySelector(".dropdown-toggle");
     let dropdownPopup = dropdown.querySelector(".dropdown-popup");
+    let dropdownArrow = dropdown.querySelector(".dropdown-arrow");
 
-    // Helper function used to position the popup on desktop,
-    // where there is a vertical toolbar.
-    function updatePopupPosition() {
-      let toggleHeight = dropdownToggle.offsetHeight;
-      let toggleTop = dropdownToggle.offsetTop;
-      let popupTop = toggleTop - toggleHeight / 2;
-      dropdownPopup.style.top = popupTop + "px";
-    }
+    let updatePopupPosition = () => {
+      if (this._isToolbarVertical) {
+        let toggleHeight = dropdownToggle.offsetHeight;
+        let toggleTop = dropdownToggle.offsetTop;
+        let popupTop = toggleTop - toggleHeight / 2;
+        dropdownPopup.style.top = popupTop + "px";
+      } else {
+        let popupWidth = dropdownPopup.offsetWidth + 30;
+        let arrowWidth = dropdownArrow.offsetWidth;
+        let toggleWidth = dropdownToggle.offsetWidth;
+        let toggleLeft = dropdownToggle.offsetLeft;
 
-    if (this._isToolbarVertical) {
-      win.addEventListener("resize", event => {
-        if (!event.isTrusted)
-          return;
+        let popupShift = (toggleWidth - popupWidth) / 2;
+        let popupLeft = Math.max(0, Math.min(win.innerWidth - popupWidth, toggleLeft + popupShift));
+        dropdownPopup.style.left = popupLeft + "px";
 
-        // Wait for reflow before calculating the new position of the popup.
-        win.setTimeout(updatePopupPosition, 0);
-      }, true);
-    }
+        let arrowShift = (toggleWidth - arrowWidth) / 2;
+        let arrowLeft = toggleLeft - popupLeft + arrowShift;
+        dropdownArrow.style.left = arrowLeft + "px";
+      }
+    };
+
+    win.addEventListener("resize", event => {
+      if (!event.isTrusted)
+        return;
+
+      // Wait for reflow before calculating the new position of the popup.
+      win.setTimeout(updatePopupPosition, 0);
+    }, true);
 
     dropdownToggle.setAttribute("title", gStrings.GetStringFromName("aboutReader.toolbar.typeControls"));
     dropdownToggle.addEventListener("click", event => {
@@ -861,9 +874,7 @@ AboutReader.prototype = {
         dropdown.classList.remove("open");
       } else {
         dropdown.classList.add("open");
-        if (this._isToolbarVertical) {
-          updatePopupPosition();
-        }
+        updatePopupPosition();
       }
     }, true);
   },

@@ -510,8 +510,8 @@ AllocateObject(ExclusiveContext *cx, AllocKind kind, size_t nDynamicSlots, Initi
     size_t thingSize = Arena::thingSize(kind);
 
     MOZ_ASSERT(thingSize == Arena::thingSize(kind));
-    MOZ_ASSERT(thingSize >= sizeof(JSObject_Slots0));
-    static_assert(sizeof(JSObject_Slots0) >= CellSize,
+    MOZ_ASSERT(thingSize >= sizeof(JSObject));
+    static_assert(sizeof(JSObject) >= CellSize,
                   "All allocations must be at least the allocator-imposed minimum size.");
 
     if (!CheckAllocatorState<allowGC>(cx, kind))
@@ -579,11 +579,9 @@ AllocateNonObject(ExclusiveContext *cx)
  * fail the allocation, forcing the non-cached path.
  */
 template <AllowGC allowGC>
-inline NativeObject *
+inline JSObject *
 AllocateObjectForCacheHit(JSContext *cx, AllocKind kind, InitialHeap heap, const js::Class *clasp)
 {
-    MOZ_ASSERT(clasp->isNative());
-
     if (ShouldNurseryAllocateObject(cx->nursery(), heap)) {
         size_t thingSize = Arena::thingSize(kind);
 
@@ -596,7 +594,7 @@ AllocateObjectForCacheHit(JSContext *cx, AllocKind kind, InitialHeap heap, const
             cx->minorGC(JS::gcreason::OUT_OF_NURSERY);
             return nullptr;
         }
-        return reinterpret_cast<NativeObject *>(obj);
+        return obj;
     }
 
     JSObject *obj = AllocateObject<NoGC>(cx, kind, 0, heap, clasp);
@@ -605,7 +603,7 @@ AllocateObjectForCacheHit(JSContext *cx, AllocKind kind, InitialHeap heap, const
         return nullptr;
     }
 
-    return reinterpret_cast<NativeObject *>(obj);
+    return obj;
 }
 
 inline bool

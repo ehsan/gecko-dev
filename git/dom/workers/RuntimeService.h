@@ -8,6 +8,7 @@
 #define mozilla_dom_workers_runtimeservice_h__
 
 #include "Workers.h"
+#include "WorkerPrivate.h" // For the WorkerType enum.
 
 #include "nsIObserver.h"
 
@@ -15,6 +16,7 @@
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "nsTArray.h"
+#include "WorkerPrivate.h"
 
 class nsIRunnable;
 class nsITimer;
@@ -153,7 +155,7 @@ public:
 
   nsresult
   CreateServiceWorkerFromLoadInfo(JSContext* aCx,
-                                  WorkerLoadInfo* aLoadInfo,
+                                  WorkerPrivate::LoadInfo* aLoadInfo,
                                   const nsAString& aScriptURL,
                                   const nsACString& aScope,
                                   ServiceWorker** aServiceWorker);
@@ -306,7 +308,7 @@ private:
 
   nsresult
   CreateSharedWorkerFromLoadInfo(JSContext* aCx,
-                                 WorkerLoadInfo* aLoadInfo,
+                                 WorkerPrivate::LoadInfo* aLoadInfo,
                                  const nsAString& aScriptURL,
                                  const nsACString& aName,
                                  WorkerType aType,

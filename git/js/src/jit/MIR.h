@@ -8833,7 +8833,6 @@ class MLoadTypedArrayElement
     public SingleObjectPolicy::Data
 {
     Scalar::Type arrayType_;
-    Scalar::Type readType_;
     bool requiresBarrier_;
     int32_t offsetAdjustment_;
     bool canonicalizeDoubles_;
@@ -8843,7 +8842,6 @@ class MLoadTypedArrayElement
                            int32_t offsetAdjustment, bool canonicalizeDoubles)
       : MBinaryInstruction(elements, index),
         arrayType_(arrayType),
-        readType_(arrayType),
         requiresBarrier_(requiresBarrier == DoesRequireMemoryBarrier),
         offsetAdjustment_(offsetAdjustment),
         canonicalizeDoubles_(canonicalizeDoubles)
@@ -8870,13 +8868,6 @@ class MLoadTypedArrayElement
         return new(alloc) MLoadTypedArrayElement(elements, index, arrayType,
                                                  requiresBarrier, offsetAdjustment,
                                                  canonicalizeDoubles);
-    }
-
-    void setReadType(Scalar::Type type) {
-        readType_ = type;
-    }
-    Scalar::Type readType() const {
-        return readType_;
     }
 
     Scalar::Type arrayType() const {
@@ -8916,8 +8907,6 @@ class MLoadTypedArrayElement
             return false;
         const MLoadTypedArrayElement *other = ins->toLoadTypedArrayElement();
         if (arrayType_ != other->arrayType_)
-            return false;
-        if (readType_ != other->readType_)
             return false;
         if (offsetAdjustment() != other->offsetAdjustment())
             return false;
@@ -9063,49 +9052,8 @@ class MLoadTypedArrayElementStatic
     void collectRangeInfoPreTrunc() MOZ_OVERRIDE;
 };
 
-// Base class for MIR ops that write to typed arrays.
-class StoreTypedArrayBase
-{
-    Scalar::Type writeType_;
-
-  protected:
-    explicit StoreTypedArrayBase(Scalar::Type writeType)
-      : writeType_(writeType)
-    {
-        MOZ_ASSERT(isIntegerWrite() || isFloatWrite() || isSimdWrite());
-    }
-
-  public:
-    void setWriteType(Scalar::Type type) {
-        writeType_ = type;
-    }
-    Scalar::Type writeType() const {
-        return writeType_;
-    }
-    bool isByteWrite() const {
-        return writeType_ == Scalar::Int8 ||
-               writeType_ == Scalar::Uint8 ||
-               writeType_ == Scalar::Uint8Clamped;
-    }
-    bool isIntegerWrite() const {
-        return isByteWrite () ||
-               writeType_ == Scalar::Int16 ||
-               writeType_ == Scalar::Uint16 ||
-               writeType_ == Scalar::Int32 ||
-               writeType_ == Scalar::Uint32;
-    }
-    bool isFloatWrite() const {
-        return writeType_ == Scalar::Float32 ||
-               writeType_ == Scalar::Float64;
-    }
-    bool isSimdWrite() const {
-        return Scalar::isSimdType(writeType());
-    }
-};
-
 class MStoreTypedArrayElement
   : public MTernaryInstruction,
-    public StoreTypedArrayBase,
     public StoreTypedArrayPolicy::Data
 {
     Scalar::Type arrayType_;
@@ -9119,7 +9067,6 @@ class MStoreTypedArrayElement
                             Scalar::Type arrayType, MemoryBarrierRequirement requiresBarrier,
                             int32_t offsetAdjustment)
       : MTernaryInstruction(elements, index, value),
-        StoreTypedArrayBase(arrayType),
         arrayType_(arrayType),
         requiresBarrier_(requiresBarrier == DoesRequireMemoryBarrier),
         offsetAdjustment_(offsetAdjustment),
@@ -9148,6 +9095,15 @@ class MStoreTypedArrayElement
 
     Scalar::Type arrayType() const {
         return arrayType_;
+    }
+    bool isByteArray() const {
+        return arrayType_ == Scalar::Int8 ||
+               arrayType_ == Scalar::Uint8 ||
+               arrayType_ == Scalar::Uint8Clamped;
+    }
+    bool isFloatArray() const {
+        return arrayType_ == Scalar::Float32 ||
+               arrayType_ == Scalar::Float64;
     }
     MDefinition *elements() const {
         return getOperand(0);
@@ -9184,13 +9140,13 @@ class MStoreTypedArrayElement
 
 class MStoreTypedArrayElementHole
   : public MAryInstruction<4>,
-    public StoreTypedArrayBase,
     public StoreTypedArrayHolePolicy::Data
 {
+    Scalar::Type arrayType_;
+
     MStoreTypedArrayElementHole(MDefinition *elements, MDefinition *length, MDefinition *index,
                                 MDefinition *value, Scalar::Type arrayType)
-      : MAryInstruction<4>(),
-        StoreTypedArrayBase(arrayType)
+      : MAryInstruction<4>(), arrayType_(arrayType)
     {
         initOperand(0, elements);
         initOperand(1, length);
@@ -9214,9 +9170,16 @@ class MStoreTypedArrayElementHole
     }
 
     Scalar::Type arrayType() const {
-        MOZ_ASSERT(!Scalar::isSimdType(writeType()),
-                   "arrayType == writeType iff the write type isn't SIMD");
-        return writeType();
+        return arrayType_;
+    }
+    bool isByteArray() const {
+        return arrayType_ == Scalar::Int8 ||
+               arrayType_ == Scalar::Uint8 ||
+               arrayType_ == Scalar::Uint8Clamped;
+    }
+    bool isFloatArray() const {
+        return arrayType_ == Scalar::Float32 ||
+               arrayType_ == Scalar::Float64;
     }
     MDefinition *elements() const {
         return getOperand(0);
@@ -9236,7 +9199,7 @@ class MStoreTypedArrayElementHole
     TruncateKind operandTruncateKind(size_t index) const MOZ_OVERRIDE;
 
     bool canConsumeFloat32(MUse *use) const MOZ_OVERRIDE {
-        return use == getUseFor(3) && arrayType() == Scalar::Float32;
+        return use == getUseFor(3) && arrayType_ == Scalar::Float32;
     }
 
     ALLOW_CLONE(MStoreTypedArrayElementHole)
@@ -9244,20 +9207,16 @@ class MStoreTypedArrayElementHole
 
 // Store a value infallibly to a statically known typed array.
 class MStoreTypedArrayElementStatic :
-    public MBinaryInstruction,
-    public StoreTypedArrayBase,
-    public StoreTypedArrayElementStaticPolicy::Data
+    public MBinaryInstruction
+  , public StoreTypedArrayElementStaticPolicy::Data
 {
     MStoreTypedArrayElementStatic(JSObject *someTypedArray, MDefinition *ptr, MDefinition *v,
                                   int32_t offset, bool needsBoundsCheck)
-        : MBinaryInstruction(ptr, v),
-          StoreTypedArrayBase(AnyTypedArrayType(someTypedArray)),
-          someTypedArray_(someTypedArray),
+        : MBinaryInstruction(ptr, v), someTypedArray_(someTypedArray),
           offset_(offset), needsBoundsCheck_(needsBoundsCheck)
     {}
 
     AlwaysTenured<JSObject*> someTypedArray_;
-
     // An offset to be encoded in the store instruction - taking advantage of the
     // addressing modes. This is only non-zero when the access is proven to be
     // within bounds.
@@ -9277,7 +9236,11 @@ class MStoreTypedArrayElementStatic :
     }
 
     Scalar::Type accessType() const {
-        return writeType();
+        return AnyTypedArrayType(someTypedArray_);
+    }
+    bool isFloatArray() const {
+        return accessType() == Scalar::Float32 ||
+               accessType() == Scalar::Float64;
     }
 
     void *base() const;

@@ -115,9 +115,7 @@ CallbackObject::CallSetup::CallSetup(CallbackObject* aCallback,
       }
     } else {
       cx = workers::GetCurrentThreadJSContext();
-      JSObject *global = js::GetGlobalForObjectCrossCompartment(realCallback);
-      globalObject = workers::GetGlobalObjectForGlobal(global);
-      MOZ_ASSERT(globalObject);
+      globalObject = workers::GetCurrentThreadWorkerPrivate()->GlobalScope();
     }
 
     // Bail out if there's no useful global. This seems to happen intermittently

@@ -129,14 +129,14 @@ let gEMEHandler = {
       let btnAccessKeyId = msgPrefix + "button.accesskey";
       buttons.push({
         label: gNavigatorBundle.getString(btnLabelId),
-        accessKey: gNavigatorBundle.getString(btnAccessKeyId),
+        accesskey: gNavigatorBundle.getString(btnAccessKeyId),
         callback: callback
       });
 
       let optionsId = "emeNotifications.optionsButton";
       buttons.push({
         label: gNavigatorBundle.getString(optionsId + ".label"),
-        accessKey: gNavigatorBundle.getString(optionsId + ".accesskey"),
+        accesskey: gNavigatorBundle.getString(optionsId + ".accesskey"),
         popup: "emeNotificationsPopup"
       });
     }

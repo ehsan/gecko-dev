@@ -775,7 +775,7 @@ CheckDOMProxyExpandoDoesNotShadow(JSContext *cx, MacroAssembler &masm, JSObject 
         masm.extractObject(tempVal, tempVal.scratchReg());
         masm.branchPtr(Assembler::Equal,
                        Address(tempVal.scratchReg(), JSObject::offsetOfShape()),
-                       ImmGCPtr(expandoVal.toObject().as<NativeObject>().lastProperty()),
+                       ImmGCPtr(expandoVal.toObject().lastProperty()),
                        &domProxyOk);
     }
 
@@ -810,7 +810,7 @@ GenerateReadSlot(JSContext *cx, IonScript *ion, MacroAssembler &masm,
     if (obj->isNative()) {
         attacher.branchNextStubOrLabel(masm, Assembler::NotEqual,
                                        Address(object, JSObject::offsetOfShape()),
-                                       ImmGCPtr(obj->as<NativeObject>().lastProperty()),
+                                       ImmGCPtr(obj->lastProperty()),
                                        failures);
     } else {
         attacher.branchNextStubOrLabel(masm, Assembler::NotEqual,
@@ -874,7 +874,7 @@ GenerateReadSlot(JSContext *cx, IonScript *ion, MacroAssembler &masm,
                 // Guard the shape of the current prototype.
                 masm.branchPtr(Assembler::NotEqual,
                                Address(scratchReg, JSObject::offsetOfShape()),
-                               ImmGCPtr(proto->as<NativeObject>().lastProperty()),
+                               ImmGCPtr(proto->lastProperty()),
                                &prototypeFailures);
 
                 proto = proto->getProto();
@@ -1098,15 +1098,6 @@ EmitGetterCall(JSContext *cx, MacroAssembler &masm,
     return true;
 }
 
-static void
-TestMatchingReceiver(MacroAssembler &masm, Register object, JSObject *obj, Label *failure)
-{
-    if (Shape *shape = obj->maybeShape())
-        masm.branchTestObjShape(Assembler::NotEqual, object, shape, failure);
-    else
-        masm.branchTestObjGroup(Assembler::NotEqual, object, obj->group(), failure);
-}
-
 static bool
 GenerateCallGetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
                    IonCache::StubAttacher &attacher, JSObject *obj, PropertyName *name,
@@ -1119,7 +1110,13 @@ GenerateCallGetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
     Label stubFailure;
     failures = failures ? failures : &stubFailure;
 
-    TestMatchingReceiver(masm, object, obj, failures);
+    // Initial shape/group check.
+    if (obj->isNative())
+        masm.branchTestObjShape(Assembler::NotEqual, object, obj->lastProperty(), failures);
+    else if (obj->is<UnboxedPlainObject>())
+        masm.branchTestObjGroup(Assembler::NotEqual, object, obj->group(), failures);
+    else
+        MOZ_CRASH("Unexpected object");
 
     Register scratchReg = output.valueReg().scratchReg();
     bool spillObjReg = scratchReg == object;
@@ -1141,7 +1138,7 @@ GenerateCallGetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
     masm.movePtr(ImmMaybeNurseryPtr(holder), holderReg);
     masm.branchPtr(Assembler::NotEqual,
                    Address(holderReg, JSObject::offsetOfShape()),
-                   ImmGCPtr(holder->as<NativeObject>().lastProperty()),
+                   ImmGCPtr(holder->lastProperty()),
                    maybePopAndFail);
 
     if (spillObjReg)
@@ -1175,7 +1172,7 @@ GenerateArrayLength(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher 
     Label failures;
 
     // Guard object is a dense array.
-    RootedShape shape(cx, obj->as<ArrayObject>().lastProperty());
+    RootedShape shape(cx, obj->lastProperty());
     if (!shape)
         return false;
     masm.branchTestObjShape(Assembler::NotEqual, object, shape, &failures);
@@ -1559,7 +1556,7 @@ GetPropertyIC::tryAttachDOMProxyShadowed(JSContext *cx, HandleScript outerScript
     // Guard on the shape of the object.
     attacher.branchNextStubOrLabel(masm, Assembler::NotEqual,
                                    Address(object(), JSObject::offsetOfShape()),
-                                   ImmGCPtr(obj->maybeShape()),
+                                   ImmGCPtr(obj->lastProperty()),
                                    &failures);
 
     // No need for more guards: we know this is a DOM proxy, since the shape
@@ -1628,7 +1625,7 @@ GetPropertyIC::tryAttachDOMProxyUnshadowed(JSContext *cx, HandleScript outerScri
     // Guard on the shape of the object.
     attacher.branchNextStubOrLabel(masm, Assembler::NotEqual,
                                    Address(object(), JSObject::offsetOfShape()),
-                                   ImmGCPtr(obj->maybeShape()),
+                                   ImmGCPtr(obj->lastProperty()),
                                    &failures);
 
     // Guard that our expando object hasn't started shadowing this property.
@@ -2242,7 +2239,7 @@ SetPropertyIC::attachDOMProxyShadowed(JSContext *cx, HandleScript outerScript, I
     // Guard on the shape of the object.
     masm.branchPtr(Assembler::NotEqual,
                    Address(object(), JSObject::offsetOfShape()),
-                   ImmGCPtr(obj->maybeShape()), &failures);
+                   ImmGCPtr(obj->lastProperty()), &failures);
 
     // No need for more guards: we know this is a DOM proxy, since the shape
     // guard enforces a given JSClass, so just go ahead and emit the call to
@@ -2292,7 +2289,7 @@ GenerateCallSetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
         masm.movePtr(ImmMaybeNurseryPtr(holder), scratchReg);
         masm.branchPtr(Assembler::NotEqual,
                        Address(scratchReg, JSObject::offsetOfShape()),
-                       ImmGCPtr(holder->as<NativeObject>().lastProperty()),
+                       ImmGCPtr(holder->lastProperty()),
                        &protoFailure);
 
         masm.jump(&protoSuccess);
@@ -2516,7 +2513,7 @@ SetPropertyIC::attachDOMProxyUnshadowed(JSContext *cx, HandleScript outerScript,
     // Guard on the shape of the object.
     masm.branchPtr(Assembler::NotEqual,
                    Address(object(), JSObject::offsetOfShape()),
-                   ImmGCPtr(obj->maybeShape()), &failures);
+                   ImmGCPtr(obj->lastProperty()), &failures);
 
     // Guard that our expando object hasn't started shadowing this property.
     CheckDOMProxyExpandoDoesNotShadow(cx, masm, obj, name(), object(), &failures);
@@ -2567,7 +2564,12 @@ SetPropertyIC::attachCallSetter(JSContext *cx, HandleScript outerScript, IonScri
     RepatchStubAppender attacher(*this);
 
     Label failure;
-    TestMatchingReceiver(masm, object(), obj, &failure);
+    if (obj->isNative())
+        masm.branchTestObjShape(Assembler::NotEqual, object(), obj->lastProperty(), &failure);
+    else if (obj->is<UnboxedPlainObject>())
+        masm.branchTestObjGroup(Assembler::NotEqual, object(), obj->group(), &failure);
+    else
+        MOZ_CRASH("Unexpected object");
 
     if (!GenerateCallSetter(cx, ion, masm, attacher, obj, holder, shape, strict(),
                             object(), value(), &failure, liveRegs_, returnAddr))
@@ -2615,7 +2617,7 @@ GenerateAddSlot(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &att
     JSObject *proto = obj->getProto();
     Register protoReg = object;
     while (proto) {
-        Shape *protoShape = proto->as<NativeObject>().lastProperty();
+        Shape *protoShape = proto->lastProperty();
 
         // load next prototype
         masm.loadObjProto(protoReg, protoReg);
@@ -3024,7 +3026,7 @@ SetPropertyIC::update(JSContext *cx, HandleScript outerScript, size_t cacheIndex
     }
 
     uint32_t oldSlots = obj->is<NativeObject>() ? obj->as<NativeObject>().numDynamicSlots() : 0;
-    RootedShape oldShape(cx, obj->maybeShape());
+    RootedShape oldShape(cx, obj->lastProperty());
 
     // Set/Add the property on the object, the inlined cache are setup for the next execution.
     if (!SetProperty(cx, obj, name, value, cache.strict(), cache.pc()))
@@ -3193,7 +3195,7 @@ GenerateDenseElement(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher
     Label failures;
 
     // Guard object's shape.
-    RootedShape shape(cx, obj->as<NativeObject>().lastProperty());
+    RootedShape shape(cx, obj->lastProperty());
     if (!shape)
         return false;
     masm.branchTestObjShape(Assembler::NotEqual, object, shape, &failures);
@@ -3301,6 +3303,7 @@ GenerateDenseElementHole(JSContext *cx, MacroAssembler &masm, IonCache::StubAtta
                          Register object, ConstantOrRegister index, TypedOrValueRegister output)
 {
     MOZ_ASSERT(GetElementIC::canAttachDenseElementHole(obj, idval, output));
+    MOZ_ASSERT(obj->lastProperty());
 
     Register scratchReg = output.valueReg().scratchReg();
 
@@ -3308,7 +3311,7 @@ GenerateDenseElementHole(JSContext *cx, MacroAssembler &masm, IonCache::StubAtta
     Label failures;
     attacher.branchNextStubOrLabel(masm, Assembler::NotEqual,
                                    Address(object, JSObject::offsetOfShape()),
-                                   ImmGCPtr(obj->as<NativeObject>().lastProperty()), &failures);
+                                   ImmGCPtr(obj->lastProperty()), &failures);
 
 
     if (obj->hasUncacheableProto()) {
@@ -3320,7 +3323,7 @@ GenerateDenseElementHole(JSContext *cx, MacroAssembler &masm, IonCache::StubAtta
 
     JSObject *pobj = obj->getProto();
     while (pobj) {
-        MOZ_ASSERT(pobj->as<NativeObject>().lastProperty());
+        MOZ_ASSERT(pobj->lastProperty());
 
         masm.movePtr(ImmMaybeNurseryPtr(pobj), scratchReg);
         if (pobj->hasUncacheableProto()) {
@@ -3331,7 +3334,7 @@ GenerateDenseElementHole(JSContext *cx, MacroAssembler &masm, IonCache::StubAtta
 
         // Make sure the shape matches, to avoid non-dense elements.
         masm.branchPtr(Assembler::NotEqual, Address(scratchReg, JSObject::offsetOfShape()),
-                       ImmGCPtr(pobj->as<NativeObject>().lastProperty()), &failures);
+                       ImmGCPtr(pobj->lastProperty()), &failures);
 
         // Load elements vector.
         masm.loadPtr(Address(scratchReg, NativeObject::offsetOfElements()), scratchReg);
@@ -3869,7 +3872,7 @@ GenerateSetDenseElement(JSContext *cx, MacroAssembler &masm, IonCache::StubAttac
     Label markElem, storeElement; // used if TI protects us from worrying about holes.
 
     // Guard object is a dense array.
-    Shape *shape = obj->as<NativeObject>().lastProperty();
+    Shape *shape = obj->lastProperty();
     if (!shape)
         return false;
     masm.branchTestObjShape(Assembler::NotEqual, object, shape, &failures);
@@ -4145,8 +4148,7 @@ GenerateScopeChainGuard(MacroAssembler &masm, JSObject *scopeObj,
     }
 
     Address shapeAddr(scopeObjReg, JSObject::offsetOfShape());
-    masm.branchPtr(Assembler::NotEqual, shapeAddr,
-                   ImmGCPtr(scopeObj->as<NativeObject>().lastProperty()), failures);
+    masm.branchPtr(Assembler::NotEqual, shapeAddr, ImmGCPtr(scopeObj->lastProperty()), failures);
 }
 
 static void
@@ -4187,7 +4189,7 @@ BindNameIC::attachNonGlobal(JSContext *cx, HandleScript outerScript, IonScript *
     Label failures;
     attacher.branchNextStubOrLabel(masm, Assembler::NotEqual,
                                    Address(scopeChainReg(), JSObject::offsetOfShape()),
-                                   ImmGCPtr(scopeChain->as<NativeObject>().lastProperty()),
+                                   ImmGCPtr(scopeChain->lastProperty()),
                                    holder != scopeChain ? &failures : nullptr);
 
     if (holder != scopeChain) {

@@ -1163,10 +1163,11 @@ pref("toolbar.customization.usesheet", true);
 pref("toolbar.customization.usesheet", false);
 #endif
 
-pref("dom.ipc.plugins.flash.disable-protected-mode", false);
+// Disable Flash protected mode to reduce hang/crash rates.
+pref("dom.ipc.plugins.flash.disable-protected-mode", true);
 
 // Feature-disable the protected-mode auto-flip
-pref("browser.flash-protected-mode-flip.enable", false);
+pref("browser.flash-protected-mode-flip.enable", true);
 
 // Whether we've already flipped protected mode automatically
 pref("browser.flash-protected-mode-flip.done", false);
@@ -1200,6 +1201,7 @@ pref("security.sandbox.windows.log", false);
 // 3 - the strongest settings we seem to be able to use without breaking
 //     everything, but will definitely cause some functionality restrictions
 pref("dom.ipc.plugins.sandbox-level.default", 0);
+pref("dom.ipc.plugins.sandbox-level.flash", 1);
 
 #if defined(MOZ_CONTENT_SANDBOX)
 // This controls whether the Windows content process sandbox is using a more

@@ -9,7 +9,7 @@ from marionette_driver import errors
 from marionette_driver import wait
 from marionette_driver.wait import Wait
 
-from marionette import MarionetteTestCase
+from marionette_test import MarionetteTestCase
 
 
 class TickingClock(object):

@@ -51,22 +51,6 @@ WorkerRunnable::WorkerRunnable(WorkerPrivate* aWorkerPrivate,
 #endif
 
 bool
-WorkerRunnable::IsDebuggerRunnable() const
-{
-  return false;
-}
-
-nsIGlobalObject*
-WorkerRunnable::DefaultGlobalObject() const
-{
-  if (IsDebuggerRunnable()) {
-    return mWorkerPrivate->DebuggerGlobalScope();
-  } else {
-    return mWorkerPrivate->GlobalScope();
-  }
-}
-
-bool
 WorkerRunnable::PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
 {
 #ifdef DEBUG
@@ -137,11 +121,7 @@ WorkerRunnable::DispatchInternal()
 {
   if (mBehavior == WorkerThreadModifyBusyCount ||
       mBehavior == WorkerThreadUnchangedBusyCount) {
-    if (IsDebuggerRunnable()) {
-      return NS_SUCCEEDED(mWorkerPrivate->DispatchDebuggerRunnable(this));
-    } else {
-      return NS_SUCCEEDED(mWorkerPrivate->Dispatch(this));
-    }
+    return NS_SUCCEEDED(mWorkerPrivate->Dispatch(this));
   }
 
   MOZ_ASSERT(mBehavior == ParentThreadUnchangedBusyCount);
@@ -305,13 +285,9 @@ WorkerRunnable::Run()
   MOZ_ASSERT(isMainThread == NS_IsMainThread());
   nsRefPtr<WorkerPrivate> kungFuDeathGrip;
   if (targetIsWorkerThread) {
-    JSObject* global = JS::CurrentGlobalOrNull(GetCurrentThreadJSContext());
-    if (global) {
-      globalObject = GetGlobalObjectForGlobal(global);
-    } else {
-      globalObject = DefaultGlobalObject();
-    }
-  } else {
+    globalObject = mWorkerPrivate->GlobalScope();
+  }
+  else {
     kungFuDeathGrip = mWorkerPrivate;
     if (isMainThread) {
       globalObject = static_cast<nsGlobalWindow*>(mWorkerPrivate->GetWindow());
@@ -351,8 +327,8 @@ WorkerRunnable::Run()
 
   // In the case of CompileScriptRunnnable, WorkerRun above can cause us to
   // lazily create a global, so we construct aes here before calling PostRun.
-  if (targetIsWorkerThread && !aes && DefaultGlobalObject()) {
-    aes.emplace(DefaultGlobalObject(), false, GetCurrentThreadJSContext());
+  if (targetIsWorkerThread && !aes && mWorkerPrivate->GlobalScope()) {
+    aes.emplace(mWorkerPrivate->GlobalScope(), false, GetCurrentThreadJSContext());
     cx = aes->cx();
   }
 
@@ -371,14 +347,6 @@ WorkerRunnable::Cancel()
   // The docs say that Cancel() should not be called more than once and that we
   // should throw NS_ERROR_UNEXPECTED if it is.
   return (canceledCount == 1) ? NS_OK : NS_ERROR_UNEXPECTED;
-}
-
-void
-WorkerDebuggerRunnable::PostDispatch(JSContext* aCx,
-                                     WorkerPrivate* aWorkerPrivate,
-                                     bool aDispatchResult)
-{
-  MaybeReportMainThreadException(aCx, aDispatchResult);
 }
 
 WorkerSyncRunnable::WorkerSyncRunnable(WorkerPrivate* aWorkerPrivate,

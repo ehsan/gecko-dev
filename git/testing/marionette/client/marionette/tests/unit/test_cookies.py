@@ -1,7 +1,7 @@
 import calendar
 import time
 import random
-from marionette import MarionetteTestCase
+from marionette_test import MarionetteTestCase
 
 
 class CookieTest(MarionetteTestCase):

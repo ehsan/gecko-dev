@@ -14,7 +14,7 @@
 #limitations under the License.
 
 from marionette_driver.application_cache import ApplicationCache
-from marionette import MarionetteTestCase
+from marionette_test import MarionetteTestCase
 
 
 class AppCacheTests(MarionetteTestCase):

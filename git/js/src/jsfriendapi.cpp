@@ -321,10 +321,10 @@ js::IsCallObject(JSObject *obj)
     return obj->is<CallObject>();
 }
 
-JS_FRIEND_API(bool)
-js::CanAccessObjectShape(JSObject *obj)
+JS_FRIEND_API(JSObject *)
+js::GetObjectParentMaybeScope(JSObject *obj)
 {
-    return obj->maybeShape() != nullptr;
+    return obj->enclosingScope();
 }
 
 JS_FRIEND_API(JSObject *)

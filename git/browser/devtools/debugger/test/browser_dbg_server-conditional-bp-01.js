@@ -36,7 +36,6 @@ function test() {
       .then(() => resumeAndTestBreakpoint(27))
       .then(() => resumeAndTestBreakpoint(28))
       .then(() => resumeAndTestBreakpoint(29))
-      .then(() => resumeAndTestBreakpoint(30))
       .then(() => resumeAndTestNoBreakpoint())
       .then(() => {
         return promise.all([

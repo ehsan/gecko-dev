@@ -253,8 +253,8 @@ Shape::fixupDictionaryShapeAfterMovingGC()
     } else {
         // listp points to the shape_ field of an object.
         JSObject *last = reinterpret_cast<JSObject *>(uintptr_t(listp) -
-                                                      JSObject::offsetOfShape());
-        listp = &gc::MaybeForwarded(last)->as<NativeObject>().shape_;
+                                                      offsetof(JSObject, shape_));
+        listp = &gc::MaybeForwarded(last)->shape_;
     }
 }
 

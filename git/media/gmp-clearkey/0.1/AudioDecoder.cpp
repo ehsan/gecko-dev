@@ -229,7 +229,9 @@ AudioDecoder::Reset()
 void
 AudioDecoder::DrainTask()
 {
-  mDecoder->Drain();
+  if (FAILED(mDecoder->Drain())) {
+    GetPlatform()->syncrunonmainthread(WrapTask(mCallback, &GMPAudioDecoderCallback::DrainComplete));
+  }
 
   // Return any pending output.
   HRESULT hr = S_OK;
@@ -241,7 +243,7 @@ AudioDecoder::DrainTask()
       ReturnOutput(output);
     }
   }
-  GetPlatform()->runonmainthread(WrapTask(mCallback, &GMPAudioDecoderCallback::DrainComplete));
+  GetPlatform()->syncrunonmainthread(WrapTask(mCallback, &GMPAudioDecoderCallback::DrainComplete));
 }
 
 void
