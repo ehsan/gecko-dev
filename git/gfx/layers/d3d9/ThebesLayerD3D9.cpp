@@ -19,7 +19,6 @@
 #include "gfxTeeSurface.h"
 #include "gfxUtils.h"
 #include "ReadbackProcessor.h"
-#include "ReadbackLayer.h"
 
 namespace mozilla {
 namespace layers {

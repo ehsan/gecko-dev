@@ -2383,8 +2383,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ "5" ]
 	},
 	"box-shadow": {
 		domProp: "boxShadow",

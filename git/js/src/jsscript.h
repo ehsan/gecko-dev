@@ -1055,6 +1055,7 @@ class SourceCompressorThread
         // Set by finish() to tell the compression thread to exit.
         SHUTDOWN
     } state;
+    JSRuntime *rt;
     SourceCompressionToken *tok;
     PRThread *thread;
     // Protects |state| and |tok| when it's non-NULL.
@@ -1074,6 +1075,7 @@ class SourceCompressorThread
   public:
     explicit SourceCompressorThread(JSRuntime *rt)
     : state(IDLE),
+      rt(rt),
       tok(NULL),
       thread(NULL),
       lock(NULL),

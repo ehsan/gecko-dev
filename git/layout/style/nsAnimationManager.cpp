@@ -287,27 +287,17 @@ ElementAnimation::CanPerformOnCompositor(mozilla::dom::Element* aElement,
     (aTime - mStartTime)  / mIterationDuration < mIterationCount;
 }
 
-
-bool
-ElementAnimation::HasAnimationOfProperty(nsCSSProperty aProperty) const
-{
-  for (PRUint32 propIdx = 0, propEnd = mProperties.Length();
-       propIdx != propEnd; ++propIdx) {
-    if (aProperty == mProperties[propIdx].mProperty) {
-      return true;
-    }
-  }
-  return false;
-}
-
-
 bool
 ElementAnimations::HasAnimationOfProperty(nsCSSProperty aProperty) const
 {
   for (PRUint32 animIdx = mAnimations.Length(); animIdx-- != 0; ) {
     const ElementAnimation &anim = mAnimations[animIdx];
-    if (anim.HasAnimationOfProperty(aProperty)) {
-      return true;
+    for (PRUint32 propIdx = 0, propEnd = anim.mProperties.Length();
+         propIdx != propEnd; ++propIdx) {
+      const AnimationProperty &prop = anim.mProperties[propIdx];
+      if (aProperty == prop.mProperty) {
+        return true;
+      }
     }
   }
   return false;

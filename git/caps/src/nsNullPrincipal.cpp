@@ -292,26 +292,8 @@ nsNullPrincipal::SubsumesIgnoringDomain(nsIPrincipal *aOther, bool *aResult)
 }
 
 NS_IMETHODIMP
-nsNullPrincipal::CheckMayLoad(nsIURI* aURI, bool aReport, bool aAllowIfInheritsPrincipal)
- {
-  if (aAllowIfInheritsPrincipal) {
-    if (nsPrincipal::IsPrincipalInherited(aURI)) {
-      return NS_OK;
-    }
-
-    // Also allow the load if the principal of the URI being checked is exactly
-    // us ie this.
-    nsCOMPtr<nsIURIWithPrincipal> uriPrinc = do_QueryInterface(aURI);
-    if (uriPrinc) {
-      nsCOMPtr<nsIPrincipal> principal;
-      uriPrinc->GetPrincipal(getter_AddRefs(principal));
-
-      if (principal && principal == this) {
-        return NS_OK;
-      }
-    }
-  }
-
+nsNullPrincipal::CheckMayLoad(nsIURI* aURI, bool aReport)
+{
   if (aReport) {
     nsScriptSecurityManager::ReportError(
       nullptr, NS_LITERAL_STRING("CheckSameOriginError"), mURI, aURI);

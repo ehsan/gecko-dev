@@ -4,7 +4,6 @@
 
 #include "CameraPreview.h"
 #include "Layers.h"
-#include "ImageContainer.h"
 #define DOM_CAMERA_LOG_LEVEL  3
 #include "CameraCommon.h"
 

@@ -123,15 +123,23 @@ public:
    */
   void WriteTo(nsAudioStream* aOutput);
 
+  using MediaSegmentBase<AudioSegment, AudioChunk>::AppendFrom;
+  void AppendFrom(AudioSegment* aSource)
+  {
+    NS_ASSERTION(aSource->mChannels == mChannels, "Non-matching channels");
+    MediaSegmentBase<AudioSegment, AudioChunk>::AppendFrom(aSource);
+  }
+
   // Segment-generic methods not in MediaSegmentBase
   void InitFrom(const AudioSegment& aOther)
   {
     NS_ASSERTION(mChannels == 0, "Channels already set");
     mChannels = aOther.mChannels;
   }
-  void CheckCompatible(const AudioSegment& aOther) const
+  void SliceFrom(const AudioSegment& aOther, TrackTicks aStart, TrackTicks aEnd)
   {
-    NS_ASSERTION(aOther.mChannels == mChannels, "Non-matching channels");
+    InitFrom(aOther);
+    BaseSliceFrom(aOther, aStart, aEnd);
   }
   static Type StaticType() { return AUDIO; }
 

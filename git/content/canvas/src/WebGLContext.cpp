@@ -42,8 +42,6 @@
 #include "mozilla/Services.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 
-#include "Layers.h"
-
 using namespace mozilla;
 using namespace mozilla::gl;
 using namespace mozilla::layers;

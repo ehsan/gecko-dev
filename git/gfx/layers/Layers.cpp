@@ -27,8 +27,6 @@ const ViewID FrameMetrics::NULL_SCROLL_ID = 0;
 const ViewID FrameMetrics::ROOT_SCROLL_ID = 1;
 const ViewID FrameMetrics::START_SCROLL_ID = 2;
 
-PRUint8 gLayerManagerLayerBuilder;
-
 #ifdef MOZ_LAYERS_HAVE_LOG
 FILE*
 FILEOrDefault(FILE* aFile)
@@ -243,20 +241,16 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
 Layer::~Layer()
 {}
 
-Animation*
-Layer::AddAnimation(TimeStamp aStart, TimeDuration aDuration, float aIterations,
-                    int aDirection, nsCSSProperty aProperty, const AnimationData& aData)
+void
+Layer::AddAnimation(const Animation& aAnimation)
 {
-  Animation* anim = mAnimations.AppendElement();
-  anim->startTime() = aStart;
-  anim->duration() = aDuration;
-  anim->numIterations() = aIterations;
-  anim->direction() = aDirection;
-  anim->property() = aProperty;
-  anim->data() = aData;
+  if (!AsShadowableLayer() || !AsShadowableLayer()->HasShadow())
+    return;
 
+  MOZ_ASSERT(aAnimation.segments().Length() >= 1);
+
+  mAnimations.AppendElement(aAnimation);
   Mutated();
-  return anim;
 }
 
 void
@@ -379,10 +373,6 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
         NS_ASSERTION(false, "All functions should be implemented?");
     }
   }
-  if (aFunctions.Length() == 0) {
-    result = new nsCSSValueList();
-    result->mValue.SetNoneValue();
-  }
   return result.forget();
 }
 
@@ -392,8 +382,9 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
   mAnimations = aAnimations;
   mAnimationData.Clear();
   for (PRUint32 i = 0; i < mAnimations.Length(); i++) {
-    AnimData* data = mAnimationData.AppendElement();
-    InfallibleTArray<css::ComputedTimingFunction*>& functions = data->mFunctions;
+    AnimData data;
+    InfallibleTArray<css::ComputedTimingFunction*>* functions =
+      &data.mFunctions;
     nsTArray<AnimationSegment> segments = mAnimations.ElementAt(i).segments();
     for (PRUint32 j = 0; j < segments.Length(); j++) {
       TimingFunction tf = segments.ElementAt(j).sampleFn();
@@ -414,34 +405,56 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
           break;
         }
       }
-      functions.AppendElement(ctf);
+      functions->AppendElement(ctf);
     }
 
     // Precompute the nsStyleAnimation::Values that we need if this is a transform
     // animation.
-    InfallibleTArray<nsStyleAnimation::Value>& startValues = data->mStartValues;
-    InfallibleTArray<nsStyleAnimation::Value>& endValues = data->mEndValues;
+    InfallibleTArray<nsStyleAnimation::Value>* startValues =
+      &data.mStartValues;
+    InfallibleTArray<nsStyleAnimation::Value>* endValues =
+      &data.mEndValues;
     for (PRUint32 j = 0; j < mAnimations[i].segments().Length(); j++) {
       const AnimationSegment& segment = mAnimations[i].segments()[j];
-      nsStyleAnimation::Value* startValue = startValues.AppendElement();
-      nsStyleAnimation::Value* endValue = endValues.AppendElement();
       if (segment.endState().type() == Animatable::TArrayOfTransformFunction) {
         const InfallibleTArray<TransformFunction>& startFunctions =
           segment.startState().get_ArrayOfTransformFunction();
-        startValue->SetAndAdoptCSSValueListValue(CreateCSSValueList(startFunctions),
-                                                 nsStyleAnimation::eUnit_Transform);
+        nsStyleAnimation::Value startValue;
+        nsCSSValueList* startList;
+        if (startFunctions.Length() > 0) {
+          startList = CreateCSSValueList(startFunctions);
+        } else {
+          startList = new nsCSSValueList();
+          startList->mValue.SetNoneValue();
+        }
+        startValue.SetAndAdoptCSSValueListValue(startList, nsStyleAnimation::eUnit_Transform);
+        startValues->AppendElement(startValue);
 
         const InfallibleTArray<TransformFunction>& endFunctions =
           segment.endState().get_ArrayOfTransformFunction();
-        endValue->SetAndAdoptCSSValueListValue(CreateCSSValueList(endFunctions),
-                                               nsStyleAnimation::eUnit_Transform);
+        nsStyleAnimation::Value endValue;
+        nsCSSValueList* endList;
+        if (endFunctions.Length() > 0) {
+          endList = CreateCSSValueList(endFunctions);
+        } else {
+          endList = new nsCSSValueList();
+          endList->mValue.SetNoneValue();
+        }
+        endValue.SetAndAdoptCSSValueListValue(endList, nsStyleAnimation::eUnit_Transform);
+        endValues->AppendElement(endValue);
       } else {
-        NS_ASSERTION(segment.endState().type() == Animatable::Tfloat,
+        NS_ASSERTION(segment.endState().type() == Animatable::TOpacity,
                      "Unknown Animatable type");
-        startValue->SetFloatValue(segment.startState().get_float());
-        endValue->SetFloatValue(segment.endState().get_float());
+        nsStyleAnimation::Value startValue;
+        startValue.SetFloatValue(segment.startState().get_Opacity().value());
+        startValues->AppendElement(startValue);
+
+        nsStyleAnimation::Value endValue;
+        endValue.SetFloatValue(segment.endState().get_Opacity().value());
+        endValues->AppendElement(endValue);
       }
     }
+    mAnimationData.AppendElement(data);
   }
 
   Mutated();
@@ -1030,7 +1043,7 @@ nsACString&
 RefLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   ContainerLayer::PrintInfo(aTo, aPrefix);
-  if (0 != mId) {
+  if (-1 != mId) {
     AppendToString(aTo, mId, " [id=", "]");
   }
   return aTo;

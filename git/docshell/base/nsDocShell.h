@@ -775,8 +775,6 @@ protected:
     PRInt32                    mPreviousTransIndex;
     PRInt32                    mLoadedTransIndex;
 
-    PRUint32                   mSandboxFlags;
-
     bool                       mCreated;
     bool                       mAllowSubframes;
     bool                       mAllowPlugins;
@@ -820,7 +818,7 @@ protected:
     // presentation of the page, and to SetupNewViewer() that the old viewer
     // should be passed a SHEntry to save itself into.
     bool                       mSavingOldViewer;
-    
+
     // @see nsIDocShellHistory::createdDynamically
     bool                       mDynamicallyCreated;
 #ifdef DEBUG

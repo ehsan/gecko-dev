@@ -7,6 +7,7 @@
 #include "base/basictypes.h"
 #include "BluetoothAdapter.h"
 #include "BluetoothDevice.h"
+#include "BluetoothDeviceEvent.h"
 #include "BluetoothPropertyEvent.h"
 #include "BluetoothPairingEvent.h"
 #include "BluetoothService.h"
@@ -20,7 +21,6 @@
 #include "nsThreadUtils.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsIDOMDOMRequest.h"
-#include "nsIDOMBluetoothDeviceEvent.h"
 #include "nsIDOMBluetoothDeviceAddressEvent.h"
 #include "nsContentUtils.h"
 
@@ -297,16 +297,9 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
   InfallibleTArray<BluetoothNamedValue> arr;
 
   if (aData.name().EqualsLiteral("DeviceFound")) {
-    nsRefPtr<BluetoothDevice> device = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
-    nsCOMPtr<nsIDOMEvent> event;
-    NS_NewDOMBluetoothDeviceEvent(getter_AddRefs(event), nullptr, nullptr);
-
-    nsCOMPtr<nsIDOMBluetoothDeviceEvent> e = do_QueryInterface(event);
-    e->InitBluetoothDeviceEvent(NS_LITERAL_STRING("devicefound"),
-                                false, false, device);
-    e->SetTrusted(true);
-    bool dummy;
-    DispatchEvent(event, &dummy);
+    nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
+    nsRefPtr<BluetoothDeviceEvent> e = BluetoothDeviceEvent::Create(d);
+    e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("devicefound"));
   } else if (aData.name().EqualsLiteral("DeviceDisappeared")) {
 		const nsAString& deviceAddress = aData.value().get_nsString();
 

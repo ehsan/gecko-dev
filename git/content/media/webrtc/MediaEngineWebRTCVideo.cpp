@@ -4,8 +4,6 @@
 
 #include "MediaEngineWebRTC.h"
 #include "Layers.h"
-#include "ImageTypes.h"
-#include "ImageContainer.h"
 
 namespace mozilla {
 

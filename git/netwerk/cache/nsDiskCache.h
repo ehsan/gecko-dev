@@ -49,10 +49,7 @@ public:
       kBlockFileSizeLessThanBitMap = 19,
       kBlockFileBitMapReadError = 20,
       kBlockFileEstimatedSizeError = 21,
-      kFlushHeaderError = 22,
-      kCacheCleanFilePathError = 23,
-      kCacheCleanOpenFileError = 24,
-      kCacheCleanTimerError = 25
+      kFlushHeaderError = 22
     };
 
     // Parameter initval initializes internal state of hash function. Hash values are different

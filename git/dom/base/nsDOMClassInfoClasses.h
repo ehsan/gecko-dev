@@ -43,6 +43,7 @@ DOMCI_CLASS(WheelEvent)
 DOMCI_CLASS(DragEvent)
 DOMCI_CLASS(KeyboardEvent)
 DOMCI_CLASS(CompositionEvent)
+DOMCI_CLASS(PopupBlockedEvent)
 #define MOZ_GENERATED_EVENT_LIST
 #define MOZ_GENERATED_EVENT(_event_interface) DOMCI_CLASS(_event_interface)
 #include "GeneratedEvents.h"
@@ -523,6 +524,7 @@ DOMCI_CLASS(MozVoicemailEvent)
 DOMCI_CLASS(BluetoothManager)
 DOMCI_CLASS(BluetoothAdapter)
 DOMCI_CLASS(BluetoothDevice)
+DOMCI_CLASS(BluetoothDeviceEvent)
 DOMCI_CLASS(BluetoothPropertyEvent)
 DOMCI_CLASS(BluetoothPairingEvent)
 #endif

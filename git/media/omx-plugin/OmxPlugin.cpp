@@ -7,11 +7,8 @@
 #include <stagefright/MediaExtractor.h>
 #include <stagefright/MetaData.h>
 #include <stagefright/OMXCodec.h>
-#ifdef MOZ_WIDGET_GONK
 #include <OMX.h>
-#else
-#include <stagefright/OMXClient.h>
-#endif
+
 #include "mozilla/Types.h"
 #include "MPAPI.h"
 
@@ -104,9 +101,6 @@ using namespace android;
 class OmxDecoder {
   PluginHost *mPluginHost;
   Decoder *mDecoder;
-#ifndef MOZ_WIDGET_GONK
-  OMXClient mClient;
-#endif
   sp<MediaSource> mVideoTrack;
   sp<MediaSource> mVideoSource;
   sp<MediaSource> mAudioTrack;
@@ -202,9 +196,6 @@ OmxDecoder::~OmxDecoder()
   if (mAudioSource.get()) {
     mAudioSource->stop();
   }
-#ifndef MOZ_WIDGET_GONK
-  mClient.disconnect();
-#endif
 }
 
 class AutoStopMediaSource {
@@ -218,7 +209,6 @@ public:
   }
 };
 
-#ifdef MOZ_WIDGET_GONK
 static sp<IOMX> sOMX = NULL;
 static sp<IOMX> GetOMX() {
   if(sOMX.get() == NULL) {
@@ -226,7 +216,6 @@ static sp<IOMX> GetOMX() {
   }
   return sOMX;
 }
-#endif
 
 bool OmxDecoder::Init() {
   //register sniffers, if they are not registered in this process.
@@ -276,30 +265,15 @@ bool OmxDecoder::Init() {
 
   int64_t totalDurationUs = 0;
 
-#ifdef MOZ_WIDGET_GONK
-  sp<IOMX> omx = GetOMX();
-  uint32_t flags = OMXCodec::kSoftwareCodecsOnly;
-#else
-  // OMXClient::connect() always returns OK and abort's fatally if
-  // it can't connect. We may need to implement the connect functionality
-  // ourselves if this proves to be an issue.
-  if (mClient.connect() != OK) {
-    LOG("OMXClient failed to connect");
-  }
-  sp<IOMX> omx = mClient.interface();
-  // Flag value of zero means return a hardware or software decoder
-  // depending on what the device supports.
-  uint32_t flags = 0;
-#endif
   sp<MediaSource> videoTrack;
   sp<MediaSource> videoSource;
   if (videoTrackIndex != -1 && (videoTrack = extractor->getTrack(videoTrackIndex)) != NULL) {
-    videoSource = OMXCodec::Create(omx,
+    videoSource = OMXCodec::Create(GetOMX(),
                                    videoTrack->getFormat(),
                                    false, // decoder
                                    videoTrack,
                                    NULL,
-                                   flags);
+                                   OMXCodec::kSoftwareCodecsOnly);
     if (videoSource == NULL) {
       return false;
     }
@@ -322,7 +296,7 @@ bool OmxDecoder::Init() {
     if (!strcasecmp(audioMime, "audio/raw")) {
       audioSource = audioTrack;
     } else {
-      audioSource = OMXCodec::Create(omx,
+      audioSource = OMXCodec::Create(GetOMX(),
                                      audioTrack->getFormat(),
                                      false, // decoder
                                      audioTrack);
@@ -528,8 +502,19 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aSeekTimeUs)
       unreadable = 0;
     }
 
+    LOG("data: %p size: %u offset: %u length: %u unreadable: %d",
+        mVideoBuffer->data(), 
+        mVideoBuffer->size(),
+        mVideoBuffer->range_offset(),
+        mVideoBuffer->range_length(),
+        unreadable);
+
     char *data = reinterpret_cast<char *>(mVideoBuffer->data()) + mVideoBuffer->range_offset();
     size_t length = mVideoBuffer->range_length();
+
+    if (unreadable) {
+      LOG("video frame is unreadable");
+    }
 
     if (!ToVideoFrame(aFrame, timeUs, data, length, keyFrame)) {
       return false;
@@ -552,6 +537,7 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aSeekTimeUs)
 bool OmxDecoder::ReadAudio(AudioFrame *aFrame, int64_t aSeekTimeUs)
 {
   status_t err;
+
   if (mAudioMetadataRead && aSeekTimeUs == -1) {
     // Use the data read into the buffer during metadata time
     err = OK;
@@ -588,8 +574,10 @@ bool OmxDecoder::ReadAudio(AudioFrame *aFrame, int64_t aSeekTimeUs)
     else
       return ReadAudio(aFrame, aSeekTimeUs);
   }
-
-  return err == OK;
+  else if (err == ERROR_END_OF_STREAM)
+    return false;
+  else
+    return false; 
 }
 
 static OmxDecoder *cast(Decoder *decoder) {

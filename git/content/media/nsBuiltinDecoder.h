@@ -202,7 +202,7 @@ class Image;
 } //namespace
 } //namespace
 
-typedef mozilla::layers::Image Image;
+typedef mozilla::layers::Image Image; 
 
 class nsAudioStream;
 
@@ -380,12 +380,20 @@ public:
   virtual void AddOutputStream(SourceMediaStream* aStream, bool aFinishWhenEnded);
   // Protected by mReentrantMonitor. All decoder output is copied to these streams.
   struct OutputMediaStream {
-    OutputMediaStream();
-    ~OutputMediaStream();
-    OutputMediaStream(const OutputMediaStream& rhs);
-
-    void Init(PRInt64 aInitialTime, SourceMediaStream* aStream, bool aFinishWhenEnded);
-    
+    void Init(PRInt64 aInitialTime, SourceMediaStream* aStream, bool aFinishWhenEnded)
+    {
+      mLastAudioPacketTime = -1;
+      mLastAudioPacketEndTime = -1;
+      mAudioFramesWrittenBaseTime = aInitialTime;
+      mAudioFramesWritten = 0;
+      mNextVideoTime = aInitialTime;
+      mStream = aStream;
+      mStreamInitialized = false;
+      mFinishWhenEnded = aFinishWhenEnded;
+      mHaveSentFinish = false;
+      mHaveSentFinishAudio = false;
+      mHaveSentFinishVideo = false;
+    }
     PRInt64 mLastAudioPacketTime; // microseconds
     PRInt64 mLastAudioPacketEndTime; // microseconds
     // Count of audio frames written to the stream

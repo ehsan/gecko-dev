@@ -16,7 +16,6 @@
 #include "media/stagefright/openmax/OMX_Video.h"
 #include "media/stagefright/openmax/OMX_Core.h"
 #include "stagefright/OMXCodec.h"
-#include "stagefright/OMXClient.h"
 
 namespace android {
 MOZ_EXPORT_API(void)
@@ -126,19 +125,6 @@ OMXCodec::Create(
             const sp<ANativeWindow> &nativeWindow)
 {
   return 0;
-}
-
-MOZ_EXPORT_API(OMXClient)::OMXClient()
-{
-}
-
-MOZ_EXPORT_API(status_t) OMXClient::connect()
-{
-  return OK;
-}
-
-MOZ_EXPORT_API(void) OMXClient::disconnect()
-{
 }
 
 class __attribute__ ((visibility ("default"))) UnknownDataSource : public DataSource {

@@ -2101,7 +2101,6 @@ function Tab(aURL, aParams) {
   this.clickToPlayPluginsActivated = false;
   this.desktopMode = false;
   this.originalURI = null;
-  this.savedArticle = null;
 
   this.create(aURL, aParams);
 }
@@ -2841,16 +2840,8 @@ Tab.prototype = {
           // Do nothing if there's no article or the page in this tab has
           // changed
           let tabURL = this.browser.currentURI.specIgnoringRef;
-          if (article == null || (article.url != tabURL)) {
-            // Don't clear the article for about:reader pages since we want to
-            // use the article from the previous page
-            if (!/^about:reader/i.test(tabURL))
-              this.savedArticle = null;
-
+          if (article == null || (article.url != tabURL))
             return;
-          }
-
-          this.savedArticle = article;
 
           sendMessageToJava({
             gecko: {
@@ -6357,8 +6348,7 @@ let Reader = {
     switch(aTopic) {
       case "Reader:Add": {
         let tab = BrowserApp.getTabForId(aData);
-        let currentURI = tab.browser.currentURI;
-        let url = currentURI.spec;
+        let url = tab.browser.contentWindow.location.href;
 
         let sendResult = function(success, title) {
           this.log("Reader:Add success=" + success + ", url=" + url + ", title=" + title);
@@ -6373,7 +6363,7 @@ let Reader = {
           });
         }.bind(this);
 
-        this.getArticleForTab(aData, currentURI.specIgnoringRef, function (article) {
+        this.parseDocumentFromTab(aData, function(article) {
           if (!article) {
             sendResult(false, "");
             return;
@@ -6430,18 +6420,6 @@ let Reader = {
     } catch (e) {
       this.log("Error parsing document from URL: " + e);
       this._runCallbacksAndFinish(request, null);
-    }
-  },
-
-  getArticleForTab: function Reader_getArticleForTab(tabId, url, callback) {
-    let tab = BrowserApp.getTabForId(tabId);
-    let article = tab.savedArticle;
-
-    if (article && article.url == url) {
-      this.log("Saved article found in tab");
-      callback(article);
-    } else {
-      this.parseDocumentFromURL(url, callback);
     }
   },
 

@@ -197,7 +197,10 @@ nsEditingSession::DisableJSAndPlugins(nsIDOMWindow *aWindow)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Disable plugins in this document:
-  mPluginsEnabled = docShell->PluginsAllowedInCurrentDoc();
+  rv = docShell->GetAllowPlugins(&tmp);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mPluginsEnabled = tmp;
 
   rv = docShell->SetAllowPlugins(false);
   NS_ENSURE_SUCCESS(rv, rv);

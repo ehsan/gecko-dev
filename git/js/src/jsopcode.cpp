@@ -5887,10 +5887,10 @@ bool
 ExpressionDecompiler::decompilePC(jsbytecode *pc)
 {
     JS_ASSERT(script->code <= pc && pc < script->code + script->length);
-
+    
     PCStack pcstack(cx);
     if (!pcstack.init(cx, script, pc))
-        return false;
+        return NULL;
 
     JSOp op = (JSOp)*pc;
 

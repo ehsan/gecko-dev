@@ -13,7 +13,6 @@ include ../../image/test/reftest/reftest.list
 
 # CSSWG tests
 include w3c-css/submitted/reftest.list
-include w3c-css/received/reftest.list
 
 # relative and absolute positioning
 include abs-pos/reftest.list
@@ -71,6 +70,9 @@ include css-gradients/reftest.list
 
 # css media queries (tests for print mode)
 include css-mediaqueries/reftest.list
+
+# css namespaces
+include css-namespace/reftest.list
 
 # css parsing
 include css-parsing/reftest.list

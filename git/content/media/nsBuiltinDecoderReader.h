@@ -11,7 +11,6 @@
 #include "mozilla/ReentrantMonitor.h"
 #include "MediaStreamGraph.h"
 #include "SharedBuffer.h"
-#include "ImageLayers.h"
 
 // Stores info relevant to presenting media frames.
 class nsVideoInfo {
@@ -175,7 +174,10 @@ public:
     return new VideoData(aOffset, aTime, aEndTime, aTimecode);
   }
 
-  ~VideoData();
+  ~VideoData()
+  {
+    MOZ_COUNT_DTOR(VideoData);
+  }
 
   PRInt64 GetEnd() { return mEndTime; }
 
@@ -206,14 +208,35 @@ public:
   bool mKeyframe;
 
 public:
-  VideoData(PRInt64 aOffset, PRInt64 aTime, PRInt64 aEndTime, PRInt64 aTimecode);
+  VideoData(PRInt64 aOffset, PRInt64 aTime, PRInt64 aEndTime, PRInt64 aTimecode)
+    : mOffset(aOffset),
+      mTime(aTime),
+      mEndTime(aEndTime),
+      mTimecode(aTimecode),
+      mDuplicate(true),
+      mKeyframe(false)
+  {
+    MOZ_COUNT_CTOR(VideoData);
+    NS_ASSERTION(aEndTime >= aTime, "Frame must start before it ends.");
+  }
 
   VideoData(PRInt64 aOffset,
             PRInt64 aTime,
             PRInt64 aEndTime,
             bool aKeyframe,
             PRInt64 aTimecode,
-            nsIntSize aDisplay);
+            nsIntSize aDisplay)
+    : mDisplay(aDisplay),
+      mOffset(aOffset),
+      mTime(aTime),
+      mEndTime(aEndTime),
+      mTimecode(aTimecode),
+      mDuplicate(false),
+      mKeyframe(aKeyframe)
+  {
+    MOZ_COUNT_CTOR(VideoData);
+    NS_ASSERTION(aEndTime >= aTime, "Frame must start before it ends.");
+  }
 
 };
 
@@ -434,7 +457,18 @@ public:
   public:
     VideoQueueMemoryFunctor() : mResult(0) {}
 
-    virtual void* operator()(void* anObject);
+    virtual void* operator()(void* anObject) {
+      const VideoData* v = static_cast<const VideoData*>(anObject);
+      if (!v->mImage) {
+        return nullptr;
+      }
+      NS_ASSERTION(v->mImage->GetFormat() == mozilla::PLANAR_YCBCR,
+                   "Wrong format?");
+      mozilla::layers::PlanarYCbCrImage* vi = static_cast<mozilla::layers::PlanarYCbCrImage*>(v->mImage.get());
+
+      mResult += vi->GetDataSize();
+      return nullptr;
+    }
 
     PRInt64 mResult;
   };

@@ -15,7 +15,6 @@
 #include "nsIPrincipal.h"
 #include "nsJSPrincipals.h"
 #include "nsCOMPtr.h"
-#include "nsPrincipal.h"
 
 class nsIURI;
 

@@ -15,7 +15,6 @@
 #include "nsDeque.h"
 #include "AudioSegment.h"
 #include "VideoSegment.h"
-#include "ImageContainer.h"
 
 #include "mozilla/Preferences.h"
 #include "mozilla/StandardInteger.h"

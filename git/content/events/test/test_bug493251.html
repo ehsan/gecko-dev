@@ -192,7 +192,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=493251
 
 
   SimpleTest.waitForExplicitFinish();
-  win = window.open("window_bug493251.html", "_blank" , "width=500,height=500");
+  win = window.open("data:text/html,<input>", "" , "");
+  win.onload = doTest;
 
 </script>
 </pre>

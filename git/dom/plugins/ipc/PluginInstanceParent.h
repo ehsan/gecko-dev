@@ -27,6 +27,7 @@
 #ifdef MOZ_X11
 class gfxXlibSurface;
 #endif
+#include "mozilla/unused.h"
 #include "nsGUIEvent.h"
 #include "mozilla/unused.h"
 
@@ -367,7 +368,7 @@ private:
     // the consistency of the pixels in |mBackground|.  A plugin may
     // be able to observe partial updates to the background.
     nsRefPtr<gfxASurface>    mBackground;
-
+    
     nsRefPtr<ImageContainer> mImageContainer;
 };
 

@@ -139,7 +139,7 @@ WeakMap_has_impl(JSContext *cx, CallArgs args)
         return false;
 
     if (ObjectValueMap *map = GetObjectMap(&args.thisv().toObject())) {
-        if (map->has(key)) {
+        if (ObjectValueMap::Ptr ptr = map->lookup(key)) {
             args.rval().setBoolean(true);
             return true;
         }

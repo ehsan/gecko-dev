@@ -40,7 +40,6 @@ EXPORTS		= \
 		nsGenericElement.h \
 		nsMappedAttributeElement.h \
 		nsStyledElement.h \
-    nsSandboxFlags.h \
 		$(NULL)
 
 EXPORTS_NAMESPACES = mozilla/dom

@@ -8,6 +8,10 @@
 #define ParseNode_inl_h__
 
 #include "frontend/ParseNode.h"
+#include "frontend/TokenStream.h"
+#include "frontend/TreeContext.h"
+
+#include "frontend/TreeContext-inl.h"
 
 namespace js {
 namespace frontend {
@@ -179,17 +183,15 @@ NameNode::dump(int indent)
 }
 #endif
 
-struct ParseContext;
-
 inline void
-NameNode::initCommon(ParseContext *pc)
+NameNode::initCommon(TreeContext *tc)
 {
     pn_expr = NULL;
     pn_cookie.makeFree();
-    pn_dflags = (!pc->topStmt || pc->topStmt->type == STMT_BLOCK)
+    pn_dflags = (!tc->topStmt || tc->topStmt->type == STMT_BLOCK)
                 ? PND_BLOCKCHILD
                 : 0;
-    pn_blockid = pc->blockid();
+    pn_blockid = tc->blockid();
 }
 
 } /* namespace frontend */

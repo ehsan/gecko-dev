@@ -27,6 +27,7 @@
 
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
+#include "frontend/TreeContext.h"
 #include "vm/RegExpObject.h"
 
 #include "jsscriptinlines.h"
@@ -1594,10 +1595,10 @@ NodeBuilder::xmlPI(Value target, Value contents, TokenPos *pos, Value *dst)
 
 class ASTSerializer
 {
-    JSContext           *cx;
-    Parser              *parser;
-    NodeBuilder         builder;
-    DebugOnly<uint32_t> lineno;
+    JSContext     *cx;
+    Parser        *parser;
+    NodeBuilder   builder;
+    uint32_t      lineno;
 
     Value atomContents(JSAtom *atom) {
         return StringValue(atom ? atom : cx->runtime->atomState.emptyAtom);
@@ -1680,12 +1681,8 @@ class ASTSerializer
 
   public:
     ASTSerializer(JSContext *c, bool l, char const *src, uint32_t ln)
-        : cx(c)
-        , builder(c, l, src)
-#ifdef DEBUG
-        , lineno(ln)
-#endif
-    {}
+        : cx(c), builder(c, l, src), lineno(ln) {
+    }
 
     bool init(JSObject *userobj) {
         return builder.init(userobj);

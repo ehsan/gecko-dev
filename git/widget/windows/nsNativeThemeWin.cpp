@@ -1768,8 +1768,7 @@ nsNativeThemeWin::GetWidgetPadding(nsDeviceContext* aContext,
     // the border padding. This should be addressed in nsWindow,
     // but currently can't be, see UpdateNonClientMargins.
     if (aWidgetType == NS_THEME_WINDOW_TITLEBAR_MAXIMIZED)
-      aResult->top = GetSystemMetrics(SM_CXFRAME)
-                   + GetSystemMetrics(SM_CXPADDEDBORDER);
+      aResult->top = GetSystemMetrics(SM_CXFRAME);
     return true;
   }
 

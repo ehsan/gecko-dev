@@ -10,7 +10,7 @@
 #include "jsfun.h"
 
 #include "frontend/Parser.h"
-#include "frontend/SharedContext.h"
+#include "frontend/TreeContext.h"
 
 #include "jsobjinlines.h"
 #include "jsfuninlines.h"
@@ -61,10 +61,10 @@ MarkExtensibleScopeDescendants(JSContext *context, FunctionBox *funbox, bool has
 bool
 frontend::AnalyzeFunctions(Parser *parser)
 {
-    ParseContext *pc = parser->pc;
-    if (!pc->functionList)
+    TreeContext *tc = parser->tc;
+    if (!tc->functionList)
         return true;
-    if (!MarkExtensibleScopeDescendants(pc->sc->context, pc->functionList, false))
+    if (!MarkExtensibleScopeDescendants(tc->sc->context, tc->functionList, false))
         return false;
     return true;
 }

@@ -1577,8 +1577,14 @@ class nsIWidget : public nsISupports {
      */
     virtual bool WidgetPaintsBackground() { return false; }
 
-    virtual bool NeedsPaint() {
-      return true;
+    virtual bool NeedsPaint() { 
+      if (!IsVisible()) {
+        return false;
+      }
+      nsIntRect bounds;
+      nsresult rv = GetBounds(bounds);
+      NS_ENSURE_SUCCESS(rv, false);
+      return !bounds.IsEmpty();
     }
     /**
      * Get the natural bounds of this widget.  This method is only

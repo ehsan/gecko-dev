@@ -91,7 +91,6 @@ public:
    * two tracks with the same ID (even if they don't overlap in time).
    * TODO Tracks can also be enabled and disabled over time.
    * TODO Add TimeVarying<TrackTicks,bool> mEnabled.
-   * Takes ownership of aSegment.
    */
   class Track {
   public:
@@ -162,13 +161,7 @@ public:
     void ForgetUpTo(TrackTicks aTime)
     {
       mSegment->ForgetUpTo(aTime);
-#ifdef DEBUG
-      mForgottenUpTo = NS_MAX<TrackTicks>(mForgottenUpTo, aTime);
-#endif
     }
-#ifdef DEBUG
-    TrackTicks GetForgottenUpTo() { return mForgottenUpTo; }
-#endif
 
   protected:
     friend class StreamBuffer;
@@ -183,7 +176,6 @@ public:
     TrackID mID;
     // True when the track ends with the data in mSegment
     bool mEnded;
-    DebugOnly<TrackTicks> mForgottenUpTo;
   };
 
   class CompareTracksByID {
@@ -252,7 +244,6 @@ public:
       ++mIndex;
       FindMatch();
     }
-    Track* get() { return mBuffer->ElementAt(mIndex); }
     Track& operator*() { return *mBuffer->ElementAt(mIndex); }
     Track* operator->() { return mBuffer->ElementAt(mIndex); }
   private:
@@ -279,13 +270,6 @@ public:
    * Can't be used to forget beyond GetEnd().
    */
   void ForgetUpTo(StreamTime aTime);
-  /**
-   * Returns the latest time passed to ForgetUpTo.
-   */
-  StreamTime GetForgottenDuration()
-  {
-    return mForgottenTime;
-  }
 
 protected:
   // Any new tracks added will start at or after this time. In other words, the track

@@ -90,13 +90,15 @@ let AboutReader = {
     this._updateToggleButton();
 
     let url = queryArgs.url;
-    let tabId = queryArgs.tabId;
-    if (tabId) {
-      dump("Loading from tab with ID: " + tabId + ", URL: " + url);
-      this._loadFromTab(tabId, url);
-    } else {
+    if (url) {
       dump("Fetching page with URL: " + url);
       this._loadFromURL(url);
+    } else {
+      var tabId = queryArgs.tabId;
+      if (tabId) {
+        dump("Loading from tab with ID: " + tabId);
+        this._loadFromTab(tabId);
+      }
     }
   },
 
@@ -317,10 +319,10 @@ let AboutReader = {
     }.bind(this));
   },
 
-  _loadFromTab: function Reader_loadFromTab(tabId, url) {
+  _loadFromTab: function Reader_loadFromTab(tabId) {
     this._showProgress();
 
-    gChromeWin.Reader.getArticleForTab(tabId, url, function(article) {
+    gChromeWin.Reader.parseDocumentFromTab(tabId, function(article) {
       if (article)
         this._showContent(article);
       else
@@ -405,8 +407,6 @@ let AboutReader = {
 
     let domain = Services.io.newURI(article.url, null, null).host;
     this._domainElement.innerHTML = domain;
-
-    this._creditsElement.innerHTML = article.byline;
 
     this._titleElement.innerHTML = article.title;
     document.title = article.title;

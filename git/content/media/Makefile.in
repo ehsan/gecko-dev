@@ -49,7 +49,6 @@ CPPSRCS = \
   nsMediaDecoder.cpp \
   StreamBuffer.cpp \
   VideoFrameContainer.cpp \
-  VideoSegment.cpp \
   VideoUtils.cpp \
   $(NULL)
 

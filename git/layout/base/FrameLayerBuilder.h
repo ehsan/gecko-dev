@@ -11,6 +11,7 @@
 #include "nsTArray.h"
 #include "nsRegion.h"
 #include "nsIFrame.h"
+#include "Layers.h"
 
 class nsDisplayListBuilder;
 class nsDisplayList;
@@ -21,7 +22,6 @@ class nsRootPresContext;
 namespace mozilla {
 namespace layers {
 class ContainerLayer;
-class LayerManager;
 class ThebesLayer;
 }
 
@@ -39,6 +39,35 @@ enum LayerState {
   // Inactive style layer for rendering SVG effects.
   LAYER_SVG_EFFECTS
 };
+
+class LayerManagerLayerBuilder : public layers::LayerUserData {
+public:
+  LayerManagerLayerBuilder(FrameLayerBuilder* aBuilder, bool aDelete = true)
+    : mLayerBuilder(aBuilder)
+    , mDelete(aDelete)
+  {
+    MOZ_COUNT_CTOR(LayerManagerLayerBuilder);
+  }
+  ~LayerManagerLayerBuilder();
+
+  FrameLayerBuilder* mLayerBuilder;
+  bool mDelete;
+};
+
+extern PRUint8 gLayerManagerLayerBuilder;
+
+class ContainerLayerPresContext : public layers::LayerUserData {
+public:
+  nsPresContext* mPresContext;
+};
+
+extern PRUint8 gContainerLayerPresContext;
+
+static inline FrameLayerBuilder *GetLayerBuilderForManager(layers::LayerManager* aManager)
+{
+  LayerManagerLayerBuilder *data = static_cast<LayerManagerLayerBuilder*>(aManager->GetUserData(&gLayerManagerLayerBuilder));
+  return data ? data->mLayerBuilder : nullptr;
+}
 
 class RefCountedRegion : public RefCounted<RefCountedRegion> {
 public:
@@ -86,8 +115,8 @@ public:
  */
 class FrameLayerBuilder {
 public:
-  typedef layers::ContainerLayer ContainerLayer;
-  typedef layers::Layer Layer;
+  typedef layers::ContainerLayer ContainerLayer; 
+  typedef layers::Layer Layer; 
   typedef layers::ThebesLayer ThebesLayer;
   typedef layers::LayerManager LayerManager;
 
@@ -109,7 +138,7 @@ public:
 
   static void Shutdown();
 
-  void Init(nsDisplayListBuilder* aBuilder, LayerManager* aManager);
+  void Init(nsDisplayListBuilder* aBuilder);
 
   /**
    * Call this to notify that we have just started a transaction on the
@@ -445,8 +474,12 @@ protected:
    */
   class DisplayItemData {
   public:
-    DisplayItemData(Layer* aLayer, PRUint32 aKey, LayerState aLayerState, PRUint32 aGeneration);
-    ~DisplayItemData();
+    DisplayItemData(Layer* aLayer, PRUint32 aKey, LayerState aLayerState, PRUint32 aGeneration)
+      : mLayer(aLayer)
+      , mDisplayItemKey(aKey)
+      , mContainerLayerGeneration(aGeneration)
+      , mLayerState(aLayerState)
+    {}
 
     nsRefPtr<Layer> mLayer;
     PRUint32        mDisplayItemKey;

@@ -24,7 +24,6 @@ EXPORTS_mozilla += \
   RefPtr.h \
   Scoped.h \
   StandardInteger.h \
-  SHA1.h \
   ThreadLocal.h \
   TypeTraits.h \
   Types.h \

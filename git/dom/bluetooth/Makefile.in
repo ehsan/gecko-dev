@@ -32,6 +32,7 @@ CPPSRCS += \
   BluetoothManager.cpp \
   BluetoothAdapter.cpp \
   BluetoothDevice.cpp \
+  BluetoothDeviceEvent.cpp \
   BluetoothPropertyEvent.cpp \
   BluetoothPairingEvent.cpp \
   BluetoothReplyRunnable.cpp \

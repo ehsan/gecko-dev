@@ -312,6 +312,7 @@ ImageLoader::DoRedraw(FrameSet* aFrameSet)
 {
   NS_ASSERTION(aFrameSet, "Must have a frame set");
   NS_ASSERTION(mDocument, "Should have returned earlier!");
+  NS_ASSERTION(mHavePainted, "Should have returned earlier!");
 
   FrameSet::size_type length = aFrameSet->Length();
   for (FrameSet::size_type i = 0; i < length; i++) {
@@ -386,7 +387,7 @@ ImageLoader::OnImageIsAnimated(imgIRequest* aRequest)
 NS_IMETHODIMP
 ImageLoader::OnStopFrame(imgIRequest *aRequest, PRUint32 aFrame)
 {
-  if (!mDocument || mInClone) {
+  if (!mDocument || !mHavePainted || mInClone) {
     return NS_OK;
   }
 
@@ -407,7 +408,7 @@ ImageLoader::FrameChanged(imgIRequest *aRequest,
                           imgIContainer *aContainer,
                           const nsIntRect *aDirtyRect)
 {
-  if (!mDocument || mInClone) {
+  if (!mDocument || !mHavePainted || mInClone) {
     return NS_OK;
   }
 

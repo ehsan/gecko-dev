@@ -932,10 +932,7 @@ ParallelArrayObject::create(JSContext *cx, MutableHandleValue vp)
     IndexVector dims(cx);
     if (!dims.append(0))
         return false;
-    RootedObject buffer(cx, NewDenseArrayWithType(cx, 0));
-    if (!buffer)
-        return false;
-    return create(cx, buffer, 0, dims, vp);
+    return create(cx, NullPtr(), 0, dims, vp);
 }
 
 bool
@@ -951,14 +948,14 @@ bool
 ParallelArrayObject::create(JSContext *cx, HandleObject buffer, uint32_t offset,
                             const IndexVector &dims, MutableHandleValue vp)
 {
-    JS_ASSERT(buffer->isDenseArray());
+    JS_ASSERT_IF(buffer, buffer->isDenseArray());
 
     RootedObject result(cx, NewBuiltinClassInstance(cx, &class_));
     if (!result)
         return false;
 
     // Propagate element types.
-    if (cx->typeInferenceEnabled()) {
+    if (buffer && cx->typeInferenceEnabled()) {
         AutoEnterTypeInference enter(cx);
         TypeSet *bufferTypes = buffer->getType(cx)->getProperty(cx, JSID_VOID, false);
         TypeSet *resultTypes = result->getType(cx)->getProperty(cx, JSID_VOID, true);
@@ -976,8 +973,13 @@ ParallelArrayObject::create(JSContext *cx, HandleObject buffer, uint32_t offset,
     result->setSlot(SLOT_DIMENSIONS, ObjectValue(*dimArray));
 
     // Store the buffer and offset.
-    result->setSlot(SLOT_BUFFER, ObjectValue(*buffer));
-    result->setSlot(SLOT_BUFFER_OFFSET, Int32Value(static_cast<int32_t>(offset)));
+    if (buffer) {
+        result->setSlot(SLOT_BUFFER, ObjectValue(*buffer));
+        result->setSlot(SLOT_BUFFER_OFFSET, Int32Value(static_cast<int32_t>(offset)));
+    } else {
+        result->setSlot(SLOT_BUFFER, UndefinedValue());
+        result->setSlot(SLOT_BUFFER_OFFSET, Int32Value(0));
+    }
 
     // This is usually args.rval() from build or construct.
     vp.setObject(*result);
@@ -1366,7 +1368,7 @@ ParallelArrayObject::partition(JSContext *cx, CallArgs args)
 
     // Throw if the outer dimension is not divisible by the new dimension.
     uint32_t outer = obj->outermostDimension();
-    if (newDimension == 0 || outer % newDimension) {
+    if (outer % newDimension) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_PAR_ARRAY_BAD_PARTITION);
         return false;
     }
@@ -1412,12 +1414,11 @@ ParallelArrayObject::get(JSContext *cx, CallArgs args)
         else if (!js_GetLengthProperty(cx, indicesObj, &length))
             return false;
 
-        // If we're one dimensional, the index vector must also be one
-        // dimensional.
-        if (length != 1) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_PAR_ARRAY_BAD_ARG,
-                                 ".prototype.get");
-            return false;
+        // If we're one dimensional, indexing more than one dimension is
+        // definitely out of bounds.
+        if (length > 1) {
+            args.rval().setUndefined();
+            return true;
         }
 
         RootedValue elem(cx);
@@ -1442,11 +1443,10 @@ ParallelArrayObject::get(JSContext *cx, CallArgs args)
     if (!ArrayLikeToIndexVector(cx, indicesObj, iv.indices))
         return false;
 
-    // Throw if the shape of the index vector is wrong.
-    if (iv.indices.length() == 0 || iv.indices.length() > iv.dimensions.length()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_PAR_ARRAY_BAD_ARG,
-                             ".prototype.get");
-        return false;
+    // Set undefined if definitely out of bounds.
+    if (iv.indices.length() > iv.dimensions.length()) {
+        args.rval().setUndefined();
+        return true;
     }
 
     return obj->getParallelArrayElement(cx, iv, args.rval());
@@ -1607,6 +1607,8 @@ JSBool
 ParallelArrayObject::lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
                                    MutableHandleObject objp, MutableHandleShape propp)
 {
+    RootedObject buffer(cx, as(obj)->buffer());
+
     if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom) ||
         as(obj)->inOutermostDimensionRange(cx, id)) {
         MarkNonNativePropertyFound(obj, propp);

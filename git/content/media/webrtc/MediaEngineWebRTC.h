@@ -66,8 +66,19 @@ public:
   virtual int DeliverFrame(unsigned char*, int, uint32_t, int64_t);
 
   MediaEngineWebRTCVideoSource(webrtc::VideoEngine* videoEnginePtr,
-    int index, int aFps = 30);
-  ~MediaEngineWebRTCVideoSource();
+    int index, int aFps = 30)
+    : mVideoEngine(videoEnginePtr)
+    , mCapIndex(index)
+    , mWidth(640)
+    , mHeight(480)
+    , mState(kReleased)
+    , mMonitor("WebRTCCamera.Monitor")
+    , mFps(aFps)
+    , mInitDone(false)
+    , mInSnapshotMode(false)
+    , mSnapshotPath(NULL) { Init(); }
+
+  ~MediaEngineWebRTCVideoSource() { Shutdown(); }
 
   virtual void GetName(nsAString&);
   virtual void GetUUID(nsAString&);

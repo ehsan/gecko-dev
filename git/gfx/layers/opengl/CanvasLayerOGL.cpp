@@ -211,9 +211,10 @@ CanvasLayerOGL::UpdateSurface()
       nsRefPtr<gfxImageSurface> updatedAreaImageSurface =
         GetTempSurface(size, gfxASurface::ImageFormatARGB32);
 
-      updatedAreaImageSurface->Flush();
-      mCanvasGLContext->ReadScreenIntoImageSurface(updatedAreaImageSurface);
-      updatedAreaImageSurface->MarkDirty();
+      mCanvasGLContext->ReadPixelsIntoImageSurface(0, 0,
+                                                   mBounds.width,
+                                                   mBounds.height,
+                                                   updatedAreaImageSurface);
 
       updatedAreaSurface = updatedAreaImageSurface;
     }
