@@ -267,8 +267,6 @@ class nsISupportsKey : public nsHashKey {
 
     nsISupportsKey(nsIObjectInputStream* aStream, nsresult *aResult);
     nsresult Write(nsIObjectOutputStream* aStream) const;
-
-    nsISupports* GetValue() { return mKey; }
 };
 
 

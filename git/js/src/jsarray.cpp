@@ -362,9 +362,22 @@ JSObject::arrayGetOwnDataElement(JSContext *cx, size_t i, Value *vp)
  * to JSVAL_VOID. This function assumes that the location pointed by vp is
  * properly rooted and can be used as GC-protected storage for temporaries.
  */
-static inline JSBool
-DoGetElement(JSContext *cx, JSObject *obj, jsdouble index, JSBool *hole, Value *vp)
+static JSBool
+GetElement(JSContext *cx, JSObject *obj, jsdouble index, JSBool *hole, Value *vp)
 {
+    JS_ASSERT(index >= 0);
+    if (obj->isDenseArray() && index < obj->getDenseArrayInitializedLength() &&
+        !(*vp = obj->getDenseArrayElement(uint32(index))).isMagic(JS_ARRAY_HOLE)) {
+        *hole = JS_FALSE;
+        return JS_TRUE;
+    }
+    if (obj->isArguments()) {
+        if (obj->asArguments()->getElement(uint32(index), vp)) {
+            *hole = JS_FALSE;
+            return true;
+        }
+    }
+
     AutoIdRooter idr(cx);
 
     *hole = JS_FALSE;
@@ -380,48 +393,14 @@ DoGetElement(JSContext *cx, JSObject *obj, jsdouble index, JSBool *hole, Value *
     if (!obj->lookupGeneric(cx, idr.id(), &obj2, &prop))
         return JS_FALSE;
     if (!prop) {
-        vp->setUndefined();
         *hole = JS_TRUE;
+        vp->setUndefined();
     } else {
         if (!obj->getGeneric(cx, idr.id(), vp))
             return JS_FALSE;
         *hole = JS_FALSE;
     }
     return JS_TRUE;
-}
-
-static inline JSBool
-DoGetElement(JSContext *cx, JSObject *obj, uint32 index, JSBool *hole, Value *vp)
-{
-    bool present;
-    if (!obj->getElementIfPresent(cx, obj, index, vp, &present))
-        return false;
-
-    *hole = !present;
-    if (*hole)
-        vp->setUndefined();
-
-    return true;
-}
-
-template<typename IndexType>
-static JSBool
-GetElement(JSContext *cx, JSObject *obj, IndexType index, JSBool *hole, Value *vp)
-{
-    JS_ASSERT(index >= 0);
-    if (obj->isDenseArray() && index < obj->getDenseArrayInitializedLength() &&
-        !(*vp = obj->getDenseArrayElement(uint32(index))).isMagic(JS_ARRAY_HOLE)) {
-        *hole = JS_FALSE;
-        return JS_TRUE;
-    }
-    if (obj->isArguments()) {
-        if (obj->asArguments()->getElement(uint32(index), vp)) {
-            *hole = JS_FALSE;
-            return true;
-        }
-    }
-
-    return DoGetElement(cx, obj, index, hole, vp);
 }
 
 namespace js {
@@ -820,13 +799,26 @@ array_getGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Valu
 
     if (!js_IdIsIndex(id, &i) || i >= obj->getDenseArrayInitializedLength() ||
         obj->getDenseArrayElement(i).isMagic(JS_ARRAY_HOLE)) {
+        JSObject *obj2;
+        JSProperty *prop;
+        const Shape *shape;
+
         JSObject *proto = obj->getProto();
         if (!proto) {
             vp->setUndefined();
             return JS_TRUE;
         }
 
-        return proto->getGeneric(cx, receiver, id, vp);
+        vp->setUndefined();
+        if (!LookupPropertyWithFlags(cx, proto, id, cx->resolveFlags, &obj2, &prop))
+            return JS_FALSE;
+
+        if (prop && obj2->isNative()) {
+            shape = (const Shape *) prop;
+            if (!js_NativeGet(cx, obj, obj2, shape, JSGET_METHOD_BARRIER, vp))
+                return JS_FALSE;
+        }
+        return JS_TRUE;
     }
 
     *vp = obj->getDenseArrayElement(i);
@@ -850,7 +842,7 @@ array_getElement(JSContext *cx, JSObject *obj, JSObject *receiver, uint32 index,
     if (!obj->isDenseArray())
         return js_GetElement(cx, obj, index, vp);
 
-    if (index < obj->getDenseArrayInitializedLength() &&
+    if (index < obj->getDenseArrayCapacity() &&
         !obj->getDenseArrayElement(index).isMagic(JS_ARRAY_HOLE))
     {
         *vp = obj->getDenseArrayElement(index);
@@ -863,7 +855,22 @@ array_getElement(JSContext *cx, JSObject *obj, JSObject *receiver, uint32 index,
         return true;
     }
 
-    return proto->getElement(cx, receiver, index, vp);
+    vp->setUndefined();
+
+    jsid id;
+    if (!IndexToId(cx, index, &id))
+        return false;
+
+    JSObject *obj2;
+    JSProperty *prop;
+    if (!LookupPropertyWithFlags(cx, proto, id, cx->resolveFlags, &obj2, &prop))
+        return false;
+
+    if (!prop || !obj2->isNative())
+        return true;
+
+    const Shape *shape = (const Shape *) prop;
+    return js_NativeGet(cx, obj, obj2, shape, JSGET_METHOD_BARRIER, vp);
 }
 
 static JSBool
@@ -1268,8 +1275,6 @@ Class js::ArrayClass = {
         array_getGeneric,
         array_getProperty,
         array_getElement,
-        NULL, /* getElementIfPresent, because this is hard for now for
-                 slow arrays */
         array_getSpecial,
         array_setGeneric,
         array_setProperty,
@@ -2658,7 +2663,7 @@ js::array_shift(JSContext *cx, uintN argc, Value *vp)
         }
 
         JSBool hole;
-        if (!GetElement(cx, obj, 0u, &hole, &args.rval()))
+        if (!GetElement(cx, obj, 0, &hole, &args.rval()))
             return JS_FALSE;
 
         /* Slide down the array above the first element. */

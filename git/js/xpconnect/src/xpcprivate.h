@@ -1407,7 +1407,6 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         nsnull, /* getGeneric    */                                           \
         nsnull, /* getProperty    */                                          \
         nsnull, /* getElement    */                                           \
-        nsnull, /* getElementIfPresent */                                     \
         nsnull, /* getSpecial    */                                           \
         nsnull, /* setGeneric    */                                           \
         nsnull, /* setProperty    */                                          \
@@ -1445,7 +1444,6 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         nsnull, /* getGeneric    */                                           \
         nsnull, /* getProperty    */                                          \
         nsnull, /* getElement    */                                           \
-        nsnull, /* getElementIfPresent */                                     \
         nsnull, /* getSpecial    */                                           \
         nsnull, /* setGeneric    */                                           \
         nsnull, /* setProperty    */                                          \

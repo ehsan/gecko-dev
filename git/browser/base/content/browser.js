@@ -3908,28 +3908,11 @@ var FullScreen = {
     }
   },
 
-  exitDomFullScreen : function(e) {
-    document.mozCancelFullScreen();
-  },
-
   enterDomFullScreen : function(event) {
-    // We receive "mozfullscreenchange" events for each subdocument which
-    // is an ancestor of the document containing the element which requested
-    // full-screen. Only add listeners and show warning etc when the event we
-    // receive is targeted at the chrome document, i.e. only once every time
-    // we enter DOM full-screen mode.
-    if (!document.mozFullScreen || event.target.ownerDocument != document) {
+    if (!document.mozFullScreen) {
       return;
     }
     this.showWarning(true);
-
-    // Exit DOM full-screen mode upon open, close, or change tab.
-    gBrowser.tabContainer.addEventListener("TabOpen", this.exitDomFullScreen);
-    gBrowser.tabContainer.addEventListener("TabClose", this.exitDomFullScreen);
-    gBrowser.tabContainer.addEventListener("TabSelect", this.exitDomFullScreen);
-
-    // Exit DOM full-screen mode when the browser window loses focus (ALT+TAB, etc).
-    window.addEventListener("deactivate", this.exitDomFullScreen, true);
 
     // Cancel any "hide the toolbar" animation which is in progress, and make
     // the toolbar hide immediately.
@@ -3963,10 +3946,6 @@ var FullScreen = {
         fullScrToggler.removeEventListener("dragenter", this._expandCallback, false);
       }
       this.cancelWarning();
-      gBrowser.tabContainer.removeEventListener("TabOpen", this.exitDomFullScreen);
-      gBrowser.tabContainer.removeEventListener("TabClose", this.exitDomFullScreen);
-      gBrowser.tabContainer.removeEventListener("TabSelect", this.exitDomFullScreen);
-      window.removeEventListener("deactivate", this.exitDomFullScreen, true);
     }
   },
 
@@ -8190,7 +8169,7 @@ let DownloadMonitorPanel = {
     let maxTime = -Infinity;
     let dls = gDownloadMgr.activeDownloads;
     while (dls.hasMoreElements()) {
-      let dl = dls.getNext();
+      let dl = dls.getNext().QueryInterface(Ci.nsIDownload);
       if (dl.state == gDownloadMgr.DOWNLOAD_DOWNLOADING) {
         // Figure out if this download takes longer
         if (dl.speed > 0 && dl.size > 0)

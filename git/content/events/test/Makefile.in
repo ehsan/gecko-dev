@@ -111,7 +111,6 @@ _TEST_FILES = \
 		test_bug667612.html \
 		empty.js \
 		test_bug689564.html \
-		test_bug698929.html \
 		$(NULL)
 
 #bug 585630
@@ -147,7 +146,7 @@ _CHROME_FILES = \
 		$(NULL)
 
 libs:: $(_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/$(mochitestdir)/tests/$(relativesrcdir)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
 
 libs:: $(_CHROME_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/$(mochitestdir)/chrome/$(relativesrcdir)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

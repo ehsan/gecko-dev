@@ -69,6 +69,9 @@ nsCharsetConverterManager::nsCharsetConverterManager()
   : mDataBundle(NULL)
   , mTitleBundle(NULL)
 {
+#ifdef MOZ_USE_NATIVE_UCONV
+  mNativeUC = do_GetService(NS_NATIVE_UCONV_SERVICE_CONTRACT_ID);
+#endif
 }
 
 nsCharsetConverterManager::~nsCharsetConverterManager() 

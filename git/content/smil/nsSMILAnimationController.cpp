@@ -208,7 +208,6 @@ nsSMILAnimationController::RegisterAnimationElement(
                         "we shouldn't have deferred sampling if we already had "
                         "animations registered");
       StartSampling(GetRefreshDriver());
-      Sample(); // Run the first sample manually
     } // else, don't sample until a time container is registered (via AddChild)
   }
 }
@@ -818,8 +817,8 @@ nsSMILAnimationController::AddChild(nsSMILTimeContainer& aChild)
   NS_ENSURE_TRUE(key, NS_ERROR_OUT_OF_MEMORY);
 
   if (!mPauseState && mChildContainerTable.Count() == 1) {
-    MaybeStartSampling(GetRefreshDriver());
     Sample(); // Run the first sample manually
+    MaybeStartSampling(GetRefreshDriver());
   }
 
   return NS_OK;

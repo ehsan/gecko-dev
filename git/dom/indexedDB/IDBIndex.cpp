@@ -67,9 +67,8 @@ public:
   GetKeyHelper(IDBTransaction* aTransaction,
                IDBRequest* aRequest,
                IDBIndex* aIndex,
-               IDBKeyRange* aKeyRange)
-  : AsyncConnectionHelper(aTransaction, aRequest), mIndex(aIndex),
-    mKeyRange(aKeyRange)
+               const Key& aKey)
+  : AsyncConnectionHelper(aTransaction, aRequest), mIndex(aIndex), mKey(aKey)
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
@@ -79,16 +78,12 @@ public:
   void ReleaseMainThreadObjects()
   {
     mIndex = nsnull;
-    mKeyRange = nsnull;
     AsyncConnectionHelper::ReleaseMainThreadObjects();
   }
 
 protected:
   // In-params.
   nsRefPtr<IDBIndex> mIndex;
-  nsRefPtr<IDBKeyRange> mKeyRange;
-
-  // Out-params.
   Key mKey;
 };
 
@@ -98,8 +93,8 @@ public:
   GetHelper(IDBTransaction* aTransaction,
             IDBRequest* aRequest,
             IDBIndex* aIndex,
-            IDBKeyRange* aKeyRange)
-  : GetKeyHelper(aTransaction, aRequest, aIndex, aKeyRange)
+            const Key& aKey)
+  : GetKeyHelper(aTransaction, aRequest, aIndex, aKey)
   { }
 
   ~GetHelper()
@@ -111,12 +106,6 @@ public:
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
 
-  void ReleaseMainThreadObjects()
-  {
-    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
-    GetKeyHelper::ReleaseMainThreadObjects();
-  }
-
 protected:
   JSAutoStructuredCloneBuffer mCloneBuffer;
 };
@@ -127,9 +116,9 @@ public:
   GetAllKeysHelper(IDBTransaction* aTransaction,
                    IDBRequest* aRequest,
                    IDBIndex* aIndex,
-                   IDBKeyRange* aKeyRange,
+                   const Key& aKey,
                    const PRUint32 aLimit)
-  : GetKeyHelper(aTransaction, aRequest, aIndex, aKeyRange), mLimit(aLimit)
+  : GetKeyHelper(aTransaction, aRequest, aIndex, aKey), mLimit(aLimit)
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
@@ -147,9 +136,9 @@ public:
   GetAllHelper(IDBTransaction* aTransaction,
                IDBRequest* aRequest,
                IDBIndex* aIndex,
-               IDBKeyRange* aKeyRange,
+               const Key& aKey,
                const PRUint32 aLimit)
-  : GetKeyHelper(aTransaction, aRequest, aIndex, aKeyRange), mLimit(aLimit)
+  : GetKeyHelper(aTransaction, aRequest, aIndex, aKey), mLimit(aLimit)
   { }
 
   ~GetAllHelper()
@@ -165,9 +154,6 @@ public:
 
   void ReleaseMainThreadObjects()
   {
-    for (PRUint32 index = 0; index < mCloneBuffers.Length(); index++) {
-      IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffers[index]);
-    }
     GetKeyHelper::ReleaseMainThreadObjects();
   }
 
@@ -418,20 +404,17 @@ IDBIndex::Get(const jsval& aKey,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  nsRefPtr<IDBKeyRange> keyRange;
-  nsresult rv = IDBKeyRange::FromJSVal(aCx, aKey, getter_AddRefs(keyRange));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!keyRange) {
-    // Must specify a key or keyRange for get().
-    return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
+  Key key;
+  nsresult rv = key.SetFromJSVal(aCx, aKey);
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
   nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<GetHelper> helper =
-    new GetHelper(transaction, request, this, keyRange);
+    new GetHelper(transaction, request, this, key);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -451,20 +434,17 @@ IDBIndex::GetKey(const jsval& aKey,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  nsRefPtr<IDBKeyRange> keyRange;
-  nsresult rv = IDBKeyRange::FromJSVal(aCx, aKey, getter_AddRefs(keyRange));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!keyRange) {
-    // Must specify a key or keyRange for get().
-    return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
+  Key key;
+  nsresult rv = key.SetFromJSVal(aCx, aKey);
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
   nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<GetKeyHelper> helper =
-    new GetKeyHelper(transaction, request, this, keyRange);
+    new GetKeyHelper(transaction, request, this, key);
 
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
@@ -487,12 +467,9 @@ IDBIndex::GetAll(const jsval& aKey,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  nsresult rv;
-
-  nsRefPtr<IDBKeyRange> keyRange;
-  if (aOptionalArgCount) {
-    rv = IDBKeyRange::FromJSVal(aCx, aKey, getter_AddRefs(keyRange));
-    NS_ENSURE_SUCCESS(rv, rv);
+  Key key;
+  if (aOptionalArgCount && NS_FAILED(key.SetFromJSVal(aCx, aKey))) {
+    return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
   }
 
   if (aOptionalArgCount < 2) {
@@ -503,9 +480,9 @@ IDBIndex::GetAll(const jsval& aKey,
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<GetAllHelper> helper =
-    new GetAllHelper(transaction, request, this, keyRange, aLimit);
+    new GetAllHelper(transaction, request, this, key, aLimit);
 
-  rv = helper->DispatchToTransactionPool();
+  nsresult rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   request.forget(_retval);
@@ -528,10 +505,9 @@ IDBIndex::GetAllKeys(const jsval& aKey,
 
   nsresult rv;
 
-  nsRefPtr<IDBKeyRange> keyRange;
-  if (aOptionalArgCount) {
-    rv = IDBKeyRange::FromJSVal(aCx, aKey, getter_AddRefs(keyRange));
-    NS_ENSURE_SUCCESS(rv, rv);
+  Key key;
+  if (aOptionalArgCount && NS_FAILED(key.SetFromJSVal(aCx, aKey))) {
+    return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
   }
 
   if (aOptionalArgCount < 2) {
@@ -542,7 +518,7 @@ IDBIndex::GetAllKeys(const jsval& aKey,
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<GetAllKeysHelper> helper =
-    new GetAllKeysHelper(transaction, request, this, keyRange, aLimit);
+    new GetAllKeysHelper(transaction, request, this, key, aLimit);
 
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
@@ -677,55 +653,27 @@ IDBIndex::Count(const jsval& aKey,
 }
 
 nsresult
-GetKeyHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
+GetKeyHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(mKeyRange, "Must have a key range here!");
+  NS_ASSERTION(aConnection, "Passed a null connection!");
 
-  nsCString keyColumn;
-  nsCString indexTable;
-
-  if (mIndex->IsAutoIncrement()) {
-    keyColumn.AssignLiteral("ai_object_data_id");
-    if (mIndex->IsUnique()) {
-      indexTable.AssignLiteral("ai_unique_index_data");
-    }
-    else {
-      indexTable.AssignLiteral("ai_index_data");
-    }
-  }
-  else {
-    keyColumn.AssignLiteral("object_data_key");
-    if (mIndex->IsUnique()) {
-      indexTable.AssignLiteral("unique_index_data");
-    }
-    else {
-      indexTable.AssignLiteral("index_data");
-    }
-  }
-
-  nsCString keyRangeClause;
-  mKeyRange->GetBindingClause(NS_LITERAL_CSTRING("value"), keyRangeClause);
-
-  NS_ASSERTION(!keyRangeClause.IsEmpty(), "Huh?!");
-
-  NS_NAMED_LITERAL_CSTRING(indexId, "index_id");
-
-  nsCString query = NS_LITERAL_CSTRING("SELECT ") + keyColumn +
-                    NS_LITERAL_CSTRING(" FROM ") + indexTable +
-                    NS_LITERAL_CSTRING(" WHERE ") + indexId +
-                    NS_LITERAL_CSTRING(" = :") + indexId + keyRangeClause +
-                    NS_LITERAL_CSTRING(" LIMIT 1");
-
-  nsCOMPtr<mozIStorageStatement> stmt = mTransaction->GetCachedStatement(query);
+  nsCOMPtr<mozIStorageStatement> stmt =
+    mTransaction->IndexGetStatement(mIndex->IsUnique(),
+                                    mIndex->IsAutoIncrement());
   NS_ENSURE_TRUE(stmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   mozStorageStatementScoper scoper(stmt);
 
-  nsresult rv = stmt->BindInt64ByName(indexId, mIndex->Id());
+  nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"),
+                                      mIndex->Id());
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  rv = mKeyRange->BindToStatement(stmt);
+  NS_NAMED_LITERAL_CSTRING(value, "value");
+
+  rv = mKey.BindToStatement(stmt, value);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  mKey.Unset();
 
   bool hasResult;
   rv = stmt->ExecuteStep(&hasResult);
@@ -743,65 +691,32 @@ nsresult
 GetKeyHelper::GetSuccessResult(JSContext* aCx,
                                jsval* aVal)
 {
+  NS_ASSERTION(!mKey.IsUnset(), "Badness!");
   return mKey.ToJSVal(aCx, aVal);
 }
 
 nsresult
-GetHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
+GetHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(mKeyRange, "Must have a key range here!");
+  NS_ASSERTION(aConnection, "Passed a null connection!");
 
-  nsCString objectTable;
-  nsCString joinTable;
-  nsCString objectColumn;
-
-  if (mIndex->IsAutoIncrement()) {
-    objectTable.AssignLiteral("ai_object_data");
-    objectColumn.AssignLiteral("ai_object_data_id");
-    if (mIndex->IsUnique()) {
-      joinTable.AssignLiteral("ai_unique_index_data");
-    }
-    else {
-      joinTable.AssignLiteral("ai_index_data");
-    }
-  }
-  else {
-    objectTable.AssignLiteral("object_data");
-    objectColumn.AssignLiteral("object_data_id");
-    if (mIndex->IsUnique()) {
-      joinTable.AssignLiteral("unique_index_data");
-    }
-    else {
-      joinTable.AssignLiteral("index_data");
-    }
-  }
-
-  nsCString keyRangeClause;
-  mKeyRange->GetBindingClause(NS_LITERAL_CSTRING("value"), keyRangeClause);
-
-  NS_ASSERTION(!keyRangeClause.IsEmpty(), "Huh?!");
-
-  NS_NAMED_LITERAL_CSTRING(indexId, "index_id");
-
-  nsCString query = NS_LITERAL_CSTRING("SELECT data FROM ") + objectTable +
-                    NS_LITERAL_CSTRING(" INNER JOIN ") + joinTable +
-                    NS_LITERAL_CSTRING(" ON ") + objectTable +
-                    NS_LITERAL_CSTRING(".id = ") + joinTable +
-                    NS_LITERAL_CSTRING(".") + objectColumn +
-                    NS_LITERAL_CSTRING(" WHERE ") + indexId +
-                    NS_LITERAL_CSTRING(" = :") + indexId + keyRangeClause +
-                    NS_LITERAL_CSTRING(" LIMIT 1");
-
-  nsCOMPtr<mozIStorageStatement> stmt = mTransaction->GetCachedStatement(query);
+  nsCOMPtr<mozIStorageStatement> stmt =
+    mTransaction->IndexGetObjectStatement(mIndex->IsUnique(),
+                                          mIndex->IsAutoIncrement());
   NS_ENSURE_TRUE(stmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   mozStorageStatementScoper scoper(stmt);
 
-  nsresult rv = stmt->BindInt64ByName(indexId, mIndex->Id());
+  nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"),
+                                      mIndex->Id());
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  rv = mKeyRange->BindToStatement(stmt);
+  NS_NAMED_LITERAL_CSTRING(value, "value");
+
+  rv = mKey.BindToStatement(stmt, value);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  mKey.Unset();
 
   bool hasResult;
   rv = stmt->ExecuteStep(&hasResult);
@@ -829,8 +744,15 @@ GetHelper::GetSuccessResult(JSContext* aCx,
 }
 
 nsresult
-GetAllKeysHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
+GetAllKeysHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
+  NS_ASSERTION(aConnection, "Passed a null connection!");
+
+  if (!mKeys.SetCapacity(50)) {
+    NS_ERROR("Out of memory!");
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  }
+
   nsCString keyColumn;
   nsCString tableName;
 
@@ -853,9 +775,13 @@ GetAllKeysHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
     }
   }
 
-  nsCString keyRangeClause;
-  if (mKeyRange) {
-    mKeyRange->GetBindingClause(NS_LITERAL_CSTRING("value"), keyRangeClause);
+  NS_NAMED_LITERAL_CSTRING(indexId, "index_id");
+  NS_NAMED_LITERAL_CSTRING(value, "value");
+
+  nsCString keyClause;
+  if (!mKey.IsUnset()) {
+    keyClause = NS_LITERAL_CSTRING(" AND ") + value +
+                NS_LITERAL_CSTRING(" = :") + value;
   }
 
   nsCString limitClause;
@@ -864,14 +790,12 @@ GetAllKeysHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
     limitClause.AppendInt(mLimit);
   }
 
-  NS_NAMED_LITERAL_CSTRING(indexId, "index_id");
-
   nsCString query = NS_LITERAL_CSTRING("SELECT ") + keyColumn +
                     NS_LITERAL_CSTRING(" FROM ") + tableName +
                     NS_LITERAL_CSTRING(" WHERE ") + indexId  +
-                    NS_LITERAL_CSTRING(" = :") + indexId + keyRangeClause +
+                    NS_LITERAL_CSTRING(" = :") + indexId + keyClause +
                     limitClause;
-
+  
   nsCOMPtr<mozIStorageStatement> stmt = mTransaction->GetCachedStatement(query);
   NS_ENSURE_TRUE(stmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -880,12 +804,10 @@ GetAllKeysHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
   nsresult rv = stmt->BindInt64ByName(indexId, mIndex->Id());
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  if (mKeyRange) {
-    rv = mKeyRange->BindToStatement(stmt);
+  if (!mKey.IsUnset()) {
+    rv = mKey.BindToStatement(stmt, value);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-
-  mKeys.SetCapacity(50);
 
   bool hasResult;
   while(NS_SUCCEEDED((rv = stmt->ExecuteStep(&hasResult))) && hasResult) {
@@ -953,8 +875,15 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
 }
 
 nsresult
-GetAllHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
+GetAllHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
+  NS_ASSERTION(aConnection, "Passed a null connection!");
+
+  if (!mCloneBuffers.SetCapacity(50)) {
+    NS_ERROR("Out of memory!");
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  }
+
   nsCString dataTableName;
   nsCString objectDataId;
   nsCString indexTableName;
@@ -981,10 +910,12 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
   }
 
   NS_NAMED_LITERAL_CSTRING(indexId, "index_id");
+  NS_NAMED_LITERAL_CSTRING(value, "value");
 
-  nsCString keyRangeClause;
-  if (mKeyRange) {
-    mKeyRange->GetBindingClause(NS_LITERAL_CSTRING("value"), keyRangeClause);
+  nsCString keyClause;
+  if (!mKey.IsUnset()) {
+    keyClause = NS_LITERAL_CSTRING(" AND ") + value +
+                NS_LITERAL_CSTRING(" = :") + value;
   }
 
   nsCString limitClause;
@@ -999,7 +930,7 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
                     NS_LITERAL_CSTRING(".id = ") + indexTableName +
                     NS_LITERAL_CSTRING(".") + objectDataId +
                     NS_LITERAL_CSTRING(" WHERE ") + indexId  +
-                    NS_LITERAL_CSTRING(" = :") + indexId + keyRangeClause +
+                    NS_LITERAL_CSTRING(" = :") + indexId + keyClause +
                     limitClause;
 
   nsCOMPtr<mozIStorageStatement> stmt = mTransaction->GetCachedStatement(query);
@@ -1010,17 +941,18 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
   nsresult rv = stmt->BindInt64ByName(indexId, mIndex->Id());
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  if (mKeyRange) {
-    rv = mKeyRange->BindToStatement(stmt);
+  if (!mKey.IsUnset()) {
+    rv = mKey.BindToStatement(stmt, value);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-
-  mCloneBuffers.SetCapacity(50);
 
   bool hasResult;
   while(NS_SUCCEEDED((rv = stmt->ExecuteStep(&hasResult))) && hasResult) {
     if (mCloneBuffers.Capacity() == mCloneBuffers.Length()) {
-      mCloneBuffers.SetCapacity(mCloneBuffers.Capacity() * 2);
+      if (!mCloneBuffers.SetCapacity(mCloneBuffers.Capacity() * 2)) {
+        NS_ERROR("Out of memory!");
+        return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+      }
     }
 
     JSAutoStructuredCloneBuffer* buffer = mCloneBuffers.AppendElement();
@@ -1083,9 +1015,16 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   NS_NAMED_LITERAL_CSTRING(value, "value");
 
-  nsCString keyRangeClause;
+  nsCAutoString keyRangeClause;
   if (mKeyRange) {
-    mKeyRange->GetBindingClause(value, keyRangeClause);
+    if (!mKeyRange->Lower().IsUnset()) {
+      AppendConditionClause(value, lowerKeyName, false,
+                            !mKeyRange->IsLowerOpen(), keyRangeClause);
+    }
+    if (!mKeyRange->Upper().IsUnset()) {
+      AppendConditionClause(value, upperKeyName, true,
+                            !mKeyRange->IsUpperOpen(), keyRangeClause);
+    }
   }
 
   nsCAutoString directionClause = NS_LITERAL_CSTRING(" ORDER BY ") + value;
@@ -1122,8 +1061,14 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   if (mKeyRange) {
-    rv = mKeyRange->BindToStatement(stmt);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (!mKeyRange->Lower().IsUnset()) {
+      rv = mKeyRange->Lower().BindToStatement(stmt, lowerKeyName);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+    if (!mKeyRange->Upper().IsUnset()) {
+      rv = mKeyRange->Upper().BindToStatement(stmt, upperKeyName);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
   }
 
   bool hasResult;
@@ -1269,14 +1214,23 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   }
 
   NS_NAMED_LITERAL_CSTRING(id, "id");
+  NS_NAMED_LITERAL_CSTRING(lowerKeyName, "lower_key");
+  NS_NAMED_LITERAL_CSTRING(upperKeyName, "upper_key");
 
   nsCString value = indexTable + NS_LITERAL_CSTRING(".value");
   nsCString data = objectTable + NS_LITERAL_CSTRING(".data");
   nsCString keyValue = objectTable + NS_LITERAL_CSTRING(".") + keyValueColumn;
 
-  nsCString keyRangeClause;
+  nsCAutoString keyRangeClause;
   if (mKeyRange) {
-    mKeyRange->GetBindingClause(value, keyRangeClause);
+    if (!mKeyRange->Lower().IsUnset()) {
+      AppendConditionClause(value, lowerKeyName, false,
+                            !mKeyRange->IsLowerOpen(), keyRangeClause);
+    }
+    if (!mKeyRange->Upper().IsUnset()) {
+      AppendConditionClause(value, upperKeyName, true,
+                            !mKeyRange->IsUpperOpen(), keyRangeClause);
+    }
   }
 
   nsCAutoString directionClause = NS_LITERAL_CSTRING(" ORDER BY ") + value;
@@ -1320,8 +1274,14 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   if (mKeyRange) {
-    rv = mKeyRange->BindToStatement(stmt);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (!mKeyRange->Lower().IsUnset()) {
+      rv = mKeyRange->Lower().BindToStatement(stmt, lowerKeyName);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+    if (!mKeyRange->Upper().IsUnset()) {
+      rv = mKeyRange->Upper().BindToStatement(stmt, upperKeyName);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
   }
 
   bool hasResult;

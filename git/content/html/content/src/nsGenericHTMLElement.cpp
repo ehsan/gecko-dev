@@ -3404,9 +3404,11 @@ nsresult nsGenericHTMLElement::MozRequestFullScreen()
   // This stops the full-screen from being abused similar to the popups of old,
   // and it also makes it harder for bad guys' script to go full-screen and
   // spoof the browser chrome/window and phish logins etc.
-  if (!nsContentUtils::IsRequestFullScreenAllowed()) {
+  nsIDocument* doc = OwnerDoc();
+  if (!nsContentUtils::IsRequestFullScreenAllowed() ||
+      !IsInDoc()) {
     nsRefPtr<nsPLDOMEvent> e =
-      new nsPLDOMEvent(OwnerDoc(),
+      new nsPLDOMEvent(this,
                        NS_LITERAL_STRING("mozfullscreenerror"),
                        true,
                        false);
@@ -3414,8 +3416,27 @@ nsresult nsGenericHTMLElement::MozRequestFullScreen()
     return NS_OK;
   }
 
-  OwnerDoc()->AsyncRequestFullScreen(this);
+  nsCOMPtr<nsIDOMDocument> domDocument(do_QueryInterface(doc));
+  NS_ENSURE_STATE(domDocument);
+  bool fullScreenEnabled;
+  domDocument->GetMozFullScreenEnabled(&fullScreenEnabled);
+  if (!fullScreenEnabled) {
+    nsRefPtr<nsPLDOMEvent> e =
+      new nsPLDOMEvent(this,
+                       NS_LITERAL_STRING("mozfullscreenerror"),
+                       true,
+                       false);
+    e->PostDOMEvent();
+    return NS_OK;
+  }
 
+  doc->RequestFullScreen(this);
+#ifdef DEBUG
+  bool fullscreen;
+  domDocument->GetMozFullScreen(&fullscreen);
+  NS_ASSERTION(fullscreen, "Document should report fullscreen");
+  NS_ASSERTION(doc->IsFullScreenDoc(), "Should be in full screen state!");
+#endif
   return NS_OK;
 }
 

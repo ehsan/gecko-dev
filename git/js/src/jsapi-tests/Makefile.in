@@ -49,7 +49,6 @@ PROGRAM         = jsapi-tests$(BIN_SUFFIX)
 CPPSRCS = \
   tests.cpp \
   selfTest.cpp \
-  testAddPropertyPropcache.cpp \
   testArgumentsObject.cpp \
   testBug604087.cpp \
   testChromeBuffer.cpp \

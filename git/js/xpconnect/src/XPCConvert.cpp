@@ -1212,7 +1212,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
         wrapper = strongWrapper;
     }
 
-    if (NS_FAILED(rv) && pErr)
+    if (pErr)
         *pErr = rv;
 
     // If creating the wrapped native failed, then return early.
@@ -1228,8 +1228,6 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
         *d = v;
         if (dest)
             *dest = strongWrapper.forget().get();
-        if (pErr)
-            *pErr = NS_OK;
         return JS_TRUE;
     }
 
@@ -1295,9 +1293,6 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             *dest = objHolder.forget().get();
         }
     }
-
-    if (pErr)
-        *pErr = NS_OK;
 
     return JS_TRUE;
 }

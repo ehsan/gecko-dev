@@ -205,11 +205,6 @@ public:
    * Statics used in other classes
    */
   static PRInt32          GetWindowsVersion();
-  static bool             GetRegistryKey(HKEY aRoot,
-                                         const PRUnichar* aKeyName,
-                                         const PRUnichar* aValueName,
-                                         PRUnichar* aBuffer,
-                                         DWORD aBufferLength);
 
   /**
    * Event helpers
@@ -243,6 +238,7 @@ public:
   /**
    * Window utilities
    */
+  static void             GlobalMsgWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
   nsWindow*               GetTopLevelWindow(bool aStopOnDialogOrPopup);
   static HWND             GetTopLevelHWND(HWND aWnd, 
                                           bool aStopIfNotChild = false, 

@@ -179,7 +179,7 @@ void
 nsHtml5Tokenizer::errAstralNonCharacter(int ch)
 {
   if (NS_UNLIKELY(mViewSource)) {
-    mViewSource->AddErrorToCurrentNode("errNcrNonCharacter");
+    mViewSource->AddErrorToCurrentNode("errAstralNonCharacter");
   }
 }
 

@@ -245,7 +245,6 @@ EXPORTS_vm = \
 
 EXPORTS_ds = \
 		LifoAlloc.h \
-		BitArray.h \
 		$(NULL)
 
 EXPORTS_gc = \

@@ -3374,6 +3374,3 @@ pref("dom.event.handling-user-input-time-limit", 1000);
  
 //3D Transforms
 pref("layout.3d-transforms.enabled", true);
-
-// Battery API
-pref("dom.battery.enabled", true);

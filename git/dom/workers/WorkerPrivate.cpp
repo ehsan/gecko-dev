@@ -2082,62 +2082,69 @@ WorkerPrivateParent<Derived>::UpdateGCZeal(JSContext* aCx, PRUint8 aGCZeal)
 #endif
 
 template <class Derived>
-void
+nsresult
 WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
 {
   AssertIsOnMainThread();
 
   mBaseURI = aBaseURI;
 
-  if (NS_FAILED(aBaseURI->GetSpec(mLocationInfo.mHref))) {
-    mLocationInfo.mHref.Truncate();
-  }
+  nsCOMPtr<nsIURL> url(do_QueryInterface(aBaseURI));
+  NS_ENSURE_TRUE(url, NS_ERROR_NO_INTERFACE);
 
-  if (NS_FAILED(aBaseURI->GetHost(mLocationInfo.mHostname))) {
-    mLocationInfo.mHostname.Truncate();
-  }
+  nsresult rv = url->GetSpec(mLocationInfo.mHref);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  if (NS_FAILED(aBaseURI->GetPath(mLocationInfo.mPathname))) {
-    mLocationInfo.mPathname.Truncate();
-  }
+  rv = url->GetHost(mLocationInfo.mHostname);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = url->GetPath(mLocationInfo.mPathname);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCString temp;
 
-  nsCOMPtr<nsIURL> url(do_QueryInterface(aBaseURI));
-  if (url && NS_SUCCEEDED(url->GetQuery(temp)) && !temp.IsEmpty()) {
+  rv = url->GetQuery(temp);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!temp.IsEmpty()) {
     mLocationInfo.mSearch.AssignLiteral("?");
     mLocationInfo.mSearch.Append(temp);
   }
 
-  if (NS_SUCCEEDED(aBaseURI->GetRef(temp)) && !temp.IsEmpty()) {
+  rv = url->GetRef(temp);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!temp.IsEmpty()) {
+    nsAutoString unicodeRef;
+
     nsCOMPtr<nsITextToSubURI> converter =
-      do_GetService(NS_ITEXTTOSUBURI_CONTRACTID);
-    if (converter) {
+      do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv);
+    if (NS_SUCCEEDED(rv)) {
       nsCString charset;
-      nsAutoString unicodeRef;
-      if (NS_SUCCEEDED(aBaseURI->GetOriginCharset(charset)) &&
-          NS_SUCCEEDED(converter->UnEscapeURIForUI(charset, temp,
-                                                   unicodeRef))) {
-        mLocationInfo.mHash.AssignLiteral("#");
-        mLocationInfo.mHash.Append(NS_ConvertUTF16toUTF8(unicodeRef));
+      rv = url->GetOriginCharset(charset);
+      if (NS_SUCCEEDED(rv)) {
+        rv = converter->UnEscapeURIForUI(charset, temp, unicodeRef);
+        if (NS_SUCCEEDED(rv)) {
+          mLocationInfo.mHash.AssignLiteral("#");
+          mLocationInfo.mHash.Append(NS_ConvertUTF16toUTF8(unicodeRef));
+        }
       }
     }
 
-    if (mLocationInfo.mHash.IsEmpty()) {
+    if (NS_FAILED(rv)) {
       mLocationInfo.mHash.AssignLiteral("#");
       mLocationInfo.mHash.Append(temp);
     }
   }
 
-  if (NS_SUCCEEDED(aBaseURI->GetScheme(mLocationInfo.mProtocol))) {
-    mLocationInfo.mProtocol.AppendLiteral(":");
-  }
-  else {
-    mLocationInfo.mProtocol.Truncate();
-  }
+  rv = url->GetScheme(mLocationInfo.mProtocol);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mLocationInfo.mProtocol.AppendLiteral(":");
 
   PRInt32 port;
-  if (NS_SUCCEEDED(aBaseURI->GetPort(&port)) && port != -1) {
+  rv = url->GetPort(&port);
+  if (NS_SUCCEEDED(rv) && port != -1) {
     mLocationInfo.mPort.AppendInt(port);
 
     nsCAutoString host(mLocationInfo.mHostname);
@@ -2149,6 +2156,8 @@ WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
   else {
     mLocationInfo.mHost.Assign(mLocationInfo.mHostname);
   }
+
+  return NS_OK;
 }
 
 template <class Derived>

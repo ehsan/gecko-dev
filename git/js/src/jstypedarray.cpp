@@ -393,16 +393,6 @@ ArrayBuffer::obj_getElement(JSContext *cx, JSObject *obj, JSObject *receiver, ui
 }
 
 JSBool
-ArrayBuffer::obj_getElementIfPresent(JSContext *cx, JSObject *obj, JSObject *receiver,
-                                     uint32 index, Value *vp, bool *present)
-{
-    JSObject *delegate = DelegateObject(cx, getArrayBuffer(obj));
-    if (!delegate)
-        return false;
-    return delegate->getElementIfPresent(cx, receiver, index, vp, present);
-}
-
-JSBool
 ArrayBuffer::obj_getSpecial(JSContext *cx, JSObject *obj, JSObject *receiver, SpecialId sid, Value *vp)
 {
     return obj_getGeneric(cx, obj, receiver, SPECIALID_TO_JSID(sid), vp);
@@ -1014,16 +1004,31 @@ class TypedArrayTemplate
         if (isArrayIndex(cx, tarray, id, &index)) {
             // this inline function is specialized for each type
             copyIndexToValue(cx, tarray, index, vp);
-            return true;
-        }
+        } else {
+            JSObject *obj2;
+            JSProperty *prop;
+            const Shape *shape;
 
-        JSObject *proto = obj->getProto();
-        if (!proto) {
+            JSObject *proto = obj->getProto();
+            if (!proto) {
+                vp->setUndefined();
+                return true;
+            }
+
             vp->setUndefined();
-            return true;
+            if (!LookupPropertyWithFlags(cx, proto, id, cx->resolveFlags, &obj2, &prop))
+                return false;
+
+            if (prop) {
+                if (obj2->isNative()) {
+                    shape = (Shape *) prop;
+                    if (!js_NativeGet(cx, obj, obj2, shape, JSGET_METHOD_BARRIER, vp))
+                        return false;
+                }
+            }
         }
 
-        return proto->getGeneric(cx, receiver, id, vp);
+        return true;
     }
 
     static JSBool
@@ -1050,29 +1055,22 @@ class TypedArrayTemplate
             return true;
         }
 
-        return proto->getElement(cx, receiver, index, vp);
-    }
+        vp->setUndefined();
 
-    static JSBool
-    obj_getElementIfPresent(JSContext *cx, JSObject *obj, JSObject *receiver, uint32 index, Value *vp, bool *present)
-    {
-        // Fast-path the common case of index < length
-        JSObject *tarray = getTypedArray(obj);
+        jsid id;
+        if (!IndexToId(cx, index, &id))
+            return false;
 
-        if (index < getLength(tarray)) {
-            // this inline function is specialized for each type
-            copyIndexToValue(cx, tarray, index, vp);
-            *present = true;
+        JSObject *obj2;
+        JSProperty *prop;
+        if (!LookupPropertyWithFlags(cx, proto, id, cx->resolveFlags, &obj2, &prop))
+            return false;
+
+        if (!prop || !obj2->isNative())
             return true;
-        }
 
-        JSObject *proto = obj->getProto();
-        if (!proto) {
-            vp->setUndefined();
-            return true;
-        }
-
-        return proto->getElementIfPresent(cx, receiver, index, vp, present);
+        const Shape *shape = (Shape *) prop;
+        return js_NativeGet(cx, obj, obj2, shape, JSGET_METHOD_BARRIER, vp);
     }
 
     static JSBool
@@ -2107,7 +2105,6 @@ Class js::ArrayBufferClass = {
         ArrayBuffer::obj_getGeneric,
         ArrayBuffer::obj_getProperty,
         ArrayBuffer::obj_getElement,
-        ArrayBuffer::obj_getElementIfPresent,
         ArrayBuffer::obj_getSpecial,
         ArrayBuffer::obj_setGeneric,
         ArrayBuffer::obj_setProperty,
@@ -2220,7 +2217,6 @@ JSFunctionSpec _typedArray::jsfuncs[] = {                                      \
         _typedArray::obj_getGeneric,                                           \
         _typedArray::obj_getProperty,                                          \
         _typedArray::obj_getElement,                                           \
-        _typedArray::obj_getElementIfPresent,                                  \
         _typedArray::obj_getSpecial,                                           \
         _typedArray::obj_setGeneric,                                           \
         _typedArray::obj_setProperty,                                          \

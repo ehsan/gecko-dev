@@ -44,7 +44,6 @@
 #include "jsapi.h"
 #include "nsIContent.h"
 #include "nsString.h"
-#include "nsXBLSerialize.h"
 #include "nsXBLProtoImplMember.h"
 
 class nsXBLProtoImplProperty: public nsXBLProtoImplMember
@@ -54,8 +53,6 @@ public:
                          const PRUnichar* aGetter, 
                          const PRUnichar* aSetter,
                          const PRUnichar* aReadOnly);
-
-  nsXBLProtoImplProperty(const PRUnichar* aName, bool aIsReadOnly);
  
   virtual ~nsXBLProtoImplProperty();
 
@@ -75,12 +72,6 @@ public:
                                  void* aClassObject);
 
   virtual void Trace(TraceCallback aCallback, void *aClosure) const;
-
-  nsresult Read(nsIScriptContext* aContext,
-                nsIObjectInputStream* aStream,
-                XBLBindingSerializeDetails aType);
-  virtual nsresult Write(nsIScriptContext* aContext,
-                         nsIObjectOutputStream* aStream);
 
 protected:
   union {
