@@ -744,7 +744,7 @@ FrameState::syncForAllocation(RegisterAllocation *alloc, bool inlineReturn, Uses
         }
 
         /* Force syncs for locals which are dead at the current PC. */
-        if (isLocal(fe) && !fe->copied && !a->analysis->slotEscapes(entrySlot(fe))) {
+        if (isLocal(fe) && !a->analysis->slotEscapes(entrySlot(fe))) {
             Lifetime *lifetime = a->analysis->liveness(entrySlot(fe)).live(a->PC - a->script->code);
             if (!lifetime)
                 fakeSync(fe);
@@ -801,8 +801,7 @@ FrameState::syncForAllocation(RegisterAllocation *alloc, bool inlineReturn, Uses
                 JS_ASSERT(!a->analysis->trackSlot(entrySlot(fe)));
                 syncFe(fe);
                 forgetAllRegs(fe);
-                fe->type.setMemory();
-                fe->data.setMemory();
+                fe->resetSynced();
             }
             if (fe->data.inMemory()) {
                 masm.loadPayload(addressOf(fe), nreg);
