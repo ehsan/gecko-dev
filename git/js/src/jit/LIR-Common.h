@@ -520,9 +520,6 @@ class LSimdBinaryBitwiseX4 : public LInstructionHelper<1, 2, 0>
     MSimdBinaryBitwise::Operation operation() const {
         return mir_->toSimdBinaryBitwise()->operation();
     }
-    const char *extraName() const {
-        return MSimdBinaryBitwise::OperationName(operation());
-    }
     MIRType type() const {
         return mir_->type();
     }

@@ -289,14 +289,9 @@ class ObjectGroup : public gc::TenuredCell
         return maybeUnboxedLayoutDontCheckGeneration();
     }
 
-    UnboxedLayout &unboxedLayoutDontCheckGeneration() const {
-        MOZ_ASSERT(addendumKind() == Addendum_UnboxedLayout);
-        return *maybeUnboxedLayoutDontCheckGeneration();
-    }
-
     UnboxedLayout &unboxedLayout() {
-        maybeSweep(nullptr);
-        return unboxedLayoutDontCheckGeneration();
+        MOZ_ASSERT(addendumKind() == Addendum_UnboxedLayout);
+        return *maybeUnboxedLayout();
     }
 
     void setUnboxedLayout(UnboxedLayout *layout) {

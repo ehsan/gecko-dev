@@ -176,8 +176,6 @@ private:
 
   nsRefPtr<CacheFileHandle>           mHandle;
   nsCString                           mKey;
-  bool                                mFirstRead;
-  mozilla::TimeStamp                  mReadStart;
   CacheHash::Hash16_t                *mHashArray;
   uint32_t                            mHashArraySize;
   uint32_t                            mHashCount;

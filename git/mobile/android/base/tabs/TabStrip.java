@@ -15,15 +15,13 @@ import android.view.TouchDelegate;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
-import org.mozilla.gecko.BrowserApp.Refreshable;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.widget.ThemedImageButton;
 import org.mozilla.gecko.widget.ThemedLinearLayout;
 
-public class TabStrip extends ThemedLinearLayout
-                      implements Refreshable {
+public class TabStrip extends ThemedLinearLayout {
     private static final String LOGTAG = "GeckoTabStrip";
 
     private final TabStripView tabStripView;
@@ -128,11 +126,6 @@ public class TabStrip extends ThemedLinearLayout
                     break;
             }
         }
-    }
-
-    @Override
-    public void refresh() {
-        tabStripView.refresh();
     }
 
     @Override
