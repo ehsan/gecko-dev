@@ -81,7 +81,7 @@ protected:
   nsCOMPtr<nsIDOMBlob> mBlob;
 
   // The window is needed by the requests
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsCOMPtr<nsIDOMWindow> mWindow;
 
   // Are we ready to return data?
   enum {

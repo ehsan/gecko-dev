@@ -230,7 +230,7 @@ public:
   virtual void LastRelease() MOZ_OVERRIDE;
 
 private:
-  IDBDatabase(IDBWrapperCache* aOwnerCache);
+  IDBDatabase();
   ~IDBDatabase();
 
   void OnUnlink();

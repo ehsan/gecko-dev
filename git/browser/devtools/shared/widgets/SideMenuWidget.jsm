@@ -295,7 +295,7 @@ SideMenuWidget.prototype = {
   },
 
   /**
-   * Sets the text displayed in this container when empty.
+   * Sets the text displayed in this container as a when empty.
    * @param string aValue
    */
   set _textWhenEmpty(aValue) {

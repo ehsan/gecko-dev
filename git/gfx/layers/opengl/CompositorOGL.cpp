@@ -1555,7 +1555,8 @@ TemporaryRef<DataTextureSource>
 CompositorOGL::CreateDataTextureSource(TextureFlags aFlags)
 {
   RefPtr<DataTextureSource> result =
-    new TextureImageTextureSourceOGL(mGLContext, aFlags);
+    new TextureImageTextureSourceOGL(mGLContext,
+                                     !(aFlags & TEXTURE_DISALLOW_BIGIMAGE));
   return result;
 }
 

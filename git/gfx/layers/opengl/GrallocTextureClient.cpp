@@ -171,13 +171,11 @@ GrallocTextureClientOGL::Lock(OpenMode aMode)
     NS_WARNING("Couldn't lock graphic buffer");
     return false;
   }
-  return BufferTextureClient::Lock(aMode);
+  return true;
 }
-
 void
 GrallocTextureClientOGL::Unlock()
 {
-  BufferTextureClient::Unlock();
   mMappedBuffer = nullptr;
   mGraphicBuffer->unlock();
 }

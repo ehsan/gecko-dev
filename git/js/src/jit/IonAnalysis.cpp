@@ -97,7 +97,7 @@ jit::EliminateDeadResumePointOperands(MIRGenerator *mir, MIRGraph &graph)
             // If the instruction's behavior has been constant folded into a
             // separate instruction, we can't determine precisely where the
             // instruction becomes dead and can't eliminate its uses.
-            if (ins->isImplicitlyUsed())
+            if (ins->isFolded())
                 continue;
 
             // Check if this instruction's result is only used within the
@@ -186,7 +186,7 @@ IsPhiObservable(MPhi *phi, Observability observe)
 {
     // If the phi has uses which are not reflected in SSA, then behavior in the
     // interpreter may be affected by removing the phi.
-    if (phi->isImplicitlyUsed())
+    if (phi->isFolded())
         return true;
 
     // Check for uses of this phi node outside of other phi nodes.
@@ -253,9 +253,9 @@ IsPhiRedundant(MPhi *phi)
     if (first == nullptr)
         return nullptr;
 
-    // Propagate the ImplicitlyUsed flag if |phi| is replaced with another phi.
-    if (phi->isImplicitlyUsed())
-        first->setImplicitlyUsedUnchecked();
+    // Propagate the Folded flag if |phi| is replaced with another phi.
+    if (phi->isFolded())
+        first->setFoldedUnchecked();
 
     return first;
 }

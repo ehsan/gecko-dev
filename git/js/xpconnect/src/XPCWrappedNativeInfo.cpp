@@ -479,6 +479,8 @@ XPCNativeSet::GetNewOrUsed(nsIClassInfo* classInfo)
     if (iidCount) {
         AutoMarkingNativeInterfacePtrArrayPtr
             arr(cx, new XPCNativeInterface*[iidCount], iidCount, true);
+        if (!arr)
+            goto out;
 
         interfaceArray = arr;
 

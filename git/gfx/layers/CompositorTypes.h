@@ -269,12 +269,10 @@ struct TextureInfo
  *
  * See ShadowLayerForwarder::OpenDescriptor for example.
  */
-typedef uint32_t OpenMode;
-const OpenMode OPEN_READ        = 0x1;
-const OpenMode OPEN_WRITE       = 0x2;
-const OpenMode OPEN_READ_WRITE  = OPEN_READ|OPEN_WRITE;
-const OpenMode OPEN_READ_ONLY   = OPEN_READ;
-const OpenMode OPEN_WRITE_ONLY  = OPEN_WRITE;
+enum OpenMode {
+  OPEN_READ_ONLY  = 0x1,
+  OPEN_READ_WRITE = 0x2
+};
 
 // The kinds of mask texture a shader can support
 // We rely on the items in this enum being sequential

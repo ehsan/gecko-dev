@@ -53,7 +53,7 @@ public:
       Matrix transform = state.surfTransform;
 
       if (state.patternTransformChanged) {
-        Matrix mat = mContext->GetDTTransform();
+        Matrix mat = mContext->mTransform;
         mat.Invert();
 
         transform = transform * state.patternTransform * mat;

@@ -2055,8 +2055,6 @@ class FunctionCompiler
             MAsmJSParameter *ins = MAsmJSParameter::New(alloc(), *i, i.mirType());
             curBlock_->add(ins);
             curBlock_->initSlot(info().localSlot(i.index()), ins);
-            if (!mirGen_->ensureBallast())
-                return false;
         }
         unsigned firstLocalSlot = argTypes.length();
         for (unsigned i = 0; i < varInitializers_.length(); i++) {
@@ -2064,8 +2062,6 @@ class FunctionCompiler
                                                  varInitializers_[i].type.toMIRType());
             curBlock_->add(ins);
             curBlock_->initSlot(info().localSlot(firstLocalSlot + i), ins);
-            if (!mirGen_->ensureBallast())
-                return false;
         }
         return true;
     }
@@ -2475,19 +2471,17 @@ class FunctionCompiler
         return thenBlocks->append(curBlock_);
     }
 
-    bool joinIf(const BlockVector &thenBlocks, MBasicBlock *joinBlock)
+    void joinIf(const BlockVector &thenBlocks, MBasicBlock *joinBlock)
     {
         if (!joinBlock)
-            return true;
+            return;
         JS_ASSERT_IF(curBlock_, thenBlocks.back() == curBlock_);
         for (size_t i = 0; i < thenBlocks.length(); i++) {
             thenBlocks[i]->end(MGoto::New(alloc(), joinBlock));
-            if (!joinBlock->addPredecessor(alloc(), thenBlocks[i]))
-                return false;
+            joinBlock->addPredecessor(alloc(), thenBlocks[i]);
         }
         curBlock_ = joinBlock;
         mirGraph().moveBlockToEnd(curBlock_);
-        return true;
     }
 
     void switchToElse(MBasicBlock *elseBlock)
@@ -2510,10 +2504,8 @@ class FunctionCompiler
             curBlock_->end(MGoto::New(alloc(), join));
         for (size_t i = 0; i < thenBlocks.length(); i++) {
             thenBlocks[i]->end(MGoto::New(alloc(), join));
-            if (pred == curBlock_ || i > 0) {
-                if (!join->addPredecessor(alloc(), thenBlocks[i]))
-                    return false;
-            }
+            if (pred == curBlock_ || i > 0)
+                join->addPredecessor(alloc(), thenBlocks[i]);
         }
         curBlock_ = join;
         return true;
@@ -2702,8 +2694,7 @@ class FunctionCompiler
             return false;
         if (curBlock_) {
             curBlock_->end(MGoto::New(alloc(), *next));
-            if (!(*next)->addPredecessor(alloc(), curBlock_))
-                return false;
+            (*next)->addPredecessor(alloc(), curBlock_);
         }
         curBlock_ = *next;
         return true;
@@ -2788,8 +2779,7 @@ class FunctionCompiler
             MBasicBlock *pred = (*preds)[i];
             if (*createdJoinBlock) {
                 pred->end(MGoto::New(alloc(), curBlock_));
-                if (!curBlock_->addPredecessor(alloc(), pred))
-                    return false;
+                curBlock_->addPredecessor(alloc(), pred);
             } else {
                 MBasicBlock *next;
                 if (!newBlock(pred, &next, pn))
@@ -2797,15 +2787,12 @@ class FunctionCompiler
                 pred->end(MGoto::New(alloc(), next));
                 if (curBlock_) {
                     curBlock_->end(MGoto::New(alloc(), next));
-                    if (!next->addPredecessor(alloc(), curBlock_))
-                        return false;
+                    next->addPredecessor(alloc(), curBlock_);
                 }
                 curBlock_ = next;
                 *createdJoinBlock = true;
             }
             JS_ASSERT(curBlock_->begin() == curBlock_->end());
-            if (!mirGen_->ensureBallast())
-                return false;
         }
         preds->clear();
         return true;
@@ -2823,8 +2810,6 @@ class FunctionCompiler
                     return false;
                 map->remove(p);
             }
-            if (!mirGen_->ensureBallast())
-                return false;
         }
         return true;
     }
@@ -4863,8 +4848,7 @@ CheckIf(FunctionCompiler &f, ParseNode *ifStmt)
         return false;
 
     if (!elseStmt) {
-        if (!f.joinIf(thenBlocks, elseBlock))
-            return false;
+        f.joinIf(thenBlocks, elseBlock);
     } else {
         f.switchToElse(elseBlock);
 

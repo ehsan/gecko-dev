@@ -126,15 +126,6 @@ AppendASCIItoUTF16( const char* aSource, nsAString& aDest )
 
 void
 AppendUTF16toUTF8( const nsAString& aSource, nsACString& aDest )
-{
-  if (!AppendUTF16toUTF8(aSource, aDest, mozilla::fallible_t())) {
-    NS_ABORT_OOM(aDest.Length() + aSource.Length());
-  }
-}
-
-bool
-AppendUTF16toUTF8( const nsAString& aSource, nsACString& aDest,
-                   const mozilla::fallible_t& )
   {
     nsAString::const_iterator source_start, source_end;
     CalculateUTF8Size calculator;
@@ -148,9 +139,7 @@ AppendUTF16toUTF8( const nsAString& aSource, nsACString& aDest,
         uint32_t old_dest_length = aDest.Length();
 
         // Grow the buffer if we need to.
-        if (!aDest.SetLength(old_dest_length + count, mozilla::fallible_t())) {
-          return false;
-        }
+        aDest.SetLength(old_dest_length + count);
 
         // All ready? Time to convert
 
@@ -162,8 +151,6 @@ AppendUTF16toUTF8( const nsAString& aSource, nsACString& aDest,
                      "Unexpected disparity between CalculateUTF8Size and "
                      "ConvertUTF16toUTF8");
       }
-
-    return true;
   }
 
 void

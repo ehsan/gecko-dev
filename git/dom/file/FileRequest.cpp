@@ -17,7 +17,7 @@
 
 USING_FILE_NAMESPACE
 
-FileRequest::FileRequest(nsPIDOMWindow* aWindow)
+FileRequest::FileRequest(nsIDOMWindow* aWindow)
   : DOMRequest(aWindow)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -30,7 +30,7 @@ FileRequest::~FileRequest()
 
 // static
 already_AddRefed<FileRequest>
-FileRequest::Create(nsPIDOMWindow* aOwner,
+FileRequest::Create(nsIDOMWindow* aOwner,
                     LockedFile* aLockedFile,
                     bool aIsFileRequest)
 {

@@ -189,8 +189,9 @@ IDBDatabase::Create(IDBWrapperCache* aOwnerCache,
   nsRefPtr<DatabaseInfo> databaseInfo(aDatabaseInfo);
   NS_ASSERTION(databaseInfo, "Null pointer!");
 
-  nsRefPtr<IDBDatabase> db(new IDBDatabase(aOwnerCache));
+  nsRefPtr<IDBDatabase> db(new IDBDatabase());
 
+  db->BindToOwner(aOwnerCache);
   db->SetScriptOwner(aOwnerCache->GetScriptOwner());
   db->mFactory = aFactory;
   db->mDatabaseId = databaseInfo->id;
@@ -227,9 +228,8 @@ IDBDatabase::FromStorage(nsIOfflineStorage* aStorage)
          static_cast<IDBDatabase*>(aStorage) : nullptr;
 }
 
-IDBDatabase::IDBDatabase(IDBWrapperCache* aOwnerCache)
-: IDBWrapperCache(aOwnerCache),
-  mActorChild(nullptr),
+IDBDatabase::IDBDatabase()
+: mActorChild(nullptr),
   mActorParent(nullptr),
   mContentParent(nullptr),
   mInvalidated(false),
@@ -238,6 +238,8 @@ IDBDatabase::IDBDatabase(IDBWrapperCache* aOwnerCache)
   mRunningVersionChange(false)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  SetIsDOMBinding();
 }
 
 IDBDatabase::~IDBDatabase()
