@@ -93,24 +93,15 @@ class FilePickerResultHandler implements ActivityResultHandler {
         final FragmentActivity fa = (FragmentActivity) GeckoAppShell.getGeckoInterface().getActivity();
         final LoaderManager lm = fa.getSupportLoaderManager();
         // Finally, Video pickers and some file pickers may return a content provider.
-        Cursor cursor = null;
         try {
             // Try a query to make sure the expected columns exist
             final ContentResolver cr = fa.getContentResolver();
-            cursor = cr.query(uri, new String[] { MediaStore.Video.Media.DATA }, null, null, null);
+            Cursor cursor = cr.query(uri, new String[] { "MediaStore.Video.Media.DATA" }, null, null, null);
+            cursor.close();
 
-            int index = cursor.getColumnIndex(MediaStore.Video.Media.DATA);
-            if (index >= 0) {
-                lm.initLoader(intent.hashCode(), null, new VideoLoaderCallbacks(uri));
-                return;
-            }
-        } catch(Exception ex) {
-            // We'll try a different loader below
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
+            lm.initLoader(intent.hashCode(), null, new VideoLoaderCallbacks(uri));
+            return;
+        } catch(Exception ex) { }
 
         lm.initLoader(uri.hashCode(), null, new FileLoaderCallbacks(uri));
         return;
@@ -134,7 +125,7 @@ class FilePickerResultHandler implements ActivityResultHandler {
             final FragmentActivity fa = (FragmentActivity) GeckoAppShell.getGeckoInterface().getActivity();
             return new CursorLoader(fa,
                                     mUri,
-                                    new String[] { MediaStore.Video.Media.DATA },
+                                    new String[] { "MediaStore.Video.Media.DATA" },
                                     null,  // selection
                                     null,  // selectionArgs
                                     null); // sortOrder

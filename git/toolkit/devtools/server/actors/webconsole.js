@@ -268,15 +268,7 @@ WebConsoleActor.prototype =
     return { actor: this.actorID };
   },
 
-  hasNativeConsoleAPI: function WCA_hasNativeConsoleAPI(aWindow) {
-    let isNative = false;
-    try {
-      let console = aWindow.wrappedJSObject.console;
-      isNative = console instanceof aWindow.Console;
-    }
-    catch (ex) { }
-    return isNative;
-  },
+  hasNativeConsoleAPI: BrowserTabActor.prototype.hasNativeConsoleAPI,
 
   _createValueGrip: ThreadActor.prototype.createValueGrip,
   _stringIsLong: ThreadActor.prototype._stringIsLong,

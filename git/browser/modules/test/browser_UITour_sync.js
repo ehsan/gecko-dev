@@ -23,7 +23,7 @@ let tests = [
       done();
     }
 
-    gContentAPI.getConfiguration("sync", callback);
+    gContentAPI.getSyncConfiguration(callback);
   },
 
   function test_checkSyncSetup_enabled(done) {
@@ -33,6 +33,6 @@ let tests = [
     }
 
     Services.prefs.setCharPref("services.sync.username", "uitour@tests.mozilla.org");
-    gContentAPI.getConfiguration("sync", callback);
+    gContentAPI.getSyncConfiguration(callback);
   },
 ];
