@@ -149,7 +149,7 @@ JSCompartment::init()
 #endif
 
 #if ENABLE_YARR_JIT
-    regExpAllocator = js_new<JSC::ExecutableAllocator>();
+    regExpAllocator = JSC::ExecutableAllocator::create();
     if (!regExpAllocator)
         return false;
 #endif
