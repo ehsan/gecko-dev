@@ -336,7 +336,7 @@ input.defaultName:hover{
 
 .stackExpander{
   position: absolute;
-  opacity: .4;
+  opacity: .5;
   cursor: pointer;
 }
 
