@@ -14,7 +14,6 @@
 #include "jsproxy.h"
 
 #include "gc/Marking.h"
-#include "gc/Zone.h"
 #if ENABLE_YARR_JIT
 #include "yarr/YarrJIT.h"
 #else
@@ -190,7 +189,7 @@ class RegExpShared
 
     /* Called when a RegExpShared is installed into a RegExpObject. */
     void prepareForUse(ExclusiveContext *cx) {
-        gcNumberWhenUsed = cx->zone()->gcNumber();
+        gcNumberWhenUsed = cx->gcNumber();
     }
 
     /* Primary interface: run this regular expression on the given string. */

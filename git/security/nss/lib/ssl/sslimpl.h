@@ -1850,10 +1850,6 @@ dtls_DTLSVersionToTLSVersion(SSL3ProtocolVersion dtlsv);
 
 /********************** misc calls *********************/
 
-#ifdef DEBUG
-extern void ssl3_CheckCipherSuiteOrderConsistency();
-#endif
-
 extern int ssl_MapLowLevelError(int hiLevelError);
 
 extern PRUint32 ssl_Time(void);

@@ -4540,7 +4540,7 @@ nsHttpChannel::BeginConnect()
         (BYPASS_LOCAL_CACHE(mLoadFlags)))
         mCaps |= NS_HTTP_REFRESH_DNS;
 
-    if (gHttpHandler->CriticalRequestPrioritization()) {
+    if (gHttpHandler->CritialRequestPrioritization()) {
         if (mLoadAsBlocking)
             mCaps |= NS_HTTP_LOAD_AS_BLOCKING;
         if (mLoadUnblocked)

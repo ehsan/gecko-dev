@@ -8,11 +8,11 @@
 #ifndef MOZILLA_SVGMOTIONSMILTYPE_H_
 #define MOZILLA_SVGMOTIONSMILTYPE_H_
 
-#include "mozilla/gfx/2D.h"
 #include "mozilla/Attributes.h"
 #include "gfxMatrix.h"
 #include "nsISMILType.h"
 
+class gfxPath;
 class nsSMILValue;
 
 namespace mozilla {
@@ -35,8 +35,6 @@ enum RotateType {
  */
 class SVGMotionSMILType : public nsISMILType
 {
-  typedef mozilla::gfx::Path Path;
-
 public:
   // Singleton for nsSMILValue objects to hold onto.
   static SVGMotionSMILType sSingleton;
@@ -67,7 +65,7 @@ public:
 
   // Used to generate a nsSMILValue for the point at the given distance along
   // the given path.
-  static nsSMILValue ConstructSMILValue(Path* aPath,
+  static nsSMILValue ConstructSMILValue(gfxPath* aPath,
                                         float aDist,
                                         RotateType aRotateType,
                                         float aRotateAngle);

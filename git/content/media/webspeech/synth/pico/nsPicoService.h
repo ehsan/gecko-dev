@@ -4,8 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsPicoService_h
-#define nsPicoService_h
+#pragma once
 
 #include "mozilla/Mutex.h"
 #include "nsAutoPtr.h"
@@ -86,5 +85,3 @@ private:
 
 } // namespace dom
 } // namespace mozilla
-
-#endif

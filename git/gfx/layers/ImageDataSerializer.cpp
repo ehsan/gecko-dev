@@ -137,7 +137,7 @@ ImageDataSerializerBase::GetAsDrawTarget()
                                                              GetFormat());
 }
 
-TemporaryRef<gfx::DataSourceSurface>
+TemporaryRef<DataSourceSurface>
 ImageDataSerializerBase::GetAsSurface()
 {
   MOZ_ASSERT(IsValid());

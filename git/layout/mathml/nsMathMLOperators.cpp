@@ -32,9 +32,10 @@ static int32_t         gTableRefCount = 0;
 static uint32_t        gOperatorCount = 0;
 static OperatorData*   gOperatorArray = nullptr;
 static nsHashtable*    gOperatorTable = nullptr;
-static bool            gGlobalsInitialized   = false;
+static bool            gInitialized   = false;
 static nsTArray<nsString>*      gInvariantCharArray    = nullptr;
 
+static const PRUnichar kNullCh  = PRUnichar('\0');
 static const PRUnichar kDashCh  = PRUnichar('#');
 static const PRUnichar kColonCh = PRUnichar(':');
 
@@ -128,8 +129,6 @@ SetOperator(OperatorData*   aOperatorData,
             nsString&        aAttributes)
 
 {
-  static const PRUnichar kNullCh = PRUnichar('\0');
-
   // aOperator is in the expanded format \uNNNN\uNNNN ...
   // First compress these Unicode points to the internal nsString format
   int32_t i = 0;
@@ -316,7 +315,7 @@ InitOperators(void)
 static nsresult
 InitGlobals()
 {
-  gGlobalsInitialized = true;
+  gInitialized = true;
   nsresult rv = NS_ERROR_OUT_OF_MEMORY;
   gInvariantCharArray = new nsTArray<nsString>();
   if (gInvariantCharArray) {
@@ -377,7 +376,7 @@ nsMathMLOperators::LookupOperator(const nsString&       aOperator,
                                   float*                aLeadingSpace,
                                   float*                aTrailingSpace)
 {
-  if (!gGlobalsInitialized) {
+  if (!gInitialized) {
     InitGlobals();
   }
   if (gOperatorTable) {
@@ -422,7 +421,7 @@ nsMathMLOperators::LookupOperators(const nsString&       aOperator,
                                    float*                aLeadingSpace,
                                    float*                aTrailingSpace)
 {
-  if (!gGlobalsInitialized) {
+  if (!gInitialized) {
     InitGlobals();
   }
 
@@ -464,7 +463,7 @@ nsMathMLOperators::LookupOperators(const nsString&       aOperator,
 bool
 nsMathMLOperators::IsMutableOperator(const nsString& aOperator)
 {
-  if (!gGlobalsInitialized) {
+  if (!gInitialized) {
     InitGlobals();
   }
   // lookup all the variants of the operator and return true if there
@@ -518,7 +517,7 @@ nsMathMLOperators::GetStretchyDirection(const nsString& aOperator)
 /* static */ eMATHVARIANT
 nsMathMLOperators::LookupInvariantChar(const nsAString& aChar)
 {
-  if (!gGlobalsInitialized) {
+  if (!gInitialized) {
     InitGlobals();
   }
   if (gInvariantCharArray) {
@@ -541,7 +540,7 @@ nsMathMLOperators::LookupInvariantChar(const nsAString& aChar)
 nsMathMLOperators::TransformVariantChar(const PRUnichar& aChar,
                                         eMATHVARIANT aVariant)
 {
-  if (!gGlobalsInitialized) {
+  if (!gInitialized) {
     InitGlobals();
   }
   if (gInvariantCharArray) {

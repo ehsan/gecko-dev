@@ -377,10 +377,7 @@ CodeGenerator::visitFloat32ToInt32(LFloat32ToInt32 *lir)
 }
 
 void
-CodeGenerator::emitOOLTestObject(Register objreg,
-                                 Label *ifEmulatesUndefined,
-                                 Label *ifDoesntEmulateUndefined,
-                                 Register scratch)
+CodeGenerator::emitOOLTestObject(Register objreg, Label *ifTruthy, Label *ifFalsy, Register scratch)
 {
     saveVolatile(scratch);
     masm.setupUnalignedABICall(1, scratch);
@@ -389,8 +386,8 @@ CodeGenerator::emitOOLTestObject(Register objreg,
     masm.storeCallResult(scratch);
     restoreVolatile(scratch);
 
-    masm.branchIfTrueBool(scratch, ifEmulatesUndefined);
-    masm.jump(ifDoesntEmulateUndefined);
+    masm.branchIfTrueBool(scratch, ifFalsy);
+    masm.jump(ifTruthy);
 }
 
 // Base out-of-line code generator for all tests of the truthiness of an
@@ -406,39 +403,36 @@ class OutOfLineTestObject : public OutOfLineCodeBase<CodeGenerator>
     Register objreg_;
     Register scratch_;
 
-    Label *ifEmulatesUndefined_;
-    Label *ifDoesntEmulateUndefined_;
+    Label *ifTruthy_;
+    Label *ifFalsy_;
 
 #ifdef DEBUG
-    bool initialized() { return ifEmulatesUndefined_ != nullptr; }
+    bool initialized() { return ifTruthy_ != nullptr; }
 #endif
 
   public:
     OutOfLineTestObject()
 #ifdef DEBUG
-      : ifEmulatesUndefined_(nullptr), ifDoesntEmulateUndefined_(nullptr)
+      : ifTruthy_(nullptr), ifFalsy_(nullptr)
 #endif
     { }
 
     bool accept(CodeGenerator *codegen) MOZ_FINAL MOZ_OVERRIDE {
         MOZ_ASSERT(initialized());
-        codegen->emitOOLTestObject(objreg_, ifEmulatesUndefined_, ifDoesntEmulateUndefined_,
-                                   scratch_);
+        codegen->emitOOLTestObject(objreg_, ifTruthy_, ifFalsy_, scratch_);
         return true;
     }
 
     // Specify the register where the object to be tested is found, labels to
     // jump to if the object is truthy or falsy, and a scratch register for
     // use in the out-of-line path.
-    void setInputAndTargets(Register objreg, Label *ifEmulatesUndefined, Label *ifDoesntEmulateUndefined,
-                            Register scratch)
-    {
+    void setInputAndTargets(Register objreg, Label *ifTruthy, Label *ifFalsy, Register scratch) {
         MOZ_ASSERT(!initialized());
-        MOZ_ASSERT(ifEmulatesUndefined);
+        MOZ_ASSERT(ifTruthy);
         objreg_ = objreg;
         scratch_ = scratch;
-        ifEmulatesUndefined_ = ifEmulatesUndefined;
-        ifDoesntEmulateUndefined_ = ifDoesntEmulateUndefined;
+        ifTruthy_ = ifTruthy;
+        ifFalsy_ = ifFalsy;
     }
 };
 
@@ -459,51 +453,25 @@ class OutOfLineTestObjectWithLabels : public OutOfLineTestObject
 };
 
 void
-CodeGenerator::testObjectEmulatesUndefinedKernel(Register objreg,
-                                                 Label *ifEmulatesUndefined,
-                                                 Label *ifDoesntEmulateUndefined,
-                                                 Register scratch, OutOfLineTestObject *ool)
+CodeGenerator::testObjectTruthy(Register objreg, Label *ifTruthy, Label *ifFalsy, Register scratch,
+                                OutOfLineTestObject *ool)
 {
-    ool->setInputAndTargets(objreg, ifEmulatesUndefined, ifDoesntEmulateUndefined, scratch);
+    ool->setInputAndTargets(objreg, ifTruthy, ifFalsy, scratch);
 
     // Perform a fast-path check of the object's class flags if the object's
     // not a proxy.  Let out-of-line code handle the slow cases that require
     // saving registers, making a function call, and restoring registers.
-    Assembler::Condition cond = masm.branchTestObjectTruthy(false, objreg, scratch, ool->entry());
-    masm.j(cond, ifEmulatesUndefined);
+    Assembler::Condition cond = masm.branchTestObjectTruthy(true, objreg, scratch, ool->entry());
+    masm.j(cond, ifTruthy);
+    masm.jump(ifFalsy);
 }
 
 void
-CodeGenerator::branchTestObjectEmulatesUndefined(Register objreg,
-                                                 Label *ifEmulatesUndefined,
-                                                 Label *ifDoesntEmulateUndefined,
-                                                 Register scratch, OutOfLineTestObject *ool)
-{
-    MOZ_ASSERT(!ifDoesntEmulateUndefined->bound(),
-               "ifDoesntEmulateUndefined will be bound to the fallthrough path");
-
-    testObjectEmulatesUndefinedKernel(objreg, ifEmulatesUndefined, ifDoesntEmulateUndefined,
-                                      scratch, ool);
-    masm.bind(ifDoesntEmulateUndefined);
-}
-
-void
-CodeGenerator::testObjectEmulatesUndefined(Register objreg,
-                                           Label *ifEmulatesUndefined,
-                                           Label *ifDoesntEmulateUndefined,
-                                           Register scratch, OutOfLineTestObject *ool)
-{
-    testObjectEmulatesUndefinedKernel(objreg, ifEmulatesUndefined, ifDoesntEmulateUndefined,
-                                      scratch, ool);
-    masm.jump(ifDoesntEmulateUndefined);
-}
-
-void
-CodeGenerator::testValueTruthyKernel(const ValueOperand &value,
-                                     const LDefinition *scratch1, const LDefinition *scratch2,
-                                     FloatRegister fr,
-                                     Label *ifTruthy, Label *ifFalsy,
-                                     OutOfLineTestObject *ool)
+CodeGenerator::testValueTruthy(const ValueOperand &value,
+                               const LDefinition *scratch1, const LDefinition *scratch2,
+                               FloatRegister fr,
+                               Label *ifTruthy, Label *ifFalsy,
+                               OutOfLineTestObject *ool)
 {
     Register tag = masm.splitTagForTest(value);
     Assembler::Condition cond;
@@ -534,7 +502,7 @@ CodeGenerator::testValueTruthyKernel(const ValueOperand &value,
         masm.branchTestObject(Assembler::NotEqual, tag, &notObject);
 
         Register objreg = masm.extractObject(value, ToRegister(scratch1));
-        testObjectEmulatesUndefined(objreg, ifFalsy, ifTruthy, ToRegister(scratch2), ool);
+        testObjectTruthy(objreg, ifTruthy, ifFalsy, ToRegister(scratch2), ool);
 
         masm.bind(&notObject);
     } else {
@@ -553,18 +521,6 @@ CodeGenerator::testValueTruthyKernel(const ValueOperand &value,
     masm.unboxDouble(value, fr);
     cond = masm.testDoubleTruthy(false, fr);
     masm.j(cond, ifFalsy);
-
-    // Fall through for truthy.
-}
-
-void
-CodeGenerator::testValueTruthy(const ValueOperand &value,
-                               const LDefinition *scratch1, const LDefinition *scratch2,
-                               FloatRegister fr,
-                               Label *ifTruthy, Label *ifFalsy,
-                               OutOfLineTestObject *ool)
-{
-    testValueTruthyKernel(value, scratch1, scratch2, fr, ifTruthy, ifFalsy, ool);
     masm.jump(ifTruthy);
 }
 
@@ -601,8 +557,8 @@ CodeGenerator::visitTestOAndBranch(LTestOAndBranch *lir)
     Label *truthy = getJumpLabelForBranch(lir->ifTruthy());
     Label *falsy = getJumpLabelForBranch(lir->ifFalsy());
 
-    testObjectEmulatesUndefined(ToRegister(lir->input()), falsy, truthy,
-                                ToRegister(lir->temp()), ool);
+    testObjectTruthy(ToRegister(lir->input()), truthy, falsy,
+                     ToRegister(lir->temp()), ool);
     return true;
 
 }
@@ -4228,15 +4184,15 @@ CodeGenerator::visitIsNullOrLikeUndefined(LIsNullOrLikeUndefined *lir)
             masm.branchTestObject(Assembler::NotEqual, tag, notNullOrLikeUndefined);
 
             Register objreg = masm.extractObject(value, ToTempUnboxRegister(lir->tempToUnbox()));
-            branchTestObjectEmulatesUndefined(objreg, nullOrLikeUndefined, notNullOrLikeUndefined,
-                                              ToRegister(lir->temp()), ool);
-            // fall through
+            testObjectTruthy(objreg, notNullOrLikeUndefined, nullOrLikeUndefined,
+                             ToRegister(lir->temp()), ool);
         }
 
         Label done;
 
         // It's not null or undefined, and if it's an object it doesn't
         // emulate undefined, so it's not like undefined.
+        masm.bind(notNullOrLikeUndefined);
         masm.move32(Imm32(op == JSOP_NE), output);
         masm.jump(&done);
 
@@ -4308,8 +4264,7 @@ CodeGenerator::visitIsNullOrLikeUndefinedAndBranch(LIsNullOrLikeUndefinedAndBran
 
             // Objects that emulate undefined are loosely equal to null/undefined.
             Register objreg = masm.extractObject(value, ToTempUnboxRegister(lir->tempToUnbox()));
-            Register scratch = ToRegister(lir->temp());
-            testObjectEmulatesUndefined(objreg, ifTrueLabel, ifFalseLabel, scratch, ool);
+            testObjectTruthy(objreg, ifFalseLabel, ifTrueLabel, ToRegister(lir->temp()), ool);
         } else {
             masm.jump(ifFalseLabel);
         }
@@ -4349,11 +4304,11 @@ CodeGenerator::visitEmulatesUndefined(LEmulatesUndefined *lir)
 
     Register objreg = ToRegister(lir->input());
     Register output = ToRegister(lir->output());
-    branchTestObjectEmulatesUndefined(objreg, emulatesUndefined, doesntEmulateUndefined,
-                                      output, ool);
+    testObjectTruthy(objreg, doesntEmulateUndefined, emulatesUndefined, output, ool);
 
     Label done;
 
+    masm.bind(doesntEmulateUndefined);
     masm.move32(Imm32(op == JSOP_NE), output);
     masm.jump(&done);
 
@@ -4401,7 +4356,7 @@ CodeGenerator::visitEmulatesUndefinedAndBranch(LEmulatesUndefinedAndBranch *lir)
 
     Register objreg = ToRegister(lir->input());
 
-    testObjectEmulatesUndefined(objreg, equal, unequal, ToRegister(lir->temp()), ool);
+    testObjectTruthy(objreg, unequal, equal, ToRegister(lir->temp()), ool);
     return true;
 }
 
@@ -4741,21 +4696,20 @@ CodeGenerator::visitNotO(LNotO *lir)
     if (!addOutOfLineCode(ool))
         return false;
 
-    Label *ifEmulatesUndefined = ool->label1();
-    Label *ifDoesntEmulateUndefined = ool->label2();
+    Label *ifTruthy = ool->label1();
+    Label *ifFalsy = ool->label2();
 
     Register objreg = ToRegister(lir->input());
     Register output = ToRegister(lir->output());
-    branchTestObjectEmulatesUndefined(objreg, ifEmulatesUndefined, ifDoesntEmulateUndefined,
-                                      output, ool);
-    // fall through
+    testObjectTruthy(objreg, ifTruthy, ifFalsy, output, ool);
 
     Label join;
 
+    masm.bind(ifTruthy);
     masm.move32(Imm32(0), output);
     masm.jump(&join);
 
-    masm.bind(ifEmulatesUndefined);
+    masm.bind(ifFalsy);
     masm.move32(Imm32(1), output);
 
     masm.bind(&join);
@@ -4783,21 +4737,19 @@ CodeGenerator::visitNotV(LNotV *lir)
         ifFalsy = ifFalsyLabel.addr();
     }
 
-    testValueTruthyKernel(ToValue(lir, LNotV::Input), lir->temp1(), lir->temp2(),
-                          ToFloatRegister(lir->tempFloat()),
-                          ifTruthy, ifFalsy, ool);
+    testValueTruthy(ToValue(lir, LNotV::Input), lir->temp1(), lir->temp2(),
+                    ToFloatRegister(lir->tempFloat()),
+                    ifTruthy, ifFalsy, ool);
 
     Label join;
     Register output = ToRegister(lir->output());
 
-    // Note that the testValueTruthyKernel call above may choose to fall through
-    // to ifTruthy instead of branching there.
-    masm.bind(ifTruthy);
-    masm.move32(Imm32(0), output);
-    masm.jump(&join);
-
     masm.bind(ifFalsy);
     masm.move32(Imm32(1), output);
+    masm.jump(&join);
+
+    masm.bind(ifTruthy);
+    masm.move32(Imm32(0), output);
 
     // both branches meet here.
     masm.bind(&join);
@@ -5748,7 +5700,7 @@ CodeGenerator::generate()
             gen->info().script()->filename(),
             gen->info().script()->lineno);
 
-    if (!safepoints_.init(gen->alloc(), graph.totalSlotCount()))
+    if (!safepoints_.init(gen->temp(), graph.totalSlotCount()))
         return false;
 
 #if JS_TRACE_LOGGING

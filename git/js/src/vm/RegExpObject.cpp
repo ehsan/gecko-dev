@@ -700,8 +700,7 @@ RegExpCompartment::get(ExclusiveContext *cx, JSAtom *source, RegExpFlag flags, R
         return true;
     }
 
-    uint64_t gcNumber = cx->zone()->gcNumber();
-    ScopedJSDeletePtr<RegExpShared> shared(cx->new_<RegExpShared>(source, flags, gcNumber));
+    ScopedJSDeletePtr<RegExpShared> shared(cx->new_<RegExpShared>(source, flags, cx->gcNumber()));
     if (!shared)
         return false;
 

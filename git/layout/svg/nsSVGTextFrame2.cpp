@@ -8,12 +8,10 @@
 
 // Keep others in (case-insensitive) order:
 #include "DOMSVGPoint.h"
-#include "gfx2DGlue.h"
 #include "gfxFont.h"
 #include "gfxSkipChars.h"
 #include "gfxTypes.h"
 #include "LookAndFeel.h"
-#include "mozilla/gfx/2D.h"
 #include "nsAlgorithm.h"
 #include "nsBlockFrame.h"
 #include "nsCaret.h"
@@ -49,7 +47,6 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::gfx;
 
 // ============================================================================
 // Utility functions
@@ -4718,25 +4715,16 @@ nsSVGTextFrame2::GetTextPathPathFrame(nsIFrame* aTextPathFrame)
   return property->GetReferencedFrame(nsGkAtoms::svgPathGeometryFrame, nullptr);
 }
 
-TemporaryRef<Path>
+already_AddRefed<gfxPath>
 nsSVGTextFrame2::GetTextPath(nsIFrame* aTextPathFrame)
 {
-  nsIFrame *pathFrame = GetTextPathPathFrame(aTextPathFrame);
+  nsIFrame *path = GetTextPathPathFrame(aTextPathFrame);
 
-  if (pathFrame) {
+  if (path) {
     nsSVGPathGeometryElement *element =
-      static_cast<nsSVGPathGeometryElement*>(pathFrame->GetContent());
+      static_cast<nsSVGPathGeometryElement*>(path->GetContent());
 
-    RefPtr<Path> path = element->GetPathForLengthOrPositionMeasuring();
-
-    gfxMatrix matrix = element->PrependLocalTransformsTo(gfxMatrix());
-    if (!matrix.IsIdentity()) {
-      RefPtr<PathBuilder> builder =
-        path->TransformedCopyToBuilder(ToMatrix(matrix));
-      path = builder->Finish();
-    }
-
-    return path.forget();
+    return element->GetPath(element->PrependLocalTransformsTo(gfxMatrix()));
   }
   return nullptr;
 }
@@ -4761,10 +4749,10 @@ nsSVGTextFrame2::GetStartOffset(nsIFrame* aTextPathFrame)
     &tp->mLengthAttributes[dom::SVGTextPathElement::STARTOFFSET];
 
   if (length->IsPercentage()) {
-    RefPtr<Path> data = GetTextPath(aTextPathFrame);
+    nsRefPtr<gfxPath> data = GetTextPath(aTextPathFrame);
     return data ?
-      length->GetAnimValInSpecifiedUnits() * data->ComputeLength() / 100.0 :
-      0.0;
+             length->GetAnimValInSpecifiedUnits() * data->GetLength() / 100.0 :
+             0.0;
   }
   return length->GetAnimValue(tp) * GetOffsetScale(aTextPathFrame);
 }
@@ -4784,8 +4772,7 @@ nsSVGTextFrame2::DoTextPathLayout()
     }
 
     // Get the path itself.
-    RefPtr<Path> path = GetTextPath(textPathFrame);
-    nsRefPtr<gfxPath> data = new gfxPath(path);
+    nsRefPtr<gfxPath> data = GetTextPath(textPathFrame);
     if (!data) {
       it.AdvancePastCurrentTextPathFrame();
       continue;

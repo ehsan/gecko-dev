@@ -22,6 +22,7 @@
 #include "mozilla/gfx/Types.h"          // for SurfaceFormat, etc
 #include "mozilla/layers/CompositorTypes.h"  // for TextureFlags
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
+#include "mozilla/layers/LayersTypes.h"  // for MOZ_LAYERS_HAVE_LOG
 #include "mozilla/layers/TextureHost.h"  // for DeprecatedTextureHost, etc
 #include "mozilla/mozalloc.h"           // for operator delete, etc
 #include "nsAutoPtr.h"                  // for nsRefPtr
@@ -32,6 +33,9 @@
 #include "LayerManagerOGLProgram.h"     // for ShaderProgramType, etc
 #ifdef MOZ_WIDGET_GONK
 #include <ui/GraphicBuffer.h>
+#endif
+#ifdef XP_MACOSX
+#include "mozilla/gfx/MacIOSurface.h"
 #endif
 
 class gfxImageSurface;
@@ -334,7 +338,9 @@ public:
 
   virtual gfx::IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "SharedTextureHostOGL"; }
+#endif
 
 protected:
   gfx::IntSize mSize;
@@ -344,6 +350,108 @@ protected:
 
   RefPtr<SharedTextureSourceOGL> mTextureSource;
 };
+
+#ifdef XP_MACOSX
+/**
+ * A texture source meant for use with MacIOSurfaceTextureHostOGL.
+ *
+ * It does not own any GL texture, and attaches its shared handle to one of
+ * the compositor's temporary textures when binding.
+ */
+class MacIOSurfaceTextureSourceOGL : public NewTextureSource
+                                   , public TextureSourceOGL
+{
+public:
+  MacIOSurfaceTextureSourceOGL(CompositorOGL* aCompositor,
+                               MacIOSurface* aSurface)
+    : mCompositor(aCompositor)
+    , mSurface(aSurface)
+  {}
+
+  virtual TextureSourceOGL* AsSourceOGL() { return this; }
+
+  virtual void BindTexture(GLenum activetex) MOZ_OVERRIDE;
+
+  virtual bool IsValid() const MOZ_OVERRIDE { return !!gl(); }
+
+  virtual gfx::IntSize GetSize() const MOZ_OVERRIDE {
+    return gfx::IntSize(mSurface->GetDevicePixelWidth(),
+                        mSurface->GetDevicePixelHeight());
+  }
+
+  virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE {
+    return mSurface->HasAlpha() ? gfx::FORMAT_R8G8B8A8 : gfx::FORMAT_B8G8R8X8; }
+
+  virtual GLenum GetTextureTarget() const { return LOCAL_GL_TEXTURE_RECTANGLE_ARB; }
+
+  virtual GLenum GetWrapMode() const MOZ_OVERRIDE { return LOCAL_GL_CLAMP_TO_EDGE; }
+
+  virtual void UnbindTexture() MOZ_OVERRIDE {}
+
+  // MacIOSurfaceTextureSourceOGL doesn't own any gl texture
+  virtual void DeallocateDeviceData() {}
+
+  void SetCompositor(CompositorOGL* aCompositor) {
+    mCompositor = aCompositor;
+  }
+
+  gl::GLContext* gl() const;
+
+protected:
+  CompositorOGL* mCompositor;
+  RefPtr<MacIOSurface> mSurface;
+};
+
+/**
+ * A TextureHost for shared MacIOSurface
+ *
+ * Most of the logic actually happens in MacIOSurfaceTextureSourceOGL.
+ */
+class MacIOSurfaceTextureHostOGL : public TextureHost
+{
+public:
+  MacIOSurfaceTextureHostOGL(uint64_t aID,
+                             TextureFlags aFlags,
+                             const SurfaceDescriptorMacIOSurface& aDescriptor);
+
+  // SharedTextureHostOGL doesn't own any GL texture
+  virtual void DeallocateDeviceData() MOZ_OVERRIDE {}
+
+  virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
+
+  virtual bool Lock() MOZ_OVERRIDE;
+
+  virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE {
+    return mSurface->HasAlpha() ? gfx::FORMAT_R8G8B8A8 : gfx::FORMAT_B8G8R8X8;
+  }
+
+  virtual NewTextureSource* GetTextureSources() MOZ_OVERRIDE
+  {
+    return mTextureSource;
+  }
+
+  virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE
+  {
+    return nullptr; // XXX - implement this (for MOZ_DUMP_PAINTING)
+  }
+
+  gl::GLContext* gl() const;
+
+  virtual gfx::IntSize GetSize() const MOZ_OVERRIDE {
+    return gfx::IntSize(mSurface->GetDevicePixelWidth(),
+                        mSurface->GetDevicePixelHeight());
+  }
+
+#ifdef MOZ_LAYERS_HAVE_LOG
+  virtual const char* Name() { return "MacIOSurfaceTextureHostOGL"; }
+#endif
+
+protected:
+  CompositorOGL* mCompositor;
+  RefPtr<MacIOSurfaceTextureSourceOGL> mTextureSource;
+  RefPtr<MacIOSurface> mSurface;
+};
+#endif
 
 /**
  * DeprecatedTextureHost implementation using a TextureImage as the underlying texture.
@@ -466,7 +574,9 @@ public:
     return DeprecatedTextureHost::GetFormat();
   }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "TextureImageDeprecatedTextureHostOGL"; }
+#endif
 
 protected:
   nsRefPtr<gl::TextureImage> mTexture;
@@ -576,7 +686,9 @@ public:
 
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "YCbCrDeprecatedTextureHostOGL"; }
+#endif
 
 private:
   RefPtr<Channel> mYTexture;
@@ -666,7 +778,9 @@ public:
 
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "SharedDeprecatedTextureHostOGL"; }
+#endif
 
 protected:
   void DeleteTextures();
@@ -745,7 +859,9 @@ public:
 
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "SurfaceStreamHostOGL"; }
+#endif
 
   SurfaceStreamHostOGL()
     : mGL(nullptr)
@@ -807,7 +923,9 @@ public:
 
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "TiledDeprecatedTextureHostOGL"; }
+#endif
 
 protected:
   void DeleteTextures();
@@ -875,7 +993,9 @@ public:
 
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "GrallocDeprecatedTextureHostOGL"; }
+#endif
 
   void BindTexture(GLenum aTextureUnit) MOZ_OVERRIDE;
   void UnbindTexture() MOZ_OVERRIDE {}

@@ -20,6 +20,7 @@
 #include <string.h>
 
 class gfxContext;
+class gfxPath;
 class nsSVGPathDataParser; // IWYU pragma: keep
 
 struct gfxMatrix;
@@ -158,12 +159,8 @@ public:
    */
   bool GetDistancesFromOriginToEndsOfVisibleSegments(nsTArray<double> *aArray) const;
 
-  /**
-   * This returns a path without the extra little line segments that
-   * ApproximateZeroLengthSubpathSquareCaps can insert if we have square-caps.
-   * See the comment for that function for more info on that.
-   */
-  TemporaryRef<Path> ToPathForLengthOrPositionMeasuring() const;
+  already_AddRefed<gfxPath>
+  ToPath(const gfxMatrix& aMatrix) const;
 
   void ConstructPath(gfxContext *aCtx) const;
   TemporaryRef<Path> BuildPath(FillRule aFillRule,
