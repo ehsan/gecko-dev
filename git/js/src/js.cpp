@@ -753,14 +753,12 @@ ReadLine(JSContext *cx, uintN argc, jsval *vp)
 }
 
 static JSBool
-Print(JSContext *cx, uintN argc, jsval *vp)
+Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
-    jsval *argv;
     uintN i;
     JSString *str;
     char *bytes;
 
-    argv = JS_ARGV(cx, vp);
     for (i = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
@@ -2803,7 +2801,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FS("options",        Options,        0,0,0),
     JS_FS("load",           Load,           1,0,0),
     JS_FN("readline",       ReadLine,       0,0),
-    JS_FN("print",          Print,          0,0),
+    JS_FS("print",          Print,          0,0,0),
     JS_FS("help",           Help,           0,0,0),
     JS_FS("quit",           Quit,           0,0,0),
     JS_FN("gc",             GC,             0,0),
