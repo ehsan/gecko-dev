@@ -3561,10 +3561,6 @@ var XULBrowserWindow = {
     // unsupported
   },
 
-  setJSDefaultStatus: function () {
-    // unsupported
-  },
-
   setDefaultStatus: function (status) {
     this.defaultStatus = status;
     this.updateStatusField();
