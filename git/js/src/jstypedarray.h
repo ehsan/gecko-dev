@@ -111,11 +111,6 @@ struct JS_FRIEND_API(ArrayBuffer) {
     static inline unsigned int getByteLength(JSObject *obj);
 
     static inline uint8 * getDataOffset(JSObject *obj);
-
-    /* Reserved slots for array buffer objects. */
-    static const uint32 JSSLOT_ARRAY_BYTELENGTH = 0;
-    static const uint32 JSSLOT_ARRAY_DATA = 1;
-    static const uint32 JSSLOT_ARRAY_RESERVED_SLOTS = 2;
 };
 
 /*
@@ -191,11 +186,7 @@ struct JS_FRIEND_API(TypedArray) {
     void *data;
 
     inline int slotWidth() const {
-        return slotWidth(type);
-    }
-
-    static inline uint32 slotWidth(int atype) {
-        switch (atype) {
+        switch (type) {
           case js::TypedArray::TYPE_INT8:
           case js::TypedArray::TYPE_UINT8:
           case js::TypedArray::TYPE_UINT8_CLAMPED:
@@ -210,7 +201,7 @@ struct JS_FRIEND_API(TypedArray) {
           case js::TypedArray::TYPE_FLOAT64:
             return 8;
           default:
-            JS_NOT_REACHED("invalid typed array type");
+            JS_NOT_REACHED("invalid typed array");
             return 0;
         }
     }

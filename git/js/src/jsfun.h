@@ -466,28 +466,12 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
                        JSObject *proto);
 
 inline JSObject *
-CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
-                    bool ignoreSingletonClone = false)
+CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent)
 {
     JS_ASSERT(parent);
     JSObject *proto;
     if (!js_GetClassPrototype(cx, parent, JSProto_Function, &proto))
         return NULL;
-
-    /*
-     * For attempts to clone functions at a function definition opcode or from
-     * a method barrier, don't perform the clone if the function has singleton
-     * type. CloneFunctionObject was called pessimistically, and we need to
-     * preserve the type's property that if it is singleton there is only a
-     * single object with its type in existence.
-     */
-    if (ignoreSingletonClone && fun->getType()->singleton) {
-        JS_ASSERT(fun->getProto() == proto);
-        JS_ASSERT(fun->getType()->singleton == fun);
-        fun->setParent(parent);
-        return fun;
-    }
-
     return js_CloneFunctionObject(cx, fun, parent, proto);
 }
 
@@ -507,7 +491,7 @@ js_DefineFunction(JSContext *cx, JSObject *obj, jsid id, js::Native native,
 /*
  * Flags for js_ValueToFunction and js_ReportIsNotFunction.
  */
-#define JSV2F_CONSTRUCT         INITIAL_CONSTRUCT
+#define JSV2F_CONSTRUCT         CONSTRUCT
 #define JSV2F_SEARCH_STACK      0x10000
 
 extern JSFunction *
