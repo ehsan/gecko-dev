@@ -482,12 +482,9 @@ public:
         jsval* vpstop;                                                        \
         if (fp->callee) {                                                     \
             if (depth == 0) {                                                 \
-                SET_VPNAME("callee");                                         \
-                vp = &fp->argv[-2];                                           \
-                { code; }                                                     \
                 SET_VPNAME("this");                                           \
                 vp = &fp->argv[-1];                                           \
-                { code; }                                                     \
+                code;                                                         \
                 SET_VPNAME("argv");                                           \
                 unsigned nargs = JS_MAX(fp->fun->nargs, fp->argc);            \
                 vp = &fp->argv[0]; vpstop = &fp->argv[nargs];                 \
@@ -560,7 +557,7 @@ nativeStackSlots(JSContext *cx, unsigned callDepth, JSStackFrame* fp)
         if (callDepth-- == 0) {
             if (fp->callee) {
                 unsigned nargs = JS_MAX(fp->fun->nargs, fp->argc);
-                slots += 2/*callee,this*/ + nargs;
+                slots += 1/*this*/ + nargs;
             }
 #if defined _DEBUG
             unsigned int m = 0;
@@ -749,9 +746,9 @@ done:
         if (fp->callee) {
             if (fsp == fstack) {
                 unsigned nargs = JS_MAX(fp->fun->nargs, fp->argc);
-                if (size_t(p - &fp->argv[-2]) < 2/*callee,this*/ + nargs)
-                    RETURN(offset + size_t(p - &fp->argv[-2]) * sizeof(double));
-                offset += (2/*callee,this*/ + nargs) * sizeof(double);
+                if (size_t(p - &fp->argv[-1]) < nargs + 1)
+                    RETURN(offset + size_t(p - &fp->argv[-1]) * sizeof(double));
+                offset += (nargs + 1) * sizeof(double);
             }
             if (size_t(p - &fp->slots[0]) < fp->script->nfixed)
                 RETURN(offset + size_t(p - &fp->slots[0]) * sizeof(double));
@@ -1356,26 +1353,23 @@ TraceRecorder::emitTreeCall(Fragment* inner, GuardRecord* lr)
         /* Calculate the amount we have to lift the native stack pointer by to compensate for
            any outer frames that the inner tree doesn't expect but the outer tree has. */
         ptrdiff_t sp_adj = nativeStackOffset(&cx->fp->argv[-2]);
+        /* sp points to the native stack base of the outer tree and the inner tree might
+           need a different native stack base, so compensate for that. */
+        sp_adj -= treeInfo->nativeStackBase;
+        sp_adj += ti->nativeStackBase;
         /* Calculate the amount we have to lift the call stack by */
         ptrdiff_t rp_adj = callDepth * sizeof(FrameInfo);
         /* Guard that we have enough stack space for the tree we are trying to call on top
            of the new value for sp. */
-        debug_only(printf("sp_adj=%d outer=%d inner=%d\n",
-                   sp_adj, treeInfo->nativeStackBase, ti->nativeStackBase));
-        LIns* sp_top = lir->ins2i(LIR_add, lirbuf->sp, 
-                - treeInfo->nativeStackBase /* rebase sp to beginning of outer tree's stack */
-                + sp_adj /* adjust for stack in outer frame inner tree can't see */
-                + ti->maxNativeStackSlots * sizeof(double)); /* plus the inner tree's stack */
+        LIns* sp_top = lir->ins2i(LIR_add, lirbuf->sp, sp_adj + 
+                ti->maxNativeStackSlots * sizeof(double));
         guard(true, lir->ins2(LIR_lt, sp_top, eos_ins), OOM_EXIT);
         /* Guard that we have enough call stack space. */
         LIns* rp_top = lir->ins2i(LIR_add, lirbuf->rp, rp_adj + 
                 ti->maxCallDepth * sizeof(FrameInfo));
         guard(true, lir->ins2(LIR_lt, rp_top, eor_ins), OOM_EXIT);
         /* We have enough space, so adjust sp and rp to their new level. */
-        lir->insStorei(inner_sp = lir->ins2i(LIR_add, lirbuf->sp, 
-                - treeInfo->nativeStackBase /* rebase sp to beginning of outer tree's stack */
-                + sp_adj /* adjust for stack in outer frame inner tree can't see */
-                + ti->nativeStackBase), /* plus the inner tree's stack base */ 
+        lir->insStorei(inner_sp = lir->ins2i(LIR_add, lirbuf->sp, sp_adj), 
                 lirbuf->state, offsetof(InterpState, sp));
         lir->insStorei(lir->ins2i(LIR_add, lirbuf->rp, rp_adj),
                 lirbuf->state, offsetof(InterpState, rp));
@@ -1800,7 +1794,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount)
                    call guard or the innermost tree exit guard will restore. */
                 unsigned slots = FlushNativeStackFrame(cx, calldepth, 
                         lr->exit->typeMap + lr->exit->numGlobalSlots,
-                        stack, &cx->fp->argv[-2]);
+                        stack, &cx->fp->argv[-1]);
                 callstack += calldepth;
                 inlineCallCount += calldepth;
                 stack += slots;
@@ -2177,9 +2171,6 @@ TraceRecorder::cmp(LOpcode op, bool negate)
             return false;
         }
     } else if (isNumber(l) || isNumber(r)) {
-        jsval tmp[2] = {l, r};
-        JSAutoTempValueRooter tvr(cx, 2, tmp);
-
         // TODO: coerce non-numbers to numbers if it's not string-on-string above
         LIns* l_ins = get(&l);
         LIns* r_ins = get(&r);
@@ -2200,7 +2191,7 @@ TraceRecorder::cmp(LOpcode op, bool negate)
         } else if (!isNumber(l)) {
             ABORT_TRACE("unsupported LHS type for cmp vs number");
         }
-        lnum = js_ValueToNumber(cx, &tmp[0]);
+        lnum = js_ValueToNumber(cx, &l);
 
         args[0] = get(&r);
         if (JSVAL_IS_STRING(r)) {
@@ -2211,10 +2202,9 @@ TraceRecorder::cmp(LOpcode op, bool negate)
         } else if (!isNumber(r)) {
             ABORT_TRACE("unsupported RHS type for cmp vs number");
         }
-        rnum = js_ValueToNumber(cx, &tmp[1]);
+        rnum = js_ValueToNumber(cx, &r);
 
         x = lir->ins2(op, l_ins, r_ins);
-
         if (negate)
             x = lir->ins_eq0(x);
         switch (op) {
@@ -2711,7 +2701,7 @@ TraceRecorder::clearFrameSlotsFromCache()
     jsval* vp;
     jsval* vpstop;
     if (fp->callee) {
-        vp = &fp->argv[-2];
+        vp = &fp->argv[-1];
         vpstop = &fp->argv[JS_MAX(fp->fun->nargs,fp->argc)];
         while (vp < vpstop)
             nativeFrameTracker.set(vp++, (LIns*)0);
