@@ -218,32 +218,17 @@ let Utils = {
     return message + location;
   },
 
-  stackTraceFromFrame: function Weave_stackTraceFromFrame(frame, formatter) {
-    if (!formatter)
-      formatter = function defaultFormatter(frame) { return frame; };
-
-    let output = "";
-
-    while (frame) {
-      output += formatter(frame) + "\n";
-      frame = frame.caller;
-    }
-
-    return output;
-  },
-
-  stackTrace: function Weave_stackTrace(e, formatter) {
+  stackTrace: function Weave_stackTrace(e) {
     let output = "";
     if (e.location) {
       // It's a wrapped nsIException.
-      output += this.stackTraceFromFrame(e.location, formatter);
+      let frame = e.location;
+      while (frame) {
+        output += frame + "\n";
+        frame = frame.caller;
+      }
     } else if (e.stack)
-      // It's a standard JS exception.
-
-      // TODO: It would be nice if we could parse this string and
-      // create a 'fake' nsIStackFrame-like call stack out of it,
-      // so that we can do things w/ this stack trace like we do
-      // with nsIException traces.
+      // It's a standard JS exception
       output += e.stack;
     else
       // It's some other thrown object, e.g. a bare string.
