@@ -1874,6 +1874,3 @@ pref("dom.ipc.reportProcessHangs", true);
 
 // Disable reader mode by default.
 pref("reader.parse-on-load.enabled", false);
-
-// Disable ReadingList by default.
-pref("browser.readinglist.enabled", false);
