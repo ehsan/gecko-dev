@@ -1358,10 +1358,8 @@ Toolbox.prototype = {
     // Destroying the walker and inspector fronts
     outstanding.push(this.destroyInspector().then(() => {
       // Removing buttons
-      if (this._pickerButton) {
-        this._pickerButton.removeEventListener("command", this._togglePicker, false);
-        this._pickerButton = null;
-      }
+      this._pickerButton.removeEventListener("command", this._togglePicker, false);
+      this._pickerButton = null;
     }));
 
     // Remove the host UI

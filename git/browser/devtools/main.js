@@ -277,9 +277,7 @@ Tools.jsprofiler = {
   inMenu: true,
 
   isTargetSupported: function (target) {
-    // Hide the profiler when debugging devices pre bug 1046394,
-    // that don't expose profiler actor in content processes.
-    return !target.isAddon && (!target.isApp || target.form.profilerActor);
+    return !target.isAddon;
   },
 
   build: function (frame, target) {

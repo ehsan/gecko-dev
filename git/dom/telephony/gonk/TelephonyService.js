@@ -530,14 +530,14 @@ TelephonyService.prototype = {
       }
 
       if (!response.isCdma) {
-        aCallback.notifyDialSuccess(response.callIndex, response.number);
+        aCallback.notifyDialSuccess(response.callIndex);
       } else {
         let currentCallId = Object.keys(this._currentCalls[aClientId])[0];
         if (currentCallId === undefined) {
-          aCallback.notifyDialSuccess(response.callIndex, response.number);
+          aCallback.notifyDialSuccess(response.callIndex);
         } else {
           // RIL doesn't hold the 2nd call. We create one by ourselves.
-          aCallback.notifyDialSuccess(CDMA_SECOND_CALL_INDEX, response.number);
+          aCallback.notifyDialSuccess(CDMA_SECOND_CALL_INDEX);
           this._addCdmaChildCall(aClientId, aNumber, currentCallId);
         }
       }
