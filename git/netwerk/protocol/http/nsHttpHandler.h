@@ -55,13 +55,11 @@
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIProxyObjectManager.h"
-#include "nsIPrivateBrowsingService.h"
 #include "nsIStreamConverterService.h"
 #include "nsICacheSession.h"
 #include "nsICookieService.h"
 #include "nsIIDNService.h"
 #include "nsITimer.h"
-#include "nsIStrictTransportSecurityService.h"
 
 class nsHttpConnectionInfo;
 class nsHttpHeaderArray;
@@ -169,12 +167,6 @@ public:
         return mConnMgr->GetSocketThreadTarget(target);
     }
 
-    // for anything that wants to know if we're in private browsing mode.
-    PRBool InPrivateBrowsingMode()
-    {
-      return mInPrivateBrowsingMode;
-    }
-
     //
     // The HTTP handler caches pointers to specific XPCOM services, and
     // provides the following helper routines for accessing those services:
@@ -182,7 +174,6 @@ public:
     nsresult GetStreamConverterService(nsIStreamConverterService **);
     nsresult GetIOService(nsIIOService** service);
     nsICookieService * GetCookieService(); // not addrefed
-    nsIStrictTransportSecurityService * GetSTSService();
 
     // Called by the channel before writing a request
     void OnModifyRequest(nsIHttpChannel *chan)
@@ -248,7 +239,6 @@ private:
     nsCOMPtr<nsICookieService>          mCookieService;
     nsCOMPtr<nsIIDNService>             mIDNConverter;
     nsCOMPtr<nsITimer>                  mTimer;
-    nsCOMPtr<nsIStrictTransportSecurityService> mSTSService;
 
     // the authentication credentials cache
     nsHttpAuthCache mAuthCache;
@@ -277,9 +267,6 @@ private:
     PRUint8  mMaxPipelinedRequests;
 
     PRUint8  mRedirectionLimit;
-
-    // cached value of whether or not the browser is in private browsing mode.
-    PRBool   mInPrivateBrowsingMode;
 
     // we'll warn the user if we load an URL containing a userpass field
     // unless its length is less than this threshold.  this warning is

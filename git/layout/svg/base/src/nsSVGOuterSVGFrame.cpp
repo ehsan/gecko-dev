@@ -53,8 +53,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsSVGMatrix.h"
 
-namespace dom = mozilla::dom;
-
 class nsSVGMutationObserver : public nsStubMutationObserver
 {
 public:
@@ -83,17 +81,17 @@ static nsSVGMutationObserver sSVGMutationObserver;
 // nsIMutationObserver methods
 
 void
-nsSVGMutationObserver::AttributeChanged(nsIDocument* aDocument,
-                                        dom::Element* aElement,
+nsSVGMutationObserver::AttributeChanged(nsIDocument *aDocument,
+                                        nsIContent *aContent,
                                         PRInt32 aNameSpaceID,
-                                        nsIAtom* aAttribute,
+                                        nsIAtom *aAttribute,
                                         PRInt32 aModType)
 {
   if (aNameSpaceID != kNameSpaceID_XML || aAttribute != nsGkAtoms::space) {
     return;
   }
 
-  nsIFrame* frame = aElement->GetPrimaryFrame();
+  nsIFrame* frame = aContent->GetPrimaryFrame();
   if (!frame) {
     return;
   }
@@ -422,9 +420,7 @@ nsSVGOuterSVGFrame::DidReflow(nsPresContext*   aPresContext,
 
 class nsDisplaySVG : public nsDisplayItem {
 public:
-  nsDisplaySVG(nsDisplayListBuilder* aBuilder,
-               nsSVGOuterSVGFrame* aFrame) :
-    nsDisplayItem(aBuilder, aFrame) {
+  nsDisplaySVG(nsSVGOuterSVGFrame* aFrame) : nsDisplayItem(aFrame) {
     MOZ_COUNT_CTOR(nsDisplaySVG);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -445,7 +441,7 @@ nsDisplaySVG::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
 {
   nsSVGOuterSVGFrame *outerSVGFrame = static_cast<nsSVGOuterSVGFrame*>(mFrame);
-  nsRect rectAtOrigin = aRect - ToReferenceFrame();
+  nsRect rectAtOrigin = aRect - aBuilder->ToReferenceFrame(mFrame);
   nsRect thisRect(nsPoint(0,0), outerSVGFrame->GetSize());
   if (!thisRect.Intersects(rectAtOrigin))
     return;
@@ -466,7 +462,7 @@ nsDisplaySVG::Paint(nsDisplayListBuilder* aBuilder,
                     nsIRenderingContext* aCtx)
 {
   static_cast<nsSVGOuterSVGFrame*>(mFrame)->
-    Paint(*aCtx, mVisibleRect, ToReferenceFrame());
+    Paint(*aCtx, mVisibleRect, aBuilder->ToReferenceFrame(mFrame));
 }
 
 // helper
@@ -538,8 +534,7 @@ nsSVGOuterSVGFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return aLists.Content()->AppendNewToTop(
-      new (aBuilder) nsDisplaySVG(aBuilder, this));
+  return aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplaySVG(this));
 }
 
 void

@@ -137,7 +137,6 @@ XPIDLSRCS	= \
 		nsINetUtil.idl \
 		nsIProxiedChannel.idl \
 		nsIRandomGenerator.idl \
-		nsIStrictTransportSecurityService.idl \
 		nsIURIWithPrincipal.idl \
 		nsIURIClassifier.idl \
 		nsIRedirectResultListener.idl \

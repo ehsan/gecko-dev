@@ -206,9 +206,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsContentDLF.h"
-#ifdef MOZ_MEDIA
 #include "nsHTMLMediaElement.h"
-#endif
 
 using namespace mozilla::dom;
 using namespace mozilla::layers;

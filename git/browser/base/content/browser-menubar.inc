@@ -559,10 +559,10 @@
                 label="&subscribeToPageMenuitem.label;"
                 oncommand="return FeedHandler.subscribeToFeed(null, event);"
                 onclick="checkForMiddleClick(this, event);"
-                observes="singleFeedMenuitemState"/>
+                disabled="true"/>
       <menu id="subscribeToPageMenupopup"
             label="&subscribeToPageMenupopup.label;"
-            observes="multipleFeedsMenuState">
+            hidden="true">
         <menupopup id="subscribeToPageSubmenuMenupopup"
                    onpopupshowing="return FeedHandler.buildFeedList(event.target);"
                    oncommand="return FeedHandler.subscribeToFeed(null, event);"

@@ -139,7 +139,6 @@ extern nsIParserService *sParserService;
 
 nsEditor::nsEditor()
 :  mModCount(0)
-,  mFlags(0)
 ,  mPresShellWeak(nsnull)
 ,  mUpdateCount(0)
 ,  mSpellcheckCheckboxState(eTriUnset)

@@ -219,10 +219,6 @@ nsInProcessTabChildGlobal::DelayedDisconnect()
     static_cast<nsFrameMessageManager*>(mMessageManager.get())->Disconnect();
     mMessageManager = nsnull;
   }
-  if (mListenerManager) {
-    mListenerManager->Disconnect();
-  }
-  
   if (!mLoadingScript) {
     if (mCx) {
       DestroyCx();
