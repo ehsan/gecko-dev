@@ -128,7 +128,6 @@ nsSVGFilterProperty::UpdateRect()
   nsSVGFilterFrame *filter = GetFilterFrame(nsnull);
   if (filter) {
     mFilterRect = filter->GetFilterBBox(mFrame, nsnull);
-    mFilterRect.ScaleRoundOut(filter->PresContext()->AppUnitsPerDevPixel());
   } else {
     mFilterRect = nsRect();
   }

@@ -552,7 +552,7 @@ nsHTMLCanvasElement::InvalidateFrame()
   if (frame) {
     nsRect r = frame->GetRect();
     r.x = r.y = 0;
-    frame->Invalidate(r);
+    frame->Invalidate(r, PR_FALSE);
   }
 
   return NS_OK;
@@ -563,7 +563,7 @@ nsHTMLCanvasElement::InvalidateFrameSubrect(const nsRect& damageRect)
 {
   nsIFrame *frame = GetPrimaryFrame(Flush_Frames);
   if (frame) {
-    frame->Invalidate(damageRect);
+    frame->Invalidate(damageRect, PR_FALSE);
   }
 
   return NS_OK;

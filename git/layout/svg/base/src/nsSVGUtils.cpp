@@ -584,9 +584,7 @@ nsSVGUtils::GetBBox(nsFrameList *aFrames, nsIDOMSVGRect **_retval)
 nsRect
 nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
 {
-  PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
   nsRect rect = aRect;
-  rect.ScaleRoundOutInverse(appUnitsPerDevPixel);
 
   while (aFrame) {
     if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)
@@ -602,7 +600,6 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
     aFrame = aFrame->GetParent();
   }
 
-  rect.ScaleRoundOut(appUnitsPerDevPixel);
   return rect;
 }
 

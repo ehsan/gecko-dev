@@ -2772,9 +2772,8 @@ public:
     static nsresult ConstructException(nsresult rv, const char* message,
                                        const char* ifaceName,
                                        const char* methodName,
-                                       nsISupports* data,
-                                       nsIException** exception,
-                                       const jsval *jsExceptionPtr);
+                                       nsISupports* data,                                       
+                                       nsIException** exception);
 
     static void RemoveXPCOMUCStringFinalizer();
 
@@ -2860,8 +2859,6 @@ private:
 
 /***************************************************************************/
 
-class XPCVariant;
-
 class nsXPCException :
             public nsIXPCException
 {
@@ -2894,9 +2891,6 @@ public:
 
     static void InitStatics() { sEverMadeOneFromFactory = JS_FALSE; }
 
-    PRBool GetThrownJSVal(jsval *vp) const;
-    void   SetThrownJSVal(jsval v);
-
 protected:
     void Reset();
 private:
@@ -2909,8 +2903,6 @@ private:
     int             mLineNumber;
     nsIException*   mInner;
     PRBool          mInitialized;
-
-    nsCOMPtr<XPCVariant> mThrownJSVal;
 
     static JSBool sEverMadeOneFromFactory;
 };

@@ -522,10 +522,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
           res = NS_ERROR_NOT_IMPLEMENTED;
         }
         break;
-    case eMetric_MacGraphiteTheme:
-        aMetric = 0;
-        res = NS_ERROR_NOT_IMPLEMENTED;
-        break;
 #ifndef WINCE
     case eMetric_DWMCompositor:
         aMetric = nsUXThemeData::sHaveCompositor;

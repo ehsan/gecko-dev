@@ -198,22 +198,6 @@ public:
   }
 
   virtual nsIContent* GetBodyContentExternal();
-  
-  class nsAutoEditingState {
-  public:
-    nsAutoEditingState(nsHTMLDocument* aDoc, EditingState aState)
-      : mDoc(aDoc), mSavedState(aDoc->mEditingState)
-    {
-      aDoc->mEditingState = aState;
-    }
-    ~nsAutoEditingState() {
-      mDoc->mEditingState = mSavedState;
-    }
-  private:
-    nsHTMLDocument* mDoc;
-    EditingState    mSavedState;
-  };
-  friend class nsAutoEditingState;
 
   void EndUpdate(nsUpdateType aUpdateType);
 
@@ -227,8 +211,6 @@ public:
   }
 
   virtual nsresult SetEditingState(EditingState aState);
-
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
   nsresult GetBodySize(PRInt32* aWidth,

@@ -54,12 +54,8 @@ class nsOuterDocAccessible : public nsAccessibleWrap
 
     NS_IMETHOD GetRole(PRUint32 *aRole);
     NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
-
     NS_IMETHOD GetChildAtPoint(PRInt32 aX, PRInt32 aY,
                                nsIAccessible **aAccessible);
-    NS_IMETHOD GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                      nsIAccessible **aAccessible);
-
     void CacheChildren();
     nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
     NS_IMETHOD GetNumActions(PRUint8 *aNumActions);

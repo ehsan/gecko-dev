@@ -484,7 +484,7 @@ nsBlockFrame::GetType() const
 void
 nsBlockFrame::InvalidateInternal(const nsRect& aDamageRect,
                                  nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                 PRUint32 aFlags)
+                                 PRBool aImmediate)
 {
   // Optimize by suppressing invalidation of areas that are clipped out
   // with CSS 'clip'.
@@ -495,12 +495,12 @@ nsBlockFrame::InvalidateInternal(const nsRect& aDamageRect,
     // abs-pos clipping clips everything in the frame
     nsRect r;
     if (r.IntersectRect(aDamageRect, absPosClipRect - nsPoint(aX, aY))) {
-      nsBlockFrameSuper::InvalidateInternal(r, aX, aY, this, aFlags);
+      nsBlockFrameSuper::InvalidateInternal(r, aX, aY, this, aImmediate);
     }
     return;
   }
 
-  nsBlockFrameSuper::InvalidateInternal(aDamageRect, aX, aY, this, aFlags);
+  nsBlockFrameSuper::InvalidateInternal(aDamageRect, aX, aY, this, aImmediate);
 }
 
 nscoord

@@ -227,30 +227,19 @@ nsHTMLScrollFrame::GetType() const
 void
 nsHTMLScrollFrame::InvalidateInternal(const nsRect& aDamageRect,
                                       nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                      PRUint32 aFlags)
+                                      PRBool aImmediate)
 {
-  if (aForChild == mInner.mScrolledFrame && !(aFlags & INVALIDATE_NOTIFY_ONLY)) {
+  if (aForChild == mInner.mScrolledFrame) {
     // restrict aDamageRect to the scrollable view's bounds
-    nsRect damage = aDamageRect + nsPoint(aX, aY);
     nsRect r;
-    if (r.IntersectRect(damage, mInner.mScrollableView->View()->GetBounds())) {
-      nsHTMLContainerFrame::InvalidateInternal(r, 0, 0, aForChild, aFlags);
-    }
-    if (mInner.mIsRoot && r != damage) {
-      // Make sure we notify our prescontext about invalidations outside
-      // viewport clipping.
-      // This is important for things that are snapshotting the viewport,
-      // possibly outside the scrolled bounds.
-      // We don't need to propagate this any further up, though. Anyone who
-      // cares about scrolled-out-of-view invalidates had better be listening
-      // to our window directly.
-      PresContext()->NotifyInvalidation(damage,
-          (aFlags & INVALIDATE_CROSS_DOC) != 0);
+    if (r.IntersectRect(aDamageRect + nsPoint(aX, aY),
+                        mInner.mScrollableView->View()->GetBounds())) {
+      nsHTMLContainerFrame::InvalidateInternal(r, 0, 0, aForChild, aImmediate);
     }
     return;
   }
   
-  nsHTMLContainerFrame::InvalidateInternal(aDamageRect, aX, aY, aForChild, aFlags);
+  nsHTMLContainerFrame::InvalidateInternal(aDamageRect, aX, aY, aForChild, aImmediate);
 }
 
 /**
@@ -1108,19 +1097,19 @@ nsXULScrollFrame::GetType() const
 void
 nsXULScrollFrame::InvalidateInternal(const nsRect& aDamageRect,
                                      nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                     PRUint32 aFlags)
+                                     PRBool aImmediate)
 {
   if (aForChild == mInner.mScrolledFrame) {
     // restrict aDamageRect to the scrollable view's bounds
     nsRect r;
     if (r.IntersectRect(aDamageRect + nsPoint(aX, aY),
                         mInner.mScrollableView->View()->GetBounds())) {
-      nsBoxFrame::InvalidateInternal(r, 0, 0, aForChild, aFlags);
+      nsBoxFrame::InvalidateInternal(r, 0, 0, aForChild, aImmediate);
     }
     return;
   }
   
-  nsBoxFrame::InvalidateInternal(aDamageRect, aX, aY, aForChild, aFlags);
+  nsBoxFrame::InvalidateInternal(aDamageRect, aX, aY, aForChild, aImmediate);
 }
 
 nscoord
@@ -1830,12 +1819,9 @@ nsGfxScrollFrameInner::ScrollPositionDidChange(nsIScrollableView* aScrollable, n
   mViewInitiatedScroll = PR_TRUE;
   InternalScrollPositionDidChange(aX, aY);
   mViewInitiatedScroll = PR_FALSE;
-
+  
   PostScrollEvent();
-
-  // Notify that the display has changed
-  mOuter->InvalidateWithFlags(nsRect(nsPoint(0, 0), mOuter->GetSize()),
-                              nsIFrame::INVALIDATE_NOTIFY_ONLY);
+  
   return NS_OK;
 }
 

@@ -851,18 +851,6 @@ function jsTestDriverEnd()
 
 }
 
-function jit(on)
-{
-  if (on && !options().match(/jit/))
-  {
-    options('jit');
-  }
-  else if (!on && options().match(/jit/))
-  {
-    options('jit');
-  }
-}
-
 /*
  * Some tests need to know if we are in Rhino as opposed to SpiderMonkey
  */

@@ -3634,7 +3634,8 @@ nsIFrame::IsLeaf() const
 }
 
 void
-nsIFrame::InvalidateWithFlags(const nsRect& aDamageRect, PRUint32 aFlags)
+nsIFrame::Invalidate(const nsRect& aDamageRect,
+                     PRBool        aImmediate)
 {
   if (aDamageRect.IsEmpty()) {
     return;
@@ -3650,7 +3651,7 @@ nsIFrame::InvalidateWithFlags(const nsRect& aDamageRect, PRUint32 aFlags)
       return;
   }
   
-  InvalidateInternal(aDamageRect, 0, 0, nsnull, aFlags);
+  InvalidateInternal(aDamageRect, 0, 0, nsnull, aImmediate);
 }
 
 /**
@@ -3666,7 +3667,7 @@ nsIFrame::InvalidateWithFlags(const nsRect& aDamageRect, PRUint32 aFlags)
  */
 void
 nsIFrame::InvalidateInternalAfterResize(const nsRect& aDamageRect, nscoord aX,
-                                        nscoord aY, PRUint32 aFlags)
+                                        nscoord aY, PRBool aImmediate)
 {
   /* If we're a transformed frame, then we need to apply our transform to the
    * damage rectangle so that the redraw correctly redraws the transformed
@@ -3691,16 +3692,16 @@ nsIFrame::InvalidateInternalAfterResize(const nsRect& aDamageRect, nscoord aX,
                             (aDamageRect, this, nsPoint(-aX, -aY)), aDamageRect);
     GetParent()->
       InvalidateInternal(newDamageRect, aX + mRect.x, aY + mRect.y, this,
-                         aFlags);
+                         aImmediate);
   }
   else 
     GetParent()->
-      InvalidateInternal(aDamageRect, aX + mRect.x, aY + mRect.y, this, aFlags);
+      InvalidateInternal(aDamageRect, aX + mRect.x, aY + mRect.y, this, aImmediate);
 }
 
 void
 nsIFrame::InvalidateInternal(const nsRect& aDamageRect, nscoord aX, nscoord aY,
-                             nsIFrame* aForChild, PRUint32 aFlags)
+                             nsIFrame* aForChild, PRBool aImmediate)
 {
 #ifdef MOZ_SVG
   if (nsSVGIntegrationUtils::UsingEffectsForFrame(this)) {
@@ -3710,12 +3711,12 @@ nsIFrame::InvalidateInternal(const nsRect& aDamageRect, nscoord aX, nscoord aY,
      * zero.  Thus we'll pretend that the entire time this was in our own
      * local coordinate space and do any remaining processing.
      */
-    InvalidateInternalAfterResize(r, 0, 0, aFlags);
+    InvalidateInternalAfterResize(r, 0, 0, aImmediate);
     return;
   }
 #endif
   
-  InvalidateInternalAfterResize(aDamageRect, aX, aY, aFlags);
+  InvalidateInternalAfterResize(aDamageRect, aX, aY, aImmediate);
 }
 
 gfxMatrix
@@ -3799,16 +3800,13 @@ nsIFrame::InvalidateOverflowRect()
 }
 
 void
-nsIFrame::InvalidateRoot(const nsRect& aDamageRect, PRUint32 aFlags)
+nsIFrame::InvalidateRoot(const nsRect& aDamageRect,
+                         nscoord aX, nscoord aY, PRBool aImmediate)
 {
-  if (aFlags & INVALIDATE_NOTIFY_ONLY)
-    return;
-
-  PRUint32 flags =
-    (aFlags & INVALIDATE_IMMEDIATE) ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_NO_SYNC;
+  PRUint32 flags = aImmediate ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_NO_SYNC;
   nsIView* view = GetView();
   NS_ASSERTION(view, "This can only be called on frames with views");
-  view->GetViewManager()->UpdateView(view, aDamageRect, flags);
+  view->GetViewManager()->UpdateView(view, aDamageRect + nsPoint(aX, aY), flags);
 }
 
 static void
@@ -4445,7 +4443,7 @@ nsFrame::SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange, PRBool aS
     RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
 
   // Repaint this frame subtree's entire area
-  InvalidateOverflowRect();
+  Invalidate(GetOverflowRect(), PR_FALSE);
 
 #ifdef IBMBIDI
   PRInt32 start, end;

@@ -656,7 +656,7 @@ nsIFrame::Redraw(nsBoxLayoutState& aState,
   else
     damageRect = GetOverflowRect();
 
-  InvalidateWithFlags(damageRect, aImmediate ? INVALIDATE_IMMEDIATE : 0);
+  Invalidate(damageRect, aImmediate);
 
   return NS_OK;
 }

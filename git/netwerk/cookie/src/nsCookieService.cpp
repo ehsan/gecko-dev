@@ -2049,16 +2049,10 @@ nsCookieService::CookieExists(nsICookie2 *aCookie,
 
   // just a placeholder
   nsListIter iter;
-  nsCAutoString host, name, path;
-  nsresult rv = aCookie->GetHost(host);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aCookie->GetName(name);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aCookie->GetPath(path);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCookie *cookie = static_cast<nsCookie*>(aCookie);
 
-  *aFoundCookie = FindCookie(host, name, path, iter,
-                             PR_Now() / PR_USEC_PER_SEC);
+  *aFoundCookie = FindCookie(cookie->Host(), cookie->Name(), cookie->Path(),
+                             iter, PR_Now() / PR_USEC_PER_SEC);
   return NS_OK;
 }
 
