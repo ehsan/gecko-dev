@@ -78,15 +78,10 @@ pref("offline-apps.quota.warn",        51200);
 // cache compression turned off for now - see bug #715198
 pref("browser.cache.compression_level", 0);
 
-// Whether or not testing features are enabled.
-pref("dom.quotaManager.testing", false);
-
 // Whether or not indexedDB is enabled.
 pref("dom.indexedDB.enabled", true);
 // Space to allow indexedDB databases before prompting (in MB).
 pref("dom.indexedDB.warningQuota", 50);
-// Whether or not indexedDB experimental features are enabled.
-pref("dom.indexedDB.experimental", false);
 
 // Whether or not Web Workers are enabled.
 pref("dom.workers.enabled", true);
@@ -297,12 +292,6 @@ pref("gfx.font_loader.interval", 50);          // run every 50 ms
 // whether to always search all font cmaps during system font fallback
 pref("gfx.font_rendering.fallback.always_use_cmaps", false);
 
-// cache shaped word results
-pref("gfx.font_rendering.wordcache.charlimit", 32);
-
-// cache shaped word results
-pref("gfx.font_rendering.wordcache.maxentries", 10000);
-
 pref("gfx.font_rendering.graphite.enabled", true);
 
 // Check intl/unicharutil/util/nsUnicodeProperties.h for definitions of script bits
@@ -331,7 +320,7 @@ pref("gfx.font_rendering.directwrite.enabled", false);
 pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
 #endif
 
-pref("gfx.font_rendering.opentype_svg.enabled", true);
+pref("gfx.font_rendering.opentype_svg.enabled", false);
 
 #ifdef XP_WIN
 // comma separated list of backends to use in order of preference
@@ -3312,68 +3301,74 @@ pref("font.alias-list", "sans,sans-serif,serif,monospace");
 // ar
 
 pref("font.name.serif.el", "Droid Serif");
-pref("font.name.sans-serif.el", "Fira Sans OT");
-pref("font.name.monospace.el", "Fira Mono OT");
+pref("font.name.sans-serif.el", "Roboto");
+pref("font.name.monospace.el", "Source Code Pro");
 
 pref("font.name.serif.he", "Charis SIL Compact");
-pref("font.name.sans-serif.he", "Fira Sans OT");
-pref("font.name.monospace.he", "Fira Mono OT");
-pref("font.name-list.sans-serif.he", "Droid Sans Hebrew, Fira Sans OT");
+pref("font.name.sans-serif.he", "Feura Sans");
+pref("font.name.monospace.he", "Source Code Pro");
+pref("font.name-list.sans-serif.he", "Droid Sans Hebrew, Feura Sans");
 
 pref("font.name.serif.ja", "Charis SIL Compact");
-pref("font.name.sans-serif.ja", "Fira Sans OT");
+pref("font.name.sans-serif.ja", "Feura Sans");
 pref("font.name.monospace.ja", "MotoyaLMaru");
-pref("font.name-list.sans-serif.ja", "Fira Sans OT, MotoyaLMaru, MotoyaLCedar, Droid Sans Japanese");
-pref("font.name-list.monospace.ja", "MotoyaLMaru, MotoyaLCedar, Fira Mono OT");
+pref("font.name-list.sans-serif.ja", "Feura Sans, Roboto, MotoyaLMaru, MotoyaLCedar, Droid Sans Japanese");
+pref("font.name-list.monospace.ja", "MotoyaLMaru, MotoyaLCedar, Source Code Pro");
 
 pref("font.name.serif.ko", "Charis SIL Compact");
-pref("font.name.sans-serif.ko", "Fira Sans OT");
-pref("font.name.monospace.ko", "Fira Mono OT");
+pref("font.name.sans-serif.ko", "Feura Sans");
+pref("font.name.monospace.ko", "Source Code Pro");
 
 pref("font.name.serif.th", "Charis SIL Compact");
-pref("font.name.sans-serif.th", "Fira Sans OT");
-pref("font.name.monospace.th", "Fira Mono OT");
-pref("font.name-list.sans-serif.th", "Fira Sans OT, Droid Sans Thai");
+pref("font.name.sans-serif.th", "Feura Sans");
+pref("font.name.monospace.th", "Source Code Pro");
+pref("font.name-list.sans-serif.th", "Feura Sans, Droid Sans Thai");
 
 pref("font.name.serif.tr", "Charis SIL Compact");
-pref("font.name.sans-serif.tr", "Fira Sans OT");
-pref("font.name.monospace.tr", "Fira Mono OT");
+pref("font.name.sans-serif.tr", "Feura Sans");
+pref("font.name.monospace.tr", "Source Code Pro");
+pref("font.name-list.sans-serif.tr", "Feura Sans, Roboto");
 
 pref("font.name.serif.x-baltic", "Charis SIL Compact");
-pref("font.name.sans-serif.x-baltic", "Fira Sans OT");
-pref("font.name.monospace.x-baltic", "Fira Mono OT");
+pref("font.name.sans-serif.x-baltic", "Feura Sans");
+pref("font.name.monospace.x-baltic", "Source Code Pro");
+pref("font.name-list.sans-serif.x-baltic", "Feura Sans, Roboto");
 
 pref("font.name.serif.x-central-euro", "Charis SIL Compact");
-pref("font.name.sans-serif.x-central-euro", "Fira Sans OT");
-pref("font.name.monospace.x-central-euro", "Fira Mono OT");
+pref("font.name.sans-serif.x-central-euro", "Feura Sans");
+pref("font.name.monospace.x-central-euro", "Source Code Pro");
+pref("font.name-list.sans-serif.x-central-euro", "Feura Sans, Roboto");
 
 pref("font.name.serif.x-cyrillic", "Charis SIL Compact");
-pref("font.name.sans-serif.x-cyrillic", "Fira Sans OT");
-pref("font.name.monospace.x-cyrillic", "Fira Mono OT");
+pref("font.name.sans-serif.x-cyrillic", "Roboto");
+pref("font.name.monospace.x-cyrillic", "Source Code Pro");
 
 pref("font.name.serif.x-unicode", "Charis SIL Compact");
-pref("font.name.sans-serif.x-unicode", "Fira Sans OT");
-pref("font.name.monospace.x-unicode", "Fira Mono OT");
+pref("font.name.sans-serif.x-unicode", "Feura Sans");
+pref("font.name.monospace.x-unicode", "Source Code Pro");
+pref("font.name-list.sans-serif.x-unicode", "Feura Sans, Roboto");
 
 pref("font.name.serif.x-user-def", "Charis SIL Compact");
-pref("font.name.sans-serif.x-user-def", "Fira Sans OT");
-pref("font.name.monospace.x-user-def", "Fira Mono OT");
+pref("font.name.sans-serif.x-user-def", "Feura Sans");
+pref("font.name.monospace.x-user-def", "Source Code Pro");
+pref("font.name-list.sans-serif.x-user-def", "Feura Sans, Roboto");
 
 pref("font.name.serif.x-western", "Charis SIL Compact");
-pref("font.name.sans-serif.x-western", "Fira Sans OT");
-pref("font.name.monospace.x-western", "Fira Mono OT");
+pref("font.name.sans-serif.x-western", "Feura Sans");
+pref("font.name.monospace.x-western", "Source Code Pro");
+pref("font.name-list.sans-serif.x-western", "Feura Sans, Roboto");
 
 pref("font.name.serif.zh-CN", "Charis SIL Compact");
-pref("font.name.sans-serif.zh-CN", "Fira Sans OT");
-pref("font.name.monospace.zh-CN", "Fira Mono OT");
+pref("font.name.sans-serif.zh-CN", "Feura Sans");
+pref("font.name.monospace.zh-CN", "Source Code Pro");
 
 pref("font.name.serif.zh-HK", "Charis SIL Compact");
-pref("font.name.sans-serif.zh-HK", "Fira Sans OT");
-pref("font.name.monospace.zh-HK", "Fira Mono OT");
+pref("font.name.sans-serif.zh-HK", "Feura Sans");
+pref("font.name.monospace.zh-HK", "Source Code Pro");
 
 pref("font.name.serif.zh-TW", "Charis SIL Compact");
-pref("font.name.sans-serif.zh-TW", "Fira Sans OT");
-pref("font.name.monospace.zh-TW", "Fira Mono OT");
+pref("font.name.sans-serif.zh-TW", "Feura Sans");
+pref("font.name.monospace.zh-TW", "Source Code Pro");
 
 #else
 

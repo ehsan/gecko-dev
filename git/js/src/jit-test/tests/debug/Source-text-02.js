@@ -1,5 +1,5 @@
 // Source.prototype.text should be a string
-let g = newGlobal();
+let g = newGlobal('new-compartment');
 let dbg = new Debugger(g);
 
 var count = 0;

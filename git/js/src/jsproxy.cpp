@@ -21,8 +21,6 @@
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
-#include "vm/ObjectImpl-inl.h"
-
 using namespace js;
 using namespace js::gc;
 using mozilla::ArrayLength;
@@ -3022,7 +3020,7 @@ proxy_HasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, bool 
         proxy_WeakmapKeyDelegate                    \
     }
 
-const Class js::ObjectProxyObject::class_ = {
+Class js::ObjectProxyObject::class_ = {
     "Proxy",
     Class::NON_NATIVE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(4) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Proxy),
@@ -3068,9 +3066,9 @@ const Class js::ObjectProxyObject::class_ = {
     }
 };
 
-const Class* const js::ObjectProxyClassPtr = &ObjectProxyObject::class_;
+Class* const js::ObjectProxyClassPtr = &ObjectProxyObject::class_;
 
-const Class js::OuterWindowProxyObject::class_ = {
+Class js::OuterWindowProxyObject::class_ = {
     "Proxy",
     Class::NON_NATIVE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(4),
     JS_PropertyStub,         /* addProperty */
@@ -3121,7 +3119,7 @@ const Class js::OuterWindowProxyObject::class_ = {
     }
 };
 
-const Class* const js::OuterWindowProxyClassPtr = &OuterWindowProxyObject::class_;
+Class* const js::OuterWindowProxyClassPtr = &OuterWindowProxyObject::class_;
 
 static bool
 proxy_Call(JSContext *cx, unsigned argc, Value *vp)
@@ -3141,7 +3139,7 @@ proxy_Construct(JSContext *cx, unsigned argc, Value *vp)
     return Proxy::construct(cx, proxy, args);
 }
 
-const Class js::FunctionProxyObject::class_ = {
+Class js::FunctionProxyObject::class_ = {
     "Proxy",
     Class::NON_NATIVE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(6),
     JS_PropertyStub,         /* addProperty */
@@ -3186,7 +3184,7 @@ const Class js::FunctionProxyObject::class_ = {
     }
 };
 
-const Class* const js::FunctionProxyClassPtr = &FunctionProxyObject::class_;
+Class* const js::FunctionProxyClassPtr = &FunctionProxyObject::class_;
 
 /* static */ ProxyObject *
 ProxyObject::New(JSContext *cx, BaseProxyHandler *handler, HandleValue priv, TaggedProto proto_,
@@ -3197,7 +3195,7 @@ ProxyObject::New(JSContext *cx, BaseProxyHandler *handler, HandleValue priv, Tag
 
     JS_ASSERT_IF(proto.isObject(), cx->compartment() == proto.toObject()->compartment());
     JS_ASSERT_IF(parent, cx->compartment() == parent->compartment());
-    const Class *clasp;
+    Class *clasp;
     if (callable)
         clasp = &FunctionProxyObject::class_;
     else

@@ -7,10 +7,14 @@
  * http://dom.spec.whatwg.org/#promises
  */
 
-// TODO We use object instead Function.  There is an open issue on WebIDL to
-// have different types for "platform-provided function" and "user-provided
-// function"; for now, we just use "object".
-callback PromiseInit = void (object resolve, object reject);
+[Func="mozilla::dom::Promise::EnabledForScope"]
+interface PromiseResolver {
+  // TODO bug 875289 - void fulfill(optional any value);
+  void resolve(optional any value);
+  void reject(optional any value);
+};
+
+callback PromiseInit = void (PromiseResolver resolver);
 callback AnyCallback = any (optional any value);
 
 [Func="mozilla::dom::Promise::EnabledForScope", Constructor(PromiseInit init)]

@@ -81,14 +81,12 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   // nsSVGGeometryFrame methods
-  gfxMatrix GetCanvasTM(uint32_t aFor,
-                        nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+  gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE;
 
 protected:
   // nsISVGChildFrame interface:
   NS_IMETHOD PaintSVG(nsRenderingContext *aContext,
-                      const nsIntRect *aDirtyRect,
-                      nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+                      const nsIntRect *aDirtyRect) MOZ_OVERRIDE;
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint) MOZ_OVERRIDE;
   NS_IMETHOD_(nsRect) GetCoveredRegion() MOZ_OVERRIDE;
   virtual void ReflowSVG() MOZ_OVERRIDE;
@@ -102,8 +100,7 @@ protected:
 
 private:
   enum { eRenderFill = 1, eRenderStroke = 2 };
-  void Render(nsRenderingContext *aContext, uint32_t aRenderComponents,
-              nsIFrame* aTransformRoot);
+  void Render(nsRenderingContext *aContext, uint32_t aRenderComponents);
   void PaintMarkers(nsRenderingContext *aContext);
 
   struct MarkerProperties {

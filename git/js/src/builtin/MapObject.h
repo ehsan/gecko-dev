@@ -88,7 +88,7 @@ class MapObject : public JSObject {
     enum IteratorKind { Keys, Values, Entries };
 
     static JSObject *initClass(JSContext *cx, JSObject *obj);
-    static const Class class_;
+    static Class class_;
   private:
     static const JSPropertySpec properties[];
     static const JSFunctionSpec methods[];
@@ -126,7 +126,7 @@ class SetObject : public JSObject {
   public:
     enum IteratorKind { Values, Entries };
     static JSObject *initClass(JSContext *cx, JSObject *obj);
-    static const Class class_;
+    static Class class_;
   private:
     static const JSPropertySpec properties[];
     static const JSFunctionSpec methods[];

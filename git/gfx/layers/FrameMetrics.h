@@ -15,16 +15,6 @@
 namespace mozilla {
 namespace layers {
 
-// The layer coordinates of the parent layer. Like the layer coordinates
-// of the current layer (LayerPixel) but doesn't include the current layer's
-// resolution.
-struct ParentLayerPixel {};
-
-typedef gfx::ScaleFactor<LayoutDevicePixel, ParentLayerPixel> LayoutDeviceToParentLayerScale;
-typedef gfx::ScaleFactor<ParentLayerPixel, LayerPixel> ParentLayerToLayerScale;
-
-typedef gfx::ScaleFactor<ParentLayerPixel, ScreenPixel> ParentLayerToScreenScale;
-
 /**
  * The viewport and displayport metrics for the painted frame at the
  * time of a layer-tree transaction.  These metrics are especially
@@ -49,7 +39,6 @@ public:
     , mScrollId(NULL_SCROLL_ID)
     , mScrollableRect(0, 0, 0, 0)
     , mResolution(1)
-    , mCumulativeResolution(1)
     , mZoom(1)
     , mDevPixelsPerCSSPixel(1)
     , mMayHaveTouchListeners(false)
@@ -68,7 +57,6 @@ public:
            mScrollId == aOther.mScrollId &&
            mScrollableRect.IsEqualEdges(aOther.mScrollableRect) &&
            mResolution == aOther.mResolution &&
-           mCumulativeResolution == aOther.mCumulativeResolution &&
            mDevPixelsPerCSSPixel == aOther.mDevPixelsPerCSSPixel &&
            mMayHaveTouchListeners == aOther.mMayHaveTouchListeners &&
            mPresShellId == aOther.mPresShellId;
@@ -98,17 +86,12 @@ public:
 
   CSSToLayerScale LayersPixelsPerCSSPixel() const
   {
-    return mCumulativeResolution * mDevPixelsPerCSSPixel;
+    return mResolution * mDevPixelsPerCSSPixel;
   }
 
   LayerPoint GetScrollOffsetInLayerPixels() const
   {
     return mScrollOffset * LayersPixelsPerCSSPixel();
-  }
-
-  LayoutDeviceToParentLayerScale GetParentResolution() const
-  {
-    return mCumulativeResolution / mResolution;
   }
 
   /**
@@ -228,18 +211,15 @@ public:
   // The following metrics are dimensionless.
   //
 
-  // The resolution that the current frame has been painted at.
+  // The resolution, along both axes, that the current frame has been painted
+  // at.
   //
   // Every time this frame is composited and the compositor samples its
   // transform, this metric is used to create a transform which is
   // post-multiplied into the parent's transform. Since this only happens when
   // we walk the layer tree, the resulting transform isn't stored here. Thus the
   // resolution of parent layers is opaque to this metric.
-  ParentLayerToLayerScale mResolution;
-
-  // The cumulative resolution that the current frame has been painted at.
-  // This is the product of our mResolution and the mResolutions of our parent frames.
-  LayoutDeviceToLayerScale mCumulativeResolution;
+  LayoutDeviceToLayerScale mResolution;
 
   // The "user zoom". Content is painted by gecko at mResolution * mDevPixelsPerCSSPixel,
   // but will be drawn to the screen at mZoom. In the steady state, the

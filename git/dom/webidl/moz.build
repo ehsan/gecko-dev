@@ -203,7 +203,6 @@ WEBIDL_FILES = [
     'MessageChannel.webidl',
     'MessageEvent.webidl',
     'MessagePort.webidl',
-    'MessagePortList.webidl',
     'MimeType.webidl',
     'MimeTypeArray.webidl',
     'MobileMessageManager.webidl',
@@ -212,7 +211,6 @@ WEBIDL_FILES = [
     'MozActivity.webidl',
     'MozMmsMessage.webidl',
     'MozNamedAttrMap.webidl',
-    'MozPowerManager.webidl',
     'MozTimeManager.webidl',
     'MutationEvent.webidl',
     'MutationObserver.webidl',
@@ -260,7 +258,6 @@ WEBIDL_FILES = [
     'SimpleGestureEvent.webidl',
     'SourceBuffer.webidl',
     'SourceBufferList.webidl',
-    'StorageType.webidl',
     'StyleSheet.webidl',
     'SVGAElement.webidl',
     'SVGAltGlyphElement.webidl',
@@ -456,6 +453,7 @@ if CONFIG['MOZ_B2G_RIL']:
     ]
 
 WEBIDL_FILES += [
+    'BlobEvent.webidl',
     'CloseEvent.webidl',
     'CustomEvent.webidl',
     'DeviceLightEvent.webidl',
@@ -539,7 +537,3 @@ if CONFIG['MOZ_B2G']:
     WEBIDL_FILES += [
         'InputMethod.webidl',
     ]
-
-GENERATED_EVENTS_WEBIDL_FILES = [
-    'BlobEvent.webidl',
-]

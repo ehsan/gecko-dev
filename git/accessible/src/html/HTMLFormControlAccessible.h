@@ -142,6 +142,8 @@ public:
 protected:
   // Accessible
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
+
+  virtual void CacheChildren() MOZ_OVERRIDE;
 };
 
 

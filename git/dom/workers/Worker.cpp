@@ -27,8 +27,8 @@ namespace {
 
 class Worker
 {
-  static const DOMJSClass sClass;
-  static const DOMIfaceAndProtoJSClass sProtoClass;
+  static DOMJSClass sClass;
+  static DOMIfaceAndProtoJSClass sProtoClass;
   static const JSPropertySpec sProperties[];
   static const JSFunctionSpec sFunctions[];
 
@@ -40,19 +40,19 @@ protected:
   };
 
 public:
-  static const JSClass*
+  static JSClass*
   Class()
   {
     return sClass.ToJSClass();
   }
 
-  static const JSClass*
+  static JSClass*
   ProtoClass()
   {
     return sProtoClass.ToJSClass();
   }
 
-  static const DOMClass*
+  static DOMClass*
   DOMClassStruct()
   {
     return &sClass.mClass;
@@ -71,7 +71,7 @@ public:
     }
 
     js::SetReservedSlot(proto, DOM_PROTO_INSTANCE_CLASS_SLOT,
-                        JS::PrivateValue(const_cast<DOMClass *>(DOMClassStruct())));
+                        JS::PrivateValue(DOMClassStruct()));
 
     if (!aMainRuntime) {
       WorkerPrivate* parent = GetWorkerPrivateFromContext(aCx);
@@ -93,7 +93,7 @@ public:
 protected:
   static bool
   ConstructInternal(JSContext* aCx, unsigned aArgc, jsval* aVp,
-                    bool aIsChromeWorker, const JSClass* aClass)
+                    bool aIsChromeWorker, JSClass* aClass)
   {
     if (!aArgc) {
       JS_ReportError(aCx, "Constructor requires at least one argument!");
@@ -346,7 +346,7 @@ private:
   }
 };
 
-const DOMJSClass Worker::sClass = {
+DOMJSClass Worker::sClass = {
   {
     "Worker",
     JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(3) |
@@ -362,7 +362,7 @@ const DOMJSClass Worker::sClass = {
   }
 };
 
-const DOMIfaceAndProtoJSClass Worker::sProtoClass = {
+DOMIfaceAndProtoJSClass Worker::sProtoClass = {
   {
     // XXXbz we use "Worker" here to match sClass so that we can
     // js::InitClassWithReserved this JSClass and then call
@@ -406,23 +406,23 @@ const JSFunctionSpec Worker::sFunctions[] = {
 
 class ChromeWorker : public Worker
 {
-  static const DOMJSClass sClass;
-  static const DOMIfaceAndProtoJSClass sProtoClass;
+  static DOMJSClass sClass;
+  static DOMIfaceAndProtoJSClass sProtoClass;
 
 public:
-  static const JSClass*
+  static JSClass*
   Class()
   {
     return sClass.ToJSClass();
   }
 
-  static const JSClass*
+  static JSClass*
   ProtoClass()
   {
     return sProtoClass.ToJSClass();
   }
 
-  static const DOMClass*
+  static DOMClass*
   DOMClassStruct()
   {
     return &sClass.mClass;
@@ -440,7 +440,7 @@ public:
     }
 
     js::SetReservedSlot(proto, DOM_PROTO_INSTANCE_CLASS_SLOT,
-                        JS::PrivateValue(const_cast<DOMClass *>(DOMClassStruct())));
+                        JS::PrivateValue(DOMClassStruct()));
 
     if (!aMainRuntime) {
       WorkerPrivate* parent = GetWorkerPrivateFromContext(aCx);
@@ -467,7 +467,7 @@ private:
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
     if (aObj) {
-      const JSClass* classPtr = JS_GetClass(aObj);
+      JSClass* classPtr = JS_GetClass(aObj);
       if (classPtr == Class()) {
         return UnwrapDOMObject<WorkerPrivate>(aObj);
       }
@@ -503,7 +503,7 @@ private:
   }
 };
 
-const DOMJSClass ChromeWorker::sClass = {
+DOMJSClass ChromeWorker::sClass = {
   { "ChromeWorker",
     JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(3) |
     JSCLASS_IMPLEMENTS_BARRIERS,
@@ -518,7 +518,7 @@ const DOMJSClass ChromeWorker::sClass = {
   }
 };
 
-const DOMIfaceAndProtoJSClass ChromeWorker::sProtoClass = {
+DOMIfaceAndProtoJSClass ChromeWorker::sProtoClass = {
   {
     // XXXbz we use "ChromeWorker" here to match sClass so that we can
     // js::InitClassWithReserved this JSClass and then call
@@ -552,7 +552,7 @@ WorkerPrivate*
 Worker::GetInstancePrivate(JSContext* aCx, JSObject* aObj,
                            const char* aFunctionName)
 {
-  const JSClass* classPtr = JS_GetClass(aObj);
+  JSClass* classPtr = JS_GetClass(aObj);
   if (ClassIsWorker(classPtr)) {
     return UnwrapDOMObject<WorkerPrivate>(aObj);
   }
@@ -606,7 +606,7 @@ InitClass(JSContext* aCx, JSObject* aGlobal, JSObject* aProto,
 } // namespace chromeworker
 
 bool
-ClassIsWorker(const JSClass* aClass)
+ClassIsWorker(JSClass* aClass)
 {
   return Worker::Class() == aClass || ChromeWorker::Class() == aClass;
 }

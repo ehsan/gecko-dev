@@ -585,7 +585,7 @@ sandbox_convert(JSContext *cx, HandleObject obj, JSType type, MutableHandleValue
     return JS_ConvertStub(cx, obj, type, vp);
 }
 
-static const JSClass SandboxClass = {
+static JSClass SandboxClass = {
     "Sandbox",
     XPCONNECT_GLOBAL_FLAGS,
     JS_PropertyStub,   JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -945,10 +945,9 @@ xpc::CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandb
     }
 
     JS::CompartmentOptions compartmentOptions;
-    if (options.sameZoneAs)
-        compartmentOptions.setSameZoneAs(js::UncheckedUnwrap(options.sameZoneAs));
-    else
-        compartmentOptions.setZone(JS::SystemZone);
+    compartmentOptions.setZone(options.sameZoneAs
+                                 ? JS::SameZoneAs(js::UncheckedUnwrap(options.sameZoneAs))
+                                 : JS::SystemZone);
     RootedObject sandbox(cx, xpc::CreateGlobalObject(cx, &SandboxClass,
                                                      principal, compartmentOptions));
     if (!sandbox)
@@ -983,7 +982,7 @@ xpc::CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandb
 
             // Now check what sort of thing we've got in |proto|
             JSObject *unwrappedProto = js::UncheckedUnwrap(options.proto, false);
-            const js::Class *unwrappedClass = js::GetObjectClass(unwrappedProto);
+            js::Class *unwrappedClass = js::GetObjectClass(unwrappedProto);
             if (IS_WN_CLASS(unwrappedClass) ||
                 mozilla::dom::IsDOMClass(Jsvalify(unwrappedClass))) {
                 // Wrap it up in a proxy that will do the right thing in terms

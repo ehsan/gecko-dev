@@ -158,6 +158,7 @@
 #include "nsWrapperCacheInlines.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
 
+#include "nsIDOMPowerManager.h"
 #include "nsIDOMWakeLock.h"
 #include "nsIDOMMobileMessageManager.h"
 #include "nsIDOMMozSmsMessage.h"
@@ -462,6 +463,9 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(ModalContentWindow, nsWindowSH,
                            DEFAULT_SCRIPTABLE_FLAGS |
                            WINDOW_SCRIPTABLE_FLAGS)
+
+  NS_DEFINE_CLASSINFO_DATA(MozPowerManager, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(MozWakeLock, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -853,7 +857,7 @@ NS_INTERFACE_MAP_BEGIN(nsDOMClassInfo)
 NS_INTERFACE_MAP_END
 
 
-static const JSClass sDOMConstructorProtoClass = {
+static JSClass sDOMConstructorProtoClass = {
   "DOM Constructor.prototype", 0,
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, nullptr
@@ -1274,6 +1278,10 @@ nsDOMClassInfo::Init()
 #ifdef MOZ_WEBSPEECH
     DOM_CLASSINFO_MAP_ENTRY(nsISpeechSynthesisGetter)
 #endif
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(MozPowerManager, nsIDOMMozPowerManager)
+     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozPowerManager)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(MozWakeLock, nsIDOMMozWakeLock)
@@ -2623,7 +2631,7 @@ nsDOMConstructor::HasInstance(nsIXPConnectWrappedNative *wrapper,
   if (wrapped_obj)
       dom_obj = wrapped_obj;
 
-  const JSClass *dom_class = JS_GetClass(dom_obj);
+  JSClass *dom_class = JS_GetClass(dom_obj);
   if (!dom_class) {
     NS_ERROR("nsDOMConstructor::HasInstance can't get class.");
     return NS_ERROR_UNEXPECTED;
@@ -4163,7 +4171,7 @@ nsStringListSH::GetStringAt(nsISupports *aNative, int32_t aIndex,
 
 // HTMLAllCollection
 
-const JSClass sHTMLDocumentAllClass = {
+JSClass sHTMLDocumentAllClass = {
   "HTML document.all class",
   JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_NEW_RESOLVE |
   JSCLASS_EMULATES_UNDEFINED | JSCLASS_HAS_RESERVED_SLOTS(1),

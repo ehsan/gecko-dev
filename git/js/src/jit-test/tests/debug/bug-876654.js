@@ -2,7 +2,7 @@
 // Exercise finding a DebuggerSource cross compartment wrapper in
 // JSCompartment::findOutgoingEdges()
 
-let g = newGlobal();
+let g = newGlobal('new-compartment');
 let dbg = new Debugger(g);
 dbg.onNewScript = function (script) {
   var text = script.source.text;

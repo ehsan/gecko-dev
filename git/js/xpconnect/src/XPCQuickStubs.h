@@ -622,7 +622,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
     return ApplyPropertyOp<Op>(cx, *popp, obj, id, args.rval());
 }
 
-extern const JSClass PointerHolderClass;
+extern JSClass PointerHolderClass;
 
 template<typename Op>
 JSObject *

@@ -251,7 +251,7 @@ parent:
     POfflineCacheUpdate(URIParams manifestURI, URIParams documentURI,
                         bool stickDocument);
 
-    sync PIndexedDB(nsCString group, nsCString asciiOrigin)
+    sync PIndexedDB(nsCString asciiOrigin)
         returns (bool allowed);
 
     /**

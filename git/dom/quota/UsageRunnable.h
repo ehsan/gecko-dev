@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_quota_usageinfo_h__
-#define mozilla_dom_quota_usageinfo_h__
+#ifndef mozilla_dom_quota_usagerunnable_h__
+#define mozilla_dom_quota_usagerunnable_h__
 
 #include "mozilla/dom/quota/QuotaCommon.h"
 
@@ -14,14 +14,14 @@
 
 BEGIN_QUOTA_NAMESPACE
 
-class UsageInfo
+class UsageRunnable
 {
 public:
-  UsageInfo()
+  UsageRunnable()
   : mCanceled(0), mDatabaseUsage(0), mFileUsage(0)
   { }
 
-  virtual ~UsageInfo()
+  virtual ~UsageRunnable()
   { }
 
   bool
@@ -79,4 +79,4 @@ private:
 
 END_QUOTA_NAMESPACE
 
-#endif // mozilla_dom_quota_usageinfo_h__
+#endif // mozilla_dom_quota_usagerunnable_h__

@@ -25,7 +25,7 @@ using namespace mozilla;
 ///////////////////////////////////////////////////////////////////////////
 // Class def'n for the owner object
 
-const Class TypeRepresentation::class_ = {
+Class TypeRepresentation::class_ = {
     "TypeRepresentation",
     JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_PRIVATE,

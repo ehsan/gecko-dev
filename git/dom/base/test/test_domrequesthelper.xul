@@ -30,8 +30,9 @@
     function createPromise() {
       ok(Promise, "Promise object should exist");
 
-      var promise = dummy.createPromise(function(resolve, reject) {
-        resolve(true);
+      var promise = dummy.createPromise(function(r) {
+        ok(r, "received PromiseResolver");
+        r.resolve(true);
       });
       ok(promise instanceof Promise, "returned a Promise");
       promise.then(runTest);
@@ -40,8 +41,7 @@
     function getResolver() {
       var id;
       var resolver;
-      var promise = dummy.createPromise(function(resolve, reject) {
-        var r = { resolve: resolve, reject: reject };
+      var promise = dummy.createPromise(function(r) {
         id = dummy.getPromiseResolverId(r);
         resolver = r;
         ok(typeof id === "string", "id should be string");
@@ -55,8 +55,7 @@
 
     function removeResolver() {
       var id;
-      var promise = dummy.createPromise(function(resolve, reject) {
-        var r = { resolve: resolve, reject: reject };
+      var promise = dummy.createPromise(function(r) {
         id = dummy.getPromiseResolverId(r);
         ok(typeof id === "string", "id should be string");
 
@@ -75,8 +74,7 @@
     function takeResolver() {
       var id;
       var resolver;
-      var promise = dummy.createPromise(function(resolve, reject) {
-        var r = { resolve: resolve, reject: reject };
+      var promise = dummy.createPromise(function(r) {
         id = dummy.getPromiseResolverId(r);
         resolver = r;
         ok(typeof id === "string", "id should be string");

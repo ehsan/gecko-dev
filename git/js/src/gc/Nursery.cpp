@@ -19,7 +19,7 @@
 #include "vm/Debugger.h"
 #include "vm/TypedArrayObject.h"
 
-#include "jsgcinlines.h"
+#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace gc;
@@ -361,7 +361,7 @@ js::Nursery::collectToFixedPoint(MinorCollectionTracer *trc)
 JS_ALWAYS_INLINE void
 js::Nursery::traceObject(MinorCollectionTracer *trc, JSObject *obj)
 {
-    const Class *clasp = obj->getClass();
+    Class *clasp = obj->getClass();
     if (clasp->trace)
         clasp->trace(trc, obj);
 

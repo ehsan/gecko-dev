@@ -7,6 +7,7 @@
 XPIDL_SOURCES += [
     'nsIDOMAnimationEvent.idl',
     'nsIDOMBeforeUnloadEvent.idl',
+    'nsIDOMBlobEvent.idl',
     'nsIDOMClipboardEvent.idl',
     'nsIDOMCloseEvent.idl',
     'nsIDOMCommandEvent.idl',

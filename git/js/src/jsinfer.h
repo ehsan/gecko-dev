@@ -614,7 +614,7 @@ class StackTypeSet : public TypeSet
     bool hasObjectFlags(JSContext *cx, TypeObjectFlags flags);
 
     /* Get the class shared by all objects in this set, or NULL. */
-    const Class *getKnownClass();
+    Class *getKnownClass();
 
     /* Get the prototype shared by all objects in this set, or NULL. */
     JSObject *getCommonPrototype();
@@ -981,7 +981,7 @@ struct TypeTypedObject : public TypeObjectAddendum
 struct TypeObject : gc::Cell
 {
     /* Class shared by objects using this type. */
-    const Class *clasp;
+    Class *clasp;
 
     /* Prototype shared by objects using this type. */
     HeapPtrObject proto;
@@ -1081,7 +1081,7 @@ struct TypeObject : gc::Cell
     uint32_t padding;
 #endif
 
-    inline TypeObject(const Class *clasp, TaggedProto proto, bool isFunction, bool unknown);
+    inline TypeObject(Class *clasp, TaggedProto proto, bool isFunction, bool unknown);
 
     bool isFunction() { return !!(flags & OBJECT_FLAG_FUNCTION); }
 
@@ -1204,10 +1204,10 @@ struct TypeObject : gc::Cell
 struct TypeObjectEntry : DefaultHasher<ReadBarriered<TypeObject> >
 {
     struct Lookup {
-        const Class *clasp;
+        Class *clasp;
         TaggedProto proto;
 
-        Lookup(const Class *clasp, TaggedProto proto) : clasp(clasp), proto(proto) {}
+        Lookup(Class *clasp, TaggedProto proto) : clasp(clasp), proto(proto) {}
     };
 
     static inline HashNumber hash(const Lookup &lookup);
@@ -1497,7 +1497,7 @@ struct TypeCompartment
      * or JSProto_Object to indicate a type whose class is unknown (not just
      * js_ObjectClass).
      */
-    TypeObject *newTypeObject(ExclusiveContext *cx, const Class *clasp, Handle<TaggedProto> proto,
+    TypeObject *newTypeObject(ExclusiveContext *cx, Class *clasp, Handle<TaggedProto> proto,
                               bool unknown = false);
 
     /* Get or make an object for an allocation site, and add to the allocation site table. */

@@ -25,7 +25,7 @@ reset(JSContext *cx)
     js::EnableRuntimeProfilingStack(cx->runtime(), true);
 }
 
-static const JSClass ptestClass = {
+static JSClass ptestClass = {
     "Prof", 0, JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub,
     JS_StrictPropertyStub, JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
 };

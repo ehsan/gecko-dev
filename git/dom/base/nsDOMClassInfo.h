@@ -431,7 +431,7 @@ private:
 
 // HTMLAllCollection
 
-extern const JSClass sHTMLDocumentAllClass;
+extern JSClass sHTMLDocumentAllClass;
 
 class nsHTMLDocumentSH
 {

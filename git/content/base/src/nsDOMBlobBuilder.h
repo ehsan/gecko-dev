@@ -29,8 +29,7 @@ public:
                      const nsAString& aName,
                      const nsAString& aContentType)
     : nsDOMFile(aName, aContentType, UINT64_MAX),
-      mBlobs(aBlobs),
-      mIsFromNsiFile(false)
+      mBlobs(aBlobs)
   {
   }
 
@@ -38,22 +37,19 @@ public:
   nsDOMMultipartFile(nsTArray<nsCOMPtr<nsIDOMBlob> >& aBlobs,
                      const nsAString& aContentType)
     : nsDOMFile(aContentType, UINT64_MAX),
-      mBlobs(aBlobs),
-      mIsFromNsiFile(false)
+      mBlobs(aBlobs)
   {
   }
 
   // Create as a file to be later initialized
   nsDOMMultipartFile(const nsAString& aName)
-    : nsDOMFile(aName, EmptyString(), UINT64_MAX),
-      mIsFromNsiFile(false)
+    : nsDOMFile(aName, EmptyString(), UINT64_MAX)
   {
   }
 
   // Create as a blob to be later initialized
   nsDOMMultipartFile()
-    : nsDOMFile(EmptyString(), UINT64_MAX),
-      mIsFromNsiFile(false)
+    : nsDOMFile(EmptyString(), UINT64_MAX)
   {
   }
 
@@ -100,11 +96,8 @@ public:
   virtual const nsTArray<nsCOMPtr<nsIDOMBlob> >*
   GetSubBlobs() const MOZ_OVERRIDE { return &mBlobs; }
 
-  NS_IMETHOD GetMozFullPathInternal(nsAString& aFullPath) MOZ_OVERRIDE;
-
 protected:
   nsTArray<nsCOMPtr<nsIDOMBlob> > mBlobs;
-  bool mIsFromNsiFile;
 };
 
 class BlobSet {

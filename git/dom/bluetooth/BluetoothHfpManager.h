@@ -121,8 +121,9 @@ private:
   uint32_t FindFirstCall(uint16_t aState);
   uint32_t GetNumberOfCalls(uint16_t aState);
 
-  void NotifyConnectionStatusChanged(const nsAString& aType);
+  void DispatchConnectionStatusChanged(const nsAString& aType);
   void NotifyDialer(const nsAString& aCommand);
+  void NotifyConnectionStatusChanged(const nsAString& aType);
 
   bool SendCommand(const char* aCommand, uint32_t aValue = 0);
   bool SendLine(const char* aMessage);

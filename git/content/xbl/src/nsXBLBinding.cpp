@@ -76,7 +76,7 @@ XBLFinalize(JSFreeOp *fop, JSObject *obj)
     static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(obj));
   nsContentUtils::DeferredFinalize(docInfo);
   
-  nsXBLJSClass* c = nsXBLJSClass::fromJSClass(::JS_GetClass(obj));
+  nsXBLJSClass* c = static_cast<nsXBLJSClass*>(::JS_GetClass(obj));
   c->Drop();
 }
 
@@ -136,19 +136,6 @@ nsXBLJSClass::Destroy()
   }
 
   return 0;
-}
-
-nsXBLJSClass*
-nsXBLService::getClass(const nsCString& k)
-{
-  nsCStringKey key(k);
-  return getClass(&key);
-}
-
-nsXBLJSClass*
-nsXBLService::getClass(nsCStringKey *k)
-{
-  return static_cast<nsXBLJSClass*>(nsXBLService::gClassTable->Get(k));
 }
 
 // Implementation /////////////////////////////////////////////////////////////////
@@ -786,7 +773,7 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
               break;
             }
 
-            const JSClass* clazz = ::JS_GetClass(proto);
+            JSClass* clazz = ::JS_GetClass(proto);
             if (!clazz ||
                 (~clazz->flags &
                  (JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS)) ||
@@ -939,8 +926,9 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JS::Handle<JSObject*> global,
         PR_snprintf(buf, sizeof(buf), " %llx", parent_proto_id.get());
       }
       xblKey.Append(buf);
+      nsCStringKey key(xblKey);
 
-      c = nsXBLService::getClass(xblKey);
+      c = static_cast<nsXBLJSClass*>(nsXBLService::gClassTable->Get(&key));
       if (c) {
         className.Assign(c->name);
       } else {
@@ -966,7 +954,7 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JS::Handle<JSObject*> global,
 
     nsCStringKey key(xblKey);
     if (!c) {
-      c = nsXBLService::getClass(&key);
+      c = static_cast<nsXBLJSClass*>(nsXBLService::gClassTable->Get(&key));
     }
     if (c) {
       // If c is on the LRU list, remove it now!

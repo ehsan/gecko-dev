@@ -172,7 +172,7 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(JSContext *cx,
     // Determine whether to use an XBL scope.
     mUseXBLScope = mAllowXBLScope;
     if (mUseXBLScope) {
-      const js::Class *clasp = js::GetObjectClass(mGlobalJSObject);
+      js::Class *clasp = js::GetObjectClass(mGlobalJSObject);
       mUseXBLScope = !strcmp(clasp->name, "Window") ||
                      !strcmp(clasp->name, "ChromeWindow") ||
                      !strcmp(clasp->name, "ModalContentWindow");

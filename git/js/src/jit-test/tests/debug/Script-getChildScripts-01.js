@@ -1,6 +1,6 @@
 // Basic getChildScripts tests.
 
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 var dbg = new Debugger(g);
 var log;
 function note(s) {

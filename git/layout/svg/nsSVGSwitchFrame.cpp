@@ -51,9 +51,7 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
-                      const nsIntRect *aDirtyRect,
-                      nsIFrame* aTransformRoot) MOZ_OVERRIDE;
+  NS_IMETHOD PaintSVG(nsRenderingContext* aContext, const nsIntRect *aDirtyRect);
   NS_IMETHODIMP_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHODIMP_(nsRect) GetCoveredRegion();
   virtual void ReflowSVG();
@@ -107,8 +105,7 @@ nsSVGSwitchFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 NS_IMETHODIMP
 nsSVGSwitchFrame::PaintSVG(nsRenderingContext* aContext,
-                           const nsIntRect *aDirtyRect,
-                           nsIFrame* aTransformRoot)
+                           const nsIntRect *aDirtyRect)
 {
   NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
                (mState & NS_FRAME_IS_NONDISPLAY),
@@ -120,7 +117,7 @@ nsSVGSwitchFrame::PaintSVG(nsRenderingContext* aContext,
 
   nsIFrame *kid = GetActiveChildFrame();
   if (kid) {
-    nsSVGUtils::PaintFrameWithEffects(aContext, aDirtyRect, kid, aTransformRoot);
+    nsSVGUtils::PaintFrameWithEffects(aContext, aDirtyRect, kid);
   }
   return NS_OK;
 }

@@ -496,22 +496,6 @@ LIRGenerator::visitBail(MBail *bail)
 }
 
 bool
-LIRGenerator::visitAssertFloat32(MAssertFloat32 *assertion)
-{
-    MIRType type = assertion->input()->type();
-    bool checkIsFloat32 = assertion->mustBeFloat32();
-
-    if (!allowFloat32Optimizations())
-        return true;
-
-    if (type != MIRType_Value && !js_IonOptions.eagerCompilation) {
-        JS_ASSERT_IF(checkIsFloat32, type == MIRType_Float32);
-        JS_ASSERT_IF(!checkIsFloat32, type != MIRType_Float32);
-    }
-    return true;
-}
-
-bool
 LIRGenerator::visitGetDynamicName(MGetDynamicName *ins)
 {
     MDefinition *scopeChain = ins->getScopeChain();
@@ -2386,7 +2370,7 @@ LIRGenerator::visitClampToUint8(MClampToUint8 *ins)
         return redefine(ins, in);
 
       case MIRType_Int32:
-        return defineReuseInput(new LClampIToUint8(useRegisterAtStart(in)), ins, 0);
+        return define(new LClampIToUint8(useRegisterAtStart(in)), ins);
 
       case MIRType_Double:
         return define(new LClampDToUint8(useRegisterAtStart(in), tempCopy(in, 0)), ins);

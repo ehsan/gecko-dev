@@ -27,7 +27,7 @@ IterHook(JSContext *cx, JS::HandleObject obj, bool keysonly)
     return iterObj;
 }
 
-const js::Class HasCustomIterClass = {
+js::Class HasCustomIterClass = {
     "HasCustomIter",
     0,
     JS_PropertyStub,

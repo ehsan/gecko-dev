@@ -1336,12 +1336,12 @@ class TypedArrayObjectTemplate : public TypedArrayObject
 
     static const size_t BYTES_PER_ELEMENT = sizeof(ThisType);
 
-    static inline const Class *protoClass()
+    static inline Class *protoClass()
     {
         return &TypedArrayObject::protoClasses[ArrayTypeID()];
     }
 
-    static inline const Class *fastClass()
+    static inline Class *fastClass()
     {
         return &TypedArrayObject::classes[ArrayTypeID()];
     }
@@ -3338,7 +3338,7 @@ TypedArrayObject::copyTypedArrayElement(uint32_t index, MutableHandleValue vp)
  * ArrayBufferObject (base)
  */
 
-const Class ArrayBufferObject::protoClass = {
+Class ArrayBufferObject::protoClass = {
     "ArrayBufferPrototype",
     JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(ARRAYBUFFER_RESERVED_SLOTS) |
@@ -3352,7 +3352,7 @@ const Class ArrayBufferObject::protoClass = {
     JS_ConvertStub
 };
 
-const Class ArrayBufferObject::class_ = {
+Class ArrayBufferObject::class_ = {
     "ArrayBuffer",
     JSCLASS_HAS_PRIVATE |
     JSCLASS_IMPLEMENTS_BARRIERS |
@@ -3451,7 +3451,7 @@ const JSFunctionSpec _typedArray##Object::jsfuncs[] = {                         
   {                                                                                          \
       if (!(obj = CheckedUnwrap(obj)))                                                       \
           return false;                                                                      \
-      const Class *clasp = obj->getClass();                                                  \
+      Class *clasp = obj->getClass();                                                        \
       return (clasp == &TypedArrayObject::classes[TypedArrayObjectTemplate<NativeType>::ArrayTypeID()]); \
   }
 
@@ -3473,7 +3473,7 @@ IMPL_TYPED_ARRAY_JSAPI_CONSTRUCTORS(Float64, double)
       if (!(obj = CheckedUnwrap(obj)))                                                      \
           return NULL;                                                                      \
                                                                                             \
-      const Class *clasp = obj->getClass();                                                 \
+      Class *clasp = obj->getClass();                                                       \
       if (clasp != &TypedArrayObject::classes[TypedArrayObjectTemplate<InternalType>::ArrayTypeID()]) \
           return NULL;                                                                      \
                                                                                             \
@@ -3627,7 +3627,7 @@ IMPL_TYPED_ARRAY_STATICS(Float32Array);
 IMPL_TYPED_ARRAY_STATICS(Float64Array);
 IMPL_TYPED_ARRAY_STATICS(Uint8ClampedArray);
 
-const Class TypedArrayObject::classes[ScalarTypeRepresentation::TYPE_MAX] = {
+Class TypedArrayObject::classes[ScalarTypeRepresentation::TYPE_MAX] = {
     IMPL_TYPED_ARRAY_FAST_CLASS(Int8Array),
     IMPL_TYPED_ARRAY_FAST_CLASS(Uint8Array),
     IMPL_TYPED_ARRAY_FAST_CLASS(Int16Array),
@@ -3639,7 +3639,7 @@ const Class TypedArrayObject::classes[ScalarTypeRepresentation::TYPE_MAX] = {
     IMPL_TYPED_ARRAY_FAST_CLASS(Uint8ClampedArray)
 };
 
-const Class TypedArrayObject::protoClasses[ScalarTypeRepresentation::TYPE_MAX] = {
+Class TypedArrayObject::protoClasses[ScalarTypeRepresentation::TYPE_MAX] = {
     IMPL_TYPED_ARRAY_PROTO_CLASS(Int8Array),
     IMPL_TYPED_ARRAY_PROTO_CLASS(Uint8Array),
     IMPL_TYPED_ARRAY_PROTO_CLASS(Int16Array),
@@ -3705,7 +3705,7 @@ InitArrayBufferClass(JSContext *cx)
     return arrayBufferProto;
 }
 
-const Class DataViewObject::protoClass = {
+Class DataViewObject::protoClass = {
     "DataViewPrototype",
     JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(DataViewObject::RESERVED_SLOTS) |
@@ -3719,7 +3719,7 @@ const Class DataViewObject::protoClass = {
     JS_ConvertStub
 };
 
-const Class DataViewObject::class_ = {
+Class DataViewObject::class_ = {
     "DataView",
     JSCLASS_HAS_PRIVATE |
     JSCLASS_IMPLEMENTS_BARRIERS |

@@ -38,7 +38,6 @@
 # include <android/log.h>
 # include "AndroidBridge.h"
 #endif
-#include "GeckoProfiler.h"
 
 struct nsCSSValueList;
 
@@ -497,7 +496,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
     LayoutDeviceToLayerScale resolution(1.0 / rootTransform.GetXScale(),
                                         1.0 / rootTransform.GetYScale());
 #else
-    LayoutDeviceToLayerScale resolution = metrics.mCumulativeResolution;
+    LayoutDeviceToLayerScale resolution = metrics.mResolution;
 #endif
     oldTransform.Scale(resolution.scale, resolution.scale, 1);
 
@@ -556,7 +555,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const LayoutDev
   // appears to be that metrics.mZoom is poorly initialized in some scenarios. In these scenarios,
   // however, we can assume there is no async zooming in progress and so the following statement
   // works fine.
-  CSSToScreenScale userZoom(metrics.mDevPixelsPerCSSPixel * metrics.mCumulativeResolution * LayerToScreenScale(1));
+  CSSToScreenScale userZoom(metrics.mDevPixelsPerCSSPixel.scale * metrics.mResolution.scale);
   ScreenPoint userScroll = metrics.mScrollOffset * userZoom;
   SyncViewportInfo(displayPort, geckoZoom, mLayersUpdated,
                    userScroll, userZoom, fixedLayerMargins,
@@ -580,10 +579,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const LayoutDev
   }
 
   LayerPoint translation = (userScroll / zoomAdjust) - geckoScroll;
-  treeTransform = gfx3DMatrix(ViewTransform(-translation,
-                                            userZoom
-                                          / metrics.mDevPixelsPerCSSPixel
-                                          / metrics.GetParentResolution()));
+  treeTransform = gfx3DMatrix(ViewTransform(-translation, userZoom / metrics.mDevPixelsPerCSSPixel));
 
   // The transform already takes the resolution scale into account.  Since we
   // will apply the resolution scale again when computing the effective
@@ -643,7 +639,6 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const LayoutDev
 bool
 AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame)
 {
-  PROFILER_LABEL("AsyncCompositionManager", "TransformShadowTree");
   Layer* root = mLayerManager->GetRoot();
   if (!root) {
     return false;
@@ -683,7 +678,7 @@ AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame)
                                             1.0 / rootTransform.GetYScale());
 #else
         LayoutDeviceToLayerScale resolution =
-            scrollableLayers[i]->AsContainerLayer()->GetFrameMetrics().mCumulativeResolution;
+            scrollableLayers[i]->AsContainerLayer()->GetFrameMetrics().mResolution;
 #endif
         TransformScrollableLayer(scrollableLayers[i], resolution);
       }

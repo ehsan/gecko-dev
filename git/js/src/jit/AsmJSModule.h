@@ -732,7 +732,7 @@ class AsmJSModuleObject : public JSObject
         module().sizeOfMisc(mallocSizeOf, asmJSModuleCode, asmJSModuleData);
     }
 
-    static const Class class_;
+    static Class class_;
 };
 
 }  // namespace js

@@ -1253,7 +1253,7 @@ gfxFontFamily::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
  * shaped-word caches to free up memory.
  */
 
-NS_IMPL_ISUPPORTS1(gfxFontCache::MemoryReporter, nsIMemoryReporter)
+NS_IMPL_ISUPPORTS1(gfxFontCache::MemoryReporter, nsIMemoryMultiReporter)
 
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(FontCacheMallocSizeOf)
 
@@ -1266,7 +1266,7 @@ gfxFontCache::MemoryReporter::GetName(nsACString &aName)
 
 NS_IMETHODIMP
 gfxFontCache::MemoryReporter::CollectReports
-    (nsIMemoryReporterCallback* aCb,
+    (nsIMemoryMultiReporterCallback* aCb,
      nsISupports* aClosure)
 {
     FontCacheSizes sizes;
@@ -1325,7 +1325,7 @@ gfxFontCache::Init()
     if (!gGlobalCache) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
-    NS_RegisterMemoryReporter(new MemoryReporter);
+    NS_RegisterMemoryMultiReporter(new MemoryReporter);
     return NS_OK;
 }
 
@@ -2958,9 +2958,7 @@ gfxFont::GetShapedWord(gfxContext *aContext,
                        uint32_t    aFlags)
 {
     // if the cache is getting too big, flush it and start over
-    uint32_t wordCacheMaxEntries =
-        gfxPlatform::GetPlatform()->WordCacheMaxEntries();
-    if (mWordCache->Count() > wordCacheMaxEntries) {
+    if (mWordCache->Count() > 10000) {
         NS_WARNING("flushing shaped-word cache");
         ClearCachedWords();
     }
@@ -3244,8 +3242,6 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
     }
 
     InitWordCache();
-    uint32_t wordCacheCharLimit =
-        gfxPlatform::GetPlatform()->WordCacheCharLimit();
 
     // the only flags we care about for ShapedWord construction/caching
     uint32_t flags = aTextRun->GetFlags();
@@ -3283,9 +3279,9 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
 
         // We've decided to break here (i.e. we're at the end of a "word");
         // shape the word and add it to the textrun.
-        // For words longer than the limit, we don't use the
+        // For words longer than gfxShapedWord::kMaxLength, we don't use the
         // font's word cache but just shape directly into the textrun.
-        if (length > wordCacheCharLimit) {
+        if (length > gfxShapedWord::kMaxLength) {
             bool ok = ShapeFragmentWithoutWordCache(aContext,
                                                     text + wordStart,
                                                     aRunStart + wordStart,

@@ -12,7 +12,6 @@
 #include "mozilla/gfx/ScaleFactor.h"
 #include "nsDeviceContext.h"
 #include "nsRect.h"
-#include "nsMargin.h"
 #include "mozilla/AppUnits.h"
 
 namespace mozilla {
@@ -89,13 +88,6 @@ struct CSSPixel {
                    NSAppUnitsToFloatPixels(aRect.y, float(AppUnitsPerCSSPixel())),
                    NSAppUnitsToFloatPixels(aRect.width, float(AppUnitsPerCSSPixel())),
                    NSAppUnitsToFloatPixels(aRect.height, float(AppUnitsPerCSSPixel())));
-  }
-
-  static CSSMargin FromAppUnits(const nsMargin& aMargin) {
-    return CSSMargin(NSAppUnitsToFloatPixels(aMargin.top, float(AppUnitsPerCSSPixel())),
-                     NSAppUnitsToFloatPixels(aMargin.right, float(AppUnitsPerCSSPixel())),
-                     NSAppUnitsToFloatPixels(aMargin.bottom, float(AppUnitsPerCSSPixel())),
-                     NSAppUnitsToFloatPixels(aMargin.left, float(AppUnitsPerCSSPixel())));
   }
 
   static CSSIntPoint FromAppUnitsRounded(const nsPoint& aPoint) {
@@ -201,7 +193,7 @@ struct LayerPixel {
 struct ScreenPixel {
 };
 
-// Operators to apply ScaleFactors directly to Points, Rects, Sizes and Margins
+// Operators to apply ScaleFactors directly to Points and Rects
 
 template<class src, class dst>
 gfx::PointTyped<dst> operator*(const gfx::PointTyped<src>& aPoint, const gfx::ScaleFactor<src, dst>& aScale) {
@@ -257,22 +249,6 @@ template<class src, class dst>
 gfx::SizeTyped<dst> operator/(const gfx::SizeTyped<src>& aSize, const gfx::ScaleFactor<dst, src>& aScale) {
   return gfx::SizeTyped<dst>(aSize.width / aScale.scale,
                               aSize.height / aScale.scale);
-}
-
-template<class src, class dst>
-gfx::MarginTyped<dst> operator*(const gfx::MarginTyped<src>& aMargin, const gfx::ScaleFactor<src, dst>& aScale) {
-  return gfx::MarginTyped<dst>(aMargin.top * aScale.scale,
-                               aMargin.right * aScale.scale,
-                               aMargin.bottom * aScale.scale,
-                               aMargin.left * aScale.scale);
-}
-
-template<class src, class dst>
-gfx::MarginTyped<dst> operator/(const gfx::MarginTyped<src>& aMargin, const gfx::ScaleFactor<dst, src>& aScale) {
-  return gfx::MarginTyped<dst>(aMargin.top / aScale.scale,
-                               aMargin.right / aScale.scale,
-                               aMargin.bottom / aScale.scale,
-                               aMargin.left / aScale.scale);
 }
 
 };

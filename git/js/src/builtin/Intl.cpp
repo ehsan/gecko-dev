@@ -38,8 +38,6 @@
 
 #include "jsobjinlines.h"
 
-#include "vm/ObjectImpl-inl.h"
-
 using namespace js;
 
 using mozilla::IsFinite;
@@ -547,7 +545,7 @@ static void collator_finalize(FreeOp *fop, JSObject *obj);
 static const uint32_t UCOLLATOR_SLOT = 0;
 static const uint32_t COLLATOR_SLOTS_COUNT = 1;
 
-static const Class CollatorClass = {
+static Class CollatorClass = {
     js_Object_str,
     JSCLASS_HAS_RESERVED_SLOTS(COLLATOR_SLOTS_COUNT),
     JS_PropertyStub,         /* addProperty */
@@ -1030,7 +1028,7 @@ static void numberFormat_finalize(FreeOp *fop, JSObject *obj);
 static const uint32_t UNUMBER_FORMAT_SLOT = 0;
 static const uint32_t NUMBER_FORMAT_SLOTS_COUNT = 1;
 
-static const Class NumberFormatClass = {
+static Class NumberFormatClass = {
     js_Object_str,
     JSCLASS_HAS_RESERVED_SLOTS(NUMBER_FORMAT_SLOTS_COUNT),
     JS_PropertyStub,         /* addProperty */
@@ -1486,7 +1484,7 @@ static void dateTimeFormat_finalize(FreeOp *fop, JSObject *obj);
 static const uint32_t UDATE_FORMAT_SLOT = 0;
 static const uint32_t DATE_TIME_FORMAT_SLOTS_COUNT = 1;
 
-static const Class DateTimeFormatClass = {
+static Class DateTimeFormatClass = {
     js_Object_str,
     JSCLASS_HAS_RESERVED_SLOTS(DATE_TIME_FORMAT_SLOTS_COUNT),
     JS_PropertyStub,         /* addProperty */
@@ -1968,7 +1966,7 @@ js::intl_FormatDateTime(JSContext *cx, unsigned argc, Value *vp)
 
 /******************** Intl ********************/
 
-const Class js::IntlClass = {
+Class js::IntlClass = {
     js_Object_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_Intl),
     JS_PropertyStub,         /* addProperty */

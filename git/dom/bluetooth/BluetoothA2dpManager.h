@@ -71,6 +71,8 @@ private:
   bool Init();
 
   void HandleShutdown();
+
+  void DispatchConnectionStatusChanged();
   void NotifyConnectionStatusChanged();
 
   nsString mDeviceAddress;

@@ -26,8 +26,6 @@
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
-#include "vm/ObjectImpl-inl.h"
-
 using namespace js;
 
 JSObject *
@@ -422,7 +420,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
 }
 
 GlobalObject *
-GlobalObject::create(JSContext *cx, const Class *clasp)
+GlobalObject::create(JSContext *cx, Class *clasp)
 {
     JS_ASSERT(clasp->flags & JSCLASS_IS_GLOBAL);
 
@@ -512,7 +510,7 @@ GlobalObject::createConstructor(JSContext *cx, Native ctor, JSAtom *nameArg, uns
 }
 
 static JSObject *
-CreateBlankProto(JSContext *cx, const Class *clasp, JSObject &proto, GlobalObject &global)
+CreateBlankProto(JSContext *cx, Class *clasp, JSObject &proto, GlobalObject &global)
 {
     JS_ASSERT(clasp != &JSObject::class_);
     JS_ASSERT(clasp != &JSFunction::class_);
@@ -525,7 +523,7 @@ CreateBlankProto(JSContext *cx, const Class *clasp, JSObject &proto, GlobalObjec
 }
 
 JSObject *
-GlobalObject::createBlankPrototype(JSContext *cx, const Class *clasp)
+GlobalObject::createBlankPrototype(JSContext *cx, Class *clasp)
 {
     Rooted<GlobalObject*> self(cx, this);
     JSObject *objectProto = getOrCreateObjectPrototype(cx);
@@ -536,7 +534,7 @@ GlobalObject::createBlankPrototype(JSContext *cx, const Class *clasp)
 }
 
 JSObject *
-GlobalObject::createBlankPrototypeInheriting(JSContext *cx, const Class *clasp, JSObject &proto)
+GlobalObject::createBlankPrototypeInheriting(JSContext *cx, Class *clasp, JSObject &proto)
 {
     return CreateBlankProto(cx, clasp, proto, *this);
 }
@@ -575,7 +573,7 @@ GlobalDebuggees_finalize(FreeOp *fop, JSObject *obj)
     fop->delete_((GlobalObject::DebuggerVector *) obj->getPrivate());
 }
 
-static const Class
+static Class
 GlobalDebuggees_class = {
     "GlobalDebuggee", JSCLASS_HAS_PRIVATE,
     JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,

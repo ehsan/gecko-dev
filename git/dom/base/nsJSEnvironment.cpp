@@ -1124,7 +1124,7 @@ nsJSContext::GetGlobalObject()
   }
 #endif
 
-  const JSClass *c = JS_GetClass(global);
+  JSClass *c = JS_GetClass(global);
 
   // Whenever we end up with globals that are JSCLASS_IS_DOMJSCLASS
   // and have an nsISupports DOM object, we will need to modify this

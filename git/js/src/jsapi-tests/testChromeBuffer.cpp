@@ -10,7 +10,7 @@ JSPrincipals system_principals = {
     1
 };
 
-const JSClass global_class = {
+JSClass global_class = {
     "global",
     JSCLASS_IS_GLOBAL | JSCLASS_GLOBAL_FLAGS,
     JS_PropertyStub,

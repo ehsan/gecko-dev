@@ -30,7 +30,9 @@
 #include "vm/GlobalObject.h"
 #include "vm/StringBuffer.h"
 
+#include "jsfuninlines.h"
 #include "jsobjinlines.h"
+#include "jsscriptinlines.h"
 
 using namespace js;
 using namespace js::gc;
@@ -54,7 +56,7 @@ static bool
 exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             MutableHandleObject objp);
 
-const Class ErrorObject::class_ = {
+Class ErrorObject::class_ = {
     js_Error_str,
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Error),

@@ -27,7 +27,7 @@ InitClass(JSContext* aCx, JSObject* aGlobal, JSObject* aProto,
 } // namespace chromeworker
 
 bool
-ClassIsWorker(const JSClass* aClass);
+ClassIsWorker(JSClass* aClass);
 
 END_WORKERS_NAMESPACE
 

@@ -185,8 +185,8 @@ ContainerRender(ContainerT* aContainer,
     ToMatrix4x4(aContainer->GetEffectiveTransform(), transform);
 
     const FrameMetrics& frame = aContainer->GetFrameMetrics();
-    LayerRect layerBounds = ScreenRect(frame.mCompositionBounds) * ScreenToLayerScale(1.0);
-    gfx::Rect rect(layerBounds.x, layerBounds.y, layerBounds.width, layerBounds.height);
+    LayerRect layerViewport = frame.mViewport * frame.LayersPixelsPerCSSPixel();
+    gfx::Rect rect(layerViewport.x, layerViewport.y, layerViewport.width, layerViewport.height);
     gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
     aManager->GetCompositor()->DrawDiagnostics(DIAGNOSTIC_CONTAINER,
                                                rect, clipRect,

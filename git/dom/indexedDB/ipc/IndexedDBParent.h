@@ -205,30 +205,22 @@ protected:
   virtual bool
   RecvPIndexedDBDatabaseConstructor(PIndexedDBDatabaseParent* aActor,
                                     const nsString& aName,
-                                    const uint64_t& aVersion,
-                                    const PersistenceType& aPersistenceType)
-                                    MOZ_OVERRIDE;
+                                    const uint64_t& aVersion) MOZ_OVERRIDE;
 
   virtual bool
   RecvPIndexedDBDeleteDatabaseRequestConstructor(
                                   PIndexedDBDeleteDatabaseRequestParent* aActor,
-                                  const nsString& aName,
-                                  const PersistenceType& aPersistenceType)
-                                  MOZ_OVERRIDE;
+                                  const nsString& aName) MOZ_OVERRIDE;
 
   virtual PIndexedDBDatabaseParent*
-  AllocPIndexedDBDatabaseParent(const nsString& aName, const uint64_t& aVersion,
-                                const PersistenceType& aPersistenceType)
+  AllocPIndexedDBDatabaseParent(const nsString& aName, const uint64_t& aVersion)
                                 MOZ_OVERRIDE;
 
   virtual bool
   DeallocPIndexedDBDatabaseParent(PIndexedDBDatabaseParent* aActor) MOZ_OVERRIDE;
 
   virtual PIndexedDBDeleteDatabaseRequestParent*
-  AllocPIndexedDBDeleteDatabaseRequestParent(
-                                        const nsString& aName,
-                                        const PersistenceType& aPersistenceType)
-                                        MOZ_OVERRIDE;
+  AllocPIndexedDBDeleteDatabaseRequestParent(const nsString& aName) MOZ_OVERRIDE;
 
   virtual bool
   DeallocPIndexedDBDeleteDatabaseRequestParent(

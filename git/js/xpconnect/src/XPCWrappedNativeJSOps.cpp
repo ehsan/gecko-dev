@@ -573,7 +573,7 @@ enum WNHelperType {
 static void
 WrappedNativeFinalize(js::FreeOp *fop, JSObject *obj, WNHelperType helperType)
 {
-    const js::Class* clazz = js::GetObjectClass(obj);
+    js::Class* clazz = js::GetObjectClass(obj);
     if (clazz->flags & JSCLASS_DOM_GLOBAL) {
         mozilla::dom::DestroyProtoAndIfaceCache(obj);
     }
@@ -604,7 +604,7 @@ XPC_WN_NoHelper_Finalize(js::FreeOp *fop, JSObject *obj)
 static void
 MarkWrappedNative(JSTracer *trc, JSObject *obj)
 {
-    const js::Class* clazz = js::GetObjectClass(obj);
+    js::Class* clazz = js::GetObjectClass(obj);
     if (clazz->flags & JSCLASS_DOM_GLOBAL) {
         mozilla::dom::TraceProtoAndIfaceCache(trc, obj);
     }
@@ -680,7 +680,7 @@ XPC_WN_OuterObject(JSContext *cx, HandleObject objArg)
     return obj;
 }
 
-const XPCWrappedNativeJSClass XPC_WN_NoHelper_JSClass = {
+XPCWrappedNativeJSClass XPC_WN_NoHelper_JSClass = {
   { // base
     "XPCWrappedNative_NoHelper",    // name;
     WRAPPER_SLOTS |
@@ -1028,7 +1028,7 @@ bool
 XPC_WN_JSOp_Enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
                       MutableHandleValue statep, MutableHandleId idp)
 {
-    const js::Class *clazz = js::GetObjectClass(obj);
+    js::Class *clazz = js::GetObjectClass(obj);
     if (!IS_WN_CLASS(clazz) || clazz == &XPC_WN_NoHelper_JSClass.base) {
         // obj must be a prototype object or a wrapper w/o a
         // helper. Short circuit this call to the default
@@ -1272,7 +1272,7 @@ MOZ_ALWAYS_INLINE JSObject*
 FixUpThisIfBroken(JSObject *obj, JSObject *funobj)
 {
     if (funobj) {
-        const js::Class *parentClass = js::GetObjectClass(js::GetObjectParent(funobj));
+        js::Class *parentClass = js::GetObjectClass(js::GetObjectParent(funobj));
         if (MOZ_UNLIKELY((IS_NOHELPER_CLASS(parentClass) || IS_CU_CLASS(parentClass)) &&
                          (js::GetObjectClass(obj) != parentClass)))
         {
@@ -1432,7 +1432,7 @@ XPC_WN_ModsAllowed_Proto_Resolve(JSContext *cx, HandleObject obj, HandleId id)
                                  enumFlag, nullptr);
 }
 
-const js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass = {
+js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass = {
     "XPC_WN_ModsAllowed_WithCall_Proto_JSClass", // name;
     WRAPPER_SLOTS, // flags;
 
@@ -1457,7 +1457,7 @@ const js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass = {
     XPC_WN_WithCall_ObjectOps
 };
 
-const js::Class XPC_WN_ModsAllowed_NoCall_Proto_JSClass = {
+js::Class XPC_WN_ModsAllowed_NoCall_Proto_JSClass = {
     "XPC_WN_ModsAllowed_NoCall_Proto_JSClass", // name;
     WRAPPER_SLOTS,                  // flags;
 
@@ -1544,7 +1544,7 @@ XPC_WN_NoMods_Proto_Resolve(JSContext *cx, HandleObject obj, HandleId id)
                                  enumFlag, nullptr);
 }
 
-const js::Class XPC_WN_NoMods_WithCall_Proto_JSClass = {
+js::Class XPC_WN_NoMods_WithCall_Proto_JSClass = {
     "XPC_WN_NoMods_WithCall_Proto_JSClass",    // name;
     WRAPPER_SLOTS,                             // flags;
 
@@ -1569,7 +1569,7 @@ const js::Class XPC_WN_NoMods_WithCall_Proto_JSClass = {
     XPC_WN_WithCall_ObjectOps
 };
 
-const js::Class XPC_WN_NoMods_NoCall_Proto_JSClass = {
+js::Class XPC_WN_NoMods_NoCall_Proto_JSClass = {
     "XPC_WN_NoMods_NoCall_Proto_JSClass",      // name;
     WRAPPER_SLOTS,                             // flags;
 
@@ -1649,7 +1649,7 @@ XPC_WN_TearOff_Finalize(js::FreeOp *fop, JSObject *obj)
     p->JSObjectFinalized();
 }
 
-const js::Class XPC_WN_Tearoff_JSClass = {
+js::Class XPC_WN_Tearoff_JSClass = {
     "WrappedNative_TearOff",                   // name;
     WRAPPER_SLOTS,                             // flags;
 

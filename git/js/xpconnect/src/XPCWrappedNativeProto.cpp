@@ -71,7 +71,7 @@ XPCWrappedNativeProto::Init(const XPCNativeScriptableCreateInfo* scriptableCreat
             return false;
     }
 
-    const js::Class* jsclazz;
+    js::Class* jsclazz;
 
     if (mScriptableInfo) {
         const XPCNativeScriptableFlags& flags(mScriptableInfo->GetFlags());

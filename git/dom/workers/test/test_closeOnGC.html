@@ -15,6 +15,13 @@
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
+  function CC() {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+          .getInterface(Components.interfaces.nsIDOMWindowUtils)
+          .garbageCollect();
+  }
+
   var worker = new Worker("closeOnGC_worker.js");
   worker.onmessage = function(event) {
     is(event.data, "ready");
@@ -26,7 +33,7 @@
     xhr.open("GET", "closeOnGC_server.sjs", false);
     xhr.send();
     if (xhr.responseText != "closed") {
-      SpecialPowers.gc();
+      CC();
       return;
     }
     clearInterval(interval);

@@ -2094,7 +2094,7 @@ CreateNativeGlobalForInner(JSContext* aCx,
   JS::CompartmentOptions options;
   if (top) {
     if (top->GetGlobalJSObject()) {
-      options.setSameZoneAs(top->GetGlobalJSObject());
+      options.zoneSpec = JS::SameZoneAs(top->GetGlobalJSObject());
     }
   }
 
@@ -8266,7 +8266,7 @@ void
 nsGlobalWindow::ActivateOrDeactivate(bool aActivate)
 {
   // Set / unset mIsActive on the top level window, which is used for the
-  // :-moz-window-inactive pseudoclass, and its sheet (if any).
+  // :-moz-window-inactive pseudoclass.
   nsCOMPtr<nsIWidget> mainWidget = GetMainWidget();
   if (!mainWidget)
     return;
@@ -8278,19 +8278,15 @@ nsGlobalWindow::ActivateOrDeactivate(bool aActivate)
     topLevelWidget = mainWidget;
   }
 
-  nsCOMPtr<nsPIDOMWindow> piMainWindow(
-    do_QueryInterface(static_cast<nsIDOMWindow*>(this)));
-  piMainWindow->SetActive(aActivate);
-
-  if (mainWidget != topLevelWidget) {
+  // Get the top level widget's nsGlobalWindow
+  nsCOMPtr<nsIDOMWindow> topLevelWindow;
+  if (topLevelWidget == mainWidget) {
+    topLevelWindow = static_cast<nsIDOMWindow*>(this);
+  } else {
     // This is a workaround for the following problem:
-    // When a window with an open sheet gains or loses focus, only the sheet
-    // window receives the NS_ACTIVATE/NS_DEACTIVATE event.  However the
-    // styling of the containing top level window also needs to change.  We
-    // get around this by calling nsPIDOMWindow::SetActive() on both windows.
-
-    // Get the top level widget's nsGlobalWindow
-    nsCOMPtr<nsIDOMWindow> topLevelWindow;
+    // When a window with an open sheet loses focus, only the sheet window
+    // receives the NS_DEACTIVATE event. However, it's not the sheet that
+    // should lose the active styling, but the containing top level window.
 
     // widgetListener should be a nsXULWindow
     nsIWidgetListener* listener = topLevelWidget->GetWidgetListener();
@@ -8299,11 +8295,10 @@ nsGlobalWindow::ActivateOrDeactivate(bool aActivate)
       nsCOMPtr<nsIInterfaceRequestor> req(do_QueryInterface(window));
       topLevelWindow = do_GetInterface(req);
     }
-
-    if (topLevelWindow) {
-      nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(topLevelWindow));
-      piWin->SetActive(aActivate);
-    }
+  }
+  if (topLevelWindow) {
+    nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(topLevelWindow));
+    piWin->SetActive(aActivate);
   }
 }
 

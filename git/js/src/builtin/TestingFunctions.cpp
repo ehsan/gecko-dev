@@ -19,11 +19,9 @@
 #include "jit/AsmJS.h"
 #include "jit/AsmJSLink.h"
 #include "vm/ForkJoin.h"
-#include "vm/GlobalObject.h"
 #include "vm/Interpreter.h"
-#include "vm/ProxyObject.h"
 
-#include "jscntxtinlines.h"
+#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace JS;
@@ -790,7 +788,7 @@ finalize_counter_finalize(JSFreeOp *fop, JSObject *obj)
     ++finalizeCount;
 }
 
-static const JSClass FinalizeCounterClass = {
+static JSClass FinalizeCounterClass = {
     "FinalizeCounter", JSCLASS_IS_ANONYMOUS,
     JS_PropertyStub,       /* addProperty */
     JS_DeletePropertyStub, /* delProperty */
@@ -1001,14 +999,6 @@ GetObjectMetadata(JSContext *cx, unsigned argc, jsval *vp)
 
 bool
 js::testingFunc_bailout(JSContext *cx, unsigned argc, jsval *vp)
-{
-    // NOP when not in IonMonkey
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return true;
-}
-
-bool
-js::testingFunc_assertFloat32(JSContext *cx, unsigned argc, jsval *vp)
 {
     // NOP when not in IonMonkey
     JS_SET_RVAL(cx, vp, JSVAL_VOID);

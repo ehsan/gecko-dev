@@ -16,7 +16,6 @@
 
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/CondVar.h"
-#include "mozilla/dom/quota/OriginOrPatternString.h"
 #include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/dom/quota/Utilities.h"
 #include "mozilla/dom/TabContext.h"
@@ -41,53 +40,6 @@ using namespace mozilla::dom;
 USING_QUOTA_NAMESPACE
 
 static NS_DEFINE_CID(kDOMSOF_CID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
-
-BEGIN_INDEXEDDB_NAMESPACE
-
-class FileManagerInfo
-{
-public:
-  already_AddRefed<FileManager>
-  GetFileManager(PersistenceType aPersistenceType,
-                 const nsAString& aName) const;
-
-  void
-  AddFileManager(FileManager* aFileManager);
-
-  bool
-  HasFileManagers() const
-  {
-    AssertIsOnIOThread();
-
-    return !mPersistentStorageFileManagers.IsEmpty() ||
-           !mTemporaryStorageFileManagers.IsEmpty();
-  }
-
-  void
-  InvalidateAllFileManagers() const;
-
-  void
-  InvalidateAndRemoveFileManagers(PersistenceType aPersistenceType);
-
-  void
-  InvalidateAndRemoveFileManager(PersistenceType aPersistenceType,
-                                 const nsAString& aName);
-
-private:
-  nsTArray<nsRefPtr<FileManager> >&
-  GetArray(PersistenceType aPersistenceType);
-
-  const nsTArray<nsRefPtr<FileManager> >&
-  GetImmutableArray(PersistenceType aPersistenceType) const
-  {
-    return const_cast<FileManagerInfo*>(this)->GetArray(aPersistenceType);
-  }
-
-  nsTArray<nsRefPtr<FileManager> > mPersistentStorageFileManagers;
-  nsTArray<nsRefPtr<FileManager> > mTemporaryStorageFileManagers;
-};
-
-END_INDEXEDDB_NAMESPACE
 
 namespace {
 
@@ -115,14 +67,10 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  GetFileReferencesHelper(PersistenceType aPersistenceType,
-                          const nsACString& aOrigin,
+  GetFileReferencesHelper(const nsACString& aOrigin,
                           const nsAString& aDatabaseName,
                           int64_t aFileId)
-  : mPersistenceType(aPersistenceType),
-    mOrigin(aOrigin),
-    mDatabaseName(aDatabaseName),
-    mFileId(aFileId),
+  : mOrigin(aOrigin), mDatabaseName(aDatabaseName), mFileId(aFileId),
     mMutex(IndexedDatabaseManager::FileMutex()),
     mCondVar(mMutex, "GetFileReferencesHelper::mCondVar"),
     mMemRefCnt(-1),
@@ -139,7 +87,6 @@ public:
                                   bool* aResult);
 
 private:
-  PersistenceType mPersistenceType;
   nsCString mOrigin;
   nsString mDatabaseName;
   int64_t mFileId;
@@ -153,15 +100,29 @@ private:
   bool mWaiting;
 };
 
-struct MOZ_STACK_CLASS InvalidateInfo
+PLDHashOperator
+InvalidateAndRemoveFileManagers(
+                           const nsACString& aKey,
+                           nsAutoPtr<nsTArray<nsRefPtr<FileManager> > >& aValue,
+                           void* aUserArg)
 {
-  InvalidateInfo(PersistenceType aPersistenceType, const nsACString& aPattern)
-  : persistenceType(aPersistenceType), pattern(aPattern)
-  { }
+  AssertIsOnIOThread();
+  NS_ASSERTION(!aKey.IsEmpty(), "Empty key!");
+  NS_ASSERTION(aValue, "Null pointer!");
 
-  PersistenceType persistenceType;
-  const nsACString& pattern;
-};
+  const nsACString* pattern =
+    static_cast<const nsACString*>(aUserArg);
+
+  if (!pattern || PatternMatchesOrigin(*pattern, aKey)) {
+    for (uint32_t i = 0; i < aValue->Length(); i++) {
+      nsRefPtr<FileManager>& fileManager = aValue->ElementAt(i);
+      fileManager->Invalidate();
+    }
+    return PL_DHASH_REMOVE;
+  }
+
+  return PL_DHASH_NEXT;
+}
 
 } // anonymous namespace
 
@@ -420,21 +381,26 @@ IndexedDatabaseManager::InLowDiskSpaceMode()
 #endif
 
 already_AddRefed<FileManager>
-IndexedDatabaseManager::GetFileManager(PersistenceType aPersistenceType,
-                                       const nsACString& aOrigin,
+IndexedDatabaseManager::GetFileManager(const nsACString& aOrigin,
                                        const nsAString& aDatabaseName)
 {
   AssertIsOnIOThread();
 
-  FileManagerInfo* info;
-  if (!mFileManagerInfos.Get(aOrigin, &info)) {
+  nsTArray<nsRefPtr<FileManager> >* array;
+  if (!mFileManagers.Get(aOrigin, &array)) {
     return nullptr;
   }
 
-  nsRefPtr<FileManager> fileManager =
-    info->GetFileManager(aPersistenceType, aDatabaseName);
+  for (uint32_t i = 0; i < array->Length(); i++) {
+    nsRefPtr<FileManager>& fileManager = array->ElementAt(i);
 
-  return fileManager.forget();
+    if (fileManager->DatabaseName().Equals(aDatabaseName)) {
+      nsRefPtr<FileManager> result = fileManager;
+      return result.forget();
+    }
+  }
+
+  return nullptr;
 }
 
 void
@@ -443,42 +409,13 @@ IndexedDatabaseManager::AddFileManager(FileManager* aFileManager)
   AssertIsOnIOThread();
   NS_ASSERTION(aFileManager, "Null file manager!");
 
-  FileManagerInfo* info;
-  if (!mFileManagerInfos.Get(aFileManager->Origin(), &info)) {
-    info = new FileManagerInfo();
-    mFileManagerInfos.Put(aFileManager->Origin(), info);
+  nsTArray<nsRefPtr<FileManager> >* array;
+  if (!mFileManagers.Get(aFileManager->Origin(), &array)) {
+    array = new nsTArray<nsRefPtr<FileManager> >();
+    mFileManagers.Put(aFileManager->Origin(), array);
   }
 
-  info->AddFileManager(aFileManager);
-}
-
-// static
-PLDHashOperator
-IndexedDatabaseManager::InvalidateAndRemoveFileManagers(
-                                             const nsACString& aKey,
-                                             nsAutoPtr<FileManagerInfo>& aValue,
-                                             void* aUserArg)
-{
-  AssertIsOnIOThread();
-  NS_ASSERTION(!aKey.IsEmpty(), "Empty key!");
-  NS_ASSERTION(aValue, "Null pointer!");
-
-  if (!aUserArg) {
-    aValue->InvalidateAllFileManagers();
-    return PL_DHASH_REMOVE;
-  }
-
-  InvalidateInfo* info = static_cast<InvalidateInfo*>(aUserArg);
-
-  if (PatternMatchesOrigin(info->pattern, aKey)) {
-    aValue->InvalidateAndRemoveFileManagers(info->persistenceType);
-
-    if (!aValue->HasFileManagers()) {
-      return PL_DHASH_REMOVE;
-    }
-  }
-
-  return PL_DHASH_NEXT;
+  array->AppendElement(aFileManager);
 }
 
 void
@@ -486,51 +423,43 @@ IndexedDatabaseManager::InvalidateAllFileManagers()
 {
   AssertIsOnIOThread();
 
-  mFileManagerInfos.Enumerate(InvalidateAndRemoveFileManagers, nullptr);
+  mFileManagers.Enumerate(InvalidateAndRemoveFileManagers, nullptr);
 }
 
 void
-IndexedDatabaseManager::InvalidateFileManagers(
-                                  PersistenceType aPersistenceType,
-                                  const OriginOrPatternString& aOriginOrPattern)
+IndexedDatabaseManager::InvalidateFileManagersForPattern(
+                                                     const nsACString& aPattern)
 {
   AssertIsOnIOThread();
-  NS_ASSERTION(!aOriginOrPattern.IsEmpty(), "Empty pattern!");
+  NS_ASSERTION(!aPattern.IsEmpty(), "Empty pattern!");
 
-  if (aOriginOrPattern.IsOrigin()) {
-    FileManagerInfo* info;
-    if (!mFileManagerInfos.Get(aOriginOrPattern, &info)) {
-      return;
-    }
-
-    info->InvalidateAndRemoveFileManagers(aPersistenceType);
-
-    if (!info->HasFileManagers()) {
-      mFileManagerInfos.Remove(aOriginOrPattern);
-    }
-  }
-  else {
-    InvalidateInfo info(aPersistenceType, aOriginOrPattern);
-    mFileManagerInfos.Enumerate(InvalidateAndRemoveFileManagers, &info);
-  }
+  mFileManagers.Enumerate(InvalidateAndRemoveFileManagers,
+                          const_cast<nsACString*>(&aPattern));
 }
 
 void
-IndexedDatabaseManager::InvalidateFileManager(PersistenceType aPersistenceType,
-                                              const nsACString& aOrigin,
+IndexedDatabaseManager::InvalidateFileManager(const nsACString& aOrigin,
                                               const nsAString& aDatabaseName)
 {
   AssertIsOnIOThread();
 
-  FileManagerInfo* info;
-  if (!mFileManagerInfos.Get(aOrigin, &info)) {
+  nsTArray<nsRefPtr<FileManager> >* array;
+  if (!mFileManagers.Get(aOrigin, &array)) {
     return;
   }
 
-  info->InvalidateAndRemoveFileManager(aPersistenceType, aDatabaseName);
+  for (uint32_t i = 0; i < array->Length(); i++) {
+    nsRefPtr<FileManager> fileManager = array->ElementAt(i);
+    if (fileManager->DatabaseName().Equals(aDatabaseName)) {
+      fileManager->Invalidate();
+      array->RemoveElementAt(i);
 
-  if (!info->HasFileManagers()) {
-    mFileManagerInfos.Remove(aOrigin);
+      if (array->IsEmpty()) {
+        mFileManagers.Remove(aOrigin);
+      }
+
+      break;
+    }
   }
 }
 
@@ -563,18 +492,16 @@ IndexedDatabaseManager::AsyncDeleteFile(FileManager* aFileManager,
 
 nsresult
 IndexedDatabaseManager::BlockAndGetFileReferences(
-                                               PersistenceType aPersistenceType,
-                                               const nsACString& aOrigin,
-                                               const nsAString& aDatabaseName,
-                                               int64_t aFileId,
-                                               int32_t* aRefCnt,
-                                               int32_t* aDBRefCnt,
-                                               int32_t* aSliceRefCnt,
-                                               bool* aResult)
+                                                 const nsACString& aOrigin,
+                                                 const nsAString& aDatabaseName,
+                                                 int64_t aFileId,
+                                                 int32_t* aRefCnt,
+                                                 int32_t* aDBRefCnt,
+                                                 int32_t* aSliceRefCnt,
+                                                 bool* aResult)
 {
   nsRefPtr<GetFileReferencesHelper> helper =
-    new GetFileReferencesHelper(aPersistenceType, aOrigin, aDatabaseName,
-                                aFileId);
+    new GetFileReferencesHelper(aOrigin, aDatabaseName, aFileId);
 
   nsresult rv = helper->DispatchAndReturnFileReferences(aRefCnt, aDBRefCnt,
                                                         aSliceRefCnt, aResult);
@@ -675,105 +602,6 @@ IndexedDatabaseManager::Observe(nsISupports* aSubject, const char* aTopic,
    return NS_ERROR_UNEXPECTED;
  }
 
-already_AddRefed<FileManager>
-FileManagerInfo::GetFileManager(PersistenceType aPersistenceType,
-                                const nsAString& aName) const
-{
-  AssertIsOnIOThread();
-
-  const nsTArray<nsRefPtr<FileManager> >& managers =
-    GetImmutableArray(aPersistenceType);
-
-  for (uint32_t i = 0; i < managers.Length(); i++) {
-    const nsRefPtr<FileManager>& fileManager = managers[i];
-
-    if (fileManager->DatabaseName() == aName) {
-      nsRefPtr<FileManager> result = fileManager;
-      return result.forget();
-    }
-  }
-
-  return nullptr;
-}
-
-void
-FileManagerInfo::AddFileManager(FileManager* aFileManager)
-{
-  AssertIsOnIOThread();
-
-  nsTArray<nsRefPtr<FileManager> >& managers = GetArray(aFileManager->Type());
-
-  NS_ASSERTION(!managers.Contains(aFileManager), "Adding more than once?!");
-
-  managers.AppendElement(aFileManager);
-}
-
-void
-FileManagerInfo::InvalidateAllFileManagers() const
-{
-  AssertIsOnIOThread();
-
-  uint32_t i;
-
-  for (i = 0; i < mPersistentStorageFileManagers.Length(); i++) {
-    mPersistentStorageFileManagers[i]->Invalidate();
-  }
-
-  for (i = 0; i < mTemporaryStorageFileManagers.Length(); i++) {
-    mTemporaryStorageFileManagers[i]->Invalidate();
-  }
-}
-
-void
-FileManagerInfo::InvalidateAndRemoveFileManagers(
-                                               PersistenceType aPersistenceType)
-{
-  AssertIsOnIOThread();
-
-  nsTArray<nsRefPtr<FileManager > >& managers = GetArray(aPersistenceType);
-
-  for (uint32_t i = 0; i < managers.Length(); i++) {
-    managers[i]->Invalidate();
-  }
-
-  managers.Clear();
-}
-
-void
-FileManagerInfo::InvalidateAndRemoveFileManager(
-                                               PersistenceType aPersistenceType,
-                                               const nsAString& aName)
-{
-  AssertIsOnIOThread();
-
-  nsTArray<nsRefPtr<FileManager > >& managers = GetArray(aPersistenceType);
-
-  for (uint32_t i = 0; i < managers.Length(); i++) {
-    nsRefPtr<FileManager>& fileManager = managers[i];
-    if (fileManager->DatabaseName() == aName) {
-      fileManager->Invalidate();
-      managers.RemoveElementAt(i);
-      return;
-    }
-  }
-}
-
-nsTArray<nsRefPtr<FileManager> >&
-FileManagerInfo::GetArray(PersistenceType aPersistenceType)
-{
-  switch (aPersistenceType) {
-    case PERSISTENCE_TYPE_PERSISTENT:
-      return mPersistentStorageFileManagers;
-    case PERSISTENCE_TYPE_TEMPORARY:
-      return mTemporaryStorageFileManagers;
-
-    case PERSISTENCE_TYPE_INVALID:
-    default:
-      MOZ_CRASH("Bad storage type value!");
-      return mPersistentStorageFileManagers;
-  }
-}
-
 AsyncDeleteFileRunnable::AsyncDeleteFileRunnable(FileManager* aFileManager,
                                                  int64_t aFileId)
 : mFileManager(aFileManager), mFileId(aFileId)
@@ -809,9 +637,7 @@ AsyncDeleteFileRunnable::Run()
     QuotaManager* quotaManager = QuotaManager::Get();
     NS_ASSERTION(quotaManager, "Shouldn't be null!");
 
-    quotaManager->DecreaseUsageForOrigin(mFileManager->Type(),
-                                         mFileManager->Group(),
-                                         mFileManager->Origin(), fileSize);
+    quotaManager->DecreaseUsageForOrigin(mFileManager->Origin(), fileSize);
   }
 
   directory = mFileManager->GetJournalDirectory();
@@ -866,7 +692,7 @@ GetFileReferencesHelper::Run()
   NS_ASSERTION(mgr, "This should never fail!");
 
   nsRefPtr<FileManager> fileManager =
-    mgr->GetFileManager(mPersistenceType, mOrigin, mDatabaseName);
+    mgr->GetFileManager(mOrigin, mDatabaseName);
 
   if (fileManager) {
     nsRefPtr<FileInfo> fileInfo = fileManager->GetFileInfo(mFileId);

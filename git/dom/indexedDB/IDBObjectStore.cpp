@@ -511,7 +511,7 @@ class ThreadLocalJSRuntime
   JSContext* mContext;
   JSObject* mGlobal;
 
-  static const JSClass sGlobalClass;
+  static JSClass sGlobalClass;
   static const unsigned sRuntimeHeapSize = 768 * 1024;
 
   ThreadLocalJSRuntime()
@@ -582,7 +582,7 @@ class ThreadLocalJSRuntime
   }
 };
 
-const JSClass ThreadLocalJSRuntime::sGlobalClass = {
+JSClass ThreadLocalJSRuntime::sGlobalClass = {
   "IndexedDBTransactionThreadGlobal",
   JSCLASS_GLOBAL_FLAGS,
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -852,7 +852,7 @@ public:
 
 } // anonymous namespace
 
-const JSClass IDBObjectStore::sDummyPropJSClass = {
+JSClass IDBObjectStore::sDummyPropJSClass = {
   "dummy", 0,
   JS_PropertyStub,  JS_DeletePropertyStub,
   JS_PropertyStub,  JS_StrictPropertyStub,
@@ -3015,10 +3015,8 @@ AddHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
         nativeFile = fileManager->GetFileForId(directory, id);
         NS_ENSURE_TRUE(nativeFile, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-        IDBDatabase* database = mObjectStore->Transaction()->Database();
-        nsRefPtr<FileOutputStream> outputStream =
-          FileOutputStream::Create(database->Type(), database->Group(),
-                                   database->Origin(), nativeFile);
+        nsRefPtr<FileOutputStream> outputStream = FileOutputStream::Create(
+          mObjectStore->Transaction()->Database()->Origin(), nativeFile);
         NS_ENSURE_TRUE(outputStream, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
         rv = CopyData(inputStream, outputStream);

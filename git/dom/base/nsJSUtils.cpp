@@ -47,7 +47,7 @@ nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
 nsIScriptGlobalObject *
 nsJSUtils::GetStaticScriptGlobal(JSObject* aObj)
 {
-  const JSClass* clazz;
+  JSClass* clazz;
   JSObject* glob = aObj; // starting point for search
 
   if (!glob)
