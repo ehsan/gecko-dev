@@ -119,16 +119,13 @@ class Compiler : public BaseCompiler
     /* InlineFrameAssembler wants to see this. */
   public:
     struct CallGenInfo {
-        CallGenInfo(uint32 argc)
-          : argc(argc)
-        { }
+        CallGenInfo(jsbytecode *pc) : pc(pc) {}
 
         /*
          * These members map to members in CallICInfo. See that structure for
          * more comments.
          */
         jsbytecode   *pc;
-        uint32       argc;
         DataLabelPtr funGuard;
         Jump         funJump;
         Jump         hotJump;
@@ -142,7 +139,7 @@ class Compiler : public BaseCompiler
         Jump         oolJump;
         RegisterID   funObjReg;
         RegisterID   funPtrReg;
-        uint32       frameDepth;
+        FrameSize    frameSize;
     };
 
   private:
@@ -153,9 +150,11 @@ class Compiler : public BaseCompiler
      * absolute address of the join point is known.
      */
     struct CallPatchInfo {
+        CallPatchInfo() : hasFastNcode(false), hasSlowNcode(false) {}
         Label joinPoint;
         DataLabelPtr fastNcodePatch;
         DataLabelPtr slowNcodePatch;
+        bool hasFastNcode;
         bool hasSlowNcode;
     };
 
@@ -289,6 +288,7 @@ class Compiler : public BaseCompiler
     bool debugMode;
     bool addTraceHints;
     bool oomInVector;       // True if we have OOM'd appending to a vector. 
+    enum { NoApplyTricks, LazyArgsObj } applyTricks;
 
     Compiler *thisFromCtor() { return this; }
 
@@ -321,6 +321,7 @@ class Compiler : public BaseCompiler
     bool jumpInScript(Jump j, jsbytecode *pc);
     bool compareTwoValues(JSContext *cx, JSOp op, const Value &lhs, const Value &rhs);
     void addCallSite(uint32 id, bool stub);
+    bool canUseApplyTricks();
 
     /* Emitting helpers. */
     void restoreFrameRegs(Assembler &masm);
@@ -354,6 +355,11 @@ class Compiler : public BaseCompiler
     void dispatchCall(VoidPtrStubUInt32 stub, uint32 argc);
     void interruptCheckHelper();
     void emitUncachedCall(uint32 argc, bool callingNew);
+    void checkCallApplySpeculation(uint32 callImmArgc, uint32 speculatedArgc,
+                                   FrameEntry *origCallee, FrameEntry *origThis,
+                                   MaybeRegisterID origCalleeType, RegisterID origCalleeData,
+                                   MaybeRegisterID origThisType, RegisterID origThisData,
+                                   Jump *uncachedCallSlowRejoin, CallPatchInfo *uncachedCallPatch);
     void inlineCallHelper(uint32 argc, bool callingNew);
     void fixPrimitiveReturn(Assembler *masm, FrameEntry *fe);
     void jsop_gnameinc(JSOp op, VoidStubAtom stub, uint32 index);
@@ -384,6 +390,7 @@ class Compiler : public BaseCompiler
     void enterBlock(JSObject *obj);
     void leaveBlock();
     void emitEval(uint32 argc);
+    void jsop_arguments();
 
     /* Fast arithmetic. */
     void jsop_binary(JSOp op, VoidStub stub);

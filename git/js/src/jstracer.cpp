@@ -4045,8 +4045,8 @@ TraceRecorder::snapshot(ExitType exitType)
     bool resumeAfter = (pendingSpecializedNative &&
                         JSTN_ERRTYPE(pendingSpecializedNative) == FAIL_STATUS);
     if (resumeAfter) {
-        JS_ASSERT(*pc == JSOP_CALL || *pc == JSOP_APPLY || *pc == JSOP_NEW ||
-                  *pc == JSOP_SETPROP || *pc == JSOP_SETNAME);
+        JS_ASSERT(*pc == JSOP_CALL || *pc == JSOP_FUNAPPLY || *pc == JSOP_FUNCALL ||
+                  *pc == JSOP_NEW || *pc == JSOP_SETPROP || *pc == JSOP_SETNAME);
         pc += cs.length;
         regs->pc = pc;
         MUST_FLOW_THROUGH("restore_pc");
@@ -6646,7 +6646,7 @@ LeaveTree(TraceMonitor *tm, TracerState& state, VMSideExit* lr)
              */
             JSFrameRegs* regs = cx->regs;
             JSOp op = (JSOp) *regs->pc;
-            JS_ASSERT(op == JSOP_CALL || op == JSOP_APPLY || op == JSOP_NEW ||
+            JS_ASSERT(op == JSOP_CALL || op == JSOP_FUNAPPLY || op == JSOP_FUNCALL || op == JSOP_NEW ||
                       op == JSOP_GETPROP || op == JSOP_GETTHISPROP || op == JSOP_GETARGPROP ||
                       op == JSOP_GETLOCALPROP || op == JSOP_LENGTH ||
                       op == JSOP_GETELEM || op == JSOP_CALLELEM || op == JSOP_CALLPROP ||
@@ -8630,9 +8630,31 @@ TraceRecorder::inc(const Value &v, LIns*& v_ins, jsint incr, bool pre)
 JS_REQUIRES_STACK RecordingStatus
 TraceRecorder::incHelper(const Value &v, LIns* v_ins, LIns*& v_after, jsint incr)
 {
-    if (!v.isNumber())
-        RETURN_STOP("can only inc numbers");
-    v_after = alu(LIR_addd, v.toNumber(), incr, v_ins, w.immd(incr));
+    // FIXME: Bug 606071 on making this work for objects.
+    if (!v.isPrimitive())
+        RETURN_STOP("can inc primitives only");
+
+    if (v.isUndefined()) {
+        v_after = w.immd(js_NaN);
+    } else if (v.isNull()) {
+        v_after = w.immd(incr);
+    } else {
+        if (v.isBoolean()) {
+            v_ins = w.i2d(v_ins);
+        } else if (v.isString()) {
+            LIns* args[] = { v_ins, cx_ins };
+            v_ins = w.call(&js_StringToNumber_ci, args);
+        } else {
+            JS_ASSERT(v.isNumber());
+        }
+
+        jsdouble num;
+        AutoValueRooter tvr(cx);
+        *tvr.addr() = v;
+        ValueToNumber(cx, tvr.value(), &num);
+        v_after = alu(LIR_addd, num, incr, v_ins, w.immd(incr));
+    }
+
     return RECORD_CONTINUE;
 }
 
@@ -11032,7 +11054,8 @@ TraceRecorder::callNative(uintN argc, JSOp mode)
 {
     LIns* args[5];
 
-    JS_ASSERT(mode == JSOP_CALL || mode == JSOP_NEW || mode == JSOP_APPLY);
+    JS_ASSERT(mode == JSOP_CALL || mode == JSOP_NEW || mode == JSOP_FUNAPPLY ||
+              mode == JSOP_FUNCALL);
 
     Value* vp = &stackval(0 - (2 + argc));
     JSObject* funobj = &vp[0].toObject();
@@ -13155,43 +13178,60 @@ TraceRecorder::interpretedFunctionCall(Value& fval, JSFunction* fun, uintN argc,
     return RECORD_CONTINUE;
 }
 
+/*
+ * We implement JSOP_FUNAPPLY/JSOP_FUNCALL using imacros
+ */
+static inline JSOp
+GetCallMode(JSStackFrame *fp)
+{
+    if (fp->hasImacropc()) {
+        JSOp op = (JSOp) *fp->imacropc();
+        if (op == JSOP_FUNAPPLY || op == JSOP_FUNCALL)
+            return op;
+    }
+    return JSOP_CALL;
+}
+
 JS_REQUIRES_STACK AbortableRecordingStatus
 TraceRecorder::record_JSOP_CALL()
 {
     uintN argc = GET_ARGC(cx->regs->pc);
     cx->assertValidStackDepth(argc + 2);
-    return InjectStatus(functionCall(argc,
-                                     (cx->fp()->hasImacropc() && *cx->fp()->imacropc() == JSOP_APPLY)
-                                        ? JSOP_APPLY
-                                        : JSOP_CALL));
+    return InjectStatus(functionCall(argc, GetCallMode(cx->fp())));
 }
 
-static jsbytecode* apply_imacro_table[] = {
-    apply_imacros.apply0,
-    apply_imacros.apply1,
-    apply_imacros.apply2,
-    apply_imacros.apply3,
-    apply_imacros.apply4,
-    apply_imacros.apply5,
-    apply_imacros.apply6,
-    apply_imacros.apply7,
-    apply_imacros.apply8
+static jsbytecode* funapply_imacro_table[] = {
+    funapply_imacros.apply0,
+    funapply_imacros.apply1,
+    funapply_imacros.apply2,
+    funapply_imacros.apply3,
+    funapply_imacros.apply4,
+    funapply_imacros.apply5,
+    funapply_imacros.apply6,
+    funapply_imacros.apply7,
+    funapply_imacros.apply8
 };
 
-static jsbytecode* call_imacro_table[] = {
-    apply_imacros.call0,
-    apply_imacros.call1,
-    apply_imacros.call2,
-    apply_imacros.call3,
-    apply_imacros.call4,
-    apply_imacros.call5,
-    apply_imacros.call6,
-    apply_imacros.call7,
-    apply_imacros.call8
+static jsbytecode* funcall_imacro_table[] = {
+    funcall_imacros.call0,
+    funcall_imacros.call1,
+    funcall_imacros.call2,
+    funcall_imacros.call3,
+    funcall_imacros.call4,
+    funcall_imacros.call5,
+    funcall_imacros.call6,
+    funcall_imacros.call7,
+    funcall_imacros.call8
 };
 
 JS_REQUIRES_STACK AbortableRecordingStatus
-TraceRecorder::record_JSOP_APPLY()
+TraceRecorder::record_JSOP_FUNCALL()
+{
+    return record_JSOP_FUNAPPLY();
+}
+
+JS_REQUIRES_STACK AbortableRecordingStatus
+TraceRecorder::record_JSOP_FUNAPPLY()
 {
     jsbytecode *pc = cx->regs->pc;
     uintN argc = GET_ARGC(pc);
@@ -13262,16 +13302,16 @@ TraceRecorder::record_JSOP_APPLY()
             RETURN_STOP_A("arguments parameter of apply is not a dense array or argments object");
         }
 
-        if (length >= JS_ARRAY_LENGTH(apply_imacro_table))
+        if (length >= JS_ARRAY_LENGTH(funapply_imacro_table))
             RETURN_STOP_A("too many arguments to apply");
 
-        return InjectStatus(callImacro(apply_imacro_table[length]));
+        return InjectStatus(callImacro(funapply_imacro_table[length]));
     }
 
-    if (argc >= JS_ARRAY_LENGTH(call_imacro_table))
+    if (argc >= JS_ARRAY_LENGTH(funcall_imacro_table))
         RETURN_STOP_A("too many arguments to call");
 
-    return InjectStatus(callImacro(call_imacro_table[argc]));
+    return InjectStatus(callImacro(funcall_imacro_table[argc]));
 }
 
 JS_REQUIRES_STACK AbortableRecordingStatus
@@ -13283,7 +13323,8 @@ TraceRecorder::record_NativeCallComplete()
 #ifdef DEBUG
     JS_ASSERT(pendingSpecializedNative);
     jsbytecode* pc = cx->regs->pc;
-    JS_ASSERT(*pc == JSOP_CALL || *pc == JSOP_APPLY || *pc == JSOP_NEW || *pc == JSOP_SETPROP);
+    JS_ASSERT(*pc == JSOP_CALL || *pc == JSOP_FUNCALL || *pc == JSOP_FUNAPPLY ||
+              *pc == JSOP_NEW || *pc == JSOP_SETPROP);
 #endif
 
     Value& v = stackval(-1);
@@ -15530,9 +15571,12 @@ TraceRecorder::record_JSOP_ARRAYPUSH()
     Value &elt = stackval(-1);
     LIns *elt_ins = box_value_for_native_call(elt, get(&elt));
 
+    enterDeepBailCall();
+
     LIns *args[] = { elt_ins, array_ins, cx_ins };
-    LIns *ok_ins = w.call(&js_ArrayCompPush_tn_ci, args);
-    guard(false, w.eqi0(ok_ins), OOM_EXIT);
+    pendingGuardCondition = w.call(&js_ArrayCompPush_tn_ci, args);
+
+    leaveDeepBailCall();
     return ARECORD_CONTINUE;
 }
 

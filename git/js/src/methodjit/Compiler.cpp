@@ -23,6 +23,7 @@
  * Contributor(s):
  *   David Anderson <danderson@mozilla.com>
  *   David Mandelin <dmandelin@mozilla.com>
+ *   Jan de Mooij <jandemooij@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -65,7 +66,22 @@ using namespace js::mjit;
 using namespace js::mjit::ic;
 #endif
 
-#define ADD_CALLSITE(stub) if (debugMode) addCallSite(__LINE__, (stub))
+/* This macro should be used after stub calls (which automatically set callLabel). */
+#define ADD_CALLSITE(stub)                                                    \
+    if (debugMode) addCallSite(__LINE__, (stub))
+
+/* For custom calls/jumps, this macro sets callLabel before adding the callsite. */
+#if (defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)) || defined(_WIN64)
+# define ADD_NON_STUB_CALLSITE(stub)                                          \
+    if (stub)                                                                 \
+        stubcc.masm.callLabel = stubcc.masm.label()                           \
+    else                                                                      \
+        masm.callLabel = masm.label();                                        \
+    ADD_CALLSITE(stub)
+#else
+# define ADD_NON_STUB_CALLSITE(stub)                                          \
+    ADD_CALLSITE(stub)
+#endif
 
 #define RETURN_IF_OOM(retval)                                   \
     JS_BEGIN_MACRO                                              \
@@ -110,11 +126,12 @@ mjit::Compiler::Compiler(JSContext *cx, JSStackFrame *fp)
     callSites(CompilerAllocPolicy(cx, *thisFromCtor())), 
     doubleList(CompilerAllocPolicy(cx, *thisFromCtor())),
     stubcc(cx, *thisFromCtor(), frame, script),
-    debugMode(cx->compartment->debugMode)
+    debugMode(cx->compartment->debugMode),
 #if defined JS_TRACER
-    , addTraceHints(cx->traceJitEnabled)
+    addTraceHints(cx->traceJitEnabled),
 #endif
-    , oomInVector(false)
+    oomInVector(false),
+    applyTricks(NoApplyTricks)
 {
 }
 
@@ -519,10 +536,9 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
             JS_ASSERT(cics[i].hotPathOffset == offset);
 
             cics[i].pc = callICs[i].pc;
-            cics[i].argc = callICs[i].argc;
+            cics[i].frameSize = callICs[i].frameSize;
             cics[i].funObjReg = callICs[i].funObjReg;
             cics[i].funPtrReg = callICs[i].funPtrReg;
-            cics[i].frameDepth = callICs[i].frameDepth;
             stubCode.patch(callICs[i].addrLabel1, &cics[i]);
             stubCode.patch(callICs[i].addrLabel2, &cics[i]);
         } 
@@ -590,7 +606,8 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     for (size_t i = 0; i < callPatches.length(); i++) {
         CallPatchInfo &patch = callPatches[i];
 
-        fullCode.patch(patch.fastNcodePatch, fullCode.locationOf(patch.joinPoint));
+        if (patch.hasFastNcode)
+            fullCode.patch(patch.fastNcodePatch, fullCode.locationOf(patch.joinPoint));
         if (patch.hasSlowNcode)
             stubCode.patch(patch.slowNcodePatch, fullCode.locationOf(patch.joinPoint));
     }
@@ -888,8 +905,17 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_IFNE)
 
           BEGIN_CASE(JSOP_ARGUMENTS)
-            prepareStubCall(Uses(0));
-            stubCall(stubs::Arguments);
+            /*
+             * For calls of the form 'f.apply(x, arguments)' we can avoid
+             * creating an args object by having ic::SplatApplyArgs pull
+             * directly from the stack. To do this, we speculate here that
+             * 'apply' actually refers to js_fun_apply. If this is not true,
+             * the slow path in JSOP_FUNAPPLY will create the args object.
+             */
+            if (canUseApplyTricks())
+                applyTricks = LazyArgsObj;
+            else
+                jsop_arguments();
             frame.pushSynced();
           END_CASE(JSOP_ARGUMENTS)
 
@@ -1270,7 +1296,8 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_EVAL)
 
           BEGIN_CASE(JSOP_CALL)
-          BEGIN_CASE(JSOP_APPLY)
+          BEGIN_CASE(JSOP_FUNAPPLY)
+          BEGIN_CASE(JSOP_FUNCALL)
           {
             JaegerSpew(JSpew_Insns, " --- SCRIPTED CALL --- \n");
             inlineCallHelper(GET_ARGC(PC), false);
@@ -2285,7 +2312,6 @@ void
 mjit::Compiler::emitUncachedCall(uint32 argc, bool callingNew)
 {
     CallPatchInfo callPatch;
-    callPatch.hasSlowNcode = false;
 
     RegisterID r0 = Registers::ReturnReg;
     VoidPtrStubUInt32 stub = callingNew ? stubs::UncachedNew : stubs::UncachedCall;
@@ -2299,16 +2325,13 @@ mjit::Compiler::emitUncachedCall(uint32 argc, bool callingNew)
     Jump notCompiled = masm.branchTestPtr(Assembler::Zero, r0, r0);
 
     masm.loadPtr(FrameAddress(offsetof(VMFrame, regs.fp)), JSFrameReg);
+    callPatch.hasFastNcode = true;
     callPatch.fastNcodePatch =
         masm.storePtrWithPatch(ImmPtr(NULL),
                                Address(JSFrameReg, JSStackFrame::offsetOfncode()));
 
     masm.jump(r0);
-
-#if (defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)) || defined(_WIN64)
-    masm.callLabel = masm.label();
-#endif
-    ADD_CALLSITE(false);
+    ADD_NON_STUB_CALLSITE(false);
 
     callPatch.joinPoint = masm.label();
     masm.loadPtr(Address(JSFrameReg, JSStackFrame::offsetOfPrev()), JSFrameReg);
@@ -2323,70 +2346,253 @@ mjit::Compiler::emitUncachedCall(uint32 argc, bool callingNew)
     callPatches.append(callPatch);
 }
 
+static bool
+IsLowerableFunCallOrApply(jsbytecode *pc)
+{
+#ifdef JS_MONOIC
+    return (*pc == JSOP_FUNCALL && GET_ARGC(pc) >= 1) ||
+           (*pc == JSOP_FUNAPPLY && GET_ARGC(pc) == 2);
+#else
+    return false;
+#endif
+}
+
+void
+mjit::Compiler::checkCallApplySpeculation(uint32 callImmArgc, uint32 speculatedArgc,
+                                          FrameEntry *origCallee, FrameEntry *origThis,
+                                          MaybeRegisterID origCalleeType, RegisterID origCalleeData,
+                                          MaybeRegisterID origThisType, RegisterID origThisData,
+                                          Jump *uncachedCallSlowRejoin, CallPatchInfo *uncachedCallPatch)
+{
+    JS_ASSERT(IsLowerableFunCallOrApply(PC));
+
+    /*
+     * if (origCallee.isObject() &&
+     *     origCallee.toObject().isFunction &&
+     *     origCallee.toObject().getFunctionPrivate() == js_fun_{call,apply})
+     */
+    MaybeJump isObj;
+    if (origCalleeType.isSet())
+        isObj = masm.testObject(Assembler::NotEqual, origCalleeType.reg());
+    Jump isFun = masm.testFunction(Assembler::NotEqual, origCalleeData);
+    masm.loadFunctionPrivate(origCalleeData, origCalleeData);
+    Native native = *PC == JSOP_FUNCALL ? js_fun_call : js_fun_apply;
+    Jump isNative = masm.branchPtr(Assembler::NotEqual,
+                                   Address(origCalleeData, JSFunction::offsetOfNativeOrScript()),
+                                   ImmPtr(JS_FUNC_TO_DATA_PTR(void *, native)));
+
+    /*
+     * If speculation fails, we can't use the ic, since it is compiled on the
+     * assumption that speculation succeeds. Instead, just do an uncached call.
+     */
+    {
+        if (isObj.isSet())
+            stubcc.linkExitDirect(isObj.getJump(), stubcc.masm.label());
+        stubcc.linkExitDirect(isFun, stubcc.masm.label());
+        stubcc.linkExitDirect(isNative, stubcc.masm.label());
+
+        int32 frameDepthAdjust;
+        if (applyTricks == LazyArgsObj) {
+            stubcc.call(stubs::Arguments);
+            frameDepthAdjust = +1;
+        } else {
+            frameDepthAdjust = 0;
+        }
+
+        stubcc.masm.move(Imm32(callImmArgc), Registers::ArgReg1);
+        JaegerSpew(JSpew_Insns, " ---- BEGIN SLOW CALL CODE ---- \n");
+        stubcc.masm.stubCall(JS_FUNC_TO_DATA_PTR(void *, stubs::UncachedCall),
+                             PC, frame.frameDepth() + frameDepthAdjust);
+        JaegerSpew(JSpew_Insns, " ---- END SLOW CALL CODE ---- \n");
+        ADD_CALLSITE(true);
+
+        RegisterID r0 = Registers::ReturnReg;
+        Jump notCompiled = stubcc.masm.branchTestPtr(Assembler::Zero, r0, r0);
+
+        stubcc.masm.loadPtr(FrameAddress(offsetof(VMFrame, regs.fp)), JSFrameReg);
+        Address ncodeAddr(JSFrameReg, JSStackFrame::offsetOfncode());
+        uncachedCallPatch->hasSlowNcode = true;
+        uncachedCallPatch->slowNcodePatch = stubcc.masm.storePtrWithPatch(ImmPtr(NULL), ncodeAddr);
+
+        stubcc.masm.jump(r0);
+        ADD_NON_STUB_CALLSITE(true);
+
+        notCompiled.linkTo(stubcc.masm.label(), &stubcc.masm);
+
+        /*
+         * inlineCallHelper will link uncachedCallSlowRejoin to the join point
+         * at the end of the ic. At that join point, the return value of the
+         * call is assumed to be in registers, so load them before jumping.
+         */
+        JaegerSpew(JSpew_Insns, " ---- BEGIN SLOW RESTORE CODE ---- \n");
+        Address rval = frame.addressOf(origCallee);  /* vp[0] == rval */
+        stubcc.masm.loadValueAsComponents(rval, JSReturnReg_Type, JSReturnReg_Data);
+        *uncachedCallSlowRejoin = stubcc.masm.jump();
+        JaegerSpew(JSpew_Insns, " ---- END SLOW RESTORE CODE ---- \n");
+    }
+
+    /*
+     * For simplicity, we don't statically specialize calls to
+     * ic::SplatApplyArgs based on applyTricks. Rather, this state is
+     * communicated dynamically through the VMFrame.
+     */
+    if (*PC == JSOP_FUNAPPLY) {
+        masm.store32(Imm32(applyTricks == LazyArgsObj),
+                     FrameAddress(offsetof(VMFrame, u.call.lazyArgsObj)));
+    }
+}
+
+/* This predicate must be called before the current op mutates the FrameState. */
+bool
+mjit::Compiler::canUseApplyTricks()
+{
+    JS_ASSERT(*PC == JSOP_ARGUMENTS);
+    jsbytecode *nextpc = PC + JSOP_ARGUMENTS_LENGTH;
+    return *nextpc == JSOP_FUNAPPLY &&
+           IsLowerableFunCallOrApply(nextpc) &&
+           !debugMode;
+}
+
 /* See MonoIC.cpp, CallCompiler for more information on call ICs. */
 void
-mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
+mjit::Compiler::inlineCallHelper(uint32 callImmArgc, bool callingNew)
 {
     /* Check for interrupts on function call */
     interruptCheckHelper();
 
-    // |thisv| does not need to be synced for constructing.
-    if (callingNew)
-        frame.discardFe(frame.peek(-int(argc + 1)));
-
-    FrameEntry *fe = frame.peek(-int(argc + 2));
-
-    /* Currently, we don't support constant functions. */
-    if (fe->isConstant() || fe->isNotType(JSVAL_TYPE_OBJECT) || debugMode) {
-        emitUncachedCall(argc, callingNew);
-        return;
+    int32 speculatedArgc;
+    if (applyTricks == LazyArgsObj) {
+        frame.pop();
+        speculatedArgc = 1;
+    } else {
+        speculatedArgc = callImmArgc;
     }
 
+    FrameEntry *origCallee = frame.peek(-(speculatedArgc + 2));
+    FrameEntry *origThis = frame.peek(-(speculatedArgc + 1));
+
+    /* 'this' does not need to be synced for constructing. */
+    if (callingNew)
+        frame.discardFe(origThis);
+
+    /*
+     * From the presence of JSOP_FUN{CALL,APPLY}, we speculate that we are
+     * going to call js_fun_{call,apply}. Normally, this call would go through
+     * js::Invoke to ultimately call 'this'. We can do much better by having
+     * the callIC cache and call 'this' directly. However, if it turns out that
+     * we are not actually calling js_fun_call, the callIC must act as normal.
+     */
+    bool lowerFunCallOrApply = IsLowerableFunCallOrApply(PC);
+
+    /*
+     * Currently, constant values are not functions, so don't even try to
+     * optimize. This lets us assume that callee/this have regs below.
+     */
 #ifdef JS_MONOIC
-    CallGenInfo callIC(argc);
-    CallPatchInfo callPatch;
+    if (debugMode ||
+        origCallee->isConstant() || origCallee->isNotType(JSVAL_TYPE_OBJECT) ||
+        (lowerFunCallOrApply &&
+         (origThis->isConstant() || origThis->isNotType(JSVAL_TYPE_OBJECT)))) {
+#endif
+        if (applyTricks == LazyArgsObj) {
+            /* frame.pop() above reset us to pre-JSOP_ARGUMENTS state */
+            jsop_arguments();
+            frame.pushSynced();
+        }
+        emitUncachedCall(callImmArgc, callingNew);
+        return;
+#ifdef JS_MONOIC
+    }
 
-    /*
-     * Save constant |this| to optimize thisv stores for common call cases
-     * like CALL[LOCAL, GLOBAL, ARG] which push NULL.
-     */
-    callIC.pc = PC;
-    callIC.frameDepth = frame.frameDepth();
+    /* Initialized by both branches below. */
+    CallGenInfo     callIC(PC);
+    CallPatchInfo   callPatch;
+    MaybeRegisterID icCalleeType; /* type to test for function-ness */
+    RegisterID      icCalleeData; /* data to call */
+    Address         icRvalAddr;   /* return slot on slow-path rejoin */
 
-    /* Grab type and data registers up-front. */
-    MaybeRegisterID typeReg, maybeDataReg;
-    frame.ensureFullRegs(fe, &typeReg, &maybeDataReg);
-    RegisterID dataReg = maybeDataReg.reg();
-    if (!fe->isTypeKnown())
-        frame.pinReg(typeReg.reg());
-    frame.pinReg(dataReg);
+    /* Initialized only on lowerFunCallOrApply branch. */
+    Jump            uncachedCallSlowRejoin;
+    CallPatchInfo   uncachedCallPatch;
 
-    /*
-     * We rely on the fact that syncAndKill() is not allowed to touch the
-     * registers we've preserved.
-     */
-    frame.syncAndKill(Registers(Registers::AvailRegs), Uses(argc + 2));
-    frame.unpinKilledReg(dataReg);
-    if (typeReg.isSet())
-        frame.unpinKilledReg(typeReg.reg());
+    {
+        MaybeRegisterID origCalleeType, maybeOrigCalleeData;
+        RegisterID origCalleeData;
 
-    Registers tempRegs;
+        /* Get the callee in registers. */
+        frame.ensureFullRegs(origCallee, &origCalleeType, &maybeOrigCalleeData);
+        origCalleeData = maybeOrigCalleeData.reg();
+        PinRegAcrossSyncAndKill p1(frame, origCalleeData), p2(frame, origCalleeType);
+
+        if (lowerFunCallOrApply) {
+            MaybeRegisterID origThisType, maybeOrigThisData;
+            RegisterID origThisData;
+            {
+                /* Get thisv in registers. */
+                frame.ensureFullRegs(origThis, &origThisType, &maybeOrigThisData);
+                origThisData = maybeOrigThisData.reg();
+                PinRegAcrossSyncAndKill p3(frame, origThisData), p4(frame, origThisType);
+
+                /* Leaves pinned regs untouched. */
+                frame.syncAndKill(Registers(Registers::AvailRegs), Uses(speculatedArgc + 2));
+            }
+
+            checkCallApplySpeculation(callImmArgc, speculatedArgc,
+                                      origCallee, origThis,
+                                      origCalleeType, origCalleeData,
+                                      origThisType, origThisData,
+                                      &uncachedCallSlowRejoin, &uncachedCallPatch);
+
+            icCalleeType = origThisType;
+            icCalleeData = origThisData;
+            icRvalAddr = frame.addressOf(origThis);
+
+            /*
+             * For f.call(), since we compile the ic under the (checked)
+             * assumption that call == js_fun_call, we still have a static
+             * frame size. For f.apply(), the frame size depends on the dynamic
+             * length of the array passed to apply.
+             */
+            if (*PC == JSOP_FUNCALL)
+                callIC.frameSize.initStatic(frame.frameDepth(), speculatedArgc - 1);
+            else
+                callIC.frameSize.initDynamic();
+        } else {
+            /* Leaves pinned regs untouched. */
+            frame.syncAndKill(Registers(Registers::AvailRegs), Uses(speculatedArgc + 2));
+
+            icCalleeType = origCalleeType;
+            icCalleeData = origCalleeData;
+            icRvalAddr = frame.addressOf(origCallee);
+            callIC.frameSize.initStatic(frame.frameDepth(), speculatedArgc);
+        }
+    }
 
     /* Test the type if necessary. Failing this always takes a really slow path. */
     MaybeJump notObjectJump;
-    if (typeReg.isSet())
-        notObjectJump = masm.testObject(Assembler::NotEqual, typeReg.reg());
+    if (icCalleeType.isSet())
+        notObjectJump = masm.testObject(Assembler::NotEqual, icCalleeType.reg());
 
-    tempRegs.takeReg(dataReg);
-    RegisterID t0 = tempRegs.takeAnyReg();
-    RegisterID t1 = tempRegs.takeAnyReg();
+    /*
+     * For an optimized apply, keep icCalleeData and funPtrReg in a
+     * callee-saved registers for the subsequent ic::SplatApplyArgs call.
+     */
+    Registers tempRegs;
+    if (callIC.frameSize.isDynamic() && !Registers::isSaved(icCalleeData)) {
+        RegisterID x = tempRegs.takeRegInMask(Registers::SavedRegs);
+        masm.move(icCalleeData, x);
+        icCalleeData = x;
+    } else {
+        tempRegs.takeReg(icCalleeData);
+    }
+    RegisterID funPtrReg = tempRegs.takeRegInMask(Registers::SavedRegs);
 
     /*
      * Guard on the callee identity. This misses on the first run. If the
      * callee is scripted, compiled/compilable, and argc == nargs, then this
      * guard is patched, and the compiled code address is baked in.
      */
-    Jump j = masm.branchPtrWithPatch(Assembler::NotEqual, dataReg, callIC.funGuard);
+    Jump j = masm.branchPtrWithPatch(Assembler::NotEqual, icCalleeData, callIC.funGuard);
     callIC.funJump = j;
 
     Jump rejoin1, rejoin2;
@@ -2398,41 +2604,58 @@ mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
          * Test if the callee is even a function. If this doesn't match, we
          * take a _really_ slow path later.
          */
-        Jump notFunction = stubcc.masm.testFunction(Assembler::NotEqual, dataReg);
+        Jump notFunction = stubcc.masm.testFunction(Assembler::NotEqual, icCalleeData);
 
         /* Test if the function is scripted. */
-        stubcc.masm.loadFunctionPrivate(dataReg, t0);
-        stubcc.masm.load16(Address(t0, offsetof(JSFunction, flags)), t1);
-        stubcc.masm.and32(Imm32(JSFUN_KINDMASK), t1);
-        Jump isNative = stubcc.masm.branch32(Assembler::Below, t1, Imm32(JSFUN_INTERPRETED));
+        RegisterID tmp = tempRegs.takeAnyReg();
+        stubcc.masm.loadFunctionPrivate(icCalleeData, funPtrReg);
+        stubcc.masm.load16(Address(funPtrReg, offsetof(JSFunction, flags)), tmp);
+        stubcc.masm.and32(Imm32(JSFUN_KINDMASK), tmp);
+        Jump isNative = stubcc.masm.branch32(Assembler::Below, tmp, Imm32(JSFUN_INTERPRETED));
+        tempRegs.putReg(tmp);
 
         /*
-         * No-op jump that gets re-patched. This is so ArgReg1 won't be
-         * clobbered, with the added bonus that the generated stub doesn't
-         * need to pop its own return address.
+         * N.B. After this call, the frame will have a dynamic frame size.
+         * Check after the function is known not to be a native so that the
+         * catch-all/native path has a static depth.
+         */
+        if (callIC.frameSize.isDynamic())
+            stubcc.call(ic::SplatApplyArgs);
+
+        /*
+         * No-op jump that gets patched by ic::New/Call to the stub generated
+         * by generateFullCallStub.
          */
         Jump toPatch = stubcc.masm.jump();
         toPatch.linkTo(stubcc.masm.label(), &stubcc.masm);
         callIC.oolJump = toPatch;
 
-        /* At this point the function is definitely scripted. Call the link routine. */
+        /*
+         * At this point the function is definitely scripted, so we try to
+         * compile it and patch either funGuard/funJump or oolJump. This code
+         * is only executed once.
+         */
         callIC.addrLabel1 = stubcc.masm.moveWithPatch(ImmPtr(NULL), Registers::ArgReg1);
-        callIC.oolCall = stubcc.call(callingNew ? ic::New : ic::Call);
+        void *icFunPtr = JS_FUNC_TO_DATA_PTR(void *, callingNew ? ic::New : ic::Call);
+        if (callIC.frameSize.isStatic())
+            callIC.oolCall = stubcc.masm.stubCall(icFunPtr, PC, frame.frameDepth());
+        else
+            callIC.oolCall = stubcc.masm.stubCallWithDynamicDepth(icFunPtr, PC);
 
-        callIC.funObjReg = dataReg;
-        callIC.funPtrReg = t0;
+        callIC.funObjReg = icCalleeData;
+        callIC.funPtrReg = funPtrReg;
 
         /*
          * The IC call either returns NULL, meaning call completed, or a
          * function pointer to jump to. Caveat: Must restore JSFrameReg
          * because a new frame has been pushed.
-         *
-         * This function only executes once. If hit, it will generate a stub
-         * to compile and execute calls on demand.
          */
         rejoin1 = stubcc.masm.branchTestPtr(Assembler::Zero, Registers::ReturnReg,
                                             Registers::ReturnReg);
-        stubcc.masm.move(Imm32(argc), JSParamReg_Argc);
+        if (callIC.frameSize.isStatic())
+            stubcc.masm.move(Imm32(callIC.frameSize.staticArgc()), JSParamReg_Argc);
+        else
+            stubcc.masm.load32(FrameAddress(offsetof(VMFrame, u.call.dynamicArgc)), JSParamReg_Argc);
         stubcc.masm.loadPtr(FrameAddress(offsetof(VMFrame, regs.fp)), JSFrameReg);
         callPatch.hasSlowNcode = true;
         callPatch.slowNcodePatch =
@@ -2440,7 +2663,13 @@ mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
                                           Address(JSFrameReg, JSStackFrame::offsetOfncode()));
         stubcc.masm.jump(Registers::ReturnReg);
 
-        /* Catch-all case, for natives this will turn into a MIC. */
+        /*
+         * This ool path is the catch-all for everything but scripted function
+         * callees. For native functions, ic::NativeNew/NativeCall will repatch
+         * funGaurd/funJump with a fast call stub. All other cases
+         * (non-function callable objects and invalid callees) take the slow
+         * path through js::Invoke.
+         */
         if (notObjectJump.isSet())
             stubcc.linkExitDirect(notObjectJump.get(), stubcc.masm.label());
         notFunction.linkTo(stubcc.masm.label(), &stubcc.masm);
@@ -2463,26 +2692,43 @@ mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
         flags |= JSFRAME_CONSTRUCTING;
 
     InlineFrameAssembler inlFrame(masm, callIC, flags);
+    callPatch.hasFastNcode = true;
     callPatch.fastNcodePatch = inlFrame.assemble(NULL);
 
     callIC.hotJump = masm.jump();
     callIC.joinPoint = callPatch.joinPoint = masm.label();
+    if (lowerFunCallOrApply)
+        uncachedCallPatch.joinPoint = callIC.joinPoint;
     masm.loadPtr(Address(JSFrameReg, JSStackFrame::offsetOfPrev()), JSFrameReg);
 
-    frame.popn(argc + 2);
+    frame.popn(speculatedArgc + 2);
     frame.takeReg(JSReturnReg_Type);
     frame.takeReg(JSReturnReg_Data);
     frame.pushRegs(JSReturnReg_Type, JSReturnReg_Data);
 
+    /*
+     * Now that the frame state is set, generate the rejoin path. Note that, if
+     * lowerFunCallOrApply, we cannot just call 'stubcc.rejoin' since the return
+     * value has been placed at vp[1] which is not the stack address associated
+     * with frame.peek(-1).
+     */
     callIC.slowJoinPoint = stubcc.masm.label();
     rejoin1.linkTo(callIC.slowJoinPoint, &stubcc.masm);
     rejoin2.linkTo(callIC.slowJoinPoint, &stubcc.masm);
-    stubcc.rejoin(Changes(0));
+    JaegerSpew(JSpew_Insns, " ---- BEGIN SLOW RESTORE CODE ---- \n");
+    stubcc.masm.loadValueAsComponents(icRvalAddr, JSReturnReg_Type, JSReturnReg_Data);
+    stubcc.crossJump(stubcc.masm.jump(), masm.label());
+    JaegerSpew(JSpew_Insns, " ---- END SLOW RESTORE CODE ---- \n");
+
+    if (lowerFunCallOrApply)
+        stubcc.crossJump(uncachedCallSlowRejoin, masm.label());
 
     callICs.append(callIC);
     callPatches.append(callPatch);
-#else
-    emitUncachedCall(argc, callingNew);
+    if (lowerFunCallOrApply)
+        callPatches.append(uncachedCallPatch);
+
+    applyTricks = NoApplyTricks;
 #endif
 }
 
@@ -4395,6 +4641,13 @@ mjit::Compiler::emitEval(uint32 argc)
     stubCall(stubs::Eval);
     frame.popn(argc + 2);
     frame.pushSynced();
+}
+
+void
+mjit::Compiler::jsop_arguments()
+{
+    prepareStubCall(Uses(0));
+    stubCall(stubs::Arguments);
 }
 
 /*
