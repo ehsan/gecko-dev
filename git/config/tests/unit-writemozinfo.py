@@ -16,77 +16,45 @@ class TestBuildDict(unittest.TestCase):
         self.assertRaises(Exception, build_dict, {})
         self.assertRaises(Exception, build_dict, {'OS_TARGET':'foo'})
         self.assertRaises(Exception, build_dict, {'TARGET_CPU':'foo'})
-        self.assertRaises(Exception, build_dict, {'MOZ_WIDGET_TOOLKIT':'foo'})
 
     def testWin(self):
         d = build_dict({'OS_TARGET':'WINNT',
-                        'TARGET_CPU':'i386',
-                        'MOZ_WIDGET_TOOLKIT':'windows'})
+                        'TARGET_CPU':'i386'})
         self.assertEqual('win', d['os'])
         self.assertEqual('x86', d['processor'])
-        self.assertEqual('windows', d['toolkit'])
         self.assertEqual(32, d['bits'])
 
     def testLinux(self):
         d = build_dict({'OS_TARGET':'Linux',
-                        'TARGET_CPU':'i386',
-                        'MOZ_WIDGET_TOOLKIT':'gtk2'})
+                        'TARGET_CPU':'i386'})
         self.assertEqual('linux', d['os'])
         self.assertEqual('x86', d['processor'])
-        self.assertEqual('gtk2', d['toolkit'])
         self.assertEqual(32, d['bits'])
 
         d = build_dict({'OS_TARGET':'Linux',
-                        'TARGET_CPU':'x86_64',
-                        'MOZ_WIDGET_TOOLKIT':'gtk2'})
+                        'TARGET_CPU':'x86_64'})
         self.assertEqual('linux', d['os'])
         self.assertEqual('x86_64', d['processor'])
-        self.assertEqual('gtk2', d['toolkit'])
         self.assertEqual(64, d['bits'])
 
     def testMac(self):
         d = build_dict({'OS_TARGET':'Darwin',
-                        'TARGET_CPU':'i386',
-                        'MOZ_WIDGET_TOOLKIT':'cocoa'})
+                        'TARGET_CPU':'i386'})
         self.assertEqual('mac', d['os'])
         self.assertEqual('x86', d['processor'])
-        self.assertEqual('cocoa', d['toolkit'])
         self.assertEqual(32, d['bits'])
 
         d = build_dict({'OS_TARGET':'Darwin',
-                        'TARGET_CPU':'x86_64',
-                        'MOZ_WIDGET_TOOLKIT':'cocoa'})
+                        'TARGET_CPU':'x86_64'})
         self.assertEqual('mac', d['os'])
         self.assertEqual('x86_64', d['processor'])
-        self.assertEqual('cocoa', d['toolkit'])
         self.assertEqual(64, d['bits'])
-
-    def testMacUniversal(self):
-        d = build_dict({'OS_TARGET':'Darwin',
-                        'TARGET_CPU':'i386',
-                        'MOZ_WIDGET_TOOLKIT':'cocoa',
-                        'UNIVERSAL_BINARY': '1'})
-        self.assertEqual('mac', d['os'])
-        self.assertEqual('universal-x86-x86_64', d['processor'])
-        self.assertEqual('cocoa', d['toolkit'])
-        self.assertFalse('bits' in d)
-
-        d = build_dict({'OS_TARGET':'Darwin',
-                        'TARGET_CPU':'x86_64',
-                        'MOZ_WIDGET_TOOLKIT':'cocoa',
-                        'UNIVERSAL_BINARY': '1'})
-        self.assertEqual('mac', d['os'])
-        self.assertEqual('universal-x86-x86_64', d['processor'])
-        self.assertEqual('cocoa', d['toolkit'])
-        self.assertFalse('bits' in d)
 
     def testAndroid(self):
         d = build_dict({'OS_TARGET':'Android',
-                        'TARGET_CPU':'arm',
-                        'MOZ_WIDGET_TOOLKIT':'android'})
+                        'TARGET_CPU':'arm'})
         self.assertEqual('android', d['os'])
         self.assertEqual('arm', d['processor'])
-        self.assertEqual('android', d['toolkit'])
         self.assertEqual(32, d['bits'])
 
     def testX86(self):
@@ -94,13 +62,11 @@ class TestBuildDict(unittest.TestCase):
         Test that various i?86 values => x86.
         """
         d = build_dict({'OS_TARGET':'WINNT',
-                        'TARGET_CPU':'i486',
-                        'MOZ_WIDGET_TOOLKIT':'windows'})
+                        'TARGET_CPU':'i486'})
         self.assertEqual('x86', d['processor'])
 
         d = build_dict({'OS_TARGET':'WINNT',
-                        'TARGET_CPU':'i686',
-                        'MOZ_WIDGET_TOOLKIT':'windows'})
+                        'TARGET_CPU':'i686'})
         self.assertEqual('x86', d['processor'])
 
     def testARM(self):
@@ -108,13 +74,11 @@ class TestBuildDict(unittest.TestCase):
         Test that all arm CPU architectures => arm.
         """
         d = build_dict({'OS_TARGET':'Linux',
-                        'TARGET_CPU':'arm',
-                        'MOZ_WIDGET_TOOLKIT':'gtk2'})
+                        'TARGET_CPU':'arm'})
         self.assertEqual('arm', d['processor'])
 
         d = build_dict({'OS_TARGET':'Linux',
-                        'TARGET_CPU':'armv7',
-                        'MOZ_WIDGET_TOOLKIT':'gtk2'})
+                        'TARGET_CPU':'armv7'})
         self.assertEqual('arm', d['processor'])
 
     def testUnknown(self):
@@ -122,11 +86,9 @@ class TestBuildDict(unittest.TestCase):
         Test that unknown values pass through okay.
         """
         d = build_dict({'OS_TARGET':'RandOS',
-                        'TARGET_CPU':'cptwo',
-                        'MOZ_WIDGET_TOOLKIT':'foobar'})
+                        'TARGET_CPU':'cptwo'})
         self.assertEqual("randos", d["os"])
         self.assertEqual("cptwo", d["processor"])
-        self.assertEqual("foobar", d["toolkit"])
         # unknown CPUs should not get a bits value
         self.assertFalse("bits" in d)
         
@@ -135,30 +97,13 @@ class TestBuildDict(unittest.TestCase):
         Test that debug values are properly detected.
         """
         d = build_dict({'OS_TARGET':'Linux',
-                        'TARGET_CPU':'i386',
-                        'MOZ_WIDGET_TOOLKIT':'gtk2'})
+                        'TARGET_CPU':'i386'})
         self.assertEqual(False, d['debug'])
         
         d = build_dict({'OS_TARGET':'Linux',
                         'TARGET_CPU':'i386',
-                        'MOZ_WIDGET_TOOLKIT':'gtk2',
                         'MOZ_DEBUG':'1'})
         self.assertEqual(True, d['debug'])
-
-    def testCrashreporter(self):
-        """
-        Test that crashreporter values are properly detected.
-        """
-        d = build_dict({'OS_TARGET':'Linux',
-                        'TARGET_CPU':'i386',
-                        'MOZ_WIDGET_TOOLKIT':'gtk2'})
-        self.assertEqual(False, d['crashreporter'])
-        
-        d = build_dict({'OS_TARGET':'Linux',
-                        'TARGET_CPU':'i386',
-                        'MOZ_WIDGET_TOOLKIT':'gtk2',
-                        'MOZ_CRASHREPORTER':'1'})
-        self.assertEqual(True, d['crashreporter'])
 
 class TestJsonValue(unittest.TestCase):
     def testNone(self):
@@ -215,13 +160,11 @@ class TestWriteJson(unittest.TestCase):
         Test that writing to a file produces correct output.
         """
         write_json(self.f, env={'OS_TARGET':'WINNT',
-                                'TARGET_CPU':'i386',
-                                'MOZ_WIDGET_TOOLKIT':'windows'})
+                                'TARGET_CPU':'i386'})
         with open(self.f) as f:
             d = parse_json(f.read())
             self.assertEqual('win', d['os'])
             self.assertEqual('x86', d['processor'])
-            self.assertEqual('windows', d['toolkit'])
             self.assertEqual(32, d['bits'])
 
     def testFileObj(self):
@@ -230,12 +173,10 @@ class TestWriteJson(unittest.TestCase):
         """
         s = StringIO()
         write_json(s, env={'OS_TARGET':'WINNT',
-                           'TARGET_CPU':'i386',
-                           'MOZ_WIDGET_TOOLKIT':'windows'})
+                           'TARGET_CPU':'i386'})
         d = parse_json(s.getvalue())
         self.assertEqual('win', d['os'])
         self.assertEqual('x86', d['processor'])
-        self.assertEqual('windows', d['toolkit'])
         self.assertEqual(32, d['bits'])
 
 if __name__ == '__main__':
