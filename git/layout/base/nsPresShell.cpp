@@ -5902,7 +5902,6 @@ PresShell::Paint(nsView*        aViewToPaint,
   }
   if (mNextPaintCompressed) {
     flags |= nsLayoutUtils::PAINT_COMPRESSED;
-    mNextPaintCompressed = false;
   }
 
   if (frame) {

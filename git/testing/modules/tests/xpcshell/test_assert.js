@@ -276,7 +276,7 @@ function run_test() {
   try {
     assert.equal(1, 2, "oh no");
   } catch (e) {
-    assert.equal(e.toString().split("\n")[0], "AssertionError: oh no - 1 == 2")
+    assert.equal(e.toString().split("\n")[0], "AssertionError: oh no")
   }
 
   // Export Assert.jsm methods to become globally accessible.

@@ -1165,7 +1165,8 @@ WinUtils::ConvertHRGNToRegion(HRGN aRgn)
 
   DWORD size = ::GetRegionData(aRgn, 0, nullptr);
   nsAutoTArray<uint8_t,100> buffer;
-  buffer.SetLength(size);
+  if (!buffer.SetLength(size))
+    return rgn;
 
   RGNDATA* data = reinterpret_cast<RGNDATA*>(buffer.Elements());
   if (!::GetRegionData(aRgn, size, data))

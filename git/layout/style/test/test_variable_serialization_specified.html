@@ -98,19 +98,11 @@ function test_specified_value_serialization(value, expected) {
   decl.removeProperty("margin");
 }
 
-function runTest() {
-  values_with_unchanged_specified_value_serialization.forEach(function(value) {
-    test_specified_value_serialization(value, value);
-  });
+values_with_unchanged_specified_value_serialization.forEach(function(value) {
+  test_specified_value_serialization(value, value);
+});
 
-  values_with_changed_specified_value_serialization.forEach(function(pair) {
-    test_specified_value_serialization(pair[0], pair[1]);
-  });
-
-  SimpleTest.finish();
-}
-
-SimpleTest.waitForExplicitFinish();
-SpecialPowers.pushPrefEnv({ set: [["layout.css.variables.enabled", true]] },
-                          runTest);
+values_with_changed_specified_value_serialization.forEach(function(pair) {
+  test_specified_value_serialization(pair[0], pair[1]);
+});
 </script>

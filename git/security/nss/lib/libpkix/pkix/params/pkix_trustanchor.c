@@ -369,11 +369,7 @@ PKIX_TrustAnchor_CreateWithCert(
 
         anchor->caName = NULL;
         anchor->caPubKey = NULL;
-
-        PKIX_CHECK(PKIX_PL_Cert_GetNameConstraints
-                    (anchor->trustedCert, &anchor->nameConstraints, plContext),
-                    PKIX_CERTGETNAMECONSTRAINTSFAILED);
-
+        anchor->nameConstraints = NULL;
 
         *pAnchor = anchor;
         anchor = NULL;

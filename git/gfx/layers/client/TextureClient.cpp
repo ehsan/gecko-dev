@@ -161,11 +161,8 @@ TextureClient::DestroyIPDLActor(PTextureChild* actor)
 bool
 TextureClient::InitIPDLActor(CompositableForwarder* aForwarder)
 {
+  MOZ_ASSERT(!mActor);
   MOZ_ASSERT(aForwarder);
-  if (mActor && mActor->GetForwarder() == aForwarder) {
-    return true;
-  }
-  MOZ_ASSERT(!mActor, "Cannot use a texture on several IPC channels.");
 
   SurfaceDescriptor desc;
   if (!ToSurfaceDescriptor(desc)) {
