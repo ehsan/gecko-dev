@@ -768,8 +768,7 @@ static nsIFrame*
 GetActiveSelectionFrame(nsIFrame* aFrame)
 {
   nsIView* mouseGrabber;
-  aFrame->PresContext()->GetPresShell()->
-    GetViewManager()->GetMouseEventGrabber(mouseGrabber);
+  aFrame->PresContext()->GetViewManager()->GetMouseEventGrabber(mouseGrabber);
   if (mouseGrabber) {
     nsIFrame* activeFrame = nsLayoutUtils::GetFrameFor(mouseGrabber);
     if (activeFrame) {

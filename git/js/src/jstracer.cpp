@@ -42,12 +42,9 @@
 #include "jsbit.h"              // low-level (NSPR-based) headers next
 #include "jsprf.h"
 #include <math.h>               // standard headers next
-
-#if defined(_MSC_VER) || defined(__MINGW32__)
-#include <malloc.h>
 #ifdef _MSC_VER
+#include <malloc.h>
 #define alloca _alloca
-#endif
 #endif
 #ifdef SOLARIS
 #include <alloca.h>
@@ -4953,7 +4950,7 @@ TraceRecorder::stringify(jsval& v)
          * what valueOf hint, here.
          */
         JS_ASSERT(JSVAL_IS_NULL(v));
-        return INS_CONSTPTR(cx->runtime->atomState.nullAtom);
+        return INS_CONSTPTR(ATOM_TO_STRING(cx->runtime->atomState.nullAtom));
     }
 
     v_ins = lir->insCall(ci, args);

@@ -95,10 +95,6 @@
 #include <io.h>     /* for isatty() */
 #endif
 
-#ifdef XP_WIN
-#include <windows.h>
-#endif
-
 typedef enum JSShellExitCode {
     EXITCODE_RUNTIME_ERROR      = 3,
     EXITCODE_FILE_NOT_FOUND     = 4,

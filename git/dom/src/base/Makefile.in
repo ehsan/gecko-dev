@@ -42,54 +42,110 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE		= jsurl
-LIBRARY_NAME	= jsurl_s
-FORCE_STATIC_LIB = 1
-MODULE_NAME	= javascript__protocol
-GRE_MODULE	= 1
+MODULE		= dom
+LIBRARY_NAME	= jsdombase_s
 LIBXUL_LIBRARY	= 1
 
 REQUIRES	= xpcom \
 		  string \
+		  webbrwsr \
+		  commandhandler \
 		  js \
-		  dom \
-		  layout \
-		  necko \
-		  caps \
 		  widget \
-		  appshell \
-		  xpconnect \
-		  uconv \
-		  docshell \
+		  gfx \
+		  thebes \
+		  layout \
 		  content \
+		  caps \
+		  docshell \
+		  xpconnect \
 		  pref \
+		  oji \
+		  necko \
+		  nkcache \
+		  mimetype \
+		  java \
+		  locale \
+		  prefetch \
+		  xuldoc \
+		  webshell \
+		  view \
+		  uconv \
+		  shistory \
+		  plugin \
+		  windowwatcher \
+		  chardet \
+		  find \
+		  appshell \
+		  intl \
+		  unicharutil \
+		  rdf \
+		  xultmpl \
+		  jar \
+		  storage \
+		  htmlparser \
 		  $(NULL)
 
-XPIDLSRCS	= \
-		$(NULL)
-
-
-CPPSRCS		= nsJSProtocolHandler.cpp
-
-EXPORTS		= $(srcdir)/nsJSProtocolHandler.h
-
-LOCAL_INCLUDES += \
-		-I$(srcdir) \
-		-I$(srcdir)/../base \
-
-EXTRA_DSO_LDOPTS = \
-		$(MOZ_COMPONENT_LIBS) \
-		$(MOZ_JS_LIBS) \
-		$(NULL)
-
-ifdef BUILD_DEBUG_GC
-DEFINES		+= -DDEBUG_GC
+ifdef NS_TRACE_MALLOC
+REQUIRES	+= tracemalloc
 endif
 
-DIRS            = $(NULL)
-ifdef ENABLE_TESTS
-DIRS            += test
+ifdef MOZ_JSDEBUGGER
+REQUIRES	+= jsdebug
+endif
+
+CPPSRCS =			\
+	nsBarProps.cpp          \
+	nsDOMException.cpp 	\
+	nsDOMWindowUtils.cpp 	\
+	nsJSEnvironment.cpp	\
+	nsJSTimeoutHandler.cpp	\
+	nsFocusController.cpp	\
+	nsGlobalWindow.cpp      \
+	nsGlobalWindowCommands.cpp \
+	nsLocation.cpp		\
+	nsDOMWindowList.cpp	\
+	nsJSUtils.cpp		\
+	nsScreen.cpp		\
+	nsHistory.cpp		\
+	nsMimeTypeArray.cpp	\
+	nsPluginArray.cpp	\
+	nsWindowRoot.cpp	\
+	nsDOMClassInfo.cpp	\
+	nsScriptNameSpaceManager.cpp \
+	nsDOMScriptObjectFactory.cpp \
+	$(NULL)
+
+# we don't want the shared lib, but we want to force the creation of a
+# static lib.
+FORCE_STATIC_LIB = 1
+
+LOCAL_INCLUDES = \
+		-I$(srcdir)/../events \
+		-I$(srcdir)/../storage \
+		-I$(srcdir)/../offline \
+		-I$(srcdir)/../geolocation \
+		-I$(srcdir)/../threads \
+		-I$(topsrcdir)/content/xbl/src \
+		-I$(topsrcdir)/content/xul/document/src \
+		-I$(topsrcdir)/content/events/src \
+		-I$(topsrcdir)/content/base/src \
+		-I$(topsrcdir)/content/html/document/src \
+		-I$(topsrcdir)/layout/style \
+		-I$(topsrcdir)/layout/xul/base/src/tree/src \
+		$(NULL)
+
+DEFINES += -D_IMPL_NS_LAYOUT
+
+ifdef MOZ_JSDEBUGGER
+DEFINES += -DMOZ_JSDEBUGGER
 endif
 
 include $(topsrcdir)/config/rules.mk
 
+ifdef MOZ_X11
+ifdef MOZ_ENABLE_GTK2
+CXXFLAGS += $(TK_CFLAGS)
+LDFLAGS += $(TK_LIBS)
+endif
+endif

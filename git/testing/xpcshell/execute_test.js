@@ -1,6 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -16,13 +14,12 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
+ * Alexander J. Vincent <ajvincent@gmail.com>
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Justin Bradford <jab@atdot.org>
- *   Malcolm Smith <malsmith@cs.rmit.edu.au>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,21 +35,4 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsSOCKSIOLayer_h__
-#define NSSOCKSIOLayer_h__
-
-#include "prtypes.h"
-#include "prio.h"
-#include "nscore.h"
-
-nsresult nsSOCKSIOLayerAddToSocket(PRInt32       family,
-                                   const char   *host, 
-                                   PRInt32       port,
-                                   const char   *proxyHost,
-                                   PRInt32       proxyPort,
-                                   PRInt32       socksVersion,
-                                   PRUint32      flags,
-                                   PRFileDesc   *fd, 
-                                   nsISupports **info);
-
-#endif /* nsSOCKSIOLayer_h__ */
+_execute_test();
