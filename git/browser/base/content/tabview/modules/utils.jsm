@@ -23,7 +23,7 @@ window.Point = function(x, y) {
   this.y = (typeof(y) == 'undefined' ? 0 : y);
 }
 
-// ##########  perhaps 'a' should really be called 'rectOrLeft'
+// ##########
 window.Rect = function(a, top, width, height) {
   if(typeof(a.left) != 'undefined' && typeof(a.top) != 'undefined'
       && typeof(a.right) != 'undefined' && typeof(a.bottom) != 'undefined') {
@@ -104,15 +104,52 @@ window.Rect.prototype = {
         && a.right == this.right
         && a.bottom == this.bottom);
   },
+
+  // ----------
+  copy: function(a) {
+    this.left = a.left;
+    this.top = a.top;
+    this.width = a.width;
+    this.height = a.height;
+  }
+};
+
+// ##########
+// TODO generalize for any number of events
+window.Subscribable = function() {
+  this.onCloseSubscribers = [];
+};
+
+window.Subscribable.prototype = {
+  // ----------
+  addOnClose: function(referenceElement, callback) {
+    var existing = jQuery.grep(this.onCloseSubscribers, function(element) {
+      return element.referenceElement == referenceElement;
+    });
+    
+    if(existing.size) {
+      Utils.assert('should only ever be one', existing.size == 1);
+      existing[0].callback = callback;
+    } else {  
+      this.onCloseSubscribers.push({
+        referenceElement: referenceElement, 
+        callback: callback
+      });
+    }
+  },
   
-  union: function(a){
-    var newLeft = Math.min(a.left, this.left);
-    var newTop = Math.min(a.top, this.top);
-    var newWidth = Math.max(a.right, this.right) - newLeft;
-    var newHeight = Math.max(a.bottom, this.bottom) - newTop;
-    var newRect = new Rect(newLeft, newTop, newWidth, newHeight); 
+  // ----------
+  removeOnClose: function(referenceElement) {
+    this.onCloseSubscribers = jQuery.grep(this.onCloseSubscribers, function(element) {
+      return element.referenceElement == referenceElement;
+    }, true);
+  },
   
-    return newRect;
+  // ----------
+  _sendOnClose: function() {
+    jQuery.each(this.onCloseSubscribers, function(index, object) { 
+      object.callback(this);
+    });
   }
 };
 
