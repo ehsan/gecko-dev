@@ -427,13 +427,14 @@ def main():
         fHandle.close()
         deviceRoot = dm.getDeviceRoot()
       
-        dm.removeFile(os.path.join(deviceRoot, "fennec_ids.txt"))
-        dm.removeFile(os.path.join(deviceRoot, "robotium.config"))
-        dm.pushFile("robotium.config", os.path.join(deviceRoot, "robotium.config"))
+        # Note, we are pushing to /sdcard since we have this location hard coded in robocop
+        dm.removeFile("/sdcard/fennec_ids.txt")
+        dm.removeFile("/sdcard/robotium.config")
+        dm.pushFile("robotium.config", "/sdcard/robotium.config")
         fennec_ids = os.path.abspath("fennec_ids.txt")
         if not os.path.exists(fennec_ids) and options.robocopIds:
             fennec_ids = options.robocopIds
-        dm.pushFile(fennec_ids, os.path.join(deviceRoot, "fennec_ids.txt"))
+        dm.pushFile(fennec_ids, "/sdcard/fennec_ids.txt")
         options.extraPrefs.append('robocop.logfile="%s/robocop.log"' % deviceRoot)
 
         if (options.dm_trans == 'adb' and options.robocopPath):
@@ -447,9 +448,9 @@ def main():
                 continue
 
             options.app = "am"
-            options.browserArgs = ["instrument", "-w", "-e", "deviceroot", deviceRoot, "-e", "class"]
+            options.browserArgs = ["instrument", "-w", "-e", "class"]
             options.browserArgs.append("%s.tests.%s" % (appname, test['name']))
-            options.browserArgs.append("org.mozilla.roboexample.test/%s.FennecInstrumentationTestRunner" % appname)
+            options.browserArgs.append("org.mozilla.roboexample.test/android.test.InstrumentationTestRunner")
 
             try:
                 dm.recordLogcat()

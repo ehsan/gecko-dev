@@ -41,7 +41,6 @@ public class FennecNativeDriver implements Driver {
     private HashMap mLocators = null;
     private Activity mActivity;
     private Solo mSolo;
-    private String mRootPath;
 
     private static String mLogFile = null;
     private static LogLevel mLogLevel = LogLevel.INFO;
@@ -77,13 +76,12 @@ public class FennecNativeDriver implements Driver {
         }
     }
 
-    public FennecNativeDriver(Activity activity, Solo robocop, String rootPath) {
+    public FennecNativeDriver(Activity activity, Solo robocop) {
         mActivity = activity;
         mSolo = robocop;
-        mRootPath = rootPath;
 
         // Set up table of fennec_ids.
-        mLocators = convertTextToTable(getFile(mRootPath + "/fennec_ids.txt"));
+        mLocators = convertTextToTable(getFile("/mnt/sdcard/fennec_ids.txt"));
 
         // Set up reflexive access of java classes and methods.
         try {
@@ -268,7 +266,7 @@ public class FennecNativeDriver implements Driver {
         int w = view.getWidth();
         int h = view.getHeight();
         pixelBuffer.position(0);
-        String mapFile = mRootPath + "/pixels.map";
+        String mapFile = "/mnt/sdcard/pixels.map";
 
         FileOutputStream fos = null;
         BufferedOutputStream bos = null;
