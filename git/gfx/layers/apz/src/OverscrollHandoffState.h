@@ -108,10 +108,6 @@ public:
 
   // Determine whether any APZC along this handoff chain is overscrolled.
   bool HasOverscrolledApzc() const;
-
-  // Determine whether any APZC along this handoff chain is moving fast.
-  bool HasFastMovingApzc() const;
-
 private:
   std::vector<nsRefPtr<AsyncPanZoomController>> mChain;
 

@@ -20,7 +20,6 @@
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
 #include "mozilla/gfx/Point.h"          // for IntSize, IntPoint
 #include "mozilla/gfx/Types.h"          // for SurfaceFormat, etc
-#include "mozilla/layers/CompositorOGL.h"  // for CompositorOGL
 #include "mozilla/layers/CompositorTypes.h"  // for TextureFlags
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
 #include "mozilla/layers/TextureHost.h"  // for TextureHost, etc
@@ -397,7 +396,7 @@ public:
 
 protected:
   const gfx::IntSize mSize;
-  RefPtr<CompositorOGL> mCompositor;
+  CompositorOGL* mCompositor;
   const GLuint mTex;
   const gfx::SurfaceFormat mFormat;
   const GLenum mTextureTarget;
@@ -443,7 +442,7 @@ public:
   gl::GLContext* gl() const;
 
 protected:
-  RefPtr<CompositorOGL> mCompositor;
+  CompositorOGL* mCompositor;
   nsSurfaceTexture* const mSurfTex;
   const gfx::SurfaceFormat mFormat;
   const GLenum mTextureTarget;
@@ -490,7 +489,7 @@ public:
 protected:
   nsSurfaceTexture* const mSurfTex;
   const gfx::IntSize mSize;
-  RefPtr<CompositorOGL> mCompositor;
+  CompositorOGL* mCompositor;
   RefPtr<SurfaceTextureSource> mTextureSource;
 };
 
@@ -534,7 +533,7 @@ public:
   gl::GLContext* gl() const;
 
 protected:
-  RefPtr<CompositorOGL> mCompositor;
+  CompositorOGL* mCompositor;
   const EGLImage mImage;
   const gfx::SurfaceFormat mFormat;
   const GLenum mTextureTarget;
@@ -581,7 +580,7 @@ public:
 protected:
   const EGLImage mImage;
   const gfx::IntSize mSize;
-  RefPtr<CompositorOGL> mCompositor;
+  CompositorOGL* mCompositor;
   RefPtr<EGLImageTextureSource> mTextureSource;
 };
 

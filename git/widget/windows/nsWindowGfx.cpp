@@ -36,6 +36,7 @@ using mozilla::plugins::PluginInstanceParent;
 #include "mozilla/RefPtr.h"
 #include "nsGfxCIID.h"
 #include "gfxContext.h"
+#include "nsRenderingContext.h"
 #include "prmem.h"
 #include "WinUtils.h"
 #include "nsIWidgetListener.h"

@@ -552,13 +552,11 @@ gfxDWriteFont::Measure(gfxTextRun *aTextRun,
                     uint32_t aStart, uint32_t aEnd,
                     BoundingBoxType aBoundingBoxType,
                     gfxContext *aRefContext,
-                    Spacing *aSpacing,
-                    uint16_t aOrientation)
+                    Spacing *aSpacing)
 {
     gfxFont::RunMetrics metrics =
         gfxFont::Measure(aTextRun, aStart, aEnd,
-                         aBoundingBoxType, aRefContext, aSpacing,
-                         aOrientation);
+                         aBoundingBoxType, aRefContext, aSpacing);
 
     // if aBoundingBoxType is LOOSE_INK_EXTENTS
     // and the underlying cairo font may be antialiased,

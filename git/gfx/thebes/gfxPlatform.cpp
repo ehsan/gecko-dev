@@ -79,12 +79,9 @@
 #include "mozilla/Hal.h"
 #ifdef USE_SKIA
 #include "skia/SkGraphics.h"
-# ifdef USE_SKIA_GPU
-#  include "SkiaGLGlue.h"
-# endif
-#endif
 
-#if !defined(USE_SKIA) || !defined(USE_SKIA_GPU)
+#include "SkiaGLGlue.h"
+#else
 class mozilla::gl::SkiaGLGlue : public GenericAtomicRefCounted {
 };
 #endif
@@ -382,7 +379,7 @@ gfxPlatform::Init()
     #error "No gfxPlatform implementation available"
 #endif
 
-#ifdef MOZ_GL_DEBUG
+#ifdef DEBUG
     mozilla::gl::GLContext::StaticInit();
 #endif
 

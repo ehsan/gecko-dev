@@ -387,10 +387,11 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
   // container, but our display item is LAYER_ACTIVE_FORCE which
   // forces all layers above to be active.
   MOZ_ASSERT(aContainerParameters.mOffset == nsIntPoint());
-  gfx::Matrix4x4 m = gfx::Matrix4x4::Translation(offset.x, offset.y, 0.0);
+  gfx::Matrix4x4 m;
+  m.Translate(offset.x, offset.y, 0.0);
   // Remote content can't be repainted by us, so we multiply down
   // the resolution that our container expects onto our container.
-  m.PreScale(aContainerParameters.mXScale, aContainerParameters.mYScale, 1.0);
+  m.Scale(aContainerParameters.mXScale, aContainerParameters.mYScale, 1.0);
   layer->SetBaseTransform(m);
 
   return layer.forget();

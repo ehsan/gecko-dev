@@ -20,7 +20,6 @@ Decoder::Decoder(RasterImage &aImage)
   , mImageData(nullptr)
   , mColormap(nullptr)
   , mDecodeFlags(0)
-  , mBytesDecoded(0)
   , mDecodeDone(false)
   , mDataError(false)
   , mFrameCount(0)
@@ -94,11 +93,8 @@ Decoder::Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
   MOZ_ASSERT(NS_IsMainThread() || aStrategy == DECODE_ASYNC);
 
   // We're strict about decoder errors
-  MOZ_ASSERT(!HasDecoderError(),
-             "Not allowed to make more decoder calls after error!");
-
-  // Keep track of the total number of bytes written.
-  mBytesDecoded += aCount;
+  NS_ABORT_IF_FALSE(!HasDecoderError(),
+                    "Not allowed to make more decoder calls after error!");
 
   // If a data error occured, just ignore future data
   if (HasDataError())

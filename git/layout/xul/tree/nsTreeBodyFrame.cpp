@@ -7,8 +7,6 @@
 #include "mozilla/ContentEvents.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/PathHelpers.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/Likely.h"
@@ -71,7 +69,6 @@
 #include "nsBidiUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 using namespace mozilla::layout;
 
 // Enumeration function that cancels all the image requests in our cache
@@ -2760,6 +2757,19 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
   return NS_OK;
 }
 
+static nsLineStyle
+ConvertBorderStyleToLineStyle(uint8_t aBorderStyle)
+{
+  switch (aBorderStyle) {
+    case NS_STYLE_BORDER_STYLE_DOTTED:
+      return nsLineStyle_kDotted;
+    case NS_STYLE_BORDER_STYLE_DASHED:
+      return nsLineStyle_kDashed;
+    default:
+      return nsLineStyle_kSolid;
+  }
+}
+
 static void
 PaintTreeBody(nsIFrame* aFrame, nsRenderingContext* aCtx,
               const nsRect& aDirtyRect, nsPoint aPt)
@@ -3179,24 +3189,19 @@ nsTreeBodyFrame::PaintCell(int32_t              aRowIndex,
 
       const nsStyleBorder* borderStyle = lineContext->StyleBorder();
       nscolor color;
-      bool useForegroundColor;
-      borderStyle->GetBorderColor(NS_SIDE_LEFT, color, useForegroundColor);
-      if (useForegroundColor) {
+      bool foreground;
+      borderStyle->GetBorderColor(NS_SIDE_LEFT, color, foreground);
+      if (foreground) {
         // GetBorderColor didn't touch color, thus grab it from the treeline context
         color = lineContext->StyleColor()->mColor;
       }
-      ColorPattern colorPatt(nsLayoutUtils::NSColorToColor(color));
-
+      aRenderingContext.SetColor(color);
       uint8_t style;
       style = borderStyle->GetBorderStyle(NS_SIDE_LEFT);
-      StrokeOptions strokeOptions;
-      nsLayoutUtils::InitDashPattern(strokeOptions, style);
+      aRenderingContext.SetLineStyle(ConvertBorderStyleToLineStyle(style));
 
       nscoord srcX = currX + twistyRect.width - mIndentation / 2;
       nscoord lineY = (aRowIndex - mTopRowIndex) * mRowHeight + aPt.y;
-
-      DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
-      nsPresContext* pc = PresContext();
 
       // Don't paint off our cell.
       if (srcX <= cellRect.x + cellRect.width) {
@@ -3207,12 +3212,7 @@ nsTreeBodyFrame::PaintCell(int32_t              aRowIndex,
           srcX = currX + remainingWidth - (srcX - cellRect.x);
           destX = currX + remainingWidth - (destX - cellRect.x);
         }
-        Point p1(pc->CSSPixelsToDevPixels(srcX),
-                 pc->CSSPixelsToDevPixels(lineY + mRowHeight / 2));
-        Point p2(pc->CSSPixelsToDevPixels(destX),
-                 pc->CSSPixelsToDevPixels(lineY + mRowHeight / 2));
-        SnapLineToDevicePixelsForStroking(p1, p2, *drawTarget);
-        drawTarget->StrokeLine(p1, p2, colorPatt, strokeOptions);
+        aRenderingContext.DrawLine(srcX, lineY + mRowHeight / 2, destX, lineY + mRowHeight / 2);
       }
 
       int32_t currentParent = aRowIndex;
@@ -3221,18 +3221,10 @@ nsTreeBodyFrame::PaintCell(int32_t              aRowIndex,
           // Paint full vertical line only if we have next sibling.
           bool hasNextSibling;
           mView->HasNextSibling(currentParent, aRowIndex, &hasNextSibling);
-          Point p1(pc->CSSPixelsToDevPixels(srcX),
-                   pc->CSSPixelsToDevPixels(lineY));
-          Point p2;
-          p2.x = pc->CSSPixelsToDevPixels(srcX);
-
           if (hasNextSibling)
-            p2.y = pc->CSSPixelsToDevPixels(lineY + mRowHeight);
+            aRenderingContext.DrawLine(srcX, lineY, srcX, lineY + mRowHeight);
           else if (i == level)
-            p2.y = pc->CSSPixelsToDevPixels(lineY + mRowHeight / 2);
-
-          SnapLineToDevicePixelsForStroking(p1, p2, *drawTarget);
-          drawTarget->StrokeLine(p1, p2, colorPatt, strokeOptions);
+            aRenderingContext.DrawLine(srcX, lineY, srcX, lineY + mRowHeight / 2);
         }
 
         int32_t parent;

@@ -676,12 +676,10 @@ SavedStacks::getLocation(JSContext *cx, const FrameIter &iter, MutableHandleLoca
     // that doesn't employ memoization, and update |locationp|'s slots directly.
 
     if (!iter.hasScript()) {
-        if (const char16_t *displayURL = iter.scriptDisplayURL()) {
-            locationp->source = AtomizeChars(cx, displayURL, js_strlen(displayURL));
-        } else {
-            const char *filename = iter.scriptFilename() ? iter.scriptFilename() : "";
-            locationp->source = Atomize(cx, filename, strlen(filename));
-        }
+        const char *filename = iter.scriptFilename();
+        if (!filename)
+            filename = "";
+        locationp->source = Atomize(cx, filename, strlen(filename));
         if (!locationp->source)
             return false;
 
@@ -696,13 +694,8 @@ SavedStacks::getLocation(JSContext *cx, const FrameIter &iter, MutableHandleLoca
     PCLocationMap::AddPtr p = pcLocationMap.lookupForAdd(key);
 
     if (!p) {
-        RootedAtom source(cx);
-        if (const char16_t *displayURL = iter.scriptDisplayURL()) {
-            source = AtomizeChars(cx, displayURL, js_strlen(displayURL));
-        } else {
-            const char *filename = script->filename() ? script->filename() : "";
-            source = Atomize(cx, filename, strlen(filename));
-        }
+        const char *filename = script->filename() ? script->filename() : "";
+        RootedAtom source(cx, Atomize(cx, filename, strlen(filename)));
         if (!source)
             return false;
 

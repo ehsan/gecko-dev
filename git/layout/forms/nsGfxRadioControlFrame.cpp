@@ -4,16 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsGfxRadioControlFrame.h"
-
-#include "gfx2DGlue.h"
-#include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/PathHelpers.h"
-#include "nsLayoutUtils.h"
 #include "nsRenderingContext.h"
 #include "nsDisplayList.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 nsIFrame*
 NS_NewGfxRadioControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -55,17 +49,8 @@ PaintCheckedRadioButton(nsIFrame* aFrame,
   rect.Deflate(nsPresContext::CSSPixelsToAppUnits(2),
                nsPresContext::CSSPixelsToAppUnits(2));
 
-  Rect devPxRect =
-    ToRect(nsLayoutUtils::RectToGfxRect(rect,
-                                        aFrame->PresContext()->AppUnitsPerDevPixel()));
-
-  ColorPattern color(nsLayoutUtils::NSColorToColor(aFrame->StyleColor()->mColor));
-
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  RefPtr<PathBuilder> builder = drawTarget->CreatePathBuilder();
-  AppendEllipseToPath(builder, devPxRect.Center(), devPxRect.Size());
-  RefPtr<Path> ellipse = builder->Finish();
-  drawTarget->Fill(ellipse, color);
+  aCtx->SetColor(aFrame->StyleColor()->mColor);
+  aCtx->FillEllipse(rect);
 }
 
 void

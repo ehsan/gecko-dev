@@ -32,7 +32,6 @@
     macro(caller, caller, "caller") \
     macro(callFunction, callFunction, "callFunction") \
     macro(caseFirst, caseFirst, "caseFirst") \
-    macro(class_, class_, "class") \
     macro(Collator, Collator, "Collator") \
     macro(CollatorCompareGet, CollatorCompareGet, "Intl_Collator_compare_get") \
     macro(columnNumber, columnNumber, "columnNumber") \

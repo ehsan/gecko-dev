@@ -2,12 +2,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "nsComboboxControlFrame.h"
-
-#include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/PathHelpers.h"
 #include "nsCOMPtr.h"
+#include "nsComboboxControlFrame.h"
 #include "nsFocusManager.h"
 #include "nsFormControlFrame.h"
 #include "nsGkAtoms.h"
@@ -47,7 +43,6 @@
 #include "mozilla/unused.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 NS_IMETHODIMP
 nsComboboxControlFrame::RedisplayTextEvent::Run()
@@ -1515,16 +1510,18 @@ void nsComboboxControlFrame::PaintFocus(nsRenderingContext& aRenderingContext,
   /////////////////////
   // draw focus
 
-  StrokeOptions strokeOptions;
-  nsLayoutUtils::InitDashPattern(strokeOptions, NS_STYLE_BORDER_STYLE_DOTTED);
-  ColorPattern color(nsLayoutUtils::NSColorToColor(StyleColor()->mColor));
+  aRenderingContext.SetLineStyle(nsLineStyle_kDotted);
+  aRenderingContext.SetColor(StyleColor()->mColor);
+
+  //aRenderingContext.DrawRect(clipRect);
+
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
   clipRect.width -= onePixel;
   clipRect.height -= onePixel;
-  Rect r =
-    ToRect(nsLayoutUtils::RectToGfxRect(clipRect, PresContext()->AppUnitsPerDevPixel()));
-  StrokeSnappedEdgesOfRect(r, *aRenderingContext.GetDrawTarget(),
-                           color, strokeOptions);
+  aRenderingContext.DrawLine(clipRect.TopLeft(), clipRect.TopRight());
+  aRenderingContext.DrawLine(clipRect.TopRight(), clipRect.BottomRight());
+  aRenderingContext.DrawLine(clipRect.BottomRight(), clipRect.BottomLeft());
+  aRenderingContext.DrawLine(clipRect.BottomLeft(), clipRect.TopLeft());
 
   aRenderingContext.ThebesContext()->Restore();
 }

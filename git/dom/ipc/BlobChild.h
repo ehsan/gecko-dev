@@ -37,9 +37,6 @@ class BlobChild MOZ_FINAL
   class RemoteBlobImpl;
   friend class RemoteBlobImpl;
 
-  class RemoteBlobSliceImpl;
-  friend class RemoteBlobSliceImpl;
-
   FileImpl* mBlobImpl;
   RemoteBlobImpl* mRemoteBlobImpl;
 
@@ -144,15 +141,6 @@ private:
   BlobChild(PBackgroundChild* aManager,
             const ChildBlobConstructorParams& aParams);
 
-  // These constructors are called for slices.
-  BlobChild(nsIContentChild* aManager,
-            const nsID& aParentID,
-            RemoteBlobSliceImpl* aRemoteBlobSliceImpl);
-
-  BlobChild(PBackgroundChild* aManager,
-            const nsID& aParentID,
-            RemoteBlobSliceImpl* aRemoteBlobSliceImpl);
-
   // Only called by Destroy().
   ~BlobChild();
 
@@ -164,9 +152,6 @@ private:
 
   void
   CommonInit(const ChildBlobConstructorParams& aParams);
-
-  void
-  CommonInit(const nsID& aParentID, RemoteBlobImpl* aRemoteBlobImpl);
 
   template <class ChildManagerType>
   static BlobChild*
@@ -180,8 +165,8 @@ private:
   template <class ChildManagerType>
   static BlobChild*
   SendSliceConstructor(ChildManagerType* aManager,
-                       RemoteBlobSliceImpl* aRemoteBlobSliceImpl,
-                       const ParentBlobConstructorParams& aParams);
+                       const ChildBlobConstructorParams& aParams,
+                       const ParentBlobConstructorParams& aOtherSideParams);
 
   static BlobChild*
   MaybeGetActorFromRemoteBlob(nsIRemoteBlob* aRemoteBlob,
@@ -208,8 +193,7 @@ private:
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   virtual PBlobStreamChild*
-  AllocPBlobStreamChild(const uint64_t& aStart,
-                        const uint64_t& aLength) MOZ_OVERRIDE;
+  AllocPBlobStreamChild() MOZ_OVERRIDE;
 
   virtual bool
   DeallocPBlobStreamChild(PBlobStreamChild* aActor) MOZ_OVERRIDE;

@@ -432,13 +432,13 @@ this.CrashManager.prototype = Object.freeze({
    * Set the classification of a crash.
    *
    * @param crashID (string) Crash ID. Likely a UUID.
-   * @param classifications (array) Crash classifications.
+   * @param classification (string) Crash classification/reason.
    *
-   * @return boolean True if the data was recorded and false if not.
+   * @return boolean True if the classification was recorded and false if not.
    */
-  setCrashClassifications: Task.async(function* (crashID, classifications) {
+  setCrashClassification: Task.async(function* (crashID, classification) {
     let store = yield this._getStore();
-    if (store.setCrashClassifications(crashID, classifications)) {
+    if (store.setCrashClassification(crashID, classification)) {
       yield store.save();
     }
   }),
@@ -1082,7 +1082,7 @@ CrashStore.prototype = Object.freeze({
         type: type,
         crashDate: date,
         submissions: new Map(),
-        classifications: [],
+        classification: null,
       });
     }
 
@@ -1193,15 +1193,15 @@ CrashStore.prototype = Object.freeze({
   },
 
   /**
-   * @return boolean True if the classifications were set.
+   * @return boolean True if the classification was set.
    */
-  setCrashClassifications: function (crashID, classifications) {
+  setCrashClassification: function (crashID, classification) {
     let crash = this._data.crashes.get(crashID);
     if (!crash) {
       return false;
     }
 
-    crash.classifications = classifications;
+    crash.classification = classification;
     return true;
   },
 });
@@ -1262,8 +1262,8 @@ CrashRecord.prototype = Object.freeze({
     return this._o.submissions;
   },
 
-  get classifications() {
-    return this._o.classifications;
+  get classification() {
+    return this._o.classification;
   },
 });
 

@@ -197,28 +197,6 @@ private:
   nsRefPtr<BluetoothProfileResultHandler> mRes;
 };
 
-class OnErrorProfileResultHandlerRunnable MOZ_FINAL : public nsRunnable
-{
-public:
-  OnErrorProfileResultHandlerRunnable(BluetoothProfileResultHandler* aRes,
-                                      nsresult aRv)
-  : mRes(aRes)
-  , mRv(aRv)
-  {
-    MOZ_ASSERT(mRes);
-  }
-
-  NS_IMETHOD Run() MOZ_OVERRIDE
-  {
-    mRes->OnError(mRv);
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<BluetoothProfileResultHandler> mRes;
-  nsresult mRv;
-};
-
 /*
  * This function will be only called when Bluetooth is turning on.
  * It is important to register a2dp callbacks before enable() gets called.
@@ -230,25 +208,19 @@ void
 BluetoothA2dpManager::InitA2dpInterface(BluetoothProfileResultHandler* aRes)
 {
   BluetoothInterface* btInf = BluetoothInterface::GetInstance();
-  if (NS_WARN_IF(!btInf)) {
-    // If there's no backend interface, we dispatch a runnable
-    // that calls the profile result handler.
-    nsRefPtr<nsRunnable> r =
-      new OnErrorProfileResultHandlerRunnable(aRes, NS_ERROR_FAILURE);
-    if (NS_FAILED(NS_DispatchToMainThread(r))) {
-      BT_LOGR("Failed to dispatch HFP OnError runnable");
+  if (!btInf) {
+    BT_LOGR("Error: Bluetooth interface not available");
+    if (aRes) {
+      aRes->OnError(NS_ERROR_FAILURE);
     }
     return;
   }
 
   sBtA2dpInterface = btInf->GetBluetoothA2dpInterface();
-  if (NS_WARN_IF(!sBtA2dpInterface)) {
-    // If there's no A2DP interface, we dispatch a runnable
-    // that calls the profile result handler.
-    nsRefPtr<nsRunnable> r =
-      new OnErrorProfileResultHandlerRunnable(aRes, NS_ERROR_FAILURE);
-    if (NS_FAILED(NS_DispatchToMainThread(r))) {
-      BT_LOGR("Failed to dispatch HFP OnError runnable");
+  if (!sBtA2dpInterface) {
+    BT_LOGR("Error: Bluetooth A2DP interface not available");
+    if (aRes) {
+      aRes->OnError(NS_ERROR_FAILURE);
     }
     return;
   }
@@ -385,11 +357,6 @@ public:
     sBtA2dpInterface = nullptr;
     if (sBtAvrcpInterface) {
       sBtAvrcpInterface->Cleanup(new CleanupAvrcpResultHandler(mRes));
-    } else if (mRes) {
-      /* Not all backends support AVRCP. If it's not available
-       * we signal success from here.
-       */
-      mRes->Deinit();
     }
   }
 
@@ -409,11 +376,6 @@ public:
     sBtA2dpInterface = nullptr;
     if (sBtAvrcpInterface) {
       sBtAvrcpInterface->Cleanup(new CleanupAvrcpResultHandler(mRes));
-    } else if (mRes) {
-      /* Not all backends support AVRCP. If it's not available
-       * we signal success from here.
-       */
-      mRes->Deinit();
     }
 
     return NS_OK;

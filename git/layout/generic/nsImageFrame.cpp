@@ -7,12 +7,8 @@
 
 #include "nsImageFrame.h"
 
-#include "gfx2DGlue.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/EventStates.h"
-#include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/Helpers.h"
-#include "mozilla/gfx/PathHelpers.h"
 #include "mozilla/MouseEvents.h"
 
 #include "nsCOMPtr.h"
@@ -74,20 +70,22 @@
 #include "mozilla/dom/Link.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
-using namespace mozilla::gfx;
-using namespace mozilla::layers;
 
 // sizes (pixels) for image icon, padding and border frame
 #define ICON_SIZE        (16)
 #define ICON_PADDING     (3)
 #define ALT_BORDER_WIDTH (1)
 
+
 //we must add hooks soon
 #define IMAGE_EDITOR_CHECK 1
 
 // Default alignment value (so we can tell an unset value from a set value)
 #define ALIGN_UNSET uint8_t(-1)
+
+using namespace mozilla::layers;
+using namespace mozilla::dom;
+using namespace mozilla::gfx;
 
 // static icon information
 nsImageFrame::IconLoad* nsImageFrame::gIconLoad = nullptr;
@@ -1259,28 +1257,15 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
     // if we could not draw the icon, flag that we're waiting for it and
     // just draw some graffiti in the mean time
     if (!iconUsed) {
-      ColorPattern color(Color(1.f, 0.f, 0.f, 1.f));
-      DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
-
       nscoord iconXPos = (vis->mDirection ==   NS_STYLE_DIRECTION_RTL) ?
                          inner.XMost() - size : inner.x;
-
-      // stroked rect:
-      nsRect rect(iconXPos, inner.y, size, size);
-      Rect devPxRect =
-        ToRect(nsLayoutUtils::RectToGfxRect(rect, PresContext()->AppUnitsPerDevPixel()));
-      drawTarget->StrokeRect(devPxRect, color);
-
-      // filled circle in bottom right quadrant of stroked rect:
       nscoord twoPX = nsPresContext::CSSPixelsToAppUnits(2);
-      rect = nsRect(iconXPos + size/2, inner.y + size/2,
-                    size/2 - twoPX, size/2 - twoPX);
-      devPxRect =
-        ToRect(nsLayoutUtils::RectToGfxRect(rect, PresContext()->AppUnitsPerDevPixel()));
-      RefPtr<PathBuilder> builder = drawTarget->CreatePathBuilder();
-      AppendEllipseToPath(builder, devPxRect.Center(), devPxRect.Size());
-      RefPtr<Path> ellipse = builder->Finish();
-      drawTarget->Fill(ellipse, color);
+      aRenderingContext.DrawRect(iconXPos, inner.y,size,size);
+      aRenderingContext.ThebesContext()->Save();
+      aRenderingContext.SetColor(NS_RGB(0xFF,0,0));
+      aRenderingContext.FillEllipse(size/2 + iconXPos, size/2 + inner.y,
+                                    size/2 - twoPX, size/2 - twoPX);
+      aRenderingContext.ThebesContext()->Restore();
     }
 
     // Reduce the inner rect by the width of the icon, and leave an
@@ -1307,19 +1292,19 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
 
 #ifdef DEBUG
 static void PaintDebugImageMap(nsIFrame* aFrame, nsRenderingContext* aCtx,
-                               const nsRect& aDirtyRect, nsPoint aPt)
-{
+     const nsRect& aDirtyRect, nsPoint aPt) {
   nsImageFrame* f = static_cast<nsImageFrame*>(aFrame);
   nsRect inner = f->GetInnerArea() + aPt;
+
+  aCtx->SetColor(NS_RGB(0, 0, 0));
+  aCtx->ThebesContext()->Save();
   gfxPoint devPixelOffset =
     nsLayoutUtils::PointToGfxPoint(inner.TopLeft(),
                                    aFrame->PresContext()->AppUnitsPerDevPixel());
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  AutoRestoreTransform autoRestoreTransform(drawTarget);
-  drawTarget->SetTransform(
-    drawTarget->GetTransform().PreTranslate(ToPoint(devPixelOffset)));
-  f->GetImageMap()->Draw(aFrame, *drawTarget,
-                         ColorPattern(Color(0.f, 0.f, 0.f, 1.f)));
+  aCtx->ThebesContext()->SetMatrix(
+    aCtx->ThebesContext()->CurrentMatrix().Translate(devPixelOffset));
+  f->GetImageMap()->Draw(aFrame, *aCtx);
+  aCtx->ThebesContext()->Restore();
 }
 #endif
 
@@ -1473,8 +1458,6 @@ nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
                          const nsRect& aDirtyRect, imgIContainer* aImage,
                          uint32_t aFlags)
 {
-  DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
-
   // Render the image into our content area (the area inside
   // the borders and padding)
   NS_ASSERTION(GetInnerArea().width == mComputedSize.width, "bad width");
@@ -1487,22 +1470,20 @@ nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
     nullptr, aFlags);
 
   nsImageMap* map = GetImageMap();
-  if (map) {
+  if (nullptr != map) {
+    aRenderingContext.ThebesContext()->Save();
     gfxPoint devPixelOffset =
       nsLayoutUtils::PointToGfxPoint(inner.TopLeft(),
                                      PresContext()->AppUnitsPerDevPixel());
-    AutoRestoreTransform autoRestoreTransform(drawTarget);
-    drawTarget->SetTransform(
-      drawTarget->GetTransform().PreTranslate(ToPoint(devPixelOffset)));
-
-    // solid white stroke:
-    map->Draw(this, *drawTarget, ColorPattern(Color(1.f, 1.f, 1.f, 1.f)));
-
-    // then dashed black stroke over the top:
-    StrokeOptions strokeOptions;
-    nsLayoutUtils::InitDashPattern(strokeOptions, NS_STYLE_BORDER_STYLE_DOTTED);
-    map->Draw(this, *drawTarget, ColorPattern(Color(0.f, 0.f, 0.f, 1.f)),
-              strokeOptions);
+    aRenderingContext.ThebesContext()->SetMatrix(
+      aRenderingContext.ThebesContext()->CurrentMatrix().Translate(devPixelOffset));
+    aRenderingContext.SetColor(NS_RGB(255, 255, 255));
+    aRenderingContext.SetLineStyle(nsLineStyle_kSolid);
+    map->Draw(this, aRenderingContext);
+    aRenderingContext.SetColor(NS_RGB(0, 0, 0));
+    aRenderingContext.SetLineStyle(nsLineStyle_kDotted);
+    map->Draw(this, aRenderingContext);
+    aRenderingContext.ThebesContext()->Restore();
   }
 }
 
@@ -1950,6 +1931,7 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
                        nullptr,      /* Not associated with any particular document */
                        loadFlags,
                        nullptr,
+                       nullptr,      /* channel policy not needed */
                        EmptyString(),
                        aRequest);
 }

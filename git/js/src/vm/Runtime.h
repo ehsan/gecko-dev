@@ -78,7 +78,6 @@ namespace js {
 class Activation;
 class ActivationIterator;
 class AsmJSActivation;
-class AsmJSModule;
 class MathCache;
 
 namespace jit {
@@ -1081,10 +1080,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     JSErrorReporter     errorReporter;
 
     /* AsmJSCache callbacks are runtime-wide. */
-    JS::AsmJSCacheOps   asmJSCacheOps;
-
-    /* Head of the linked list of linked asm.js modules. */
-    js::AsmJSModule    *linkedAsmJSModules;
+    JS::AsmJSCacheOps asmJSCacheOps;
 
     /*
      * The propertyRemovals counter is incremented for every JSObject::clear,
@@ -1496,17 +1492,31 @@ FreeOp::freeLater(void *p)
 class AutoLockGC
 {
   public:
-    explicit AutoLockGC(JSRuntime *rt
+    explicit AutoLockGC(JSRuntime *rt = nullptr
                         MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : runtime(rt)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        rt->lockGC();
+        // Avoid MSVC warning C4390 for non-threadsafe builds.
+        if (rt)
+            rt->lockGC();
     }
 
     ~AutoLockGC()
     {
-        runtime->unlockGC();
+        if (runtime)
+            runtime->unlockGC();
+    }
+
+    bool locked() const {
+        return !!runtime;
+    }
+
+    void lock(JSRuntime *rt) {
+        MOZ_ASSERT(rt);
+        MOZ_ASSERT(!runtime);
+        runtime = rt;
+        rt->lockGC();
     }
 
   private:

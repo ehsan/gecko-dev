@@ -277,6 +277,17 @@ AllocateArrayBufferContents(JSContext *cx, uint32_t nbytes)
     return ArrayBufferObject::BufferContents::create<ArrayBufferObject::PLAIN_BUFFER>(p);
 }
 
+bool
+ArrayBufferObject::canNeuter(JSContext *cx)
+{
+    if (isAsmJSArrayBuffer()) {
+        if (!ArrayBufferObject::canNeuterAsmJSArrayBuffer(cx, *this))
+            return false;
+    }
+
+    return true;
+}
+
 void
 ArrayBufferObject::neuterView(JSContext *cx, ArrayBufferViewObject *view,
                               BufferContents newContents)
@@ -287,12 +298,11 @@ ArrayBufferObject::neuterView(JSContext *cx, ArrayBufferViewObject *view,
     MarkObjectStateChange(cx, view);
 }
 
-/* static */ bool
+/* static */ void
 ArrayBufferObject::neuter(JSContext *cx, Handle<ArrayBufferObject*> buffer,
                           BufferContents newContents)
 {
-    if (buffer->isAsmJSArrayBuffer() && !OnDetachAsmJSArrayBuffer(cx, buffer))
-        return false;
+    MOZ_ASSERT(buffer->canNeuter(cx));
 
     // Neuter all views on the buffer, clear out the list of views and the
     // buffer's data.
@@ -311,7 +321,6 @@ ArrayBufferObject::neuter(JSContext *cx, Handle<ArrayBufferObject*> buffer,
 
     buffer->setByteLength(0);
     buffer->setIsNeutered();
-    return true;
 }
 
 void
@@ -485,6 +494,20 @@ ArrayBufferObject::releaseAsmJSArray(FreeOp *fop)
     releaseAsmJSArrayNoSignals(fop);
 }
 #endif
+
+bool
+ArrayBufferObject::canNeuterAsmJSArrayBuffer(JSContext *cx, ArrayBufferObject &buffer)
+{
+    AsmJSActivation *act = cx->mainThread().asmJSActivationStack();
+    for (; act; act = act->prevAsmJS()) {
+        if (act->module().maybeHeapBufferObject() == &buffer)
+            break;
+    }
+    if (!act)
+        return true;
+
+    return false;
+}
 
 ArrayBufferObject::BufferContents
 ArrayBufferObject::createMappedContents(int fd, size_t offset, size_t length)
@@ -685,6 +708,11 @@ ArrayBufferObject::stealContents(JSContext *cx, Handle<ArrayBufferObject*> buffe
 {
     MOZ_ASSERT_IF(hasStealableContents, buffer->hasStealableContents());
 
+    if (!buffer->canNeuter(cx)) {
+        js_ReportOverRecursed(cx);
+        return BufferContents::createUnowned(nullptr);
+    }
+
     BufferContents oldContents(buffer->dataPointer(), buffer->bufferKind());
     BufferContents newContents = AllocateArrayBufferContents(cx, buffer->byteLength());
     if (!newContents)
@@ -695,20 +723,14 @@ ArrayBufferObject::stealContents(JSContext *cx, Handle<ArrayBufferObject*> buffe
         // freshly allocated memory that we will never write to and should
         // never get committed.
         buffer->setOwnsData(DoesntOwnData);
-        if (!ArrayBufferObject::neuter(cx, buffer, newContents)) {
-            js_free(newContents.data());
-            return BufferContents::createUnowned(nullptr);
-        }
+        ArrayBufferObject::neuter(cx, buffer, newContents);
         return oldContents;
     }
 
     // Create a new chunk of memory to return since we cannot steal the
     // existing contents away from the buffer.
     memcpy(newContents.data(), oldContents.data(), buffer->byteLength());
-    if (!ArrayBufferObject::neuter(cx, buffer, oldContents)) {
-        js_free(newContents.data());
-        return BufferContents::createUnowned(nullptr);
-    }
+    ArrayBufferObject::neuter(cx, buffer, oldContents);
     return newContents;
 }
 
@@ -1046,18 +1068,19 @@ JS_NeuterArrayBuffer(JSContext *cx, HandleObject obj,
 
     Rooted<ArrayBufferObject*> buffer(cx, &obj->as<ArrayBufferObject>());
 
+    if (!buffer->canNeuter(cx)) {
+        js_ReportOverRecursed(cx);
+        return false;
+    }
+
     if (changeData == ChangeData && buffer->hasStealableContents()) {
         ArrayBufferObject::BufferContents newContents =
             AllocateArrayBufferContents(cx, buffer->byteLength());
         if (!newContents)
             return false;
-        if (!ArrayBufferObject::neuter(cx, buffer, newContents)) {
-            js_free(newContents.data());
-            return false;
-        }
+        ArrayBufferObject::neuter(cx, buffer, newContents);
     } else {
-        if (!ArrayBufferObject::neuter(cx, buffer, buffer->contents()))
-            return false;
+        ArrayBufferObject::neuter(cx, buffer, buffer->contents());
     }
 
     return true;
@@ -1259,49 +1282,3 @@ js::GetArrayBufferLengthAndData(JSObject *obj, uint32_t *length, uint8_t **data)
     *length = AsArrayBuffer(obj).byteLength();
     *data = AsArrayBuffer(obj).dataPointer();
 }
-
-JSObject *
-js_InitArrayBufferClass(JSContext *cx, HandleObject obj)
-{
-    Rooted<GlobalObject*> global(cx, cx->compartment()->maybeGlobal());
-    if (global->isStandardClassResolved(JSProto_ArrayBuffer))
-        return &global->getPrototype(JSProto_ArrayBuffer).toObject();
-
-    RootedNativeObject arrayBufferProto(cx, global->createBlankPrototype(cx, &ArrayBufferObject::protoClass));
-    if (!arrayBufferProto)
-        return nullptr;
-
-    RootedFunction ctor(cx, global->createConstructor(cx, ArrayBufferObject::class_constructor,
-                                                      cx->names().ArrayBuffer, 1));
-    if (!ctor)
-        return nullptr;
-
-    if (!GlobalObject::initBuiltinConstructor(cx, global, JSProto_ArrayBuffer,
-                                              ctor, arrayBufferProto))
-    {
-        return nullptr;
-    }
-
-    if (!LinkConstructorAndPrototype(cx, ctor, arrayBufferProto))
-        return nullptr;
-
-    RootedId byteLengthId(cx, NameToId(cx->names().byteLength));
-    unsigned attrs = JSPROP_SHARED | JSPROP_GETTER;
-    JSObject *getter = NewFunction(cx, NullPtr(), ArrayBufferObject::byteLengthGetter, 0,
-                                   JSFunction::NATIVE_FUN, global, NullPtr());
-    if (!getter)
-        return nullptr;
-
-    if (!DefineNativeProperty(cx, arrayBufferProto, byteLengthId, UndefinedHandleValue,
-                              JS_DATA_TO_FUNC_PTR(PropertyOp, getter), nullptr, attrs))
-        return nullptr;
-
-    if (!JS_DefineFunctions(cx, ctor, ArrayBufferObject::jsstaticfuncs))
-        return nullptr;
-
-    if (!JS_DefineFunctions(cx, arrayBufferProto, ArrayBufferObject::jsfuncs))
-        return nullptr;
-
-    return arrayBufferProto;
-}
-

@@ -43,8 +43,7 @@ public:
                                uint32_t aStart, uint32_t aEnd,
                                BoundingBoxType aBoundingBoxType,
                                gfxContext *aContextForTightBoundingBox,
-                               Spacing *aSpacing,
-                               uint16_t aOrientation);
+                               Spacing *aSpacing);
 
     /* required for MathML to suppress effects of ClearType "padding" */
     virtual gfxFont* CopyWithAntialiasOption(AntialiasOption anAAOption);

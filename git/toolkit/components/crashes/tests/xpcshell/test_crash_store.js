@@ -571,15 +571,10 @@ add_task(function* test_setCrashClassification() {
 
   Assert.ok(s.addCrash(PROCESS_TYPE_MAIN, CRASH_TYPE_CRASH, "crash1",
                        new Date()));
-  let classifications = s.crashes[0].classifications;
-  Assert.ok(!!classifications);
-  Assert.equal(classifications.length, 0);
+  Assert.equal(s.crashes[0].classification, null);
 
-  Assert.ok(s.setCrashClassifications("crash1", ["foo", "bar"]));
-  classifications = s.crashes[0].classifications;
-  Assert.equal(classifications.length, 2);
-  Assert.ok(classifications.indexOf("foo") != -1);
-  Assert.ok(classifications.indexOf("bar") != -1);
+  Assert.ok(s.setCrashClassification("crash1", "foo"));
+  Assert.equal(s.crashes[0].classification, "foo");
 });
 
 add_task(function* test_setRemoteCrashID() {

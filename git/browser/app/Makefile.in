@@ -25,7 +25,7 @@ endif #} LIBXUL_SDK
 # Build a binary bootstrapping with XRE_main
 
 ifndef MOZ_WINCONSOLE
-ifneq (,$(MOZ_DEBUG)$(MOZ_ASAN))
+ifdef MOZ_DEBUG
 MOZ_WINCONSOLE = 1
 else
 MOZ_WINCONSOLE = 0

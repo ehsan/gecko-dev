@@ -88,6 +88,7 @@ gfxContext::gfxContext(DrawTarget *aTarget, const Point& aDeviceOffset)
   : mPathIsRect(false)
   , mTransformChanged(false)
   , mRefCairo(nullptr)
+  , mSurface(nullptr)
   , mFlags(0)
   , mDT(aTarget)
   , mOriginalDT(aTarget)
@@ -127,6 +128,24 @@ gfxContext::~gfxContext()
   }
   mDT->Flush();
   MOZ_COUNT_DTOR(gfxContext);
+}
+
+gfxASurface *
+gfxContext::OriginalSurface()
+{
+    if (mSurface) {
+        return mSurface;
+    }
+
+    if (mOriginalDT && mOriginalDT->GetBackendType() == BackendType::CAIRO) {
+        cairo_surface_t *s =
+            (cairo_surface_t*)mOriginalDT->GetNativeSurface(NativeSurfaceType::CAIRO_SURFACE);
+        if (s) {
+            mSurface = gfxASurface::Wrap(s);
+            return mSurface;
+        }
+    }
+    return nullptr;
 }
 
 already_AddRefed<gfxASurface>
@@ -384,6 +403,16 @@ gfxContext::Rectangle(const gfxRect& rect, bool snapToPixels)
   mPathBuilder->LineTo(rec.BottomRight());
   mPathBuilder->LineTo(rec.BottomLeft());
   mPathBuilder->Close();
+}
+
+void
+gfxContext::Ellipse(const gfxPoint& center, const gfxSize& dimensions)
+{
+  gfxSize halfDim = dimensions / 2.0;
+  gfxRect r(center - gfxPoint(halfDim.width, halfDim.height), dimensions);
+  gfxCornerSizes c(halfDim, halfDim, halfDim, halfDim);
+
+  RoundedRectangle (r, c);
 }
 
 void

@@ -122,7 +122,7 @@ MOZ_ARG_ENABLE_STRING(debug,
   fi ],
   MOZ_DEBUG=)
 
-if test -z "$MOZ_DEBUG" -o -n "$MOZ_ASAN"; then
+if test -z "$MOZ_DEBUG"; then
     MOZ_NO_DEBUG_RTL=1
 fi
 

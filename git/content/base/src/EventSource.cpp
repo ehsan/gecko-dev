@@ -27,6 +27,7 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIScriptError.h"
 #include "mozilla/dom/EncodingUtils.h"
+#include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
@@ -736,7 +737,17 @@ EventSource::InitChannelAndRequestEventSource()
   nsLoadFlags loadFlags;
   loadFlags = nsIRequest::LOAD_BACKGROUND | nsIRequest::LOAD_BYPASS_CACHE;
 
-  nsresult rv;
+  // get Content Security Policy from principal to pass into channel
+  nsCOMPtr<nsIChannelPolicy> channelPolicy;
+  nsCOMPtr<nsIContentSecurityPolicy> csp;
+  nsresult rv = mPrincipal->GetCsp(getter_AddRefs(csp));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (csp) {
+    channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
+    channelPolicy->SetContentSecurityPolicy(csp);
+    channelPolicy->SetLoadType(nsIContentPolicy::TYPE_DATAREQUEST);
+  }
+
   nsIScriptContext* sc = GetContextForEventHandlers(&rv);
   nsCOMPtr<nsIDocument> doc =
     nsContentUtils::GetDocumentFromScriptContext(sc);
@@ -749,6 +760,7 @@ EventSource::InitChannelAndRequestEventSource()
                        doc,
                        nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL,
                        nsIContentPolicy::TYPE_DATAREQUEST,
+                       channelPolicy,    // aChannelPolicy
                        mLoadGroup,       // loadGroup
                        nullptr,          // aCallbacks
                        loadFlags);       // aLoadFlags
@@ -759,6 +771,7 @@ EventSource::InitChannelAndRequestEventSource()
                        mPrincipal,
                        nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL,
                        nsIContentPolicy::TYPE_DATAREQUEST,
+                       channelPolicy,    // aChannelPolicy
                        mLoadGroup,       // loadGroup
                        nullptr,          // aCallbacks
                        loadFlags);       // aLoadFlags
