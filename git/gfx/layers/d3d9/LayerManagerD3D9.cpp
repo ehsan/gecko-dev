@@ -5,7 +5,7 @@
 
 #include "LayerManagerD3D9.h"
 
-#include "ThebesLayerD3D9.h"
+#include "PaintedLayerD3D9.h"
 #include "ContainerLayerD3D9.h"
 #include "ImageLayerD3D9.h"
 #include "ColorLayerD3D9.h"
@@ -15,21 +15,19 @@
 #include "nsIGfxInfo.h"
 #include "nsServiceManagerUtils.h"
 #include "gfxFailure.h"
-#include "mozilla/Preferences.h"
+#include "gfxPrefs.h"
 
 #include "gfxCrashReporterUtils.h"
 
 namespace mozilla {
 namespace layers {
 
-DeviceManagerD3D9 *LayerManagerD3D9::mDefaultDeviceManager = nullptr;
-
 LayerManagerD3D9::LayerManagerD3D9(nsIWidget *aWidget)
   : mWidget(aWidget)
   , mDeviceResetCount(0)
 {
-  mCurrentCallbackInfo.Callback = NULL;
-  mCurrentCallbackInfo.CallbackData = NULL;
+  mCurrentCallbackInfo.Callback = nullptr;
+  mCurrentCallbackInfo.CallbackData = nullptr;
 }
 
 LayerManagerD3D9::~LayerManagerD3D9()
@@ -43,14 +41,13 @@ LayerManagerD3D9::Initialize(bool force)
   ScopedGfxFeatureReporter reporter("D3D9 Layers", force);
 
   /* XXX: this preference and blacklist code should move out of the layer manager */
-  bool forceAccelerate =
-    Preferences::GetBool("layers.acceleration.force-enabled", false);
+  bool forceAccelerate = gfxPrefs::LayersAccelerationForceEnabled();
 
   nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
   if (gfxInfo) {
     int32_t status;
     if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS, &status))) {
-      if (status != nsIGfxInfo::FEATURE_NO_INFO && !forceAccelerate)
+      if (status != nsIGfxInfo::FEATURE_STATUS_OK && !forceAccelerate)
       {
         NS_WARNING("Direct3D 9-accelerated layers are not supported on this system.");
         return false;
@@ -58,17 +55,9 @@ LayerManagerD3D9::Initialize(bool force)
     }
   }
 
-  if (!mDefaultDeviceManager) {
-    mDeviceManager = new DeviceManagerD3D9;
-
-    if (!mDeviceManager->Init()) {
-      mDeviceManager = nullptr;
-      return false;
-    }
-
-    mDefaultDeviceManager = mDeviceManager;
-  } else {
-    mDeviceManager = mDefaultDeviceManager;
+  mDeviceManager = gfxWindowsPlatform::GetPlatform()->GetD3D9DeviceManager();
+  if (!mDeviceManager) {
+    return false;
   }
 
   mSwapChain = mDeviceManager->
@@ -139,7 +128,7 @@ LayerManagerD3D9::EndEmptyTransaction(EndTransactionFlags aFlags)
 }
 
 void
-LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
+LayerManagerD3D9::EndTransaction(DrawPaintedLayerCallback aCallback,
                                  void* aCallbackData,
                                  EndTransactionFlags aFlags)
 {
@@ -151,19 +140,25 @@ LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
     mCurrentCallbackInfo.Callback = aCallback;
     mCurrentCallbackInfo.CallbackData = aCallbackData;
 
+    if (aFlags & END_NO_COMPOSITE) {
+      // Apply pending tree updates before recomputing effective
+      // properties.
+      mRoot->ApplyPendingUpdatesToSubtree();
+    }
+
     // The results of our drawing always go directly into a pixel buffer,
     // so we don't need to pass any global transform here.
-    mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
+    mRoot->ComputeEffectiveTransforms(gfx::Matrix4x4());
 
     SetCompositingDisabled(aFlags & END_NO_COMPOSITE);
     Render();
     /* Clean this out for sanity */
-    mCurrentCallbackInfo.Callback = NULL;
-    mCurrentCallbackInfo.CallbackData = NULL;
+    mCurrentCallbackInfo.Callback = nullptr;
+    mCurrentCallbackInfo.CallbackData = nullptr;
   }
 
   // Clear mTarget, next transaction could have no target
-  mTarget = NULL;
+  mTarget = nullptr;
 }
 
 void
@@ -172,10 +167,10 @@ LayerManagerD3D9::SetRoot(Layer *aLayer)
   mRoot = aLayer;
 }
 
-already_AddRefed<ThebesLayer>
-LayerManagerD3D9::CreateThebesLayer()
+already_AddRefed<PaintedLayer>
+LayerManagerD3D9::CreatePaintedLayer()
 {
-  nsRefPtr<ThebesLayer> layer = new ThebesLayerD3D9(this);
+  nsRefPtr<PaintedLayer> layer = new PaintedLayerD3D9(this);
   return layer.forget();
 }
 
@@ -214,61 +209,6 @@ LayerManagerD3D9::CreateReadbackLayer()
   return layer.forget();
 }
 
-already_AddRefed<ShadowThebesLayer>
-LayerManagerD3D9::CreateShadowThebesLayer()
-{
-  if (LayerManagerD3D9::mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
-  }
-  return nsRefPtr<ShadowThebesLayerD3D9>(new ShadowThebesLayerD3D9(this)).forget();
-}
-
-already_AddRefed<ShadowContainerLayer>
-LayerManagerD3D9::CreateShadowContainerLayer()
-{
-  if (LayerManagerD3D9::mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
-  }
-  return nsRefPtr<ShadowContainerLayerD3D9>(new ShadowContainerLayerD3D9(this)).forget();
-}
-
-already_AddRefed<ShadowImageLayer>
-LayerManagerD3D9::CreateShadowImageLayer()
-{
-  if (LayerManagerD3D9::mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
-  }
-  return nsRefPtr<ShadowImageLayerD3D9>(new ShadowImageLayerD3D9(this)).forget();
-}
-
-already_AddRefed<ShadowColorLayer>
-LayerManagerD3D9::CreateShadowColorLayer()
-{
-  if (LayerManagerD3D9::mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
-  }
-  return nsRefPtr<ShadowColorLayerD3D9>(new ShadowColorLayerD3D9(this)).forget();
-}
-
-already_AddRefed<ShadowCanvasLayer>
-LayerManagerD3D9::CreateShadowCanvasLayer()
-{
-  if (LayerManagerD3D9::mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
-  }
-  return nsRefPtr<ShadowCanvasLayerD3D9>(new ShadowCanvasLayerD3D9(this)).forget();
-}
-
-void ReleaseTexture(void *texture)
-{
-  static_cast<IDirect3DTexture9*>(texture)->Release();
-}
-
 void
 LayerManagerD3D9::ReportFailure(const nsACString &aMsg, HRESULT aCode)
 {
@@ -285,9 +225,10 @@ LayerManagerD3D9::ReportFailure(const nsACString &aMsg, HRESULT aCode)
 void
 LayerManagerD3D9::Render()
 {
-  if (!mSwapChain->PrepareForRendering()) {
+  if (mSwapChain->PrepareForRendering() != DeviceOK) {
     return;
   }
+
   deviceManager()->SetupRenderState();
 
   SetupPipeline();
@@ -300,7 +241,7 @@ LayerManagerD3D9::Render()
   nsIntRect rect;
   mWidget->GetClientBounds(rect);
 
-  device()->Clear(0, NULL, D3DCLEAR_TARGET, 0x00000000, 0, 0);
+  device()->Clear(0, nullptr, D3DCLEAR_TARGET, 0x00000000, 0, 0);
 
   device()->BeginScene();
 
@@ -320,6 +261,25 @@ LayerManagerD3D9::Render()
 
   static_cast<LayerD3D9*>(mRoot->ImplData())->RenderLayer();
 
+  if (!mRegionToClear.IsEmpty()) {
+    D3DRECT* rects = new D3DRECT[mRegionToClear.GetNumRects()];
+    nsIntRegionRectIterator iter(mRegionToClear);
+    const nsIntRect *r;
+    size_t i = 0;
+    while ((r = iter.Next())) {
+      rects[i].x1 = r->x;
+      rects[i].y1 = r->y;
+      rects[i].x2 = r->x + r->width;
+      rects[i].y2 = r->y + r->height;
+      i++;
+    }
+
+    device()->Clear(i, rects, D3DCLEAR_TARGET,
+                    0x00000000, 0, 0);
+
+    delete [] rects;
+  }
+
   device()->EndScene();
 
   if (!mTarget) {
@@ -328,7 +288,8 @@ LayerManagerD3D9::Render()
          (r = iter.Next()) != nullptr;) {
       mSwapChain->Present(*r);
     }
-    LayerManager::PostPresent();
+    RecordFrame();
+    PostPresent();
   } else {
     PaintToTarget();
   }
@@ -386,18 +347,18 @@ LayerManagerD3D9::PaintToTarget()
 
   device()->CreateOffscreenPlainSurface(desc.Width, desc.Height,
                                        D3DFMT_A8R8G8B8, D3DPOOL_SYSTEMMEM,
-                                       getter_AddRefs(destSurf), NULL);
+                                       getter_AddRefs(destSurf), nullptr);
 
   device()->GetRenderTargetData(backBuff, destSurf);
 
   D3DLOCKED_RECT rect;
-  destSurf->LockRect(&rect, NULL, D3DLOCK_READONLY);
+  destSurf->LockRect(&rect, nullptr, D3DLOCK_READONLY);
 
   nsRefPtr<gfxImageSurface> imageSurface =
     new gfxImageSurface((unsigned char*)rect.pBits,
                         gfxIntSize(desc.Width, desc.Height),
                         rect.Pitch,
-                        gfxASurface::ImageFormatARGB32);
+                        gfxImageFormat::ARGB32);
 
   mTarget->SetSource(imageSurface);
   mTarget->SetOperator(gfxContext::OPERATOR_OVER);

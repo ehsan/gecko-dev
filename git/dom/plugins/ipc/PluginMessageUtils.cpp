@@ -15,7 +15,7 @@
 
 using std::string;
 
-using mozilla::ipc::RPCChannel;
+using mozilla::ipc::MessageChannel;
 
 namespace {
 
@@ -57,6 +57,9 @@ NPRemoteWindow::NPRemoteWindow() :
 #if defined(XP_WIN)
   ,surfaceHandle(0)
 #endif
+#if defined(XP_MACOSX)
+  ,contentsScaleFactor(1.0)
+#endif
 {
   clipRect.top = 0;
   clipRect.left = 0;
@@ -64,9 +67,9 @@ NPRemoteWindow::NPRemoteWindow() :
   clipRect.right = 0;
 }
 
-RPCChannel::RacyRPCPolicy
-MediateRace(const RPCChannel::Message& parent,
-            const RPCChannel::Message& child)
+ipc::RacyInterruptPolicy
+MediateRace(const MessageChannel::Message& parent,
+            const MessageChannel::Message& child)
 {
   switch (parent.type()) {
   case PPluginInstance::Msg_Paint__ID:
@@ -75,10 +78,10 @@ MediateRace(const RPCChannel::Message& parent,
   case PPluginInstance::Msg_NPP_HandleEvent_IOSurface__ID:
     // our code relies on the frame list not changing during paints and
     // reflows
-    return RPCChannel::RRPParentWins;
+    return ipc::RIPParentWins;
 
   default:
-    return RPCChannel::RRPChildWins;
+    return ipc::RIPChildWins;
   }
 }
 
@@ -120,7 +123,14 @@ UnmungePluginDsoPath(const string& munged)
 }
 
 
-PRLogModuleInfo* gPluginLog = PR_NewLogModule("IPCPlugins");
+PRLogModuleInfo*
+GetPluginLog()
+{
+  static PRLogModuleInfo *sLog;
+  if (!sLog)
+    sLog = PR_NewLogModule("IPCPlugins");
+  return sLog;
+}
 
 void
 DeferNPObjectLastRelease(const NPNetscapeFuncs* f, NPObject* o)

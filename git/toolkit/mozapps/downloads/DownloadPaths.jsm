@@ -1,10 +1,10 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80 filetype=javascript: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-var EXPORTED_SYMBOLS = [
+this.EXPORTED_SYMBOLS = [
   "DownloadPaths",
 ];
 
@@ -26,7 +26,7 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 const Cr = Components.results;
 
-const DownloadPaths = {
+this.DownloadPaths = {
   /**
    * Creates a uniquely-named file starting from the name of the provided file.
    * If a file with the provided name already exists, the function attempts to
@@ -41,7 +41,7 @@ const DownloadPaths = {
    *        provided object is not modified.
    * @returns A new instance of an nsILocalFile object pointing to the newly
    *          created empty file. On platforms that support permission bits, the
-   *          file is created with permissions 600.
+   *          file is created with permissions 644.
    */
   createNiceUniqueFile: function DP_createNiceUniqueFile(aTemplateFile) {
     // Work on a clone of the provided template file object.
@@ -58,7 +58,7 @@ const DownloadPaths = {
     // that can't be created on some platforms, and for which a normal call to
     // nsIFile.create would result in NS_ERROR_FILE_NOT_FOUND. This can result
     // very rarely in strange names like "base(9999).tar-1.gz" or "ba-1.gz".
-    curFile.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, 0600);
+    curFile.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, 0o644);
     return curFile;
   },
 

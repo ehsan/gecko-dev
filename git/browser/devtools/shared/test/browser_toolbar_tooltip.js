@@ -3,20 +3,37 @@
 
 // Tests that the developer toolbar works properly
 
+///////////////////
+//
+// Whitelisting this test.
+// As part of bug 1077403, the leaking uncaught rejection should be fixed.
+//
+thisTestLeaksUncaughtRejectionsAndShouldBeFixed("Protocol error (unknownError): Error: Got an invalid root window in DocumentWalker");
+
 const TEST_URI = "data:text/html;charset=utf-8,<p>Tooltip Tests</p>";
 
 function test() {
-  DeveloperToolbarTest.test(TEST_URI, function(browser, tab) {
-    runTest();
-    finish();
+  addTab(TEST_URI, function() {
+    Task.spawn(runTest).catch(err => {
+      ok(false, ex);
+      console.error(ex);
+    }).then(finish);
   });
 }
 
-function runTest() {
+function* runTest() {
+  info("Starting browser_toolbar_tooltip.js");
+
+  ok(!DeveloperToolbar.visible, "DeveloperToolbar is not visible in runTest");
+
+  let showPromise = observeOnce(DeveloperToolbar.NOTIFICATIONS.SHOW);
+  document.getElementById("Tools:DevToolbar").doCommand();
+  yield showPromise;
+
   let tooltipPanel = DeveloperToolbar.tooltipPanel;
 
   DeveloperToolbar.display.focusManager.helpRequest();
-  DeveloperToolbar.display.inputter.setInput('help help');
+  yield DeveloperToolbar.display.inputter.setInput('help help');
 
   DeveloperToolbar.display.inputter.setCursor({ start: 'help help'.length });
   is(tooltipPanel._dimensions.start, 'help '.length,
@@ -42,4 +59,14 @@ function runTest() {
 function getLeftMargin() {
   let style = DeveloperToolbar.tooltipPanel._panel.style.marginLeft;
   return parseInt(style.slice(0, -2), 10);
+}
+
+function observeOnce(topic, ownsWeak=false) {
+  return new Promise(function(resolve, reject) {
+    let resolver = function(subject) {
+      Services.obs.removeObserver(resolver, topic);
+      resolve(subject);
+    };
+    Services.obs.addObserver(resolver, topic, ownsWeak);
+  }.bind(this));
 }

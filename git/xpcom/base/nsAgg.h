@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -15,12 +16,12 @@
 // Put NS_DECL_AGGREGATED or NS_DECL_CYCLE_COLLECTING_AGGREGATED in your class's
 // declaration.
 #define NS_DECL_AGGREGATED                                                  \
-    NS_DECL_ISUPPORTS                                                       \
-    NS_DECL_AGGREGATED_HELPER
+  NS_DECL_ISUPPORTS                                                         \
+  NS_DECL_AGGREGATED_HELPER
 
 #define NS_DECL_CYCLE_COLLECTING_AGGREGATED                                 \
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS                                      \
-    NS_DECL_AGGREGATED_HELPER
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS                                        \
+  NS_DECL_AGGREGATED_HELPER
 
 #define NS_DECL_AGGREGATED_HELPER                                           \
 public:                                                                     \
@@ -54,8 +55,8 @@ private:                                                                    \
         Internal() {}                                                       \
                                                                             \
         NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);  \
-        NS_IMETHOD_(nsrefcnt) AddRef(void);                                 \
-        NS_IMETHOD_(nsrefcnt) Release(void);                                \
+        NS_IMETHOD_(MozExternalRefCountType) AddRef(void);                  \
+        NS_IMETHOD_(MozExternalRefCountType) Release(void);                 \
                                                                             \
         NS_DECL_OWNINGTHREAD                                                \
     };                                                                      \
@@ -72,13 +73,12 @@ class NS_CYCLE_COLLECTION_INNERCLASS                                        \
  : public nsXPCOMCycleCollectionParticipant                                 \
 {                                                                           \
 public:                                                                     \
-  static NS_METHOD UnlinkImpl(void *p);                                     \
-  static NS_METHOD TraverseImpl(NS_CYCLE_COLLECTION_INNERCLASS *that,       \
-                                void *p,                                    \
-                                nsCycleCollectionTraversalCallback &cb);    \
-  static NS_METHOD_(void) UnmarkIfPurpleImpl(void *p)                       \
+  NS_IMETHOD_(void) Unlink(void *p);                                        \
+  NS_IMETHOD Traverse(void *p, nsCycleCollectionTraversalCallback &cb);     \
+  NS_IMETHOD_(void) DeleteCycleCollectable(void* p)                         \
   {                                                                         \
-    Downcast(static_cast<nsISupports *>(p))->UnmarkIfPurple();              \
+    NS_CYCLE_COLLECTION_CLASSNAME(_class)::                                 \
+      Downcast(static_cast<nsISupports*>(p))->DeleteCycleCollectable();     \
   }                                                                         \
   static _class* Downcast(nsISupports* s)                                   \
   {                                                                         \
@@ -88,8 +88,13 @@ public:                                                                     \
   {                                                                         \
     return p->InnerObject();                                                \
   }                                                                         \
+  static nsXPCOMCycleCollectionParticipant* GetParticipant()                \
+  {                                                                         \
+    return &_class::NS_CYCLE_COLLECTION_INNERNAME;                          \
+  }                                                                         \
 };                                                                          \
-NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
+NS_CHECK_FOR_RIGHT_PARTICIPANT_IMPL(_class);                                \
+static NS_CYCLE_COLLECTION_INNERCLASS NS_CYCLE_COLLECTION_INNERNAME;
 
 // Put this in your class's constructor:
 #define NS_INIT_AGGREGATED(outer)                                           \
@@ -103,22 +108,22 @@ NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
                                                                             \
 NS_IMPL_AGGREGATED_HELPER(_class)                                           \
                                                                             \
-NS_IMETHODIMP_(nsrefcnt)                                                    \
+NS_IMETHODIMP_(MozExternalRefCountType)                                     \
 _class::Internal::AddRef(void)                                              \
 {                                                                           \
     _class* agg = (_class*)((char*)(this) - offsetof(_class, fAggregated)); \
-    NS_PRECONDITION(int32_t(agg->mRefCnt) >= 0, "illegal refcnt");          \
+    MOZ_ASSERT(int32_t(agg->mRefCnt) >= 0, "illegal refcnt");               \
     NS_ASSERT_OWNINGTHREAD(_class);                                         \
     ++agg->mRefCnt;                                                         \
     NS_LOG_ADDREF(this, agg->mRefCnt, #_class, sizeof(*this));              \
     return agg->mRefCnt;                                                    \
 }                                                                           \
                                                                             \
-NS_IMETHODIMP_(nsrefcnt)                                                    \
+NS_IMETHODIMP_(MozExternalRefCountType)                                     \
 _class::Internal::Release(void)                                             \
 {                                                                           \
     _class* agg = (_class*)((char*)(this) - offsetof(_class, fAggregated)); \
-    NS_PRECONDITION(0 != agg->mRefCnt, "dup release");                      \
+    MOZ_ASSERT(int32_t(agg->mRefCnt) > 0, "dup release");                   \
     NS_ASSERT_OWNINGTHREAD(_class);                                         \
     --agg->mRefCnt;                                                         \
     NS_LOG_RELEASE(this, agg->mRefCnt, #_class);                            \
@@ -134,33 +139,30 @@ _class::Internal::Release(void)                                             \
                                                                             \
 NS_IMPL_AGGREGATED_HELPER(_class)                                           \
                                                                             \
-NS_IMETHODIMP_(nsrefcnt)                                                    \
+NS_IMETHODIMP_(MozExternalRefCountType)                                     \
 _class::Internal::AddRef(void)                                              \
 {                                                                           \
     _class* agg = NS_CYCLE_COLLECTION_CLASSNAME(_class)::Downcast(this);    \
-    NS_PRECONDITION(int32_t(agg->mRefCnt) >= 0, "illegal refcnt");          \
-    NS_CheckThreadSafe(agg->_mOwningThread.GetThread(),                     \
-                       #_class " not thread-safe");                         \
+    MOZ_ASSERT(int32_t(agg->mRefCnt) >= 0, "illegal refcnt");               \
+    NS_ASSERT_OWNINGTHREAD_AGGREGATE(agg, _class);                          \
     nsrefcnt count = agg->mRefCnt.incr(this);                               \
     NS_LOG_ADDREF(this, count, #_class, sizeof(*agg));                      \
     return count;                                                           \
 }                                                                           \
-                                                                            \
-NS_IMETHODIMP_(nsrefcnt)                                                    \
+NS_IMETHODIMP_(MozExternalRefCountType)                                     \
 _class::Internal::Release(void)                                             \
 {                                                                           \
     _class* agg = NS_CYCLE_COLLECTION_CLASSNAME(_class)::Downcast(this);    \
-    NS_PRECONDITION(0 != agg->mRefCnt, "dup release");                      \
-    NS_CheckThreadSafe(agg->_mOwningThread.GetThread(),                     \
-                       #_class " not thread-safe");                         \
+    MOZ_ASSERT(int32_t(agg->mRefCnt) > 0, "dup release");                   \
+    NS_ASSERT_OWNINGTHREAD_AGGREGATE(agg, _class);                          \
     nsrefcnt count = agg->mRefCnt.decr(this);                               \
     NS_LOG_RELEASE(this, count, #_class);                                   \
-    if (count == 0) {                                                       \
-        agg->mRefCnt.stabilizeForDeletion();                                \
-        delete agg;                                                         \
-        return 0;                                                           \
-    }                                                                       \
     return count;                                                           \
+}                                                                           \
+NS_IMETHODIMP_(void)                                                        \
+_class::DeleteCycleCollectable(void)                                        \
+{                                                                           \
+  delete this;                                                              \
 }
 
 #define NS_IMPL_AGGREGATED_HELPER(_class)                                   \
@@ -170,13 +172,13 @@ _class::QueryInterface(const nsIID& aIID, void** aInstancePtr)              \
     return fOuter->QueryInterface(aIID, aInstancePtr);                      \
 }                                                                           \
                                                                             \
-NS_IMETHODIMP_(nsrefcnt)                                                    \
+NS_IMETHODIMP_(MozExternalRefCountType)                                     \
 _class::AddRef(void)                                                        \
 {                                                                           \
     return fOuter->AddRef();                                                \
 }                                                                           \
                                                                             \
-NS_IMETHODIMP_(nsrefcnt)                                                    \
+NS_IMETHODIMP_(MozExternalRefCountType)                                     \
 _class::Release(void)                                                       \
 {                                                                           \
     return fOuter->Release();                                               \
@@ -229,10 +231,10 @@ _class::Internal::QueryInterface(const nsIID& aIID, void** aInstancePtr)    \
 class nsAggregatedCycleCollectionParticipant
 {
 public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(NS_AGGREGATED_CYCLECOLLECTIONPARTICIPANT_IID)
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_AGGREGATED_CYCLECOLLECTIONPARTICIPANT_IID)
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(nsAggregatedCycleCollectionParticipant, 
+NS_DEFINE_STATIC_IID_ACCESSOR(nsAggregatedCycleCollectionParticipant,
                               NS_AGGREGATED_CYCLECOLLECTIONPARTICIPANT_IID)
 
 // for use with QI macros in nsISupportsUtils.h:
@@ -268,14 +270,13 @@ _class::AggregatedQueryInterface(REFNSIID aIID, void** aInstancePtr)        \
   else
 
 #define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_AGGREGATED(_class)          \
-  NS_METHOD                                                                 \
-  NS_CYCLE_COLLECTION_CLASSNAME(_class)::TraverseImpl                       \
-                         (NS_CYCLE_COLLECTION_CLASSNAME(_class) *that,      \
-                          void *p, nsCycleCollectionTraversalCallback &cb)  \
+  NS_IMETHODIMP                                                             \
+  NS_CYCLE_COLLECTION_CLASSNAME(_class)::Traverse                           \
+                         (void *p, nsCycleCollectionTraversalCallback &cb)  \
   {                                                                         \
     nsISupports *s = static_cast<nsISupports*>(p);                          \
-    NS_ASSERTION(CheckForRightISupports(s),                                 \
-                 "not the nsISupports pointer we expect");                  \
+    MOZ_ASSERT(CheckForRightISupports(s),                                   \
+               "not the nsISupports pointer we expect");                    \
     _class *tmp = static_cast<_class*>(Downcast(s));                        \
     if (!tmp->IsPartOfAggregated())                                         \
         NS_IMPL_CYCLE_COLLECTION_DESCRIBE(_class, tmp->mRefCnt.get())
@@ -285,9 +286,9 @@ static nsresult                                                             \
 _InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,             \
                             void **aResult)                                 \
 {                                                                           \
-    *aResult = nullptr;                                                      \
-                                                                            \
-    NS_ENSURE_PROPER_AGGREGATION(aOuter, aIID);                             \
+    *aResult = nullptr;                                                     \
+    if (NS_WARN_IF(aOuter && !aIID.Equals(NS_GET_IID(nsISupports))))        \
+        return NS_ERROR_INVALID_ARG;                                        \
                                                                             \
     _InstanceClass* inst = new _InstanceClass(aOuter);                      \
     if (!inst) {                                                            \
@@ -308,9 +309,9 @@ static nsresult                                                             \
 _InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,             \
                             void **aResult)                                 \
 {                                                                           \
-    *aResult = nullptr;                                                      \
-                                                                            \
-    NS_ENSURE_PROPER_AGGREGATION(aOuter, aIID);                             \
+    *aResult = nullptr;                                                     \
+    if (NS_WARN_IF(aOuter && !aIID.Equals(NS_GET_IID(nsISupports))))        \
+        return NS_ERROR_INVALID_ARG;                                        \
                                                                             \
     _InstanceClass* inst = new _InstanceClass(aOuter);                      \
     if (!inst) {                                                            \

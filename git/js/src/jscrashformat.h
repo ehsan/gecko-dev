@@ -1,20 +1,17 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jscrashformat_h___
-#define jscrashformat_h___
-
-#include <string.h>
+#ifndef jscrashformat_h
+#define jscrashformat_h
 
 namespace js {
 namespace crash {
 
-const static int crash_cookie_len = 16;
-const static char crash_cookie[crash_cookie_len] = "*J*S*CRASHDATA*";
+static const int crash_cookie_len = 16;
+static const char crash_cookie[crash_cookie_len] = "*J*S*CRASHDATA*";
 
 /* These values are used for CrashHeader::id. */
 enum {
@@ -36,7 +33,7 @@ struct CrashHeader
     /* id of the crash data, chosen from the enum above. */
     uint64_t id;
 
-    CrashHeader(uint64_t id) : id(id) { memcpy(cookie, crash_cookie, crash_cookie_len); }
+    explicit CrashHeader(uint64_t id) : id(id) { memcpy(cookie, crash_cookie, crash_cookie_len); }
 };
 
 struct CrashRegisters
@@ -44,11 +41,11 @@ struct CrashRegisters
     uint64_t ip, sp, bp;
 };
 
-const static int crash_buffer_size = 32 * 1024;
+static const int crash_buffer_size = 32 * 1024;
 
 struct CrashStack
 {
-    CrashStack(uint64_t id) : header(id) {}
+    explicit CrashStack(uint64_t id) : header(id) {}
 
     CrashHeader header;
     uint64_t snaptime;    /* Unix time when the stack was snapshotted. */
@@ -60,7 +57,7 @@ struct CrashStack
 
 struct CrashRing
 {
-    CrashRing(uint64_t id) : header(id), offset(0) { memset(buffer, 0, sizeof(buffer)); }
+    explicit CrashRing(uint64_t id) : header(id), offset(0) { memset(buffer, 0, sizeof(buffer)); }
 
     CrashHeader header;
     uint64_t offset; /* Next byte to be written in the buffer. */
@@ -75,4 +72,4 @@ enum {
 } /* namespace crash */
 } /* namespace js */
 
-#endif
+#endif /* jscrashformat_h */

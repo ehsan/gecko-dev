@@ -1,505 +1,402 @@
-# -*- Mode: js2; indent-tabs-mode: nil; js2-basic-offset: 2; -*-
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let Cc = Components.classes;
-let Ci = Components.interfaces;
-let Cu = Components.utils;
+const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-Components.utils.import("resource://gre/modules/AddonManager.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/Troubleshoot.jsm");
+Cu.import("resource://gre/modules/ResetProfile.jsm");
 
-const ELLIPSIS = Services.prefs.getComplexValue("intl.ellipsis",
-                                                Ci.nsIPrefLocalizedString).data;
+XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
+                                  "resource://gre/modules/PluralForm.jsm");
 
-// We use a preferences whitelist to make sure we only show preferences that
-// are useful for support and won't compromise the user's privacy.  Note that
-// entries are *prefixes*: for example, "accessibility." applies to all prefs
-// under the "accessibility.*" branch.
-const PREFS_WHITELIST = [
-  "accessibility.",
-  "browser.cache.",
-  "browser.display.",
-  "browser.fixup.",
-  "browser.history_expire_",
-  "browser.link.open_newwindow",
-  "browser.places.",
-  "browser.privatebrowsing.",
-  "browser.search.context.loadInBackground",
-  "browser.search.log",
-  "browser.search.openintab",
-  "browser.search.param",
-  "browser.search.searchEnginesURL",
-  "browser.search.suggest.enabled",
-  "browser.search.update",
-  "browser.search.useDBForOrder",
-  "browser.sessionstore.",
-  "browser.startup.homepage",
-  "browser.tabs.",
-  "browser.zoom.",
-  "dom.",
-  "extensions.checkCompatibility",
-  "extensions.lastAppVersion",
-  "font.",
-  "general.autoScroll",
-  "general.useragent.",
-  "gfx.",
-  "html5.",
-  "image.mem.",
-  "javascript.",
-  "keyword.",
-  "layers.",
-  "layout.css.dpi",
-  "media.",
-  "mousewheel.",
-  "network.",
-  "permissions.default.image",
-  "places.",
-  "plugin.",
-  "plugins.",
-  "print.",
-  "privacy.",
-  "security.",
-  "social.active",
-  "social.enabled",
-  "svg.",
-  "toolkit.startup.recent_crashes",
-  "webgl."
-];
-
-// The blacklist, unlike the whitelist, is a list of regular expressions.
-const PREFS_BLACKLIST = [
-  /^network[.]proxy[.]/,
-  /[.]print_to_filename$/,
-];
-
-window.onload = function () {
-  // Get the support URL.
-  let urlFormatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"]
-                       .getService(Ci.nsIURLFormatter);
-  let supportUrl = urlFormatter.formatURLPref("app.support.baseURL");
-
-  // Update the application basics section.
-  document.getElementById("application-box").textContent = Services.appinfo.name;
-  document.getElementById("useragent-box").textContent = navigator.userAgent;
-  document.getElementById("supportLink").href = supportUrl;
-  let version = Services.appinfo.version;
+window.addEventListener("load", function onload(event) {
   try {
-    version += " (" + Services.prefs.getCharPref("app.support.vendor") + ")";
-  } catch (e) {
-  }
-  document.getElementById("version-box").textContent = version;
-
-  // Update the other sections.
+  window.removeEventListener("load", onload, false);
+  Troubleshoot.snapshot(function (snapshot) {
+    for (let prop in snapshotFormatters)
+      snapshotFormatters[prop](snapshot[prop]);
+  });
   populateResetBox();
-  populatePreferencesSection();
-  populateExtensionsSection();
-  populateGraphicsSection();
-  populateJavaScriptSection();
-  populateAccessibilitySection();
-  populateLibVersionsSection();
-}
-
-function populateExtensionsSection() {
-  AddonManager.getAddonsByTypes(["extension"], function(extensions) {
-    extensions.sort(function(a,b) {
-      if (a.isActive != b.isActive)
-        return b.isActive ? 1 : -1;
-      let lc = a.name.localeCompare(b.name);
-      if (lc != 0)
-        return lc;
-      if (a.version != b.version)
-        return a.version > b.version ? 1 : -1;
-      return 0;
-    });
-    let trExtensions = [];
-    for (let i = 0; i < extensions.length; i++) {
-      let extension = extensions[i];
-      let tr = createParentElement("tr", [
-        createElement("td", extension.name),
-        createElement("td", extension.version),
-        createElement("td", extension.isActive),
-        createElement("td", extension.id),
-      ]);
-      trExtensions.push(tr);
-    }
-    appendChildren(document.getElementById("extensions-tbody"), trExtensions);
-  });
-}
-
-function populatePreferencesSection() {
-  let modifiedPrefs = getModifiedPrefs();
-
-  function comparePrefs(pref1, pref2) {
-    if (pref1.name < pref2.name)
-      return -1;
-    if (pref1.name > pref2.name)
-      return 1;
-    return 0;
+  setupEventListeners();
+  } catch (e) {
+    Cu.reportError("stack of load error for about:support: " + e + ": " + e.stack);
   }
+}, false);
 
-  let sortedPrefs = modifiedPrefs.sort(comparePrefs);
+// Each property in this object corresponds to a property in Troubleshoot.jsm's
+// snapshot data.  Each function is passed its property's corresponding data,
+// and it's the function's job to update the page with it.
+let snapshotFormatters = {
 
-  let trPrefs = [];
-  sortedPrefs.forEach(function (pref) {
-    let tdName = createElement("td", pref.name, "pref-name");
-    let tdValue = createElement("td", formatPrefValue(pref.value), "pref-value");
-    let tr = createParentElement("tr", [tdName, tdValue]);
-    trPrefs.push(tr);
-  });
+  application: function application(data) {
+    $("application-box").textContent = data.name;
+    $("useragent-box").textContent = data.userAgent;
+    $("supportLink").href = data.supportURL;
+    let version = data.version;
+    if (data.vendor)
+      version += " (" + data.vendor + ")";
+    $("version-box").textContent = version;
+    $("multiprocess-box").textContent = data.numRemoteWindows + "/" + data.numTotalWindows;
+  },
 
-  appendChildren(document.getElementById("prefs-tbody"), trPrefs);
-}
-
-function populateLibVersionsSection() {
-  function pushInfoRow(table, name, value, value2)
-  {
-    table.push(createParentElement("tr", [
-      createElement("td", name),
-      createElement("td", value),
-      createElement("td", value2),
-    ]));
-  }
-    
-  var v = null;
-  try { // just to be safe
-    v = Cc["@mozilla.org/security/nssversion;1"].getService(Ci.nsINSSVersion);
-  } catch(e) {}
-  if (!v)
-    return;
-    
-  let bundle = Services.strings.createBundle("chrome://global/locale/aboutSupport.properties");
-  let libversions_tbody = document.getElementById("libversions-tbody");
-
-  let trLibs = [];
-  trLibs.push(createParentElement("tr", [
-    createElement("th", ""),
-    createElement("th", bundle.GetStringFromName("minLibVersions")),
-    createElement("th", bundle.GetStringFromName("loadedLibVersions")),
-  ]));
-  pushInfoRow(trLibs, "NSPR", v.NSPR_MinVersion, v.NSPR_Version);
-  pushInfoRow(trLibs, "NSS", v.NSS_MinVersion, v.NSS_Version);
-  pushInfoRow(trLibs, "NSS Util", v.NSSUTIL_MinVersion, v.NSSUTIL_Version);
-  pushInfoRow(trLibs, "NSS SSL", v.NSSSSL_MinVersion, v.NSSSSL_Version);
-  pushInfoRow(trLibs, "NSS S/MIME", v.NSSSMIME_MinVersion, v.NSSSMIME_Version);
-
-  appendChildren(libversions_tbody, trLibs);
-}
-
-function populateGraphicsSection() {
-  function createHeader(name)
-  {
-    let elem = createElement("th", name);
-    elem.className = "column";
-    return elem;
-  }
-
-  function pushInfoRow(table, name, value)
-  {
-    if(value) {
-      table.push(createParentElement("tr", [
-        createHeader(bundle.GetStringFromName(name)),
-        createElement("td", value),
-      ]));
-    }
-  }
-  
-  function pushLiteralInfoRow(table, name, value)
-  {
-    table.push(createParentElement("tr", [
-      createHeader(name),
-      createElement("td", value),
-    ]));
-  }
-
-  function errorMessageForFeature(feature) {
-    var errorMessage;
-    var status;
+#ifdef MOZ_CRASHREPORTER
+  crashes: function crashes(data) {
+    let strings = stringBundle();
+    let daysRange = Troubleshoot.kMaxCrashAge / (24 * 60 * 60 * 1000);
+    $("crashes-title").textContent =
+      PluralForm.get(daysRange, strings.GetStringFromName("crashesTitle"))
+                .replace("#1", daysRange);
+    let reportURL;
     try {
-      status = gfxInfo.getFeatureStatus(feature);
-    } catch(e) {}
-    switch (status) {
-      case gfxInfo.FEATURE_BLOCKED_DEVICE:
-      case gfxInfo.FEATURE_DISCOURAGED:
-        errorMessage = bundle.GetStringFromName("blockedGfxCard");
-        break;
-      case gfxInfo.FEATURE_BLOCKED_OS_VERSION:
-        errorMessage = bundle.GetStringFromName("blockedOSVersion");
-        break;
-      case gfxInfo.FEATURE_BLOCKED_DRIVER_VERSION:
-        var suggestedDriverVersion;
-        try {
-          suggestedDriverVersion = gfxInfo.getFeatureSuggestedDriverVersion(feature);
-        } catch(e) {}
-        if (suggestedDriverVersion)
-          errorMessage = bundle.formatStringFromName("tryNewerDriver", [suggestedDriverVersion], 1);
-        else
-          errorMessage = bundle.GetStringFromName("blockedDriver");
-        break;
+      reportURL = Services.prefs.getCharPref("breakpad.reportURL");
+      // Ignore any non http/https urls
+      if (!/^https?:/i.test(reportURL))
+        reportURL = null;
     }
-    return errorMessage;
-  }
-
-  function pushFeatureInfoRow(table, name, feature, isEnabled, message) {
-    message = message || isEnabled;
-    if (!isEnabled) {
-      var errorMessage = errorMessageForFeature(feature);
-      if (errorMessage)
-        message = errorMessage;
+    catch (e) { }
+    if (!reportURL) {
+      $("crashes-noConfig").style.display = "block";
+      $("crashes-noConfig").classList.remove("no-copy");
+      return;
     }
-    table.push(createParentElement("tr", [
-      createHeader(bundle.GetStringFromName(name)),
-      createElement("td", message),
-    ]));
-  }
+    else {
+      $("crashes-allReports").style.display = "block";
+      $("crashes-allReports").classList.remove("no-copy");
+    }
 
-  function hexValueToString(value)
-  {
-    return value
-           ? String('0000' + value.toString(16)).slice(-4)
-           : null;
-  }
+    if (data.pending > 0) {
+      $("crashes-allReportsWithPending").textContent =
+        PluralForm.get(data.pending, strings.GetStringFromName("pendingReports"))
+                  .replace("#1", data.pending);
+    }
 
-  let bundle = Services.strings.createBundle("chrome://global/locale/aboutSupport.properties");
-  let graphics_tbody = document.getElementById("graphics-tbody");
-
-  var gfxInfo = null;
-  try {
-    // nsIGfxInfo is currently only implemented on Windows
-    gfxInfo = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfo);
-  } catch(e) {}
-
-  if (gfxInfo) {
-    let trGraphics = [];
-    pushInfoRow(trGraphics, "adapterDescription", gfxInfo.adapterDescription);
-    pushInfoRow(trGraphics, "adapterVendorID", gfxInfo.adapterVendorID);
-    pushInfoRow(trGraphics, "adapterDeviceID", gfxInfo.adapterDeviceID);
-    pushInfoRow(trGraphics, "adapterRAM", gfxInfo.adapterRAM);
-    pushInfoRow(trGraphics, "adapterDrivers", gfxInfo.adapterDriver);
-    pushInfoRow(trGraphics, "driverVersion", gfxInfo.adapterDriverVersion);
-    pushInfoRow(trGraphics, "driverDate", gfxInfo.adapterDriverDate);
-
-#ifdef XP_WIN
-    pushInfoRow(trGraphics, "adapterDescription2", gfxInfo.adapterDescription2);
-    pushInfoRow(trGraphics, "adapterVendorID2", gfxInfo.adapterVendorID2);
-    pushInfoRow(trGraphics, "adapterDeviceID2", gfxInfo.adapterDeviceID2);
-    pushInfoRow(trGraphics, "adapterRAM2", gfxInfo.adapterRAM2);
-    pushInfoRow(trGraphics, "adapterDrivers2", gfxInfo.adapterDriver2);
-    pushInfoRow(trGraphics, "driverVersion2", gfxInfo.adapterDriverVersion2);
-    pushInfoRow(trGraphics, "driverDate2", gfxInfo.adapterDriverDate2);
-    pushInfoRow(trGraphics, "isGPU2Active", gfxInfo.isGPU2Active);
-
-    var version = Cc["@mozilla.org/system-info;1"]
-                  .getService(Ci.nsIPropertyBag2)
-                  .getProperty("version");
-    var isWindowsVistaOrHigher = (parseFloat(version) >= 6.0);
-    if (isWindowsVistaOrHigher) {
-      var d2dEnabled = "false";
-      try {
-        d2dEnabled = gfxInfo.D2DEnabled;
-      } catch(e) {}
-      pushFeatureInfoRow(trGraphics, "direct2DEnabled", gfxInfo.FEATURE_DIRECT2D, d2dEnabled);
-
-      var dwEnabled = "false";
-      try {
-        dwEnabled = gfxInfo.DWriteEnabled + " (" + gfxInfo.DWriteVersion + ")";
-      } catch(e) {}
-      pushInfoRow(trGraphics, "directWriteEnabled", dwEnabled);  
-
-      var cleartypeParams = "";
-      try {
-        cleartypeParams = gfxInfo.cleartypeParameters;
-      } catch(e) {
-        cleartypeParams = bundle.GetStringFromName("clearTypeParametersNotFound");
+    let dateNow = new Date();
+    $.append($("crashes-tbody"), data.submitted.map(function (crash) {
+      let date = new Date(crash.date);
+      let timePassed = dateNow - date;
+      let formattedDate;
+      if (timePassed >= 24 * 60 * 60 * 1000)
+      {
+        let daysPassed = Math.round(timePassed / (24 * 60 * 60 * 1000));
+        let daysPassedString = strings.GetStringFromName("crashesTimeDays");
+        formattedDate = PluralForm.get(daysPassed, daysPassedString)
+                                  .replace("#1", daysPassed);
       }
-      pushInfoRow(trGraphics, "clearTypeParameters", cleartypeParams);  
-    }
-
+      else if (timePassed >= 60 * 60 * 1000)
+      {
+        let hoursPassed = Math.round(timePassed / (60 * 60 * 1000));
+        let hoursPassedString = strings.GetStringFromName("crashesTimeHours");
+        formattedDate = PluralForm.get(hoursPassed, hoursPassedString)
+                                  .replace("#1", hoursPassed);
+      }
+      else
+      {
+        let minutesPassed = Math.max(Math.round(timePassed / (60 * 1000)), 1);
+        let minutesPassedString = strings.GetStringFromName("crashesTimeMinutes");
+        formattedDate = PluralForm.get(minutesPassed, minutesPassedString)
+                                  .replace("#1", minutesPassed);
+      }
+      return $.new("tr", [
+        $.new("td", [
+          $.new("a", crash.id, null, {href : reportURL + crash.id})
+        ]),
+        $.new("td", formattedDate)
+      ]);
+    }));
+  },
 #endif
 
-    var webglrenderer;
-    var webglenabled;
-    try {
-      webglrenderer = gfxInfo.getWebGLParameter("full-renderer");
-      webglenabled = true;
-    } catch (e) {
-      webglrenderer = false;
-      webglenabled = false;
-    }
-#ifdef XP_WIN
-    // If ANGLE is not available but OpenGL is, we want to report on the OpenGL feature, because that's what's going to get used.
-    // In all other cases we want to report on the ANGLE feature.
-    var webglfeature = gfxInfo.FEATURE_WEBGL_ANGLE;
-    if (gfxInfo.getFeatureStatus(gfxInfo.FEATURE_WEBGL_ANGLE)  != gfxInfo.FEATURE_NO_INFO &&
-        gfxInfo.getFeatureStatus(gfxInfo.FEATURE_WEBGL_OPENGL) == gfxInfo.FEATURE_NO_INFO)
-      webglfeature = gfxInfo.FEATURE_WEBGL_OPENGL;
-#else
-    var webglfeature = gfxInfo.FEATURE_WEBGL_OPENGL;
-#endif
-    pushFeatureInfoRow(trGraphics, "webglRenderer", webglfeature, webglenabled, webglrenderer);
+  extensions: function extensions(data) {
+    $.append($("extensions-tbody"), data.map(function (extension) {
+      return $.new("tr", [
+        $.new("td", extension.name),
+        $.new("td", extension.version),
+        $.new("td", extension.isActive),
+        $.new("td", extension.id),
+      ]);
+    }));
+  },
 
-    appendChildren(graphics_tbody, trGraphics);
-    
-    // display registered graphics properties
-    let graphics_info_properties = document.getElementById("graphics-info-properties");
-    var info = gfxInfo.getInfo();
-    let trGraphicsProperties = [];
-    for (var property in info) {
-      pushLiteralInfoRow(trGraphicsProperties, property, info[property]);
+  experiments: function experiments(data) {
+    $.append($("experiments-tbody"), data.map(function (experiment) {
+      return $.new("tr", [
+        $.new("td", experiment.name),
+        $.new("td", experiment.id),
+        $.new("td", experiment.description),
+        $.new("td", experiment.active),
+        $.new("td", experiment.endDate),
+        $.new("td", [
+          $.new("a", experiment.detailURL, null, {href : experiment.detailURL,})
+        ]),
+      ]);
+    }));
+  },
+
+  modifiedPreferences: function modifiedPreferences(data) {
+    $.append($("prefs-tbody"), sortedArrayFromObject(data).map(
+      function ([name, value]) {
+        return $.new("tr", [
+          $.new("td", name, "pref-name"),
+          // Very long preference values can cause users problems when they
+          // copy and paste them into some text editors.  Long values generally
+          // aren't useful anyway, so truncate them to a reasonable length.
+          $.new("td", String(value).substr(0, 120), "pref-value"),
+        ]);
+      }
+    ));
+  },
+
+  lockedPreferences: function lockedPreferences(data) {
+    $.append($("locked-prefs-tbody"), sortedArrayFromObject(data).map(
+      function ([name, value]) {
+        return $.new("tr", [
+          $.new("td", name, "pref-name"),
+          $.new("td", String(value).substr(0, 120), "pref-value"),
+        ]);
+      }
+    ));
+  },
+
+  graphics: function graphics(data) {
+    // graphics-info-properties tbody
+    if ("info" in data) {
+      let trs = sortedArrayFromObject(data.info).map(function ([prop, val]) {
+        return $.new("tr", [
+          $.new("th", prop, "column"),
+          $.new("td", String(val)),
+        ]);
+      });
+      $.append($("graphics-info-properties"), trs);
+      delete data.info;
     }
-    appendChildren(graphics_info_properties, trGraphicsProperties);
-   
-    // display any failures that have occurred
-    let graphics_failures_tbody = document.getElementById("graphics-failures-tbody");
-    let trGraphicsFailures = gfxInfo.getFailures().map(function (value)
-        createParentElement("tr", [
-            createElement("td", value)
-        ])
+
+    // graphics-failures-tbody tbody
+    if ("failures" in data) {
+      $.append($("graphics-failures-tbody"), data.failures.map(function (val) {
+        return $.new("tr", [$.new("td", val)]);
+      }));
+      delete data.failures;
+    }
+
+    // graphics-tbody tbody
+
+    function localizedMsg(msgArray) {
+      let nameOrMsg = msgArray.shift();
+      if (msgArray.length) {
+        // formatStringFromName logs an NS_ASSERTION failure otherwise that says
+        // "use GetStringFromName".  Lame.
+        try {
+          return strings.formatStringFromName(nameOrMsg, msgArray,
+                                              msgArray.length);
+        }
+        catch (err) {
+          // Throws if nameOrMsg is not a name in the bundle.  This shouldn't
+          // actually happen though, since msgArray.length > 1 => nameOrMsg is a
+          // name in the bundle, not a message, and the remaining msgArray
+          // elements are parameters.
+          return nameOrMsg;
+        }
+      }
+      try {
+        return strings.GetStringFromName(nameOrMsg);
+      }
+      catch (err) {
+        // Throws if nameOrMsg is not a name in the bundle.
+      }
+      return nameOrMsg;
+    }
+
+    let out = Object.create(data);
+    let strings = stringBundle();
+
+    out.acceleratedWindows =
+      data.numAcceleratedWindows + "/" + data.numTotalWindows;
+    if (data.windowLayerManagerType)
+      out.acceleratedWindows += " " + data.windowLayerManagerType;
+    if (data.windowLayerManagerRemote)
+      out.acceleratedWindows += " (OMTC)";
+    if (data.numAcceleratedWindowsMessage)
+      out.acceleratedWindows +=
+        " " + localizedMsg(data.numAcceleratedWindowsMessage);
+    delete data.numAcceleratedWindows;
+    delete data.numTotalWindows;
+    delete data.windowLayerManagerType;
+    delete data.numAcceleratedWindowsMessage;
+
+    if ("direct2DEnabledMessage" in data) {
+      out.direct2DEnabled = localizedMsg(data.direct2DEnabledMessage);
+      delete data.direct2DEnabledMessage;
+      delete data.direct2DEnabled;
+    }
+
+    if ("directWriteEnabled" in data) {
+      out.directWriteEnabled = data.directWriteEnabled;
+      if ("directWriteVersion" in data)
+        out.directWriteEnabled += " (" + data.directWriteVersion + ")";
+      delete data.directWriteEnabled;
+      delete data.directWriteVersion;
+    }
+
+    if ("webglRendererMessage" in data) {
+      out.webglRenderer = localizedMsg(data.webglRendererMessage);
+      delete data.webglRendererMessage;
+      delete data.webglRenderer;
+    }
+
+    let localizedOut = {};
+    for (let prop in out) {
+      let val = out[prop];
+      if (typeof(val) == "string" && !val)
+        // Ignore properties that are empty strings.
+        continue;
+      try {
+        var localizedName = strings.GetStringFromName(prop);
+      }
+      catch (err) {
+        // This shouldn't happen, but if there's a reported graphics property
+        // that isn't in the string bundle, don't let it break the page.
+        localizedName = prop;
+      }
+      localizedOut[localizedName] = val;
+    }
+    let trs = sortedArrayFromObject(localizedOut).map(function ([prop, val]) {
+      return $.new("tr", [
+        $.new("th", prop, "column"),
+        $.new("td", val),
+      ]);
+    });
+    $.append($("graphics-tbody"), trs);
+  },
+
+  javaScript: function javaScript(data) {
+    $("javascript-incremental-gc").textContent = data.incrementalGCEnabled;
+  },
+
+  accessibility: function accessibility(data) {
+    $("a11y-activated").textContent = data.isActive;
+    $("a11y-force-disabled").textContent = data.forceDisabled || 0;
+  },
+
+  libraryVersions: function libraryVersions(data) {
+    let strings = stringBundle();
+    let trs = [
+      $.new("tr", [
+        $.new("th", ""),
+        $.new("th", strings.GetStringFromName("minLibVersions")),
+        $.new("th", strings.GetStringFromName("loadedLibVersions")),
+      ])
+    ];
+    sortedArrayFromObject(data).forEach(
+      function ([name, val]) {
+        trs.push($.new("tr", [
+          $.new("td", name),
+          $.new("td", val.minVersion),
+          $.new("td", val.version),
+        ]));
+      }
     );
-    appendChildren(graphics_failures_tbody, trGraphicsFailures);
+    $.append($("libversions-tbody"), trs);
+  },
 
+  userJS: function userJS(data) {
+    if (!data.exists)
+      return;
+    let userJSFile = Services.dirsvc.get("PrefD", Ci.nsIFile);
+    userJSFile.append("user.js");
+    $("prefs-user-js-link").href = Services.io.newFileURI(userJSFile).spec;
+    $("prefs-user-js-section").style.display = "";
+    // Clear the no-copy class
+    $("prefs-user-js-section").className = "";
+  },
 
-
-  } // end if (gfxInfo)
-
-  let windows = Services.ww.getWindowEnumerator();
-  let acceleratedWindows = 0;
-  let totalWindows = 0;
-  let mgrType;
-  while (windows.hasMoreElements()) {
-    totalWindows++;
-
-    let awindow = windows.getNext().QueryInterface(Ci.nsIInterfaceRequestor);
-    let windowutils = awindow.getInterface(Ci.nsIDOMWindowUtils);
-    if (windowutils.layerManagerType != "Basic") {
-      acceleratedWindows++;
-      mgrType = windowutils.layerManagerType;
+#if defined(XP_LINUX) && defined(MOZ_SANDBOX)
+  sandbox: function sandbox(data) {
+    const keys = ["hasSeccompBPF", "canSandboxContent", "canSandboxMedia"];
+    let strings = stringBundle();
+    let tbody = $("sandbox-tbody");
+    for (key of keys) {
+      if (key in data) {
+	tbody.appendChild($.new("tr", [
+	  $.new("th", strings.GetStringFromName(key), "column"),
+	  $.new("td", data[key])
+	]));
+      }
     }
-  }
-
-  let msg = acceleratedWindows;
-  if (acceleratedWindows) {
-    msg += "/" + totalWindows + " " + mgrType;
-  } else {
-#ifdef XP_WIN
-    var feature = gfxInfo.FEATURE_DIRECT3D_9_LAYERS;
-#else
-    var feature = gfxInfo.FEATURE_OPENGL_LAYERS;
+  },
 #endif
-    var errMsg = errorMessageForFeature(feature);
-    if (errMsg)
-      msg += ". " + errMsg;
+};
+
+let $ = document.getElementById.bind(document);
+
+$.new = function $_new(tag, textContentOrChildren, className, attributes) {
+  let elt = document.createElement(tag);
+  if (className)
+    elt.className = className;
+  if (attributes) {
+    for (let attrName in attributes)
+      elt.setAttribute(attrName, attributes[attrName]);
   }
+  if (Array.isArray(textContentOrChildren))
+    this.append(elt, textContentOrChildren);
+  else
+    elt.textContent = String(textContentOrChildren);
+  return elt;
+};
 
-  appendChildren(graphics_tbody, [
-    createParentElement("tr", [
-      createHeader(bundle.GetStringFromName("acceleratedWindows")),
-      createElement("td", msg),
-    ])
-  ]);
+$.append = function $_append(parent, children) {
+  children.forEach(function (c) parent.appendChild(c));
+};
+
+function stringBundle() {
+  return Services.strings.createBundle(
+           "chrome://global/locale/aboutSupport.properties");
 }
 
-function populateJavaScriptSection() {
-  let enabled = window.QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIDOMWindowUtils)
-        .isIncrementalGCEnabled();
-  document.getElementById("javascript-incremental-gc").textContent = enabled ? "1" : "0";
+function sortedArrayFromObject(obj) {
+  let tuples = [];
+  for (let prop in obj)
+    tuples.push([prop, obj[prop]]);
+  tuples.sort(function ([prop1, v1], [prop2, v2]) prop1.localeCompare(prop2));
+  return tuples;
 }
 
-function populateAccessibilitySection() {
-  var active;
+function copyRawDataToClipboard(button) {
+  if (button)
+    button.disabled = true;
   try {
-    active = Components.manager.QueryInterface(Ci.nsIServiceManager)
-      .isServiceInstantiatedByContractID(
-        "@mozilla.org/accessibilityService;1",
-        Ci.nsISupports);
-  } catch (ex) {
-    active = false;
+    Troubleshoot.snapshot(function (snapshot) {
+      if (button)
+        button.disabled = false;
+      let str = Cc["@mozilla.org/supports-string;1"].
+                createInstance(Ci.nsISupportsString);
+      str.data = JSON.stringify(snapshot, undefined, 2);
+      let transferable = Cc["@mozilla.org/widget/transferable;1"].
+                         createInstance(Ci.nsITransferable);
+      transferable.init(getLoadContext());
+      transferable.addDataFlavor("text/unicode");
+      transferable.setTransferData("text/unicode", str, str.data.length * 2);
+      Cc["@mozilla.org/widget/clipboard;1"].
+        getService(Ci.nsIClipboard).
+        setData(transferable, null, Ci.nsIClipboard.kGlobalClipboard);
+#ifdef ANDROID
+      // Present a toast notification.
+      let message = {
+        type: "Toast:Show",
+        message: stringBundle().GetStringFromName("rawDataCopied"),
+        duration: "short"
+      };
+      Services.androidBridge.handleGeckoMessage(message);
+#endif
+    });
   }
-
-  document.getElementById("a11y-activated").textContent = active ? "1" : "0";
-
-  var forceDisabled = 0;
-  forceDisabled = getPrefValue("accessibility.force_disabled").value;
-
-  document.getElementById("a11y-force-disabled").textContent
-    = (forceDisabled == -1) ? "never" :
-	((forceDisabled == 1) ? "1" : "0");
-}
-
-function getPrefValue(aName) {
-  let value = "";
-  let type = Services.prefs.getPrefType(aName);
-  switch (type) {
-    case Ci.nsIPrefBranch.PREF_STRING:
-      value = Services.prefs.getComplexValue(aName, Ci.nsISupportsString).data;
-      break;
-    case Ci.nsIPrefBranch.PREF_BOOL:
-      value = Services.prefs.getBoolPref(aName);
-      break;
-    case Ci.nsIPrefBranch.PREF_INT:
-      value = Services.prefs.getIntPref(aName);
-      break;
+  catch (err) {
+    if (button)
+      button.disabled = false;
+    throw err;
   }
-
-  return { name: aName, value: value };
-}
-
-function formatPrefValue(prefValue) {
-  // Some pref values are really long and don't have spaces.  This can cause
-  // problems when copying and pasting into some WYSIWYG editors.  In general
-  // the exact contents of really long pref values aren't particularly useful,
-  // so we truncate them to some reasonable length.
-  let maxPrefValueLen = 120;
-  let text = "" + prefValue;
-  if (text.length > maxPrefValueLen)
-    text = text.substring(0, maxPrefValueLen) + ELLIPSIS;
-  return text;
-}
-
-function getModifiedPrefs() {
-  // We use the low-level prefs API to identify prefs that have been
-  // modified, rather that Application.prefs.all since the latter is
-  // much, much slower.  Application.prefs.all also gets slower each
-  // time it's called.  See bug 517312.
-  let prefNames = getWhitelistedPrefNames();
-  let prefs = [getPrefValue(prefName)
-                      for each (prefName in prefNames)
-                          if (Services.prefs.prefHasUserValue(prefName)
-                            && !isBlacklisted(prefName))];
-  return prefs;
-}
-
-function getWhitelistedPrefNames() {
-  let results = [];
-  PREFS_WHITELIST.forEach(function (prefStem) {
-    let prefNames = Services.prefs.getChildList(prefStem);
-    results = results.concat(prefNames);
-  });
-  return results;
-}
-
-function isBlacklisted(prefName) {
-  return PREFS_BLACKLIST.some(function (re) re.test(prefName));
-}
-
-function createParentElement(tagName, childElems) {
-  let elem = document.createElement(tagName);
-  appendChildren(elem, childElems);
-  return elem;
-}
-
-function createElement(tagName, textContent, opt_class) {
-  let elem = document.createElement(tagName);
-  elem.textContent = textContent;
-  elem.className = opt_class || "";
-  return elem;
-}
-
-function appendChildren(parentElem, childNodes) {
-  for (let i = 0; i < childNodes.length; i++)
-    parentElem.appendChild(childNodes[i]);
 }
 
 function getLoadContext() {
@@ -510,7 +407,7 @@ function getLoadContext() {
 
 function copyContentsToClipboard() {
   // Get the HTML and text representations for the important part of the page.
-  let contentsDiv = document.getElementById("contents");
+  let contentsDiv = $("contents");
   let dataHtml = contentsDiv.innerHTML;
   let dataText = createTextForElement(contentsDiv);
 
@@ -537,20 +434,23 @@ function copyContentsToClipboard() {
   let clipboard = Cc["@mozilla.org/widget/clipboard;1"]
                     .getService(Ci.nsIClipboard);
   clipboard.setData(transferable, null, clipboard.kGlobalClipboard);
+
+#ifdef ANDROID
+  // Present a toast notification.
+  let message = {
+    type: "Toast:Show",
+    message: stringBundle().GetStringFromName("textCopied"),
+    duration: "short"
+  };
+  Services.androidBridge.handleGeckoMessage(message);
+#endif
 }
 
 // Return the plain text representation of an element.  Do a little bit
 // of pretty-printing to make it human-readable.
 function createTextForElement(elem) {
-  // Generate the initial text.
-  let textFragmentAccumulator = [];
-  generateTextForElement(elem, "", textFragmentAccumulator);
-  let text = textFragmentAccumulator.join("");
-
-  // Trim extraneous whitespace before newlines, then squash extraneous
-  // blank lines.
-  text = text.replace(/[ \t]+\n/g, "\n");
-  text = text.replace(/\n\n\n+/g, "\n\n");
+  let serializer = new Serializer();
+  let text = serializer.serialize(elem);
 
   // Actual CR/LF pairs are needed for some Windows text editors.
 #ifdef XP_WIN
@@ -560,41 +460,160 @@ function createTextForElement(elem) {
   return text;
 }
 
-function generateTextForElement(elem, indent, textFragmentAccumulator) {
-  // Add a little extra spacing around most elements.
-  if (elem.tagName != "td")
-    textFragmentAccumulator.push("\n");
-
-  // Generate the text representation for each child node.
-  let node = elem.firstChild;
-  while (node) {
-
-    if (node.nodeType == Node.TEXT_NODE) {
-      // Text belonging to this element uses its indentation level.
-      generateTextForTextNode(node, indent, textFragmentAccumulator);
-    }
-    else if (node.nodeType == Node.ELEMENT_NODE) {
-      // Recurse on the child element with an extra level of indentation.
-      generateTextForElement(node, indent + "  ", textFragmentAccumulator);
-    }
-
-    // Advance!
-    node = node.nextSibling;
-  }
+function Serializer() {
 }
 
-function generateTextForTextNode(node, indent, textFragmentAccumulator) {
-  // If the text node is the first of a run of text nodes, then start
-  // a new line and add the initial indentation.
-  let prevNode = node.previousSibling;
-  if (!prevNode || prevNode.nodeType == Node.TEXT_NODE)
-    textFragmentAccumulator.push("\n" + indent);
+Serializer.prototype = {
 
-  // Trim the text node's text content and add proper indentation after
-  // any internal line breaks.
-  let text = node.textContent.trim().replace("\n", "\n" + indent, "g");
-  textFragmentAccumulator.push(text);
-}
+  serialize: function (rootElem) {
+    this._lines = [];
+    this._startNewLine();
+    this._serializeElement(rootElem);
+    this._startNewLine();
+    return this._lines.join("\n").trim() + "\n";
+  },
+
+  // The current line is always the line that writing will start at next.  When
+  // an element is serialized, the current line is updated to be the line at
+  // which the next element should be written.
+  get _currentLine() {
+    return this._lines.length ? this._lines[this._lines.length - 1] : null;
+  },
+
+  set _currentLine(val) {
+    return this._lines[this._lines.length - 1] = val;
+  },
+
+  _serializeElement: function (elem) {
+    if (this._ignoreElement(elem))
+      return;
+
+    // table
+    if (elem.localName == "table") {
+      this._serializeTable(elem);
+      return;
+    }
+
+    // all other elements
+
+    let hasText = false;
+    for (let child of elem.childNodes) {
+      if (child.nodeType == Node.TEXT_NODE) {
+        let text = this._nodeText(child);
+        this._appendText(text);
+        hasText = hasText || !!text.trim();
+      }
+      else if (child.nodeType == Node.ELEMENT_NODE)
+        this._serializeElement(child);
+    }
+
+    // For headings, draw a "line" underneath them so they stand out.
+    if (/^h[0-9]+$/.test(elem.localName)) {
+      let headerText = (this._currentLine || "").trim();
+      if (headerText) {
+        this._startNewLine();
+        this._appendText("-".repeat(headerText.length));
+      }
+    }
+
+    // Add a blank line underneath block elements but only if they contain text.
+    if (hasText) {
+      let display = window.getComputedStyle(elem).getPropertyValue("display");
+      if (display == "block") {
+        this._startNewLine();
+        this._startNewLine();
+      }
+    }
+  },
+
+  _startNewLine: function (lines) {
+    let currLine = this._currentLine;
+    if (currLine) {
+      // The current line is not empty.  Trim it.
+      this._currentLine = currLine.trim();
+      if (!this._currentLine)
+        // The current line became empty.  Discard it.
+        this._lines.pop();
+    }
+    this._lines.push("");
+  },
+
+  _appendText: function (text, lines) {
+    this._currentLine += text;
+  },
+
+  _serializeTable: function (table) {
+    // Collect the table's column headings if in fact there are any.  First
+    // check thead.  If there's no thead, check the first tr.
+    let colHeadings = {};
+    let tableHeadingElem = table.querySelector("thead");
+    if (!tableHeadingElem)
+      tableHeadingElem = table.querySelector("tr");
+    if (tableHeadingElem) {
+      let tableHeadingCols = tableHeadingElem.querySelectorAll("th,td");
+      // If there's a contiguous run of th's in the children starting from the
+      // rightmost child, then consider them to be column headings.
+      for (let i = tableHeadingCols.length - 1; i >= 0; i--) {
+        if (tableHeadingCols[i].localName != "th")
+          break;
+        colHeadings[i] = this._nodeText(tableHeadingCols[i]).trim();
+      }
+    }
+    let hasColHeadings = Object.keys(colHeadings).length > 0;
+    if (!hasColHeadings)
+      tableHeadingElem = null;
+
+    let trs = table.querySelectorAll("table > tr, tbody > tr");
+    let startRow =
+      tableHeadingElem && tableHeadingElem.localName == "tr" ? 1 : 0;
+
+    if (startRow >= trs.length)
+      // The table's empty.
+      return;
+
+    if (hasColHeadings && !this._ignoreElement(tableHeadingElem)) {
+      // Use column headings.  Print each tr as a multi-line chunk like:
+      //   Heading 1: Column 1 value
+      //   Heading 2: Column 2 value
+      for (let i = startRow; i < trs.length; i++) {
+        if (this._ignoreElement(trs[i]))
+          continue;
+        let children = trs[i].querySelectorAll("td");
+        for (let j = 0; j < children.length; j++) {
+          let text = "";
+          if (colHeadings[j])
+            text += colHeadings[j] + ": ";
+          text += this._nodeText(children[j]).trim();
+          this._appendText(text);
+          this._startNewLine();
+        }
+        this._startNewLine();
+      }
+      return;
+    }
+
+    // Don't use column headings.  Assume the table has only two columns and
+    // print each tr in a single line like:
+    //   Column 1 value: Column 2 value
+    for (let i = startRow; i < trs.length; i++) {
+      if (this._ignoreElement(trs[i]))
+        continue;
+      let children = trs[i].querySelectorAll("th,td");
+      let rowHeading = this._nodeText(children[0]).trim();
+      this._appendText(rowHeading + ": " + this._nodeText(children[1]).trim());
+      this._startNewLine();
+    }
+    this._startNewLine();
+  },
+
+  _ignoreElement: function (elem) {
+    return elem.classList.contains("no-copy");
+  },
+
+  _nodeText: function (node) {
+    return node.textContent.replace(/\s+/g, " ");
+  },
+};
 
 function openProfileDirectory() {
   // Get the profile directory.
@@ -611,31 +630,28 @@ function openProfileDirectory() {
  * Profile reset is only supported for the default profile if the appropriate migrator exists.
  */
 function populateResetBox() {
-  if (resetSupported())
-    document.getElementById("reset-box").style.visibility = "visible";
+  if (ResetProfile.resetSupported())
+    $("reset-box").style.visibility = "visible";
 }
 
 /**
- * Restart the application to reset the profile.
+ * Set up event listeners for buttons.
  */
-function resetProfileAndRestart() {
-  let branding = Services.strings.createBundle("chrome://branding/locale/brand.properties");
-  let brandShortName = branding.GetStringFromName("brandShortName");
-
-  // Prompt the user to confirm.
-  let retVals = {
-    reset: false,
-  };
-  window.openDialog("chrome://global/content/resetProfile.xul", null,
-                    "chrome,modal,centerscreen,titlebar,dialog=yes", retVals);
-  if (!retVals.reset)
-    return;
-
-  // Set the reset profile environment variable.
-  let env = Cc["@mozilla.org/process/environment;1"]
-              .getService(Ci.nsIEnvironment);
-  env.set("MOZ_RESET_PROFILE_RESTART", "1");
-
-  let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup);
-  appStartup.quit(Ci.nsIAppStartup.eForceQuit | Ci.nsIAppStartup.eRestart);
+function setupEventListeners(){
+  $("show-update-history-button").addEventListener("click", function (event) {
+    var prompter = Cc["@mozilla.org/updates/update-prompt;1"].createInstance(Ci.nsIUpdatePrompt);
+      prompter.showUpdateHistory(window);
+  });
+  $("reset-box-button").addEventListener("click", function (event){
+    ResetProfile.openConfirmationDialog(window);
+  });
+  $("copy-raw-data-to-clipboard").addEventListener("click", function (event){
+    copyRawDataToClipboard(this);
+  });
+  $("copy-to-clipboard").addEventListener("click", function (event){
+    copyContentsToClipboard();
+  });
+  $("profile-dir-button").addEventListener("click", function (event){
+    openProfileDirectory();
+  });
 }

@@ -1,5 +1,3 @@
-// Ported from dom/src/json/test/unit/test_wrappers.js
-
 function assertStringify(v, expect)
 {
   assertEq(JSON.stringify(v), expect);
@@ -18,7 +16,7 @@ assertStringify({"w":{"x":{"y":[1,2,3]}}}, '{"w":{"x":{"y":[1,2,3]}}}');
 assertStringify({"false":false}, '{"false":false}');
 assertStringify({"true":true}, '{"true":true}');
 assertStringify({"child has two members": {"this":"one", 2:"and this one"}},
-                '{"child has two members":{"this":"one","2":"and this one"}}');
+                '{"child has two members":{"2":"and this one","this":"one"}}');
 assertStringify({"x":{"a":"b","c":{"y":"z"},"f":"g"}},
                 '{"x":{"a":"b","c":{"y":"z"},"f":"g"}}');
 assertStringify({"x":[1,{"y":"z"},3]}, '{"x":[1,{"y":"z"},3]}');

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+// /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -6,7 +6,7 @@
 #ifndef nsFileStreams_h__
 #define nsFileStreams_h__
 
-#include "nsAlgorithm.h"
+#include "nsAutoPtr.h"
 #include "nsIFileStreams.h"
 #include "nsIFile.h"
 #include "nsIInputStream.h"
@@ -15,24 +15,26 @@
 #include "nsISeekableStream.h"
 #include "nsILineInputStream.h"
 #include "nsCOMPtr.h"
-#include "prlog.h"
-#include "prio.h"
 #include "nsIIPCSerializableInputStream.h"
+#include "nsReadLine.h"
+#include <algorithm>
 
-template<class CharType> class nsLineBuffer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsFileStreamBase : public nsISeekableStream
+class nsFileStreamBase : public nsISeekableStream,
+                         public nsIFileMetadata
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSISEEKABLESTREAM
+    NS_DECL_NSIFILEMETADATA
 
     nsFileStreamBase();
-    virtual ~nsFileStreamBase();
 
 protected:
+    virtual ~nsFileStreamBase();
+
     nsresult Close();
     nsresult Available(uint64_t* _retval);
     nsresult Read(char* aBuf, uint32_t aCount, uint32_t* _retval);
@@ -111,10 +113,8 @@ public:
     NS_DECL_NSIIPCSERIALIZABLEINPUTSTREAM
 
     NS_IMETHOD Close();
-    NS_IMETHOD Available(uint64_t* _retval)
-    {
-        return nsFileStreamBase::Available(_retval);
-    }
+    NS_IMETHOD Tell(int64_t *aResult);
+    NS_IMETHOD Available(uint64_t* _retval);
     NS_IMETHOD Read(char* aBuf, uint32_t aCount, uint32_t* _retval);
     NS_IMETHOD ReadSegments(nsWriteSegmentFun aWriter, void *aClosure,
                             uint32_t aCount, uint32_t* _retval)
@@ -125,27 +125,25 @@ public:
     NS_IMETHOD IsNonBlocking(bool* _retval)
     {
         return nsFileStreamBase::IsNonBlocking(_retval);
-    } 
-    
+    }
+
     // Overrided from nsFileStreamBase
     NS_IMETHOD Seek(int32_t aWhence, int64_t aOffset);
 
     nsFileInputStream()
-      : mIOFlags(0), mPerm(0)
-    {
-        mLineBuffer = nullptr;
-    }
-
-    virtual ~nsFileInputStream() 
-    {
-        Close();
-    }
+      : mLineBuffer(nullptr), mIOFlags(0), mPerm(0), mCachedPosition(0)
+    {}
 
     static nsresult
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
 protected:
-    nsLineBuffer<char> *mLineBuffer;
+    virtual ~nsFileInputStream()
+    {
+        Close();
+    }
+
+    nsAutoPtr<nsLineBuffer<char> > mLineBuffer;
 
     /**
      * The file being opened.
@@ -160,16 +158,17 @@ protected:
      */
     int32_t mPerm;
 
+    /**
+     * Cached position for Tell for automatically reopening streams.
+     */
+    int64_t mCachedPosition;
+
 protected:
     /**
      * Internal, called to open a file.  Parameters are the same as their
      * Init() analogues.
      */
     nsresult Open(nsIFile* file, int32_t ioFlags, int32_t perm);
-    /**
-     * Reopen the file (for OPEN_ON_READ only!)
-     */
-    nsresult Reopen() { return Open(mFile, mIOFlags, mPerm); }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,6 +178,7 @@ class nsPartialFileInputStream : public nsFileInputStream,
 {
 public:
     using nsFileInputStream::Init;
+    using nsFileInputStream::Read;
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIPARTIALFILEINPUTSTREAM
     NS_DECL_NSIIPCSERIALIZABLEINPUTSTREAM
@@ -195,9 +195,13 @@ public:
     static nsresult
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
+protected:
+    ~nsPartialFileInputStream()
+    { }
+
 private:
     uint64_t TruncateSize(uint64_t aSize) {
-          return NS_MIN<uint64_t>(mLength - mPosition, aSize);
+          return std::min<uint64_t>(mLength - mPosition, aSize);
     }
 
     uint64_t mStart;
@@ -215,45 +219,67 @@ public:
     NS_DECL_NSIFILEOUTPUTSTREAM
     NS_FORWARD_NSIOUTPUTSTREAM(nsFileStreamBase::)
 
+    static nsresult
+    Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
+
+protected:
     virtual ~nsFileOutputStream()
     {
         Close();
     }
-
-    static nsresult
-    Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsSafeFileOutputStream : public nsFileOutputStream,
-                               public nsISafeOutputStream
+/**
+ * A safe file output stream that overwrites the destination file only
+ * once writing is complete. This protects against incomplete writes
+ * due to the process or the thread being interrupted or crashed.
+ */
+class nsAtomicFileOutputStream : public nsFileOutputStream,
+                                 public nsISafeOutputStream
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSISAFEOUTPUTSTREAM
 
-    nsSafeFileOutputStream() :
+    nsAtomicFileOutputStream() :
         mTargetFileExists(true),
         mWriteResult(NS_OK) {}
 
-    virtual ~nsSafeFileOutputStream()
-    {
-        Close();
-    }
-
-    virtual nsresult DoOpen();
+    virtual nsresult DoOpen() MOZ_OVERRIDE;
 
     NS_IMETHODIMP Close();
     NS_IMETHODIMP Write(const char *buf, uint32_t count, uint32_t *result);
     NS_IMETHODIMP Init(nsIFile* file, int32_t ioFlags, int32_t perm, int32_t behaviorFlags);
 
 protected:
+    virtual ~nsAtomicFileOutputStream()
+    {
+        Close();
+    }
+
     nsCOMPtr<nsIFile>         mTargetFile;
     nsCOMPtr<nsIFile>         mTempFile;
 
     bool     mTargetFileExists;
     nsresult mWriteResult; // Internally set in Write()
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * A safe file output stream that overwrites the destination file only
+ * once writing + flushing is complete. This protects against more
+ * classes of software/hardware errors than nsAtomicFileOutputStream,
+ * at the expense of being more costly to the disk, OS and battery.
+ */
+class nsSafeFileOutputStream : public nsAtomicFileOutputStream
+{
+public:
+
+    NS_IMETHOD Finish();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -261,13 +287,11 @@ protected:
 class nsFileStream : public nsFileStreamBase,
                      public nsIInputStream,
                      public nsIOutputStream,
-                     public nsIFileStream,
-                     public nsIFileMetadata
+                     public nsIFileStream
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIFILESTREAM
-    NS_DECL_NSIFILEMETADATA
     NS_FORWARD_NSIINPUTSTREAM(nsFileStreamBase::)
 
     // Can't use NS_FORWARD_NSIOUTPUTSTREAM due to overlapping methods
@@ -292,6 +316,7 @@ public:
                                                _retval);
     }
 
+protected:
     virtual ~nsFileStream()
     {
         Close();

@@ -23,14 +23,14 @@ void nsAuthSASL::Reset()
 }
 
 /* Limitations apply to this class's thread safety. See the header file */
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsAuthSASL, nsIAuthModule)
+NS_IMPL_ISUPPORTS(nsAuthSASL, nsIAuthModule)
 
 NS_IMETHODIMP
 nsAuthSASL::Init(const char *serviceName,
                  uint32_t    serviceFlags,
-                 const PRUnichar *domain,
-                 const PRUnichar *username,
-                 const PRUnichar *password)
+                 const char16_t *domain,
+                 const char16_t *username,
+                 const char16_t *password)
 {
     nsresult rv;
     
@@ -72,7 +72,7 @@ nsAuthSASL::GetNextToken(const void *inToken,
     void *unwrappedToken;
     char *message;
     uint32_t unwrappedTokenLen, messageLen;
-    nsCAutoString userbuf;
+    nsAutoCString userbuf;
     
     if (!mInnerModule) 
         return NS_ERROR_NOT_INITIALIZED;
@@ -82,7 +82,7 @@ nsAuthSASL::GetNextToken(const void *inToken,
         // I don't think this is correct, but we need to handle that behaviour.
         // Cyrus ignores the contents of our reply token.
         if (inTokenLen == 0) {
-            *outToken = NULL;
+            *outToken = nullptr;
             *outTokenLen = 0;
             return NS_OK;
         }
@@ -114,7 +114,7 @@ nsAuthSASL::GetNextToken(const void *inToken,
         message[2] = 0x00;
         message[3] = 0x00; // Maxbuf must be zero if we've got no sec layer
         strcpy(message+4, userbuf.get());
-        // Userbuf should not be NULL terminated, so trim the trailing NULL
+        // Userbuf should not be nullptr terminated, so trim the trailing nullptr
         // when wrapping the message
         rv = mInnerModule->Wrap((void *) message, messageLen-1, false, 
                                 outToken, outTokenLen);

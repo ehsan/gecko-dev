@@ -22,6 +22,13 @@ function testFilterButtons(aHud) {
   testMenuFilterButton("css");
   testMenuFilterButton("js");
   testMenuFilterButton("logging");
+  testMenuFilterButton("security");
+
+  testIsolateFilterButton("net");
+  testIsolateFilterButton("css");
+  testIsolateFilterButton("js");
+  testIsolateFilterButton("logging");
+  testIsolateFilterButton("security");
 
   finishTest();
 }
@@ -38,7 +45,7 @@ function testMenuFilterButton(aCategory) {
   // Turn all the filters off, if they were on.
   let menuItem = firstMenuItem;
   while (menuItem != null) {
-    if (isChecked(menuItem)) {
+    if (menuItem.hasAttribute("prefKey") && isChecked(menuItem)) {
       chooseMenuItem(menuItem);
     }
     menuItem = menuItem.nextSibling;
@@ -48,12 +55,14 @@ function testMenuFilterButton(aCategory) {
   menuItem = firstMenuItem;
   let prefKey;
   while (menuItem) {
-    prefKey = menuItem.getAttribute("prefKey");
-    chooseMenuItem(menuItem);
-    ok(isChecked(menuItem), "menu item " + prefKey + " for category " +
-       aCategory + " is checked after clicking it");
-    ok(hud.ui.filterPrefs[prefKey], prefKey + " messages are " +
-       "on after clicking the appropriate menu item");
+    if (menuItem.hasAttribute("prefKey")) {
+      prefKey = menuItem.getAttribute("prefKey");
+      chooseMenuItem(menuItem);
+      ok(isChecked(menuItem), "menu item " + prefKey + " for category " +
+         aCategory + " is checked after clicking it");
+      ok(hud.ui.filterPrefs[prefKey], prefKey + " messages are " +
+         "on after clicking the appropriate menu item");
+    }
     menuItem = menuItem.nextSibling;
   }
   ok(isChecked(button), "the button for category " + aCategory + " is " +
@@ -70,15 +79,7 @@ function testMenuFilterButton(aCategory) {
      "checked after turning off its first menu item");
 
   // Turn all the filters off by clicking the main part of the button.
-  let anonymousNodes = hud.ui.document.getAnonymousNodes(button);
-  let subbutton;
-  for (let i = 0; i < anonymousNodes.length; i++) {
-    let node = anonymousNodes[i];
-    if (node.classList.contains("toolbarbutton-menubutton-button")) {
-      subbutton = node;
-      break;
-    }
-  }
+  let subbutton = getMainButton(button);
   ok(subbutton, "we have the subbutton for category " + aCategory);
 
   clickButton(subbutton);
@@ -88,10 +89,12 @@ function testMenuFilterButton(aCategory) {
   menuItem = firstMenuItem;
   while (menuItem) {
     let prefKey = menuItem.getAttribute("prefKey");
-    ok(!isChecked(menuItem), "menu item " + prefKey + " for category " +
-       aCategory + " is no longer checked after clicking the button");
-    ok(!hud.ui.filterPrefs[prefKey], prefKey + " messages are " +
-       "off after clicking the button");
+    if (prefKey) {
+      ok(!isChecked(menuItem), "menu item " + prefKey + " for category " +
+         aCategory + " is no longer checked after clicking the button");
+      ok(!hud.ui.filterPrefs[prefKey], prefKey + " messages are " +
+         "off after clicking the button");
+    }
     menuItem = menuItem.nextSibling;
   }
 
@@ -103,18 +106,33 @@ function testMenuFilterButton(aCategory) {
 
   menuItem = firstMenuItem;
   while (menuItem) {
-    let prefKey = menuItem.getAttribute("prefKey");
-    ok(isChecked(menuItem), "menu item " + prefKey + " for category " +
-       aCategory + " is checked after clicking the button");
-    ok(hud.ui.filterPrefs[prefKey], prefKey + " messages are " +
-       "on after clicking the button");
+    if (menuItem.hasAttribute("prefKey")) {
+      let prefKey = menuItem.getAttribute("prefKey");
+      // The CSS/Log menu item should not be checked. See bug 971798.
+      if (aCategory == "css" && prefKey == "csslog") {
+        ok(!isChecked(menuItem), "menu item " + prefKey + " for category " +
+           aCategory + " should not be checked after clicking the button");
+        ok(!hud.ui.filterPrefs[prefKey], prefKey + " messages are " +
+           "off after clicking the button");
+      } else {
+        ok(isChecked(menuItem), "menu item " + prefKey + " for category " +
+           aCategory + " is checked after clicking the button");
+        ok(hud.ui.filterPrefs[prefKey], prefKey + " messages are " +
+           "on after clicking the button");
+      }
+    }
     menuItem = menuItem.nextSibling;
   }
 
   // Uncheck the main button by unchecking all the filters
   menuItem = firstMenuItem;
   while (menuItem) {
-    chooseMenuItem(menuItem);
+    // The csslog menu item is already unchecked at this point.
+    // Make sure it is not selected. See bug 971798.
+    prefKey = menuItem.getAttribute("prefKey");
+    if (prefKey && prefKey != "csslog") {
+      chooseMenuItem(menuItem);
+    }
     menuItem = menuItem.nextSibling;
   }
 
@@ -125,8 +143,89 @@ function testMenuFilterButton(aCategory) {
   clickButton(subbutton);
 }
 
+function testIsolateFilterButton(aCategory) {
+  let selector = ".webconsole-filter-button[category=\"" + aCategory + "\"]";
+  let targetButton = hudBox.querySelector(selector);
+  ok(targetButton, "we have the \"" + aCategory + "\" button");
+
+  // Get the main part of the filter button.
+  let subbutton = getMainButton(targetButton);
+  ok(subbutton, "we have the subbutton for category " + aCategory);
+
+  // Turn on all the filters by alt clicking the main part of the button.
+  altClickButton(subbutton);
+  ok(isChecked(targetButton), "the button for category " + aCategory +
+     " is checked after isolating for filter");
+
+  // Check if all the filters for the target button are on.
+  let menuItems = targetButton.querySelectorAll("menuitem");
+  Array.forEach(menuItems, (item) => {
+    let prefKey = item.getAttribute("prefKey");
+    // The CSS/Log filter should not be checked. See bug 971798.
+    if (aCategory == "css" && prefKey == "csslog") {
+      ok(!isChecked(item), "menu item " + prefKey + " for category " +
+        aCategory + " should not be checked after isolating for " + aCategory);
+      ok(!hud.ui.filterPrefs[prefKey], prefKey + " messages should be " +
+        "turned off after isolating for " + aCategory);
+    } else if (prefKey) {
+      ok(isChecked(item), "menu item " + prefKey + " for category " +
+        aCategory + " is checked after isolating for " + aCategory);
+      ok(hud.ui.filterPrefs[prefKey], prefKey + " messages are " +
+        "turned on after isolating for " + aCategory);
+    }
+  });
+
+  // Ensure all other filter buttons are toggled off and their
+  // associated filters are turned off
+  let buttons = hudBox.querySelectorAll(".webconsole-filter-button[category]");
+  Array.forEach(buttons, (filterButton) => {
+    if (filterButton !== targetButton) {
+      let category = filterButton.getAttribute("category");
+      ok(!isChecked(filterButton), "the button for category " +
+        category + " is unchecked after isolating for " + aCategory);
+
+      menuItems = filterButton.querySelectorAll("menuitem");
+      Array.forEach(menuItems, (item) => {
+        let prefKey = item.getAttribute("prefKey");
+        if (prefKey) {
+          ok(!isChecked(item), "menu item " + prefKey + " for category " +
+            aCategory + " is unchecked after isolating for " + aCategory);
+          ok(!hud.ui.filterPrefs[prefKey], prefKey + " messages are " +
+            "turned off after isolating for " + aCategory);
+        }
+      });
+
+      // Turn all the filters on again by clicking the button.
+      let mainButton = getMainButton(filterButton);
+      clickButton(mainButton);
+    }
+  });
+}
+
+/**
+ * Return the main part of the target filter button.
+ */
+function getMainButton(aTargetButton) {
+  let anonymousNodes = hud.ui.document.getAnonymousNodes(aTargetButton);
+  let subbutton;
+
+  for (let i = 0; i < anonymousNodes.length; i++) {
+    let node = anonymousNodes[i];
+    if (node.classList.contains("toolbarbutton-menubutton-button")) {
+      subbutton = node;
+      break;
+    }
+  }
+
+  return subbutton;
+}
+
 function clickButton(aNode) {
   EventUtils.sendMouseEvent({ type: "click" }, aNode);
+}
+
+function altClickButton(aNode) {
+  EventUtils.sendMouseEvent({ type: "click", altKey: true }, aNode);
 }
 
 function chooseMenuItem(aNode) {

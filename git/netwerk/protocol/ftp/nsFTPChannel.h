@@ -9,44 +9,36 @@
 
 #include "nsBaseChannel.h"
 
-#include "nsIIOService.h"
-#include "nsIURI.h"
 #include "nsString.h"
-#include "nsILoadGroup.h"
 #include "nsCOMPtr.h"
-#include "nsIProtocolHandler.h"
-#include "nsIProgressEventSink.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIInterfaceRequestorUtils.h"
-#include "nsFtpConnectionThread.h"
-#include "netCore.h"
-#include "nsIStreamListener.h"
 #include "nsIFTPChannel.h"
+#include "nsIForcePendingChannel.h"
 #include "nsIUploadChannel.h"
 #include "nsIProxyInfo.h"
 #include "nsIProxiedChannel.h"
 #include "nsIResumableChannel.h"
-#include "nsHashPropertyBag.h"
-#include "nsFtpProtocolHandler.h"
-#include "nsNetUtil.h"
+
+class nsIURI;
 
 class nsFtpChannel : public nsBaseChannel,
                      public nsIFTPChannel,
                      public nsIUploadChannel,
                      public nsIResumableChannel,
-                     public nsIProxiedChannel
+                     public nsIProxiedChannel,
+                     public nsIForcePendingChannel
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIUPLOADCHANNEL
     NS_DECL_NSIRESUMABLECHANNEL
     NS_DECL_NSIPROXIEDCHANNEL
-    
+
     nsFtpChannel(nsIURI *uri, nsIProxyInfo *pi)
         : mProxyInfo(pi)
         , mStartPos(0)
         , mResumeRequested(false)
         , mLastModifiedTime(0)
+        , mForcePending(false)
     {
         SetURI(uri);
     }
@@ -54,6 +46,17 @@ public:
     nsIProxyInfo *ProxyInfo() {
         return mProxyInfo;
     }
+
+    void SetProxyInfo(nsIProxyInfo *pi)
+    {
+        mProxyInfo = pi;
+    }
+
+    NS_IMETHOD IsPending(bool *result) MOZ_OVERRIDE;
+
+    // This is a short-cut to calling nsIRequest::IsPending().
+    // Overrides Pending in nsBaseChannel.
+    bool Pending() const MOZ_OVERRIDE;
 
     // Were we asked to resume a download?
     bool ResumeRequested() { return mResumeRequested; }
@@ -87,6 +90,9 @@ public:
     // Helper function for getting the nsIFTPEventSink.
     void GetFTPEventSink(nsCOMPtr<nsIFTPEventSink> &aResult);
 
+public:
+    NS_IMETHOD ForcePending(bool aForcePending);
+
 protected:
     virtual ~nsFtpChannel() {}
     virtual nsresult OpenContentStream(bool async, nsIInputStream **result,
@@ -102,6 +108,7 @@ private:
     nsCString                 mEntityID;
     bool                      mResumeRequested;
     PRTime                    mLastModifiedTime;
+    bool                      mForcePending;
 };
 
 #endif /* nsFTPChannel_h___ */

@@ -9,7 +9,7 @@ interface nsIFile;
 interface nsILoginInfo;
 interface nsIPropertyBag;
 
-[scriptable, uuid(32a4f9f1-60a8-4971-b54e-71ad661483ae)]
+[scriptable, uuid(5df81a93-25e6-4b45-a696-089479e15c7d)]
 
 /*
  * NOTE: This interface is intended to be implemented by modules
@@ -20,23 +20,29 @@ interface nsIPropertyBag;
  */
 interface nsILoginManagerStorage : nsISupports {
     /**
-     * Initialize the component. Not invoked automatically.
+     * Initialize the component.
+     *
+     * At present, other methods of this interface may be called before the
+     * returned promise is resolved or rejected.
+     *
+     * @return {Promise}
+     * @resolves When initialization is complete.
+     * @rejects JavaScript exception.
      */
-    void init();
+    jsval initialize();
 
 
     /**
-     * Initialize the component, but override the default filename
-     * locations. This is primarily used to the unit tests and profile
-     * migration.
+     * Ensures that all data has been written to disk and all files are closed.
      *
-     * @param aInputFile
-     *        File to read for stored logins.
-     * @param aOutputFile
-     *        If non-null, file to output logins to.
+     * At present, this method is called by regression tests only.  Finalization
+     * on shutdown is done by observers within the component.
      *
+     * @return {Promise}
+     * @resolves When finalization is complete.
+     * @rejects JavaScript exception.
      */
-    void initWithFile(in nsIFile aInputFile, in nsIFile aOutputFile);
+    jsval terminate();
 
 
     /**
@@ -113,25 +119,6 @@ interface nsILoginManagerStorage : nsISupports {
      */
     void getAllLogins([optional] out unsigned long count,
                       [retval, array, size_is(count)] out nsILoginInfo logins);
-
-
-    /**
-    * Fetch all logins in the login manager. An array is always returned;
-    * if there are no logins the array is empty. This does not decrypt logins
-    * before returning the array
-    *
-    * @param count
-    *        The number of elements in the array. JS callers can simply use
-    *        the array's .length property and omit this param.
-    * @param logins
-    *        An array of nsILoginInfo objects.
-    *
-    * NOTE: This can be called from JS as:
-    *       var logins = pwmgr.getAllEncryptedLogins();
-    *       (|logins| is an array).
-    */
-    void getAllEncryptedLogins([optional] out unsigned long count,
-                               [retval, array, size_is(count)] out nsILoginInfo logins);
 
 
     /**
@@ -256,4 +243,10 @@ interface nsILoginManagerStorage : nsISupports {
     * True when a master password prompt is being shown.
     */
     readonly attribute boolean uiBusy;
+
+   /**
+    * True when the master password has already been entered, and so a caller
+    * can ask for decrypted logins without triggering a prompt.
+    */
+    readonly attribute boolean isLoggedIn;
 };

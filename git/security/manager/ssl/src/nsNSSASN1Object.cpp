@@ -9,10 +9,8 @@
 #include "nsArrayUtils.h"
 #include "nsXPCOMCID.h"
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsNSSASN1Sequence, nsIASN1Sequence, 
-                                                 nsIASN1Object)
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsNSSASN1PrintableItem, nsIASN1PrintableItem,
-                                                      nsIASN1Object)
+NS_IMPL_ISUPPORTS(nsNSSASN1Sequence, nsIASN1Sequence, nsIASN1Object)
+NS_IMPL_ISUPPORTS(nsNSSASN1PrintableItem, nsIASN1PrintableItem, nsIASN1Object)
 
 // This function is used to interpret an integer that
 // was encoded in a DER buffer. This function is used
@@ -105,7 +103,7 @@ buildASN1ObjectFromDER(unsigned char *data,
   unsigned char code, tagnum;
 
   // A DER item has the form of |tag|len|data
-  // tag is one byte and describes the type of elment
+  // tag is one byte and describes the type of element
   //     we are dealing with.
   // len is a DER encoded int telling us how long the data is
   // data is a buffer that is len bytes long and has to be
@@ -116,7 +114,7 @@ buildASN1ObjectFromDER(unsigned char *data,
   uint32_t type;
 
   rv = parent->GetASN1Objects(getter_AddRefs(parentObjects));
-  if (NS_FAILED(rv) || parentObjects == nullptr)
+  if (NS_FAILED(rv) || !parentObjects)
     return NS_ERROR_FAILURE;
   while (data < end) {
     code = *data;
@@ -193,7 +191,7 @@ CreateFromDER(unsigned char *data,
     sequence->GetASN1Objects(getter_AddRefs(elements));
     nsCOMPtr<nsIASN1Object> asn1Obj = do_QueryElementAt(elements, 0);
     *retval = asn1Obj;
-    if (*retval == nullptr)
+    if (!*retval)
       return NS_ERROR_FAILURE;
 
     NS_ADDREF(*retval);
@@ -218,7 +216,7 @@ nsNSSASN1Sequence::~nsNSSASN1Sequence()
 NS_IMETHODIMP 
 nsNSSASN1Sequence::GetASN1Objects(nsIMutableArray * *aASN1Objects)
 {
-  if (mASN1Objects == nullptr) {
+  if (!mASN1Objects) {
     mASN1Objects = do_CreateInstance(NS_ARRAY_CONTRACTID);
   }
   *aASN1Objects = mASN1Objects;

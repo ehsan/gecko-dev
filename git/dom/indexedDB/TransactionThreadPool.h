@@ -7,139 +7,153 @@
 #ifndef mozilla_dom_indexeddb_transactionthreadpool_h__
 #define mozilla_dom_indexeddb_transactionthreadpool_h__
 
-// Only meant to be included in IndexedDB source files, not exported.
-#include "IndexedDatabase.h"
-
-#include "nsIObserver.h"
-#include "nsIRunnable.h"
-
-#include "mozilla/Monitor.h"
+#include "mozilla/Attributes.h"
+#include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
+#include "nsCOMPtr.h"
 #include "nsHashKeys.h"
-#include "nsRefPtrHashtable.h"
+#include "nsISupportsImpl.h"
+#include "nsTArray.h"
 
-#include "IDBTransaction.h"
-
+class nsIEventTarget;
+class nsIRunnable;
 class nsIThreadPool;
 
-BEGIN_INDEXEDDB_NAMESPACE
+namespace mozilla {
+namespace dom {
+namespace indexedDB {
 
-class FinishTransactionRunnable;
-class QueuedDispatchInfo;
-
-class TransactionThreadPool
+class TransactionThreadPool MOZ_FINAL
 {
-  friend class nsAutoPtr<TransactionThreadPool>;
+  class FinishTransactionRunnable;
   friend class FinishTransactionRunnable;
 
+  class TransactionQueue;
+  friend class TransactionQueue;
+
+  struct DatabaseTransactionInfo;
+  struct DatabasesCompleteCallback;
+  struct TransactionInfo;
+  struct TransactionInfoPair;
+
+  nsCOMPtr<nsIThreadPool> mThreadPool;
+  nsCOMPtr<nsIEventTarget> mOwningThread;
+
+  nsClassHashtable<nsCStringHashKey, DatabaseTransactionInfo>
+    mTransactionsInProgress;
+
+  nsTArray<nsAutoPtr<DatabasesCompleteCallback>> mCompleteCallbacks;
+
+  uint64_t mNextTransactionId;
+  bool mShutdownRequested;
+  bool mShutdownComplete;
+
 public:
-  // returns a non-owning ref!
-  static TransactionThreadPool* GetOrCreate();
+  class FinishCallback;
 
-  // returns a non-owning ref!
-  static TransactionThreadPool* Get();
+  static already_AddRefed<TransactionThreadPool> Create();
 
-  static void Shutdown();
+  uint64_t NextTransactionId();
 
-  nsresult Dispatch(IDBTransaction* aTransaction,
-                    nsIRunnable* aRunnable,
-                    bool aFinish,
-                    nsIRunnable* aFinishRunnable);
+  void Dispatch(uint64_t aTransactionId,
+                const nsACString& aDatabaseId,
+                const nsTArray<nsString>& aObjectStoreNames,
+                uint16_t aMode,
+                nsIRunnable* aRunnable,
+                bool aFinish,
+                FinishCallback* aFinishCallback);
 
-  bool WaitForAllDatabasesToComplete(nsTArray<IDBDatabase*>& aDatabases,
-                                     nsIRunnable* aCallback);
+  void Dispatch(uint64_t aTransactionId,
+                const nsACString& aDatabaseId,
+                nsIRunnable* aRunnable,
+                bool aFinish,
+                FinishCallback* aFinishCallback);
 
-  // Abort all transactions, unless they are already in the process of being
-  // committed, for aDatabase.
-  void AbortTransactionsForDatabase(IDBDatabase* aDatabase);
+  void WaitForDatabasesToComplete(nsTArray<nsCString>& aDatabaseIds,
+                                  nsIRunnable* aCallback);
 
   // Returns true if there are running or pending transactions for aDatabase.
-  bool HasTransactionsForDatabase(IDBDatabase* aDatabase);
+  bool HasTransactionsForDatabase(const nsACString& aDatabaseId);
 
-protected:
-  class TransactionQueue MOZ_FINAL : public nsIRunnable
-  {
-  public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIRUNNABLE
+  NS_INLINE_DECL_REFCOUNTING(TransactionThreadPool)
 
-    inline TransactionQueue(IDBTransaction* aTransaction,
-                            nsIRunnable* aRunnable);
+  void Shutdown();
 
-    inline void Dispatch(nsIRunnable* aRunnable);
+  void AssertIsOnOwningThread() const
+#ifdef DEBUG
+  ;
+#else
+  { }
+#endif
 
-    inline void Finish(nsIRunnable* aFinishRunnable);
+private:
+  static PLDHashOperator
+  CollectTransactions(const uint64_t& aTransactionId,
+                      TransactionInfo* aValue,
+                      void* aUserArg);
 
-  private:
-    mozilla::Monitor mMonitor;
-    IDBTransaction* mTransaction;
-    nsAutoTArray<nsCOMPtr<nsIRunnable>, 10> mQueue;
-    nsCOMPtr<nsIRunnable> mFinishRunnable;
-    bool mShouldFinish;
-  };
+  static PLDHashOperator
+  FindTransaction(const uint64_t& aTransactionId,
+                  TransactionInfo* aValue,
+                  void* aUserArg);
 
-  struct TransactionInfo
-  {
-    nsRefPtr<IDBTransaction> transaction;
-    nsRefPtr<TransactionQueue> queue;
-    nsTArray<nsString> objectStoreNames;
-  };
-
-  struct DatabaseTransactionInfo
-  {
-    nsTArray<TransactionInfo> transactions;
-    nsTArray<nsString> storesReading;
-    nsTArray<nsString> storesWriting;
-  };
-
-  struct QueuedDispatchInfo
-  {
-    QueuedDispatchInfo()
-    : finish(false)
-    { }
-
-    nsRefPtr<IDBTransaction> transaction;
-    nsCOMPtr<nsIRunnable> runnable;
-    nsCOMPtr<nsIRunnable> finishRunnable;
-    bool finish;
-  };
-
-  struct DatabasesCompleteCallback
-  {
-    nsTArray<IDBDatabase*> mDatabases;
-    nsCOMPtr<nsIRunnable> mCallback;
-  };
+  static PLDHashOperator
+  MaybeUnblockTransaction(nsPtrHashKey<TransactionInfo>* aKey,
+                          void* aUserArg);
 
   TransactionThreadPool();
+
+  // Reference counted.
   ~TransactionThreadPool();
 
   nsresult Init();
-  nsresult Cleanup();
+  void Cleanup();
 
-  void FinishTransaction(IDBTransaction* aTransaction);
+  void FinishTransaction(uint64_t aTransactionId,
+                         const nsACString& aDatabaseId,
+                         const nsTArray<nsString>& aObjectStoreNames,
+                         uint16_t aMode);
 
-  nsresult TransactionCanRun(IDBTransaction* aTransaction,
-                             bool* aCanRun,
-                             TransactionQueue** aExistingQueue);
+  TransactionQueue* GetQueueForTransaction(uint64_t aTransactionId,
+                                           const nsACString& aDatabaseId);
 
-  nsresult Dispatch(const QueuedDispatchInfo& aInfo)
-  {
-    return Dispatch(aInfo.transaction, aInfo.runnable, aInfo.finish,
-                    aInfo.finishRunnable);
-  }
+  TransactionQueue& GetQueueForTransaction(
+                                    uint64_t aTransactionId,
+                                    const nsACString& aDatabaseId,
+                                    const nsTArray<nsString>& aObjectStoreNames,
+                                    uint16_t aMode);
 
-  bool MaybeFireCallback(DatabasesCompleteCallback& aCallback);
+  bool MaybeFireCallback(DatabasesCompleteCallback* aCallback);
 
-  nsCOMPtr<nsIThreadPool> mThreadPool;
-
-  nsClassHashtable<nsISupportsHashKey, DatabaseTransactionInfo>
-    mTransactionsInProgress;
-
-  nsTArray<QueuedDispatchInfo> mDelayedDispatchQueue;
-
-  nsTArray<DatabasesCompleteCallback> mCompleteCallbacks;
+  void CleanupAsync();
 };
 
-END_INDEXEDDB_NAMESPACE
+class NS_NO_VTABLE TransactionThreadPool::FinishCallback
+{
+public:
+  NS_IMETHOD_(MozExternalRefCountType)
+  AddRef() = 0;
+
+  NS_IMETHOD_(MozExternalRefCountType)
+  Release() = 0;
+
+  // Called on the owning thread before any additional transactions are
+  // unblocked.
+  virtual void
+  TransactionFinishedBeforeUnblock() = 0;
+
+  // Called on the owning thread after additional transactions may have been
+  // unblocked.
+  virtual void
+  TransactionFinishedAfterUnblock() = 0;
+
+protected:
+  FinishCallback()
+  { }
+};
+
+} // namespace indexedDB
+} // namespace dom
+} // namespace mozilla
 
 #endif // mozilla_dom_indexeddb_transactionthreadpool_h__

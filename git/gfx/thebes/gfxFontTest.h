@@ -9,12 +9,9 @@
 #include "nsString.h"
 #include "nsTArray.h"
 
-#include "cairo.h"
+#include "cairo/cairo.h"
 
-#include "gfxFont.h"
-#include "gfxUserFontSet.h"
-
-struct THEBES_API gfxFontTestItem {
+struct gfxFontTestItem {
     gfxFontTestItem(const nsCString& fontName,
                     cairo_glyph_t *cglyphs, int nglyphs)
         : platformFont(fontName)
@@ -41,7 +38,7 @@ struct THEBES_API gfxFontTestItem {
 };
 
 
-class THEBES_API gfxFontTestStore {
+class gfxFontTestStore {
 public:
     gfxFontTestStore() { }
 

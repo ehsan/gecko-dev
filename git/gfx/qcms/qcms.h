@@ -40,6 +40,12 @@ sale, use or other dealings in this Software without written
 authorization from SunSoft Inc. 
 ******************************************************************/
 
+/*
+ * QCMS, in general, is not threadsafe. However, it should be safe to create
+ * profile and transformation objects on different threads, so long as you
+ * don't use the same objects on different threads at the same time.
+ */
+
 /* 
  * Color Space Signatures
  * Note that only icSigXYZData and icSigLabData are valid
@@ -87,11 +93,17 @@ typedef struct _qcms_profile qcms_profile;
 
 /* these values match the Rendering Intent values from the ICC spec */
 typedef enum {
-	QCMS_INTENT_DEFAULT = 0,
+	QCMS_INTENT_MIN = 0,
 	QCMS_INTENT_PERCEPTUAL = 0,
 	QCMS_INTENT_RELATIVE_COLORIMETRIC = 1,
 	QCMS_INTENT_SATURATION = 2,
-	QCMS_INTENT_ABSOLUTE_COLORIMETRIC = 3
+	QCMS_INTENT_ABSOLUTE_COLORIMETRIC = 3,
+	QCMS_INTENT_MAX = 3,
+
+	/* Chris Murphy (CM consultant) suggests this as a default in the event that we
+	 * cannot reproduce relative + Black Point Compensation.  BPC brings an
+	 * unacceptable performance overhead, so we go with perceptual. */
+	QCMS_INTENT_DEFAULT = QCMS_INTENT_PERCEPTUAL,
 } qcms_intent;
 
 //XXX: I don't really like the _DATA_ prefix
@@ -118,16 +130,27 @@ typedef struct
 } qcms_CIE_xyYTRIPLE;
 
 qcms_profile* qcms_profile_create_rgb_with_gamma(
-		qcms_CIE_xyY white_point,
-		qcms_CIE_xyYTRIPLE primaries,
-		float gamma);
+                qcms_CIE_xyY white_point,
+                qcms_CIE_xyYTRIPLE primaries,
+                float gamma);
+
+void qcms_data_create_rgb_with_gamma(
+                qcms_CIE_xyY white_point,
+                qcms_CIE_xyYTRIPLE primaries,
+                float gamma,
+                void **mem,
+                size_t *size);
 
 qcms_profile* qcms_profile_from_memory(const void *mem, size_t size);
 
 qcms_profile* qcms_profile_from_file(FILE *file);
 qcms_profile* qcms_profile_from_path(const char *path);
+
+void qcms_data_from_path(const char *path, void **mem, size_t *size);
+
 #ifdef _WIN32
 qcms_profile* qcms_profile_from_unicode_path(const wchar_t *path);
+void qcms_data_from_unicode_path(const wchar_t *path, void **mem, size_t *size);
 #endif
 qcms_profile* qcms_profile_sRGB(void);
 void qcms_profile_release(qcms_profile *profile);

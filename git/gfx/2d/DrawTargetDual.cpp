@@ -5,6 +5,7 @@
      
 #include "DrawTargetDual.h"
 #include "Tools.h"
+#include "Logging.h"
 
 namespace mozilla {
 namespace gfx {
@@ -12,9 +13,9 @@ namespace gfx {
 class DualSurface
 {
 public:
-  inline DualSurface(SourceSurface *aSurface)
+  inline explicit DualSurface(SourceSurface *aSurface)
   {
-    if (aSurface->GetType() != SURFACE_DUAL_DT) {
+    if (aSurface->GetType() != SurfaceType::DUAL_DT) {
       mA = mB = aSurface;
       return;
     }
@@ -36,10 +37,10 @@ public:
 class DualPattern
 {
 public:
-  inline DualPattern(const Pattern &aPattern)
+  inline explicit DualPattern(const Pattern &aPattern)
     : mPatternsInitialized(false)
   {
-    if (aPattern.GetType() != PATTERN_SURFACE) {
+    if (aPattern.GetType() != PatternType::SURFACE) {
       mA = mB = &aPattern;
       return;
     }
@@ -47,7 +48,7 @@ public:
     const SurfacePattern *surfPat =
       static_cast<const SurfacePattern*>(&aPattern);
 
-    if (surfPat->mSurface->GetType() != SURFACE_DUAL_DT) {
+    if (surfPat->mSurface->GetType() != SurfaceType::DUAL_DT) {
       mA = mB = &aPattern;
       return;
     }
@@ -95,6 +96,18 @@ DrawTargetDual::DrawSurfaceWithShadow(SourceSurface *aSurface, const Point &aDes
   DualSurface surface(aSurface);
   mA->DrawSurfaceWithShadow(surface.mA, aDest, aColor, aOffset, aSigma, aOp);
   mB->DrawSurfaceWithShadow(surface.mB, aDest, aColor, aOffset, aSigma, aOp);
+}
+
+void
+DrawTargetDual::MaskSurface(const Pattern &aSource,
+                           SourceSurface *aMask,
+                           Point aOffset,
+                           const DrawOptions &aOptions)
+{
+  DualPattern source(aSource);
+  DualSurface mask(aMask);
+  mA->MaskSurface(*source.mA, mask.mA, aOffset, aOptions);
+  mB->MaskSurface(*source.mB, mask.mB, aOffset, aOptions);
 }
 
 void
@@ -173,6 +186,11 @@ DrawTargetDual::CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFor
 {
   RefPtr<DrawTarget> dtA = mA->CreateSimilarDrawTarget(aSize, aFormat);
   RefPtr<DrawTarget> dtB = mB->CreateSimilarDrawTarget(aSize, aFormat);
+
+  if (!dtA || !dtB) {
+    gfxWarning() << "Failure to allocate a similar DrawTargetDual. Size: " << aSize;
+    return nullptr;
+  }
 
   return new DrawTargetDual(dtA, dtB);
 }

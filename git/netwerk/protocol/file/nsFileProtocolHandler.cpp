@@ -6,13 +6,8 @@
 
 #include "nsFileProtocolHandler.h"
 #include "nsFileChannel.h"
-#include "nsInputStreamChannel.h"
 #include "nsStandardURL.h"
 #include "nsURLHelper.h"
-#include "nsNetCID.h"
-
-#include "nsIServiceManager.h"
-#include "nsIURL.h"
 
 #include "nsNetUtil.h"
 
@@ -24,13 +19,6 @@
 #ifdef CompareString
 #undef CompareString
 #endif
-#endif
-
-// URL file handling for OS/2
-#ifdef XP_OS2
-#include "prio.h"
-#include "nsIFileURL.h"
-#include "nsILocalFileOS2.h"
 #endif
 
 // URL file handling for freedesktop.org
@@ -51,10 +39,10 @@ nsFileProtocolHandler::Init()
     return NS_OK;
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(nsFileProtocolHandler,
-                              nsIFileProtocolHandler,
-                              nsIProtocolHandler,
-                              nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(nsFileProtocolHandler,
+                  nsIFileProtocolHandler,
+                  nsIProtocolHandler,
+                  nsISupportsWeakReference)
 
 //-----------------------------------------------------------------------------
 // nsIProtocolHandler methods:
@@ -78,7 +66,7 @@ nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
     rv = NS_ERROR_NOT_AVAILABLE;
 
     IUniformResourceLocatorW* urlLink = nullptr;
-    result = ::CoCreateInstance(CLSID_InternetShortcut, NULL, CLSCTX_INPROC_SERVER,
+    result = ::CoCreateInstance(CLSID_InternetShortcut, nullptr, CLSCTX_INPROC_SERVER,
                                 IID_IUniformResourceLocatorW, (void**)&urlLink);
     if (SUCCEEDED(result) && urlLink) {
         IPersistFile* urlFile = nullptr;
@@ -104,57 +92,13 @@ nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
     return rv;
 }
 
-#elif defined(XP_OS2)
-NS_IMETHODIMP
-nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
-{
-    nsresult rv;
-
-    nsCOMPtr<nsILocalFileOS2> os2File (do_QueryInterface(aFile, &rv));
-    if (NS_FAILED(rv))
-        return NS_ERROR_NOT_AVAILABLE;
-
-    // see if this file is a WPS UrlObject
-    bool isUrl;
-    rv = os2File->IsFileType(NS_LITERAL_CSTRING("UniformResourceLocator"),
-                             &isUrl);
-    if (NS_FAILED(rv) || !isUrl)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    // if so, open it & get its size
-    PRFileDesc *file;
-    rv = os2File->OpenNSPRFileDesc(PR_RDONLY, 0, &file);
-    if (NS_FAILED(rv))
-        return NS_ERROR_NOT_AVAILABLE;
-
-    int64_t fileSize;
-    os2File->GetFileSize(&fileSize);
-    rv = NS_ERROR_NOT_AVAILABLE;
-
-    // get a buffer, read the entire file, then create
-    // an nsURI;  we assume the string is already escaped
-    char * buffer = (char*)NS_Alloc(fileSize+1);
-    if (buffer) {
-        int32_t cnt = PR_Read(file, buffer, fileSize);
-        if (cnt > 0) {
-            buffer[cnt] = '\0';
-            if (NS_SUCCEEDED(NS_NewURI(aURI, nsDependentCString(buffer))))
-                rv = NS_OK;
-        }
-        NS_Free(buffer);
-    }
-    PR_Close(file);
-
-    return rv;
-}
-
 #elif defined(XP_UNIX)
 NS_IMETHODIMP
 nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
 {
     // We only support desktop files that end in ".desktop" like the spec says:
     // http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html
-    nsCAutoString leafName;
+    nsAutoCString leafName;
     nsresult rv = aFile->GetNativeLeafName(leafName);
     if (NS_FAILED(rv) ||
 	!StringEndsWith(leafName, NS_LITERAL_CSTRING(".desktop")))
@@ -165,12 +109,12 @@ nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
     if (NS_FAILED(rv))
         return rv;
 
-    nsCAutoString type;
+    nsAutoCString type;
     parser.GetString(DESKTOP_ENTRY_SECTION, "Type", type);
     if (!type.EqualsLiteral("Link"))
         return NS_ERROR_NOT_AVAILABLE;
 
-    nsCAutoString url;
+    nsAutoCString url;
     rv = parser.GetString(DESKTOP_ENTRY_SECTION, "URL", url);
     if (NS_FAILED(rv) || url.IsEmpty())
         return NS_ERROR_NOT_AVAILABLE;
@@ -219,8 +163,8 @@ nsFileProtocolHandler::NewURI(const nsACString &spec,
 
     const nsACString *specPtr = &spec;
 
-#if defined(XP_WIN) || defined(XP_OS2)
-    nsCAutoString buf;
+#if defined(XP_WIN)
+    nsAutoCString buf;
     if (net_NormalizeFileURL(spec, buf))
         specPtr = &buf;
 #endif
@@ -233,7 +177,9 @@ nsFileProtocolHandler::NewURI(const nsACString &spec,
 }
 
 NS_IMETHODIMP
-nsFileProtocolHandler::NewChannel(nsIURI *uri, nsIChannel **result)
+nsFileProtocolHandler::NewChannel2(nsIURI* uri,
+                                   nsILoadInfo* aLoadInfo,
+                                   nsIChannel** result)
 {
     nsFileChannel *chan = new nsFileChannel(uri);
     if (!chan)
@@ -248,6 +194,12 @@ nsFileProtocolHandler::NewChannel(nsIURI *uri, nsIChannel **result)
 
     *result = chan;
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFileProtocolHandler::NewChannel(nsIURI *uri, nsIChannel **result)
+{
+    return NewChannel2(uri, nullptr, result);
 }
 
 NS_IMETHODIMP 

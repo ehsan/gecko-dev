@@ -1,50 +1,16 @@
 /*
  * loader.h - load platform dependent DSO containing freebl implementation.
  *
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
-/* $Id: loader.h,v 1.35 2011/10/04 22:05:53 wtc%google.com Exp $ */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef _LOADER_H_
 #define _LOADER_H_ 1
 
 #include "blapi.h"
 
-#define FREEBL_VERSION 0x030D
+#define FREEBL_VERSION 0x0311
 
 struct FREEBLVectorStr {
 
@@ -173,7 +139,7 @@ struct FREEBLVectorStr {
  SECStatus (* p_MD5_Hash)(unsigned char *dest, const char *src);
 
  SECStatus (* p_MD5_HashBuf)(unsigned char *dest, const unsigned char *src,
-			     uint32 src_length);
+			     PRUint32 src_length);
 
  MD5Context *(* p_MD5_NewContext)(void);
 
@@ -218,7 +184,7 @@ struct FREEBLVectorStr {
  SECStatus (* p_SHA1_Hash)(unsigned char *dest, const char *src);
 
  SECStatus (* p_SHA1_HashBuf)(unsigned char *dest, const unsigned char *src,
-			      uint32 src_length);
+			      PRUint32 src_length);
 
  SHA1Context *(* p_SHA1_NewContext)(void);
 
@@ -263,7 +229,7 @@ struct FREEBLVectorStr {
                               unsigned char *output,
                               const unsigned char *input);
 
-  SECStatus (* p_RSA_PrivateKeyCheck)(RSAPrivateKey *key);
+  SECStatus (* p_RSA_PrivateKeyCheck)(const RSAPrivateKey *key);
 
   void (* p_BL_Cleanup)(void);
 
@@ -277,7 +243,7 @@ struct FREEBLVectorStr {
  void (* p_SHA256_End)(SHA256Context *cx, unsigned char *digest,
 		     unsigned int *digestLen, unsigned int maxDigestLen);
  SECStatus (* p_SHA256_HashBuf)(unsigned char *dest, const unsigned char *src,
-			      uint32 src_length);
+				PRUint32 src_length);
  SECStatus (* p_SHA256_Hash)(unsigned char *dest, const char *src);
  void (* p_SHA256_TraceState)(SHA256Context *cx);
  unsigned int (* p_SHA256_FlattenSize)(SHA256Context *cx);
@@ -292,7 +258,7 @@ struct FREEBLVectorStr {
  void (* p_SHA512_End)(SHA512Context *cx, unsigned char *digest,
 		     unsigned int *digestLen, unsigned int maxDigestLen);
  SECStatus (* p_SHA512_HashBuf)(unsigned char *dest, const unsigned char *src,
-			      uint32 src_length);
+				PRUint32 src_length);
  SECStatus (* p_SHA512_Hash)(unsigned char *dest, const char *src);
  void (* p_SHA512_TraceState)(SHA512Context *cx);
  unsigned int (* p_SHA512_FlattenSize)(SHA512Context *cx);
@@ -307,7 +273,7 @@ struct FREEBLVectorStr {
  void (* p_SHA384_End)(SHA384Context *cx, unsigned char *digest,
 		     unsigned int *digestLen, unsigned int maxDigestLen);
  SECStatus (* p_SHA384_HashBuf)(unsigned char *dest, const unsigned char *src,
-			      uint32 src_length);
+				PRUint32 src_length);
  SECStatus (* p_SHA384_Hash)(unsigned char *dest, const char *src);
  void (* p_SHA384_TraceState)(SHA384Context *cx);
  unsigned int (* p_SHA384_FlattenSize)(SHA384Context *cx);
@@ -585,7 +551,7 @@ struct FREEBLVectorStr {
  void (* p_SHA224_End)(SHA224Context *cx, unsigned char *digest,
 		     unsigned int *digestLen, unsigned int maxDigestLen);
  SECStatus (*p_SHA224_HashBuf)(unsigned char *dest, const unsigned char *src,
-			      uint32 src_length);
+			       PRUint32 src_length);
  SECStatus (*p_SHA224_Hash)(unsigned char *dest, const char *src);
  void (*p_SHA224_TraceState)(SHA224Context *cx);
  unsigned int (* p_SHA224_FlattenSize)(SHA224Context *cx);
@@ -596,7 +562,154 @@ struct FREEBLVectorStr {
 
   /* Version 3.013 came to here */
 
-};
+ SECStatus (* p_PQG_ParamGenV2)( unsigned int L, unsigned int N,
+                                unsigned int seedBytes, 
+                                PQGParams **pParams, PQGVerify **pVfy); 
+ SECStatus (*p_PRNGTEST_RunHealthTests)(void);
+
+  /* Version 3.014 came to here */
+
+ SECStatus (* p_HMAC_ConstantTime)(
+     unsigned char *result,
+     unsigned int *resultLen,
+     unsigned int maxResultLen,
+     const SECHashObject *hashObj,
+     const unsigned char *secret,
+     unsigned int secretLen,
+     const unsigned char *header,
+     unsigned int headerLen,
+     const unsigned char *body,
+     unsigned int bodyLen,
+     unsigned int bodyTotalLen);
+
+ SECStatus (* p_SSLv3_MAC_ConstantTime)(
+     unsigned char *result,
+     unsigned int *resultLen,
+     unsigned int maxResultLen,
+     const SECHashObject *hashObj,
+     const unsigned char *secret,
+     unsigned int secretLen,
+     const unsigned char *header,
+     unsigned int headerLen,
+     const unsigned char *body,
+     unsigned int bodyLen,
+     unsigned int bodyTotalLen);
+
+  /* Version 3.015 came to here */
+
+ SECStatus (* p_RSA_SignRaw)(RSAPrivateKey *key,
+                             unsigned char *output,
+                             unsigned int *outputLen,
+                             unsigned int maxOutputLen,
+                             const unsigned char *input,
+                             unsigned int inputLen);
+ SECStatus (* p_RSA_CheckSignRaw)(RSAPublicKey *key,
+                                  const unsigned char *sig,
+                                  unsigned int sigLen,
+                                  const unsigned char *hash,
+                                  unsigned int hashLen);
+ SECStatus (* p_RSA_CheckSignRecoverRaw)(RSAPublicKey *key,
+                                         unsigned char *data,
+                                         unsigned int *dataLen,
+                                         unsigned int maxDataLen,
+                                         const unsigned char *sig,
+                                         unsigned int sigLen);
+ SECStatus (* p_RSA_EncryptRaw)(RSAPublicKey *key,
+                                unsigned char *output,
+                                unsigned int *outputLen,
+                                unsigned int maxOutputLen,
+                                const unsigned char *input,
+                                unsigned int inputLen);
+ SECStatus (* p_RSA_DecryptRaw)(RSAPrivateKey *key,
+                                unsigned char *output,
+                                unsigned int *outputLen,
+                                unsigned int maxOutputLen,
+                                const unsigned char *input,
+                                unsigned int inputLen);
+ SECStatus (* p_RSA_EncryptOAEP)(RSAPublicKey *key,
+                                 HASH_HashType hashAlg,
+                                 HASH_HashType maskHashAlg,
+                                 const unsigned char *label,
+                                 unsigned int labelLen,
+                                 const unsigned char *seed,
+                                 unsigned int seedLen,
+                                 unsigned char *output,
+                                 unsigned int *outputLen,
+                                 unsigned int maxOutputLen,
+                                 const unsigned char *input,
+                                 unsigned int inputLen);
+ SECStatus (* p_RSA_DecryptOAEP)(RSAPrivateKey *key,
+                                 HASH_HashType hashAlg,
+                                 HASH_HashType maskHashAlg,
+                                 const unsigned char *label,
+                                 unsigned int labelLen,
+                                 unsigned char *output,
+                                 unsigned int *outputLen,
+                                 unsigned int maxOutputLen,
+                                 const unsigned char *input,
+                                 unsigned int inputLen);
+ SECStatus (* p_RSA_EncryptBlock)(RSAPublicKey *key,
+                                  unsigned char *output,
+                                  unsigned int *outputLen,
+                                  unsigned int maxOutputLen,
+                                  const unsigned char *input,
+                                  unsigned int inputLen);
+ SECStatus (* p_RSA_DecryptBlock)(RSAPrivateKey *key,
+                                  unsigned char *output,
+                                  unsigned int *outputLen,
+                                  unsigned int maxOutputLen,
+                                  const unsigned char *input,
+                                  unsigned int inputLen);
+ SECStatus (* p_RSA_SignPSS)(RSAPrivateKey *key,
+                             HASH_HashType hashAlg,
+                             HASH_HashType maskHashAlg,
+                             const unsigned char *salt,
+                             unsigned int saltLen,
+                             unsigned char *output,
+                             unsigned int *outputLen,
+                             unsigned int maxOutputLen,
+                             const unsigned char *input,
+                             unsigned int inputLen);
+ SECStatus (* p_RSA_CheckSignPSS)(RSAPublicKey *key,
+                                  HASH_HashType hashAlg,
+                                  HASH_HashType maskHashAlg,
+                                  unsigned int saltLen,
+                                  const unsigned char *sig,
+                                  unsigned int sigLen,
+                                  const unsigned char *hash,
+                                  unsigned int hashLen);
+ SECStatus (* p_RSA_Sign)(RSAPrivateKey *key,
+                          unsigned char *output,
+                          unsigned int *outputLen,
+                          unsigned int maxOutputLen,
+                          const unsigned char *input,
+                          unsigned int inputLen);
+ SECStatus (* p_RSA_CheckSign)(RSAPublicKey *key,
+                               const unsigned char *sig,
+                               unsigned int sigLen,
+                               const unsigned char *data,
+                               unsigned int dataLen);
+ SECStatus (* p_RSA_CheckSignRecover)(RSAPublicKey *key,
+                                      unsigned char *output,
+                                      unsigned int *outputLen,
+                                      unsigned int maxOutputLen,
+                                      const unsigned char *sig,
+                                      unsigned int sigLen);
+
+  /* Version 3.016 came to here */
+
+ SECStatus (* p_EC_FillParams)(PLArenaPool *arena,
+                               const SECItem *encodedParams, ECParams *params);
+ SECStatus (* p_EC_DecodeParams)(const SECItem *encodedParams,
+                               ECParams **ecparams);
+ SECStatus (* p_EC_CopyParams)(PLArenaPool *arena, ECParams *dstParams,
+                               const ECParams *srcParams);
+
+  /* Version 3.017 came to here */
+
+  /* Add new function pointers at the end of this struct and bump
+   * FREEBL_VERSION at the beginning of this file. */
+ };
 
 typedef struct FREEBLVectorStr FREEBLVector;
 

@@ -9,13 +9,10 @@ let histograms = {
   PLACES_PAGES_COUNT: function (val) do_check_eq(val, 1),
   PLACES_BOOKMARKS_COUNT: function (val) do_check_eq(val, 1),
   PLACES_TAGS_COUNT: function (val) do_check_eq(val, 1),
-  PLACES_FOLDERS_COUNT: function (val) do_check_eq(val, 1),
   PLACES_KEYWORDS_COUNT: function (val) do_check_eq(val, 1),
   PLACES_SORTED_BOOKMARKS_PERC: function (val) do_check_eq(val, 100),
   PLACES_TAGGED_BOOKMARKS_PERC: function (val) do_check_eq(val, 100),
   PLACES_DATABASE_FILESIZE_MB: function (val) do_check_true(val > 0),
-  // The journal may have been truncated.
-  PLACES_DATABASE_JOURNALSIZE_MB: function (val) do_check_true(val >= 0),
   PLACES_DATABASE_PAGESIZE_B: function (val) do_check_eq(val, 32768),
   PLACES_DATABASE_SIZE_PER_PAGE_B: function (val) do_check_true(val > 0),
   PLACES_EXPIRATION_STEPS_TO_CLEAN2: function (val) do_check_true(val > 1),
@@ -23,15 +20,17 @@ let histograms = {
   PLACES_IDLE_FRECENCY_DECAY_TIME_MS: function (val) do_check_true(val > 0),
   PLACES_IDLE_MAINTENANCE_TIME_MS: function (val) do_check_true(val > 0),
   PLACES_ANNOS_BOOKMARKS_COUNT: function (val) do_check_eq(val, 1),
-  PLACES_ANNOS_BOOKMARKS_SIZE_KB: function (val) do_check_eq(val, 1),
   PLACES_ANNOS_PAGES_COUNT: function (val) do_check_eq(val, 1),
-  PLACES_ANNOS_PAGES_SIZE_KB: function (val) do_check_eq(val, 1),
-  PLACES_FRECENCY_CALC_TIME_MS: function (val) do_check_true(val >= 0),
+  PLACES_MAINTENANCE_DAYSFROMLAST: function (val) do_check_true(val >= 0),
 }
 
-function run_test() {
-  do_test_pending();
+function run_test()
+{
+  run_next_test();
+}
 
+add_task(function test_execute()
+{
   // Put some trash in the database.
   const URI = NetUtil.newURI("http://moz.org/");
 
@@ -60,15 +59,14 @@ function run_test() {
     .getService(Ci.nsIObserver)
     .observe(null, "gather-telemetry", null);
 
-  waitForAsyncUpdates(continue_test);
-}
+  yield promiseAsyncUpdates();
 
-function continue_test() {
   // Test expiration probes.
   for (let i = 0; i < 2; i++) {
-    PlacesUtils.history.addVisit(NetUtil.newURI("http://" +  i + ".moz.org/"),
-                                 Date.now(), null,
-                                 PlacesUtils.history.TRANSITION_TYPED, false, 0);
+    yield promiseAddVisits({
+      uri: uri("http://" +  i + ".moz.org/"),
+      visitDate: Date.now() // [sic]
+    });
   }
   Services.prefs.setIntPref("places.history.expiration.max_pages", 0);
   let expire = Cc["@mozilla.org/places/expiration;1"].getService(Ci.nsIObserver);
@@ -116,14 +114,8 @@ function continue_test() {
                      .observe(null, "idle-daily", null);
   PlacesDBUtils.maintenanceOnIdle();
 
-  Services.obs.addObserver(function maintenanceObserver() {
-    Services.obs.removeObserver(maintenanceObserver,
-    "places-maintenance-finished");
-    check_telemetry();
-  }, "places-maintenance-finished", false);
-}
+  yield promiseTopicObserved("places-maintenance-finished");
 
-function check_telemetry() {
   for (let histogramId in histograms) {
     do_log_info("checking histogram " + histogramId);
     let validate = histograms[histogramId];
@@ -131,5 +123,17 @@ function check_telemetry() {
     validate(snapshot.sum);
     do_check_true(snapshot.counts.reduce(function(a, b) a + b) > 0);
   }
-  do_test_finished();
-}
+});
+
+add_test(function test_healthreport_callback() {
+  PlacesDBUtils.telemetry(null, function onResult(data) {
+    do_check_neq(data, null);
+
+    do_check_eq(Object.keys(data).length, 2);
+    do_check_eq(data.PLACES_PAGES_COUNT, 1);
+    do_check_eq(data.PLACES_BOOKMARKS_COUNT, 1);
+
+    run_next_test();
+  });
+});
+

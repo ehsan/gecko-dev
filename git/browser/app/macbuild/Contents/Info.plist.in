@@ -147,7 +147,7 @@
 	<key>CFBundleGetInfoString</key>
 	<string>%MAC_APP_NAME% %APP_VERSION%</string>
 	<key>CFBundleIconFile</key>
-	<string>firefox</string>
+	<string>firefox.icns</string>
 	<key>CFBundleIdentifier</key>
 	<string>%MOZ_MACBUNDLE_ID%</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -203,6 +203,8 @@
 	<string>%MAC_BUNDLE_VERSION%</string>
 	<key>NSAppleScriptEnabled</key>
 	<true/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>10.6</string>
 	<key>LSMinimumSystemVersionByArchitecture</key>
@@ -216,5 +218,7 @@
   <true/>
   <key>NSPrincipalClass</key>
   <string>GeckoNSApplication</string>
+  <key>NSDisablePersistence</key>
+  <true/>
 </dict>
 </plist>

@@ -5,49 +5,71 @@
  * The Marionette object, passed to the script context.
  */
 
-function Marionette(scope, window, context, logObj, perfData) {
+this.Marionette = function Marionette(scope, window, context, logObj, timeout,
+                                      heartbeatCallback, testName) {
   this.scope = scope;
   this.window = window;
   this.tests = [];
   this.logObj = logObj;
-  this.perfData = perfData;
   this.context = context;
-  this.timeout = 0;
+  this.timeout = timeout;
+  this.heartbeatCallback = heartbeatCallback;
+  this.testName = testName;
+  this.TEST_UNEXPECTED_FAIL = "TEST-UNEXPECTED-FAIL";
+  this.TEST_UNEXPECTED_PASS = "TEST-UNEXPECTED-PASS";
+  this.TEST_PASS = "TEST-PASS";
+  this.TEST_KNOWN_FAIL = "TEST-KNOWN-FAIL";
 }
 
 Marionette.prototype = {
-  exports: ['ok', 'is', 'isnot', 'log', 'getLogs', 'generate_results', 'waitFor',
-            'runEmulatorCmd', 'addPerfData', 'getPerfData'],
+  exports: ['ok', 'is', 'isnot', 'todo', 'log', 'getLogs', 'generate_results', 'waitFor',
+            'runEmulatorCmd', 'runEmulatorShell', 'TEST_PASS', 'TEST_KNOWN_FAIL',
+            'TEST_UNEXPECTED_FAIL', 'TEST_UNEXPECTED_PASS'],
 
-  ok: function Marionette__ok(condition, name, diag) {
-    let test = {'result': !!condition, 'name': name, 'diag': diag};
-    this.logResult(test, "TEST-PASS", "TEST-UNEXPECTED-FAIL");
+  addTest: function Marionette__addTest(condition, name, passString, failString, diag, state) {
+
+    let test = {'result': !!condition, 'name': name, 'diag': diag, 'state': state};
+    this.logResult(test,
+                   typeof(passString) == "undefined" ? this.TEST_PASS : passString,
+                   typeof(failString) == "undefined" ? this.TEST_UNEXPECTED_FAIL : failString);
     this.tests.push(test);
   },
 
-  is: function Marionette__is(a, b, name) {
+  ok: function Marionette__ok(condition, name, passString, failString) {
+    this.heartbeatCallback();
+    let diag = this.repr(condition) + " was " + !!condition + ", expected true";
+    this.addTest(condition, name, passString, failString, diag);
+  },
+
+  is: function Marionette__is(a, b, name, passString, failString) {
+    this.heartbeatCallback();
     let pass = (a == b);
     let diag = pass ? this.repr(a) + " should equal " + this.repr(b)
                     : "got " + this.repr(a) + ", expected " + this.repr(b);
-    this.ok(pass, name, diag);
+    this.addTest(pass, name, passString, failString, diag);
   },
 
-  isnot: function Marionette__isnot (a, b, name) {
+  isnot: function Marionette__isnot (a, b, name, passString, failString) {
+    this.heartbeatCallback();
     let pass = (a != b);
     let diag = pass ? this.repr(a) + " should not equal " + this.repr(b)
                     : "didn't expect " + this.repr(a) + ", but got it";
-    this.ok(pass, name, diag);
+    this.addTest(pass, name, passString, failString, diag);
   },
 
-  addPerfData: function Marionette__addPerfData(testSuite, testName, data) {
-    this.perfData.addPerfData(testSuite, testName, data);
-  },
-
-  getPerfData: function Marionette__getPerfData() {
-    return this.perfData.perfData;
+  todo: function Marionette__todo(condition, name, passString, failString) {
+    this.heartbeatCallback();
+    let diag = this.repr(condition) + " was expected false";
+    this.addTest(!condition,
+                 name,
+                 typeof(passString) == "undefined" ? this.TEST_KNOWN_FAIL : passString,
+                 typeof(failString) == "undefined" ? this.TEST_UNEXPECTED_FAIL : failString,
+                 diag,
+                 "todo");
   },
 
   log: function Marionette__log(msg, level) {
+    this.heartbeatCallback();
     dump("MARIONETTE LOG: " + (level ? level : "INFO") + ": " + msg + "\n");
     if (this.logObj != null) {
       this.logObj.log(msg, level);
@@ -55,39 +77,54 @@ Marionette.prototype = {
   },
 
   getLogs: function Marionette__getLogs() {
+    this.heartbeatCallback();
     if (this.logObj != null) {
       this.logObj.getLogs();
     }
   },
 
   generate_results: function Marionette__generate_results() {
+    this.heartbeatCallback();
     let passed = 0;
-    let failed = 0;
     let failures = [];
+    let expectedFailures = [];
+    let unexpectedSuccesses = [];
     for (let i in this.tests) {
+      let isTodo = (this.tests[i].state == "todo");
       if(this.tests[i].result) {
-        passed++;
+        if (isTodo) {
+          expectedFailures.push({'name': this.tests[i].name, 'diag': this.tests[i].diag});
+        }
+        else {
+          passed++;
+        }
       }
       else {
-        failed++;
-        failures.push({'name': this.tests[i].name,
-                       'diag': this.tests[i].diag});
+        if (isTodo) {
+          unexpectedSuccesses.push({'name': this.tests[i].name, 'diag': this.tests[i].diag});
+        }
+        else {
+          failures.push({'name': this.tests[i].name, 'diag': this.tests[i].diag});
+        }
       }
     }
     // Reset state in case this object is reused for more tests.
     this.tests = [];
-    return {"passed": passed, "failed": failed, "failures": failures};
+    return {"passed": passed, "failures": failures, "expectedFailures": expectedFailures,
+            "unexpectedSuccesses": unexpectedSuccesses};
   },
 
   logToFile: function Marionette__logToFile(file) {
+    this.heartbeatCallback();
     //TODO
   },
 
   logResult: function Marionette__logResult(test, passString, failString) {
+    this.heartbeatCallback();
     //TODO: dump to file
     let resultString = test.result ? passString : failString;
     let diagnostic = test.name + (test.diag ? " - " + test.diag : "");
-    let msg = [resultString, diagnostic].join(" | ");
+    let msg = resultString + " | " + this.testName + " | " + diagnostic;
     dump("MARIONETTE TEST RESULT:" + msg + "\n");
   },
 
@@ -131,22 +168,31 @@ Marionette.prototype = {
   },
 
   waitFor: function test_waitFor(callback, test, timeout) {
+      this.heartbeatCallback();
       if (test()) {
-          callback();
-          return;
+        callback();
+        return;
       }
-      timeout = timeout || Date.now();
-      if (Date.now() - timeout > this.timeout) {
+      var now = new Date();
+      var deadline = (timeout instanceof Date) ? timeout :
+                     new Date(now.valueOf() + (typeof(timeout) == "undefined" ? this.timeout : timeout))
+      if (deadline <= now) {
         dump("waitFor timeout: " + test.toString() + "\n");
         // the script will timeout here, so no need to raise a separate
         // timeout exception
         return;
       }
-      this.window.setTimeout(this.waitFor.bind(this), 100, callback, test, timeout);
+      this.window.setTimeout(this.waitFor.bind(this), 100, callback, test, deadline);
   },
 
   runEmulatorCmd: function runEmulatorCmd(cmd, callback) {
+    this.heartbeatCallback();
     this.scope.runEmulatorCmd(cmd, callback);
+  },
+
+  runEmulatorShell: function runEmulatorShell(args, callback) {
+    this.heartbeatCallback();
+    this.scope.runEmulatorShell(args, callback);
   },
 
 };

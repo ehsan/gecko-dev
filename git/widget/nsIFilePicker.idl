@@ -8,10 +8,11 @@
 
 interface nsIFile;
 interface nsIURI;
+interface nsIDOMFile;
 interface nsIDOMWindow;
 interface nsISimpleEnumerator;
 
-[scriptable, uuid(0d79adad-b244-49A5-9997-2a8cad93fc44)]
+[scriptable, function, uuid(0d79adad-b244-49A5-9997-2a8cad93fc44)]
 interface nsIFilePickerShownCallback : nsISupports
 {
  /**
@@ -23,7 +24,7 @@ interface nsIFilePickerShownCallback : nsISupports
   void done(in short aResult);
 };
 
-[scriptable, uuid(60e2dfb6-3fc7-4A2C-8137-16bef44536fc)]
+[scriptable, uuid(f93509a0-0434-11e3-8ffd-0800200c9a66)]
 interface nsIFilePicker : nsISupports
 {
   const short modeOpen        = 0;              // Load a file or directory
@@ -142,6 +143,21 @@ interface nsIFilePicker : nsISupports
   readonly attribute nsISimpleEnumerator files;
 
  /**
+  * Get the nsIDOMFile for the file.
+  *
+  * @return Returns the file currently selected as File
+  */
+  readonly attribute nsIDOMFile domfile;
+
+ /**
+  * Get the enumerator for the selected files
+  * only works in the modeOpenMultiple mode
+  *
+  * @return Returns the files currently selected as Files
+  */
+  readonly attribute nsISimpleEnumerator domfiles;
+
+ /**
   * Controls whether the chosen file(s) should be added to the system's recent
   * documents list. This attribute will be ignored if the system has no "Recent
   * Docs" concept, or if the application is in private browsing mode (in which
@@ -164,4 +180,9 @@ interface nsIFilePicker : nsISupports
   */
   void open(in nsIFilePickerShownCallback aFilePickerShownCallback);
 
+ /**
+  * The picker's mode, as set by the 'mode' argument passed to init()
+  * (one of the modeOpen et. al. constants specified above).
+  */
+  readonly attribute short mode;
 };

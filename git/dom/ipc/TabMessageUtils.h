@@ -6,7 +6,9 @@
 #ifndef TABMESSAGE_UTILS_H
 #define TABMESSAGE_UTILS_H
 
-#include "IPC/IPCMessageUtils.h"
+#include "AudioChannelCommon.h"
+#include "ipc/IPCMessageUtils.h"
+#include "mozilla/dom/AudioChannelBinding.h"
 #include "nsIDOMEvent.h"
 #include "nsCOMPtr.h"
 
@@ -18,6 +20,7 @@ namespace mozilla {
 namespace dom {
 struct RemoteDOMEvent
 {
+  // Make sure to set the owner after deserializing.
   nsCOMPtr<nsIDOMEvent> mEvent;
 };
 
@@ -28,7 +31,7 @@ bool ReadRemoteEvent(const IPC::Message* aMsg, void** aIter,
 typedef CrashReporter::ThreadId NativeThreadId;
 #else
 // unused in this case
-typedef int32 NativeThreadId;
+typedef int32_t NativeThreadId;
 #endif
 
 }
@@ -55,6 +58,42 @@ struct ParamTraits<mozilla::dom::RemoteDOMEvent>
   {
   }
 };
+
+template<>
+struct ParamTraits<mozilla::dom::AudioChannel>
+{
+  typedef mozilla::dom::AudioChannel paramType;
+
+  static bool IsLegalValue(const paramType &aValue) {
+    return aValue <= mozilla::dom::AudioChannel::Publicnotification;
+  }
+
+  static void Write(Message* aMsg, const paramType& aValue) {
+    MOZ_ASSERT(IsLegalValue(aValue));
+    WriteParam(aMsg, (uint32_t)aValue);
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult) {
+    uint32_t value;
+    if(!ReadParam(aMsg, aIter, &value) ||
+       !IsLegalValue(paramType(value))) {
+      return false;
+    }
+    *aResult = paramType(value);
+    return true;
+  }
+
+  static void Log(const paramType& aParam, std::wstring* aLog)
+  {
+  }
+};
+
+template <>
+struct ParamTraits<mozilla::dom::AudioChannelState>
+  : public ContiguousEnumSerializer<mozilla::dom::AudioChannelState,
+                                    mozilla::dom::AUDIO_CHANNEL_STATE_NORMAL,
+                                    mozilla::dom::AUDIO_CHANNEL_STATE_LAST>
+{ };
 
 }
 

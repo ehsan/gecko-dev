@@ -5,29 +5,35 @@
 #include "TestShellParent.h"
 
 /* This must occur *after* TestShellParent.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
+#include "jsfriendapi.h"
+#include "mozilla/ArrayUtils.h"
 
 #include "mozilla/dom/ContentParent.h"
-#include "mozilla/jsipc/ContextWrapperParent.h"
+#include "mozilla/dom/ScriptSettings.h"
 
 #include "nsAutoPtr.h"
+#include "xpcpublic.h"
 
 using namespace mozilla;
 using mozilla::ipc::TestShellParent;
 using mozilla::ipc::TestShellCommandParent;
 using mozilla::ipc::PTestShellCommandParent;
 using mozilla::dom::ContentParent;
-using mozilla::jsipc::PContextWrapperParent;
-using mozilla::jsipc::ContextWrapperParent;
+
+void
+TestShellParent::ActorDestroy(ActorDestroyReason aWhy)
+{
+  // Implement me! Bug 1005177
+}
 
 PTestShellCommandParent*
-TestShellParent::AllocPTestShellCommand(const nsString& aCommand)
+TestShellParent::AllocPTestShellCommandParent(const nsString& aCommand)
 {
   return new TestShellCommandParent();
 }
 
 bool
-TestShellParent::DeallocPTestShellCommand(PTestShellCommandParent* aActor)
+TestShellParent::DeallocPTestShellCommandParent(PTestShellCommandParent* aActor)
 {
   delete aActor;
   return true;
@@ -38,76 +44,47 @@ TestShellParent::CommandDone(TestShellCommandParent* command,
                              const nsString& aResponse)
 {
   // XXX what should happen if the callback fails?
-  /*JSBool ok = */command->RunCallback(aResponse);
+  /*bool ok = */command->RunCallback(aResponse);
   command->ReleaseCallback();
 
   return true;
 }
 
-PContextWrapperParent*
-TestShellParent::AllocPContextWrapper()
-{
-    ContentParent* cpp = static_cast<ContentParent*>(Manager());
-    return new ContextWrapperParent(cpp);
-}
-
 bool
-TestShellParent::DeallocPContextWrapper(PContextWrapperParent* actor)
-{
-    delete actor;
-    return true;
-}
-
-JSBool
-TestShellParent::GetGlobalJSObject(JSContext* cx, JSObject** globalp)
-{
-    // TODO Unify this code with TabParent::GetGlobalJSObject.
-    InfallibleTArray<PContextWrapperParent*> cwps(1);
-    ManagedPContextWrapperParent(cwps);
-    if (cwps.Length() < 1)
-        return JS_FALSE;
-    NS_ASSERTION(cwps.Length() == 1, "More than one PContextWrapper?");
-    ContextWrapperParent* cwp = static_cast<ContextWrapperParent*>(cwps[0]);
-    return cwp->GetGlobalJSObject(cx, globalp);
-}
-
-JSBool
 TestShellCommandParent::SetCallback(JSContext* aCx,
-                                    jsval aCallback)
+                                    JS::Value aCallback)
 {
   if (!mCallback.Hold(aCx)) {
-    return JS_FALSE;
+    return false;
   }
 
   mCallback = aCallback;
-  mCx = aCx;
 
-  return JS_TRUE;
+  return true;
 }
 
-JSBool
+bool
 TestShellCommandParent::RunCallback(const nsString& aResponse)
 {
-  NS_ENSURE_TRUE(*mCallback.ToJSValPtr() != JSVAL_NULL && mCx, JS_FALSE);
+  NS_ENSURE_TRUE(mCallback.ToJSObject(), false);
 
-  JSAutoRequest ar(mCx);
+  // We're about to run script via JS_CallFunctionValue, so we need an
+  // AutoEntryScript. This is just for testing and not in any spec.
+  dom::AutoEntryScript aes(xpc::NativeGlobal(js::GetGlobalForObjectCrossCompartment(mCallback.ToJSObject())));
+  JSContext* cx = aes.cx();
+  JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
 
-  JSObject* global = JS_GetGlobalObject(mCx);
-  NS_ENSURE_TRUE(global, JS_FALSE);
+  JSString* str = JS_NewUCStringCopyN(cx, aResponse.get(), aResponse.Length());
+  NS_ENSURE_TRUE(str, false);
 
-  JSAutoCompartment ac(mCx, global);
+  JS::Rooted<JS::Value> strVal(cx, JS::StringValue(str));
 
-  JSString* str = JS_NewUCStringCopyN(mCx, aResponse.get(), aResponse.Length());
-  NS_ENSURE_TRUE(str, JS_FALSE);
+  JS::Rooted<JS::Value> rval(cx);
+  JS::Rooted<JS::Value> callback(cx, mCallback);
+  bool ok = JS_CallFunctionValue(cx, global, callback, JS::HandleValueArray(strVal), &rval);
+  NS_ENSURE_TRUE(ok, false);
 
-  jsval argv[] = { STRING_TO_JSVAL(str) };
-  unsigned argc = ArrayLength(argv);
-
-  jsval rval;
-  JSBool ok = JS_CallFunctionValue(mCx, global, mCallback, argc, argv, &rval);
-  NS_ENSURE_TRUE(ok, JS_FALSE);
-
-  return JS_TRUE;
+  return true;
 }
 
 void

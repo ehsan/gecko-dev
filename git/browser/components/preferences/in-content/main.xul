@@ -1,11 +1,22 @@
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this file,
-   - You can obtain one at http://mozilla.org/MPL/2.0/.  -->
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+<!-- General panel -->
 
 <script type="application/javascript" 
         src="chrome://browser/content/preferences/in-content/main.js"/>
 
 <preferences id="mainPreferences">
+
+#ifdef E10S_TESTING_ONLY
+    <preference id="browser.tabs.remote.autostart"
+                name="browser.tabs.remote.autostart"
+                type="bool"/>
+    <preference id="e10sTempPref"
+                name="browser.tabs.remote.autostart.1"
+                type="bool"/>
+#endif
 
     <!-- Startup -->
     <preference id="browser.startup.page"
@@ -14,6 +25,16 @@
     <preference id="browser.startup.homepage"
                 name="browser.startup.homepage"
                 type="wstring"/>
+
+#ifdef HAVE_SHELL_SERVICE
+    <preference id="browser.shell.checkDefaultBrowser"
+                name="browser.shell.checkDefaultBrowser"
+                type="bool"/>
+
+    <preference id="pref.general.disable_button.default_browser"
+                name="pref.general.disable_button.default_browser"
+                type="bool"/>
+#endif
 
     <preference id="pref.browser.homepage.disable_button.current_page"
                 name="pref.browser.homepage.disable_button.current_page"
@@ -27,43 +48,114 @@
 
     <preference id="browser.privatebrowsing.autostart"
                 name="browser.privatebrowsing.autostart"
-                type="bool"
-                onchange="gMainPane.updateBrowserStartupLastSession();"/>
+                type="bool"/>
 
     <!-- Downloads -->
-    <preference id="browser.download.manager.showWhenStarting"
-                name="browser.download.manager.showWhenStarting"
-                type="bool"
-                onchange="gMainPane.showDownloadsWhenStartingPrefChanged();"/>
-    <preference id="browser.download.manager.closeWhenDone"
-                name="browser.download.manager.closeWhenDone"
-                type="bool"/>
     <preference id="browser.download.useDownloadDir"
                 name="browser.download.useDownloadDir"
                 type="bool"/>
-    <preference id="browser.download.dir"
-                name="browser.download.dir"
-                type="file"
-                onchange="gMainPane.displayDownloadDirPref();"/>
+
     <preference id="browser.download.folderList"
                 name="browser.download.folderList"
                 type="int"/>
+    <preference id="browser.download.dir"
+                name="browser.download.dir"
+                type="file"/>
+    <!-- Tab preferences 
+    Preferences:
 
+    browser.link.open_newwindow
+        1 opens such links in the most recent window or tab,
+        2 opens such links in a new window,
+        3 opens such links in a new tab
+    browser.tabs.loadInBackground
+    - true if display should switch to a new tab which has been opened from a
+      link, false if display shouldn't switch
+    browser.tabs.warnOnClose
+    - true if when closing a window with multiple tabs the user is warned and
+      allowed to cancel the action, false to just close the window
+    browser.tabs.warnOnOpen
+    - true if the user should be warned if he attempts to open a lot of tabs at
+      once (e.g. a large folder of bookmarks), false otherwise
+    browser.taskbar.previews.enable
+    - true if tabs are to be shown in the Windows 7 taskbar    
+    -->
+
+    <preference id="browser.link.open_newwindow"
+                name="browser.link.open_newwindow"
+                type="int"/>
+    <preference id="browser.tabs.loadInBackground"
+                name="browser.tabs.loadInBackground"
+                type="bool"
+                inverted="true"/>
+    <preference id="browser.tabs.warnOnClose"
+                name="browser.tabs.warnOnClose"
+                type="bool"/>
+    <preference id="browser.tabs.warnOnOpen"
+                name="browser.tabs.warnOnOpen"
+                type="bool"/>
+    <preference id="browser.sessionstore.restore_on_demand"
+                name="browser.sessionstore.restore_on_demand"
+                type="bool"/>
+#ifdef XP_WIN
+    <preference id="browser.taskbar.previews.enable"
+                name="browser.taskbar.previews.enable"
+                type="bool"/>
+#endif
 </preferences>
 
-<hbox class="heading" data-category="paneGeneral" hidden="true">
-  <image class="preference-icon" type="general"/>
-  <html:h1>&paneGeneral.title;</html:h1>
+<hbox id="header-general"
+      class="header"
+      hidden="true"
+      data-category="paneGeneral">
+  <label class="header-name">&paneGeneral.title;</label>
 </hbox>
 
 <!-- Startup -->
-<groupbox id="startupGroup" data-category="paneGeneral" hidden="true">
-  <caption label="&startup.label;"/>
+<groupbox id="startupGroup"
+          data-category="paneGeneral"
+          hidden="true">
+  <caption><label>&startup.label;</label></caption>
 
+#ifdef MOZ_DEV_EDITION
+  <vbox id="separateProfileBox">
+    <checkbox id="separateProfileMode"
+              label="&separateProfileMode.label;"/>
+    <hbox align="center" class="indent">
+      <label id="useFirefoxSync">&useFirefoxSync.label;</label>
+      <label id="getStarted" class="text-link">&getStarted.label;</label>
+    </hbox>
+  </vbox>
+#endif
+
+#ifdef E10S_TESTING_ONLY
+  <checkbox id="e10sAutoStart"
+            label="Enable E10S (multi-process)"/>
+#endif
+
+#ifdef HAVE_SHELL_SERVICE
+  <vbox id="defaultBrowserBox">
+    <hbox align="center">
+      <checkbox id="alwaysCheckDefault" preference="browser.shell.checkDefaultBrowser"
+                label="&alwaysCheckDefault2.label;" accesskey="&alwaysCheckDefault2.accesskey;"/>
+    </hbox>
+    <deck id="setDefaultPane">
+      <hbox align="center" class="indent">
+        <label id="isNotDefaultLabel" flex="1">&isNotDefault.label;</label>
+        <button id="setDefaultButton"
+                label="&setAsMyDefaultBrowser2.label;" accesskey="&setAsMyDefaultBrowser2.accesskey;"
+                preference="pref.general.disable_button.default_browser"/>
+      </hbox>
+      <hbox align="center" class="indent">
+        <label id="isDefaultLabel" flex="1">&isDefault.label;</label>
+      </hbox>
+    </deck>
+    <separator class="thin"/>
+  </vbox>
+#endif
   <hbox align="center">
-    <label value="&startupPage.label;"
-           accesskey="&startupPage.accesskey;"
-           control="browserStartupPage"/>
+    <label accesskey="&startupPage.accesskey;"
+           control="browserStartupPage">&startupPage.label;</label>
     <menulist id="browserStartupPage"
               preference="browser.startup.page">
       <menupopup>
@@ -81,9 +173,8 @@
   </hbox>
   <separator class="thin"/>
   <hbox align="center">
-    <label value="&homepage.label;"
-           accesskey="&homepage.accesskey;"
-           control="browserHomePage"/>
+    <label accesskey="&homepage.accesskey;"
+           control="browserHomePage">&homepage.label;</label>
     <textbox id="browserHomePage"
              class="padded uri-element"
              flex="1"
@@ -99,38 +190,24 @@
             accesskey="&useCurrentPage.accesskey;"
             label1="&useCurrentPage.label;"
             label2="&useMultiple.label;"
-            oncommand="gMainPane.setHomePageToCurrent();"
             id="useCurrent"
             preference="pref.browser.homepage.disable_button.current_page"/>
     <button label="&chooseBookmark.label;"
             accesskey="&chooseBookmark.accesskey;"
-            oncommand="gMainPane.setHomePageToBookmark();"
             id="useBookmark"
             preference="pref.browser.homepage.disable_button.bookmark_page"/>
     <button label="&restoreDefault.label;"
             accesskey="&restoreDefault.accesskey;"
-            oncommand="gMainPane.restoreDefaultHomePage();"
             id="restoreDefaultHomePage"
             preference="pref.browser.homepage.disable_button.restore_default"/>
   </hbox>
 </groupbox>
 
 <!-- Downloads -->
-<groupbox id="downloadsGroup" data-category="paneGeneral" hidden="true">
-  <caption label="&downloads.label;"/>
-
-  <checkbox id="showWhenDownloading"
-            label="&showWhenDownloading.label;"
-            accesskey="&showWhenDownloading.accesskey;"
-            preference="browser.download.manager.showWhenStarting"
-            onsyncfrompreference="return gMainPane.readShowDownloadsWhenStarting();"/>
-  <checkbox id="closeWhenDone"
-            label="&closeWhenDone.label;"
-            accesskey="&closeWhenDone.accesskey;"
-            class="indent"
-            preference="browser.download.manager.closeWhenDone"/>
-
-  <separator class="thin"/>
+<groupbox id="downloadsGroup"
+          data-category="paneGeneral"
+          hidden="true">
+  <caption><label>&downloads.label;</label></caption>
 
   <radiogroup id="saveWhere"
               preference="browser.download.useDownloadDir"
@@ -149,7 +226,6 @@
                  onsyncfrompreference="return gMainPane.displayDownloadDirPref();"
                  onsynctopreference="return gMainPane.getFolderListPref()"/>
       <button id="chooseFolder"
-              oncommand="gMainPane.chooseFolder();"
 #ifdef XP_MACOSX
               accesskey="&chooseFolderMac.accesskey;"
               label="&chooseFolderMac.label;"
@@ -160,28 +236,44 @@
               preference="browser.download.folderList"
               onsynctopreference="return gMainPane.getFolderListPref();"/>
     </hbox>
-    <radio id="alwaysAsk"
-           value="false"
-           label="&alwaysAsk.label;"
-           accesskey="&alwaysAsk.accesskey;"/>
+    <hbox>
+      <radio id="alwaysAsk"
+             value="false"
+             label="&alwaysAsk.label;"
+             accesskey="&alwaysAsk.accesskey;"/>
+    </hbox>
   </radiogroup>
 </groupbox>
 
-<hbox class="bottomBox" data-category="paneGeneral" hidden="true">
-  <groupbox id="addonsMgrGroup"
-            orient="horizontal"
-            flex="1">
-    <caption label="&addonsMgr.label;"/>
+<!-- Tab preferences -->
+<groupbox data-category="paneGeneral"
+          hidden="true" align="start">
+    <caption><label>&tabsGroup.label;</label></caption>
+    <checkbox id="linkTargeting" label="&newWindowsAsTabs.label;"
+              accesskey="&newWindowsAsTabs.accesskey;"
+              preference="browser.link.open_newwindow"
+              onsyncfrompreference="return gMainPane.readLinkTarget();"
+              onsynctopreference="return gMainPane.writeLinkTarget();"/>
 
-    <description control="manageAddons"
+    <checkbox id="warnCloseMultiple" label="&warnCloseMultipleTabs.label;"
+              accesskey="&warnCloseMultipleTabs.accesskey;"
+              preference="browser.tabs.warnOnClose"/>
+
+    <checkbox id="warnOpenMany" label="&warnOpenManyTabs.label;"
+              accesskey="&warnOpenManyTabs.accesskey;"
+              preference="browser.tabs.warnOnOpen"/>
+
+    <checkbox id="restoreOnDemand" label="&restoreTabsOnDemand.label;"
+              accesskey="&restoreTabsOnDemand.accesskey;"
+              preference="browser.sessionstore.restore_on_demand"/>
+
+    <checkbox id="switchToNewTabs" label="&switchToNewTabs.label;"
+              accesskey="&switchToNewTabs.accesskey;"
+              preference="browser.tabs.loadInBackground"/>
+
 #ifdef XP_WIN
-                 flex="1">&manageAddonsDescWin.label;</description>
-#else
-                 flex="1">&manageAddonsDescUnix2.label;</description>
+    <checkbox id="showTabsInTaskbar" label="&showTabsInTaskbar.label;"
+              accesskey="&showTabsInTaskbar.accesskey;"
+              preference="browser.taskbar.previews.enable"/>
 #endif
-    <button id="manageAddons"
-            label="&manageAddons.label;"
-            accesskey="&manageAddons.accesskey;"
-            oncommand="gMainPane.showAddonsMgr();"/>
-  </groupbox>
-</hbox>
+</groupbox>

@@ -3,47 +3,46 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsTraceRefcntImpl.h"
+#include "nsTraceRefcnt.h"
 
 // if NS_BUILD_REFCNT_LOGGING isn't defined, don't try to build
 #ifdef NS_BUILD_REFCNT_LOGGING
 
 #include "nsAboutBloat.h"
-#include "nsIIOService.h"
-#include "nsIServiceManager.h"
+#include "nsContentUtils.h"
 #include "nsStringStream.h"
-#include "nsXPIDLString.h"
+#include "nsDOMString.h"
 #include "nsIURI.h"
-#include "prtime.h"
 #include "nsCOMPtr.h"
-#include "nsIFileStreams.h"
 #include "nsNetUtil.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsIFile.h"
 
 static void GC_gcollect() {}
 
-NS_IMPL_ISUPPORTS1(nsAboutBloat, nsIAboutModule)
+NS_IMPL_ISUPPORTS(nsAboutBloat, nsIAboutModule)
 
 NS_IMETHODIMP
-nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
+nsAboutBloat::NewChannel(nsIURI* aURI,
+                         nsILoadInfo* aLoadInfo,
+                         nsIChannel** result)
 {
     NS_ENSURE_ARG_POINTER(aURI);
     nsresult rv;
-    nsCAutoString path;
+    nsAutoCString path;
     rv = aURI->GetPath(path);
     if (NS_FAILED(rv)) return rv;
 
-    nsTraceRefcntImpl::StatisticsType statType = nsTraceRefcntImpl::ALL_STATS;
+    nsTraceRefcnt::StatisticsType statType = nsTraceRefcnt::ALL_STATS;
     bool clear = false;
     bool leaks = false;
 
     int32_t pos = path.Find("?");
     if (pos > 0) {
-        nsCAutoString param;
+        nsAutoCString param;
         (void)path.Right(param, path.Length() - (pos+1));
         if (param.EqualsLiteral("new"))
-            statType = nsTraceRefcntImpl::NEW_STATS;
+            statType = nsTraceRefcnt::NEW_STATS;
         else if (param.EqualsLiteral("clear"))
             clear = true;
         else if (param.EqualsLiteral("leaks"))
@@ -52,7 +51,7 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
 
     nsCOMPtr<nsIInputStream> inStr;
     if (clear) {
-        nsTraceRefcntImpl::ResetStatistics();
+        nsTraceRefcnt::ResetStatistics();
 
         rv = NS_NewCStringInputStream(getter_AddRefs(inStr),
             NS_LITERAL_CSTRING("Bloat statistics cleared."));
@@ -61,15 +60,15 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
     else if (leaks) {
         // dump the current set of leaks.
         GC_gcollect();
-    	
+
         rv = NS_NewCStringInputStream(getter_AddRefs(inStr),
             NS_LITERAL_CSTRING("Memory leaks dumped."));
         if (NS_FAILED(rv)) return rv;
     }
     else {
         nsCOMPtr<nsIFile> file;
-        rv = NS_GetSpecialDirectory(NS_OS_CURRENT_PROCESS_DIR, 
-                                    getter_AddRefs(file));       
+        rv = NS_GetSpecialDirectory(NS_OS_CURRENT_PROCESS_DIR,
+                                    getter_AddRefs(file));
         if (NS_FAILED(rv)) return rv;
 
         rv = file->AppendNative(NS_LITERAL_CSTRING("bloatlogs"));
@@ -87,8 +86,8 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
             if (NS_FAILED(rv)) return rv;
         }
 
-        nsCAutoString dumpFileName;
-        if (statType == nsTraceRefcntImpl::ALL_STATS)
+        nsAutoCString dumpFileName;
+        if (statType == nsTraceRefcnt::ALL_STATS)
             dumpFileName.AssignLiteral("all-");
         else
             dumpFileName.AssignLiteral("new-");
@@ -104,7 +103,7 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
         rv = file->OpenANSIFileDesc("w", &out);
         if (NS_FAILED(rv)) return rv;
 
-        rv = nsTraceRefcntImpl::DumpStatistics(statType, out);
+        rv = nsTraceRefcnt::DumpStatistics(statType, out);
         ::fclose(out);
         if (NS_FAILED(rv)) return rv;
 
@@ -112,8 +111,13 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
         if (NS_FAILED(rv)) return rv;
     }
 
-    nsIChannel* channel;
-    rv = NS_NewInputStreamChannel(&channel, aURI, inStr,
+    nsIChannel* channel = nullptr;
+    rv = NS_NewInputStreamChannel(&channel,
+                                  aURI,
+                                  inStr,
+                                  nsContentUtils::GetSystemPrincipal(),
+                                  nsILoadInfo::SEC_NORMAL,
+                                  nsIContentPolicy::TYPE_OTHER,
                                   NS_LITERAL_CSTRING("text/plain"),
                                   NS_LITERAL_CSTRING("utf-8"));
     if (NS_FAILED(rv)) return rv;
@@ -127,6 +131,13 @@ nsAboutBloat::GetURIFlags(nsIURI *aURI, uint32_t *result)
 {
     *result = 0;
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAboutBloat::GetIndexedDBOriginPostfix(nsIURI *aURI, nsAString &result)
+{
+    SetDOMStringToNull(result);
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 nsresult

@@ -1,11 +1,11 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef js_cpucfg___
-#define js_cpucfg___
+#ifndef jscpucfg_h
+#define jscpucfg_h
 
 #define JS_HAVE_LONG_LONG
 
@@ -14,15 +14,11 @@
 # if defined(_M_X64) || defined(_M_AMD64) || defined(_AMD64_)
 #  define IS_LITTLE_ENDIAN 1
 #  undef  IS_BIG_ENDIAN
-#  define JS_BYTES_PER_DOUBLE 8
-#  define JS_BYTES_PER_WORD   8
-#  define JS_BITS_PER_WORD_LOG2   6
-#  define JS_ALIGN_OF_POINTER 8
 # else  /* !(defined(_M_X64) || defined(_M_AMD64) || defined(_AMD64_)) */
 #  error "CPU type is unknown"
 # endif /* !(defined(_M_X64) || defined(_M_AMD64) || defined(_AMD64_)) */
 
-#elif defined(_WIN32) || defined(XP_OS2)
+#elif defined(_WIN32)
 
 # ifdef __WATCOMC__
 #  define HAVE_VA_LIST_AS_ARRAY 1
@@ -30,12 +26,8 @@
 
 # define IS_LITTLE_ENDIAN 1
 # undef  IS_BIG_ENDIAN
-# define JS_BYTES_PER_DOUBLE 8
-# define JS_BYTES_PER_WORD   4
-# define JS_BITS_PER_WORD_LOG2   5
-# define JS_ALIGN_OF_POINTER 4
 
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__powerpc__) || defined(__ppc__)
 # if __LITTLE_ENDIAN__
 #  define IS_LITTLE_ENDIAN 1
 #  undef  IS_BIG_ENDIAN
@@ -47,16 +39,36 @@
 #elif defined(JS_HAVE_ENDIAN_H)
 # include <endian.h>
 
-# if defined(__BYTE_ORDER)
-#  if __BYTE_ORDER == __LITTLE_ENDIAN
-#   define IS_LITTLE_ENDIAN 1
-#   undef  IS_BIG_ENDIAN
-#  elif __BYTE_ORDER == __BIG_ENDIAN
-#   undef  IS_LITTLE_ENDIAN
-#   define IS_BIG_ENDIAN 1
+/*
+ * Historically, OSes providing <endian.h> only defined
+ * __BYTE_ORDER to either __LITTLE_ENDIAN or __BIG_ENDIAN.
+ * The Austin group decided to standardise <endian.h> in
+ * POSIX around 2011, expecting it to provide a BYTE_ORDER
+ * #define set to either LITTLE_ENDIAN or BIG_ENDIAN. We
+ * should try to cope with both possibilities here.
+ */
+
+# if defined(__BYTE_ORDER) || defined(BYTE_ORDER)
+#  if defined(__BYTE_ORDER)
+#   if __BYTE_ORDER == __LITTLE_ENDIAN
+#    define IS_LITTLE_ENDIAN 1
+#    undef  IS_BIG_ENDIAN
+#   elif __BYTE_ORDER == __BIG_ENDIAN
+#    undef  IS_LITTLE_ENDIAN
+#    define IS_BIG_ENDIAN 1
+#   endif
+#  endif
+#  if defined(BYTE_ORDER)
+#   if BYTE_ORDER == LITTLE_ENDIAN
+#    define IS_LITTLE_ENDIAN 1
+#    undef  IS_BIG_ENDIAN
+#   elif BYTE_ORDER == BIG_ENDIAN
+#    undef  IS_LITTLE_ENDIAN
+#    define IS_BIG_ENDIAN 1
+#   endif
 #  endif
 # else /* !defined(__BYTE_ORDER) */
-#  error "endian.h does not define __BYTE_ORDER. Cannot determine endianness."
+#  error "endian.h does not define __BYTE_ORDER nor BYTE_ORDER. Cannot determine endianness."
 # endif
 
 /* BSDs */
@@ -97,8 +109,7 @@
 # endif
 
 #elif defined(__sparc) || defined(__sparc__) || \
-      defined(_POWER) || defined(__powerpc__) || \
-      defined(__ppc__) || defined(__hppa) || \
+      defined(_POWER) || defined(__hppa) || \
       defined(_MIPSEB) || defined(_BIG_ENDIAN)
 /* IA64 running HP-UX will have _BIG_ENDIAN defined.
  * IA64 running Linux will have endian.h and be handled above.
@@ -118,4 +129,4 @@
 # endif
 #endif
 
-#endif /* js_cpucfg___ */
+#endif /* jscpucfg_h */

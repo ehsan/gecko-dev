@@ -16,15 +16,16 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.json.simple.JSONArray;
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.CryptoRecord;
 import org.mozilla.gecko.sync.DelayedWorkTracker;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
 import org.mozilla.gecko.sync.HTTPFailureException;
-import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.Server11PreviousPostFailedException;
 import org.mozilla.gecko.sync.Server11RecordPostFailedException;
 import org.mozilla.gecko.sync.UnexpectedJSONException;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
+import org.mozilla.gecko.sync.net.AuthHeaderProvider;
 import org.mozilla.gecko.sync.net.SyncStorageCollectionRequest;
 import org.mozilla.gecko.sync.net.SyncStorageRequest;
 import org.mozilla.gecko.sync.net.SyncStorageRequestDelegate;
@@ -94,7 +95,7 @@ public class Server11RepositorySession extends RepositorySession {
   /**
    * Used to track outstanding requests, so that we can abort them as needed.
    */
-  private Set<SyncStorageCollectionRequest> pending = Collections.synchronizedSet(new HashSet<SyncStorageCollectionRequest>());
+  private final Set<SyncStorageCollectionRequest> pending = Collections.synchronizedSet(new HashSet<SyncStorageCollectionRequest>());
 
   @Override
   public void abort() {
@@ -114,7 +115,7 @@ public class Server11RepositorySession extends RepositorySession {
    */
   public class RequestFetchDelegateAdapter extends WBOCollectionRequestDelegate {
     RepositorySessionFetchRecordsDelegate delegate;
-    private DelayedWorkTracker workTracker = new DelayedWorkTracker();
+    private final DelayedWorkTracker workTracker = new DelayedWorkTracker();
 
     // So that we can clean up.
     private SyncStorageCollectionRequest request;
@@ -135,8 +136,8 @@ public class Server11RepositorySession extends RepositorySession {
     }
 
     @Override
-    public String credentials() {
-      return serverRepository.credentialsSource.credentials();
+    public AuthHeaderProvider getAuthHeaderProvider() {
+      return serverRepository.getAuthHeaderProvider();
     }
 
     @Override
@@ -410,6 +411,7 @@ public class Server11RepositorySession extends RepositorySession {
    */
   protected volatile boolean recordUploadFailed;
 
+  @Override
   public void begin(RepositorySessionBeginDelegate delegate) throws InvalidSessionTransitionException {
     recordUploadFailed = false;
     super.begin(delegate);
@@ -425,9 +427,9 @@ public class Server11RepositorySession extends RepositorySession {
   protected class RecordUploadRunnable implements Runnable, SyncStorageRequestDelegate {
 
     public final String LOG_TAG = "RecordUploadRunnable";
-    private ArrayList<byte[]> outgoing;
+    private final ArrayList<byte[]> outgoing;
     private ArrayList<String> outgoingGuids;
-    private long byteCount;
+    private final long byteCount;
 
     public RecordUploadRunnable(RepositorySessionStoreDelegate storeDelegate,
                                 ArrayList<byte[]> outgoing,
@@ -442,8 +444,8 @@ public class Server11RepositorySession extends RepositorySession {
     }
 
     @Override
-    public String credentials() {
-      return serverRepository.credentialsSource.credentials();
+    public AuthHeaderProvider getAuthHeaderProvider() {
+      return serverRepository.getAuthHeaderProvider();
     }
 
     @Override
@@ -468,7 +470,7 @@ public class Server11RepositorySession extends RepositorySession {
       if (body.containsKey("modified")) {
         Long modified = body.getTimestamp("modified");
         if (modified != null) {
-          Logger.trace(LOG_TAG, "POST request success. Modified timestamp: " + modified.longValue());
+          Logger.trace(LOG_TAG, "POST request success. Modified timestamp: " + modified);
         } else {
           Logger.warn(LOG_TAG, "POST success body contains malformed 'modified': " + body.toJSONString());
         }
@@ -554,7 +556,7 @@ public class Server11RepositorySession extends RepositorySession {
     }
 
     public class ByteArraysEntity extends EntityTemplate {
-      private long count;
+      private final long count;
       public ByteArraysEntity(ArrayList<byte[]> arrays, long totalBytes) {
         super(new ByteArraysContentProducer(arrays));
         this.count = totalBytes;
@@ -606,5 +608,10 @@ public class Server11RepositorySession extends RepositorySession {
       ByteArraysEntity body = getBodyEntity();
       request.post(body);
     }
+  }
+
+  @Override
+  public boolean dataAvailable() {
+    return serverRepository.updateNeeded(getLastSyncTimestamp());
   }
 }

@@ -11,7 +11,6 @@
 #include "nsTHashtable.h"
 #include "nsIObserver.h"
 #include "nsIX509Cert.h"
-#include "nsAutoPtr.h"
 #include "nsNSSCertificate.h"
 #include "nsString.h"
 #include "nsWeakReference.h"
@@ -53,7 +52,7 @@ class nsClientAuthRememberEntry MOZ_FINAL : public PLDHashEntryHdr
     typedef const char* KeyTypePointer;
 
     // do nothing with aHost - we require mHead to be set before we're live!
-    nsClientAuthRememberEntry(KeyTypePointer aHostWithCertUTF8)
+    explicit nsClientAuthRememberEntry(KeyTypePointer aHostWithCertUTF8)
     {
     }
 
@@ -111,11 +110,10 @@ class nsClientAuthRememberService MOZ_FINAL : public nsIObserver,
                                               public nsSupportsWeakReference
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
   nsClientAuthRememberService();
-  ~nsClientAuthRememberService();
 
   nsresult Init();
 
@@ -129,8 +127,11 @@ public:
                                  nsACString & aCertDBKey, bool *_retval);
 
   void ClearRememberedDecisions();
+  static void ClearAllRememberedDecisions();
 
 protected:
+    ~nsClientAuthRememberService();
+
     mozilla::ReentrantMonitor monitor;
     nsTHashtable<nsClientAuthRememberEntry> mSettingsTable;
 

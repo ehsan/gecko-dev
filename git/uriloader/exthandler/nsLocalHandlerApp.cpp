@@ -10,7 +10,7 @@
 
 // XXX why does nsMIMEInfoImpl have a threadsafe nsISupports?  do we need one 
 // here too?
-NS_IMPL_ISUPPORTS2(nsLocalHandlerApp, nsILocalHandlerApp, nsIHandlerApp)
+NS_IMPL_ISUPPORTS(nsLocalHandlerApp, nsILocalHandlerApp, nsIHandlerApp)
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsIHandlerApp
@@ -102,7 +102,7 @@ nsLocalHandlerApp::LaunchWithURI(nsIURI *aURI,
                                  nsIInterfaceRequestor *aWindowContext)
 {
   // pass the entire URI to the handler.
-  nsCAutoString spec;
+  nsAutoCString spec;
   aURI->GetAsciiSpec(spec);
   return LaunchWithIProcess(spec);
 }

@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -17,7 +18,6 @@
  *   nsISeekableStream
  *   nsISupportsCString
  */
-#define NS_STRINGINPUTSTREAM_CLASSNAME  "nsStringInputStream"
 #define NS_STRINGINPUTSTREAM_CONTRACTID "@mozilla.org/io/string-input-stream;1"
 #define NS_STRINGINPUTSTREAM_CID                     \
 { /* 0abb0835-5000-4790-af28-61b3ba17c295 */         \

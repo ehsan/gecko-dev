@@ -5,6 +5,11 @@
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
+                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
+                                  "resource:///modules/RecentWindow.jsm");
+
 const nsISupports            = Components.interfaces.nsISupports;
 
 const nsIBrowserDOMWindow    = Components.interfaces.nsIBrowserDOMWindow;
@@ -43,15 +48,18 @@ function shouldLoadURI(aURI) {
     return true;
 
   dump("*** Preventing external load of chrome: URI into browser window\n");
-  dump("    Use -chrome <uri> instead\n");
+  dump("    Use --chrome <uri> instead\n");
   return false;
 }
 
 function resolveURIInternal(aCmdLine, aArgument) {
   var uri = aCmdLine.resolveURI(aArgument);
+  var urifixup = Components.classes["@mozilla.org/docshell/urifixup;1"]
+                           .getService(nsIURIFixup);
 
   if (!(uri instanceof nsIFileURL)) {
-    return uri;
+    return urifixup.createFixupURI(aArgument,
+                                   urifixup.FIXUP_FLAG_FIX_SCHEME_TYPOS);
   }
 
   try {
@@ -66,9 +74,6 @@ function resolveURIInternal(aCmdLine, aArgument) {
   // doesn't exist. Try URI fixup heuristics: see bug 290782.
  
   try {
-    var urifixup = Components.classes["@mozilla.org/docshell/urifixup;1"]
-                             .getService(nsIURIFixup);
-
     uri = urifixup.createFixupURI(aArgument, 0);
   }
   catch (e) {
@@ -77,6 +82,8 @@ function resolveURIInternal(aCmdLine, aArgument) {
 
   return uri;
 }
+
+var gFirstWindow = false;
 
 const OVERRIDE_NONE        = 0;
 const OVERRIDE_NEW_PROFILE = 1;
@@ -163,40 +170,6 @@ function getPostUpdateOverridePage(defaultOverridePage) {
     return "";
 
   return update.getProperty("openURL") || defaultOverridePage;
-}
-
-// Copies a pref override file into the user's profile pref-override folder,
-// and then tells the pref service to reload its default prefs.
-function copyPrefOverride() {
-  try {
-    var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"]
-                                .getService(Components.interfaces.nsIProperties);
-    const NS_APP_EXISTING_PREF_OVERRIDE = "ExistingPrefOverride";
-    var prefOverride = fileLocator.get(NS_APP_EXISTING_PREF_OVERRIDE,
-                                       Components.interfaces.nsIFile);
-    if (!prefOverride.exists())
-      return; // nothing to do
-
-    const NS_APP_PREFS_OVERRIDE_DIR     = "PrefDOverride";
-    var prefOverridesDir = fileLocator.get(NS_APP_PREFS_OVERRIDE_DIR,
-                                           Components.interfaces.nsIFile);
-
-    // Check for any existing pref overrides, and remove them if present
-    var existingPrefOverridesFile = prefOverridesDir.clone();
-    existingPrefOverridesFile.append(prefOverride.leafName);
-    if (existingPrefOverridesFile.exists())
-      existingPrefOverridesFile.remove(false);
-
-    prefOverride.copyTo(prefOverridesDir, null);
-
-    // Now that we've installed the new-profile pref override file,
-    // re-read the default prefs.
-    var prefSvcObs = Components.classes["@mozilla.org/preferences-service;1"]
-                               .getService(Components.interfaces.nsIObserver);
-    prefSvcObs.observe(null, "reload-default-prefs", null);
-  } catch (ex) {
-    Components.utils.reportError(ex);
-  }
 }
 
 // Flag used to indicate that the arguments to openWindow can be passed directly.
@@ -292,13 +265,6 @@ function getMostRecentWindow(aType) {
   return wm.getMostRecentWindow(aType);
 }
 
-// this returns the most recent non-popup browser window
-function getMostRecentBrowserWindow() {
-  var browserGlue = Components.classes["@mozilla.org/browser/browserglue;1"]
-                              .getService(Components.interfaces.nsIBrowserGlue);
-  return browserGlue.getMostRecentBrowserWindow();
-}
-
 function doSearch(searchTerm, cmdLine) {
   var ss = Components.classes["@mozilla.org/browser/search-service;1"]
                      .getService(nsIBrowserSearchService);
@@ -376,86 +342,6 @@ nsBrowserContentHandler.prototype = {
       cmdLine.preventDefault = true;
     }
 
-    try {
-      var remoteCommand = cmdLine.handleFlagWithParam("remote", true);
-    }
-    catch (e) {
-      throw NS_ERROR_ABORT;
-    }
-
-    if (remoteCommand != null) {
-      try {
-        var a = /^\s*(\w+)\(([^\)]*)\)\s*$/.exec(remoteCommand);
-        var remoteVerb;
-        if (a) {
-          remoteVerb = a[1].toLowerCase();
-          var remoteParams = [];
-          var sepIndex = a[2].lastIndexOf(",");
-          if (sepIndex == -1)
-            remoteParams[0] = a[2];
-          else {
-            remoteParams[0] = a[2].substring(0, sepIndex);
-            remoteParams[1] = a[2].substring(sepIndex + 1);
-          }
-        }
-
-        switch (remoteVerb) {
-        case "openurl":
-        case "openfile":
-          // openURL(<url>)
-          // openURL(<url>,new-window)
-          // openURL(<url>,new-tab)
-
-          // First param is the URL, second param (if present) is the "target"
-          // (tab, window)
-          var url = remoteParams[0];
-          var target = nsIBrowserDOMWindow.OPEN_DEFAULTWINDOW;
-          if (remoteParams[1]) {
-            var targetParam = remoteParams[1].toLowerCase()
-                                             .replace(/^\s*|\s*$/g, "");
-            if (targetParam == "new-tab")
-              target = nsIBrowserDOMWindow.OPEN_NEWTAB;
-            else if (targetParam == "new-window")
-              target = nsIBrowserDOMWindow.OPEN_NEWWINDOW;
-            else {
-              // The "target" param isn't one of our supported values, so
-              // assume it's part of a URL that contains commas.
-              url += "," + remoteParams[1];
-            }
-          }
-
-          var uri = resolveURIInternal(cmdLine, url);
-          handURIToExistingBrowser(uri, target, cmdLine);
-          break;
-
-        case "xfedocommand":
-          // xfeDoCommand(openBrowser)
-          if (remoteParams[0].toLowerCase() != "openbrowser")
-            throw NS_ERROR_ABORT;
-
-          // Passing defaultArgs, so use NO_EXTERNAL_URIS
-          openWindow(null, this.chromeURL, "_blank",
-                     "chrome,dialog=no,all" + this.getFeatures(cmdLine),
-                     this.defaultArgs, NO_EXTERNAL_URIS);
-          break;
-
-        default:
-          // Somebody sent us a remote command we don't know how to process:
-          // just abort.
-          throw "Unknown remote command.";
-        }
-
-        cmdLine.preventDefault = true;
-      }
-      catch (e) {
-        Components.utils.reportError(e);
-        // If we had a -remote flag but failed to process it, throw
-        // NS_ERROR_ABORT so that the xremote code knows to return a failure
-        // back to the handling code.
-        throw NS_ERROR_ABORT;
-      }
-    }
-
     var uriparam;
     try {
       while ((uriparam = cmdLine.handleFlagWithParam("new-window", false))) {
@@ -486,8 +372,10 @@ nsBrowserContentHandler.prototype = {
     var chromeParam = cmdLine.handleFlagWithParam("chrome", false);
     if (chromeParam) {
 
-      // Handle the old preference dialog URL separately (bug 285416)
-      if (chromeParam == "chrome://browser/content/pref/pref.xul") {
+      // Handle old preference dialog URLs.
+      if (chromeParam == "chrome://browser/content/pref/pref.xul" ||
+          (Services.prefs.getBoolPref("browser.preferences.inContent") &&
+           chromeParam == "chrome://browser/content/preferences/preferences.xul")) {
         openPreferences();
         cmdLine.preventDefault = true;
       } else try {
@@ -511,13 +399,34 @@ nsBrowserContentHandler.prototype = {
     }
     if (cmdLine.handleFlag("silent", false))
       cmdLine.preventDefault = true;
-    if (cmdLine.findFlag("private-toggle", false) >= 0)
-      cmdLine.preventDefault = true;
+
+    try {
+      var privateWindowParam = cmdLine.handleFlagWithParam("private-window", false);
+      if (privateWindowParam) {
+        var uri = resolveURIInternal(cmdLine, privateWindowParam);
+        handURIToExistingBrowser(uri, nsIBrowserDOMWindow.OPEN_NEWTAB, cmdLine, true);
+        cmdLine.preventDefault = true;
+      }
+    } catch (e if e.result == Components.results.NS_ERROR_INVALID_ARG) {
+      // NS_ERROR_INVALID_ARG is thrown when flag exists, but has no param.
+      if (cmdLine.handleFlag("private-window", false)) {
+        openWindow(null, this.chromeURL, "_blank",
+          "chrome,dialog=no,private,all" + this.getFeatures(cmdLine),
+          "about:privatebrowsing");
+        cmdLine.preventDefault = true;
+      }
+    }
 
     var searchParam = cmdLine.handleFlagWithParam("search", false);
     if (searchParam) {
       doSearch(searchParam, cmdLine);
       cmdLine.preventDefault = true;
+    }
+
+    // The global PB Service consumes this flag, so only eat it in per-window
+    // PB builds.
+    if (cmdLine.handleFlag("private", false)) {
+      PrivateBrowsingUtils.enterTemporaryAutoStartMode();
     }
 
     var fileParam = cmdLine.handleFlagWithParam("file", false);
@@ -547,15 +456,16 @@ nsBrowserContentHandler.prototype = {
 #endif
   },
 
-  helpInfo : "  -browser           Open a browser window.\n" +
-             "  -new-window  <url> Open <url> in a new window.\n" +
-             "  -new-tab     <url> Open <url> in a new tab.\n" +
+  helpInfo : "  --browser          Open a browser window.\n" +
+             "  --new-window <url> Open <url> in a new window.\n" +
+             "  --new-tab <url>    Open <url> in a new tab.\n" +
+             "  --private-window <url> Open <url> in a new private window.\n" +
 #ifdef XP_WIN
-             "  -preferences       Open Options dialog.\n" +
+             "  --preferences      Open Options dialog.\n" +
 #else
-             "  -preferences       Open Preferences dialog.\n" +
+             "  --preferences      Open Preferences dialog.\n" +
 #endif
-             "  -search     <term> Search <term> with your default search engine.\n",
+             "  --search <term>    Search <term> with your default search engine.\n",
 
   /* nsIBrowserHandler */
 
@@ -563,8 +473,15 @@ nsBrowserContentHandler.prototype = {
     var prefb = Components.classes["@mozilla.org/preferences-service;1"]
                           .getService(nsIPrefBranch);
 
+    if (!gFirstWindow) {
+      gFirstWindow = true;
+      if (PrivateBrowsingUtils.isInTemporaryAutoStartMode) {
+        return "about:privatebrowsing";
+      }
+    }
+
     var overridePage = "";
-    var haveUpdateSession = false;
+    var willRestoreSession = false;
     try {
       // Read the old value of homepage_override.mstone before
       // needHomepageOverride updates it, so that we can later add it to the
@@ -577,37 +494,27 @@ nsBrowserContentHandler.prototype = {
       } catch (ex) {}
       let override = needHomepageOverride(prefb);
       if (override != OVERRIDE_NONE) {
-        // Setup the default search engine to about:home page.
-        AboutHomeUtils.loadDefaultSearchEngine();
-        AboutHomeUtils.loadSnippetsURL();
-
         switch (override) {
           case OVERRIDE_NEW_PROFILE:
             // New profile.
             overridePage = Services.urlFormatter.formatURLPref("startup.homepage_welcome_url");
             break;
           case OVERRIDE_NEW_MSTONE:
-            // Existing profile, new milestone build.
-            copyPrefOverride();
-
-            // Check whether we have a session to restore. If we do, we assume
-            // that this is an "update" session.
+            // Check whether we will restore a session. If we will, we assume
+            // that this is an "update" session. This does not take crashes
+            // into account because that requires waiting for the session file
+            // to be read. If a crash occurs after updating, before restarting,
+            // we may open the startPage in addition to restoring the session.
             var ss = Components.classes["@mozilla.org/browser/sessionstartup;1"]
                                .getService(Components.interfaces.nsISessionStartup);
-            haveUpdateSession = ss.doRestore();
+            willRestoreSession = ss.isAutomaticRestoreEnabled();
+
             overridePage = Services.urlFormatter.formatURLPref("startup.homepage_override_url");
             if (prefb.prefHasUserValue("app.update.postupdate"))
               overridePage = getPostUpdateOverridePage(overridePage);
 
             overridePage = overridePage.replace("%OLD_VERSION%", old_mstone);
             break;
-        }
-      }
-      else {
-        // No need to override homepage, but update snippets url if the pref has
-        // been manually changed.
-        if (Services.prefs.prefHasUserValue(AboutHomeUtils.SNIPPETS_URL_PREF)) {
-          AboutHomeUtils.loadSnippetsURL();
         }
       }
     } catch (ex) {}
@@ -629,7 +536,7 @@ nsBrowserContentHandler.prototype = {
       startPage = "";
 
     // Only show the startPage if we're not restoring an update session.
-    if (overridePage && startPage && !haveUpdateSession)
+    if (overridePage && startPage && !willRestoreSession)
       return overridePage + "|" + startPage;
 
     return overridePage || startPage || "about:blank";
@@ -662,6 +569,12 @@ nsBrowserContentHandler.prototype = {
           this.mFeatures += ",height=" + height;
       }
       catch (e) {
+      }
+
+      // The global PB Service consumes this flag, so only eat it in per-window
+      // PB builds.
+      if (PrivateBrowsingUtils.isInTemporaryAutoStartMode) {
+        this.mFeatures = ",private";
       }
     }
 
@@ -704,17 +617,22 @@ nsBrowserContentHandler.prototype = {
 };
 var gBrowserContentHandler = new nsBrowserContentHandler();
 
-function handURIToExistingBrowser(uri, location, cmdLine)
+function handURIToExistingBrowser(uri, location, cmdLine, forcePrivate)
 {
   if (!shouldLoadURI(uri))
     return;
 
-  var navWin = getMostRecentBrowserWindow();
+  // Unless using a private window is forced, open external links in private
+  // windows only if we're in perma-private mode.
+  var allowPrivate = forcePrivate || PrivateBrowsingUtils.permanentPrivateBrowsing;
+  var navWin = RecentWindow.getMostRecentBrowserWindow({private: allowPrivate});
   if (!navWin) {
     // if we couldn't load it in an existing window, open a new one
-    openWindow(null, gBrowserContentHandler.chromeURL, "_blank",
-               "chrome,dialog=no,all" + gBrowserContentHandler.getFeatures(cmdLine),
-               uri.spec);
+    var features = "chrome,dialog=no,all" + gBrowserContentHandler.getFeatures(cmdLine);
+    if (forcePrivate) {
+      features += ",private";
+    }
+    openWindow(null, gBrowserContentHandler.chromeURL, "_blank", features, uri.spec);
     return;
   }
 
@@ -784,9 +702,7 @@ nsDefaultCommandLineHandler.prototype = {
       Components.utils.reportError(e);
     }
 
-    count = cmdLine.length;
-
-    for (i = 0; i < count; ++i) {
+    for (let i = 0; i < cmdLine.length; ++i) {
       var curarg = cmdLine.getArgument(i);
       if (curarg.match(/^-/)) {
         Components.utils.reportError("Warning: unrecognized command line flag " + curarg + "\n");
@@ -835,41 +751,5 @@ nsDefaultCommandLineHandler.prototype = {
   helpInfo : "",
 };
 
-let AboutHomeUtils = {
-  SNIPPETS_URL_PREF: "browser.aboutHomeSnippets.updateUrl",
-  get _storage() {
-    let aboutHomeURI = Services.io.newURI("moz-safe-about:home", null, null);
-    let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"].
-                    getService(Components.interfaces.nsIScriptSecurityManager).
-                    getNoAppCodebasePrincipal(aboutHomeURI);
-    let dsm = Components.classes["@mozilla.org/dom/storagemanager;1"].
-              getService(Components.interfaces.nsIDOMStorageManager);
-    return dsm.getLocalStorageForPrincipal(principal, "");
-  },
-
-  loadDefaultSearchEngine: function AHU_loadDefaultSearchEngine()
-  {
-    let defaultEngine = Services.search.originalDefaultEngine;
-    let submission = defaultEngine.getSubmission("_searchTerms_");
-    if (submission.postData)
-      throw new Error("Home page does not support POST search engines.");
-    let engine = {
-      name: defaultEngine.name
-    , searchUrl: submission.uri.spec
-    }
-    this._storage.setItem("search-engine", JSON.stringify(engine));
-  },
-
-  loadSnippetsURL: function AHU_loadSnippetsURL()
-  {
-    const STARTPAGE_VERSION = 3;
-    let updateURL = Services.prefs
-                            .getCharPref(this.SNIPPETS_URL_PREF)
-                            .replace("%STARTPAGE_VERSION%", STARTPAGE_VERSION);
-    updateURL = Services.urlFormatter.formatURL(updateURL);
-    this._storage.setItem("snippets-update-url", updateURL);
-  },
-};
-
 var components = [nsBrowserContentHandler, nsDefaultCommandLineHandler];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

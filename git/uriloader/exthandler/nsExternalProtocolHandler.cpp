@@ -25,6 +25,8 @@
 #include "nsCExternalHandlerService.h"
 #include "nsIExternalProtocolService.h"
 
+class nsILoadInfo;
+
 ////////////////////////////////////////////////////////////////////////
 // a stub channel implemenation which will map calls to AsyncRead and OpenInputStream
 // to calls in the OS for loading the url.
@@ -33,16 +35,17 @@
 class nsExtProtocolChannel : public nsIChannel
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSICHANNEL
     NS_DECL_NSIREQUEST
 
     nsExtProtocolChannel();
-    virtual ~nsExtProtocolChannel();
 
     nsresult SetURI(nsIURI*);
 
 private:
+    virtual ~nsExtProtocolChannel();
+
     nsresult OpenURL();
     void Finish(nsresult aResult);
     
@@ -56,8 +59,8 @@ private:
     nsCOMPtr<nsILoadGroup> mLoadGroup;
 };
 
-NS_IMPL_THREADSAFE_ADDREF(nsExtProtocolChannel)
-NS_IMPL_THREADSAFE_RELEASE(nsExtProtocolChannel)
+NS_IMPL_ADDREF(nsExtProtocolChannel)
+NS_IMPL_RELEASE(nsExtProtocolChannel)
 
 NS_INTERFACE_MAP_BEGIN(nsExtProtocolChannel)
    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIChannel)
@@ -138,7 +141,7 @@ nsresult nsExtProtocolChannel::OpenURL()
   if (extProtService)
   {
 #ifdef DEBUG
-    nsCAutoString urlScheme;
+    nsAutoCString urlScheme;
     mUrl->GetScheme(urlScheme);
     bool haveHandler = false;
     extProtService->ExternalProtocolHandlerExists(urlScheme.get(), &haveHandler);
@@ -218,7 +221,17 @@ NS_IMETHODIMP nsExtProtocolChannel::GetContentDisposition(uint32_t *aContentDisp
   return NS_ERROR_NOT_AVAILABLE;
 }
 
+NS_IMETHODIMP nsExtProtocolChannel::SetContentDisposition(uint32_t aContentDisposition)
+{
+  return NS_ERROR_NOT_AVAILABLE;
+}
+
 NS_IMETHODIMP nsExtProtocolChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
+{
+  return NS_ERROR_NOT_AVAILABLE;
+}
+
+NS_IMETHODIMP nsExtProtocolChannel::SetContentDispositionFilename(const nsAString &aContentDispositionFilename)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
@@ -228,14 +241,14 @@ NS_IMETHODIMP nsExtProtocolChannel::GetContentDispositionHeader(nsACString &aCon
   return NS_ERROR_NOT_AVAILABLE;
 }
 
-NS_IMETHODIMP nsExtProtocolChannel::GetContentLength(int32_t * aContentLength)
+NS_IMETHODIMP nsExtProtocolChannel::GetContentLength(int64_t * aContentLength)
 {
   *aContentLength = -1;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsExtProtocolChannel::SetContentLength(int32_t aContentLength)
+nsExtProtocolChannel::SetContentLength(int64_t aContentLength)
 {
   NS_NOTREACHED("SetContentLength");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -243,13 +256,21 @@ nsExtProtocolChannel::SetContentLength(int32_t aContentLength)
 
 NS_IMETHODIMP nsExtProtocolChannel::GetOwner(nsISupports * *aPrincipal)
 {
-  NS_NOTREACHED("GetOwner");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP nsExtProtocolChannel::SetOwner(nsISupports * aPrincipal)
 {
-  NS_NOTREACHED("SetOwner");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsExtProtocolChannel::GetLoadInfo(nsILoadInfo * *aLoadInfo)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsExtProtocolChannel::SetLoadInfo(nsILoadInfo * aLoadInfo)
+{
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -305,8 +326,8 @@ nsExternalProtocolHandler::nsExternalProtocolHandler()
 nsExternalProtocolHandler::~nsExternalProtocolHandler()
 {}
 
-NS_IMPL_THREADSAFE_ADDREF(nsExternalProtocolHandler)
-NS_IMPL_THREADSAFE_RELEASE(nsExternalProtocolHandler)
+NS_IMPL_ADDREF(nsExternalProtocolHandler)
+NS_IMPL_RELEASE(nsExternalProtocolHandler)
 
 NS_INTERFACE_MAP_BEGIN(nsExternalProtocolHandler)
    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIProtocolHandler)
@@ -340,7 +361,7 @@ bool nsExternalProtocolHandler::HaveExternalProtocolHandler(nsIURI * aURI)
   bool haveHandler = false;
   if (aURI)
   {
-    nsCAutoString scheme;
+    nsAutoCString scheme;
     aURI->GetScheme(scheme);
     nsCOMPtr<nsIExternalProtocolService> extProtSvc(do_GetService(NS_EXTERNALPROTOCOLSERVICE_CONTRACTID));
     if (extProtSvc)
@@ -374,7 +395,10 @@ NS_IMETHODIMP nsExternalProtocolHandler::NewURI(const nsACString &aSpec,
   return NS_OK;
 }
 
-NS_IMETHODIMP nsExternalProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
+NS_IMETHODIMP
+nsExternalProtocolHandler::NewChannel2(nsIURI* aURI,
+                                       nsILoadInfo* aLoadInfo,
+                                       nsIChannel** _retval)
 {
   // Only try to return a channel if we have a protocol handler for the url.
   // nsOSHelperAppService::LoadUriInternal relies on this to check trustedness
@@ -398,6 +422,11 @@ NS_IMETHODIMP nsExternalProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_
   }
 
   return NS_ERROR_UNKNOWN_PROTOCOL;
+}
+
+NS_IMETHODIMP nsExternalProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
+{
+  return NewChannel2(aURI, nullptr, _retval);
 }
 
 ///////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsCycleCollectionParticipant.h"
 #include "nsISelectionController.h"
 #include "nsIController.h"
 #include "nsIControllers.h"
@@ -29,13 +30,16 @@ class nsTypeAheadFind : public nsITypeAheadFind,
 {
 public:
   nsTypeAheadFind();
-  virtual ~nsTypeAheadFind();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSITYPEAHEADFIND
   NS_DECL_NSIOBSERVER
 
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsTypeAheadFind, nsITypeAheadFind)
+
 protected:
+  virtual ~nsTypeAheadFind();
+
   nsresult PrefsReset();
 
   void SaveFind();
@@ -48,6 +52,8 @@ protected:
 
   void GetSelection(nsIPresShell *aPresShell, nsISelectionController **aSelCon, 
                     nsISelection **aDomSel);
+  // *aNewRange may not be collapsed.  If you want to collapse it in a
+  // particular way, you need to do it yourself.
   bool IsRangeVisible(nsIPresShell *aPresShell, nsPresContext *aPresContext,
                         nsIDOMRange *aRange, bool aMustBeVisible, 
                         bool aGetTopVisibleLeaf, nsIDOMRange **aNewRange,
@@ -63,7 +69,9 @@ protected:
 
   // Get the pres shell from mPresShell and return it only if it is still
   // attached to the DOM window.
-  NS_HIDDEN_(already_AddRefed<nsIPresShell>) GetPresShell();
+  already_AddRefed<nsIPresShell> GetPresShell();
+
+  void ReleaseStrongMemberVariables();
 
   // Current find state
   nsString mTypeAheadBuffer;
@@ -73,8 +81,10 @@ protected:
   // boolean variable is getting passed into a method.
   bool mStartLinksOnlyPref;
   bool mCaretBrowsingOn;
+  bool mDidAddObservers;
   nsCOMPtr<nsIDOMElement> mFoundLink;     // Most recent elem found, if a link
   nsCOMPtr<nsIDOMElement> mFoundEditable; // Most recent elem found, if editable
+  nsCOMPtr<nsIDOMRange> mFoundRange;      // Most recent range found
   nsCOMPtr<nsIDOMWindow> mCurrentWindow;
   // mLastFindLength is the character length of the last find string.  It is used for
   // disabling the "not found" sound when using backspace or delete

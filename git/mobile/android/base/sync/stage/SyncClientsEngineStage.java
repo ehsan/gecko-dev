@@ -13,18 +13,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.mozilla.gecko.AppConstants;
+import org.mozilla.gecko.background.common.GlobalConstants;
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.CommandProcessor;
 import org.mozilla.gecko.sync.CommandProcessor.Command;
 import org.mozilla.gecko.sync.CryptoRecord;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.GlobalSession;
 import org.mozilla.gecko.sync.HTTPFailureException;
-import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NoCollectionKeysSetException;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.crypto.CryptoException;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.delegates.ClientsDataDelegate;
+import org.mozilla.gecko.sync.net.AuthHeaderProvider;
 import org.mozilla.gecko.sync.net.BaseResource;
 import org.mozilla.gecko.sync.net.SyncStorageCollectionRequest;
 import org.mozilla.gecko.sync.net.SyncStorageRecordRequest;
@@ -37,10 +39,12 @@ import org.mozilla.gecko.sync.repositories.android.RepoUtils;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecordFactory;
 import org.mozilla.gecko.sync.repositories.domain.VersionConstants;
+import org.mozilla.gecko.util.HardwareUtils;
 
+import android.content.Context;
 import ch.boye.httpclientandroidlib.HttpStatus;
 
-public class SyncClientsEngineStage implements GlobalSyncStage {
+public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
   private static final String LOG_TAG = "SyncClientsEngineStage";
 
   public static final String COLLECTION_NAME       = "clients";
@@ -48,7 +52,6 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   public static final int CLIENTS_TTL_REFRESH      = 604800000;   // 7 days in milliseconds.
   public static final int MAX_UPLOAD_FAILURE_COUNT = 5;
 
-  protected final GlobalSession session;
   protected final ClientRecordFactory factory = new ClientRecordFactory();
   protected ClientUploadDelegate clientUploadDelegate;
   protected ClientDownloadDelegate clientDownloadDelegate;
@@ -57,16 +60,9 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   protected ClientsDatabaseAccessor db;
 
   protected volatile boolean shouldWipe;
-  protected volatile boolean commandsProcessedShouldUpload;
+  protected volatile boolean shouldUploadLocalRecord;     // Set if, e.g., we received commands or need to refresh our version.
   protected final AtomicInteger uploadAttemptsCount = new AtomicInteger();
   protected final List<ClientRecord> toUpload = new ArrayList<ClientRecord>();
-
-  public SyncClientsEngineStage(GlobalSession session) {
-    if (session == null) {
-      throw new IllegalArgumentException("session must not be null.");
-    }
-    this.session = session;
-  }
 
   protected int getClientsCount() {
     return getClientsDatabaseAccessor().clientsCount();
@@ -105,8 +101,8 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
     boolean localAccountGUIDDownloaded = false;
 
     @Override
-    public String credentials() {
-      return session.credentials();
+    public AuthHeaderProvider getAuthHeaderProvider() {
+      return session.getAuthHeaderProvider();
     }
 
     @Override
@@ -191,11 +187,9 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
       try {
         r = (ClientRecord) factory.createRecord(record.decrypt());
         if (clientsDelegate.isLocalGUID(r.guid)) {
-          Logger.info(LOG_TAG, "Local client GUID exists on server and was downloaded");
-
+          Logger.info(LOG_TAG, "Local client GUID exists on server and was downloaded.");
           localAccountGUIDDownloaded = true;
-          session.config.persistServerClientRecordTimestamp(r.lastModified);
-          processCommands(r.commands);
+          handleDownloadedLocalRecord(r);
         } else {
           // Only need to store record if it isn't our local one.
           wipeAndStore(r);
@@ -224,8 +218,8 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
     public boolean currentlyUploadingLocalRecord;
 
     @Override
-    public String credentials() {
-      return session.credentials();
+    public AuthHeaderProvider getAuthHeaderProvider() {
+      return session.getAuthHeaderProvider();
     }
 
     private void setUploadDetails(boolean isLocalRecord) {
@@ -276,7 +270,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
 
       // If we're processing our record, we have a little more cleanup
       // to do.
-      commandsProcessedShouldUpload = false;
+      shouldUploadLocalRecord = false;
       session.config.persistServerClientRecordTimestamp(responseTimestamp);
       session.advance();
     }
@@ -287,7 +281,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
 
       // If upload failed because of `ifUnmodifiedSince` then there are new
       // commands uploaded to our record. We must download and process them first.
-      if (!commandsProcessedShouldUpload ||
+      if (!shouldUploadLocalRecord ||
           statusCode == HttpStatus.SC_PRECONDITION_FAILED ||
           uploadAttemptsCount.incrementAndGet() > MAX_UPLOAD_FAILURE_COUNT) {
 
@@ -301,7 +295,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
       }
       Logger.trace(LOG_TAG, "Retrying upload…");
       // Preconditions:
-      // commandsProcessedShouldUpload == true &&
+      // shouldUploadLocalRecord == true &&
       // statusCode != 412 &&
       // uploadAttemptCount < MAX_UPLOAD_FAILURE_COUNT
       checkAndUpload();
@@ -326,10 +320,11 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   @Override
   public void execute() throws NoSuchStageException {
     // We can be disabled just for this sync.
-    boolean disabledThisSync = session.config.stagesToSync != null &&
-                               !session.config.stagesToSync.contains(STAGE_NAME);
-    if (disabledThisSync) {
+    boolean enabledThisSync = session.isEngineLocallyEnabled(STAGE_NAME);
+    if (!enabledThisSync) {
+      // These log messages look best when they match the messages in ServerSyncStage.
       Logger.debug(LOG_TAG, "Stage " + STAGE_NAME + " disabled just for this sync.");
+      Logger.info(LOG_TAG, "Skipping stage " + STAGE_NAME + ".");
       session.advance();
       return;
     }
@@ -342,7 +337,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   }
 
   @Override
-  public void resetLocal() {
+  protected void resetLocal() {
     // Clear timestamps and local data.
     session.config.persistServerClientRecordTimestamp(0L);   // TODO: roll these into one.
     session.config.persistServerClientsTimestamp(0L);
@@ -356,13 +351,26 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   }
 
   @Override
-  public void wipeLocal() throws Exception {
+  protected void wipeLocal() throws Exception {
     // Nothing more to do.
     this.resetLocal();
   }
 
+  @Override
   public Integer getStorageVersion() {
     return VersionConstants.CLIENTS_ENGINE_VERSION;
+  }
+
+  protected String getLocalClientVersion() {
+    return GlobalConstants.MOZ_APP_VERSION;
+  }
+
+  @SuppressWarnings("unchecked")
+  protected JSONArray getLocalClientProtocols() {
+    final JSONArray protocols = new JSONArray();
+    protocols.add(ClientRecord.PROTOCOL_LEGACY_SYNC);
+    protocols.add(ClientRecord.PROTOCOL_FXA_SYNC);
+    return protocols;
   }
 
   protected ClientRecord newLocalClientRecord(ClientsDataDelegate delegate) {
@@ -371,6 +379,15 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
 
     ClientRecord r = new ClientRecord(ourGUID);
     r.name = ourName;
+    r.version = getLocalClientVersion();
+    r.protocols = getLocalClientProtocols();
+
+    r.os = "Android";
+    r.application = GlobalConstants.MOZ_APP_DISPLAYNAME;
+    r.appPackage = AppConstants.ANDROID_PACKAGE_NAME;
+    r.device = android.os.Build.MODEL;
+    r.formfactor = delegate.getFormFactor();
+
     return r;
   }
 
@@ -381,12 +398,17 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   }
 
   protected boolean shouldUpload() {
-    if (commandsProcessedShouldUpload) {
+    if (shouldUploadLocalRecord) {
       return true;
     }
 
     long lastUpload = session.config.getPersistedServerClientRecordTimestamp();   // Defaults to 0.
     if (lastUpload == 0) {
+      return true;
+    }
+
+    if (session.getClientsDelegate().getLastModifiedTimestamp() > lastUpload) {
+      // Something's changed locally since we last uploaded.
       return true;
     }
 
@@ -398,13 +420,23 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
     return age >= CLIENTS_TTL_REFRESH;
   }
 
+  protected void handleDownloadedLocalRecord(ClientRecord r) {
+    session.config.persistServerClientRecordTimestamp(r.lastModified);
+
+    if (!getLocalClientVersion().equals(r.version) ||
+        !getLocalClientProtocols().equals(r.protocols)) {
+      shouldUploadLocalRecord = true;
+    }
+    processCommands(r.commands);
+  }
+
   protected void processCommands(JSONArray commands) {
     if (commands == null ||
         commands.size() == 0) {
       return;
     }
 
-    commandsProcessedShouldUpload = true;
+    shouldUploadLocalRecord = true;
     CommandProcessor processor = CommandProcessor.getProcessor();
 
     for (Object o : commands) {

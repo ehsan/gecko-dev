@@ -1,63 +1,45 @@
-# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- 
+# -*- indent-tabs-mode: nil; js-indent-level: 2 -*- 
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "BrowserUtils",
+                                  "resource://gre/modules/BrowserUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
+                                  "resource://gre/modules/Downloads.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadLastDir",
+                                  "resource://gre/modules/DownloadLastDir.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
+                                  "resource://gre/modules/FileUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "OS",
+                                  "resource://gre/modules/osfile.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
+                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Promise",
+                                  "resource://gre/modules/Promise.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Services",
+                                  "resource://gre/modules/Services.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Task",
+                                  "resource://gre/modules/Task.jsm");
 var ContentAreaUtils = {
+
+  // this is for backwards compatibility.
   get ioService() {
-    delete this.ioService;
-    return this.ioService =
-      Components.classes["@mozilla.org/network/io-service;1"]
-                .getService(Components.interfaces.nsIIOService);
+    return Services.io;
   },
 
   get stringBundle() {
     delete this.stringBundle;
     return this.stringBundle =
-      Components.classes["@mozilla.org/intl/stringbundle;1"]
-                .getService(Components.interfaces.nsIStringBundleService)
-                .createBundle("chrome://global/locale/contentAreaCommands.properties");
+      Services.strings.createBundle("chrome://global/locale/contentAreaCommands.properties");
   }
 }
 
-/**
- * urlSecurityCheck: JavaScript wrapper for checkLoadURIWithPrincipal
- * and checkLoadURIStrWithPrincipal.
- * If |aPrincipal| is not allowed to link to |aURL|, this function throws with
- * an error message.
- *
- * @param aURL
- *        The URL a page has linked to. This could be passed either as a string
- *        or as a nsIURI object.
- * @param aPrincipal
- *        The principal of the document from which aURL came.
- * @param aFlags
- *        Flags to be passed to checkLoadURIStr. If undefined,
- *        nsIScriptSecurityManager.STANDARD will be passed.
- */
 function urlSecurityCheck(aURL, aPrincipal, aFlags)
 {
-  const nsIScriptSecurityManager =
-    Components.interfaces.nsIScriptSecurityManager;
-  var secMan = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
-                         .getService(nsIScriptSecurityManager);
-  if (aFlags === undefined)
-    aFlags = nsIScriptSecurityManager.STANDARD;
-
-  try {
-    if (aURL instanceof Components.interfaces.nsIURI)
-      secMan.checkLoadURIWithPrincipal(aPrincipal, aURL, aFlags);
-    else
-      secMan.checkLoadURIStrWithPrincipal(aPrincipal, aURL, aFlags);
-  } catch (e) {
-    let principalStr = "";
-    try {
-      principalStr = " from " + aPrincipal.URI.spec;
-    }
-    catch(e2) { }
-
-    throw "Load of " + aURL + principalStr + " denied.";
-  }
+  return BrowserUtils.urlSecurityCheck(aURL, aPrincipal, aFlags);
 }
 
 /**
@@ -70,7 +52,6 @@ function isContentFrame(aFocusedWindow)
 
   return (aFocusedWindow.top == window.content);
 }
-
 
 // Clientele: (Make sure you don't break any of these)
 //  - File    ->  Save Page/Frame As...
@@ -91,10 +72,11 @@ function isContentFrame(aFocusedWindow)
 // - A linked document using Alt-click Save Link As...
 //
 function saveURL(aURL, aFileName, aFilePickerTitleKey, aShouldBypassCache,
-                 aSkipPrompt, aReferrer)
+                 aSkipPrompt, aReferrer, aSourceDocument)
 {
   internalSave(aURL, null, aFileName, null, null, aShouldBypassCache,
-               aFilePickerTitleKey, null, aReferrer, aSkipPrompt, null);
+               aFilePickerTitleKey, null, aReferrer, aSourceDocument,
+               aSkipPrompt, null);
 }
 
 // Just like saveURL, but will get some info off the image before
@@ -105,14 +87,15 @@ const imgICache = Components.interfaces.imgICache;
 const nsISupportsCString = Components.interfaces.nsISupportsCString;
 
 function saveImageURL(aURL, aFileName, aFilePickerTitleKey, aShouldBypassCache,
-                      aSkipPrompt, aReferrer)
+                      aSkipPrompt, aReferrer, aDoc)
 {
   var contentType = null;
   var contentDisposition = null;
   if (!aShouldBypassCache) {
     try {
-      var imageCache = Components.classes["@mozilla.org/image/cache;1"]
-                                 .getService(imgICache);
+      var imageCache = Components.classes["@mozilla.org/image/tools;1"]
+                                 .getService(Components.interfaces.imgITools)
+                                 .getImgCacheForDocument(aDoc);
       var props =
         imageCache.findEntryProperties(makeURI(aURL, getCharsetforSave(null)));
       if (props) {
@@ -126,7 +109,7 @@ function saveImageURL(aURL, aFileName, aFilePickerTitleKey, aShouldBypassCache,
   }
   internalSave(aURL, null, aFileName, contentDisposition, contentType,
                aShouldBypassCache, aFilePickerTitleKey, null, aReferrer,
-               aSkipPrompt, null);
+               aDoc, aSkipPrompt, null);
 }
 
 function saveDocument(aDocument, aSkipPrompt)
@@ -160,7 +143,7 @@ function saveDocument(aDocument, aSkipPrompt)
   internalSave(aDocument.location.href, aDocument, null, contentDisposition,
                aDocument.contentType, false, null, null,
                aDocument.referrer ? makeURI(aDocument.referrer) : null,
-               aSkipPrompt, cacheKey);
+               aDocument, aSkipPrompt, cacheKey);
 }
 
 function DownloadListener(win, transfer) {
@@ -256,6 +239,8 @@ const kSaveAsType_Text     = 2; // Save document, converting to plain text.
  * @param aReferrer
  *        the referrer URI object (not URL string) to use, or null
  *        if no referrer should be sent.
+ * @param aInitiatingDocument
+ *        The document from which the save was initiated.
  * @param aSkipPrompt [optional]
  *        If set to true, we will attempt to save the file to the
  *        default downloads folder without prompting.
@@ -265,7 +250,8 @@ const kSaveAsType_Text     = 2; // Save document, converting to plain text.
  */
 function internalSave(aURL, aDocument, aDefaultFileName, aContentDisposition,
                       aContentType, aShouldBypassCache, aFilePickerTitleKey,
-                      aChosenData, aReferrer, aSkipPrompt, aCacheKey)
+                      aChosenData, aReferrer, aInitiatingDocument, aSkipPrompt,
+                      aCacheKey)
 {
   if (aSkipPrompt == undefined)
     aSkipPrompt = false;
@@ -283,6 +269,8 @@ function internalSave(aURL, aDocument, aDefaultFileName, aContentDisposition,
     file = aChosenData.file;
     sourceURI = aChosenData.uri;
     saveAsType = kSaveAsType_Complete;
+
+    continueSave();
   } else {
     var charset = null;
     if (aDocument)
@@ -306,37 +294,42 @@ function internalSave(aURL, aDocument, aDefaultFileName, aContentDisposition,
     // Find a URI to use for determining last-downloaded-to directory
     let relatedURI = aReferrer || sourceURI;
 
-    if (!getTargetFile(fpParams, aSkipPrompt, relatedURI))
-      // If the method returned false this is because the user cancelled from
-      // the save file picker dialog.
-      return;
+    promiseTargetFile(fpParams, aSkipPrompt, relatedURI).then(aDialogAccepted => {
+      if (!aDialogAccepted)
+        return;
 
-    saveAsType = fpParams.saveAsType;
-    file = fpParams.file;
+      saveAsType = fpParams.saveAsType;
+      file = fpParams.file;
+
+      continueSave();
+    }).then(null, Components.utils.reportError);
   }
 
-  // XXX We depend on the following holding true in appendFiltersForContentType():
-  // If we should save as a complete page, the saveAsType is kSaveAsType_Complete.
-  // If we should save as text, the saveAsType is kSaveAsType_Text.
-  var useSaveDocument = aDocument &&
-                        (((saveMode & SAVEMODE_COMPLETE_DOM) && (saveAsType == kSaveAsType_Complete)) ||
-                         ((saveMode & SAVEMODE_COMPLETE_TEXT) && (saveAsType == kSaveAsType_Text)));
-  // If we're saving a document, and are saving either in complete mode or
-  // as converted text, pass the document to the web browser persist component.
-  // If we're just saving the HTML (second option in the list), send only the URI.
-  var persistArgs = {
-    sourceURI         : sourceURI,
-    sourceReferrer    : aReferrer,
-    sourceDocument    : useSaveDocument ? aDocument : null,
-    targetContentType : (saveAsType == kSaveAsType_Text) ? "text/plain" : null,
-    targetFile        : file,
-    sourceCacheKey    : aCacheKey,
-    sourcePostData    : aDocument ? getPostData(aDocument) : null,
-    bypassCache       : aShouldBypassCache
-  };
+  function continueSave() {
+    // XXX We depend on the following holding true in appendFiltersForContentType():
+    // If we should save as a complete page, the saveAsType is kSaveAsType_Complete.
+    // If we should save as text, the saveAsType is kSaveAsType_Text.
+    var useSaveDocument = aDocument &&
+                          (((saveMode & SAVEMODE_COMPLETE_DOM) && (saveAsType == kSaveAsType_Complete)) ||
+                           ((saveMode & SAVEMODE_COMPLETE_TEXT) && (saveAsType == kSaveAsType_Text)));
+    // If we're saving a document, and are saving either in complete mode or
+    // as converted text, pass the document to the web browser persist component.
+    // If we're just saving the HTML (second option in the list), send only the URI.
+    var persistArgs = {
+      sourceURI         : sourceURI,
+      sourceReferrer    : aReferrer,
+      sourceDocument    : useSaveDocument ? aDocument : null,
+      targetContentType : (saveAsType == kSaveAsType_Text) ? "text/plain" : null,
+      targetFile        : file,
+      sourceCacheKey    : aCacheKey,
+      sourcePostData    : aDocument ? getPostData(aDocument) : null,
+      bypassCache       : aShouldBypassCache,
+      initiatingWindow  : aInitiatingDocument.defaultView
+    };
 
-  // Start the actual save process
-  internalPersist(persistArgs);
+    // Start the actual save process
+    internalPersist(persistArgs);
+  }
 }
 
 /**
@@ -366,6 +359,8 @@ function internalSave(aURL, aDocument, aDefaultFileName, aContentDisposition,
  *        "text/plain" is meaningful.
  * @param persistArgs.bypassCache
  *        If true, the document will always be refetched from the server
+ * @param persistArgs.initiatingWindow
+ *        The window from which the save operation was initiated.
  */
 function internalPersist(persistArgs)
 {
@@ -386,10 +381,12 @@ function internalPersist(persistArgs)
   // Find the URI associated with the target file
   var targetFileURL = makeFileURI(persistArgs.targetFile);
 
+  var isPrivate = PrivateBrowsingUtils.isWindowPrivate(persistArgs.initiatingWindow);
+
   // Create download and initiate it (below)
   var tr = Components.classes["@mozilla.org/transfer;1"].createInstance(Components.interfaces.nsITransfer);
   tr.init(persistArgs.sourceURI,
-          targetFileURL, "", null, null, null, persist);
+          targetFileURL, "", null, null, null, persist, isPrivate);
   persist.progressListener = new DownloadListener(window, tr);
 
   if (persistArgs.sourceDocument) {
@@ -421,9 +418,14 @@ function internalPersist(persistArgs)
     persist.saveDocument(persistArgs.sourceDocument, targetFileURL, filesFolder,
                          persistArgs.targetContentType, encodingFlags, kWrapColumn);
   } else {
+    let privacyContext = persistArgs.initiatingWindow
+                                    .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                                    .getInterface(Components.interfaces.nsIWebNavigation)
+                                    .QueryInterface(Components.interfaces.nsILoadContext);
     persist.saveURI(persistArgs.sourceURI,
-                    persistArgs.sourceCacheKey, persistArgs.sourceReferrer, persistArgs.sourcePostData, null,
-                    targetFileURL);
+                    persistArgs.sourceCacheKey, persistArgs.sourceReferrer,
+                    Components.interfaces.nsIHttpChannel.REFERRER_POLICY_NO_REFERRER_WHEN_DOWNGRADE,
+                    persistArgs.sourcePostData, null, targetFileURL, privacyContext);
   }
 }
 
@@ -431,7 +433,7 @@ function internalPersist(persistArgs)
  * Structure for holding info about automatically supplied parameters for
  * internalSave(...). This allows parameters to be supplied so the user does not
  * need to be prompted for file info.
- * @param aFileAutoChosen This is an nsILocalFile object that has been
+ * @param aFileAutoChosen This is an nsIFile object that has been
  *        pre-determined as the filename for the target to save to
  * @param aUriAutoChosen  This is the nsIURI object for the target
  */
@@ -520,95 +522,102 @@ function initFileInfo(aFI, aURL, aURLCharset, aDocument,
  *        An nsIURI associated with the download. The last used
  *        directory of the picker is retrieved from/stored in the 
  *        Content Pref Service using this URI.
- * @return true if the user confirmed a filename in the picker or the picker
- *         was not displayed; false if they dismissed the picker.
+ * @return Promise
+ * @resolve a boolean. When true, it indicates that the file picker dialog
+ *          is accepted.
  */
-function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelatedURI)
+function promiseTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelatedURI)
 {
-  if (!getTargetFile.gDownloadLastDir)
-    Components.utils.import("resource://gre/modules/DownloadLastDir.jsm", getTargetFile);
-  var gDownloadLastDir = getTargetFile.gDownloadLastDir;
+  return Task.spawn(function() {
+    let downloadLastDir = new DownloadLastDir(window);
+    let prefBranch = Services.prefs.getBranch("browser.download.");
+    let useDownloadDir = prefBranch.getBoolPref("useDownloadDir");
 
-  var prefs = getPrefsBrowserDownload("browser.download.");
-  var useDownloadDir = prefs.getBoolPref("useDownloadDir");
-  const nsILocalFile = Components.interfaces.nsILocalFile;
+    if (!aSkipPrompt)
+      useDownloadDir = false;
 
-  if (!aSkipPrompt)
-    useDownloadDir = false;
+    // Default to the user's default downloads directory configured
+    // through download prefs.
+    let dirPath = yield Downloads.getPreferredDownloadsDirectory();
+    let dirExists = yield OS.File.exists(dirPath);
+    let dir = new FileUtils.File(dirPath);
 
-  // Default to the user's default downloads directory configured
-  // through download prefs.
-  var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
-                        .getService(Components.interfaces.nsIDownloadManager);
-  var dir = dlMgr.userDownloadsDirectory;
-  var dirExists = dir && dir.exists();
+    if (useDownloadDir && dirExists) {
+      dir.append(getNormalizedLeafName(aFpP.fileInfo.fileName,
+                                       aFpP.fileInfo.fileExt));
+      aFpP.file = uniqueFile(dir);
+      throw new Task.Result(true);
+    }
 
-  if (useDownloadDir && dirExists) {
-    dir.append(getNormalizedLeafName(aFpP.fileInfo.fileName,
-                                     aFpP.fileInfo.fileExt));
-    aFpP.file = uniqueFile(dir);
-    return true;
-  }
-
-  // We must prompt for the file name explicitly.
-  // If we must prompt because we were asked to...
-  if (!useDownloadDir) try {
-    // ...find the directory that was last used for saving, and use it in the
-    // file picker if it is still valid. Otherwise, keep the default of the
-    // user's default downloads directory. If it doesn't exist, it will be
-    // changed to the user's desktop later.
-    var lastDir = gDownloadLastDir.getFile(aRelatedURI);
-    if (lastDir.exists()) {
-      dir = lastDir;
+    // We must prompt for the file name explicitly.
+    // If we must prompt because we were asked to...
+    let deferred = Promise.defer();
+    if (useDownloadDir) {
+      // Keep async behavior in both branches
+      Services.tm.mainThread.dispatch(function() {
+        deferred.resolve(null);
+      }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
+    } else {
+      downloadLastDir.getFileAsync(aRelatedURI, function getFileAsyncCB(aFile) {
+        deferred.resolve(aFile);
+      });
+    }
+    let file = yield deferred.promise;
+    if (file && (yield OS.File.exists(file.path))) {
+      dir = file;
       dirExists = true;
     }
-  } catch(e) {}
 
-  if (!dirExists) {
-    // Default to desktop.
-    var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"]
-                                .getService(Components.interfaces.nsIProperties);
-    dir = fileLocator.get("Desk", nsILocalFile);
-  }
-
-  var fp = makeFilePicker();
-  var titleKey = aFpP.fpTitleKey || "SaveLinkTitle";
-  fp.init(window, ContentAreaUtils.stringBundle.GetStringFromName(titleKey),
-          Components.interfaces.nsIFilePicker.modeSave);
-
-  fp.displayDirectory = dir;
-  fp.defaultExtension = aFpP.fileInfo.fileExt;
-  fp.defaultString = getNormalizedLeafName(aFpP.fileInfo.fileName,
-                                           aFpP.fileInfo.fileExt);
-  appendFiltersForContentType(fp, aFpP.contentType, aFpP.fileInfo.fileExt,
-                              aFpP.saveMode);
-
-  // The index of the selected filter is only preserved and restored if there's
-  // more than one filter in addition to "All Files".
-  if (aFpP.saveMode != SAVEMODE_FILEONLY) {
-    try {
-      fp.filterIndex = prefs.getIntPref("save_converter_index");
+    if (!dirExists) {
+      // Default to desktop.
+      dir = Services.dirsvc.get("Desk", Components.interfaces.nsIFile);
     }
-    catch (e) {
+
+    let fp = makeFilePicker();
+    let titleKey = aFpP.fpTitleKey || "SaveLinkTitle";
+    fp.init(window, ContentAreaUtils.stringBundle.GetStringFromName(titleKey),
+            Components.interfaces.nsIFilePicker.modeSave);
+
+    fp.displayDirectory = dir;
+    fp.defaultExtension = aFpP.fileInfo.fileExt;
+    fp.defaultString = getNormalizedLeafName(aFpP.fileInfo.fileName,
+                                             aFpP.fileInfo.fileExt);
+    appendFiltersForContentType(fp, aFpP.contentType, aFpP.fileInfo.fileExt,
+                                aFpP.saveMode);
+
+    // The index of the selected filter is only preserved and restored if there's
+    // more than one filter in addition to "All Files".
+    if (aFpP.saveMode != SAVEMODE_FILEONLY) {
+      try {
+        fp.filterIndex = prefBranch.getIntPref("save_converter_index");
+      }
+      catch (e) {
+      }
     }
-  }
 
-  if (fp.show() == Components.interfaces.nsIFilePicker.returnCancel || !fp.file)
-    return false;
+    let deferComplete = Promise.defer();
+    fp.open(function(aResult) {
+      deferComplete.resolve(aResult);
+    });
+    let result = yield deferComplete.promise;
+    if (result == Components.interfaces.nsIFilePicker.returnCancel || !fp.file) {
+      throw new Task.Result(false);
+    }
 
-  if (aFpP.saveMode != SAVEMODE_FILEONLY)
-    prefs.setIntPref("save_converter_index", fp.filterIndex);
+    if (aFpP.saveMode != SAVEMODE_FILEONLY)
+      prefBranch.setIntPref("save_converter_index", fp.filterIndex);
 
-  // Do not store the last save directory as a pref inside the private browsing mode
-  var directory = fp.file.parent.QueryInterface(nsILocalFile);
-  gDownloadLastDir.setFile(aRelatedURI, directory);
+    // Do not store the last save directory as a pref inside the private browsing mode
+    downloadLastDir.setFile(aRelatedURI, fp.file.parent);
 
-  fp.file.leafName = validateFileName(fp.file.leafName);
-  
-  aFpP.saveAsType = fp.filterIndex;
-  aFpP.file = fp.file;
-  aFpP.fileURL = fp.fileURL;
-  return true;
+    fp.file.leafName = validateFileName(fp.file.leafName);
+
+    aFpP.saveAsType = fp.filterIndex;
+    aFpP.file = fp.file;
+    aFpP.fileURL = fp.fileURL;
+
+    throw new Task.Result(true);
+  });
 }
 
 // Since we're automatically downloading, we don't get the file picker's
@@ -639,6 +648,54 @@ function uniqueFile(aLocalFile)
   return aLocalFile;
 }
 
+#ifdef MOZ_JSDOWNLOADS
+/**
+ * Download a URL using the new jsdownloads API.
+ *
+ * @param aURL
+ *        the url to download
+ * @param [optional] aFileName
+ *        the destination file name, if omitted will be obtained from the url.
+ * @param aInitiatingDocument
+ *        The document from which the download was initiated.
+ */
+function DownloadURL(aURL, aFileName, aInitiatingDocument) {
+  // For private browsing, try to get document out of the most recent browser
+  // window, or provide our own if there's no browser window.
+  let isPrivate = aInitiatingDocument.defaultView
+                                     .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                                     .getInterface(Components.interfaces.nsIWebNavigation)
+                                     .QueryInterface(Components.interfaces.nsILoadContext)
+                                     .usePrivateBrowsing;
+
+  let fileInfo = new FileInfo(aFileName);
+  initFileInfo(fileInfo, aURL, null, null, null, null);
+
+  let filepickerParams = {
+    fileInfo: fileInfo,
+    saveMode: SAVEMODE_FILEONLY
+  };
+
+  Task.spawn(function* () {
+    let accepted = yield promiseTargetFile(filepickerParams, true, fileInfo.uri);
+    if (!accepted)
+      return;
+
+    let file = filepickerParams.file;
+    let download = yield Downloads.createDownload({
+      source: { url: aURL, isPrivate: isPrivate },
+      target: { path: file.path, partFilePath: file.path + ".part" }
+    });
+    download.tryToKeepPartialData = true;
+    download.start();
+
+    // Add the download to the list, allowing it to be managed.
+    let list = yield Downloads.getList(Downloads.ALL);
+    list.add(download);
+  }).then(null, Components.utils.reportError);
+}
+#endif
+
 // We have no DOM, and can only save the URL as is.
 const SAVEMODE_FILEONLY      = 0x00;
 // We have a DOM and can save as complete.
@@ -657,31 +714,34 @@ function appendFiltersForContentType(aFilePicker, aContentType, aFileExtension, 
   // The corresponding filter string for a specific content type.
   var filterString;
 
-  // XXX all the cases that are handled explicitly here MUST be handled
-  // in GetSaveModeForContentType to return a non-fileonly filter.
-  switch (aContentType) {
-  case "text/html":
-    bundleName   = "WebPageHTMLOnlyFilter";
-    filterString = "*.htm; *.html";
-    break;
+  // Every case where GetSaveModeForContentType can return non-FILEONLY
+  // modes must be handled here.
+  if (aSaveMode != SAVEMODE_FILEONLY) {
+    switch (aContentType) {
+    case "text/html":
+      bundleName   = "WebPageHTMLOnlyFilter";
+      filterString = "*.htm; *.html";
+      break;
 
-  case "application/xhtml+xml":
-    bundleName   = "WebPageXHTMLOnlyFilter";
-    filterString = "*.xht; *.xhtml";
-    break;
+    case "application/xhtml+xml":
+      bundleName   = "WebPageXHTMLOnlyFilter";
+      filterString = "*.xht; *.xhtml";
+      break;
 
-  case "image/svg+xml":
-    bundleName   = "WebPageSVGOnlyFilter";
-    filterString = "*.svg; *.svgz";
-    break;
+    case "image/svg+xml":
+      bundleName   = "WebPageSVGOnlyFilter";
+      filterString = "*.svg; *.svgz";
+      break;
 
-  case "text/xml":
-  case "application/xml":
-    bundleName   = "WebPageXMLOnlyFilter";
-    filterString = "*.xml";
-    break;
+    case "text/xml":
+    case "application/xml":
+      bundleName   = "WebPageXMLOnlyFilter";
+      filterString = "*.xml";
+      break;
+    }
+  }
 
-  default:
+  if (!bundleName) {
     if (aSaveMode != SAVEMODE_FILEONLY)
       throw "Invalid save mode for type '" + aContentType + "'";
 
@@ -702,8 +762,6 @@ function appendFiltersForContentType(aFilePicker, aContentType, aFileExtension, 
       if (extString)
         aFilePicker.appendFilter(mimeInfo.description, extString);
     }
-
-    break;
   }
 
   if (aSaveMode & SAVEMODE_COMPLETE_DOM) {
@@ -742,14 +800,6 @@ function getPostData(aDocument)
   return null;
 }
 
-// Get the preferences branch ("browser.download." for normal 'save' mode)...
-function getPrefsBrowserDownload(branch)
-{
-  const prefSvcContractID = "@mozilla.org/preferences-service;1";
-  const prefSvcIID = Components.interfaces.nsIPrefService;                              
-  return Components.classes[prefSvcContractID].getService(prefSvcIID).getBranch(branch);
-}
-
 function makeWebBrowserPersist()
 {
   const persistContractID = "@mozilla.org/embedding/browser/nsWebBrowserPersist;1";
@@ -757,21 +807,14 @@ function makeWebBrowserPersist()
   return Components.classes[persistContractID].createInstance(persistIID);
 }
 
-/**
- * Constructs a new URI, using nsIIOService.
- * @param aURL The URI spec.
- * @param aOriginCharset The charset of the URI.
- * @param aBaseURI Base URI to resolve aURL, or null.
- * @return an nsIURI object based on aURL.
- */
 function makeURI(aURL, aOriginCharset, aBaseURI)
 {
-  return ContentAreaUtils.ioService.newURI(aURL, aOriginCharset, aBaseURI);
+  return BrowserUtils.makeURI(aURL, aOriginCharset, aBaseURI);
 }
 
 function makeFileURI(aFile)
 {
-  return ContentAreaUtils.ioService.newFileURI(aFile);
+  return BrowserUtils.makeFileURI(aFile);
 }
 
 function makeFilePicker()
@@ -846,10 +889,27 @@ function getDefaultFileName(aDefaultFileName, aURI, aDocument,
       return fileName;
   }
 
+  let docTitle;
+  if (aDocument) {
+    // If the document looks like HTML or XML, try to use its original title.
+    docTitle = validateFileName(aDocument.title).trim();
+    if (docTitle) {
+      let contentType = aDocument.contentType;
+      if (contentType == "application/xhtml+xml" ||
+          contentType == "application/xml" ||
+          contentType == "image/svg+xml" ||
+          contentType == "text/html" ||
+          contentType == "text/xml") {
+        // 2) Use the document title
+        return docTitle;
+      }
+    }
+  }
+
   try {
     var url = aURI.QueryInterface(Components.interfaces.nsIURL);
     if (url.fileName != "") {
-      // 2) Use the actual file name, if present
+      // 3) Use the actual file name, if present
       var textToSubURI = Components.classes["@mozilla.org/intl/texttosuburi;1"]
                                    .getService(Components.interfaces.nsITextToSubURI);
       return validateFileName(textToSubURI.unEscapeURIForUI(url.originCharset || "UTF-8", url.fileName));
@@ -858,37 +918,33 @@ function getDefaultFileName(aDefaultFileName, aURI, aDocument,
     // This is something like a data: and so forth URI... no filename here.
   }
 
-  if (aDocument) {
-    var docTitle = validateFileName(aDocument.title).replace(/^\s+|\s+$/g, "");
-    if (docTitle) {
-      // 3) Use the document title
-      return docTitle;
-    }
-  }
+  if (docTitle)
+    // 4) Use the document title
+    return docTitle;
 
   if (aDefaultFileName)
-    // 4) Use the caller-provided name, if any
+    // 5) Use the caller-provided name, if any
     return validateFileName(aDefaultFileName);
 
-  // 5) If this is a directory, use the last directory name
+  // 6) If this is a directory, use the last directory name
   var path = aURI.path.match(/\/([^\/]+)\/$/);
   if (path && path.length > 1)
     return validateFileName(path[1]);
 
   try {
     if (aURI.host)
-      // 6) Use the host.
+      // 7) Use the host.
       return aURI.host;
   } catch (e) {
     // Some files have no information at all, like Javascript generated pages
   }
   try {
-    // 7) Use the default file name
+    // 8) Use the default file name
     return ContentAreaUtils.stringBundle.GetStringFromName("DefaultSaveFileName");
   } catch (e) {
     //in case localized string cannot be found
   }
-  // 8) If all else fails, use "index"
+  // 9) If all else fails, use "index"
   return "index";
 }
 
@@ -904,8 +960,7 @@ function validateFileName(aFileName)
   }
   else if (navigator.appVersion.indexOf("Macintosh") != -1)
     re = /[\:\/]+/g;
-  else if (navigator.appVersion.indexOf("Android") != -1 ||
-           navigator.appVersion.indexOf("Maemo") != -1) {
+  else if (navigator.appVersion.indexOf("Android") != -1) {
     // On mobile devices, the filesystem may be very limited in what
     // it considers valid characters. To avoid errors, we sanitize
     // conservatively.
@@ -1010,8 +1065,9 @@ function getDefaultExtension(aFilename, aURI, aContentType)
 
 function GetSaveModeForContentType(aContentType, aDocument)
 {
-  // We can only save a complete page if we have a loaded document
-  if (!aDocument)
+  // We can only save a complete page if we have a loaded document,
+  // and it's not a CPOW -- nsWebBrowserPersist needs a real document.
+  if (!aDocument || Components.utils.isCrossProcessWrapper(aDocument))
     return SAVEMODE_FILEONLY;
 
   // Find the possible save modes using the provided content type
@@ -1059,21 +1115,15 @@ function openURL(aURL)
     protocolSvc.loadUrl(uri);
   }
   else {
-    var wmSvc = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-                          .getService(Components.interfaces.nsIWindowMediator);
-    var recentWindow = wmSvc.getMostRecentWindow("navigator:browser");
+    var recentWindow = Services.wm.getMostRecentWindow("navigator:browser");
     if (recentWindow) {
-      var win = recentWindow.browserDOMWindow.openURI(uri, null,
-                                                      recentWindow.browserDOMWindow.OPEN_DEFAULTWINDOW,
-                                                      recentWindow.browserDOMWindow.OPEN_NEW);
-      win.focus();
+      recentWindow.openUILinkIn(uri.spec, "tab");
       return;
     }
 
     var loadgroup = Components.classes["@mozilla.org/network/load-group;1"]
                               .createInstance(Components.interfaces.nsILoadGroup);
-    var appstartup = Components.classes["@mozilla.org/toolkit/app-startup;1"]
-                               .getService(Components.interfaces.nsIAppStartup);
+    var appstartup = Services.startup;
 
     var loadListener = {
       onStartRequest: function ll_start(aRequest, aContext) {
@@ -1108,9 +1158,11 @@ function openURL(aURL)
       }
     }
 
-    var channel = ContentAreaUtils.ioService.newChannelFromURI(uri);
+    var channel = Services.io.newChannelFromURI(uri);
     var uriLoader = Components.classes["@mozilla.org/uriloader;1"]
                               .getService(Components.interfaces.nsIURILoader);
-    uriLoader.openURI(channel, true, uriListener);
+    uriLoader.openURI(channel,
+                      Components.interfaces.nsIURILoader.IS_CONTENT_PREFERRED,
+                      uriListener);
   }
 }

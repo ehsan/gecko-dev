@@ -8,7 +8,7 @@
 #include "base/process_util.h"
 #include "CrossProcessMutex.h"
 #include "nsDebug.h"
-#include "nsTraceRefcnt.h"
+#include "nsISupportsImpl.h"
 
 using namespace base;
 
@@ -19,7 +19,7 @@ CrossProcessMutex::CrossProcessMutex(const char*)
   // We explicitly share this using DuplicateHandle, we do -not- want this to
   // be inherited by child processes by default! So no security attributes are
   // given.
-  mMutex = ::CreateMutexA(NULL, FALSE, NULL);
+  mMutex = ::CreateMutexA(nullptr, FALSE, nullptr);
   if (!mMutex) {
     NS_RUNTIMEABORT("This shouldn't happen - failed to create mutex!");
   }
@@ -63,10 +63,10 @@ CrossProcessMutex::ShareToProcess(ProcessHandle aHandle)
   HANDLE newHandle;
   bool succeeded = ::DuplicateHandle(GetCurrentProcessHandle(),
                                      mMutex, aHandle, &newHandle,
-                                     NULL, FALSE, DUPLICATE_SAME_ACCESS);
+                                     0, FALSE, DUPLICATE_SAME_ACCESS);
 
   if (!succeeded) {
-    return NULL;
+    return nullptr;
   }
 
   return newHandle;

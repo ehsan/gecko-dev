@@ -6,6 +6,8 @@
 #ifndef MOZILLA_GFX_BASESIZE_H_
 #define MOZILLA_GFX_BASESIZE_H_
 
+#include "mozilla/Attributes.h"
+
 namespace mozilla {
 namespace gfx {
 
@@ -19,10 +21,14 @@ struct BaseSize {
   T width, height;
 
   // Constructors
-  BaseSize() : width(0), height(0) {}
-  BaseSize(T aWidth, T aHeight) : width(aWidth), height(aHeight) {}
+  MOZ_CONSTEXPR BaseSize() : width(0), height(0) {}
+  MOZ_CONSTEXPR BaseSize(T aWidth, T aHeight) : width(aWidth), height(aHeight) {}
 
   void SizeTo(T aWidth, T aHeight) { width = aWidth; height = aHeight; }
+
+  bool IsEmpty() const {
+    return width == 0 || height == 0;
+  }
 
   // Note that '=' isn't defined so we'll get the
   // compiler generated default assignment operator
@@ -62,6 +68,17 @@ struct BaseSize {
   }
   Sub operator/(T aScale) const {
     return Sub(width / aScale, height / aScale);
+  }
+  void Scale(T aXScale, T aYScale) {
+    width *= aXScale;
+    height *= aYScale;
+  }
+
+  Sub operator*(const Sub& aSize) const {
+    return Sub(width * aSize.width, height * aSize.height);
+  }
+  Sub operator/(const Sub& aSize) const {
+    return Sub(width / aSize.width, height / aSize.height);
   }
 };
 

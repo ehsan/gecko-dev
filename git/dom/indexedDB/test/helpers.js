@@ -6,6 +6,18 @@
 var testGenerator = testSteps();
 var archiveReaderEnabled = false;
 
+// The test js is shared between xpcshell (which has no SpecialPowers object)
+// and content mochitests (where the |Components| object is accessible only as
+// SpecialPowers.Components). Expose Components if necessary here to make things
+// work everywhere.
+//
+// Even if the real |Components| doesn't exist, we might shim in a simple JS
+// placebo for compat. An easy way to differentiate this from the real thing
+// is whether the property is read-only or not.
+var c = Object.getOwnPropertyDescriptor(this, 'Components');
+if ((!c.value || c.writable) && typeof SpecialPowers === 'object')
+  Components = SpecialPowers.Components;
+
 function executeSoon(aFun)
 {
   let comp = SpecialPowers.wrap(Components);
@@ -22,31 +34,14 @@ function executeSoon(aFun)
 }
 
 function clearAllDatabases(callback) {
-  function runCallback() {
-    SimpleTest.executeSoon(function () { callback(); });
+  let principal = SpecialPowers.wrap(document).nodePrincipal;
+  let appId, inBrowser;
+  if (principal.appId != Components.interfaces.nsIPrincipal.UNKNOWN_APP_ID &&
+      principal.appId != Components.interfaces.nsIPrincipal.NO_APP_ID) {
+    appId = principal.appId;
+    inBrowser = principal.isInBrowserElement;
   }
-
-  if (!SpecialPowers.isMainProcess()) {
-    runCallback();
-    return;
-  }
-
-  let comp = SpecialPowers.wrap(Components);
-
-  let idbManager =
-    comp.classes["@mozilla.org/dom/indexeddb/manager;1"]
-        .getService(comp.interfaces.nsIIndexedDatabaseManager);
-
-  let uri = SpecialPowers.getDocumentURIObject(document);
-
-  idbManager.clearDatabasesForURI(uri);
-  idbManager.getUsageForURI(uri, function(uri, usage, fileUsage) {
-    if (usage) {
-      throw new Error("getUsageForURI returned non-zero usage after " +
-                      "clearing all databases!");
-    }
-    runCallback();
-  });
+  SpecialPowers.clearStorageForURI(document.documentURI, callback, appId, inBrowser);
 }
 
 if (!window.runTest) {
@@ -54,6 +49,7 @@ if (!window.runTest) {
   {
     SimpleTest.waitForExplicitFinish();
 
+    allowIndexedDB();
     if (limitedQuota) {
       denyUnlimitedQuota();
     }
@@ -61,6 +57,8 @@ if (!window.runTest) {
       allowUnlimitedQuota();
     }
 
+    enableTesting();
+    enableExperimental();
     enableArchiveReader();
 
     clearAllDatabases(function () { testGenerator.next(); });
@@ -69,13 +67,17 @@ if (!window.runTest) {
 
 function finishTest()
 {
-  resetUnlimitedQuota();
   resetArchiveReader();
+  resetExperimental();
+  resetTesting();
+  resetUnlimitedQuota();
+  resetIndexedDB();
+  SpecialPowers.notifyObserversInParentProcess(null, "disk-space-watcher",
+                                               "free");
 
   SimpleTest.executeSoon(function() {
     testGenerator.close();
-    //clearAllDatabases(function() { SimpleTest.finish(); });
-    SimpleTest.finish();
+    clearAllDatabases(function() { SimpleTest.finish(); });
   });
 }
 
@@ -122,6 +124,16 @@ function unexpectedSuccessHandler()
 {
   ok(false, "Got success, but did not expect it!");
   finishTest();
+}
+
+function expectedErrorHandler(name)
+{
+  return function(event) {
+    is(event.type, "error", "Got an error event");
+    is(event.target.error.name, name, "Expected error was thrown.");
+    event.preventDefault();
+    grabEventAndContinueHandler(event);
+  };
 }
 
 function ExpectError(name, preventDefault)
@@ -187,9 +199,14 @@ function removePermission(type, url)
   SpecialPowers.removePermission(type, url);
 }
 
-function setQuota(quota)
+function allowIndexedDB(url)
 {
-  SpecialPowers.setIntPref("dom.indexedDB.warningQuota", quota);
+  addPermission("indexedDB", true, url);
+}
+
+function resetIndexedDB(url)
+{
+  removePermission("indexedDB", url);
 }
 
 function allowUnlimitedQuota(url)
@@ -218,8 +235,33 @@ function resetArchiveReader()
   SpecialPowers.setBoolPref("dom.archivereader.enabled", archiveReaderEnabled);
 }
 
+function enableExperimental()
+{
+  SpecialPowers.setBoolPref("dom.indexedDB.experimental", true);
+}
+
+function resetExperimental()
+{
+  SpecialPowers.clearUserPref("dom.indexedDB.experimental");
+}
+
+function enableTesting()
+{
+  SpecialPowers.setBoolPref("dom.indexedDB.testing", true);
+}
+
+function resetTesting()
+{
+  SpecialPowers.clearUserPref("dom.indexedDB.testing");
+}
+
 function gc()
 {
   SpecialPowers.forceGC();
   SpecialPowers.forceCC();
+}
+
+function scheduleGC()
+{
+  SpecialPowers.exactGC(window, continueToNextStep);
 }

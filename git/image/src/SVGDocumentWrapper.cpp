@@ -6,13 +6,11 @@
 #include "SVGDocumentWrapper.h"
 
 #include "mozilla/dom/Element.h"
-#include "nsIAtom.h"
 #include "nsICategoryManager.h"
 #include "nsIChannel.h"
 #include "nsIContentViewer.h"
 #include "nsIDocument.h"
 #include "nsIDocumentLoaderFactory.h"
-#include "nsIDOMSVGAnimatedLength.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIHttpChannel.h"
 #include "nsIObserverService.h"
@@ -25,22 +23,25 @@
 #include "nsComponentManagerUtils.h"
 #include "nsSMILAnimationController.h"
 #include "nsServiceManagerUtils.h"
-#include "nsSize.h"
-#include "gfxRect.h"
-#include "nsSVGSVGElement.h"
-#include "nsSVGLength2.h"
+#include "mozilla/dom/SVGSVGElement.h"
 #include "nsSVGEffects.h"
+#include "mozilla/dom/SVGAnimatedLength.h"
+#include "nsMimeTypes.h"
+#include "DOMSVGLength.h"
+
+// undef the GetCurrentTime macro defined in WinBase.h from the MS Platform SDK
+#undef GetCurrentTime
 
 using namespace mozilla::dom;
 
 namespace mozilla {
 namespace image {
 
-NS_IMPL_ISUPPORTS4(SVGDocumentWrapper,
-                   nsIStreamListener,
-                   nsIRequestObserver,
-                   nsIObserver,
-                   nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(SVGDocumentWrapper,
+                  nsIStreamListener,
+                  nsIRequestObserver,
+                  nsIObserver,
+                  nsISupportsWeakReference)
 
 SVGDocumentWrapper::SVGDocumentWrapper()
   : mIgnoreInvalidation(false),
@@ -71,30 +72,26 @@ bool
 SVGDocumentWrapper::GetWidthOrHeight(Dimension aDimension,
                                      int32_t& aResult)
 {
-  nsSVGSVGElement* rootElem = GetRootSVGElem();
+  SVGSVGElement* rootElem = GetRootSVGElem();
   NS_ABORT_IF_FALSE(rootElem, "root elem missing or of wrong type");
-  nsresult rv;
 
   // Get the width or height SVG object
-  nsRefPtr<nsIDOMSVGAnimatedLength> domAnimLength;
+  nsRefPtr<SVGAnimatedLength> domAnimLength;
   if (aDimension == eWidth) {
-    rv = rootElem->GetWidth(getter_AddRefs(domAnimLength));
+    domAnimLength = rootElem->Width();
   } else {
     NS_ABORT_IF_FALSE(aDimension == eHeight, "invalid dimension");
-    rv = rootElem->GetHeight(getter_AddRefs(domAnimLength));
+    domAnimLength = rootElem->Height();
   }
-  NS_ENSURE_SUCCESS(rv, false);
   NS_ENSURE_TRUE(domAnimLength, false);
 
   // Get the animated value from the object
-  nsRefPtr<nsIDOMSVGLength> domLength;
-  rv = domAnimLength->GetAnimVal(getter_AddRefs(domLength));
-  NS_ENSURE_SUCCESS(rv, false);
+  nsRefPtr<DOMSVGLength> domLength = domAnimLength->AnimVal();
   NS_ENSURE_TRUE(domLength, false);
 
   // Check if it's a percent value (and fail if so)
   uint16_t unitType;
-  rv = domLength->GetUnitType(&unitType);
+  nsresult rv = domLength->GetUnitType(&unitType);
   NS_ENSURE_SUCCESS(rv, false);
   if (unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE) {
     return false;
@@ -122,8 +119,16 @@ SVGDocumentWrapper::UpdateViewportBounds(const nsIntSize& aViewportSize)
 {
   NS_ABORT_IF_FALSE(!mIgnoreInvalidation, "shouldn't be reentrant");
   mIgnoreInvalidation = true;
-  mViewer->SetBounds(nsIntRect(nsIntPoint(0, 0), aViewportSize));
-  FlushLayout();
+
+  nsIntRect currentBounds;
+  mViewer->GetBounds(currentBounds);
+
+  // If the bounds have changed, we need to do a layout flush.
+  if (currentBounds.Size() != aViewportSize) {
+    mViewer->SetBounds(nsIntRect(nsIntPoint(0, 0), aViewportSize));
+    FlushLayout();
+  }
+
   mIgnoreInvalidation = false;
 }
 
@@ -132,7 +137,7 @@ SVGDocumentWrapper::FlushImageTransformInvalidation()
 {
   NS_ABORT_IF_FALSE(!mIgnoreInvalidation, "shouldn't be reentrant");
 
-  nsSVGSVGElement* svgElem = GetRootSVGElem();
+  SVGSVGElement* svgElem = GetRootSVGElem();
   if (!svgElem)
     return;
 
@@ -189,17 +194,29 @@ SVGDocumentWrapper::StopAnimation()
 void
 SVGDocumentWrapper::ResetAnimation()
 {
-  nsSVGSVGElement* svgElem = GetRootSVGElem();
+  SVGSVGElement* svgElem = GetRootSVGElem();
   if (!svgElem)
     return;
 
-#ifdef DEBUG
-  nsresult rv =
-#endif
-    svgElem->SetCurrentTime(0.0f);
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "SetCurrentTime failed");
+  svgElem->SetCurrentTime(0.0f);
 }
 
+float
+SVGDocumentWrapper::GetCurrentTime()
+{
+  SVGSVGElement* svgElem = GetRootSVGElem();
+  return svgElem ? svgElem->GetCurrentTime()
+                 : 0.0f;
+}
+
+void
+SVGDocumentWrapper::SetCurrentTime(float aTime)
+{
+  SVGSVGElement* svgElem = GetRootSVGElem();
+  if (svgElem && svgElem->GetCurrentTime() != aTime) {
+    svgElem->SetCurrentTime(aTime);
+  }
+}
 
 /** nsIStreamListener methods **/
 
@@ -209,7 +226,7 @@ SVGDocumentWrapper::ResetAnimation()
 NS_IMETHODIMP
 SVGDocumentWrapper::OnDataAvailable(nsIRequest* aRequest, nsISupports* ctxt,
                                     nsIInputStream* inStr,
-                                    uint32_t sourceOffset,
+                                    uint64_t sourceOffset,
                                     uint32_t count)
 {
   return mListener->OnDataAvailable(aRequest, ctxt, inStr,
@@ -248,23 +265,7 @@ SVGDocumentWrapper::OnStopRequest(nsIRequest* aRequest, nsISupports* ctxt,
 {
   if (mListener) {
     mListener->OnStopRequest(aRequest, ctxt, status);
-    // A few levels up the stack, imgRequest::OnStopRequest is about to tell
-    // all of its observers that we know our size and are ready to paint.  That
-    // might not be true at this point, though -- so here, we synchronously
-    // finish parsing & layout in our helper-document to make sure we can hold
-    // up to this promise.
-    nsCOMPtr<nsIParser> parser = do_QueryInterface(mListener);
-    while (!parser->IsComplete()) {
-      parser->CancelParsingEvents();
-      parser->ContinueInterruptedParsing();
-    }
-    FlushLayout();
     mListener = nullptr;
-
-    // In a normal document, this would be called by nsDocShell - but we don't
-    // have a nsDocShell. So we do it ourselves. (If we don't, painting will
-    // stay suppressed for a little while longer, for no good reason).
-    mViewer->LoadComplete(NS_OK);
   }
 
   return NS_OK;
@@ -274,11 +275,11 @@ SVGDocumentWrapper::OnStopRequest(nsIRequest* aRequest, nsISupports* ctxt,
 NS_IMETHODIMP
 SVGDocumentWrapper::Observe(nsISupports* aSubject,
                             const char* aTopic,
-                            const PRUnichar *aData)
+                            const char16_t *aData)
 {
   if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
     // Sever ties from rendering observers to helper-doc's root SVG node
-    nsSVGSVGElement* svgElem = GetRootSVGElem();
+    SVGSVGElement* svgElem = GetRootSVGElem();
     if (svgElem) {
       nsSVGEffects::RemoveAllRenderingObservers(svgElem);
     }
@@ -334,7 +335,7 @@ SVGDocumentWrapper::SetupViewer(nsIRequest* aRequest,
     do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(catMan, NS_ERROR_NOT_AVAILABLE);
   nsXPIDLCString contractId;
-  nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", SVG_MIMETYPE,
+  nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", IMAGE_SVG_XML,
                                          getter_Copies(contractId));
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsIDocumentLoaderFactory> docLoaderFactory =
@@ -345,7 +346,7 @@ SVGDocumentWrapper::SetupViewer(nsIRequest* aRequest,
   nsCOMPtr<nsIStreamListener> listener;
   rv = docLoaderFactory->CreateInstance("external-resource", chan,
                                         newLoadGroup,
-                                        SVG_MIMETYPE, nullptr, nullptr,
+                                        IMAGE_SVG_XML, nullptr, nullptr,
                                         getter_AddRefs(listener),
                                         getter_AddRefs(viewer));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -414,7 +415,16 @@ SVGDocumentWrapper::FlushLayout()
   }
 }
 
-nsSVGSVGElement*
+nsIDocument*
+SVGDocumentWrapper::GetDocument()
+{
+  if (!mViewer)
+    return nullptr;
+
+  return mViewer->GetDocument(); // May be nullptr.
+}
+
+SVGSVGElement*
 SVGDocumentWrapper::GetRootSVGElem()
 {
   if (!mViewer)
@@ -429,7 +439,7 @@ SVGDocumentWrapper::GetRootSVGElem()
     return nullptr;
   }
 
-  return static_cast<nsSVGSVGElement*>(rootElem);
+  return static_cast<SVGSVGElement*>(rootElem);
 }
 
 } // namespace image

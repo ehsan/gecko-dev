@@ -23,16 +23,19 @@ let subscriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
  */
 function newWorker(custom_ns) {
   let worker_ns = {
-    importScripts: function fakeImportScripts() {
-      Array.slice(arguments).forEach(function (script) {
-        subscriptLoader.loadSubScript("resource://gre/modules/" + script, this);
+    importScripts: function() {
+      Array.slice(arguments).forEach(function(script) {
+        if (!script.startsWith("resource:")) {
+          script = "resource://gre/modules/" + script;
+        }
+        subscriptLoader.loadSubScript(script, this);
       }, this);
     },
 
-    postRILMessage: function fakePostRILMessage(message) {
+    postRILMessage: function(message) {
     },
 
-    postMessage: function fakepostMessage(message) {
+    postMessage: function(message) {
     },
 
     // Define these variables inside the worker scope so ES5 strict mode
@@ -45,18 +48,88 @@ function newWorker(custom_ns) {
   // The 'self' variable in a worker points to the worker's own namespace.
   worker_ns.self = worker_ns;
 
-  // systemlibs.js utilizes ctypes for loading native libraries.
-  Cu.import("resource://gre/modules/ctypes.jsm", worker_ns);
-
   // Copy the custom definitions over.
   for (let key in custom_ns) {
     worker_ns[key] = custom_ns[key];
   }
 
+  // fake require() for toolkit/components/workerloader/require.js
+  let require = (function() {
+    return function require(script) {
+      worker_ns.module = {};
+      worker_ns.importScripts(script);
+      return worker_ns;
+    }
+  })();
+
+  Object.freeze(require);
+  Object.defineProperty(worker_ns, "require", {
+    value: require,
+    enumerable: true,
+    configurable: false
+  });
+
   // Load the RIL worker itself.
   worker_ns.importScripts("ril_worker.js");
 
+  // Register at least one client.
+  worker_ns.ContextPool.registerClient({ clientId: 0 });
+
   return worker_ns;
+}
+
+/**
+ * Create a buffered RIL worker.
+ *
+ * @return A worker object that stores sending octets in a internal buffer.
+ */
+function newUint8Worker() {
+  let worker = newWorker();
+  let index = 0; // index for read
+  let buf = [];
+
+  let context = worker.ContextPool._contexts[0];
+  context.Buf.writeUint8 = function(value) {
+    buf.push(value);
+  };
+
+  context.Buf.readUint8 = function() {
+    return buf[index++];
+  };
+
+  context.Buf.seekIncoming = function(offset) {
+    index += offset;
+  };
+
+  context.Buf.getReadAvailable = function() {
+    return buf.length - index;
+  };
+
+  worker.debug = do_print;
+
+  return worker;
+}
+
+/**
+ * Create a worker that keeps posted chrome message.
+ */
+function newInterceptWorker() {
+  let postedMessage;
+  let worker = newWorker({
+    postRILMessage: function(data) {
+    },
+    postMessage: function(message) {
+      postedMessage = message;
+    }
+  });
+  return {
+    get postedMessage() {
+      return postedMessage;
+    },
+    get worker() {
+      return worker;
+    }
+  };
 }
 
 /**
@@ -89,7 +162,7 @@ function newIncomingParcel(fakeParcelSize, response, request, data) {
     ++writeIndex;
   }
 
-  function writeUint32(value) {
+  function writeInt32(value) {
     writeUint8(value & 0xff);
     writeUint8((value >> 8) & 0xff);
     writeUint8((value >> 16) & 0xff);
@@ -108,8 +181,8 @@ function newIncomingParcel(fakeParcelSize, response, request, data) {
   }
   writeParcelSize(fakeParcelSize);
 
-  writeUint32(response);
-  writeUint32(request);
+  writeInt32(response);
+  writeInt32(request);
 
   // write parcel data
   for (let ii = 0; ii < data.length; ++ii) {
@@ -122,15 +195,16 @@ function newIncomingParcel(fakeParcelSize, response, request, data) {
 /**
  *
  */
-function newRadioInterfaceLayer() {
-  let ril_ns = {
-    ChromeWorker: function ChromeWorker() {
-      // Stub function
-    },
-  };
+let ril_ns;
+function newRadioInterface() {
+  if (!ril_ns) {
+    ril_ns = {};
+    subscriptLoader.loadSubScript("resource://gre/components/RadioInterfaceLayer.js", ril_ns);
+  }
 
-  subscriptLoader.loadSubScript("resource://gre/components/RadioInterfaceLayer.js", ril_ns);
-  return new ril_ns.RadioInterfaceLayer();
+  return {
+    __proto__: ril_ns.RadioInterface.prototype,
+  };
 }
 
 /**
@@ -139,13 +213,13 @@ function newRadioInterfaceLayer() {
  *
  * @param func
  *        Function to be tested.
- * @param result
- *        Expected result. <code>null</code> for no throws.
+ * @param message
+ *        Message of expected exception. <code>null</code> for no throws.
  * @param stack
  *        Optional stack object to be printed. <code>null</code> for
  *        Components#stack#caller.
  */
-function do_check_throws(func, result, stack)
+function do_check_throws(func, message, stack)
 {
   if (!stack)
     stack = Components.stack.caller;
@@ -153,13 +227,15 @@ function do_check_throws(func, result, stack)
   try {
     func();
   } catch (exc) {
-    if (exc.result == result)
+    if (exc.message === message) {
       return;
-    do_throw("expected result " + result + ", caught " + exc, stack);
+    }
+    do_throw("expecting exception '" + message
+             + "', caught '" + exc.message + "'", stack);
   }
 
-  if (result) {
-    do_throw("expected result " + result + ", none thrown", stack);
+  if (message) {
+    do_throw("expecting exception '" + message + "', none thrown", stack);
   }
 }
 

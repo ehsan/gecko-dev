@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2005-2007 Henri Sivonen
- * Copyright (c) 2007-2010 Mozilla Foundation
+ * Copyright (c) 2007-2013 Mozilla Foundation
  * Portions of comments Copyright 2004-2010 Apple Computer, Inc., Mozilla 
  * Foundation, and Opera Software ASA.
  *
@@ -270,22 +270,24 @@ public class Tokenizer implements Locator {
     /**
      * "CDATA[" as <code>char[]</code>
      */
-    private static final @NoLength char[] CDATA_LSQB = "CDATA[".toCharArray();
+    private static final @NoLength char[] CDATA_LSQB = { 'C', 'D', 'A', 'T',
+            'A', '[' };
 
     /**
      * "octype" as <code>char[]</code>
      */
-    private static final @NoLength char[] OCTYPE = "octype".toCharArray();
+    private static final @NoLength char[] OCTYPE = { 'o', 'c', 't', 'y', 'p',
+            'e' };
 
     /**
      * "ublic" as <code>char[]</code>
      */
-    private static final @NoLength char[] UBLIC = "ublic".toCharArray();
+    private static final @NoLength char[] UBLIC = { 'u', 'b', 'l', 'i', 'c' };
 
     /**
      * "ystem" as <code>char[]</code>
      */
-    private static final @NoLength char[] YSTEM = "ystem".toCharArray();
+    private static final @NoLength char[] YSTEM = { 'y', 's', 't', 'e', 'm' };
 
     private static final char[] TITLE_ARR = { 't', 'i', 't', 'l', 'e' };
 
@@ -495,11 +497,11 @@ public class Tokenizer implements Locator {
 
     private boolean html4ModeCompatibleWithXhtml1Schemata;
 
-    private final boolean newAttributesEachTime;
-
     private int mappingLangToXmlLang;
 
     // ]NOCPP]
+
+    private final boolean newAttributesEachTime;
 
     private boolean shouldSuspend;
 
@@ -552,8 +554,12 @@ public class Tokenizer implements Locator {
         this.doctypeName = null;
         this.publicIdentifier = null;
         this.systemIdentifier = null;
+        // [NOCPP[
         this.attributes = null;
-    // CPPONLY: this.viewingXmlSource = viewingXmlSource;
+        // ]NOCPP]
+        // CPPONLY: this.attributes = tokenHandler.HasBuilder() ? new HtmlAttributes(mappingLangToXmlLang) : null;
+        // CPPONLY: this.newAttributesEachTime = !tokenHandler.HasBuilder();
+        // CPPONLY: this.viewingXmlSource = viewingXmlSource;
     }
 
     public void setInterner(Interner interner) {
@@ -1094,21 +1100,6 @@ public class Tokenizer implements Locator {
         errorHandler.warning(spe);
     }
 
-    /**
-     * 
-     */
-    private void resetAttributes() {
-        // [NOCPP[
-        if (newAttributesEachTime) {
-            // ]NOCPP]
-            attributes = null;
-            // [NOCPP[
-        } else {
-            attributes.clear(mappingLangToXmlLang);
-        }
-        // ]NOCPP]
-    }
-
     private void strBufToElementNameString() {
         // if (strBufOffset != -1) {
         // return ElementName.elementNameByBuffer(buf, strBufOffset, strBufLen);
@@ -1134,17 +1125,26 @@ public class Tokenizer implements Locator {
             // CPPONLY: if (!viewingXmlSource) {
             tokenHandler.endTag(tagName);
             // CPPONLY: }
-            Portability.delete(attributes);
+            // CPPONLY: if (newAttributesEachTime) {
+            // CPPONLY:   Portability.delete(attributes);
+            // CPPONLY:   attributes = null;
+            // CPPONLY: }
         } else {
             // CPPONLY: if (viewingXmlSource) {
-            // CPPONLY: Portability.delete(attributes);
+            // CPPONLY:   assert newAttributesEachTime;
+            // CPPONLY:   Portability.delete(attributes);
+            // CPPONLY:   attributes = null;
             // CPPONLY: } else {
             tokenHandler.startTag(tagName, attrs, selfClosing);
             // CPPONLY: }
         }
         tagName.release();
         tagName = null;
-        resetAttributes();
+        if (newAttributesEachTime) {
+            attributes = null;
+        } else {
+            attributes.clear(mappingLangToXmlLang);
+        }
         /*
          * The token handler may have called setStateAndEndTagExpectation
          * and changed stateSave since the start of this method.
@@ -2824,22 +2824,30 @@ public class Tokenizer implements Locator {
                     }
                     // WARNING FALLTHRU CASE TRANSITION: DON'T REORDER
                 case CDATA_RSQB_RSQB:
-                    if (++pos == endPos) {
-                        break stateloop;
-                    }
-                    c = checkChar(buf, pos);
-                    switch (c) {
-                        case '>':
-                            cstart = pos + 1;
-                            state = transition(state, Tokenizer.DATA, reconsume, pos);
-                            continue stateloop;
-                        default:
-                            tokenHandler.characters(Tokenizer.RSQB_RSQB, 0, 2);
-                            cstart = pos;
-                            reconsume = true;
-                            state = transition(state, Tokenizer.CDATA_SECTION, reconsume, pos);
-                            continue stateloop;
-
+                    cdatarsqbrsqb: for (;;) {
+                        if (++pos == endPos) {
+                            break stateloop;
+                        }
+                        c = checkChar(buf, pos);
+                        switch (c) {
+                            case ']':
+                                // Saw a third ]. Emit one ] (logically the 
+                                // first one) and stay in this state to 
+                                // remember that the last two characters seen
+                                // have been ]].
+                                tokenHandler.characters(Tokenizer.RSQB_RSQB, 0, 1);                                
+                                continue;
+                            case '>':
+                                cstart = pos + 1;
+                                state = transition(state, Tokenizer.DATA, reconsume, pos);
+                                continue stateloop;
+                            default:
+                                tokenHandler.characters(Tokenizer.RSQB_RSQB, 0, 2);
+                                cstart = pos;
+                                reconsume = true;
+                                state = transition(state, Tokenizer.CDATA_SECTION, reconsume, pos);
+                                continue stateloop;
+                        }
                     }
                     // XXX reorder point
                 case ATTRIBUTE_VALUE_SINGLE_QUOTED:
@@ -4243,7 +4251,7 @@ public class Tokenizer implements Locator {
                             break stateloop;
                         }
                         c = checkChar(buf, pos);
-                        assert (index > 0);
+                        assert index > 0;
                         if (index < 6) { // SCRIPT_ARR.length
                             char folded = c;
                             if (c >= 'A' && c <= 'Z') {
@@ -6535,19 +6543,6 @@ public class Tokenizer implements Locator {
         return buf[pos];
     }
 
-    // [NOCPP[
-
-    /**
-     * Returns the alreadyComplainedAboutNonAscii.
-     * 
-     * @return the alreadyComplainedAboutNonAscii
-     */
-    public boolean isAlreadyComplainedAboutNonAscii() {
-        return true;
-    }
-
-    // ]NOCPP]
-
     public boolean internalEncodingDeclaration(String internalCharset)
             throws SAXException {
         if (encodingDeclarationHandler != null) {
@@ -6601,9 +6596,10 @@ public class Tokenizer implements Locator {
         }
         tokenHandler.endTokenization();
         if (attributes != null) {
-            attributes.clear(mappingLangToXmlLang);
-            Portability.delete(attributes);
+            // [NOCPP[
             attributes = null;
+            // ]NOCPP]
+            // CPPONLY: attributes.clear(mappingLangToXmlLang);
         }
     }
 
@@ -6683,16 +6679,12 @@ public class Tokenizer implements Locator {
             attributeName.release();
             attributeName = null;
         }
-        // [NOCPP[
         if (newAttributesEachTime) {
-            // ]NOCPP]
             if (attributes != null) {
                 Portability.delete(attributes);
                 attributes = null;
             }
-            // [NOCPP[
         }
-        // ]NOCPP]
     }
 
     public void loadState(Tokenizer other) throws SAXException {
@@ -7008,6 +7000,8 @@ public class Tokenizer implements Locator {
     
     void destructor() {
         // The translator will write refcount tracing stuff here
+        Portability.delete(attributes);
+        attributes = null;
     }
     
     // [NOCPP[

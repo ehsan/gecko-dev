@@ -13,6 +13,7 @@
 #include "nsEscape.h"
 #include "nsIFile.h"
 #include "nsDebug.h"
+#include <algorithm>
 #if defined(XP_WIN)
 #include <windows.h>
 #endif
@@ -21,7 +22,7 @@
  *  nsISupports implementation
  *--------------------------------------------*/
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsJARInputStream, nsIInputStream)
+NS_IMPL_ISUPPORTS(nsJARInputStream, nsIInputStream)
 
 /*----------------------------------------------------------
  * nsJARInputStream implementation
@@ -92,7 +93,7 @@ nsJARInputStream::InitDirectory(nsJAR* aJar,
     // iterate through dirName and copy it to escDirName, escaping chars
     // which are special at the "top" level of the regexp so FindEntries
     // works correctly
-    nsCAutoString escDirName;
+    nsAutoCString escDirName;
     const char* curr = dirName.BeginReading();
     const char* end  = dirName.EndReading();
     while (curr != end) {
@@ -114,7 +115,7 @@ nsJARInputStream::InitDirectory(nsJAR* aJar,
         }
         ++curr;
     }
-    nsCAutoString pattern = escDirName + NS_LITERAL_CSTRING("?*~") +
+    nsAutoCString pattern = escDirName + NS_LITERAL_CSTRING("?*~") +
                             escDirName + NS_LITERAL_CSTRING("?*/?*");
     rv = mJar->mZip->FindInit(pattern.get(), &find);
     if (NS_FAILED(rv)) return rv;
@@ -206,7 +207,7 @@ MOZ_WIN_MEM_TRY_BEGIN
 
       case MODE_COPY:
         if (mFd) {
-          uint32_t count = NS_MIN(aCount, mOutSize - uint32_t(mZs.total_out));
+          uint32_t count = std::min(aCount, mOutSize - uint32_t(mZs.total_out));
           if (count) {
               memcpy(aBuffer, mZs.next_in + mZs.total_out, count);
               mZs.total_out += count;
@@ -228,7 +229,6 @@ NS_IMETHODIMP
 nsJARInputStream::ReadSegments(nsWriteSegmentFun writer, void * closure, uint32_t count, uint32_t *_retval)
 {
     // don't have a buffer to read from, so this better not be called!
-    NS_NOTREACHED("Consumers should be using Read()!");
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -262,7 +262,7 @@ nsJARInputStream::ContinueInflate(char* aBuffer, uint32_t aCount,
     const uint32_t oldTotalOut = mZs.total_out;
     
     // make sure we aren't reading too much
-    mZs.avail_out = NS_MIN(aCount, (mOutSize-oldTotalOut));
+    mZs.avail_out = std::min(aCount, (mOutSize-oldTotalOut));
     mZs.next_out = (unsigned char*)aBuffer;
 
     // now inflate
@@ -281,12 +281,8 @@ nsJARInputStream::ContinueInflate(char* aBuffer, uint32_t aCount,
         inflateEnd(&mZs);
 
         // stop returning valid data as soon as we know we have a bad CRC
-        if (mOutCrc != mInCrc) {
-            // asserting because while this rarely happens, you definitely
-            // want to catch it in debug builds!
-            NS_NOTREACHED(0);
+        if (mOutCrc != mInCrc)
             return NS_ERROR_FILE_CORRUPTED;
-        }
     }
 
     return NS_OK;
@@ -359,7 +355,7 @@ nsJARInputStream::ReadDirectory(char* aBuffer, uint32_t aCount, uint32_t *aBytes
 uint32_t
 nsJARInputStream::CopyDataToBuffer(char* &aBuffer, uint32_t &aCount)
 {
-    const uint32_t writeLength = NS_MIN(aCount, mBuffer.Length() - mCurPos);
+    const uint32_t writeLength = std::min(aCount, mBuffer.Length() - mCurPos);
 
     if (writeLength > 0) {
         memcpy(aBuffer, mBuffer.get() + mCurPos, writeLength);

@@ -25,14 +25,13 @@
  * Please edit StateSnapshot.java instead and regenerate.
  */
 
-#ifndef nsHtml5StateSnapshot_h__
-#define nsHtml5StateSnapshot_h__
+#ifndef nsHtml5StateSnapshot_h
+#define nsHtml5StateSnapshot_h
 
-#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"
-#include "nsINameSpaceManager.h"
+#include "nsNameSpaceManager.h"
 #include "nsIContent.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
@@ -42,6 +41,7 @@
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsHtml5Macros.h"
+#include "nsIContentHandle.h"
 
 class nsHtml5StreamParser;
 
@@ -60,21 +60,23 @@ class nsHtml5StateSnapshot : public nsAHtml5TreeBuilderState
   private:
     autoJArray<nsHtml5StackNode*,int32_t> stack;
     autoJArray<nsHtml5StackNode*,int32_t> listOfActiveFormattingElements;
-    nsIContent** formPointer;
-    nsIContent** headPointer;
-    nsIContent** deepTreeSurrogateParent;
+    autoJArray<int32_t,int32_t> templateModeStack;
+    nsIContentHandle* formPointer;
+    nsIContentHandle* headPointer;
+    nsIContentHandle* deepTreeSurrogateParent;
     int32_t mode;
     int32_t originalMode;
     bool framesetOk;
     bool needToDropLF;
     bool quirks;
   public:
-    nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,int32_t> stack, jArray<nsHtml5StackNode*,int32_t> listOfActiveFormattingElements, nsIContent** formPointer, nsIContent** headPointer, nsIContent** deepTreeSurrogateParent, int32_t mode, int32_t originalMode, bool framesetOk, bool needToDropLF, bool quirks);
+    nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,int32_t> stack, jArray<nsHtml5StackNode*,int32_t> listOfActiveFormattingElements, jArray<int32_t,int32_t> templateModeStack, nsIContentHandle* formPointer, nsIContentHandle* headPointer, nsIContentHandle* deepTreeSurrogateParent, int32_t mode, int32_t originalMode, bool framesetOk, bool needToDropLF, bool quirks);
     jArray<nsHtml5StackNode*,int32_t> getStack();
+    jArray<int32_t,int32_t> getTemplateModeStack();
     jArray<nsHtml5StackNode*,int32_t> getListOfActiveFormattingElements();
-    nsIContent** getFormPointer();
-    nsIContent** getHeadPointer();
-    nsIContent** getDeepTreeSurrogateParent();
+    nsIContentHandle* getFormPointer();
+    nsIContentHandle* getHeadPointer();
+    nsIContentHandle* getDeepTreeSurrogateParent();
     int32_t getMode();
     int32_t getOriginalMode();
     bool isFramesetOk();
@@ -82,6 +84,7 @@ class nsHtml5StateSnapshot : public nsAHtml5TreeBuilderState
     bool isQuirks();
     int32_t getListOfActiveFormattingElementsLength();
     int32_t getStackLength();
+    int32_t getTemplateModeStackLength();
     ~nsHtml5StateSnapshot();
     static void initializeStatics();
     static void releaseStatics();

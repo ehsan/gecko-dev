@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const EXPORTED_SYMBOLS = ['PrefsEngine', 'PrefRec'];
+this.EXPORTED_SYMBOLS = ['PrefsEngine', 'PrefRec'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -15,12 +15,12 @@ Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-common/utils.js");
-Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
+Cu.import("resource://gre/modules/Preferences.jsm");
 
 const PREFS_GUID = CommonUtils.encodeBase64URL(Services.appinfo.ID);
 
-function PrefRec(collection, id) {
+this.PrefRec = function PrefRec(collection, id) {
   CryptoWrapper.call(this, collection, id);
 }
 PrefRec.prototype = {
@@ -31,8 +31,8 @@ PrefRec.prototype = {
 Utils.deferGetSet(PrefRec, "cleartext", ["value"]);
 
 
-function PrefsEngine() {
-  SyncEngine.call(this, "Prefs");
+this.PrefsEngine = function PrefsEngine(service) {
+  SyncEngine.call(this, "Prefs", service);
 }
 PrefsEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -40,6 +40,8 @@ PrefsEngine.prototype = {
   _trackerObj: PrefTracker,
   _recordObj: PrefRec,
   version: 2,
+
+  syncPriority: 1,
 
   getChangedIDs: function getChangedIDs() {
     // No need for a proper timestamp (no conflict resolution needed).
@@ -65,9 +67,9 @@ PrefsEngine.prototype = {
 };
 
 
-function PrefStore(name) {
-  Store.call(this, name);
-  Svc.Obs.add("profile-before-change", function() {
+function PrefStore(name, engine) {
+  Store.call(this, name, engine);
+  Svc.Obs.add("profile-before-change", function () {
     this.__prefs = null;
   }, this);
 }
@@ -188,8 +190,8 @@ PrefStore.prototype = {
   }
 };
 
-function PrefTracker(name) {
-  Tracker.call(this, name);
+function PrefTracker(name, engine) {
+  Tracker.call(this, name, engine);
   Svc.Obs.add("profile-before-change", this);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
@@ -214,38 +216,36 @@ PrefTracker.prototype = {
 
  __prefs: null,
   get _prefs() {
-    if (!this.__prefs)
+    if (!this.__prefs) {
       this.__prefs = new Preferences();
+    }
     return this.__prefs;
   },
 
-  _enabled: false,
-  observe: function(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "weave:engine:start-tracking":
-        if (!this._enabled) {
-          Cc["@mozilla.org/preferences-service;1"]
-            .getService(Ci.nsIPrefBranch).addObserver("", this, false);
-          this._enabled = true;
-        }
-        break;
-      case "weave:engine:stop-tracking":
-        if (this._enabled)
-          this._enabled = false;
-        // Fall through to clean up.
+  startTracking: function () {
+    Services.prefs.addObserver("", this, false);
+  },
+
+  stopTracking: function () {
+    this.__prefs = null;
+    Services.prefs.removeObserver("", this);
+  },
+
+  observe: function (subject, topic, data) {
+    Tracker.prototype.observe.call(this, subject, topic, data);
+
+    switch (topic) {
       case "profile-before-change":
-        this.__prefs = null;
-        Cc["@mozilla.org/preferences-service;1"]
-          .getService(Ci.nsIPrefBranch).removeObserver("", this);
+        this.stopTracking();
         break;
       case "nsPref:changed":
         // Trigger a sync for MULTI-DEVICE for a change that determines
         // which prefs are synced or a regular pref change.
-        if (aData.indexOf(WEAVE_SYNC_PREFS) == 0 || 
-            this._prefs.get(WEAVE_SYNC_PREFS + aData, false)) {
+        if (data.indexOf(WEAVE_SYNC_PREFS) == 0 ||
+            this._prefs.get(WEAVE_SYNC_PREFS + data, false)) {
           this.score += SCORE_INCREMENT_XLARGE;
           this.modified = true;
-          this._log.trace("Preference " + aData + " changed");
+          this._log.trace("Preference " + data + " changed");
         }
         break;
     }

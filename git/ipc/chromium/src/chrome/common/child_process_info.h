@@ -38,7 +38,6 @@ class ChildProcessInfo {
     return pid_;
   }
   void SetProcessBackgrounded() const { process_.SetProcessBackgrounded(true); }
-  void ReduceWorkingSet() const { process_.ReduceWorkingSet(); }
 
   // Returns an English name of the process type, should only be used for non
   // user-visible strings, or debugging pages like about:memory.
@@ -92,7 +91,7 @@ class ChildProcessInfo {
   }
 
   // Derived objects need to use this constructor so we know what type we are.
-  ChildProcessInfo(ProcessType type);
+  explicit ChildProcessInfo(ProcessType type);
 
  private:
   ProcessType type_;

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2014 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -9,109 +9,120 @@
 // [OpenGL ES 2.0.24] section 2.9 page 21.
 
 #include "libGLESv2/Buffer.h"
-
-#include "libGLESv2/main.h"
-#include "libGLESv2/VertexDataManager.h"
-#include "libGLESv2/IndexDataManager.h"
+#include "libGLESv2/renderer/BufferImpl.h"
+#include "libGLESv2/renderer/Renderer.h"
 
 namespace gl
 {
 
-Buffer::Buffer(GLuint id) : RefCountObject(id)
+Buffer::Buffer(rx::BufferImpl *impl, GLuint id)
+    : RefCountObject(id),
+      mBuffer(impl),
+      mUsage(GL_DYNAMIC_DRAW),
+      mSize(0),
+      mAccessFlags(0),
+      mMapped(GL_FALSE),
+      mMapPointer(NULL),
+      mMapOffset(0),
+      mMapLength(0)
 {
-    mContents = NULL;
-    mSize = 0;
-    mUsage = GL_DYNAMIC_DRAW;
-
-    mStaticVertexBuffer = NULL;
-    mStaticIndexBuffer = NULL;
-    mUnmodifiedDataUse = 0;
 }
 
 Buffer::~Buffer()
 {
-    delete[] mContents;
-    delete mStaticVertexBuffer;
-    delete mStaticIndexBuffer;
+    SafeDelete(mBuffer);
 }
 
-void Buffer::bufferData(const void *data, GLsizeiptr size, GLenum usage)
+Error Buffer::bufferData(const void *data, GLsizeiptr size, GLenum usage)
 {
-    if (size == 0)
+    gl::Error error = mBuffer->setData(data, size, usage);
+    if (error.isError())
     {
-        delete[] mContents;
-        mContents = NULL;
-    }
-    else if (size != mSize)
-    {
-        delete[] mContents;
-        mContents = new GLubyte[size];
-        memset(mContents, 0, size);
+        return error;
     }
 
-    if (data != NULL && size > 0)
-    {
-        memcpy(mContents, data, size);
-    }
-
-    mSize = size;
+    mIndexRangeCache.clear();
     mUsage = usage;
+    mSize = size;
 
-    invalidateStaticData();
-
-    if (usage == GL_STATIC_DRAW)
-    {
-        mStaticVertexBuffer = new StaticVertexBuffer(getDevice());
-        mStaticIndexBuffer = new StaticIndexBuffer(getDevice());
-    }
+    return error;
 }
 
-void Buffer::bufferSubData(const void *data, GLsizeiptr size, GLintptr offset)
+Error Buffer::bufferSubData(const void *data, GLsizeiptr size, GLintptr offset)
 {
-    memcpy(mContents + offset, data, size);
-    
-    if ((mStaticVertexBuffer && mStaticVertexBuffer->size() != 0) || (mStaticIndexBuffer && mStaticIndexBuffer->size() != 0))
+    gl::Error error = mBuffer->setSubData(data, size, offset);
+    if (error.isError())
     {
-        invalidateStaticData();
+        return error;
     }
 
-    mUnmodifiedDataUse = 0;
+    mIndexRangeCache.invalidateRange(offset, size);
+
+    return error;
 }
 
-StaticVertexBuffer *Buffer::getStaticVertexBuffer()
+Error Buffer::copyBufferSubData(Buffer* source, GLintptr sourceOffset, GLintptr destOffset, GLsizeiptr size)
 {
-    return mStaticVertexBuffer;
-}
-
-StaticIndexBuffer *Buffer::getStaticIndexBuffer()
-{
-    return mStaticIndexBuffer;
-}
-
-void Buffer::invalidateStaticData()
-{
-    delete mStaticVertexBuffer;
-    mStaticVertexBuffer = NULL;
-
-    delete mStaticIndexBuffer;
-    mStaticIndexBuffer = NULL;
-
-    mUnmodifiedDataUse = 0;
-}
-
-// Creates static buffers if sufficient used data has been left unmodified
-void Buffer::promoteStaticUsage(int dataSize)
-{
-    if (!mStaticVertexBuffer && !mStaticIndexBuffer)
+    gl::Error error = mBuffer->copySubData(source->getImplementation(), sourceOffset, destOffset, size);
+    if (error.isError())
     {
-        mUnmodifiedDataUse += dataSize;
-
-        if (mUnmodifiedDataUse > 3 * mSize)
-        {
-            mStaticVertexBuffer = new StaticVertexBuffer(getDevice());
-            mStaticIndexBuffer = new StaticIndexBuffer(getDevice());
-        }
+        return error;
     }
+
+    mIndexRangeCache.invalidateRange(destOffset, size);
+
+    return error;
+}
+
+Error Buffer::mapRange(GLintptr offset, GLsizeiptr length, GLbitfield access)
+{
+    ASSERT(!mMapped);
+    ASSERT(offset + length <= mSize);
+
+    Error error = mBuffer->map(offset, length, access, &mMapPointer);
+    if (error.isError())
+    {
+        mMapPointer = NULL;
+        return error;
+    }
+
+    mMapped = GL_TRUE;
+    mMapOffset = static_cast<GLint64>(offset);
+    mMapLength = static_cast<GLint64>(length);
+    mAccessFlags = static_cast<GLint>(access);
+
+    if ((access & GL_MAP_WRITE_BIT) > 0)
+    {
+        mIndexRangeCache.invalidateRange(offset, length);
+    }
+
+    return error;
+}
+
+Error Buffer::unmap()
+{
+    ASSERT(mMapped);
+
+    Error error = mBuffer->unmap();
+    if (error.isError())
+    {
+        return error;
+    }
+
+    mMapped = GL_FALSE;
+    mMapPointer = NULL;
+    mMapOffset = 0;
+    mMapLength = 0;
+    mAccessFlags = 0;
+
+    return error;
+}
+
+void Buffer::markTransformFeedbackUsage()
+{
+    // TODO: Only used by the DX11 backend. Refactor to a more appropriate place.
+    mBuffer->markTransformFeedbackUsage();
+    mIndexRangeCache.clear();
 }
 
 }

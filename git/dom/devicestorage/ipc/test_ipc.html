@@ -12,7 +12,12 @@
 
     SimpleTest.waitForExplicitFinish();
 
+    // The crash observer registration functions are stubbed out here to
+    // prevent the iframe test runner from breaking later crash-related tests.
     function iframeScriptFirst() {
+      SpecialPowers.prototype.registerProcessCrashObservers = () => {};
+      SpecialPowers.prototype.unregisterProcessCrashObservers = () => {};
+
       content.wrappedJSObject.RunSet.reloadAndRunAll({
           preventDefault: function() { },
           __exposedProps__: { preventDefault: 'r' }
@@ -36,41 +41,40 @@
         }
       };
 
-      let oldLog = TestRunner.log;
-      TestRunner.log = function(msg) {
+      TestRunner.structuredLogger._dumpMessage = function(msg) {
         sendAsyncMessage("test:DeviceStorage:ipcTestMessage", { msg: msg });
       }
     }
 
-    let regex = /^(TEST-PASS|TEST-UNEXPECTED-PASS|TEST-KNOWN-FAIL|TEST-UNEXPECTED-FAIL|TEST-DEBUG-INFO) \| ([^\|]+) \|(.*)/;
-
+    let VALID_ACTIONS = ['suite_start', 'suite_end', 'test_start', 'test_end', 'test_status', 'process_output', 'log'];
+    function validStructuredMessage(message) {
+      return message.action !== undefined && VALID_ACTIONS.indexOf(message.action) >= 0;
+    }
     function onTestMessage(data) {
-      let message = SpecialPowers.wrap(data).json.msg;
-      let match = regex.exec(message);
-      if (match) {
-        let state = match[1];
-        let details = match[2] + " | " + match[3];
+      let message = SpecialPowers.wrap(data).data.msg;
 
-        switch (state) {
-          case "TEST-PASS":
-          case "TEST-KNOWN-FAIL":
-            ok(true, details);
+      if (validStructuredMessage(message)) {
+        switch (message.action) {
+          case "test_status":
+          case "test_end":
+            let test_tokens = message.test.split("/");
+            let test_name = test_tokens[test_tokens.length - 1];
+            if (message.subtest) {
+                test_name += " | " + message.subtest;
+            }
+            ok(message.expected === undefined, test_name, message.message);
             break;
-
-          case "TEST-UNEXPECTED-FAIL":
-          case "TEST-UNEXPECTED-PASS":
-            ok(false, details);
+          case "log":
+            info(message.message);
             break;
-
-          case "TEST-DEBUG-INFO":
           default:
-            info(details);
+            // nothing
         }
       }
     }
 
     function onTestComplete() {
-      let comp = SpecialPowers.wrap(Components);
+      let comp = SpecialPowers.wrap(SpecialPowers.Components);
       let mm = SpecialPowers.getBrowserFrameMessageManager(iframe);
       let spObserver = comp.classes["@mozilla.org/special-powers-observer;1"]
                             .getService(comp.interfaces.nsIMessageListener);
@@ -89,7 +93,7 @@
 
     function runTests() {
       let iframe = document.createElement("iframe");
-      iframe.mozbrowser = true;
+      SpecialPowers.wrap(iframe).mozbrowser = true;
       iframe.id = "iframe";
       iframe.style.width = "100%";
       iframe.style.height = "1000px";
@@ -109,7 +113,7 @@
 
         let mm = SpecialPowers.getBrowserFrameMessageManager(iframe);
 
-        let comp = SpecialPowers.wrap(Components);
+        let comp = SpecialPowers.wrap(SpecialPowers.Components);
 
         let spObserver =
           comp.classes["@mozilla.org/special-powers-observer;1"]
@@ -138,8 +142,8 @@
       let href =  window.location.href;
       href = href.substring(0, href.lastIndexOf('/'));
       href = href.substring(0, href.lastIndexOf('/'));
-      iframe.src = href + "/test?consoleLevel=INFO";
-
+      let manifest = "tests/dom/devicestorage/ipc/ipc.json";
+      iframe.src = href + "/test?consoleLevel=INFO&testManifest=" + manifest;
       document.body.appendChild(iframe);
     }
 
@@ -153,9 +157,12 @@
           ["device.storage.testing", true],
           ["device.storage.prompt.testing", true],
 
+          // TODO: remove this as part of bug 820712
+          ["network.disable.ipc.security", true],
+
           ["dom.ipc.browser_frames.oop_by_default", true],
           ["dom.mozBrowserFramesEnabled", true],
-          ["browser.pageThumbs.enabled", false]
+          ["browser.pagethumbnails.capturing_disabled", true]
         ]
       }, runTests);
     });

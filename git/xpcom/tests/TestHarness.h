@@ -12,16 +12,9 @@
 #ifndef TestHarness_h__
 #define TestHarness_h__
 
-#if defined(_MSC_VER) && defined(MOZ_STATIC_JS)
-/*
- * Including jsdbgapi.h may cause build break with --disable-shared-js
- * This is a workaround for bug 673616.
- */
-#define STATIC_JS_API
-#endif
+#include "mozilla/ArrayUtils.h"
 
-#include "mozilla/Util.h"
-
+#include "prenv.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsCOMPtr.h"
@@ -35,7 +28,6 @@
 #include "nsIProperties.h"
 #include "nsIObserverService.h"
 #include "nsXULAppAPI.h"
-#include "jsdbgapi.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -80,57 +72,6 @@ void passed(const char* msg, ...)
 }
 
 //-----------------------------------------------------------------------------
-// Code profiling
-//
-static const char* gCurrentProfile;
-
-/**
- * If the build has been configured properly, start the best code profiler
- * available on this platform.
- *
- * This is NOT thread safe.
- *
- * @precondition Profiling is not started
- * @param profileName A descriptive name for this profiling run.  Every 
- *                    attempt is made to name the profile data according
- *                    to this name, but check your platform's profiler
- *                    documentation for what this means.
- * @return true if profiling was available and successfully started.
- * @see StopProfiling
- */
-inline bool
-StartProfiling(const char* profileName)
-{
-    NS_ASSERTION(profileName, "need a name for this profile");
-    NS_PRECONDITION(!gCurrentProfile, "started a new profile before stopping another");
-
-    JSBool ok = JS_StartProfiling(profileName);
-    gCurrentProfile = profileName;
-    return ok ? true : false;
-}
-
-/**
- * Stop the platform's profiler.  For what this means, what happens after
- * stopping, and how the profile data can be accessed, check the 
- * documentation of your platform's profiler.
- *
- * This is NOT thread safe.
- *
- * @precondition Profiling was started
- * @return true if profiling was successfully stopped.
- * @see StartProfiling
- */
-inline bool
-StopProfiling()
-{
-    NS_PRECONDITION(gCurrentProfile, "tried to stop profile before starting one");
-
-    const char* profileName = gCurrentProfile;
-    gCurrentProfile = 0;
-    return JS_StopProfiling(profileName) ? true : false;
-}
-
-//-----------------------------------------------------------------------------
 
 class ScopedLogging
 {
@@ -151,18 +92,18 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
   public:
     NS_DECL_ISUPPORTS
 
-    ScopedXPCOM(const char* testName,
-                nsIDirectoryServiceProvider *dirSvcProvider = NULL)
+    explicit ScopedXPCOM(const char* testName,
+                         nsIDirectoryServiceProvider *dirSvcProvider = nullptr)
     : mDirSvcProvider(dirSvcProvider)
     {
       mTestName = testName;
       printf("Running %s tests...\n", mTestName);
 
-      nsresult rv = NS_InitXPCOM2(&mServMgr, NULL, this);
+      nsresult rv = NS_InitXPCOM2(&mServMgr, nullptr, this);
       if (NS_FAILED(rv))
       {
         fail("NS_InitXPCOM2 returned failure code 0x%x", rv);
-        mServMgr = NULL;
+        mServMgr = nullptr;
         return;
       }
     }
@@ -178,6 +119,7 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
           MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->NotifyObservers(nullptr, "profile-change-net-teardown", nullptr)));
           MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->NotifyObservers(nullptr, "profile-change-teardown", nullptr)));
           MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->NotifyObservers(nullptr, "profile-before-change", nullptr)));
+          MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->NotifyObservers(nullptr, "profile-before-change2", nullptr)));
         }
 
         if (NS_FAILED(mProfD->Remove(true))) {
@@ -190,7 +132,7 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
       if (mServMgr)
       {
         NS_RELEASE(mServMgr);
-        nsresult rv = NS_ShutdownXPCOM(NULL);
+        nsresult rv = NS_ShutdownXPCOM(nullptr);
         if (NS_FAILED(rv))
         {
           fail("XPCOM shutdown failed with code 0x%x", rv);
@@ -203,7 +145,7 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
 
     bool failed()
     {
-      return mServMgr == NULL;
+      return mServMgr == nullptr;
     }
 
     already_AddRefed<nsIFile> GetProfileDirectory()
@@ -214,8 +156,10 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
       }
 
       // Create a unique temporary folder to use for this test.
+      // Note that runcppunittests.py will run tests with a temp
+      // directory as the cwd, so just put something under that.
       nsCOMPtr<nsIFile> profD;
-      nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR,
+      nsresult rv = NS_GetSpecialDirectory(NS_OS_CURRENT_PROCESS_DIR,
                                            getter_AddRefs(profD));
       NS_ENSURE_SUCCESS(rv, nullptr);
 
@@ -227,6 +171,49 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
 
       mProfD = profD;
       return profD.forget();
+    }
+
+    already_AddRefed<nsIFile> GetGREDirectory()
+    {
+      if (mGRED) {
+        nsCOMPtr<nsIFile> copy = mGRED;
+        return copy.forget();
+      }
+
+      char* env = PR_GetEnv("MOZ_XRE_DIR");
+      nsCOMPtr<nsIFile> greD;
+      if (env) {
+        NS_NewLocalFile(NS_ConvertUTF8toUTF16(env), false,
+                        getter_AddRefs(greD));
+      }
+
+      mGRED = greD;
+      return greD.forget();
+    }
+
+    already_AddRefed<nsIFile> GetGREBinDirectory()
+    {
+      if (mGREBinD) {
+        nsCOMPtr<nsIFile> copy = mGREBinD;
+        return copy.forget();
+      }
+
+      nsCOMPtr<nsIFile> greD = GetGREDirectory();
+      if (!greD) {
+        return greD.forget();
+      }
+      greD->Clone(getter_AddRefs(mGREBinD));
+
+#ifdef XP_MACOSX
+      nsAutoCString leafName;
+      mGREBinD->GetNativeLeafName(leafName);
+      if (leafName.Equals("Resources")) {
+        mGREBinD->SetNativeLeafName(NS_LITERAL_CSTRING("MacOS"));
+      }
+#endif
+
+      nsCOMPtr<nsIFile> copy = mGREBinD;
+      return copy.forget();
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -256,6 +243,20 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
         *_persistent = true;
         clone.forget(_result);
         return NS_OK;
+      } else if (0 == strcmp(aProperty, NS_GRE_DIR)) {
+        nsCOMPtr<nsIFile> greD = GetGREDirectory();
+        NS_ENSURE_TRUE(greD, NS_ERROR_FAILURE);
+
+        *_persistent = true;
+        greD.forget(_result);
+        return NS_OK;
+      } else if (0 == strcmp(aProperty, NS_GRE_BIN_DIR)) {
+        nsCOMPtr<nsIFile> greBinD = GetGREBinDirectory();
+        NS_ENSURE_TRUE(greBinD, NS_ERROR_FAILURE);
+
+        *_persistent = true;
+        greBinD.forget(_result);
+        return NS_OK;
       }
 
       return NS_ERROR_FAILURE;
@@ -281,21 +282,23 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
     nsIServiceManager* mServMgr;
     nsCOMPtr<nsIDirectoryServiceProvider> mDirSvcProvider;
     nsCOMPtr<nsIFile> mProfD;
+    nsCOMPtr<nsIFile> mGRED;
+    nsCOMPtr<nsIFile> mGREBinD;
 };
 
-NS_IMPL_QUERY_INTERFACE2(
+NS_IMPL_QUERY_INTERFACE(
   ScopedXPCOM,
   nsIDirectoryServiceProvider,
   nsIDirectoryServiceProvider2
 )
 
-NS_IMETHODIMP_(nsrefcnt)
+NS_IMETHODIMP_(MozExternalRefCountType)
 ScopedXPCOM::AddRef()
 {
   return 2;
 }
 
-NS_IMETHODIMP_(nsrefcnt)
+NS_IMETHODIMP_(MozExternalRefCountType)
 ScopedXPCOM::Release()
 {
   return 1;

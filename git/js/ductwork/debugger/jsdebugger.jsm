@@ -1,9 +1,9 @@
-/* -*-  Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2; -*- */
+/* -*-  indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let EXPORTED_SYMBOLS = [ "addDebuggerToGlobal" ];
+this.EXPORTED_SYMBOLS = [ "addDebuggerToGlobal" ];
 
 /*
  * This is the js module for Debugger. Import it like so:
@@ -15,10 +15,10 @@ let EXPORTED_SYMBOLS = [ "addDebuggerToGlobal" ];
  * same thread.
  *
  * For documentation on the API, see:
- *   https://wiki.mozilla.org/Debugger
+ *   https://developer.mozilla.org/en-US/docs/Tools/Debugger-API
  */
 
 const init = Components.classes["@mozilla.org/jsdebugger;1"].createInstance(Components.interfaces.IJSDebugger);
-function addDebuggerToGlobal(global) {
+this.addDebuggerToGlobal = function addDebuggerToGlobal(global) {
   init.addClass(global);
 };

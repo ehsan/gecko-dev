@@ -28,6 +28,14 @@
 #undef _POSIX_THREAD_PRIORITY_SCHEDULING
 #endif
 
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
+#undef _POSIX_THREAD_PRIORITY_SCHEDULING
+#include <sys/resource.h>
+#ifndef HAVE_GETTID
+#define gettid() (syscall(SYS_gettid))
+#endif
+#endif
+
 /*
  * Record whether or not we have the privilege to set the scheduling
  * policy and priority of threads.  0 means that privilege is available.
@@ -43,7 +51,8 @@ static struct _PT_Bookeeping
     PRCondVar *cv;              /* used to signal global things */
     PRInt32 system, user;       /* a count of the two different types */
     PRUintn this_many;          /* number of threads allowed for exit */
-    pthread_key_t key;          /* private private data key */
+    pthread_key_t key;          /* thread private data key */
+    PRBool keyCreated;          /* whether 'key' should be deleted */
     PRThread *first, *last;     /* list of threads we know about */
 #if defined(_PR_DCETHREADS) || defined(_POSIX_THREAD_PRIORITY_SCHEDULING)
     PRInt32 minPrio, maxPrio;   /* range of scheduling priorities */
@@ -68,6 +77,21 @@ static PRIntn pt_PriorityMap(PRThreadPriority pri)
     return pt_book.minPrio +
 	    pri * (pt_book.maxPrio - pt_book.minPrio) / PR_PRIORITY_LAST;
 #endif
+}
+#elif defined(_PR_NICE_PRIORITY_SCHEDULING)
+/*
+ * This functions maps higher priorities to lower nice values relative to the
+ * nice value specified in the |nice| parameter. The corresponding relative
+ * adjustments are:
+ *
+ * PR_PRIORITY_LOW    +1
+ * PR_PRIORITY_NORMAL  0
+ * PR_PRIORITY_HIGH   -1
+ * PR_PRIORITY_URGENT -2
+ */
+static int pt_RelativePriority(int nice, PRThreadPriority pri)
+{
+    return nice + (1 - pri);
 }
 #endif
 
@@ -98,17 +122,27 @@ static void *_pt_root(void *arg)
     PRIntn rv;
     PRThread *thred = (PRThread*)arg;
     PRBool detached = (thred->state & PT_THREAD_DETACHED) ? PR_TRUE : PR_FALSE;
+    pthread_t id = pthread_self();
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
+    pid_t tid;
+#endif
 
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
     /*
-     * Both the parent thread and this new thread set thred->id.
-     * The new thread must ensure that thred->id is set before
-     * it executes its startFunc.  The parent thread must ensure
-     * that thred->id is set before PR_CreateThread() returns.
-     * Both threads set thred->id without holding a lock.  Since
-     * they are writing the same value, this unprotected double
-     * write should be safe.
+     * We need to know the kernel thread ID of each thread in order to
+     * set its nice value hence we do it here instead of at creation time.
      */
-    thred->id = pthread_self();
+    tid = gettid();
+    errno = 0;
+    rv = getpriority(PRIO_PROCESS, 0);
+
+    /* If we cannot read the main thread's nice value don't try to change the
+     * new thread's nice value. */
+    if (errno == 0) {
+        setpriority(PRIO_PROCESS, tid,
+                    pt_RelativePriority(rv, thred->priority));
+    }
+#endif
 
     /*
     ** DCE Threads can't detach during creation, so do it late.
@@ -119,7 +153,7 @@ static void *_pt_root(void *arg)
     if (detached)
     {
         /* pthread_detach() modifies its argument, so we must pass a copy */
-        pthread_t self = thred->id;
+        pthread_t self = id;
         rv = pthread_detach(&self);
         PR_ASSERT(0 == rv);
     }
@@ -138,6 +172,28 @@ static void *_pt_root(void *arg)
 
     /* make the thread visible to the rest of the runtime */
     PR_Lock(pt_book.ml);
+    /*
+     * Both the parent thread and this new thread set thred->id.
+     * The new thread must ensure that thred->id is set before
+     * it executes its startFunc.  The parent thread must ensure
+     * that thred->id is set before PR_CreateThread() returns.
+     * Both threads set thred->id while holding pt_book.ml and
+     * use thred->idSet to ensure thred->id is written only once.
+     */
+    if (!thred->idSet)
+    {
+        thred->id = id;
+        thred->idSet = PR_TRUE;
+    }
+    else
+    {
+        PR_ASSERT(pthread_equal(thred->id, id));
+    }
+
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
+    thred->tid = tid;
+    PR_NotifyAllCondVar(pt_book.cv);
+#endif
 
     /* If this is a GCABLE thread, set its state appropriately */
     if (thred->suspend & PT_THREAD_SETGCABLE)
@@ -160,7 +216,7 @@ static void *_pt_root(void *arg)
     /*
      * At this moment, PR_CreateThread() may not have set thred->id yet.
      * It is safe for a detached thread to free thred only after
-     * PR_CreateThread() has set thred->id.
+     * PR_CreateThread() has accessed thred->id and thred->idSet.
      */
     if (detached)
     {
@@ -224,6 +280,10 @@ static PRThread* pt_AttachThread(void)
 
         thred->priority = PR_PRIORITY_NORMAL;
         thred->id = pthread_self();
+        thred->idSet = PR_TRUE;
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
+        thred->tid = gettid();
+#endif
         rv = pthread_setspecific(pt_book.key, thred);
         PR_ASSERT(0 == rv);
 
@@ -441,24 +501,32 @@ static PRThread* _PR_CreateThread(
             goto done;
         }
 
+        PR_Lock(pt_book.ml);
         /*
          * Both the parent thread and this new thread set thred->id.
          * The parent thread must ensure that thred->id is set before
          * PR_CreateThread() returns.  (See comments in _pt_root().)
          */
-        thred->id = id;
+        if (!thred->idSet)
+        {
+            thred->id = id;
+            thred->idSet = PR_TRUE;
+        }
+        else
+        {
+            PR_ASSERT(pthread_equal(thred->id, id));
+        }
 
         /*
-         * If the new thread is detached, tell it that PR_CreateThread()
-         * has set thred->id so it's ok to delete thred.
+         * If the new thread is detached, tell it that PR_CreateThread() has
+         * accessed thred->id and thred->idSet so it's ok to delete thred.
          */
         if (PR_UNJOINABLE_THREAD == state)
         {
-            PR_Lock(pt_book.ml);
             thred->okToDelete = PR_TRUE;
             PR_NotifyAllCondVar(pt_book.cv);
-            PR_Unlock(pt_book.ml);
         }
+        PR_Unlock(pt_book.ml);
     }
 
 done:
@@ -644,6 +712,30 @@ PR_IMPLEMENT(void) PR_SetThreadPriority(PRThread *thred, PRThreadPriority newPri
 		if (rv != 0)
 			rv = -1;
     }
+#elif defined(_PR_NICE_PRIORITY_SCHEDULING)
+    PR_Lock(pt_book.ml);
+    while (thred->tid == 0)
+        PR_WaitCondVar(pt_book.cv, PR_INTERVAL_NO_TIMEOUT);
+    PR_Unlock(pt_book.ml);
+
+    errno = 0;
+    rv = getpriority(PRIO_PROCESS, 0);
+
+    /* Do not proceed unless we know the main thread's nice value. */
+    if (errno == 0) {
+        rv = setpriority(PRIO_PROCESS, thred->tid,
+                         pt_RelativePriority(rv, newPri));
+
+        if (rv == -1)
+        {
+            /* We don't set pt_schedpriv to EPERM in case errno == EPERM
+             * because adjusting the nice value might be permitted for certain
+             * ranges but not for others. */
+            PR_LOG(_pr_thread_lm, PR_LOG_MIN,
+                ("PR_SetThreadPriority: setpriority failed with error %d",
+                 errno));
+        }
+    }
 #endif
 
     thred->priority = newPri;
@@ -816,6 +908,8 @@ void _PR_InitThreads(
     int rv;
     PRThread *thred;
 
+    PR_ASSERT(priority == PR_PRIORITY_NORMAL);
+
 #ifdef _PR_NEED_PTHREAD_INIT
     /*
      * On BSD/OS (3.1 and 4.0), the pthread subsystem is lazily
@@ -862,6 +956,10 @@ void _PR_InitThreads(
     thred->startFunc = NULL;
     thred->priority = priority;
     thred->id = pthread_self();
+    thred->idSet = PR_TRUE;
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
+    thred->tid = gettid();
+#endif
 
     thred->state = (PT_THREAD_DETACHED | PT_THREAD_PRIMORD);
     if (PR_SYSTEM_THREAD == type)
@@ -899,10 +997,11 @@ void _PR_InitThreads(
      * nothing.
      */
     rv = _PT_PTHREAD_KEY_CREATE(&pt_book.key, _pt_thread_death);
-    PR_ASSERT(0 == rv);
+    if (0 != rv)
+        PR_Assert("0 == rv", __FILE__, __LINE__);
+    pt_book.keyCreated = PR_TRUE;
     rv = pthread_setspecific(pt_book.key, thred);
-    PR_ASSERT(0 == rv);    
-    PR_SetThreadPriority(thred, priority);
+    PR_ASSERT(0 == rv);
 }  /* _PR_InitThreads */
 
 #ifdef __GNUC__
@@ -962,7 +1061,17 @@ void _PR_Fini(void)
     void *thred;
     int rv;
 
-    if (!_pr_initialized) return;
+    if (!_pr_initialized) {
+        /* Either NSPR was never successfully initialized or 
+         * PR_Cleanup has been called already. */
+        if (pt_book.keyCreated)
+        {
+            rv = pthread_key_delete(pt_book.key);
+            PR_ASSERT(0 == rv);
+            pt_book.keyCreated = PR_FALSE;
+        }
+        return;
+    }
 
     _PT_PTHREAD_GETSPECIFIC(pt_book.key, thred);
     if (NULL != thred)
@@ -975,6 +1084,9 @@ void _PR_Fini(void)
         rv = pthread_setspecific(pt_book.key, NULL);
         PR_ASSERT(0 == rv);
     }
+    rv = pthread_key_delete(pt_book.key);
+    PR_ASSERT(0 == rv);
+    pt_book.keyCreated = PR_FALSE;
     /* TODO: free other resources used by NSPR */
     /* _pr_initialized = PR_FALSE; */
 }  /* _PR_Fini */

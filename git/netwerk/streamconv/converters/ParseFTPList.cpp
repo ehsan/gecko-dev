@@ -3,13 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ParseFTPList.h"
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include "plstr.h"
 #include "nsDebug.h"
-
-#include "ParseFTPList.h"
+#include "prprf.h"
 
 /* ==================================================================== */
 
@@ -31,11 +31,6 @@ int ParseFTPList(const char *line, struct list_state *state,
     return 0;
 
   memset( result, 0, sizeof(*result) );
-  if (state->magic != ((void *)ParseFTPList))
-  {
-    memset( state, 0, sizeof(*state) );
-    state->magic = ((void *)ParseFTPList);
-  }
   state->numlines++;
 
   /* carry buffer is only valid from one line to the next */
@@ -137,7 +132,7 @@ int ParseFTPList(const char *line, struct list_state *state,
                 PRTime t;
                 PRTime seconds;
                 PR_sscanf(p+1, "%llu", &seconds);
-                LL_MUL(t, seconds, PR_USEC_PER_SEC);
+                t = seconds * PR_USEC_PER_SEC;
                 PR_ExplodeTime(t, PR_LocalTimeParameters, &(result->fe_time) );
               }
             }
@@ -491,10 +486,7 @@ int ParseFTPList(const char *line, struct list_state *state,
                * So its rounded up to the next block, so what, its better
                * than not showing the size at all.
               */
-              uint64_t fsz, factor;
-              LL_UI2L(fsz, strtoul(tokens[1], (char **)0, 10));
-              LL_UI2L(factor, 512);
-              LL_MUL(fsz, fsz, factor);
+              uint64_t fsz = uint64_t(strtoul(tokens[1], (char **)0, 10) * 512);
               PR_snprintf(result->fe_size, sizeof(result->fe_size), 
                           "%lld", fsz);
             } 
@@ -731,7 +723,7 @@ int ParseFTPList(const char *line, struct list_state *state,
        * "07-21-00  01:19PM                52275 Name Plate.jpg"
        * "07-14-00  01:38PM              2250540 Valentineoffprank-HiRes.jpg"
       */
-      if ((numtoks >= 4) && toklen[0] == 8 && toklen[1] == 7 && 
+      if ((numtoks >= 4) && (toklen[0] == 8 || toklen[0] == 10) && toklen[1] == 7 && 
           (*tokens[2] == '<' || isdigit(*tokens[2])) )
       {
         p = tokens[0];
@@ -841,6 +833,8 @@ int ParseFTPList(const char *line, struct list_state *state,
         result->fe_time.tm_min = atoi(tokens[1]+3);
         if ((tokens[1][5]) == 'P' && result->fe_time.tm_hour < 12)
           result->fe_time.tm_hour += 12;
+	else if ((tokens[1][5]) == 'A' && result->fe_time.tm_hour == 12)
+          result->fe_time.tm_hour = 0;
 
         /* the caller should do this (if dropping "." and ".." is desired)
         if (result->fe_type == 'd' && result->fe_fname[0] == '.' &&

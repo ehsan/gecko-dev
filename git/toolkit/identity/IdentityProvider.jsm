@@ -1,4 +1,4 @@
-/* -*- Mode: js2; js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
+/* -*- js-indent-level: 2; indent-tabs-mode: nil -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -16,7 +16,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/identity/LogUtils.jsm");
 Cu.import("resource://gre/modules/identity/Sandbox.jsm");
 
-const EXPORTED_SYMBOLS = ["IdentityProvider"];
+this.EXPORTED_SYMBOLS = ["IdentityProvider"];
 const FALLBACK_PROVIDER = "browserid.org";
 
 XPCOMUtils.defineLazyModuleGetter(this,
@@ -491,4 +491,4 @@ IdentityProviderService.prototype = {
 
 };
 
-let IdentityProvider = new IdentityProviderService();
+this.IdentityProvider = new IdentityProviderService();

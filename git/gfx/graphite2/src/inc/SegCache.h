@@ -48,8 +48,17 @@ class SegCacheStore;
  */
 class SegCachePrefixEntry
 {
+    SegCachePrefixEntry(const SegCachePrefixEntry &);
+    SegCachePrefixEntry & operator = (const SegCachePrefixEntry &);
+
 public:
-    SegCachePrefixEntry() { memset(this, 0, sizeof(SegCachePrefixEntry)); }
+    SegCachePrefixEntry() : m_lastPurge(0)
+    {
+        memset(m_entryCounts, 0, sizeof m_entryCounts);
+        memset(m_entryBSIndex, 0, sizeof m_entryBSIndex);
+        memset(m_entries, 0, sizeof m_entries);
+    }
+
     ~SegCachePrefixEntry()
     {
         for (size_t j = 0; j < eMaxSpliceSize; j++)
@@ -84,9 +93,7 @@ public:
         if (m_entryCounts[length-1] + 1u > listSize)
         {
             if (m_entryCounts[length-1] == 0)
-            {
                 listSize = 1;
-            }
             else
             {
                 // the problem comes when you get incremental numeric ids in a large doc
@@ -96,9 +103,7 @@ public:
             }
             newEntries = gralloc<SegCacheEntry>(listSize);
             if (!newEntries)
-            {
                 return NULL;
-            }
         }        
 
         uint16 insertPos = 0;
@@ -223,7 +228,6 @@ private:
     unsigned long long m_lastPurge;
 };
 
-union SegCachePrefixArray;
 
 #define SEG_CACHE_MIN_INDEX (store->maxCmapGid())
 #define SEG_CACHE_MAX_INDEX (store->maxCmapGid()+1u)

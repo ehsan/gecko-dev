@@ -60,7 +60,7 @@ function triggerSecondaryCommand(popup, index)
 
   // Cancel the arrow panel slide-in transition (bug 767133) such that
   // it won't interfere with us interacting with the dropdown.
-  document.getAnonymousNodes(popup)[0].style.transition = "none";
+  SpecialPowers.wrap(document).getAnonymousNodes(popup)[0].style.transition = "none";
 
   notification.button.focus();
 
@@ -72,7 +72,7 @@ function triggerSecondaryCommand(popup, index)
       EventUtils.synthesizeKey("VK_DOWN", {});
 
     // Activate
-    EventUtils.synthesizeKey("VK_ENTER", {});
+    EventUtils.synthesizeKey("VK_RETURN", {});
   }, false);
 
   // One down event to open the popup
@@ -87,9 +87,12 @@ function dismissNotification(popup)
   });
 }
 
-function setFinishedCallback(callback)
+function setFinishedCallback(callback, win)
 {
-  let testPage = gBrowser.selectedBrowser.contentWindow.wrappedJSObject;
+  if (!win) {
+    win = window;
+  }
+  let testPage = win.gBrowser.selectedBrowser.contentWindow.wrappedJSObject;
   testPage.testFinishedCallback = function(result, exception) {
     setTimeout(function() {
       info("got finished callback");
@@ -106,23 +109,9 @@ function dispatchEvent(eventName)
   gBrowser.selectedBrowser.contentWindow.dispatchEvent(event);
 }
 
-function setPermission(url, permission, value)
+function setPermission(url, permission)
 {
   const nsIPermissionManager = Components.interfaces.nsIPermissionManager;
-
-  switch (value) {
-    case "allow":
-      value = nsIPermissionManager.ALLOW_ACTION;
-      break;
-    case "deny":
-      value = nsIPermissionManager.DENY_ACTION;
-      break;
-    case "unknown":
-      value = nsIPermissionManager.UNKNOWN_ACTION;
-      break;
-    default:
-      throw new Error("No idea what to set here!");
-  }
 
   let uri = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService)
@@ -132,8 +121,9 @@ function setPermission(url, permission, value)
                     .getNoAppCodebasePrincipal(uri);
 
   Components.classes["@mozilla.org/permissionmanager;1"]
-            .getService(Components.interfaces.nsIPermissionManager)
-            .addFromPrincipal(principal, permission, value);
+            .getService(nsIPermissionManager)
+            .addFromPrincipal(principal, permission,
+                              nsIPermissionManager.ALLOW_ACTION);
 }
 
 function removePermission(url, permission)

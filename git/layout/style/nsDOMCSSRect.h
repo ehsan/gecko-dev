@@ -8,27 +8,46 @@
 #ifndef nsDOMCSSRect_h_
 #define nsDOMCSSRect_h_
 
-#include "nsISupports.h"
+#include "mozilla/Attributes.h"
 #include "nsIDOMRect.h"
-#include "nsCOMPtr.h"
-class nsIDOMCSSPrimitiveValue;
+#include "nsAutoPtr.h"
+#include "nsCycleCollectionParticipant.h"
+#include "nsWrapperCache.h"
 
-class nsDOMCSSRect : public nsIDOMRect {
+class nsROCSSPrimitiveValue;
+
+class nsDOMCSSRect : public nsIDOMRect,
+                     public nsWrapperCache
+{
 public:
-  nsDOMCSSRect(nsIDOMCSSPrimitiveValue* aTop,
-               nsIDOMCSSPrimitiveValue* aRight,
-               nsIDOMCSSPrimitiveValue* aBottom,
-               nsIDOMCSSPrimitiveValue* aLeft);
-  virtual ~nsDOMCSSRect(void);
+  nsDOMCSSRect(nsROCSSPrimitiveValue* aTop,
+               nsROCSSPrimitiveValue* aRight,
+               nsROCSSPrimitiveValue* aBottom,
+               nsROCSSPrimitiveValue* aLeft);
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMRECT
 
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMCSSRect)
+
+  nsROCSSPrimitiveValue* Top() const { return mTop; }
+  nsROCSSPrimitiveValue* Right() const { return mRight; }
+  nsROCSSPrimitiveValue* Bottom() const { return mBottom; }
+  nsROCSSPrimitiveValue* Left() const { return mLeft; }
+
+  nsISupports* GetParentObject() const { return nullptr; }
+
+  virtual JSObject* WrapObject(JSContext* cx)
+    MOZ_OVERRIDE MOZ_FINAL;
+
+protected:
+  virtual ~nsDOMCSSRect(void);
+
 private:
-  nsCOMPtr<nsIDOMCSSPrimitiveValue> mTop;
-  nsCOMPtr<nsIDOMCSSPrimitiveValue> mRight;
-  nsCOMPtr<nsIDOMCSSPrimitiveValue> mBottom;
-  nsCOMPtr<nsIDOMCSSPrimitiveValue> mLeft;
+  nsRefPtr<nsROCSSPrimitiveValue> mTop;
+  nsRefPtr<nsROCSSPrimitiveValue> mRight;
+  nsRefPtr<nsROCSSPrimitiveValue> mBottom;
+  nsRefPtr<nsROCSSPrimitiveValue> mLeft;
 };
 
 #endif /* nsDOMCSSRect_h_ */

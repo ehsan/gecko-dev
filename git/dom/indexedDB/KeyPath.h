@@ -7,14 +7,28 @@
 #ifndef mozilla_dom_indexeddb_keypath_h__
 #define mozilla_dom_indexeddb_keypath_h__
 
-#include "mozilla/dom/indexedDB/IndexedDatabase.h"
+#include "mozilla/dom/BindingDeclarations.h"
 
-BEGIN_INDEXEDDB_NAMESPACE
+namespace mozilla {
+namespace dom {
+namespace indexedDB {
 
+class IndexMetadata;
 class Key;
+class ObjectStoreMetadata;
 
 class KeyPath
 {
+  // This private constructor is only to be used by IPDL-generated classes.
+  friend class IndexMetadata;
+  friend class ObjectStoreMetadata;
+
+  KeyPath()
+  : mType(NONEXISTENT)
+  {
+    MOZ_COUNT_CTOR(KeyPath);
+  }
+
 public:
   enum KeyPathType {
     NONEXISTENT,
@@ -44,6 +58,12 @@ public:
   {
     MOZ_COUNT_DTOR(KeyPath);
   }
+
+  static nsresult
+  Parse(JSContext* aCx, const nsAString& aString, KeyPath* aKeyPath);
+
+  static nsresult
+  Parse(JSContext* aCx, const Sequence<nsString>& aStrings, KeyPath* aKeyPath);
 
   static nsresult
   Parse(JSContext* aCx, const JS::Value& aValue, KeyPath* aKeyPath);
@@ -87,7 +107,8 @@ public:
   void SerializeToString(nsAString& aString) const;
   static KeyPath DeserializeFromString(const nsAString& aString);
 
-  nsresult ToJSVal(JSContext* aCx, JS::Value* aValue) const;
+  nsresult ToJSVal(JSContext* aCx, JS::MutableHandle<JS::Value> aValue) const;
+  nsresult ToJSVal(JSContext* aCx, JS::Heap<JS::Value>& aValue) const;
 
   bool IsAllowedForObjectStore(bool aAutoIncrement) const;
 
@@ -96,6 +117,8 @@ public:
   nsTArray<nsString> mStrings;
 };
 
-END_INDEXEDDB_NAMESPACE
+} // namespace indexedDB
+} // namespace dom
+} // namespace mozilla
 
-#endif /* mozilla_dom_indexeddb_keypath_h__ */
+#endif // mozilla_dom_indexeddb_keypath_h__

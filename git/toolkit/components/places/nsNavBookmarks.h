@@ -15,6 +15,7 @@
 #include "nsTHashtable.h"
 #include "nsWeakReference.h"
 #include "mozilla/Attributes.h"
+#include "prtime.h"
 
 class nsNavBookmarks;
 class nsIOutputStream;
@@ -60,24 +61,6 @@ namespace places {
   typedef void (nsNavBookmarks::*ItemVisitMethod)(const ItemVisitData&);
   typedef void (nsNavBookmarks::*ItemChangeMethod)(const ItemChangeData&);
 
-  class BookmarkKeyClass : public nsTrimInt64HashKey
-  {
-    public:
-    BookmarkKeyClass(const int64_t* aItemId)
-    : nsTrimInt64HashKey(aItemId)
-    , creationTime(PR_Now())
-    {
-    }
-    BookmarkKeyClass(const BookmarkKeyClass& aOther)
-    : nsTrimInt64HashKey(aOther)
-    , creationTime(PR_Now())
-    {
-      NS_NOTREACHED("Do not call me!");
-    }
-    BookmarkData bookmark;
-    PRTime creationTime;
-  };
-
   enum BookmarkDate {
     DATE_ADDED = 0
   , LAST_MODIFIED
@@ -104,16 +87,12 @@ public:
   /**
    * Obtains the service's object.
    */
-  static nsNavBookmarks* GetSingleton();
+  static already_AddRefed<nsNavBookmarks> GetSingleton();
 
   /**
    * Initializes the service's object.  This should only be called once.
    */
   nsresult Init();
-
-  static nsNavBookmarks* GetBookmarksServiceIfAvailable() {
-    return gBookmarksService;
-  }
 
   static nsNavBookmarks* GetBookmarksService() {
     if (!gBookmarksService) {
@@ -127,7 +106,6 @@ public:
   }
 
   typedef mozilla::places::BookmarkData BookmarkData;
-  typedef mozilla::places::BookmarkKeyClass BookmarkKeyClass;
   typedef mozilla::places::ItemVisitData ItemVisitData;
   typedef mozilla::places::ItemChangeData ItemChangeData;
   typedef mozilla::places::BookmarkStatementId BookmarkStatementId;
@@ -187,6 +165,7 @@ public:
                                  const nsACString& aTitle,
                                  bool aIsBookmarkFolder,
                                  int32_t* aIndex,
+                                 const nsACString& aGUID,
                                  int64_t* aNewFolder);
 
   /**
@@ -231,10 +210,24 @@ public:
   nsresult GetDescendantFolders(int64_t aFolderId,
                                 nsTArray<int64_t>& aDescendantFoldersArray);
 
+  static const int32_t kGetChildrenIndex_Guid;
+  static const int32_t kGetChildrenIndex_Position;
+  static const int32_t kGetChildrenIndex_Type;
+  static const int32_t kGetChildrenIndex_PlaceID;
+
 private:
   static nsNavBookmarks* gBookmarksService;
 
   ~nsNavBookmarks();
+
+  /**
+   * Checks whether or not aFolderId points to a live bookmark.
+   *
+   * @param aFolderId
+   *        the item-id of the folder to check.
+   * @return true if aFolderId points to live bookmarks, false otherwise.
+   */
+  bool IsLivemark(int64_t aFolderId);
 
   /**
    * Locates the root items in the bookmarks folder hierarchy assigning folder
@@ -282,6 +275,12 @@ private:
   int64_t mTagsRoot;
   int64_t mUnfiledRoot;
   int64_t mToolbarRoot;
+
+  inline bool IsRoot(int64_t aFolderId) {
+    return aFolderId == mRoot || aFolderId == mMenuRoot ||
+           aFolderId == mTagsRoot || aFolderId == mUnfiledRoot ||
+           aFolderId == mToolbarRoot;
+  }
 
   nsresult IsBookmarkedInDatabase(int64_t aBookmarkID, bool* aIsBookmarked);
 
@@ -362,15 +361,9 @@ private:
 
   int64_t RecursiveFindRedirectedBookmark(int64_t aPlaceId);
 
-  static const int32_t kGetChildrenIndex_Position;
-  static const int32_t kGetChildrenIndex_Type;
-  static const int32_t kGetChildrenIndex_PlaceID;
-  static const int32_t kGetChildrenIndex_FolderTitle;
-  static const int32_t kGetChildrenIndex_Guid;
-
   class RemoveFolderTransaction MOZ_FINAL : public nsITransaction {
   public:
-    RemoveFolderTransaction(int64_t aID) : mID(aID) {}
+    explicit RemoveFolderTransaction(int64_t aID) : mID(aID) {}
 
     NS_DECL_ISUPPORTS
 
@@ -394,7 +387,7 @@ private:
       NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
       int64_t newFolder;
       return bookmarks->CreateContainerWithID(mID, mParent, mTitle, true,
-                                              &mIndex, &newFolder); 
+                                              &mIndex, EmptyCString(), &newFolder);
     }
 
     NS_IMETHOD RedoTransaction() {
@@ -405,13 +398,15 @@ private:
       *aResult = false;
       return NS_OK;
     }
-    
+
     NS_IMETHOD Merge(nsITransaction* aTransaction, bool* aResult) {
       *aResult = false;
       return NS_OK;
     }
 
   private:
+    ~RemoveFolderTransaction() {}
+
     int64_t mID;
     int64_t mParent;
     nsCString mTitle;
@@ -432,6 +427,7 @@ private:
    */
   nsresult EnsureKeywordsHash();
   nsDataHashtable<nsTrimInt64HashKey, nsString> mBookmarkToKeywordHash;
+  bool mBookmarkToKeywordHashInitialized;
 
   /**
    * This function must be called every time a bookmark is removed.
@@ -440,18 +436,6 @@ private:
    *        Uri to test.
    */
   nsresult UpdateKeywordsHashForRemovedBookmark(int64_t aItemId);
-
-  /**
-   * Cache for the last fetched BookmarkData entries.
-   * This is used to speed up repeated requests to the same item id.
-   */
-  nsTHashtable<BookmarkKeyClass> mRecentBookmarksCache;
-
-  /**
-   * Tracks bookmarks in the cache critical path.  Items should not be
-   * added to the cache till they are removed from this hash.
-   */
-  nsTHashtable<nsTrimInt64HashKey> mUncachableBookmarks;
 };
 
 #endif // nsNavBookmarks_h_

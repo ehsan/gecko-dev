@@ -37,32 +37,22 @@ Types = (
     'nsString',
     'nsCString',
     'mozilla::ipc::Shmem',
-    'mozilla::ipc::FileDescriptor',
-
-    # quasi-stdint types used by "public" Gecko headers
-    'int8',
-    'uint8',
-    'int16',
-    'uint16',
-    'int32',
-    'uint32',
-    'int64',
-    'uint64',
-    'intptr',
-    'uintptr',
+    'mozilla::ipc::FileDescriptor'
 )
 
 
-Includes = (
+HeaderIncludes = (
     'mozilla/Attributes.h',
-    'base/basictypes.h',
     'prtime.h',
-    'nscore.h',
     'IPCMessageStart.h',
-    'IPC/IPCMessageUtils.h',
-    'nsAutoPtr.h',
+    'ipc/IPCMessageUtils.h',
+    'nsRefPtr.h',
     'nsStringGlue.h',
     'nsTArray.h',
-    'nsIFile.h',
     'mozilla/ipc/ProtocolUtils.h',
+)
+
+CppIncludes = (
+    'nsIFile.h',
+    'GeckoProfiler.h',
 )

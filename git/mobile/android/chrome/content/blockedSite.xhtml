@@ -19,7 +19,7 @@
   <head>
     <meta name="viewport" content="width=device-width; user-scalable=false" />
     <link rel="stylesheet" href="chrome://global/skin/netError.css" type="text/css" media="all" />
-    <link rel="icon" type="image/png" id="favicon" href="chrome://global/skin/icons/blacklist_favicon.png"/>
+    <link rel="icon" type="image/png" id="favicon" sizes="64x64" href="chrome://browser/skin/images/blocked-warning.png"/>
 
     <script type="application/javascript"><![CDATA[
       // Error url MUST be formatted like this:
@@ -119,46 +119,21 @@
         el = document.getElementById("errorLongDescText_malware");
         el.parentNode.removeChild(el);
 
-        // Set sitename
-        document.getElementById("phishing_sitename").textContent = getHostString();
         document.title = document.getElementById("errorTitleText_phishing")
                                  .innerHTML;
       }
     ]]></script>
-    <style type="text/css">
-      /* Style warning button to look like a small text link in the
-         bottom right. This is preferable to just using a text link
-         since there is already a mechanism in browser.js for trapping
-         oncommand events from unprivileged chrome pages (BrowserOnCommand).*/
-      #ignoreWarningButton {
-        -moz-appearance: none;
-        background: transparent;
-        border: none;
-        color: white;  /* Hard coded because netError.css forces this page's background to dark red */
-        text-decoration: underline;
-        margin: 0;
-        padding: 0;
-        position: relative;
-        top: 23px;
-        left: 20px;
-        font-size: smaller;
-      }
-      
-      #ignoreWarning {
-        text-align: right;
-      }
-    </style>
   </head>
 
   <body id="errorPage" class="blockedsite" dir="&locale.dir;">
 
-    <!-- Error Title -->
-    <div id="errorTitle">
-      <h1 id="errorTitleText_phishing" class="errorTitleText">&safeb.blocked.phishingPage.title2;</h1>
-      <h1 id="errorTitleText_malware" class="errorTitleText">&safeb.blocked.malwarePage.title;</h1>
-    </div>
-
     <div id="errorPageContainer">
+
+      <!-- Error Title -->
+      <div id="errorTitle">
+        <h1 id="errorTitleText_phishing" class="errorTitleText">&safeb.blocked.phishingPage.title2;</h1>
+        <h1 id="errorTitleText_malware" class="errorTitleText">&safeb.blocked.malwarePage.title;</h1>
+      </div>
 
       <div id="errorLongContent">
       
@@ -180,6 +155,9 @@
           <button id="getMeOutButton">&safeb.palm.accept.label;</button>
           <button id="reportButton">&safeb.palm.reportPage.label;</button>
         </div>
+      </div>
+      <div id="ignoreWarning">
+        <button id="ignoreWarningButton">&safeb.palm.decline.label;</button>
       </div>
     </div>
     <!--

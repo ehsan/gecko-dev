@@ -10,18 +10,12 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
-#include "nsIPrefBranch.h"
 #include "nsIProtocolProxyService2.h"
 #include "nsIProtocolProxyFilter.h"
-#include "nsIProxyAutoConfig.h"
-#include "nsISystemProxySettings.h"
 #include "nsIProxyInfo.h"
 #include "nsIObserver.h"
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
-#include "nsPACMan.h"
-#include "prtime.h"
-#include "prmem.h"
 #include "prio.h"
 #include "mozilla/Attributes.h"
 
@@ -29,6 +23,9 @@ typedef nsDataHashtable<nsCStringHashKey, uint32_t> nsFailedProxyTable;
 
 class nsProxyInfo;
 struct nsProtocolInfo;
+class nsIPrefBranch;
+class nsISystemProxySettings;
+class nsPACMan;
 
 class nsProtocolProxyService MOZ_FINAL : public nsIProtocolProxyService2
                                        , public nsIObserver
@@ -39,14 +36,14 @@ public:
     NS_DECL_NSIPROTOCOLPROXYSERVICE
     NS_DECL_NSIOBSERVER
 
-    nsProtocolProxyService() NS_HIDDEN;
+    nsProtocolProxyService();
 
-    NS_HIDDEN_(nsresult) Init();
+    nsresult Init();
 
 protected:
     friend class nsAsyncResolveRequest;
 
-    ~nsProtocolProxyService() NS_HIDDEN;
+    ~nsProtocolProxyService();
 
     /**
      * This method is called whenever a preference may have changed or
@@ -58,7 +55,7 @@ protected:
      *        This can be the name of a fully-qualified preference, or it can
      *        be null, in which case all preferences will be initialized.
      */
-    NS_HIDDEN_(void) PrefsChanged(nsIPrefBranch *prefs, const char *name);
+    void PrefsChanged(nsIPrefBranch *prefs, const char *name);
 
     /**
      * This method is called to create a nsProxyInfo instance from the given
@@ -76,7 +73,7 @@ protected:
      *
      * @return A pointer beyond the parsed proxy string (never null).
      */
-    NS_HIDDEN_(const char *) ExtractProxyInfo(const char *proxy,
+    const char * ExtractProxyInfo(const char *proxy,
                                               uint32_t aResolveFlags,
                                               nsProxyInfo **result);
 
@@ -86,7 +83,7 @@ protected:
      * @param pacURI
      *        The URI spec of the PAC file to load.
      */
-    NS_HIDDEN_(nsresult) ConfigureFromPAC(const nsCString &pacURI, bool forceReload);
+    nsresult ConfigureFromPAC(const nsCString &pacURI, bool forceReload);
 
     /**
      * This method builds a list of nsProxyInfo objects from the given PAC-
@@ -100,7 +97,7 @@ protected:
      * @param result
      *        The resulting list of proxy info objects.
      */
-    NS_HIDDEN_(void) ProcessPACString(const nsCString &pacString,
+    void ProcessPACString(const nsCString &pacString,
                                       uint32_t aResolveFlags,
                                       nsIProxyInfo **result);
 
@@ -113,12 +110,12 @@ protected:
      * @param result
      *        Upon return, this parameter holds the generated key.
      */
-    NS_HIDDEN_(void) GetProxyKey(nsProxyInfo *pi, nsCString &result);
+    void GetProxyKey(nsProxyInfo *pi, nsCString &result);
 
     /**
      * @return Seconds since start of session.
      */
-    NS_HIDDEN_(uint32_t) SecondsSinceSessionStart();
+    uint32_t SecondsSinceSessionStart();
 
     /**
      * This method removes the specified proxy from the disabled list.
@@ -126,7 +123,7 @@ protected:
      * @param pi
      *        The nsProxyInfo object identifying the proxy to enable.
      */
-    NS_HIDDEN_(void) EnableProxy(nsProxyInfo *pi);
+    void EnableProxy(nsProxyInfo *pi);
 
     /**
      * This method adds the specified proxy to the disabled list.
@@ -134,7 +131,7 @@ protected:
      * @param pi
      *        The nsProxyInfo object identifying the proxy to disable.
      */
-    NS_HIDDEN_(void) DisableProxy(nsProxyInfo *pi);
+    void DisableProxy(nsProxyInfo *pi);
 
     /**
      * This method tests to see if the given proxy is disabled.
@@ -144,7 +141,7 @@ protected:
      *
      * @return True if the specified proxy is disabled.
      */
-    NS_HIDDEN_(bool) IsProxyDisabled(nsProxyInfo *pi);
+    bool IsProxyDisabled(nsProxyInfo *pi);
 
     /**
      * This method queries the protocol handler for the given scheme to check
@@ -157,7 +154,7 @@ protected:
      *        of structure when you call this method.  This parameter must not
      *        be null.
      */
-    NS_HIDDEN_(nsresult) GetProtocolInfo(nsIURI *uri, nsProtocolInfo *result);
+    nsresult GetProtocolInfo(nsIURI *uri, nsProtocolInfo *result);
 
     /**
      * This method is an internal version nsIProtocolProxyService::newProxyInfo
@@ -180,7 +177,7 @@ protected:
      * @param result
      *        The resulting nsIProxyInfo object.
      */
-    NS_HIDDEN_(nsresult) NewProxyInfo_Internal(const char *type,
+    nsresult NewProxyInfo_Internal(const char *type,
                                                const nsACString &host,
                                                int32_t port,
                                                uint32_t flags,
@@ -207,7 +204,7 @@ protected:
      * @param result
      *        The resulting proxy info or null.
      */
-    NS_HIDDEN_(nsresult) Resolve_Internal(nsIURI *uri,
+    nsresult Resolve_Internal(nsIURI *uri,
                                           const nsProtocolInfo &info,
                                           uint32_t flags,
                                           bool *usePAC, 
@@ -224,7 +221,7 @@ protected:
      * @param proxyInfo
      *        The proxy info list to be modified.  This is an inout param.
      */
-    NS_HIDDEN_(void) ApplyFilters(nsIURI *uri, const nsProtocolInfo &info,
+    void ApplyFilters(nsIURI *uri, const nsProtocolInfo &info,
                                   nsIProxyInfo **proxyInfo);
 
     /**
@@ -249,7 +246,7 @@ protected:
      * @param proxyInfo
      *        The proxy info list to be modified.  This is an inout param.
      */
-    NS_HIDDEN_(void) PruneProxyInfo(const nsProtocolInfo &info,
+    void PruneProxyInfo(const nsProtocolInfo &info,
                                     nsIProxyInfo **proxyInfo);
 
     /**
@@ -258,7 +255,7 @@ protected:
      * @param hostFilters
      *        A "no-proxy-for" exclusion list.
      */
-    NS_HIDDEN_(void) LoadHostFilters(const char *hostFilters);
+    void LoadHostFilters(const char *hostFilters);
 
     /**
      * This method checks the given URI against mHostFiltersArray.
@@ -270,7 +267,20 @@ protected:
      *
      * @return True if the URI can use the specified proxy.
      */
-    NS_HIDDEN_(bool) CanUseProxy(nsIURI *uri, int32_t defaultPort);
+    bool CanUseProxy(nsIURI *uri, int32_t defaultPort);
+
+    /**
+     * Disable Prefetch in the DNS service if a proxy is in use.
+     *
+     * @param aProxy
+     *        The proxy information
+     */
+    void MaybeDisableDNSPrefetch(nsIProxyInfo *aProxy);
+
+private:
+    nsresult SetupPACThread();
+    nsresult ResetPACThread();
+    nsresult ReloadNetworkPAC();
 
 public:
     // The Sun Forte compiler and others implement older versions of the
@@ -346,6 +356,7 @@ protected:
     int32_t                      mSOCKSProxyPort;
     int32_t                      mSOCKSProxyVersion;
     bool                         mSOCKSProxyRemoteDNS;
+    bool                         mProxyOverTLS;
 
     nsRefPtr<nsPACMan>           mPACMan;  // non-null if we are using PAC
     nsCOMPtr<nsISystemProxySettings> mSystemProxySettings;
@@ -353,6 +364,13 @@ protected:
     PRTime                       mSessionStart;
     nsFailedProxyTable           mFailedProxies;
     int32_t                      mFailedProxyTimeout;
+
+private:
+    nsresult AsyncResolveInternal(nsIURI *uri, uint32_t flags,
+                                  nsIProtocolProxyCallback *callback,
+                                  nsICancelable **result,
+                                  bool isSyncOK);
+
 };
 
 #endif // !nsProtocolProxyService_h__

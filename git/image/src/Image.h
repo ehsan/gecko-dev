@@ -6,9 +6,15 @@
 #ifndef MOZILLA_IMAGELIB_IMAGE_H_
 #define MOZILLA_IMAGELIB_IMAGE_H_
 
+#include "mozilla/MemoryReporting.h"
+#include "gfx2DGlue.h"                // for gfxMemoryLocation
 #include "imgIContainer.h"
-#include "imgStatusTracker.h"
-#include "prtypes.h"
+#include "ProgressTracker.h"
+#include "ImageURL.h"
+#include "nsStringFwd.h"
+
+class nsIRequest;
+class nsIInputStream;
 
 namespace mozilla {
 namespace image {
@@ -16,11 +22,17 @@ namespace image {
 class Image : public imgIContainer
 {
 public:
-  // From NS_DECL_IMGICONTAINER:
-  NS_IMETHOD GetAnimationMode(uint16_t *aAnimationMode);
-  NS_IMETHOD SetAnimationMode(uint16_t aAnimationMode);
-
-  imgStatusTracker& GetStatusTracker() { return *mStatusTracker; }
+  // Mimetype translation
+  enum eDecoderType {
+    eDecoderType_png     = 0,
+    eDecoderType_gif     = 1,
+    eDecoderType_jpeg    = 2,
+    eDecoderType_bmp     = 3,
+    eDecoderType_ico     = 4,
+    eDecoderType_icon    = 5,
+    eDecoderType_unknown = 6
+  };
+  static eDecoderType GetDecoderType(const char *aMimeType);
 
   /**
    * Flags for Image initialization.
@@ -46,62 +58,144 @@ public:
   /**
    * Creates a new image container.
    *
-   * @param aObserver Observer to send decoder and animation notifications to.
    * @param aMimeType The mimetype of the image.
    * @param aFlags Initialization flags of the INIT_FLAG_* variety.
    */
-  virtual nsresult Init(imgIDecoderObserver* aObserver,
-                        const char* aMimeType,
-                        const char* aURIString,
+  virtual nsresult Init(const char* aMimeType,
                         uint32_t aFlags) = 0;
 
+  virtual already_AddRefed<ProgressTracker> GetProgressTracker() = 0;
+  virtual void SetProgressTracker(ProgressTracker* aProgressTracker) {}
+
   /**
-   * The rectangle defining the location and size of the currently displayed
-   * frame.
+   * The rectangle defining the location and size of the given frame.
    */
-  virtual void GetCurrentFrameRect(nsIntRect& aRect) = 0;
+  virtual nsIntRect FrameRect(uint32_t aWhichFrame) = 0;
 
   /**
-   * The size, in bytes, occupied by the significant data portions of the image.
-   * This includes both compressed source data and decoded frames.
+   * The size, in bytes, occupied by the compressed source data of the image.
+   * If MallocSizeOf does not work on this platform, uses a fallback approach to
+   * ensure that something reasonable is always returned.
    */
-  uint32_t SizeOfData();
+  virtual size_t SizeOfSourceWithComputedFallback(MallocSizeOf aMallocSizeOf) const = 0;
 
   /**
-   * The components that make up SizeOfData().
-   */      
-  virtual size_t HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const = 0;
-  virtual size_t HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const = 0;
-  virtual size_t NonHeapSizeOfDecoded() const = 0;
-  virtual size_t OutOfProcessSizeOfDecoded() const = 0;
+   * The size, in bytes, occupied by the image's decoded data.
+   */
+  virtual size_t SizeOfDecoded(gfxMemoryLocation aLocation,
+                               MallocSizeOf aMallocSizeOf) const = 0;
 
-  // Mimetype translation
-  enum eDecoderType {
-    eDecoderType_png     = 0,
-    eDecoderType_gif     = 1,
-    eDecoderType_jpeg    = 2,
-    eDecoderType_bmp     = 3,
-    eDecoderType_ico     = 4,
-    eDecoderType_icon    = 5,
-    eDecoderType_unknown = 6
-  };
-  static eDecoderType GetDecoderType(const char *aMimeType);
-
-  void IncrementAnimationConsumers();
-  void DecrementAnimationConsumers();
+  virtual void IncrementAnimationConsumers() = 0;
+  virtual void DecrementAnimationConsumers() = 0;
 #ifdef DEBUG
-  uint32_t GetAnimationConsumers() { return mAnimationConsumers; }
+  virtual uint32_t GetAnimationConsumers() = 0;
 #endif
 
-  void SetInnerWindowID(uint64_t aInnerWindowId) {
+  /**
+   * Called from OnDataAvailable when the stream associated with the image has
+   * received new image data. The arguments are the same as OnDataAvailable's,
+   * but by separating this functionality into a different method we don't
+   * interfere with subclasses which wish to implement nsIStreamListener.
+   *
+   * Images should not do anything that could send out notifications until they
+   * have received their first OnImageDataAvailable notification; in
+   * particular, this means that instantiating decoders should be deferred
+   * until OnImageDataAvailable is called.
+   */
+  virtual nsresult OnImageDataAvailable(nsIRequest* aRequest,
+                                        nsISupports* aContext,
+                                        nsIInputStream* aInStr,
+                                        uint64_t aSourceOffset,
+                                        uint32_t aCount) = 0;
+
+  /**
+   * Called from OnStopRequest when the image's underlying request completes.
+   *
+   * @param aRequest  The completed request.
+   * @param aContext  Context from Necko's OnStopRequest.
+   * @param aStatus   A success or failure code.
+   * @param aLastPart Whether this is the final part of the underlying request.
+   */
+  virtual nsresult OnImageDataComplete(nsIRequest* aRequest,
+                                       nsISupports* aContext,
+                                       nsresult aStatus,
+                                       bool aLastPart) = 0;
+
+  /**
+   * Called for multipart images to allow for any necessary reinitialization
+   * when there's a new part to add.
+   */
+  virtual nsresult OnNewSourceData() = 0;
+
+  /**
+   * Called when the SurfaceCache discards a persistent surface belonging to
+   * this image.
+   */
+  virtual void OnSurfaceDiscarded() = 0;
+
+  virtual void SetInnerWindowID(uint64_t aInnerWindowId) = 0;
+  virtual uint64_t InnerWindowID() const = 0;
+
+  virtual bool HasError() = 0;
+  virtual void SetHasError() = 0;
+
+  virtual ImageURL* GetURI() = 0;
+};
+
+class ImageResource : public Image
+{
+public:
+  already_AddRefed<ProgressTracker> GetProgressTracker() MOZ_OVERRIDE {
+    nsRefPtr<ProgressTracker> progressTracker = mProgressTracker;
+    MOZ_ASSERT(progressTracker);
+    return progressTracker.forget();
+  }
+  void SetProgressTracker(ProgressTracker* aProgressTracker) MOZ_OVERRIDE MOZ_FINAL {
+    MOZ_ASSERT(aProgressTracker);
+    MOZ_ASSERT(!mProgressTracker);
+    mProgressTracker = aProgressTracker;
+  }
+
+  virtual void IncrementAnimationConsumers() MOZ_OVERRIDE;
+  virtual void DecrementAnimationConsumers() MOZ_OVERRIDE;
+#ifdef DEBUG
+  virtual uint32_t GetAnimationConsumers() MOZ_OVERRIDE { return mAnimationConsumers; }
+#endif
+
+  virtual void OnSurfaceDiscarded() MOZ_OVERRIDE { }
+
+  virtual void SetInnerWindowID(uint64_t aInnerWindowId) MOZ_OVERRIDE {
     mInnerWindowId = aInnerWindowId;
   }
-  uint64_t InnerWindowID() const { return mInnerWindowId; }
+  virtual uint64_t InnerWindowID() const MOZ_OVERRIDE { return mInnerWindowId; }
 
-  bool HasError() { return mError; }
+  virtual bool HasError() MOZ_OVERRIDE    { return mError; }
+  virtual void SetHasError() MOZ_OVERRIDE { mError = true; }
+
+  /*
+   * Returns a non-AddRefed pointer to the URI associated with this image.
+   * Illegal to use off-main-thread.
+   */
+  virtual ImageURL* GetURI() MOZ_OVERRIDE { return mURI.get(); }
 
 protected:
-  Image(imgStatusTracker* aStatusTracker);
+  explicit ImageResource(ImageURL* aURI);
+
+  // Shared functionality for implementors of imgIContainer. Every
+  // implementation of attribute animationMode should forward here.
+  nsresult GetAnimationModeInternal(uint16_t *aAnimationMode);
+  nsresult SetAnimationModeInternal(uint16_t aAnimationMode);
+
+  /**
+   * Helper for RequestRefresh.
+   *
+   * If we've had a "recent" refresh (i.e. if this image is being used in
+   * multiple documents & some other document *just* called RequestRefresh() on
+   * this image with a timestamp close to aTime), this method returns true.
+   *
+   * Otherwise, this method updates mLastRefreshTime to aTime & returns false.
+   */
+  bool HadRecentRefresh(const TimeStamp& aTime);
 
   /**
    * Decides whether animation should or should not be happening,
@@ -109,26 +203,27 @@ protected:
    */
   virtual void EvaluateAnimation();
 
-  virtual nsresult StartAnimation() = 0;
-  virtual nsresult StopAnimation() = 0;
-
-  uint64_t mInnerWindowId;
-
-  // Member data shared by all implementations of this abstract class
-  nsAutoPtr<imgStatusTracker> mStatusTracker;
-  uint32_t                    mAnimationConsumers;
-  uint16_t                    mAnimationMode;   // Enum values in imgIContainer
-  bool                        mInitialized:1;   // Have we been initalized?
-  bool                        mAnimating:1;     // Are we currently animating?
-  bool                        mError:1;         // Error handling
-
   /**
    * Extended by child classes, if they have additional
-   * conditions for being able to animate
+   * conditions for being able to animate.
    */
   virtual bool ShouldAnimate() {
     return mAnimationConsumers > 0 && mAnimationMode != kDontAnimMode;
   }
+
+  virtual nsresult StartAnimation() = 0;
+  virtual nsresult StopAnimation() = 0;
+
+  // Member data shared by all implementations of this abstract class
+  nsRefPtr<ProgressTracker>     mProgressTracker;
+  nsRefPtr<ImageURL>            mURI;
+  TimeStamp                     mLastRefreshTime;
+  uint64_t                      mInnerWindowId;
+  uint32_t                      mAnimationConsumers;
+  uint16_t                      mAnimationMode; // Enum values in imgIContainer
+  bool                          mInitialized:1; // Have we been initalized?
+  bool                          mAnimating:1;   // Are we currently animating?
+  bool                          mError:1;       // Error handling
 };
 
 } // namespace image

@@ -22,6 +22,7 @@
 #endif
 
 class nsLookAndFeel: public nsXPLookAndFeel {
+  static OperatingSystemVersion GetOperatingSystemVersion();
 public:
   nsLookAndFeel();
   virtual ~nsLookAndFeel();
@@ -30,8 +31,9 @@ public:
   virtual nsresult GetIntImpl(IntID aID, int32_t &aResult);
   virtual nsresult GetFloatImpl(FloatID aID, float &aResult);
   virtual bool GetFontImpl(FontID aID, nsString& aFontName,
-                           gfxFontStyle& aFontStyle);
-  virtual PRUnichar GetPasswordCharacterImpl();
+                           gfxFontStyle& aFontStyle,
+                           float aDevPixPerCSSPixel);
+  virtual char16_t GetPasswordCharacterImpl();
 };
 
 #endif

@@ -10,6 +10,7 @@
 
 #include <windows.h>
 #include <shobjidl.h>
+#undef LogSeverity // SetupAPI.h #defines this as DWORD
 #include "nsIWinTaskbar.h"
 #include "mozilla/Attributes.h"
 
@@ -18,11 +19,12 @@ namespace widget {
 
 class WinTaskbar MOZ_FINAL : public nsIWinTaskbar
 {
-public: 
-  WinTaskbar();
   ~WinTaskbar();
 
-  NS_DECL_ISUPPORTS
+public: 
+  WinTaskbar();
+
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIWINTASKBAR
 
   // Registers the global app user model id for the instance.

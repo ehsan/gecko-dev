@@ -7,6 +7,7 @@ const NS_APP_USER_PROFILE_50_DIR = "ProfD";
 const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cr = Components.results;
+const Cu = Components.utils;
 
 function do_check_throws(f, result, stack)
 {
@@ -31,7 +32,7 @@ var provider = {
     persistent.value = true;
     if (prop == NS_APP_USER_PROFILE_50_DIR)
       return dirSvc.get("CurProcD", Ci.nsIFile);
-    throw Cr.NS_ERROR_FAILURE;
+    throw Components.Exception("Tried to get test directory '" + prop + "'", Cr.NS_ERROR_FAILURE);
   },
   QueryInterface: function(iid) {
     if (iid.equals(Ci.nsIDirectoryServiceProvider) ||

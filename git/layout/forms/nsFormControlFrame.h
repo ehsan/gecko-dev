@@ -6,6 +6,7 @@
 #ifndef nsFormControlFrame_h___
 #define nsFormControlFrame_h___
 
+#include "mozilla/Attributes.h"
 #include "nsIFormControlFrame.h"
 #include "nsLeafFrame.h"
 
@@ -23,11 +24,11 @@ public:
     * @param aContent the content representing this frame
     * @param aParentFrame the parent frame
     */
-  nsFormControlFrame(nsStyleContext*);
+  explicit nsFormControlFrame(nsStyleContext*);
 
-  virtual nsIAtom* GetType() const;
+  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
   {
     return nsLeafFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
@@ -40,32 +41,31 @@ public:
     * Respond to a gui event
     * @see nsIFrame::HandleEvent
     */
-  NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
-                         nsGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus);
+  virtual nsresult HandleEvent(nsPresContext* aPresContext, 
+                               mozilla::WidgetGUIEvent* aEvent,
+                               nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
-  virtual nscoord GetBaseline() const;
+  virtual nscoord GetLogicalBaseline(mozilla::WritingMode aWritingMode)
+    const MOZ_OVERRIDE;
 
   /**
     * Respond to the request to resize and/or reflow
     * @see nsIFrame::Reflow
     */
-  NS_IMETHOD Reflow(nsPresContext*      aCX,
-                    nsHTMLReflowMetrics& aDesiredSize,
-                    const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&      aStatus);
+  virtual void Reflow(nsPresContext*      aCX,
+                      nsHTMLReflowMetrics& aDesiredSize,
+                      const nsHTMLReflowState& aReflowState,
+                      nsReflowStatus&      aStatus) MOZ_OVERRIDE;
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
   // new behavior
 
-  virtual void SetFocus(bool aOn = true, bool aRepaint = false);
+  virtual void SetFocus(bool aOn = true, bool aRepaint = false) MOZ_OVERRIDE;
 
   // nsIFormControlFrame
-  virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
+  virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue) MOZ_OVERRIDE;
 
-  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const; 
-  
   // AccessKey Helper function
   static nsresult RegUnRegAccessKey(nsIFrame * aFrame, bool aDoReg);
 
@@ -79,8 +79,8 @@ protected:
 
   virtual ~nsFormControlFrame();
 
-  virtual nscoord GetIntrinsicWidth();
-  virtual nscoord GetIntrinsicHeight();
+  virtual nscoord GetIntrinsicISize() MOZ_OVERRIDE;
+  virtual nscoord GetIntrinsicBSize() MOZ_OVERRIDE;
 
 //
 //-------------------------------------------------------------------------------------

@@ -58,8 +58,11 @@ function onMessageReceived(event)
   }
 }
 
-function startTest()
-{
+function startTest() {
+  SpecialPowers.pushPrefEnv({"set": [["security.mixed_content.block_display_content", false], ["security.mixed_content.block_active_content", false]]}, test1);
+}
+
+function test1() {
   shellType = "frame";
   shell = frame;
   shell.location = "http://example.org:80/tests/dom/tests/mochitest/localstorage/frameReplace.html?init&" + shellType;

@@ -12,34 +12,35 @@
 namespace mozilla {
 namespace system {
 
-VolumeServiceIOThread::VolumeServiceIOThread()
+VolumeServiceIOThread::VolumeServiceIOThread(nsVolumeService* aVolumeService)
+  : mVolumeService(aVolumeService)
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
 
   VolumeManager::RegisterStateObserver(this);
-  Volume::RegisterObserver(this);
+  Volume::RegisterVolumeObserver(this, "VolumeServiceIOThread");
   UpdateAllVolumes();
 }
 
 VolumeServiceIOThread::~VolumeServiceIOThread()
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
-  Volume::UnregisterObserver(this);
+  Volume::UnregisterVolumeObserver(this, "VolumeServiceIOThread");
   VolumeManager::UnregisterStateObserver(this);
 }
 
 void
-VolumeServiceIOThread::Notify(Volume * const &aVolume)
+VolumeServiceIOThread::Notify(Volume* const & aVolume)
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
   if (VolumeManager::State() != VolumeManager::VOLUMES_READY) {
     return;
   }
-  nsVolumeService::UpdateVolumeIOThread(aVolume);
+  mVolumeService->UpdateVolumeIOThread(aVolume);
 }
 
 void
-VolumeServiceIOThread::Notify(const VolumeManager::StateChangedEvent &aEvent)
+VolumeServiceIOThread::Notify(const VolumeManager::StateChangedEvent& aEvent)
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
   UpdateAllVolumes();
@@ -57,24 +58,24 @@ VolumeServiceIOThread::UpdateAllVolumes()
 
   for (volIndex = 0; volIndex < numVolumes; volIndex++) {
     RefPtr<Volume>  vol = VolumeManager::GetVolume(volIndex);
-    nsVolumeService::UpdateVolumeIOThread(vol);
+    mVolumeService->UpdateVolumeIOThread(vol);
   }
 }
 
-static RefPtr<VolumeServiceIOThread> sVolumeServiceIOThread;
+static StaticRefPtr<VolumeServiceIOThread> sVolumeServiceIOThread;
 
 void
-InitVolumeServiceIOThread()
+InitVolumeServiceIOThread(nsVolumeService* const & aVolumeService)
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
-  sVolumeServiceIOThread = new VolumeServiceIOThread();
+  sVolumeServiceIOThread = new VolumeServiceIOThread(aVolumeService);
 }
 
 void
 ShutdownVolumeServiceIOThread()
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
-  sVolumeServiceIOThread = NULL;
+  sVolumeServiceIOThread = nullptr;
 }
 
 } // system

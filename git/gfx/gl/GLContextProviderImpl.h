@@ -11,10 +11,9 @@
 #error GL_CONTEXT_PROVIDER_NAME not defined
 #endif
 
-class THEBES_API GL_CONTEXT_PROVIDER_NAME
+class GL_CONTEXT_PROVIDER_NAME
 {
 public:
-    typedef GLContext::ContextFlags ContextFlags;
     /**
      * Create a context that renders to the surface of the widget that is
      * passed in.  The context is always created with an RGB pixel format,
@@ -37,14 +36,13 @@ public:
      * @return Context to use for the window
      */
     static already_AddRefed<GLContext>
-    CreateForWindow(nsIWidget *aWidget);
+    CreateForWindow(nsIWidget* widget);
 
     /**
      * Create a context for offscreen rendering.  The target of this
      * context should be treated as opaque -- it might be a FBO, or a
      * pbuffer, or some other construct.  Users of this GLContext
-     * should not bind framebuffer 0 directly, and instead should bind
-     * the framebuffer returned by GetOffscreenFBO().
+     * should bind framebuffer 0 directly to use this offscreen buffer.
      *
      * The offscreen context returned by this method will always have
      * the ability to be rendered into a context created by a window.
@@ -59,15 +57,29 @@ public:
      * @return Context to use for offscreen rendering
      */
     static already_AddRefed<GLContext>
-    CreateOffscreen(const gfxIntSize& aSize,
-                    const ContextFormat& aFormat = ContextFormat::BasicRGBA32Format,
-                    const ContextFlags aFlags = GLContext::ContextFlagsNone);
+    CreateOffscreen(const gfxIntSize& size,
+                    const SurfaceCaps& caps);
+
+    // Just create a context. We'll add offscreen stuff ourselves.
+    static already_AddRefed<GLContext>
+    CreateHeadless();
+
+    /**
+     * Create wrapping Gecko GLContext for external gl context.
+     *
+     * @param aContext External context which will be wrapped by Gecko GLContext.
+     * @param aSurface External surface which is used for external context.
+     *
+     * @return Wrapping Context to use for rendering
+     */
+    static already_AddRefed<GLContext>
+    CreateWrappingExisting(void* aContext, void* aSurface);
 
     /**
      * Get a pointer to the global context, creating it if it doesn't exist.
      */
-    static GLContext *
-    GetGlobalContext( const ContextFlags aFlags = GLContext::ContextFlagsNone);
+    static GLContext*
+    GetGlobalContext();
 
     /**
      * Free any resources held by this Context Provider.

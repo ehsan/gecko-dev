@@ -20,18 +20,30 @@
 #include <hardware/gps.h> // for GpsInterface
 #include "nsCOMPtr.h"
 #include "nsIGeolocationProvider.h"
+#include "nsIObserver.h"
+#include "nsIDOMGeoPosition.h"
+#ifdef MOZ_B2G_RIL
 #include "nsIRadioInterfaceLayer.h"
-#include "nsString.h"
+#endif
+#include "nsISettingsService.h"
 
 class nsIThread;
 
+#define GONK_GPS_GEOLOCATION_PROVIDER_CID \
+{ 0x48525ec5, 0x5a7f, 0x490a, { 0x92, 0x77, 0xba, 0x66, 0xe0, 0xd2, 0x2c, 0x8b } }
+
+#define GONK_GPS_GEOLOCATION_PROVIDER_CONTRACTID \
+"@mozilla.org/gonk-gps-geolocation-provider;1"
+
 class GonkGPSGeolocationProvider : public nsIGeolocationProvider
-                                 , public nsIRILDataCallback
+                                 , public nsIObserver
+                                 , public nsISettingsServiceCallback
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIGEOLOCATIONPROVIDER
-  NS_DECL_NSIRILDATACALLBACK
+  NS_DECL_NSIOBSERVER
+  NS_DECL_NSISETTINGSSERVICECALLBACK
 
   static already_AddRefed<GonkGPSGeolocationProvider> GetSingleton();
 
@@ -41,7 +53,7 @@ private:
   GonkGPSGeolocationProvider();
   GonkGPSGeolocationProvider(const GonkGPSGeolocationProvider &);
   GonkGPSGeolocationProvider & operator = (const GonkGPSGeolocationProvider &);
-  ~GonkGPSGeolocationProvider();
+  virtual ~GonkGPSGeolocationProvider();
 
   static void LocationCallback(GpsLocation* location);
   static void StatusCallback(GpsStatus* status);
@@ -52,22 +64,32 @@ private:
   static void ReleaseWakelockCallback();
   static pthread_t CreateThreadCallback(const char* name, void (*start)(void*), void* arg);
   static void RequestUtcTimeCallback();
+#ifdef MOZ_B2G_RIL
   static void AGPSStatusCallback(AGpsStatus* status);
   static void AGPSRILSetIDCallback(uint32_t flags);
   static void AGPSRILRefLocCallback(uint32_t flags);
+#endif
 
   static GpsCallbacks mCallbacks;
+#ifdef MOZ_B2G_RIL
   static AGpsCallbacks mAGPSCallbacks;
   static AGpsRilCallbacks mAGPSRILCallbacks;
+#endif
 
   void Init();
-  void SetupAGPS();
   void StartGPS();
-  void ShutdownNow();
+  void ShutdownGPS();
+  void InjectLocation(double latitude, double longitude, float accuracy);
+  void RequestSettingValue(const char* aKey);
+#ifdef MOZ_B2G_RIL
+  void SetupAGPS();
+  int32_t GetDataConnectionState();
+  void SetAGpsDataConn(nsAString& aApn);
   void RequestDataConnection();
   void ReleaseDataConnection();
   void RequestSetID(uint32_t flags);
   void SetReferenceLocation();
+#endif
 
   const GpsInterface* GetGPSInterface();
 
@@ -76,18 +98,35 @@ private:
   bool mStarted;
 
   bool mSupportsScheduling;
+#ifdef MOZ_B2G_RIL
   bool mSupportsMSB;
   bool mSupportsMSA;
+#endif
   bool mSupportsSingleShot;
   bool mSupportsTimeInjection;
 
   const GpsInterface* mGpsInterface;
+#ifdef MOZ_B2G_RIL
   const AGpsInterface* mAGpsInterface;
   const AGpsRilInterface* mAGpsRilInterface;
+  nsCOMPtr<nsIRadioInterface> mRadioInterface;
+#endif
   nsCOMPtr<nsIGeolocationUpdate> mLocationCallback;
   nsCOMPtr<nsIThread> mInitThread;
-  nsCOMPtr<nsIRadioInterfaceLayer> mRIL;
-  nsAutoString mCid;
+  nsCOMPtr<nsIGeolocationProvider> mNetworkLocationProvider;
+  nsCOMPtr<nsIDOMGeoPosition> mLastGPSPosition;
+
+  class NetworkLocationUpdate : public nsIGeolocationUpdate
+  {
+    public:
+      NS_DECL_ISUPPORTS
+      NS_DECL_NSIGEOLOCATIONUPDATE
+
+      NetworkLocationUpdate() {}
+
+    private:
+      virtual ~NetworkLocationUpdate() {}
+  };
 };
 
 #endif /* GonkGPSGeolocationProvider_h */

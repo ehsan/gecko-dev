@@ -6,7 +6,6 @@
 #include "domstubs.idl"
 
 interface nsIVariant;
-interface nsIDOMUserDataHandler;
 
 /**
  * The nsIDOMNode interface is the primary datatype for the entire 
@@ -17,7 +16,7 @@ interface nsIDOMUserDataHandler;
  * http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html
  */
 
-[scriptable, uuid(5e9bcec9-5928-4f77-8a9c-424ef01c20e1)]
+[uuid(cc35b412-009b-46a3-9be0-76448f12548d)]
 interface nsIDOMNode : nsISupports
 {
   const unsigned short      ELEMENT_NODE       = 1;
@@ -45,7 +44,6 @@ interface nsIDOMNode : nsISupports
   readonly attribute nsIDOMNode       lastChild;
   readonly attribute nsIDOMNode       previousSibling;
   readonly attribute nsIDOMNode       nextSibling;
-  readonly attribute nsIDOMNamedNodeMap attributes;
   // Modified in DOM Level 2:
   readonly attribute nsIDOMDocument   ownerDocument;
   nsIDOMNode                insertBefore(in nsIDOMNode newChild, 
@@ -64,17 +62,15 @@ interface nsIDOMNode : nsISupports
   // Modified in DOM Level 2:
   void                      normalize();
   // Introduced in DOM Level 2:
-  boolean                   isSupported(in DOMString feature, 
-                                        in DOMString version);
-  // Introduced in DOM Level 2:
   readonly attribute DOMString        namespaceURI;
   // Modified in DOM Core
   readonly attribute DOMString        prefix;
 
   // Introduced in DOM Level 2:
   readonly attribute DOMString        localName;
-  // Introduced in DOM Level 2:
-  boolean            hasAttributes();
+
+  // For vtable compatibility (see bug 1078674)
+  [noscript] bool           unusedPlaceholder();
 
   // Introduced in DOM Level 3:
   // This uses a binaryname to avoid warnings due to name collision with
@@ -106,9 +102,8 @@ interface nsIDOMNode : nsISupports
   // Introduced in DOM Level 3:
   boolean            isEqualNode(in nsIDOMNode arg);
   // Introduced in DOM Level 3:
-  nsIVariant         setUserData(in DOMString key, 
-                                 in nsIVariant data, 
-                                 in nsIDOMUserDataHandler handler);
+  nsIVariant         setUserData(in DOMString key,
+                                 in nsIVariant data);
   // Introduced in DOM Level 3:
   nsIVariant         getUserData(in DOMString key);
 

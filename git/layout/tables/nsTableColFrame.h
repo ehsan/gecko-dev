@@ -5,9 +5,10 @@
 #ifndef nsTableColFrame_h__
 #define nsTableColFrame_h__
 
+#include "mozilla/Attributes.h"
+#include "celldata.h"
 #include "nscore.h"
 #include "nsContainerFrame.h"
-#include "nsTablePainter.h"
 #include "nsTArray.h"
 
 class nsTableCellFrame;
@@ -39,7 +40,7 @@ public:
   friend nsTableColFrame* NS_NewTableColFrame(nsIPresShell* aPresShell,
                                               nsStyleContext*  aContext);
   /** @see nsIFrame::DidSetStyleContext */
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
   
   int32_t GetColIndex() const;
   
@@ -47,30 +48,30 @@ public:
 
   nsTableColFrame* GetNextCol() const;
 
-  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
-                    nsHTMLReflowMetrics&     aDesiredSize,
-                    const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus);
+  virtual void Reflow(nsPresContext*           aPresContext,
+                      nsHTMLReflowMetrics&     aDesiredSize,
+                      const nsHTMLReflowState& aReflowState,
+                      nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
   /**
    * Table columns never paint anything, nor receive events.
    */
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) { return NS_OK; }
+  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
 
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::tableColFrame
    */
-  virtual nsIAtom* GetType() const;
+  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
   
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const;
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
-  virtual nsSplittableType GetSplittableType() const;
+  virtual nsSplittableType GetSplittableType() const MOZ_OVERRIDE;
 
   /** return the number of the columns the col represents.  always >= 1 */
   int32_t GetSpan();
@@ -263,9 +264,18 @@ public:
     return mFinalWidth;
   }
 
+  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  {
+    return nsSplittableFrame::IsFrameOfType(aFlags & ~(nsIFrame::eTablePart));
+  }
+  
+  virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
+  virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
+  virtual void InvalidateFrameForRemoval() MOZ_OVERRIDE { InvalidateFrameSubtree(); }
+
 protected:
 
-  nsTableColFrame(nsStyleContext* aContext);
+  explicit nsTableColFrame(nsStyleContext* aContext);
   ~nsTableColFrame();
 
   nscoord mMinCoord;
@@ -276,14 +286,14 @@ protected:
   float mSpanPrefPercent; // XXX...
   // ...XXX the four members marked above could be allocated as part of
   // a separate array allocated only during
-  // BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths (and only
+  // BasicTableLayoutStrategy::ComputeColumnIntrinsicISizes (and only
   // when colspans were present).
   nscoord mFinalWidth;
 
-  // the index of the column with respect to the whole tabble (starting at 0) 
+  // the index of the column with respect to the whole table (starting at 0) 
   // it should never be smaller then the start column index of the parent 
   // colgroup
-  uint32_t mColIndex:        16;
+  uint32_t mColIndex;
   
   // border width in pixels of the inner half of the border only
   BCPixelSize mLeftBorderWidth;

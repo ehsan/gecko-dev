@@ -23,6 +23,8 @@
 #include "nsIScreenManager.h"
 #include "OrientationObserver.h"
 #include "mozilla/HalSensor.h"
+#include "ProcessOrientation.h"
+#include "nsServiceManagerUtils.h"
 
 using namespace mozilla;
 using namespace dom;
@@ -37,13 +39,11 @@ struct OrientationMapping {
 static OrientationMapping sOrientationMappings[] = {
   {nsIScreen::ROTATION_0_DEG,   eScreenOrientation_PortraitPrimary},
   {nsIScreen::ROTATION_180_DEG, eScreenOrientation_PortraitSecondary},
-  {nsIScreen::ROTATION_0_DEG,   eScreenOrientation_Portrait},
   {nsIScreen::ROTATION_90_DEG,  eScreenOrientation_LandscapePrimary},
   {nsIScreen::ROTATION_270_DEG, eScreenOrientation_LandscapeSecondary},
-  {nsIScreen::ROTATION_90_DEG,  eScreenOrientation_Landscape}
 };
 
-const static int sDefaultLandscape = 3;
+const static int sDefaultLandscape = 2;
 const static int sDefaultPortrait = 0;
 
 static uint32_t sOrientationOffset = 0;
@@ -109,7 +109,7 @@ static nsresult
 ConvertToScreenRotation(ScreenOrientation aOrientation, uint32_t *aResult)
 {
   for (int i = 0; i < ArrayLength(sOrientationMappings); i++) {
-    if (aOrientation == sOrientationMappings[i].mDomOrientation) {
+    if (aOrientation & sOrientationMappings[i].mDomOrientation) {
       // Shift the mappings in sOrientationMappings so devices with default
       // landscape orientation map landscape-primary to 0 degree and so forth.
       int adjusted = (i + sOrientationOffset) %
@@ -168,8 +168,8 @@ OrientationObserver::GetInstance()
 
 OrientationObserver::OrientationObserver()
   : mAutoOrientationEnabled(false)
-  , mLastUpdate(0)
   , mAllowedOrientations(sDefaultOrientations)
+  , mOrientation(new mozilla::ProcessOrientation())
 {
   DetectDefaultOrientation();
 
@@ -200,27 +200,7 @@ OrientationObserver::Notify(const hal::SensorData& aSensorData)
 {
   // Sensor will call us on the main thread.
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aSensorData.sensor() == hal::SensorType::SENSOR_ORIENTATION);
-
-  InfallibleTArray<float> values = aSensorData.values();
-  // Azimuth (values[0]): the device's horizontal orientation
-  // (0 degree is north). It's unused for screen rotation.
-  float pitch = values[1];
-  float roll = values[2];
-
-  uint32_t rotation;
-  if (roll > 45) {
-    rotation = nsIScreen::ROTATION_90_DEG;
-  } else if (roll < -45) {
-    rotation = nsIScreen::ROTATION_270_DEG;
-  } else if (pitch < -45) {
-    rotation = nsIScreen::ROTATION_0_DEG;
-  } else if (pitch > 45) {
-    rotation = nsIScreen::ROTATION_180_DEG;
-  } else {
-    // Don't rotate if neither pitch nor roll exceeds the 45 degree threshold.
-    return;
-  }
+  MOZ_ASSERT(aSensorData.sensor() == hal::SensorType::SENSOR_ACCELERATION);
 
   nsCOMPtr<nsIScreen> screen = GetPrimaryScreen();
   if (!screen) {
@@ -228,8 +208,12 @@ OrientationObserver::Notify(const hal::SensorData& aSensorData)
   }
 
   uint32_t currRotation;
-  if (NS_FAILED(screen->GetRotation(&currRotation)) ||
-      rotation == currRotation) {
+  if(NS_FAILED(screen->GetRotation(&currRotation))) {
+    return;
+  }
+
+  int rotation = mOrientation->OnSensorChanged(aSensorData, static_cast<int>(currRotation));
+  if (rotation < 0 || rotation == currRotation) {
     return;
   }
 
@@ -243,14 +227,7 @@ OrientationObserver::Notify(const hal::SensorData& aSensorData)
     return;
   }
 
-  PRTime now = PR_Now();
-  MOZ_ASSERT(now > mLastUpdate);
-  if (now - mLastUpdate < sMinUpdateInterval) {
-    return;
-  }
-  mLastUpdate = now;
-
-  if (NS_FAILED(screen->SetRotation(rotation))) {
+  if (NS_FAILED(screen->SetRotation(static_cast<uint32_t>(rotation)))) {
     // Don't notify dom on rotation failure.
     return;
   }
@@ -264,7 +241,8 @@ OrientationObserver::EnableAutoOrientation()
 {
   MOZ_ASSERT(NS_IsMainThread() && !mAutoOrientationEnabled);
 
-  hal::RegisterSensorObserver(hal::SENSOR_ORIENTATION, this);
+  mOrientation->Reset();
+  hal::RegisterSensorObserver(hal::SENSOR_ACCELERATION, this);
   mAutoOrientationEnabled = true;
 }
 
@@ -276,20 +254,31 @@ OrientationObserver::DisableAutoOrientation()
 {
   MOZ_ASSERT(NS_IsMainThread() && mAutoOrientationEnabled);
 
-  hal::UnregisterSensorObserver(hal::SENSOR_ORIENTATION, this);
+  hal::UnregisterSensorObserver(hal::SENSOR_ACCELERATION, this);
   mAutoOrientationEnabled = false;
 }
 
 bool
 OrientationObserver::LockScreenOrientation(ScreenOrientation aOrientation)
 {
-  MOZ_ASSERT(eScreenOrientation_None < aOrientation &&
-             aOrientation < eScreenOrientation_EndGuard);
+  MOZ_ASSERT(aOrientation | (eScreenOrientation_PortraitPrimary |
+                             eScreenOrientation_PortraitSecondary |
+                             eScreenOrientation_LandscapePrimary |
+                             eScreenOrientation_LandscapeSecondary |
+                             eScreenOrientation_Default));
 
-  // Enable/disable the observer depending on 1. multiple orientations
-  // allowed, and 2. observer enabled.
-  if (aOrientation == eScreenOrientation_Landscape ||
-      aOrientation == eScreenOrientation_Portrait) {
+  if (aOrientation == eScreenOrientation_Default) {
+    aOrientation = (sOrientationOffset == sDefaultPortrait) ?
+                    eScreenOrientation_PortraitPrimary :
+                    eScreenOrientation_LandscapePrimary;
+  }
+
+  // If there are multiple orientations allowed, we should enable the
+  // auto-rotation.
+  if (aOrientation != eScreenOrientation_LandscapePrimary &&
+      aOrientation != eScreenOrientation_LandscapeSecondary &&
+      aOrientation != eScreenOrientation_PortraitPrimary &&
+      aOrientation != eScreenOrientation_PortraitSecondary) {
     if (!mAutoOrientationEnabled) {
       EnableAutoOrientation();
     }

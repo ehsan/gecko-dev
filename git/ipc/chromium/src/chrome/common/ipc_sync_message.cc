@@ -15,14 +15,12 @@
 
 namespace IPC {
 
-uint32 SyncMessage::next_id_ = 0;
+uint32_t SyncMessage::next_id_ = 0;
 #define kSyncMessageHeaderSize 4
 
-base::WaitableEvent* dummy_event = new base::WaitableEvent(true, true);
-
 SyncMessage::SyncMessage(
-    int32 routing_id,
-    uint16 type,
+    int32_t routing_id,
+    uint16_t type,
     PriorityValue priority,
     MessageReplyDeserializer* deserializer)
     : Message(routing_id, type, priority),
@@ -46,6 +44,7 @@ MessageReplyDeserializer* SyncMessage::GetReplyDeserializer() {
 }
 
 void SyncMessage::EnableMessagePumping() {
+  static base::WaitableEvent* dummy_event = new base::WaitableEvent(true, true);
   DCHECK(!pump_messages_event_);
   set_pump_messages_event(dummy_event);
 }

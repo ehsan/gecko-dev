@@ -10,8 +10,6 @@
 #include "nsSimpleNestedURI.h"
 #include "mozilla/Attributes.h"
 
-class nsCString;
-class nsIAboutModule;
 class nsIURI;
 
 class nsAboutProtocolHandler : public nsIProtocolHandler
@@ -24,6 +22,8 @@ public:
 
     // nsAboutProtocolHandler methods:
     nsAboutProtocolHandler() {}
+
+private:
     virtual ~nsAboutProtocolHandler() {}
 };
 

@@ -6,14 +6,13 @@
 #ifndef GFX_LAYERMANAGERD3D10_H
 #define GFX_LAYERMANAGERD3D10_H
 
-#include "mozilla/layers/PLayers.h"
-#include "mozilla/layers/ShadowLayers.h"
 #include "Layers.h"
 
 #include <windows.h>
 #include <d3d10_1.h>
 
 #include "gfxContext.h"
+#include "mozilla/gfx/UserData.h"
 #include "nsIWidget.h"
 
 #include "ReadbackManagerD3D10.h"
@@ -42,18 +41,18 @@ struct ShaderConstantRectD3D10
   operator float* () { return &mX; }
 };
 
-extern cairo_user_data_key_t gKeyD3D10Texture;
-
 /*
  * This is the LayerManager used for Direct3D 10. For now this will
  * render on the main thread.
  *
- * For the time being, LayerManagerD3D10 both forwards layers
- * transactions and receives forwarded transactions.  In the Azure
- * future, it will only be a ShadowLayerManager.
+ * For the time being, LayerManagerD3D10 forwards layers
+ * transactions.
  */
-class THEBES_API LayerManagerD3D10 : public ShadowLayerManager,
-                                     public ShadowLayerForwarder {
+class LayerManagerD3D10 : public LayerManager {
+  typedef mozilla::gfx::DrawTarget DrawTarget;
+  typedef mozilla::gfx::IntSize IntSize;
+  typedef mozilla::gfx::SurfaceFormat SurfaceFormat;
+
 public:
   LayerManagerD3D10(nsIWidget *aWidget);
   virtual ~LayerManagerD3D10();
@@ -64,20 +63,14 @@ public:
    * to draw to the window. If this method fails the device cannot be used.
    * This function is not threadsafe.
    *
-   * \return True is initialization was succesful, false when it was not.
+   * return True is initialization was succesful, false when it was not.
    */
-  bool Initialize(bool force = false);
+  bool Initialize(bool force = false, HRESULT* aHresultPtr = nullptr);
 
   /*
    * LayerManager implementation.
    */
   virtual void Destroy();
-
-  virtual ShadowLayerForwarder* AsShadowForwarder()
-  { return this; }
-
-  virtual ShadowLayerManager* AsShadowManager()
-  { return this; }
 
   virtual void SetRoot(Layer *aLayer);
 
@@ -88,11 +81,11 @@ public:
   virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT);
 
   struct CallbackInfo {
-    DrawThebesLayerCallback Callback;
+    DrawPaintedLayerCallback Callback;
     void *CallbackData;
   };
 
-  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
+  virtual void EndTransaction(DrawPaintedLayerCallback aCallback,
                               void* aCallbackData,
                               EndTransactionFlags aFlags = END_DEFAULT);
 
@@ -102,9 +95,9 @@ public:
   enum {
     MAX_TEXTURE_SIZE = 8192
   };
-  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize)
+  virtual bool CanUseCanvasLayerForSize(const gfx::IntSize &aSize)
   {
-    return aSize <= gfxIntSize(MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE);
+    return aSize <= gfx::IntSize(MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE);
   }
 
   virtual int32_t GetMaxTextureSize() const
@@ -112,43 +105,28 @@ public:
     return MAX_TEXTURE_SIZE;
   }
 
-  virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
-  virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer();
-
+  virtual already_AddRefed<PaintedLayer> CreatePaintedLayer();
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
-  virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer();
-
   virtual already_AddRefed<ImageLayer> CreateImageLayer();
-  virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer()
-  { return nullptr; }
-
   virtual already_AddRefed<ColorLayer> CreateColorLayer();
-  virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer()
-  { return nullptr; }
-
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
-  virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer()
-  { return nullptr; }
-
   virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer();
 
-  virtual already_AddRefed<gfxASurface>
-    CreateOptimalSurface(const gfxIntSize &aSize,
-                         gfxASurface::gfxImageFormat imageFormat);
+  virtual TemporaryRef<DrawTarget>
+    CreateOptimalDrawTarget(const IntSize &aSize,
+                            SurfaceFormat aSurfaceFormat);
 
-  virtual already_AddRefed<gfxASurface>
-    CreateOptimalMaskSurface(const gfxIntSize &aSize);
+  virtual TemporaryRef<DrawTarget>
+    CreateOptimalMaskDrawTarget(const IntSize &aSize);
 
   virtual TemporaryRef<mozilla::gfx::DrawTarget>
-    CreateDrawTarget(const mozilla::gfx::IntSize &aSize,
+    CreateDrawTarget(const gfx::IntSize &aSize,
                      mozilla::gfx::SurfaceFormat aFormat);
 
-  virtual LayersBackend GetBackendType() { return LAYERS_D3D10; }
+  virtual LayersBackend GetBackendType() { return LayersBackend::LAYERS_D3D10; }
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Direct3D 10"); }
 
-#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const { return "D3D10"; }
-#endif // MOZ_LAYERS_HAVE_LOG
 
   // Public helpers
 
@@ -193,6 +171,8 @@ private:
 
   nsIWidget *mWidget;
 
+  bool mDisableSequenceForNextFrame;
+
   CallbackInfo mCurrentCallbackInfo;
 
   nsIntSize mViewport;
@@ -201,31 +181,9 @@ private:
   nsAutoPtr<Nv3DVUtils> mNv3DVUtils; 
 
   /*
-   * Context target, NULL when drawing directly to our swap chain.
+   * Context target, nullptr when drawing directly to our swap chain.
    */
   nsRefPtr<gfxContext> mTarget;
-
-  /*
-   * We use a double-buffered "window surface" to display our content
-   * in the compositor process, if we're remote.  The textures act
-   * like the backing store for an OS window --- we render the layer
-   * tree into the back texture and send it to the compositor, then
-   * swap back/front textures.  This means, obviously, that we've lost
-   * all layer tree information after rendering.
-   *
-   * The remote front buffer is the texture currently being displayed
-   * by chrome.  We keep a reference to it to simplify resource
-   * management; if we didn't, then there can be periods during IPC
-   * transport when neither process holds a "real" ref.  That's
-   * solvable but not worth the complexity.
-   */
-  nsRefPtr<ID3D10Texture2D> mBackBuffer;
-  nsRefPtr<ID3D10Texture2D> mRemoteFrontBuffer;
-  /*
-   * If we're remote content, this is the root of the shadowable tree
-   * we send to the compositor.
-   */
-  nsRefPtr<DummyRoot> mRootForShadowTree;
 
   /*
    * Copies the content of our backbuffer to the set transaction target.
@@ -275,7 +233,7 @@ public:
    * Any layer that can be used as a mask layer should override this method.
    * If aSize is non-null, it will contain the size of the texture.
    */
-  virtual already_AddRefed<ID3D10ShaderResourceView> GetAsTexture(gfxIntSize* aSize)
+  virtual already_AddRefed<ID3D10ShaderResourceView> GetAsTexture(gfx::IntSize* aSize)
   {
     return nullptr;
   }
@@ -283,8 +241,8 @@ public:
   void SetEffectTransformAndOpacity()
   {
     Layer* layer = GetLayer();
-    const gfx3DMatrix& transform = layer->GetEffectiveTransform();
-    void* raw = &const_cast<gfx3DMatrix&>(transform)._11;
+    const gfx::Matrix4x4& transform = layer->GetEffectiveTransform();
+    void* raw = &const_cast<gfx::Matrix4x4&>(transform)._11;
     effect()->GetVariableByName("mLayerTransform")->SetRawValue(raw, 0, 64);
     effect()->GetVariableByName("fLayerOpacity")->AsScalar()->SetFloat(layer->GetEffectiveOpacity());
   }
@@ -322,45 +280,6 @@ protected:
   const static uint8_t SHADER_SOLID = 0x28;
 
   LayerManagerD3D10 *mD3DManager;
-};
-
-/**
- * WindowLayer is a simple, special kinds of shadowable layer into
- * which layer trees are rendered.  It represents something like an OS
- * window.  It exists only to allow sharing textures with the
- * compositor while reusing existing shadow-layer machinery.
- *
- * WindowLayer being implemented as a thebes layer isn't an important
- * detail; other layer types could have been used.
- */
-class WindowLayer : public ThebesLayer, public ShadowableLayer {
-public:
-  WindowLayer(LayerManagerD3D10* aManager);
-  virtual ~WindowLayer();
-
-  void InvalidateRegion(const nsIntRegion&) {}
-  Layer* AsLayer() { return this; }
-
-  void SetShadow(PLayerChild* aChild) { mShadow = aChild; }
-};
-
-/**
- * DummyRoot is the root of the shadowable layer tree created by
- * remote content.  It exists only to contain WindowLayers.  It always
- * has exactly one child WindowLayer.
- */
-class DummyRoot : public ContainerLayer, public ShadowableLayer {
-public:
-  DummyRoot(LayerManagerD3D10* aManager);
-  virtual ~DummyRoot();
-
-  void ComputeEffectiveTransforms(const gfx3DMatrix&) {}
-  void InsertAfter(Layer*, Layer*);
-  void RemoveChild(Layer*);
-  void RepositionChild(Layer*, Layer*);
-  Layer* AsLayer() { return this; }
-
-  void SetShadow(PLayerChild* aChild) { mShadow = aChild; }
 };
 
 } /* layers */

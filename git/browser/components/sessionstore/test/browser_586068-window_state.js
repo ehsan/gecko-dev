@@ -4,11 +4,11 @@
 
 const PREF_RESTORE_ON_DEMAND = "browser.sessionstore.restore_on_demand";
 
-let stateBackup = ss.getBrowserState();
-
 function test() {
-  waitForExplicitFinish();
+  TestRunner.run();
+}
 
+function runTests() {
   Services.prefs.setBoolPref(PREF_RESTORE_ON_DEMAND, false);
   registerCleanupFunction(function () {
     Services.prefs.clearUserPref(PREF_RESTORE_ON_DEMAND);
@@ -46,17 +46,11 @@ function test() {
     // We don't actually care about load order in this test, just that they all
     // do load.
     is(loadCount, numTabs, "test_setWindowStateNoOverwrite: all tabs were restored");
-    // window.__SS_tabsToRestore isn't decremented until after the progress
-    // listener is called. Since we get in here before that, we still expect
-    // the count to be 1.
-    is(window.__SS_tabsToRestore, 1, "window doesn't think there are more tabs to restore");
     is(aNeedRestore, 0, "there are no tabs left needing restore");
 
     gProgressListener.unsetCallback();
-    executeSoon(function () {
-      waitForBrowserState(JSON.parse(stateBackup), finish);
-    });
+    executeSoon(next);
   });
 
-  ss.setWindowState(window, JSON.stringify(state1), true);
+  yield ss.setWindowState(window, JSON.stringify(state1), true);
 }

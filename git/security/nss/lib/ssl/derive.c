@@ -1,48 +1,17 @@
 /*
  * Key Derivation that doesn't use PKCS11
  *
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2005
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
-/* $Id: derive.c,v 1.13.2.2 2012/04/20 00:37:53 emaldona%redhat.com Exp $ */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ssl.h" 	/* prereq to sslimpl.h */
 #include "certt.h"	/* prereq to sslimpl.h */
 #include "keythi.h"	/* prereq to sslimpl.h */
 #include "sslimpl.h"
+#ifndef NO_PKCS11_BYPASS
 #include "blapi.h"
+#endif
 
 #include "keyhi.h"
 #include "pk11func.h"
@@ -53,6 +22,7 @@
 #include "sslproto.h"
 #include "sslerr.h"
 
+#ifndef NO_PKCS11_BYPASS
 /* make this a macro! */
 #ifdef NOT_A_MACRO
 static void
@@ -111,9 +81,11 @@ ssl3_KeyAndMacDeriveBypass(
     unsigned int    effKeySize;		/* effective size of cipher keys */
     unsigned int    macSize;		/* size of MAC secret */
     unsigned int    IVSize;		/* size of IV */
+    PRBool          explicitIV = PR_FALSE;
     SECStatus       rv    = SECFailure;
     SECStatus       status = SECSuccess;
     PRBool          isFIPS = PR_FALSE;
+    PRBool          isTLS12 = pwSpec->version >= SSL_LIBRARY_VERSION_TLS_1_2;
 
     SECItem         srcr;
     SECItem         crsr;
@@ -145,7 +117,13 @@ ssl3_KeyAndMacDeriveBypass(
     if (keySize == 0) {
 	effKeySize = IVSize = 0; /* only MACing */
     }
-    block_needed = 2 * (macSize + effKeySize + ((!isExport) * IVSize));
+    if (cipher_def->type == type_block &&
+	pwSpec->version >= SSL_LIBRARY_VERSION_TLS_1_1) {
+	/* Block ciphers in >= TLS 1.1 use a per-record, explicit IV. */
+	explicitIV = PR_TRUE;
+    }
+    block_needed =
+	2 * (macSize + effKeySize + ((!isExport && !explicitIV) * IVSize));
 
     /*
      * clear out our returned keys so we can recover on failure
@@ -180,8 +158,13 @@ ssl3_KeyAndMacDeriveBypass(
 	keyblk.data = key_block;
 	keyblk.len  = block_needed;
 
-	status = TLS_PRF(&pwSpec->msItem, "key expansion", &srcr, &keyblk,
-			  isFIPS);
+	if (isTLS12) {
+	    status = TLS_P_hash(HASH_AlgSHA256, &pwSpec->msItem,
+				"key expansion", &srcr, &keyblk, isFIPS);
+	} else {
+	    status = TLS_PRF(&pwSpec->msItem, "key expansion", &srcr, &keyblk,
+			     isFIPS);
+	}
 	if (status != SECSuccess) {
 	    goto key_and_mac_derive_fail;
 	}
@@ -269,22 +252,34 @@ ssl3_KeyAndMacDeriveBypass(
 	i += keySize;
 
 	if (IVSize > 0) {
-	    /* 
-	    ** client_write_IV[CipherSpec.IV_size]
-	    */
-	    buildSSLKey(&key_block[i], IVSize, &pwSpec->client.write_iv_item, \
-	                "Domestic Client Write IV");
-	    i += IVSize;
+	    if (explicitIV) {
+		static unsigned char zero_block[32];
+		PORT_Assert(IVSize <= sizeof zero_block);
+		buildSSLKey(&zero_block[0], IVSize, \
+			    &pwSpec->client.write_iv_item, \
+			    "Domestic Client Write IV");
+		buildSSLKey(&zero_block[0], IVSize, \
+			    &pwSpec->server.write_iv_item, \
+			    "Domestic Server Write IV");
+	    } else {
+		/* 
+		** client_write_IV[CipherSpec.IV_size]
+		*/
+		buildSSLKey(&key_block[i], IVSize, \
+			    &pwSpec->client.write_iv_item, \
+			    "Domestic Client Write IV");
+		i += IVSize;
 
-	    /* 
-	    ** server_write_IV[CipherSpec.IV_size]
-	    */
-	    buildSSLKey(&key_block[i], IVSize, &pwSpec->server.write_iv_item, \
-	                "Domestic Server Write IV");
-	    i += IVSize;
+		/* 
+		** server_write_IV[CipherSpec.IV_size]
+		*/
+		buildSSLKey(&key_block[i], IVSize, \
+			    &pwSpec->server.write_iv_item, \
+			    "Domestic Server Write IV");
+		i += IVSize;
+	    }
 	}
 	PORT_Assert(i <= block_bytes);
-
     } else if (!isTLS) { 
 	/*
 	** Generate SSL3 Export write keys and IVs.
@@ -447,6 +442,7 @@ ssl3_MasterKeyDeriveBypass(
     unsigned char * key_block    = pwSpec->key_block;
     SECStatus       rv    = SECSuccess;
     PRBool          isFIPS = PR_FALSE;
+    PRBool          isTLS12 = pwSpec->version >= SSL_LIBRARY_VERSION_TLS_1_2;
 
     SECItem         crsr;
 
@@ -482,7 +478,12 @@ ssl3_MasterKeyDeriveBypass(
 	master.data = key_block;
 	master.len = SSL3_MASTER_SECRET_LENGTH;
 
-	rv = TLS_PRF(pms, "master secret", &crsr, &master, isFIPS);
+	if (isTLS12) {
+	    rv = TLS_P_hash(HASH_AlgSHA256, pms, "master secret", &crsr,
+			    &master, isFIPS);
+	} else {
+	    rv = TLS_PRF(pms, "master secret", &crsr, &master, isFIPS);
+	}
 	if (rv != SECSuccess) {
 	    PORT_SetError(SSL_ERROR_SESSION_KEY_GEN_FAILURE);
 	}
@@ -570,6 +571,7 @@ ssl_canExtractMS(PK11SymKey *pms, PRBool isTLS, PRBool isDH, PRBool *pcbp)
     return(rv);
 
 }
+#endif  /* !NO_PKCS11_BYPASS */
 
 /* Check the key exchange algorithm for each cipher in the list to see if
  * a master secret key can be extracted. If the KEA will use keys from the 
@@ -583,11 +585,22 @@ ssl_canExtractMS(PK11SymKey *pms, PRBool isTLS, PRBool isDH, PRBool *pcbp)
  * arguments were all valid but the slot cannot be bypassed.
  */
 
+/* XXX Add SSL_CBP_TLS1_1 and test it in protocolmask when setting isTLS. */
+
 SECStatus 
 SSL_CanBypass(CERTCertificate *cert, SECKEYPrivateKey *srvPrivkey,
 	      PRUint32 protocolmask, PRUint16 *ciphersuites, int nsuites,
               PRBool *pcanbypass, void *pwArg)
-{   SECStatus	      rv;
+{
+#ifdef NO_PKCS11_BYPASS
+    if (!pcanbypass) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
+    }
+    *pcanbypass = PR_FALSE;
+    return SECSuccess;
+#else
+    SECStatus	      rv;
     int		      i;
     PRUint16	      suite;
     PK11SymKey *      pms = NULL;
@@ -604,7 +617,7 @@ SSL_CanBypass(CERTCertificate *cert, SECKEYPrivateKey *srvPrivkey,
     PRBool	      testrsa_export = PR_FALSE;
     PRBool	      testecdh = PR_FALSE;
     PRBool	      testecdhe = PR_FALSE;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     SECKEYECParams ecParams = { siBuffer, NULL, 0 };
 #endif
 
@@ -621,7 +634,7 @@ SSL_CanBypass(CERTCertificate *cert, SECKEYPrivateKey *srvPrivkey,
     rv = SECFailure;
     
     /* determine which KEAs to test */
-    /* 0 (SSL_NULL_WITH_NULL_NULL) is used as a list terminator because
+    /* 0 (TLS_NULL_WITH_NULL_NULL) is used as a list terminator because
      * SSL3 and TLS specs forbid negotiating that cipher suite number.
      */
     for (i=0; i < nsuites && (suite = *ciphersuites++) != 0; i++) {
@@ -634,8 +647,8 @@ SSL_CanBypass(CERTCertificate *cert, SECKEYPrivateKey *srvPrivkey,
 	    switch (csdef.cipherSuite) {
 	    case TLS_RSA_EXPORT1024_WITH_RC4_56_SHA:
 	    case TLS_RSA_EXPORT1024_WITH_DES_CBC_SHA:
-	    case SSL_RSA_EXPORT_WITH_RC4_40_MD5:
-	    case SSL_RSA_EXPORT_WITH_RC2_CBC_40_MD5:
+	    case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
+	    case TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5:
 		testrsa_export = PR_TRUE;
 	    }
 	    if (!testrsa_export)
@@ -742,7 +755,7 @@ SSL_CanBypass(CERTCertificate *cert, SECKEYPrivateKey *srvPrivkey,
 	if (enc_pms.data != NULL) {
 	    SECITEM_FreeItem(&enc_pms, PR_FALSE);
         }
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
 	for (; (privKeytype == ecKey && ( testecdh || testecdhe)) ||
 	       (privKeytype == rsaKey && testecdhe); ) {
 	    CK_MECHANISM_TYPE target;
@@ -781,8 +794,9 @@ SSL_CanBypass(CERTCertificate *cert, SECKEYPrivateKey *srvPrivkey,
 		     requiredECCbits = signatureKeyStrength;
 
 		ec_curve =
-		    ssl3_GetCurveWithECKeyStrength(SSL3_SUPPORTED_CURVES_MASK,
-						   requiredECCbits);
+		    ssl3_GetCurveWithECKeyStrength(
+					ssl3_GetSupportedECCurveMask(NULL),
+				  	requiredECCbits);
 		rv = ssl3_ECName2Params(NULL, ec_curve, &ecParams);
 		if (rv == SECFailure) {
 		    break;
@@ -845,7 +859,7 @@ SSL_CanBypass(CERTCertificate *cert, SECKEYPrivateKey *srvPrivkey,
 	    PORT_Free(ecParams.data);
 	    ecParams.data = NULL;
 	}
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 	if (pms)
 	    PK11_FreeSymKey(pms);
     }
@@ -863,12 +877,12 @@ SSL_CanBypass(CERTCertificate *cert, SECKEYPrivateKey *srvPrivkey,
     if (enc_pms.data != NULL) {
     	SECITEM_FreeItem(&enc_pms, PR_FALSE);
     }
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     if (ecParams.data != NULL) {
         PORT_Free(ecParams.data);
         ecParams.data = NULL;
     }
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 
     if (srvPubkey) {
     	SECKEY_DestroyPublicKey(srvPubkey);
@@ -877,5 +891,6 @@ SSL_CanBypass(CERTCertificate *cert, SECKEYPrivateKey *srvPrivkey,
 
 
     return rv;
+#endif /* NO_PKCS11_BYPASS */
 }
 

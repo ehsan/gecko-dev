@@ -37,8 +37,6 @@
 #include <errno.h>
 #include <dlfcn.h>
 
-#include "mozilla/mozalloc_undef_macro_wrappers.h"
-
 // Must define before including jprof.h
 void *moz_xmalloc(size_t size)
 {
@@ -173,7 +171,7 @@ static void DumpAddressMap()
   if (mfd >= 0) {
     malloc_map_entry mme;
     link_map* map = _r_debug.r_map;
-    while (NULL != map) {
+    while (nullptr != map) {
       if (map->l_name && *map->l_name) {
 	mme.nameLen = strlen(map->l_name);
 	mme.address = map->l_addr;
@@ -441,13 +439,13 @@ static void startSignalCounter(unsigned long millisec)
     tvalue.it_value.tv_usec = (millisec%1000)*1000;
 
     if (realTime) {
-	setitimer(ITIMER_REAL, &tvalue, NULL);
+        setitimer(ITIMER_REAL, &tvalue, nullptr);
     } else {
-    	setitimer(ITIMER_PROF, &tvalue, NULL);
+        setitimer(ITIMER_PROF, &tvalue, nullptr);
     }
 }
 
-static long timerMiliSec = 50;
+static long timerMilliSec = 50;
 
 #if defined(linux)
 static int setupRTCSignals(int hz, struct sigaction *sap)
@@ -458,7 +456,7 @@ static int setupRTCSignals(int hz, struct sigaction *sap)
         return 0;
     }
 
-    if (sigaction(SIGIO, sap, NULL) == -1) {
+    if (sigaction(SIGIO, sap, nullptr) == -1) {
         perror("JPROF_RTC setup: sigaction(SIGIO)");
         return 0;
     }
@@ -569,7 +567,7 @@ void *ucontext)
 #endif
 
     if (!rtcHz)
-        startSignalCounter(timerMiliSec);
+        startSignalCounter(timerMilliSec);
 }
 
 NS_EXPORT_(void) setupProfilingStuff(void)
@@ -619,14 +617,14 @@ NS_EXPORT_(void) setupProfilingStuff(void)
 
 	    char *delay = strstr(tst,"JP_PERIOD=");
 	    if(delay) {
-                double tmp = strtod(delay+strlen("JP_PERIOD="), NULL);
+                double tmp = strtod(delay+strlen("JP_PERIOD="), nullptr);
                 if (tmp>=1e-3) {
-		    timerMiliSec = static_cast<unsigned long>(1000 * tmp);
+		    timerMilliSec = static_cast<unsigned long>(1000 * tmp);
                 } else {
                     fprintf(stderr,
                             "JP_PERIOD of %g less than 0.001 (1ms), using 1ms\n",
                             tmp);
-                    timerMiliSec = 1;
+                    timerMilliSec = 1;
                 }
 	    }
 
@@ -653,7 +651,7 @@ NS_EXPORT_(void) setupProfilingStuff(void)
             if (rtc) {
 #if defined(linux)
                 rtcHz = atol(rtc+strlen("JP_RTC_HZ="));
-                timerMiliSec = 0; /* This makes JP_FIRST work right. */
+                timerMilliSec = 0; /* This makes JP_FIRST work right. */
                 realTime = 1; /* It's the _R_TC and all.  ;) */
 
 #define IS_POWER_OF_TWO(x) (((x) & ((x) - 1)) == 0)
@@ -710,7 +708,7 @@ NS_EXPORT_(void) setupProfilingStuff(void)
                     // FIX!  probably should block these against each other
                     // Very unlikely.
 		    sigemptyset(&mset);
-		    action.sa_handler = NULL;
+		    action.sa_handler = nullptr;
 		    action.sa_sigaction = StackHook;
 		    action.sa_mask  = mset;
 		    action.sa_flags = SA_RESTART | SA_SIGINFO;
@@ -727,11 +725,11 @@ NS_EXPORT_(void) setupProfilingStuff(void)
 #endif
                     {
                         if (realTime) {
-                            sigaction(SIGALRM, &action, NULL);
+                            sigaction(SIGALRM, &action, nullptr);
                         }
                     }
                     // enable PROF in all cases to simplify JP_DEFER/pause/restart
-                    sigaction(SIGPROF, &action, NULL);
+                    sigaction(SIGPROF, &action, nullptr);
 
 		    // make it so a SIGUSR1 will stop the profiling
 		    // Note:  It currently does not close the logfile.
@@ -742,19 +740,19 @@ NS_EXPORT_(void) setupProfilingStuff(void)
 		    stop_action.sa_handler = EndProfilingHook;
 		    stop_action.sa_mask  = mset;
 		    stop_action.sa_flags = SA_RESTART;
-		    sigaction(SIGUSR1, &stop_action, NULL);
+		    sigaction(SIGUSR1, &stop_action, nullptr);
 
 		    // make it so a SIGUSR2 will clear the circular buffer
 
 		    stop_action.sa_handler = ClearProfilingHook;
 		    stop_action.sa_mask  = mset;
 		    stop_action.sa_flags = SA_RESTART;
-		    sigaction(SIGUSR2, &stop_action, NULL);
+		    sigaction(SIGUSR2, &stop_action, nullptr);
 
                     printf("Jprof: Initialized signal handler and set "
                            "timer for %lu %s, %d s "
                            "initial delay\n",
-                           rtcHz ? rtcHz : timerMiliSec, 
+                           rtcHz ? rtcHz : timerMilliSec, 
                            rtcHz ? "Hz" : "ms",
                            firstDelay);
 
@@ -771,7 +769,7 @@ NS_EXPORT_(void) setupProfilingStuff(void)
 #endif
                         {
                             puts("Jprof: started timer");
-                            startSignalCounter(firstDelay*1000 + timerMiliSec);
+                            startSignalCounter(firstDelay*1000 + timerMilliSec);
                         }
 		    }
 		}

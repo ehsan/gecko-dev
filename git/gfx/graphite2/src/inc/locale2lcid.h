@@ -28,6 +28,9 @@ of the License or (at your option) any later version.
 #include <cstring>
 #include <cassert>
 
+#include "inc/Main.h"
+
+
 namespace graphite2 {
 
 struct IsoLangEntry
@@ -250,6 +253,9 @@ const IsoLangEntry LANG_ENTRIES[] = {
 
 class Locale2Lang
 {
+    Locale2Lang(const Locale2Lang &);
+    Locale2Lang & operator = (const Locale2Lang &);
+
 public:
     Locale2Lang() : mSeedPosition(128)
     {
@@ -267,6 +273,11 @@ public:
                 while (old[len]) len++;
                 len += 2;
                 mLangLookup[a][b] = gralloc<const IsoLangEntry *>(len);
+                if (!mLangLookup[a][b])
+                {
+                    mLangLookup[a][b] = old;
+                    continue;
+                }
                 mLangLookup[a][b][--len] = NULL;
                 mLangLookup[a][b][--len] = &LANG_ENTRIES[i];
                 while (--len >= 0)
@@ -279,6 +290,7 @@ public:
             else
             {
                 mLangLookup[a][b] = gralloc<const IsoLangEntry *>(2);
+                if (!mLangLookup[a][b]) continue;
                 mLangLookup[a][b][1] = NULL;
                 mLangLookup[a][b][0] = &LANG_ENTRIES[i];
             }
@@ -289,8 +301,8 @@ public:
     ~Locale2Lang()
     {
         for (int i = 0; i != 26; ++i)
-        	for (int j = 0; j != 26; ++j)
-        		free(mLangLookup[i][j]);
+            for (int j = 0; j != 26; ++j)
+                free(mLangLookup[i][j]);
     }
     unsigned short getMsId(const char * locale) const
     {
@@ -387,7 +399,7 @@ public:
                             ++i;
                             continue;
                         }
-                        if (strcmp(mLangLookup[a][b][i]->maCountry, region) == 0)
+                        if (region && (strncmp(mLangLookup[a][b][i]->maCountry, region, regionLength) == 0))
                         {
                             langId = mLangLookup[a][b][i]->mnLang;
                             break;
@@ -427,7 +439,8 @@ public:
         }
         return &LANG_ENTRIES[guess];
     }
-    CLASS_NEW_DELETE
+
+    CLASS_NEW_DELETE;
 
 private:
     const IsoLangEntry ** mLangLookup[26][26];

@@ -17,7 +17,9 @@
 #define nsWindow_h
 
 #include "nsBaseWidget.h"
+#include "nsRegion.h"
 #include "nsIIdleServiceInternal.h"
+#include "Units.h"
 
 extern nsIntRect gScreenBounds;
 
@@ -29,6 +31,8 @@ namespace layers {
 class LayersManager;
 }
 }
+
+class ANativeWindowBuffer;
 
 namespace android {
 class FramebufferNativeWindow;
@@ -46,7 +50,8 @@ public:
     virtual ~nsWindow();
 
     static void DoDraw(void);
-    static nsEventStatus DispatchInputEvent(nsGUIEvent &aEvent);
+    static nsEventStatus DispatchInputEvent(mozilla::WidgetGUIEvent& aEvent,
+                                            bool* aWasCaptured = nullptr);
 
     NS_IMETHOD Create(nsIWidget *aParent,
                       void *aNativeParent,
@@ -60,15 +65,15 @@ public:
     NS_IMETHOD ConstrainPosition(bool aAllowSlop,
                                  int32_t *aX,
                                  int32_t *aY);
-    NS_IMETHOD Move(int32_t aX,
-                    int32_t aY);
-    NS_IMETHOD Resize(int32_t aWidth,
-                      int32_t aHeight,
+    NS_IMETHOD Move(double aX,
+                    double aY);
+    NS_IMETHOD Resize(double aWidth,
+                      double aHeight,
                       bool  aRepaint);
-    NS_IMETHOD Resize(int32_t aX,
-                      int32_t aY,
-                      int32_t aWidth,
-                      int32_t aHeight,
+    NS_IMETHOD Resize(double aX,
+                      double aY,
+                      double aWidth,
+                      double aHeight,
                       bool aRepaint);
     NS_IMETHOD Enable(bool aState);
     virtual bool IsEnabled() const;
@@ -81,24 +86,28 @@ public:
         return NS_OK;
     }
     virtual nsIntPoint WidgetToScreenOffset();
-    NS_IMETHOD DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus);
+    NS_IMETHOD DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
+                             nsEventStatus& aStatus);
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener *aListener,
-                                   bool aDoCapture,
-                                   bool aConsumeRollupEvent)
+                                   bool aDoCapture)
     {
         return NS_ERROR_NOT_IMPLEMENTED;
     }
     NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent);
 
-    NS_IMETHOD MakeFullScreen(bool aFullScreen) /*MOZ_OVERRIDE*/;
+    NS_IMETHOD MakeFullScreen(bool aFullScreen, nsIScreen* aTargetScreen = nullptr) /*MOZ_OVERRIDE*/;
+
+    virtual mozilla::TemporaryRef<mozilla::gfx::DrawTarget>
+        StartRemoteDrawing() MOZ_OVERRIDE;
+    virtual void EndRemoteDrawing() MOZ_OVERRIDE;
 
     virtual float GetDPI();
+    virtual double GetDefaultScaleInternal();
     virtual mozilla::layers::LayerManager*
-        GetLayerManager(PLayersChild* aShadowManager = nullptr,
-                        LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
+        GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
+                        LayersBackend aBackendHint = mozilla::layers::LayersBackend::LAYERS_NONE,
                         LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                         bool* aAllowRetaining = nullptr);
-    gfxASurface* GetThebesSurface();
 
     NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                       const InputContextAction& aAction);
@@ -109,12 +118,27 @@ public:
     virtual nsIntRect GetNaturalBounds() MOZ_OVERRIDE;
     virtual bool NeedsPaint();
 
+    virtual Composer2D* GetComposer2D() MOZ_OVERRIDE;
+
 protected:
     nsWindow* mParent;
     bool mVisible;
-    nsIntRegion mDirtyRegion;
     InputContext mInputContext;
     nsCOMPtr<nsIIdleServiceInternal> mIdleService;
+    // If we're using a BasicCompositor, these fields are temporarily
+    // set during frame composition.  They wrap the hardware
+    // framebuffer.
+    mozilla::RefPtr<mozilla::gfx::DrawTarget> mFramebufferTarget;
+    ANativeWindowBuffer* mFramebuffer;
+    // If we're using a BasicCompositor, this is our window back
+    // buffer.  The gralloc framebuffer driver expects us to draw the
+    // entire framebuffer on every frame, but gecko expects the
+    // windowing system to be tracking buffer updates for invalidated
+    // regions.  We get stuck holding that bag.
+    //
+    // Only accessed on the compositor thread, except during
+    // destruction.
+    mozilla::RefPtr<mozilla::gfx::DrawTarget> mBackBuffer;
 
     void BringToTop();
 

@@ -71,7 +71,7 @@ class nsCertOverrideEntry MOZ_FINAL : public PLDHashEntryHdr
     typedef const char* KeyTypePointer;
 
     // do nothing with aHost - we require mHead to be set before we're live!
-    nsCertOverrideEntry(KeyTypePointer aHostWithPortUTF8)
+    explicit nsCertOverrideEntry(KeyTypePointer aHostWithPortUTF8)
     {
     }
 
@@ -131,19 +131,18 @@ class nsCertOverrideService MOZ_FINAL : public nsICertOverrideService
                                       , public nsSupportsWeakReference
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSICERTOVERRIDESERVICE
   NS_DECL_NSIOBSERVER
 
   nsCertOverrideService();
-  ~nsCertOverrideService();
 
   nsresult Init();
   void RemoveAllTemporaryOverrides();
 
   typedef void 
-  (*PR_CALLBACK CertOverrideEnumerator)(const nsCertOverride &aSettings,
-                                        void *aUserData);
+  (*CertOverrideEnumerator)(const nsCertOverride &aSettings,
+                            void *aUserData);
 
   // aCert == null: return all overrides
   // aCert != null: return overrides that match the given cert
@@ -157,12 +156,16 @@ public:
     static void GetHostWithPort(const nsACString & aHostName, int32_t aPort, nsACString& _retval);
 
 protected:
+    ~nsCertOverrideService();
+
     mozilla::ReentrantMonitor monitor;
     nsCOMPtr<nsIFile> mSettingsFile;
     nsTHashtable<nsCertOverrideEntry> mSettingsTable;
 
     SECOidTag mOidTagForStoringNewHashes;
     nsCString mDottedOidForStoringNewHashes;
+
+    void CountPermanentOverrideTelemetry();
 
     void RemoveAllFromMemory();
     nsresult Read();

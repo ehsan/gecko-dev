@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -28,7 +28,13 @@ const UNEXPECTED_NOTIFICATIONS = [
   "xpcom-shutdown"
 ];
 
-const URL = "ftp://localhost/clearHistoryOnShutdown/";
+const FTP_URL = "ftp://localhost/clearHistoryOnShutdown/";
+
+// Send the profile-after-change notification to the form history component to ensure
+// that it has been initialized.
+var formHistoryStartup = Cc["@mozilla.org/satchel/form-history-startup;1"].
+                         getService(Ci.nsIObserver);
+formHistoryStartup.observe(null, "profile-after-change", null);
 
 let notificationIndex = 0;
 
@@ -66,13 +72,17 @@ let notificationsObserver = {
     }
 
     // Check cache.
-    checkCache(URL);
+    checkCache(FTP_URL);
   }
 }
 
 let timeInMicroseconds = Date.now() * 1000;
 
 function run_test() {
+  run_next_test();
+}
+
+add_task(function test_execute() {
   do_test_pending();
 
   print("Initialize browserglue before Places");
@@ -96,14 +106,13 @@ function run_test() {
   Services.prefs.setBoolPref("privacy.sanitize.sanitizeOnShutdown", true);
 
   print("Add visits.");
-  URIS.forEach(function(aUrl) {
-    PlacesUtils.history.addVisit(uri(aUrl), timeInMicroseconds++, null,
-                                 PlacesUtils.history.TRANSITION_TYPED,
-                                 false, 0);
-  });
+  for (let aUrl of URIS) {
+    yield promiseAddVisits({uri: uri(aUrl), visitDate: timeInMicroseconds++,
+                            transition: PlacesUtils.history.TRANSITION_TYPED})
+  }
   print("Add cache.");
-  storeCache(URL, "testData");
-}
+  storeCache(FTP_URL, "testData");
+});
 
 function run_test_continue()
 {
@@ -125,13 +134,15 @@ function getDistinctNotifications() {
 }
 
 function storeCache(aURL, aContent) {
-  let cache = Cc["@mozilla.org/network/cache-service;1"].
-              getService(Ci.nsICacheService);
-  let session = cache.createSession("FTP", Ci.nsICache.STORE_ANYWHERE,
-                                    Ci.nsICache.STREAM_BASED);
+  let cache = Services.cache2;
+  let storage = cache.diskCacheStorage(LoadContextInfo.default, false);
 
   var storeCacheListener = {
-    onCacheEntryAvailable: function (entry, access, status) {
+    onCacheEntryCheck: function (entry, appcache) {
+      return Ci.nsICacheEntryOpenCallback.ENTRY_WANTED;
+    },
+
+    onCacheEntryAvailable: function (entry, isnew, appcache, status) {
       do_check_eq(status, Cr.NS_OK);
 
       entry.setMetaDataElement("servertype", "0");
@@ -149,26 +160,24 @@ function storeCache(aURL, aContent) {
     }
   };
 
-  session.asyncOpenCacheEntry(aURL,
-                              Ci.nsICache.ACCESS_READ_WRITE,
-                              storeCacheListener);
+  storage.asyncOpenURI(Services.io.newURI(aURL, null, null), "",
+                       Ci.nsICacheStorage.OPEN_NORMALLY,
+                       storeCacheListener);
 }
 
 
 function checkCache(aURL) {
-  let cache = Cc["@mozilla.org/network/cache-service;1"].
-              getService(Ci.nsICacheService);
-  let session = cache.createSession("FTP", Ci.nsICache.STORE_ANYWHERE,
-                                    Ci.nsICache.STREAM_BASED);
+  let cache = Services.cache2;
+  let storage = cache.diskCacheStorage(LoadContextInfo.default, false);
 
   var checkCacheListener = {
-    onCacheEntryAvailable: function (entry, access, status) {
+    onCacheEntryAvailable: function (entry, isnew, appcache, status) {
       do_check_eq(status, Cr.NS_ERROR_CACHE_KEY_NOT_FOUND);
       do_test_finished();
     }
   };
 
-  session.asyncOpenCacheEntry(aURL,
-                              Ci.nsICache.ACCESS_READ,
-                              checkCacheListener);
+  storage.asyncOpenURI(Services.io.newURI(aURL, null, null), "",
+                       Ci.nsICacheStorage.OPEN_READONLY,
+                       checkCacheListener);
 }

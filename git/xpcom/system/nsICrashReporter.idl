@@ -14,13 +14,20 @@ interface nsIURL;
  *                    future releases.
  */
 
-[scriptable, uuid(56761088-57ad-4f5c-bd61-f678c2807fe0)]
+[scriptable, uuid(ee431adc-21dd-42d9-968b-e19b4c62960a)]
 interface nsICrashReporter : nsISupports
 {
   /**
-   * Enable or disable the crashreporter at runtime.
+   * Get the enabled status of the crash reporter.
    */
-  attribute boolean enabled;
+  readonly attribute boolean enabled;
+
+  /**
+   * Enable or disable crash reporting at runtime. Not available to script
+   * because the JS engine relies on proper exception handler chaining.
+   */
+  [noscript]
+  void setEnabled(in bool enabled);
 
   /**
    * Get or set the URL to which crash reports will be submitted.
@@ -102,4 +109,20 @@ interface nsICrashReporter : nsISupports
    * User preference for submitting crash reports.
    */
   attribute boolean submitReports;
+
+  /**
+   * Cause the crash reporter to re-evaluate where crash events should go.
+   *
+   * This should be called during application startup and whenever profiles
+   * change.
+   */
+  void UpdateCrashEventsDir();
+
+  /**
+   * Save an anonymized memory report file for inclusion in a future crash
+   * report in this session.
+   *
+   * @throws NS_ERROR_NOT_INITIALIZED if crash reporting is disabled.
+   */
+  void saveMemoryReport();
 };

@@ -1,6 +1,3 @@
-https://dvcs.w3.org/hg/webapps|webapps
-DOMCore/tests/approved
-DOMCore/tests/submissions/Ms2ger
-DOMCore/tests/submissions/Opera
+hg|https://dvcs.w3.org/hg/webapps|webapps
 WebStorage/tests/submissions
 XMLHttpRequest/tests/submissions/Ms2ger

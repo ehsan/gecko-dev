@@ -11,29 +11,30 @@
 
 <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
 <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+<script type="text/javascript" src="/tests/dom/tests/mochitest/ajax/offline/offlineTests.js"></script>
 
 <script class="testbody" type="text/javascript">
 
 var result = new Array();
-var expectedUpdates = 2;
+var expectedUpdates = 3; // 2 iframes and our self
 
-init();
+applicationCache.oncached = onUpdatePassed;
+applicationCache.onnoupdate = onUpdatePassed;
+
+SpecialPowers.pushPermissions([{'type': 'offline-app', 'allow': true, 'context': document}], init);
+
+function onUpdatePassed()
+{
+  if (!(--expectedUpdates))
+    SimpleTest.executeSoon(finish);
+}
 
 function init()
 {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
-  var Cc = Components.classes;
-  var Ci = Components.interfaces;
-  var pm = Cc["@mozilla.org/permissionmanager;1"]
-    .getService(Ci.nsIPermissionManager);
-  var uri = Cc["@mozilla.org/network/io-service;1"]
-    .getService(Ci.nsIIOService)
-    .newURI(window.location.href, null, null);
-  var principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Ci.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(uri);
-  pm.addFromPrincipal(principal, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
+  var iframes = document.getElementsByTagName('iframe');
+  iframes[0].src = "460353_iframe_nomanifest.html";
+  iframes[1].src = "460353_iframe_ownmanifest.html";
+  iframes[2].src = "460353_iframe_samemanifest.html";
 }
 
 function frameOnLoad(frameid, status)
@@ -51,8 +52,7 @@ function frameOnUpdate(frameid, ok, status)
   result[frameid].updateOK = ok;
   result[frameid].cacheStatus = status;
 
-  if (!(--expectedUpdates))
-    finish();
+  onUpdatePassed();
 }
 
 function finish()
@@ -72,36 +72,18 @@ function finish()
   SimpleTest.ok(result["noman"].updateOK == undefined, "Frame with no manifest cache update didn't pass");
   SimpleTest.is(result["noman"].cacheStatus || -1, -1, "Frame with no manifest cache status was undefined");
 
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  OfflineTest.waitForUpdates(function() {
+    cleanCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/simpleManifest.cacheManifest");
+    cleanCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/updatingManifest.sjs");
 
-  var Cc = Components.classes;
-  var Ci = Components.interfaces;
-  var pm = Cc["@mozilla.org/permissionmanager;1"]
-           .getService(Ci.nsIPermissionManager);
-  var uri = Cc["@mozilla.org/network/io-service;1"]
-            .getService(Ci.nsIIOService)
-            .newURI(window.location.href, null, null);
-  var principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Ci.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(uri);
-  pm.removeFromPrincipal(principal, "offline-app");
-
-  cleanCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/simpleManifest.cacheManifest");
-  cleanCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/updatingManifest.sjs");
-
-  SimpleTest.finish();
+    SimpleTest.finish();
+  });
 }
 
 function cleanCache(manifestURL)
 {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
-  var Cc = Components.classes;
-  var Ci = Components.interfaces;
-
-  var serv = Cc["@mozilla.org/network/application-cache-service;1"]
-             .getService(Ci.nsIApplicationCacheService);
-  var cache = serv.getActiveCache(manifestURL);
+  var cache = OfflineTest.getActiveCache(manifestURL);
+  dump("Discarding cache for " + manifestURL + " cache=" + cache + "\n");
   if (cache)
     cache.discard();
 }
@@ -111,8 +93,8 @@ SimpleTest.waitForExplicitFinish();
 </script>
 
 <body>
-  <iframe src="460353_iframe_nomanifest.html"></iframe>
-  <iframe src="460353_iframe_ownmanifest.html"></iframe>
-  <iframe src="460353_iframe_samemanifest.html"></iframe>
+  <iframe></iframe>
+  <iframe></iframe>
+  <iframe></iframe>
 </body>
 </html>

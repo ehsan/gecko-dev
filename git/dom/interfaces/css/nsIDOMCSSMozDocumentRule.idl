@@ -3,21 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsIDOMCSSRule.idl"
+#include "nsIDOMCSSConditionRule.idl"
 
 /**
- * Modified version of nsIDOMCSSMediaRule for @-moz-document rules.
+ * Interface for @-moz-document rules in the CSS OM.
  */
-[scriptable, uuid(4eb9adac-afaf-4b8a-8640-7340863c1587)]
-interface nsIDOMCSSMozDocumentRule : nsIDOMCSSRule
+[scriptable, uuid(2d0cef9d-c1b2-4c6c-9003-fa83040626d1)]
+interface nsIDOMCSSMozDocumentRule : nsIDOMCSSConditionRule
 {
-  readonly attribute nsIDOMCSSRuleList cssRules;
-
-  unsigned long      insertRule(in DOMString rule, 
-                                in unsigned long index)
-                                        raises(DOMException);
-  void               deleteRule(in unsigned long index)
-                                        raises(DOMException);
-
   // XXX Add access to the URL list.
 };

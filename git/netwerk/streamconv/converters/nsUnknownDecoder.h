@@ -7,7 +7,6 @@
 #define nsUnknownDecoder_h__
 
 #include "nsIStreamConverter.h"
-#include "nsIChannel.h"
 #include "nsIContentSniffer.h"
 
 #include "nsCOMPtr.h"
@@ -48,6 +47,26 @@ protected:
   virtual void DetermineContentType(nsIRequest* aRequest);
   nsresult FireListenerNotifications(nsIRequest* request, nsISupports *aCtxt);
 
+  class ConvertedStreamListener: public nsIStreamListener
+  {
+  public:
+    explicit ConvertedStreamListener(nsUnknownDecoder *aDecoder);
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIREQUESTOBSERVER
+    NS_DECL_NSISTREAMLISTENER
+
+  private:
+    virtual ~ConvertedStreamListener();
+    static NS_METHOD AppendDataToString(nsIInputStream* inputStream,
+                                        void* closure,
+                                        const char* rawSegment,
+                                        uint32_t toOffset,
+                                        uint32_t count,
+                                        uint32_t* writeCount);
+    nsUnknownDecoder *mDecoder;
+  };
+
 protected:
   nsCOMPtr<nsIStreamListener> mNextListener;
 
@@ -60,7 +79,6 @@ protected:
   
   // Various sniffer functions.  Returning true means that a type
   // was determined; false means no luck.
-  bool TryContentSniffers(nsIRequest* aRequest);
   bool SniffForHTML(nsIRequest* aRequest);
   bool SniffForXML(nsIRequest* aRequest);
 
@@ -108,6 +126,10 @@ protected:
 
   nsCString mContentType;
 
+protected:
+  nsresult ConvertEncodedData(nsIRequest* request, const char* data,
+                              uint32_t length);
+  nsCString mDecodedData; // If data are encoded this will be uncompress data.
 };
 
 #define NS_BINARYDETECTOR_CID                        \

@@ -6,34 +6,36 @@
 #ifndef nsHttpConnectionMgr_h__
 #define nsHttpConnectionMgr_h__
 
-#include "nsHttpConnectionInfo.h"
 #include "nsHttpConnection.h"
 #include "nsHttpTransaction.h"
-#include "NullHttpTransaction.h"
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
 #include "nsClassHashtable.h"
 #include "nsDataHashtable.h"
 #include "nsAutoPtr.h"
 #include "mozilla/ReentrantMonitor.h"
-#include "nsISocketTransportService.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Attributes.h"
+#include "AlternateServices.h"
 
 #include "nsIObserver.h"
 #include "nsITimer.h"
-#include "nsIX509Cert3.h"
-
-class nsHttpPipeline;
 
 class nsIHttpUpgradeListener;
+
+namespace mozilla {
+namespace net {
+class EventTokenBucket;
+class NullHttpTransaction;
+struct HttpRetParams;
 
 //-----------------------------------------------------------------------------
 
 class nsHttpConnectionMgr : public nsIObserver
+                          , public AltSvcCache
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIOBSERVER
 
     // parameter names
@@ -85,14 +87,24 @@ public:
 
     // cancels a transaction w/ the given reason.
     nsresult CancelTransaction(nsHttpTransaction *, nsresult reason);
+    nsresult CancelTransactions(nsHttpConnectionInfo *, nsresult reason);
 
     // called to force the connection manager to prune its list of idle
     // connections.
     nsresult PruneDeadConnections();
 
+    // called to close active connections with no registered "traffic"
+    nsresult PruneNoTraffic();
+
+    // "VerifyTraffic" means marking connections now, and then check again in
+    // N seconds to see if there's been any traffic and if not, kill
+    // that connection.
+    nsresult VerifyTraffic();
+
     // Close all idle persistent connections and prevent any active connections
-    // from being reused.
-    nsresult ClosePersistentConnections();
+    // from being reused. Optional connection info resets CI specific
+    // information such as Happy Eyeballs history.
+    nsresult DoShiftReloadConnectionCleanup(nsHttpConnectionInfo *);
 
     // called to get a reference to the socket transport service.  the socket
     // transport service is not available when the connection manager is down.
@@ -106,9 +118,10 @@ public:
     // real transaction for this connectionInfo.
     nsresult SpeculativeConnect(nsHttpConnectionInfo *,
                                 nsIInterfaceRequestor *,
-                                nsIEventTarget *);
+                                uint32_t caps = 0,
+                                NullHttpTransaction * = nullptr);
 
-    // called when a connection is done processing a transaction.  if the 
+    // called when a connection is done processing a transaction.  if the
     // connection can be reused then it will be added to the idle list, else
     // it will be closed.
     nsresult ReclaimConnection(nsHttpConnection *conn);
@@ -124,10 +137,12 @@ public:
     // been initialized.
     nsresult UpdateParam(nsParamName name, uint16_t value);
 
-    // Lookup/Cancel HTTP->SPDY redirections
-    bool GetSpdyAlternateProtocol(nsACString &key);
-    void ReportSpdyAlternateProtocol(nsHttpConnection *);
-    void RemoveSpdyAlternateProtocol(nsACString &key);
+    // called from main thread to post a new request token bucket
+    // to the socket thread
+    nsresult UpdateRequestTokenBucket(EventTokenBucket *aBucket);
+
+    // clears the connection history mCT
+    nsresult ClearConnectionHistory();
 
     // Pipielining Interfaces and Datatypes
 
@@ -147,7 +162,7 @@ public:
         // Used when a HTTP Server response header that is on the banned from
         // pipelining list is received
         RedBannedServer = kPipelineInfoTypeRed | kPipelineInfoTypeBad | 0x0002,
-    
+
         // Used when a response is terminated early, when it fails an
         // integrity check such as assoc-req or when a 304 contained a Last-Modified
         // differnet than the entry being validated.
@@ -173,7 +188,7 @@ public:
         // Used when a response is received that is not framed with either chunked
         // encoding or a complete content length.
         BadInsufficientFraming = kPipelineInfoTypeBad | 0x0008,
-        
+
         // Used when a very large response is recevied in a potential pipelining
         // context. Large responses cause head of line blocking.
         BadUnexpectedLarge = kPipelineInfoTypeBad | 0x000B,
@@ -185,7 +200,7 @@ public:
         // Used when a response is received successfully to a pipelined request.
         GoodCompletedOK = kPipelineInfoTypeGood | 0x000A
     };
-    
+
     // called to provide information relevant to the pipelining manager
     // may be called from any thread
     void     PipelineFeedbackInfo(nsHttpConnectionInfo *,
@@ -203,10 +218,19 @@ public:
     // NOTE: functions below may be called only on the socket thread.
     //-------------------------------------------------------------------------
 
+    // called to change the connection entry associated with conn from specific into
+    // a wildcard (i.e. http2 proxy friendy) mapping
+    void MoveToWildCardConnEntry(nsHttpConnectionInfo *specificCI,
+                                 nsHttpConnectionInfo *wildcardCI,
+                                 nsHttpConnection *conn);
+
     // called to force the transaction queue to be processed once more, giving
     // preference to the specified connection.
     nsresult ProcessPendingQ(nsHttpConnectionInfo *);
     bool     ProcessPendingQForEntry(nsHttpConnectionInfo *);
+
+    // Try and process all pending transactions
+    nsresult ProcessPendingQ();
 
     // This is used to force an idle connection to be closed and removed from
     // the idle connection list. It is called when the idle connection detects
@@ -218,8 +242,21 @@ public:
     // bit different.
     void ReportSpdyConnection(nsHttpConnection *, bool usingSpdy);
 
-    
+    // A spdy server can supply cwnd information for the session that is used
+    // in future sessions to speed up the opening portions of the connection.
+    void ReportSpdyCWNDSetting(nsHttpConnectionInfo *host, uint32_t cwndValue);
+    uint32_t GetSpdyCWNDSetting(nsHttpConnectionInfo *host);
+
     bool     SupportsPipelining(nsHttpConnectionInfo *);
+
+    bool GetConnectionData(nsTArray<HttpRetParams> *);
+
+    void ResetIPFamilyPreference(nsHttpConnectionInfo *);
+
+    uint16_t MaxRequestDelay() { return mMaxRequestDelay; }
+
+    // public, so that the SPDY/http2 seesions can activate
+    void ActivateTimeoutTick();
 
 private:
     virtual ~nsHttpConnectionMgr();
@@ -240,7 +277,7 @@ private:
         // other positive experiences will eventually allow it to try again.
         PS_RED
     };
-    
+
     class nsHalfOpenSocket;
 
     // nsConnectionEntry
@@ -252,14 +289,16 @@ private:
     class nsConnectionEntry
     {
     public:
-        nsConnectionEntry(nsHttpConnectionInfo *ci);
+        explicit nsConnectionEntry(nsHttpConnectionInfo *ci);
         ~nsConnectionEntry();
 
-        nsHttpConnectionInfo        *mConnInfo;
+        nsRefPtr<nsHttpConnectionInfo> mConnInfo;
         nsTArray<nsHttpTransaction*> mPendingQ;    // pending transaction queue
         nsTArray<nsHttpConnection*>  mActiveConns; // active connections
         nsTArray<nsHttpConnection*>  mIdleConns;   // idle persistent connections
-        nsTArray<nsHalfOpenSocket*>  mHalfOpens;
+        nsTArray<nsHalfOpenSocket*>  mHalfOpens;   // half open connections
+
+        bool AvailableForDispatchNow();
 
         // calculate the number of half open sockets that have not had at least 1
         // connection complete
@@ -272,7 +311,7 @@ private:
         const static uint32_t kPipelineUnlimited  = 1024; // fully open - extended green
         const static uint32_t kPipelineOpen       = 6;    // 6 on each conn - normal green
         const static uint32_t kPipelineRestricted = 2;    // 2 on just 1 conn in yellow
-        
+
         nsHttpConnectionMgr::PipeliningState PipelineState();
         void OnPipelineFeedbackInfo(
             nsHttpConnectionMgr::PipelineFeedbackInfoType info,
@@ -314,7 +353,7 @@ private:
         int16_t                   mPipeliningClassPenalty[nsAHttpTransaction::CLASS_MAX];
 
         // for calculating penalty repair credits
-        mozilla::TimeStamp        mLastCreditTime;
+        TimeStamp        mLastCreditTime;
 
         // Spdy sometimes resolves the address in the socket manager in order
         // to re-coalesce sharded HTTP hosts. The dotted decimal address is
@@ -326,6 +365,11 @@ private:
         // mSpdyPreferred hash.
         //
         nsCString mCoalescingKey;
+
+        // The value of a recevied SPDY settings type 5 previously received
+        // for this connection entry and the time it was set.
+        uint32_t            mSpdyCWND;
+        TimeStamp  mSpdyCWNDTimeStamp;
 
         // To have the UsingSpdy flag means some host with the same connection
         // entry has done NPN=spdy/* at some point. It does not mean every
@@ -339,6 +383,20 @@ private:
         bool mTestedSpdy;
 
         bool mSpdyPreferred;
+
+        // Flags to remember our happy-eyeballs decision.
+        // Reset only by Ctrl-F5 reload.
+        // True when we've first connected an IPv4 server for this host,
+        // initially false.
+        bool mPreferIPv4 : 1;
+        // True when we've first connected an IPv6 server for this host,
+        // initially false.
+        bool mPreferIPv6 : 1;
+
+        // Set the IP family preference flags according the connected family
+        void RecordIPFamilyPreference(uint16_t family);
+        // Resets all flags to their default values
+        void ResetIPFamilyPreference();
     };
 
     // nsConnectionHandle
@@ -352,15 +410,22 @@ private:
     //
     class nsConnectionHandle : public nsAHttpConnection
     {
+        virtual ~nsConnectionHandle();
+
     public:
-        NS_DECL_ISUPPORTS
+        NS_DECL_THREADSAFE_ISUPPORTS
         NS_DECL_NSAHTTPCONNECTION(mConn)
 
-        nsConnectionHandle(nsHttpConnection *conn) { NS_ADDREF(mConn = conn); }
-        virtual ~nsConnectionHandle();
+        explicit nsConnectionHandle(nsHttpConnection *conn) { NS_ADDREF(mConn = conn); }
 
         nsHttpConnection *mConn;
     };
+public:
+    static nsAHttpConnection *MakeConnectionHandle(nsHttpConnection *aWrapped)
+    {
+        return new nsConnectionHandle(aWrapped);
+    }
+private:
 
     // nsHalfOpenSocket is used to hold the state of an opening TCP socket
     // while we wait for it to establish and bind it to a connection
@@ -370,8 +435,10 @@ private:
                                        public nsIInterfaceRequestor,
                                        public nsITimerCallback
     {
+        ~nsHalfOpenSocket();
+
     public:
-        NS_DECL_ISUPPORTS
+        NS_DECL_THREADSAFE_ISUPPORTS
         NS_DECL_NSIOUTPUTSTREAMCALLBACK
         NS_DECL_NSITRANSPORTEVENTSINK
         NS_DECL_NSIINTERFACEREQUESTOR
@@ -379,9 +446,8 @@ private:
 
         nsHalfOpenSocket(nsConnectionEntry *ent,
                          nsAHttpTransaction *trans,
-                         uint8_t caps);
-        ~nsHalfOpenSocket();
-        
+                         uint32_t caps);
+
         nsresult SetupStreams(nsISocketTransport **,
                               nsIAsyncInputStream **,
                               nsIAsyncOutputStream **,
@@ -391,7 +457,7 @@ private:
         void     SetupBackupTimer();
         void     CancelBackupTimer();
         void     Abandon();
-        double   Duration(mozilla::TimeStamp epoch);
+        double   Duration(TimeStamp epoch);
         nsISocketTransport *SocketTransport() { return mSocketTransport; }
         nsISocketTransport *BackupTransport() { return mBackupTransport; }
 
@@ -399,6 +465,12 @@ private:
 
         bool IsSpeculative() { return mSpeculative; }
         void SetSpeculative(bool val) { mSpeculative = val; }
+
+        bool IsFromPredictor() { return mIsFromPredictor; }
+        void SetIsFromPredictor(bool val) { mIsFromPredictor = val; }
+
+        bool Allow1918() { return mAllow1918; }
+        void SetAllow1918(bool val) { mAllow1918 = val; }
 
         bool HasConnected() { return mHasConnected; }
 
@@ -409,7 +481,7 @@ private:
         nsCOMPtr<nsISocketTransport>   mSocketTransport;
         nsCOMPtr<nsIAsyncOutputStream> mStreamOut;
         nsCOMPtr<nsIAsyncInputStream>  mStreamIn;
-        uint8_t                        mCaps;
+        uint32_t                       mCaps;
 
         // mSpeculative is set if the socket was created from
         // SpeculativeConnect(). It is cleared when a transaction would normally
@@ -420,8 +492,15 @@ private:
         // more connections that are needed.)
         bool                           mSpeculative;
 
-        mozilla::TimeStamp             mPrimarySynStarted;
-        mozilla::TimeStamp             mBackupSynStarted;
+        // mIsFromPredictor is set if the socket originated from the network
+        // Predictor. It is used to gather telemetry data on used speculative
+        // connections from the predictor.
+        bool                           mIsFromPredictor;
+
+        bool                           mAllow1918;
+
+        TimeStamp             mPrimarySynStarted;
+        TimeStamp             mBackupSynStarted;
 
         // for syn retry
         nsCOMPtr<nsITimer>             mSynTimer;
@@ -429,7 +508,12 @@ private:
         nsCOMPtr<nsIAsyncOutputStream> mBackupStreamOut;
         nsCOMPtr<nsIAsyncInputStream>  mBackupStreamIn;
 
+        // mHasConnected tracks whether one of the sockets has completed the
+        // connection process. It may have completed unsuccessfully.
         bool                           mHasConnected;
+
+        bool                           mPrimaryConnectedOK;
+        bool                           mBackupConnectedOK;
     };
     friend class nsHalfOpenSocket;
 
@@ -437,8 +521,7 @@ private:
     // NOTE: these members may be accessed from any thread (use mReentrantMonitor)
     //-------------------------------------------------------------------------
 
-    int32_t                      mRef;
-    mozilla::ReentrantMonitor    mReentrantMonitor;
+    ReentrantMonitor    mReentrantMonitor;
     nsCOMPtr<nsIEventTarget>     mSocketThreadTarget;
 
     // connection limits
@@ -455,15 +538,19 @@ private:
     //-------------------------------------------------------------------------
 
     static PLDHashOperator ProcessOneTransactionCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
+    static PLDHashOperator ProcessAllTransactionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
 
     static PLDHashOperator PruneDeadConnectionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
     static PLDHashOperator ShutdownPassCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
     static PLDHashOperator PurgeExcessIdleConnectionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
+    static PLDHashOperator PurgeExcessSpdyConnectionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
     static PLDHashOperator ClosePersistentConnectionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
-    bool     ProcessPendingQForEntry(nsConnectionEntry *);
+    static PLDHashOperator VerifyTrafficCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
+    static PLDHashOperator PruneNoTrafficCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
+    bool     ProcessPendingQForEntry(nsConnectionEntry *, bool considerAll);
     bool     IsUnderPressure(nsConnectionEntry *ent,
                              nsHttpTransaction::Classifier classification);
-    bool     AtActiveConnectionLimit(nsConnectionEntry *, uint8_t caps);
+    bool     AtActiveConnectionLimit(nsConnectionEntry *, uint32_t caps);
     nsresult TryDispatchTransaction(nsConnectionEntry *ent,
                                     bool onlyReusedConnection,
                                     nsHttpTransaction *trans);
@@ -472,23 +559,26 @@ private:
                                  nsHttpConnection *);
     nsresult DispatchAbstractTransaction(nsConnectionEntry *,
                                          nsAHttpTransaction *,
-                                         uint8_t,
+                                         uint32_t,
                                          nsHttpConnection *,
                                          int32_t);
     nsresult BuildPipeline(nsConnectionEntry *,
                            nsAHttpTransaction *,
                            nsHttpPipeline **);
-    bool     RestrictConnections(nsConnectionEntry *);
+    bool     RestrictConnections(nsConnectionEntry *, bool = false);
     nsresult ProcessNewTransaction(nsHttpTransaction *);
-    nsresult EnsureSocketThreadTargetIfOnline();
+    nsresult EnsureSocketThreadTarget();
     void     ClosePersistentConnections(nsConnectionEntry *ent);
+    void     ReportProxyTelemetry(nsConnectionEntry *ent);
     nsresult CreateTransport(nsConnectionEntry *, nsAHttpTransaction *,
-                             uint8_t, bool);
+                             uint32_t, bool, bool, bool);
     void     AddActiveConn(nsHttpConnection *, nsConnectionEntry *);
+    void     DecrementActiveConnCount(nsHttpConnection *);
     void     StartedConnect();
     void     RecvdConnect();
 
-    nsConnectionEntry *GetOrCreateConnectionEntry(nsHttpConnectionInfo *);
+    nsConnectionEntry *GetOrCreateConnectionEntry(nsHttpConnectionInfo *,
+                                                  bool allowWildCard);
 
     nsresult MakeNewConnection(nsConnectionEntry *ent,
                                nsHttpTransaction *trans);
@@ -507,7 +597,6 @@ private:
                                              nsHttpTransaction *trans);
 
     void               ProcessSpdyPendingQ(nsConnectionEntry *ent);
-    void               ProcessAllSpdyPendingQ();
     static PLDHashOperator ProcessSpdyPendingQCB(
         const nsACString &key, nsAutoPtr<nsConnectionEntry> &ent,
         void *closure);
@@ -565,14 +654,19 @@ private:
     void OnMsgNewTransaction       (int32_t, void *);
     void OnMsgReschedTransaction   (int32_t, void *);
     void OnMsgCancelTransaction    (int32_t, void *);
+    void OnMsgCancelTransactions   (int32_t, void *);
     void OnMsgProcessPendingQ      (int32_t, void *);
     void OnMsgPruneDeadConnections (int32_t, void *);
     void OnMsgSpeculativeConnect   (int32_t, void *);
     void OnMsgReclaimConnection    (int32_t, void *);
     void OnMsgCompleteUpgrade      (int32_t, void *);
     void OnMsgUpdateParam          (int32_t, void *);
-    void OnMsgClosePersistentConnections (int32_t, void *);
+    void OnMsgDoShiftReloadConnectionCleanup (int32_t, void *);
     void OnMsgProcessFeedback      (int32_t, void *);
+    void OnMsgProcessAllSpdyPendingQ (int32_t, void *);
+    void OnMsgUpdateRequestTokenBucket (int32_t, void *);
+    void OnMsgVerifyTraffic (int32_t, void *);
+    void OnMsgPruneNoTraffic (int32_t, void *);
 
     // Total number of active connections in all of the ConnectionEntry objects
     // that are accessed from mCT connection table.
@@ -580,33 +674,44 @@ private:
     // Total number of idle connections in all of the ConnectionEntry objects
     // that are accessed from mCT connection table.
     uint16_t mNumIdleConns;
+    // Total number of spdy connections which are a subset of the active conns
+    uint16_t mNumSpdyActiveConns;
+    // Total number of connections in mHalfOpens ConnectionEntry objects
+    // that are accessed from mCT connection table
+    uint32_t mNumHalfOpenConns;
 
-    // Holds time in seconds for next wake-up to prune dead connections. 
+    // Holds time in seconds for next wake-up to prune dead connections.
     uint64_t mTimeOfNextWakeUp;
     // Timer for next pruning of dead connections.
     nsCOMPtr<nsITimer> mTimer;
+    // Timer for pruning stalled connections after changed network.
+    nsCOMPtr<nsITimer> mTrafficTimer;
+    bool mPruningNoTraffic;
 
     // A 1s tick to call nsHttpConnection::ReadTimeoutTick on
     // active http/1 connections and check for orphaned half opens.
     // Disabled when there are no active or half open connections.
     nsCOMPtr<nsITimer> mTimeoutTick;
     bool mTimeoutTickArmed;
+    uint32_t mTimeoutTickNext;
 
     //
     // the connection table
     //
     // this table is indexed by connection key.  each entry is a
-    // nsConnectionEntry object.
+    // nsConnectionEntry object. It is unlocked and therefore must only
+    // be accessed from the socket thread.
     //
     nsClassHashtable<nsCStringHashKey, nsConnectionEntry> mCT;
 
-    // mAlternateProtocolHash is used only for spdy/* upgrades for now
-    // protected by the monitor
-    nsTHashtable<nsCStringHashKey> mAlternateProtocolHash;
-    static PLDHashOperator TrimAlternateProtocolHash(nsCStringHashKey *entry,
-                                                     void *closure);
+    static PLDHashOperator ReadConnectionEntry(const nsACString &key,
+                                               nsAutoPtr<nsConnectionEntry> &ent,
+                                               void *aArg);
+    static PLDHashOperator RemoveDeadConnections(const nsACString &key,
+        nsAutoPtr<nsConnectionEntry> &ent,
+        void *aArg);
+
     // Read Timeout Tick handlers
-    void ActivateTimeoutTick();
     void TimeoutTick();
     static PLDHashOperator TimeoutTickCB(const nsACString &key,
                                          nsAutoPtr<nsConnectionEntry> &ent,
@@ -619,5 +724,7 @@ private:
                                               void *closure);
     nsCString mLogData;
 };
+
+}} // namespace mozilla::net
 
 #endif // !nsHttpConnectionMgr_h__

@@ -2,7 +2,7 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 let tabState = {
-  entries: [{url: "about:home", children: [{url: "about:mozilla"}]}]
+  entries: [{url: "about:robots", children: [{url: "about:mozilla"}]}]
 };
 
 function test() {
@@ -27,6 +27,7 @@ function test() {
     whenChildCount(entry, 1, function () {
       whenChildCount(entry, 2, function () {
         whenBrowserLoaded(browser, function () {
+          TabState.flush(browser);
           let {entries} = JSON.parse(ss.getTabState(tab));
           is(entries.length, 1, "tab has one history entry");
           ok(!entries[0].children, "history entry has no subframes");

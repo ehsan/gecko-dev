@@ -6,11 +6,12 @@
 #ifndef GFX_MACFONT_H
 #define GFX_MACFONT_H
 
+#include "mozilla/MemoryReporting.h"
 #include "gfxFont.h"
-#include "gfxMacPlatformFontList.h"
-#include "mozilla/gfx/2D.h"
-
 #include "cairo.h"
+#include <ApplicationServices/ApplicationServices.h>
+
+class MacOSFontEntry;
 
 class gfxMacFont : public gfxFont
 {
@@ -23,66 +24,79 @@ public:
     CGFontRef GetCGFontRef() const { return mCGFont; }
 
     /* overrides for the pure virtual methods in gfxFont */
-    virtual const gfxFont::Metrics& GetMetrics() {
-        return mMetrics;
-    }
-
-    virtual uint32_t GetSpaceGlyph() {
+    virtual uint32_t GetSpaceGlyph() MOZ_OVERRIDE {
         return mSpaceGlyph;
     }
 
-    virtual bool SetupCairoFont(gfxContext *aContext);
+    virtual bool SetupCairoFont(gfxContext *aContext) MOZ_OVERRIDE;
 
     /* override Measure to add padding for antialiasing */
     virtual RunMetrics Measure(gfxTextRun *aTextRun,
                                uint32_t aStart, uint32_t aEnd,
                                BoundingBoxType aBoundingBoxType,
                                gfxContext *aContextForTightBoundingBox,
-                               Spacing *aSpacing);
+                               Spacing *aSpacing,
+                               uint16_t aOrientation) MOZ_OVERRIDE;
 
-    // override gfxFont table access function to bypass gfxFontEntry cache,
-    // use CGFontRef API to get direct access to system font data
-    virtual hb_blob_t *GetFontTable(uint32_t aTag);
+    // We need to provide hinted (non-linear) glyph widths if using a font
+    // with embedded color bitmaps (Apple Color Emoji), as Core Text renders
+    // the glyphs with non-linear scaling at small pixel sizes.
+    virtual bool ProvidesGlyphWidths() const MOZ_OVERRIDE {
+        return mFontEntry->HasFontTable(TRUETYPE_TAG('s','b','i','x'));
+    }
 
-    mozilla::RefPtr<mozilla::gfx::ScaledFont> GetScaledFont();
+    virtual int32_t GetGlyphWidth(DrawTarget& aDrawTarget,
+                                  uint16_t aGID) MOZ_OVERRIDE;
 
-    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontCacheSizes*   aSizes) const;
-    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontCacheSizes*   aSizes) const;
+    virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
+    GetScaledFont(mozilla::gfx::DrawTarget *aTarget) MOZ_OVERRIDE;
 
-    virtual FontType GetType() const { return FONT_TYPE_MAC; }
+    virtual mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions>
+      GetGlyphRenderingOptions(const TextRunDrawParams* aRunParams = nullptr) MOZ_OVERRIDE;
+
+    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                        FontCacheSizes* aSizes) const;
+    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                        FontCacheSizes* aSizes) const;
+
+    virtual FontType GetType() const MOZ_OVERRIDE { return FONT_TYPE_MAC; }
 
 protected:
-    virtual void CreatePlatformShaper();
+    virtual const Metrics& GetHorizontalMetrics() MOZ_OVERRIDE {
+        return mMetrics;
+    }
 
     // override to prefer CoreText shaping with fonts that depend on AAT
-    virtual bool ShapeWord(gfxContext *aContext,
-                           gfxShapedWord *aShapedWord,
-                           const PRUnichar *aText,
-                           bool aPreferPlatformShaping = false);
+    virtual bool ShapeText(gfxContext     *aContext,
+                           const char16_t *aText,
+                           uint32_t        aOffset,
+                           uint32_t        aLength,
+                           int32_t         aScript,
+                           bool            aVertical,
+                           gfxShapedText  *aShapedText) MOZ_OVERRIDE;
 
     void InitMetrics();
     void InitMetricsFromPlatform();
-    void InitMetricsFromATSMetrics(ATSFontRef aFontRef);
 
     // Get width and glyph ID for a character; uses aConvFactor
     // to convert font units as returned by CG to actual dimensions
-    gfxFloat GetCharWidth(CFDataRef aCmap, PRUnichar aUniChar,
+    gfxFloat GetCharWidth(CFDataRef aCmap, char16_t aUniChar,
                           uint32_t *aGlyphID, gfxFloat aConvFactor);
-
-    static void DestroyBlobFunc(void* aUserData);
 
     // a weak reference to the CoreGraphics font: this is owned by the
     // MacOSFontEntry, it is not retained or released by gfxMacFont
     CGFontRef             mCGFont;
 
+    // a Core Text font reference, created only if we're using CT to measure
+    // glyph widths; otherwise null.
+    CTFontRef             mCTFont;
+
     cairo_font_face_t    *mFontFace;
+
+    nsAutoPtr<gfxFontShaper> mCoreTextShaper;
 
     Metrics               mMetrics;
     uint32_t              mSpaceGlyph;
-
-    mozilla::RefPtr<mozilla::gfx::ScaledFont> mAzureFont;
 };
 
 #endif /* GFX_MACFONT_H */

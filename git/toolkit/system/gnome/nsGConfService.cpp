@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Util.h"
+#include "mozilla/ArrayUtils.h"
 #include "nsGConfService.h"
 #include "nsStringAPI.h"
 #include "nsCOMPtr.h"
@@ -94,7 +94,7 @@ nsGConfService::Init()
   return mClient ? NS_OK : NS_ERROR_FAILURE;
 }
 
-NS_IMPL_ISUPPORTS1(nsGConfService, nsIGConfService)
+NS_IMPL_ISUPPORTS(nsGConfService, nsIGConfService)
 
 NS_IMETHODIMP
 nsGConfService::GetBool(const nsACString &aKey, bool *aResult)
@@ -235,9 +235,9 @@ NS_IMETHODIMP
 nsGConfService::GetAppForProtocol(const nsACString &aScheme, bool *aEnabled,
                                   nsACString &aHandler)
 {
-  nsCAutoString key("/desktop/gnome/url-handlers/");
+  nsAutoCString key("/desktop/gnome/url-handlers/");
   key.Append(aScheme);
-  key.Append("/command");
+  key.AppendLiteral("/command");
 
   GError *err = nullptr;
   gchar *command = gconf_client_get_string(mClient, key.get(), &err);
@@ -263,9 +263,9 @@ NS_IMETHODIMP
 nsGConfService::HandlerRequiresTerminal(const nsACString &aScheme,
                                         bool *aResult)
 {
-  nsCAutoString key("/desktop/gnome/url-handlers/");
+  nsAutoCString key("/desktop/gnome/url-handlers/");
   key.Append(aScheme);
-  key.Append("/requires_terminal");
+  key.AppendLiteral("/requires_terminal");
 
   GError *err = nullptr;
   *aResult = gconf_client_get_bool(mClient, key.get(), &err);
@@ -281,9 +281,9 @@ NS_IMETHODIMP
 nsGConfService::SetAppForProtocol(const nsACString &aScheme,
                                   const nsACString &aCommand)
 {
-  nsCAutoString key("/desktop/gnome/url-handlers/");
+  nsAutoCString key("/desktop/gnome/url-handlers/");
   key.Append(aScheme);
-  key.Append("/command");
+  key.AppendLiteral("/command");
 
   bool res = gconf_client_set_string(mClient, key.get(),
                                        PromiseFlatCString(aCommand).get(),

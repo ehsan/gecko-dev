@@ -4,23 +4,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsImageModule.h"
+
 #include "mozilla/ModuleUtils.h"
+#include "nsMimeTypes.h"
 
+#include "ImageFactory.h"
 #include "RasterImage.h"
+#include "ShutdownTracker.h"
+#include "SurfaceCache.h"
 
-/* We end up pulling in windows.h because we eventually hit gfxWindowsSurface;
- * windows.h defines LoadImage, so we have to #undef it or imgLoader::LoadImage
- * gets changed.
- * This #undef needs to be in multiple places because we don't always pull
- * headers in in the same order.
- */
-#undef LoadImage
-
+#include "gfxPrefs.h"
 #include "imgLoader.h"
 #include "imgRequest.h"
 #include "imgRequestProxy.h"
 #include "imgTools.h"
-#include "DiscardTracker.h"
 
 #include "nsICOEncoder.h"
 #include "nsPNGEncoder.h"
@@ -28,11 +26,6 @@
 #include "nsBMPEncoder.h"
 
 // objects that just require generic constructors
-namespace mozilla {
-namespace image {
-NS_GENERIC_FACTORY_CONSTRUCTOR(RasterImage)
-}
-}
 using namespace mozilla::image;
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(imgLoader, Init)
@@ -45,22 +38,20 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsBMPEncoder)
 NS_DEFINE_NAMED_CID(NS_IMGLOADER_CID);
 NS_DEFINE_NAMED_CID(NS_IMGREQUESTPROXY_CID);
 NS_DEFINE_NAMED_CID(NS_IMGTOOLS_CID);
-NS_DEFINE_NAMED_CID(NS_RASTERIMAGE_CID);
 NS_DEFINE_NAMED_CID(NS_ICOENCODER_CID);
 NS_DEFINE_NAMED_CID(NS_JPEGENCODER_CID);
 NS_DEFINE_NAMED_CID(NS_PNGENCODER_CID);
 NS_DEFINE_NAMED_CID(NS_BMPENCODER_CID);
 
 static const mozilla::Module::CIDEntry kImageCIDs[] = {
-  { &kNS_IMGLOADER_CID, false, NULL, imgLoaderConstructor, },
-  { &kNS_IMGREQUESTPROXY_CID, false, NULL, imgRequestProxyConstructor, },
-  { &kNS_IMGTOOLS_CID, false, NULL, imgToolsConstructor, },
-  { &kNS_RASTERIMAGE_CID, false, NULL, RasterImageConstructor, },
-  { &kNS_ICOENCODER_CID, false, NULL, nsICOEncoderConstructor, },
-  { &kNS_JPEGENCODER_CID, false, NULL, nsJPEGEncoderConstructor, },
-  { &kNS_PNGENCODER_CID, false, NULL, nsPNGEncoderConstructor, },
-  { &kNS_BMPENCODER_CID, false, NULL, nsBMPEncoderConstructor, },
-  { NULL }
+  { &kNS_IMGLOADER_CID, false, nullptr, imgLoaderConstructor, },
+  { &kNS_IMGREQUESTPROXY_CID, false, nullptr, imgRequestProxyConstructor, },
+  { &kNS_IMGTOOLS_CID, false, nullptr, imgToolsConstructor, },
+  { &kNS_ICOENCODER_CID, false, nullptr, nsICOEncoderConstructor, },
+  { &kNS_JPEGENCODER_CID, false, nullptr, nsJPEGEncoderConstructor, },
+  { &kNS_PNGENCODER_CID, false, nullptr, nsPNGEncoderConstructor, },
+  { &kNS_BMPENCODER_CID, false, nullptr, nsBMPEncoderConstructor, },
+  { nullptr }
 };
 
 static const mozilla::Module::ContractIDEntry kImageContracts[] = {
@@ -68,43 +59,55 @@ static const mozilla::Module::ContractIDEntry kImageContracts[] = {
   { "@mozilla.org/image/loader;1", &kNS_IMGLOADER_CID },
   { "@mozilla.org/image/request;1", &kNS_IMGREQUESTPROXY_CID },
   { "@mozilla.org/image/tools;1", &kNS_IMGTOOLS_CID },
-  { "@mozilla.org/image/rasterimage;1", &kNS_RASTERIMAGE_CID },
-  { "@mozilla.org/image/encoder;2?type=image/vnd.microsoft.icon", &kNS_ICOENCODER_CID },
-  { "@mozilla.org/image/encoder;2?type=image/jpeg", &kNS_JPEGENCODER_CID },
-  { "@mozilla.org/image/encoder;2?type=image/png", &kNS_PNGENCODER_CID },
-  { "@mozilla.org/image/encoder;2?type=image/bmp", &kNS_BMPENCODER_CID },
-  { NULL }
+  { "@mozilla.org/image/encoder;2?type=" IMAGE_ICO_MS, &kNS_ICOENCODER_CID },
+  { "@mozilla.org/image/encoder;2?type=" IMAGE_JPEG, &kNS_JPEGENCODER_CID },
+  { "@mozilla.org/image/encoder;2?type=" IMAGE_PNG, &kNS_PNGENCODER_CID },
+  { "@mozilla.org/image/encoder;2?type=" IMAGE_BMP, &kNS_BMPENCODER_CID },
+  { nullptr }
 };
 
 static const mozilla::Module::CategoryEntry kImageCategories[] = {
-  { "Gecko-Content-Viewers", "image/gif", "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", "image/jpeg", "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", "image/pjpeg", "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", "image/jpg", "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", "image/x-icon", "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", "image/vnd.microsoft.icon", "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", "image/bmp", "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", "image/x-ms-bmp", "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", "image/icon", "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", "image/png", "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", "image/x-png", "@mozilla.org/content/document-loader-factory;1" },
+  { "Gecko-Content-Viewers", IMAGE_GIF, "@mozilla.org/content/document-loader-factory;1" },
+  { "Gecko-Content-Viewers", IMAGE_JPEG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Gecko-Content-Viewers", IMAGE_PJPEG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Gecko-Content-Viewers", IMAGE_JPG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Gecko-Content-Viewers", IMAGE_ICO, "@mozilla.org/content/document-loader-factory;1" },
+  { "Gecko-Content-Viewers", IMAGE_ICO_MS, "@mozilla.org/content/document-loader-factory;1" },
+  { "Gecko-Content-Viewers", IMAGE_BMP, "@mozilla.org/content/document-loader-factory;1" },
+  { "Gecko-Content-Viewers", IMAGE_BMP_MS, "@mozilla.org/content/document-loader-factory;1" },
+  { "Gecko-Content-Viewers", IMAGE_ICON_MS, "@mozilla.org/content/document-loader-factory;1" },
+  { "Gecko-Content-Viewers", IMAGE_PNG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Gecko-Content-Viewers", IMAGE_X_PNG, "@mozilla.org/content/document-loader-factory;1" },
   { "content-sniffing-services", "@mozilla.org/image/loader;1", "@mozilla.org/image/loader;1" },
-  { NULL }
+  { nullptr }
 };
 
-static nsresult
-imglib_Initialize()
+static bool sInitialized = false;
+nsresult
+mozilla::image::InitModule()
 {
-  mozilla::image::DiscardTracker::Initialize();
-  imgLoader::InitCache();
+  MOZ_ASSERT(NS_IsMainThread());
+  // Make sure the preferences are initialized
+  gfxPrefs::GetSingleton();
+
+  mozilla::image::ShutdownTracker::Initialize();
+  mozilla::image::ImageFactory::Initialize();
+  mozilla::image::RasterImage::Initialize();
+  mozilla::image::SurfaceCache::Initialize();
+  imgLoader::GlobalInit();
+  sInitialized = true;
   return NS_OK;
 }
 
-static void
-imglib_Shutdown()
+void
+mozilla::image::ShutdownModule()
 {
+  if (!sInitialized) {
+    return;
+  }
   imgLoader::Shutdown();
-  mozilla::image::DiscardTracker::Shutdown();
+  mozilla::image::SurfaceCache::Shutdown();
+  sInitialized = false;
 }
 
 static const mozilla::Module kImageModule = {
@@ -112,9 +115,12 @@ static const mozilla::Module kImageModule = {
   kImageCIDs,
   kImageContracts,
   kImageCategories,
-  NULL,
-  imglib_Initialize,
-  imglib_Shutdown
+  nullptr,
+  mozilla::image::InitModule,
+  // We need to be careful about shutdown ordering to avoid intermittent crashes
+  // when hashtable enumeration decides to destroy modules in an unfortunate
+  // order. So our shutdown is invoked explicitly during layout module shutdown.
+  nullptr
 };
 
 NSMODULE_DEFN(nsImageLib2Module) = &kImageModule;

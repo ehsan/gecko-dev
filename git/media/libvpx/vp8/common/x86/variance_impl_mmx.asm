@@ -12,7 +12,7 @@
 %include "vpx_ports/x86_abi_support.asm"
 
 ;unsigned int vp8_get_mb_ss_mmx( short *src_ptr )
-global sym(vp8_get_mb_ss_mmx)
+global sym(vp8_get_mb_ss_mmx) PRIVATE
 sym(vp8_get_mb_ss_mmx):
     push        rbp
     mov         rbp, rsp
@@ -72,7 +72,7 @@ sym(vp8_get_mb_ss_mmx):
 ;    unsigned int *SSE,
 ;    int *Sum
 ;)
-global sym(vp8_get8x8var_mmx)
+global sym(vp8_get8x8var_mmx) PRIVATE
 sym(vp8_get8x8var_mmx):
     push        rbp
     mov         rbp, rsp
@@ -320,7 +320,7 @@ sym(vp8_get8x8var_mmx):
 ;    unsigned int *SSE,
 ;    int *Sum
 ;)
-global sym(vp8_get4x4var_mmx)
+global sym(vp8_get4x4var_mmx) PRIVATE
 sym(vp8_get4x4var_mmx):
     push        rbp
     mov         rbp, rsp
@@ -342,8 +342,8 @@ sym(vp8_get4x4var_mmx):
         movsxd      rdx, dword ptr arg(3) ;[recon_stride]
 
         ; Row 1
-        movq        mm0, [rax]                  ; Copy eight bytes to mm0
-        movq        mm1, [rbx]                  ; Copy eight bytes to mm1
+        movd        mm0, [rax]                  ; Copy four bytes to mm0
+        movd        mm1, [rbx]                  ; Copy four bytes to mm1
         punpcklbw   mm0, mm6                    ; unpack to higher prrcision
         punpcklbw   mm1, mm6
         psubsw      mm0, mm1                    ; A-B (low order) to MM0
@@ -351,12 +351,12 @@ sym(vp8_get4x4var_mmx):
         pmaddwd     mm0, mm0                    ; square and accumulate
         add         rbx,rdx                     ; Inc pointer into ref data
         add         rax,rcx                     ; Inc pointer into the new data
-        movq        mm1, [rbx]                  ; Copy eight bytes to mm1
+        movd        mm1, [rbx]                  ; Copy four bytes to mm1
         paddd       mm7, mm0                    ; accumulate in mm7
 
 
         ; Row 2
-        movq        mm0, [rax]                  ; Copy eight bytes to mm0
+        movd        mm0, [rax]                  ; Copy four bytes to mm0
         punpcklbw   mm0, mm6                    ; unpack to higher prrcision
         punpcklbw   mm1, mm6
         psubsw      mm0, mm1                    ; A-B (low order) to MM0
@@ -365,12 +365,12 @@ sym(vp8_get4x4var_mmx):
         pmaddwd     mm0, mm0                    ; square and accumulate
         add         rbx,rdx                     ; Inc pointer into ref data
         add         rax,rcx                     ; Inc pointer into the new data
-        movq        mm1, [rbx]                  ; Copy eight bytes to mm1
+        movd        mm1, [rbx]                  ; Copy four bytes to mm1
         paddd       mm7, mm0                    ; accumulate in mm7
 
         ; Row 3
-        movq        mm0, [rax]                  ; Copy eight bytes to mm0
-        punpcklbw   mm0, mm6                    ; unpack to higher prrcision
+        movd        mm0, [rax]                  ; Copy four bytes to mm0
+        punpcklbw   mm0, mm6                    ; unpack to higher precision
         punpcklbw   mm1, mm6
         psubsw      mm0, mm1                    ; A-B (low order) to MM0
         paddw       mm5, mm0                    ; accumulate differences in mm5
@@ -378,11 +378,11 @@ sym(vp8_get4x4var_mmx):
         pmaddwd     mm0, mm0                    ; square and accumulate
         add         rbx,rdx                     ; Inc pointer into ref data
         add         rax,rcx                     ; Inc pointer into the new data
-        movq        mm1, [rbx]                  ; Copy eight bytes to mm1
+        movd        mm1, [rbx]                  ; Copy four bytes to mm1
         paddd       mm7, mm0                    ; accumulate in mm7
 
         ; Row 4
-        movq        mm0, [rax]                  ; Copy eight bytes to mm0
+        movd        mm0, [rax]                  ; Copy four bytes to mm0
 
         punpcklbw   mm0, mm6                    ; unpack to higher prrcision
         punpcklbw   mm1, mm6
@@ -433,7 +433,7 @@ sym(vp8_get4x4var_mmx):
 ;    unsigned char *ref_ptr,
 ;    int  recon_stride
 ;)
-global sym(vp8_get4x4sse_cs_mmx)
+global sym(vp8_get4x4sse_cs_mmx) PRIVATE
 sym(vp8_get4x4sse_cs_mmx):
     push        rbp
     mov         rbp, rsp
@@ -522,7 +522,7 @@ sym(vp8_get4x4sse_cs_mmx):
 ;    int *sum,
 ;    unsigned int *sumsquared
 ;)
-global sym(vp8_filter_block2d_bil4x4_var_mmx)
+global sym(vp8_filter_block2d_bil4x4_var_mmx) PRIVATE
 sym(vp8_filter_block2d_bil4x4_var_mmx):
     push        rbp
     mov         rbp, rsp
@@ -667,7 +667,7 @@ sym(vp8_filter_block2d_bil4x4_var_mmx):
 ;    int *sum,
 ;    unsigned int *sumsquared
 ;)
-global sym(vp8_filter_block2d_bil_var_mmx)
+global sym(vp8_filter_block2d_bil_var_mmx) PRIVATE
 sym(vp8_filter_block2d_bil_var_mmx):
     push        rbp
     mov         rbp, rsp

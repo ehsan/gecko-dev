@@ -7,8 +7,8 @@
 
 #include "base/message_pump.h"
 #include "base/observer_list.h"
-#include "base/scoped_ptr.h"
 #include "base/time.h"
+#include "mozilla/UniquePtr.h"
 
 typedef union _GdkEvent GdkEvent;
 typedef struct _GMainContext GMainContext;
@@ -59,7 +59,7 @@ class MessagePumpForUI : public MessagePump {
   virtual void Run(Delegate* delegate) { RunWithDispatcher(delegate, NULL); }
   virtual void Quit();
   virtual void ScheduleWork();
-  virtual void ScheduleDelayedWork(const Time& delayed_work_time);
+  virtual void ScheduleDelayedWork(const TimeTicks& delayed_work_time);
 
   // Internal methods used for processing the pump callbacks.  They are
   // public for simplicity but should not be used directly.  HandlePrepare
@@ -116,7 +116,7 @@ class MessagePumpForUI : public MessagePump {
   GMainContext* context_;
 
   // This is the time when we need to do delayed work.
-  Time delayed_work_time_;
+  TimeTicks delayed_work_time_;
 
   // The work source.  It is shared by all calls to Run and destroyed when
   // the message pump is destroyed.
@@ -128,8 +128,8 @@ class MessagePumpForUI : public MessagePump {
   // Dispatch() will be called.
   int wakeup_pipe_read_;
   int wakeup_pipe_write_;
-  // Use a scoped_ptr to avoid needing the definition of GPollFD in the header.
-  scoped_ptr<GPollFD> wakeup_gpollfd_;
+  // Use an autoptr to avoid needing the definition of GPollFD in the header.
+  mozilla::UniquePtr<GPollFD> wakeup_gpollfd_;
 
   // List of observers.
   ObserverList<Observer> observers_;

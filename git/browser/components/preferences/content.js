@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -16,6 +16,13 @@ var gContentPane = {
       menulist.insertItemAt(0, "", "", "");
       menulist.selectedIndex = 0;
     }
+
+    // Show translation preferences if we may:
+    const prefName = "browser.translation.ui.show";
+    if (Services.prefs.getBoolPref(prefName)) {
+      let row = document.getElementById("translationBox");
+      row.removeAttribute("hidden");
+    }
   },
 
   // UTILITY FUNCTIONS
@@ -32,29 +39,6 @@ var gContentPane = {
     return undefined;
   },
 
-  /**
-   * The exceptions types which may be passed to this._showExceptions().
-   */
-  _exceptionsParams: {
-    popup:   { blockVisible: false, sessionVisible: false, allowVisible: true, prefilledHost: "", permissionType: "popup"   },
-    image:   { blockVisible: true,  sessionVisible: false, allowVisible: true, prefilledHost: "", permissionType: "image"   }
-  },
-
-  /**
-   * Displays the exceptions dialog of the given type, where types map onto the
-   * the fields in this._exceptionsParams.
-   */  
-  _showExceptions: function (aPermissionType)
-  {
-    var bundlePreferences = document.getElementById("bundlePreferences");
-    var params = this._exceptionsParams[aPermissionType];
-    params.windowTitle = bundlePreferences.getString(aPermissionType + "permissionstitle");
-    params.introText = bundlePreferences.getString(aPermissionType + "permissionstext");
-    document.documentElement.openWindow("Browser:Permissions",
-                                        "chrome://browser/content/preferences/permissions.xul",
-                                        "", params);
-  },
-
   // BEGIN UI CODE
 
   /*
@@ -62,15 +46,6 @@ var gContentPane = {
    *
    * dom.disable_open_during_load
    * - true if popups are blocked by default, false otherwise
-   * permissions.default.image
-   * - an integer:
-   *     1   all images should be loaded,
-   *     2   no images should be loaded,
-   *     3   load only images from the site on which the current page resides
-   *         (i.e., if viewing foo.example.com, foo.example.com/foo.jpg and
-   *         bar.foo.example.com/bar.jpg load but example.com/quux.jpg does not)
-   * javascript.enabled
-   * - true if JavaScript is enabled, false otherwise
    */
 
   // POP-UPS
@@ -81,51 +56,15 @@ var gContentPane = {
    */
   showPopupExceptions: function ()
   {
-    this._showExceptions("popup");
+    var bundlePreferences = document.getElementById("bundlePreferences");
+    var params = { blockVisible: false, sessionVisible: false, allowVisible: true, prefilledHost: "", permissionType: "popup" };
+    params.windowTitle = bundlePreferences.getString("popuppermissionstitle");
+    params.introText = bundlePreferences.getString("popuppermissionstext");
+    document.documentElement.openWindow("Browser:Permissions",
+                                        "chrome://browser/content/preferences/permissions.xul",
+                                        "resizable", params);
   },
 
-  // IMAGES
-
-  /**
-   * Converts the value of the permissions.default.image preference into a
-   * Boolean value for use in determining the state of the "load images"
-   * checkbox, returning true if images should be loaded and false otherwise.
-   */
-  readLoadImages: function ()
-  {
-    var pref = document.getElementById("permissions.default.image");
-    return (pref.value == 1 || pref.value == 3);
-  },
-
-  /**
-   * Returns the "load images" preference value which maps to the state of the
-   * preferences UI.
-   */
-  writeLoadImages: function ()
-  { 
-    return (document.getElementById("loadImages").checked) ? 1 : 2;
-  },
-
-  /**
-   * Displays image exception preferences for which websites can and cannot
-   * load images.
-   */
-  showImageExceptions: function ()
-  {
-    this._showExceptions("image");
-  },
-
-  // JAVASCRIPT
-
-  /**
-   * Displays the advanced JavaScript preferences for enabling or disabling
-   * various annoying behaviors.
-   */
-  showAdvancedJS: function ()
-  {
-    document.documentElement.openSubDialog("chrome://browser/content/preferences/advanced-scripts.xul",
-                                           "", null);  
-  },
 
   // FONTS
 
@@ -238,5 +177,22 @@ var gContentPane = {
   {
     document.documentElement.openSubDialog("chrome://browser/content/preferences/languages.xul",
                                            "", null);
+  },
+
+  /**
+   * Displays the translation exceptions dialog where specific site and language
+   * translation preferences can be set.
+   */
+  showTranslationExceptions: function ()
+  {
+    document.documentElement.openWindow("Browser:TranslationExceptions",
+                                        "chrome://browser/content/preferences/translation.xul",
+                                        "resizable", null);
+  },
+
+  openTranslationProviderAttribution: function ()
+  {
+    Components.utils.import("resource:///modules/translation/Translation.jsm");
+    Translation.openProviderAttribution();
   }
 };

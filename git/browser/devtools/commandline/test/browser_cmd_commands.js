@@ -3,64 +3,59 @@
 
 // Test various GCLI commands
 
-let imported = {};
-Components.utils.import("resource:///modules/HUDService.jsm", imported);
-
 const TEST_URI = "data:text/html;charset=utf-8,gcli-commands";
 
 function test() {
-  DeveloperToolbarTest.test(TEST_URI, [ testEcho, testConsole ]);
+  return Task.spawn(spawnTest).then(finish, helpers.handleError);
 }
 
-function testEcho() {
-  DeveloperToolbarTest.exec({
-    typed: "echo message",
-    args: { message: "message" },
-    outputMatch: /^message$/,
-  });
-}
+function spawnTest() {
+  let options = yield helpers.openTab(TEST_URI);
+  yield helpers.openToolbar(options);
 
-function testConsole(browser, tab) {
-  let hud = null;
-  function onWebConsoleOpen(aSubject) {
-    Services.obs.removeObserver(onWebConsoleOpen, "web-console-created");
+  let subjectPromise = helpers.observeOnce("web-console-created");
 
-    aSubject.QueryInterface(Ci.nsISupportsString);
-    hud = imported.HUDService.getHudReferenceById(aSubject.data);
-    ok(hud.hudId in imported.HUDService.hudReferences, "console open");
+  helpers.audit(options, [
+    {
+      setup: "console open",
+      exec: { }
+    }
+  ]);
 
-    hud.jsterm.execute("pprint(window)", onExecute);
-  }
+  let subject = yield subjectPromise;
 
-  Services.obs.addObserver(onWebConsoleOpen, "web-console-created", false);
+  subject.QueryInterface(Ci.nsISupportsString);
+  let hud = HUDService.getHudReferenceById(subject.data);
+  ok(hud, "console open");
 
-  DeveloperToolbarTest.exec({
-    typed: "console open",
-    args: {},
-    blankOutput: true,
-  });
+  let jstermExecute = helpers.promiseify(hud.jsterm.execute, hud.jsterm);
+  let msg = yield jstermExecute("pprint(window)");
 
-  function onExecute() {
-    let labels = hud.outputNode.querySelectorAll(".webconsole-msg-output");
-    ok(labels.length > 0, "output for pprint(window)");
+  ok(msg, "output for pprint(window)");
 
-    DeveloperToolbarTest.exec({
-      typed: "console clear",
-      args: {},
-      blankOutput: true,
-    });
+  let oncePromise = hud.jsterm.once("messages-cleared");
 
-    let labels = hud.outputNode.querySelectorAll(".webconsole-msg-output");
-    is(labels.length, 0, "no output in console");
+  helpers.audit(options, [
+    {
+      setup: "console clear",
+      exec: { output: "" }
+    }
+  ]);
 
-    DeveloperToolbarTest.exec({
-      typed: "console close",
-      args: {},
-      blankOutput: true,
-    });
+  yield oncePromise;
 
-    ok(!(hud.hudId in imported.HUDService.hudReferences), "console closed");
+  let labels = hud.outputNode.querySelectorAll(".message");
+  is(labels.length, 0, "no output in console");
 
-    imported = undefined;
-  }
+  yield helpers.audit(options, [
+    {
+      setup: "console close",
+      exec: { output: true }
+    }
+  ]);
+
+  ok(!HUDService.getHudReferenceById(hud.hudId), "console closed");
+
+  yield helpers.closeToolbar(options);
+  yield helpers.closeTab(options);
 }

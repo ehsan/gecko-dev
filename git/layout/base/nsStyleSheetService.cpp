@@ -1,30 +1,34 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* implementation of interface for managing user and user-agent style sheets */
 
-#include "prlog.h"
 #include "nsStyleSheetService.h"
 #include "nsIStyleSheet.h"
+#include "mozilla/CSSStyleSheet.h"
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/unused.h"
 #include "mozilla/css/Loader.h"
-#include "nsCSSStyleSheet.h"
+#include "mozilla/dom/ContentParent.h"
+#include "mozilla/ipc/URIUtils.h"
 #include "nsIURI.h"
-#include "nsContentCID.h"
 #include "nsCOMPtr.h"
-#include "nsIServiceManager.h"
 #include "nsICategoryManager.h"
 #include "nsISupportsPrimitives.h"
 #include "nsNetUtil.h"
 #include "nsIObserverService.h"
 #include "nsLayoutStatics.h"
 
+using namespace mozilla;
+
 nsStyleSheetService *nsStyleSheetService::gInstance = nullptr;
 
 nsStyleSheetService::nsStyleSheetService()
 {
-  PR_STATIC_ASSERT(0 == AGENT_SHEET && 1 == USER_SHEET);
+  PR_STATIC_ASSERT(0 == AGENT_SHEET && 1 == USER_SHEET && 2 == AUTHOR_SHEET);
   NS_ASSERTION(!gInstance, "Someone is using CreateInstance instead of GetService");
   gInstance = this;
   nsLayoutStatics::AddRef();
@@ -32,11 +36,14 @@ nsStyleSheetService::nsStyleSheetService()
 
 nsStyleSheetService::~nsStyleSheetService()
 {
+  UnregisterWeakMemoryReporter(this);
+
   gInstance = nullptr;
   nsLayoutStatics::Release();
 }
 
-NS_IMPL_ISUPPORTS1(nsStyleSheetService, nsIStyleSheetService)
+NS_IMPL_ISUPPORTS(
+  nsStyleSheetService, nsIStyleSheetService, nsIMemoryReporter)
 
 void
 nsStyleSheetService::RegisterFromEnumerator(nsICategoryManager  *aManager,
@@ -57,7 +64,7 @@ nsStyleSheetService::RegisterFromEnumerator(nsICategoryManager  *aManager,
     NS_ASSERTION(icStr,
                  "category manager entries must be nsISupportsCStrings");
 
-    nsCAutoString name;
+    nsAutoCString name;
     icStr->GetData(name);
 
     nsXPIDLCString spec;
@@ -90,6 +97,14 @@ nsStyleSheetService::FindSheetByURI(const nsCOMArray<nsIStyleSheet> &sheets,
 nsresult
 nsStyleSheetService::Init()
 {
+  // If you make changes here, consider whether
+  // SVGDocument::EnsureNonSVGUserAgentStyleSheetsLoaded should be updated too.
+
+  // Child processes get their style sheets from the ContentParent.
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    return NS_OK;
+  }
+
   // Enumerate all of the style sheet URIs registered in the category
   // manager and load them.
 
@@ -105,6 +120,11 @@ nsStyleSheetService::Init()
   catMan->EnumerateCategory("user-style-sheets", getter_AddRefs(sheets));
   RegisterFromEnumerator(catMan, "user-style-sheets", sheets, USER_SHEET);
 
+  catMan->EnumerateCategory("author-style-sheets", getter_AddRefs(sheets));
+  RegisterFromEnumerator(catMan, "author-style-sheets", sheets, AUTHOR_SHEET);
+
+  RegisterWeakMemoryReporter(this);
+
   return NS_OK;
 }
 
@@ -114,15 +134,42 @@ nsStyleSheetService::LoadAndRegisterSheet(nsIURI *aSheetURI,
 {
   nsresult rv = LoadAndRegisterSheetInternal(aSheetURI, aSheetType);
   if (NS_SUCCEEDED(rv)) {
-    const char* message = (aSheetType == AGENT_SHEET) ?
-      "agent-sheet-added" : "user-sheet-added";
-    nsCOMPtr<nsIObserverService> serv =
-      mozilla::services::GetObserverService();
+    const char* message;
+    switch (aSheetType) {
+      case AGENT_SHEET:
+        message = "agent-sheet-added";
+        break;
+      case USER_SHEET:
+        message = "user-sheet-added";
+        break;
+      case AUTHOR_SHEET:
+        message = "author-sheet-added";
+        break;
+      default:
+        return NS_ERROR_INVALID_ARG;
+    }
+    nsCOMPtr<nsIObserverService> serv = services::GetObserverService();
     if (serv) {
       // We're guaranteed that the new sheet is the last sheet in
       // mSheets[aSheetType]
       const nsCOMArray<nsIStyleSheet> & sheets = mSheets[aSheetType];
       serv->NotifyObservers(sheets[sheets.Count() - 1], message, nullptr);
+    }
+
+    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+      nsTArray<dom::ContentParent*> children;
+      dom::ContentParent::GetAll(children);
+
+      if (children.IsEmpty()) {
+        return rv;
+      }
+
+      mozilla::ipc::URIParams uri;
+      SerializeURI(aSheetURI, uri);
+
+      for (uint32_t i = 0; i < children.Length(); i++) {
+        unused << children[i]->SendLoadAndRegisterSheet(uri, aSheetType);
+      }
     }
   }
   return rv;
@@ -132,12 +179,14 @@ nsresult
 nsStyleSheetService::LoadAndRegisterSheetInternal(nsIURI *aSheetURI,
                                                   uint32_t aSheetType)
 {
-  NS_ENSURE_ARG(aSheetType == AGENT_SHEET || aSheetType == USER_SHEET);
+  NS_ENSURE_ARG(aSheetType == AGENT_SHEET ||
+                aSheetType == USER_SHEET ||
+                aSheetType == AUTHOR_SHEET);
   NS_ENSURE_ARG_POINTER(aSheetURI);
 
-  nsRefPtr<mozilla::css::Loader> loader = new mozilla::css::Loader();
+  nsRefPtr<css::Loader> loader = new css::Loader();
 
-  nsRefPtr<nsCSSStyleSheet> sheet;
+  nsRefPtr<CSSStyleSheet> sheet;
   // Allow UA sheets, but not user sheets, to use unsafe rules
   nsresult rv = loader->LoadSheetSync(aSheetURI, aSheetType == AGENT_SHEET,
                                       true, getter_AddRefs(sheet));
@@ -154,7 +203,9 @@ NS_IMETHODIMP
 nsStyleSheetService::SheetRegistered(nsIURI *sheetURI,
                                      uint32_t aSheetType, bool *_retval)
 {
-  NS_ENSURE_ARG(aSheetType == AGENT_SHEET || aSheetType == USER_SHEET);
+  NS_ENSURE_ARG(aSheetType == AGENT_SHEET ||
+                aSheetType == USER_SHEET ||
+                aSheetType == AUTHOR_SHEET);
   NS_ENSURE_ARG_POINTER(sheetURI);
   NS_PRECONDITION(_retval, "Null out param");
 
@@ -164,22 +215,120 @@ nsStyleSheetService::SheetRegistered(nsIURI *sheetURI,
 }
 
 NS_IMETHODIMP
-nsStyleSheetService::UnregisterSheet(nsIURI *sheetURI, uint32_t aSheetType)
+nsStyleSheetService::PreloadSheet(nsIURI *aSheetURI, uint32_t aSheetType,
+                                  nsIDOMStyleSheet **aSheet)
 {
-  NS_ENSURE_ARG(aSheetType == AGENT_SHEET || aSheetType == USER_SHEET);
-  NS_ENSURE_ARG_POINTER(sheetURI);
+  NS_ENSURE_ARG(aSheetType == AGENT_SHEET ||
+                aSheetType == USER_SHEET ||
+                aSheetType == AUTHOR_SHEET);
+  NS_ENSURE_ARG_POINTER(aSheetURI);
+  NS_PRECONDITION(aSheet, "Null out param");
 
-  int32_t foundIndex = FindSheetByURI(mSheets[aSheetType], sheetURI);
+  nsRefPtr<css::Loader> loader = new css::Loader();
+
+  // Allow UA sheets, but not user sheets, to use unsafe rules
+  nsRefPtr<CSSStyleSheet> sheet;
+  nsresult rv = loader->LoadSheetSync(aSheetURI, aSheetType == AGENT_SHEET,
+                                      true, getter_AddRefs(sheet));
+  NS_ENSURE_SUCCESS(rv, rv);
+  sheet.forget(aSheet);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsStyleSheetService::UnregisterSheet(nsIURI *aSheetURI, uint32_t aSheetType)
+{
+  NS_ENSURE_ARG(aSheetType == AGENT_SHEET ||
+                aSheetType == USER_SHEET ||
+                aSheetType == AUTHOR_SHEET);
+  NS_ENSURE_ARG_POINTER(aSheetURI);
+
+  int32_t foundIndex = FindSheetByURI(mSheets[aSheetType], aSheetURI);
   NS_ENSURE_TRUE(foundIndex >= 0, NS_ERROR_INVALID_ARG);
   nsCOMPtr<nsIStyleSheet> sheet = mSheets[aSheetType][foundIndex];
   mSheets[aSheetType].RemoveObjectAt(foundIndex);
-  
-  const char* message = (aSheetType == AGENT_SHEET) ?
-      "agent-sheet-removed" : "user-sheet-removed";
-  nsCOMPtr<nsIObserverService> serv =
-    mozilla::services::GetObserverService();
+
+  const char* message;
+  switch (aSheetType) {
+    case AGENT_SHEET:
+      message = "agent-sheet-removed";
+      break;
+    case USER_SHEET:
+      message = "user-sheet-removed";
+      break;
+    case AUTHOR_SHEET:
+      message = "author-sheet-removed";
+      break;
+  }
+
+  nsCOMPtr<nsIObserverService> serv = services::GetObserverService();
   if (serv)
     serv->NotifyObservers(sheet, message, nullptr);
 
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    nsTArray<dom::ContentParent*> children;
+    dom::ContentParent::GetAll(children);
+
+    if (children.IsEmpty()) {
+      return NS_OK;
+    }
+
+    mozilla::ipc::URIParams uri;
+    SerializeURI(aSheetURI, uri);
+
+    for (uint32_t i = 0; i < children.Length(); i++) {
+      unused << children[i]->SendUnregisterSheet(uri, aSheetType);
+    }
+  }
+
   return NS_OK;
 }
+
+//static
+nsStyleSheetService *
+nsStyleSheetService::GetInstance()
+{
+  static bool first = true;
+  if (first) {
+    // make sure at first call that it's inited
+    nsCOMPtr<nsIStyleSheetService> dummy =
+      do_GetService(NS_STYLESHEETSERVICE_CONTRACTID);
+    first = false;
+  }
+
+  return gInstance;
+}
+
+static size_t
+SizeOfElementIncludingThis(nsIStyleSheet* aElement,
+                           MallocSizeOf aMallocSizeOf, void *aData)
+{
+  return aElement->SizeOfIncludingThis(aMallocSizeOf);
+}
+
+MOZ_DEFINE_MALLOC_SIZE_OF(StyleSheetServiceMallocSizeOf)
+
+NS_IMETHODIMP
+nsStyleSheetService::CollectReports(nsIHandleReportCallback* aHandleReport,
+                                    nsISupports* aData, bool aAnonymize)
+{
+  return MOZ_COLLECT_REPORT(
+    "explicit/layout/style-sheet-service", KIND_HEAP, UNITS_BYTES,
+    SizeOfIncludingThis(StyleSheetServiceMallocSizeOf),
+    "Memory used for style sheets held by the style sheet service.");
+}
+
+size_t
+nsStyleSheetService::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+{
+  size_t n = aMallocSizeOf(this);
+  n += mSheets[AGENT_SHEET].SizeOfExcludingThis(SizeOfElementIncludingThis,
+                                                aMallocSizeOf);
+  n += mSheets[USER_SHEET].SizeOfExcludingThis(SizeOfElementIncludingThis,
+                                               aMallocSizeOf);
+  n += mSheets[AUTHOR_SHEET].SizeOfExcludingThis(SizeOfElementIncludingThis,
+                                                 aMallocSizeOf);
+  return n;
+}
+
+

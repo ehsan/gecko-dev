@@ -11,10 +11,19 @@
  */
 
 [Constructor(DOMString type, optional CustomEventInit eventInitDict)]
-interface CustomEvent : Event {
+interface CustomEvent : Event
+{
   readonly attribute any detail;
+
+  // initCustomEvent is a Gecko specific deprecated method.
+  [Throws]
+  void initCustomEvent(DOMString type,
+                       boolean canBubble,
+                       boolean cancelable,
+                       any detail);
 };
 
-dictionary CustomEventInit : EventInit {
-  any detail;
+dictionary CustomEventInit : EventInit
+{
+  any detail = null;
 };

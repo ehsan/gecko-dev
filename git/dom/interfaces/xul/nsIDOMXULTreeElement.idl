@@ -14,8 +14,8 @@ interface nsIDOMXULTextBoxElement;
  * @status UNDER_DEVELOPMENT
  */
 
-[scriptable, uuid(cba7143b-73fc-4974-b93d-7e3f6b18d645)]
-interface nsIDOMXULTreeElement : nsIDOMXULElement
+[scriptable, uuid(013b62af-1e2f-4b07-9091-d7c0fc4687e2)]
+interface nsIDOMXULTreeElement : nsISupports
 {
 
   readonly attribute nsITreeColumns columns;

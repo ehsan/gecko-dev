@@ -3,21 +3,23 @@
 
 "use strict";
 
+Cu.import("resource://gre/modules/AddonManager.jsm");
 Cu.import("resource://services-sync/addonsreconciler.js");
 Cu.import("resource://services-sync/engines/addons.js");
-Cu.import("resource://gre/modules/AddonManager.jsm");
+Cu.import("resource://services-sync/service.js");
+Cu.import("resource://services-sync/util.js");
 
 loadAddonTestFunctions();
 startupManager();
 
 function run_test() {
   initTestLogging("Trace");
-  Log4Moz.repository.getLogger("Sync.AddonsReconciler").level = Log4Moz.Level.Trace;
-  Log4Moz.repository.getLogger("Sync.AddonsReconciler").level =
-    Log4Moz.Level.Trace;
+  Log.repository.getLogger("Sync.AddonsReconciler").level = Log.Level.Trace;
+  Log.repository.getLogger("Sync.AddonsReconciler").level =
+    Log.Level.Trace;
 
   Svc.Prefs.set("engine.addons", true);
-  Engines.register(AddonsEngine);
+  Service.engineManager.register(AddonsEngine);
 
   run_next_test();
 }
@@ -177,7 +179,7 @@ add_test(function test_prune_changes_before_date() {
   do_check_eq(2, reconciler._changes.length);
 
   _("Ensure pruning a single item works.");
-  let threshold = new Date(young.getTime() - 1000);
+  threshold = new Date(young.getTime() - 1000);
   reconciler.pruneChangesBeforeDate(threshold);
   do_check_eq(1, reconciler._changes.length);
   do_check_neq(undefined, reconciler._changes[0]);

@@ -11,18 +11,11 @@
 #include "mozilla/ipc/PTestShellParent.h"
 #include "mozilla/ipc/PTestShellCommandParent.h"
 
-#include "jsapi.h"
+#include "js/TypeDecls.h"
 #include "nsAutoJSValHolder.h"
-#include "nsStringGlue.h"
-
-struct JSContext;
-struct JSObject;
+#include "nsString.h"
 
 namespace mozilla {
-
-namespace jsipc {
-class PContextWrapperParent;
-}
 
 namespace ipc {
 
@@ -31,31 +24,27 @@ class TestShellCommandParent;
 class TestShellParent : public PTestShellParent
 {
 public:
+  virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+
   PTestShellCommandParent*
-  AllocPTestShellCommand(const nsString& aCommand);
+  AllocPTestShellCommandParent(const nsString& aCommand);
 
   bool
-  DeallocPTestShellCommand(PTestShellCommandParent* aActor);
+  DeallocPTestShellCommandParent(PTestShellCommandParent* aActor);
 
   bool
   CommandDone(TestShellCommandParent* aActor, const nsString& aResponse);
-
-  PContextWrapperParent* AllocPContextWrapper();
-  bool DeallocPContextWrapper(PContextWrapperParent* actor);
-
-  JSBool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
 };
 
 
 class TestShellCommandParent : public PTestShellCommandParent
 {
 public:
-  TestShellCommandParent() : mCx(NULL) { }
+  TestShellCommandParent() {}
 
-  JSBool SetCallback(JSContext* aCx,
-                     jsval aCallback);
+  bool SetCallback(JSContext* aCx, JS::Value aCallback);
 
-  JSBool RunCallback(const nsString& aResponse);
+  bool RunCallback(const nsString& aResponse);
 
   void ReleaseCallback();
 
@@ -63,13 +52,12 @@ protected:
   bool ExecuteCallback(const nsString& aResponse);
 
   void ActorDestroy(ActorDestroyReason why);
-  
+
   bool Recv__delete__(const nsString& aResponse) {
     return ExecuteCallback(aResponse);
   }
 
 private:
-  JSContext* mCx;
   nsAutoJSValHolder mCallback;
 };
 

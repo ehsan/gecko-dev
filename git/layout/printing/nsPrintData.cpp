@@ -14,16 +14,19 @@
 
 //-----------------------------------------------------
 // PR LOGGING
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
-
 #include "prlog.h"
 
 #ifdef PR_LOGGING
 #define DUMP_LAYOUT_LEVEL 9 // this turns on the dumping of each doucment's layout info
-static PRLogModuleInfo * kPrintingLogMod = PR_NewLogModule("printing");
-#define PR_PL(_p1)  PR_LOG(kPrintingLogMod, PR_LOG_DEBUG, _p1);
+static PRLogModuleInfo *
+GetPrintingLog()
+{
+  static PRLogModuleInfo *sLog;
+  if (!sLog)
+    sLog = PR_NewLogModule("printing");
+  return sLog;
+}
+#define PR_PL(_p1)  PR_LOG(GetPrintingLog(), PR_LOG_DEBUG, _p1);
 #else
 #define PRT_YESNO(_p)
 #define PR_PL(_p1)
@@ -39,7 +42,7 @@ nsPrintData::nsPrintData(ePrintDataType aType) :
   mIsAborted(false), mPreparingForPrint(false), mDocWasToBeDestroyed(false),
   mShrinkToFit(false), mPrintFrameType(nsIPrintSettings::kFramesAsIs), 
   mNumPrintablePages(0), mNumPagesPrinted(0),
-  mShrinkRatio(1.0), mOrigDCScale(1.0), mPPEventListeners(NULL), 
+  mShrinkRatio(1.0), mOrigDCScale(1.0), mPPEventListeners(nullptr), 
   mBrandName(nullptr)
 {
   MOZ_COUNT_CTOR(nsPrintData);
@@ -49,7 +52,7 @@ nsPrintData::nsPrintData(ePrintDataType aType) :
   if (svc) {
     svc->CreateBundle( "chrome://branding/locale/brand.properties", getter_AddRefs( brandBundle ) );
     if (brandBundle) {
-      brandBundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(), &mBrandName );
+      brandBundle->GetStringFromName(MOZ_UTF16("brandShortName"), &mBrandName );
     }
   }
 

@@ -7,7 +7,7 @@
 
 #include "base/process_util.h"
 
-#include "mozilla/ipc/AsyncChannel.h"
+#include "mozilla/ipc/MessageChannel.h"
 #include "mozilla/ipc/ProtocolUtils.h"
 #include "mozilla/ipc/Transport.h"
 
@@ -16,6 +16,63 @@ using namespace IPC;
 
 namespace mozilla {
 namespace ipc {
+
+#ifdef MOZ_IPDL_TESTS
+bool IToplevelProtocol::sAllowNonMainThreadUse;
+#endif
+
+IToplevelProtocol::~IToplevelProtocol()
+{
+  MOZ_ASSERT(NS_IsMainThread() || AllowNonMainThreadUse());
+  mOpenActors.clear();
+}
+
+void IToplevelProtocol::AddOpenedActor(IToplevelProtocol* aActor)
+{
+  MOZ_ASSERT(NS_IsMainThread() || AllowNonMainThreadUse());
+
+#ifdef DEBUG
+  for (const IToplevelProtocol* actor = mOpenActors.getFirst();
+       actor;
+       actor = actor->getNext()) {
+    NS_ASSERTION(actor != aActor,
+                 "Open the same protocol for more than one time");
+  }
+#endif
+
+  mOpenActors.insertBack(aActor);
+}
+
+IToplevelProtocol*
+IToplevelProtocol::CloneToplevel(const InfallibleTArray<ProtocolFdMapping>& aFds,
+                                 base::ProcessHandle aPeerProcess,
+                                 ProtocolCloneContext* aCtx)
+{
+  NS_NOTREACHED("Clone() for this protocol actor is not implemented");
+  return nullptr;
+}
+
+void
+IToplevelProtocol::CloneOpenedToplevels(IToplevelProtocol* aTemplate,
+                                        const InfallibleTArray<ProtocolFdMapping>& aFds,
+                                        base::ProcessHandle aPeerProcess,
+                                        ProtocolCloneContext* aCtx)
+{
+  for (IToplevelProtocol* actor = aTemplate->GetFirstOpenedActors();
+       actor;
+       actor = actor->getNext()) {
+    IToplevelProtocol* newactor = actor->CloneToplevel(aFds, aPeerProcess, aCtx);
+    AddOpenedActor(newactor);
+  }
+}
+
+#ifdef MOZ_IPDL_TESTS
+void
+IToplevelProtocol::SetAllowNonMainThreadUse()
+{
+  sAllowNonMainThreadUse = true;
+}
+#endif
 
 class ChannelOpened : public IPC::Message
 {
@@ -29,7 +86,7 @@ public:
   {
     IPC::WriteParam(this, aDescriptor);
     IPC::WriteParam(this, aOtherProcess);
-    IPC::WriteParam(this, static_cast<uint32>(aProtocol));
+    IPC::WriteParam(this, static_cast<uint32_t>(aProtocol));
   }
 
   static bool Read(const IPC::Message& aMsg,
@@ -40,7 +97,7 @@ public:
     void* iter = nullptr;
     if (!IPC::ReadParam(&aMsg, &iter, aDescriptor) ||
         !IPC::ReadParam(&aMsg, &iter, aOtherProcess) ||
-        !IPC::ReadParam(&aMsg, &iter, reinterpret_cast<uint32*>(aProtocol))) {
+        !IPC::ReadParam(&aMsg, &iter, reinterpret_cast<uint32_t*>(aProtocol))) {
       return false;
     }
     aMsg.EndRead(iter);
@@ -50,9 +107,9 @@ public:
 
 bool
 Bridge(const PrivateIPDLInterface&,
-       AsyncChannel* aParentChannel, ProcessHandle aParentProcess,
-       AsyncChannel* aChildChannel, ProcessHandle aChildProcess,
-       ProtocolId aProtocol)
+       MessageChannel* aParentChannel, ProcessHandle aParentProcess,
+       MessageChannel* aChildChannel, ProcessHandle aChildProcess,
+       ProtocolId aProtocol, ProtocolId aChildProtocol)
 {
   ProcessId parentId = GetProcId(aParentProcess);
   ProcessId childId = GetProcId(aChildProcess);
@@ -71,7 +128,7 @@ Bridge(const PrivateIPDLInterface&,
                                               aProtocol)) ||
       !aChildChannel->Send(new ChannelOpened(childSide,
                                              parentId,
-                                             aProtocol))) {
+                                             aChildProtocol))) {
     CloseDescriptor(parentSide);
     CloseDescriptor(childSide);
     return false;
@@ -81,9 +138,9 @@ Bridge(const PrivateIPDLInterface&,
 
 bool
 Open(const PrivateIPDLInterface&,
-     AsyncChannel* aOpenerChannel, ProcessHandle aOtherProcess,
+     MessageChannel* aOpenerChannel, ProcessHandle aOtherProcess,
      Transport::Mode aOpenerMode,
-     ProtocolId aProtocol)
+     ProtocolId aProtocol, ProtocolId aChildProtocol)
 {
   bool isParent = (Transport::MODE_SERVER == aOpenerMode);
   ProcessHandle thisHandle = GetCurrentProcessHandle();
@@ -102,7 +159,7 @@ Open(const PrivateIPDLInterface&,
   }
 
   Message* parentMsg = new ChannelOpened(parentSide, childId, aProtocol);
-  Message* childMsg = new ChannelOpened(childSide, parentId, aProtocol);
+  Message* childMsg = new ChannelOpened(childSide, parentId, aChildProtocol);
   nsAutoPtr<Message> messageForUs(isParent ? parentMsg : childMsg);
   nsAutoPtr<Message> messageForOtherSide(!isParent ? parentMsg : childMsg);
   if (!aOpenerChannel->Echo(messageForUs.forget()) ||
@@ -122,6 +179,39 @@ UnpackChannelOpened(const PrivateIPDLInterface&,
                     ProtocolId* aProtocol)
 {
   return ChannelOpened::Read(aMsg, aTransport, aOtherProcess, aProtocol);
+}
+
+void
+ProtocolErrorBreakpoint(const char* aMsg)
+{
+    // Bugs that generate these error messages can be tough to
+    // reproduce.  Log always in the hope that someone finds the error
+    // message.
+    printf_stderr("IPDL protocol error: %s\n", aMsg);
+}
+
+void
+FatalError(const char* aProtocolName, const char* aMsg,
+           ProcessHandle aHandle, bool aIsParent)
+{
+  ProtocolErrorBreakpoint(aMsg);
+
+  nsAutoCString formattedMessage("IPDL error [");
+  formattedMessage.AppendASCII(aProtocolName);
+  formattedMessage.AppendLiteral("]: \"");
+  formattedMessage.AppendASCII(aMsg);
+  if (aIsParent) {
+    formattedMessage.AppendLiteral("\". Killing child side as a result.");
+    NS_ERROR(formattedMessage.get());
+
+    if (aHandle != kInvalidProcessHandle &&
+        !base::KillProcess(aHandle, base::PROCESS_END_KILLED_BY_USER, false)) {
+      NS_ERROR("May have failed to kill child!");
+    }
+  } else {
+    formattedMessage.AppendLiteral("\". abort()ing as a result.");
+    NS_RUNTIMEABORT(formattedMessage.get());
+  }
 }
 
 } // namespace ipc

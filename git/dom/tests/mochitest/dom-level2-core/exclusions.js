@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -26,7 +26,8 @@ dtdTests = ["attrgetownerelement01", "documentimportnode03",
 bug371552 = ["elementhasattributens02"];
 wrongDocError = ["elementsetattributenodens05", "namednodemapsetnameditemns03",
                  "setAttributeNodeNS05", "setNamedItemNS02"];
-attrAppendChild = ["elementsetattributenodens06", "importNode01"];
+attrExodus = ["elementsetattributenodens06", "importNode01",
+              "hc_namednodemapinvalidtype1", "nodehasattributes02"];
 bogusPrefix = ["nodesetprefix05", "nodesetprefix09", "prefix06", "prefix07"];
 prefixReplacement = ["setAttributeNodeNS04"];
 
@@ -42,7 +43,7 @@ function concat(lst/*...*/) {
 }
 
 var todoTests = {};
-var exclusions = concat(dtdTests, bug371552, wrongDocError, attrAppendChild,
+var exclusions = concat(dtdTests, bug371552, wrongDocError, attrExodus,
                         bogusPrefix, prefixReplacement);
 for (var excludedTestName in exclusions) { 
   todoTests[exclusions[excludedTestName]] = true; 

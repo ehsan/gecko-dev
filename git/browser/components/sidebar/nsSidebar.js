@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,9 +10,6 @@ const DEBUG = false; /* set to false to suppress debug messages */
 
 const SIDEBAR_CONTRACTID        = "@mozilla.org/sidebar;1";
 const SIDEBAR_CID               = Components.ID("{22117140-9c6e-11d3-aaf1-00805f8a4905}");
-const nsISidebar                = Components.interfaces.nsISidebar;
-const nsISidebarExternal        = Components.interfaces.nsISidebarExternal;
-const nsIClassInfo              = Components.interfaces.nsIClassInfo;
 
 // File extension for Sherlock search plugin description files
 const SHERLOCK_FILE_EXT_REGEXP = /\.src$/i;
@@ -22,62 +19,6 @@ function nsSidebar()
 }
 
 nsSidebar.prototype.classID = SIDEBAR_CID;
-
-nsSidebar.prototype.nc = "http://home.netscape.com/NC-rdf#";
-
-function sidebarURLSecurityCheck(url)
-{
-    if (!/^(https?:|ftp:)/i.test(url)) {
-        Components.utils.reportError("Invalid argument passed to window.sidebar.addPanel: Unsupported panel URL." );
-        return false;
-    }
-    return true;
-}
-
-/* decorate prototype to provide ``class'' methods and property accessors */
-nsSidebar.prototype.addPanel =
-function (aTitle, aContentURL, aCustomizeURL)
-{
-    debug("addPanel(" + aTitle + ", " + aContentURL + ", " +
-          aCustomizeURL + ")");
-
-    return this.addPanelInternal(aTitle, aContentURL, aCustomizeURL, false);
-}
-
-nsSidebar.prototype.addPersistentPanel =
-function(aTitle, aContentURL, aCustomizeURL)
-{
-    debug("addPersistentPanel(" + aTitle + ", " + aContentURL + ", " +
-           aCustomizeURL + ")\n");
-
-    return this.addPanelInternal(aTitle, aContentURL, aCustomizeURL, true);
-}
-
-nsSidebar.prototype.addPanelInternal =
-function (aTitle, aContentURL, aCustomizeURL, aPersist)
-{
-    // XXX Bug 620418: We shouldn't do this anymore. Instead, we should find the
-    // global object for our caller and use it.
-    var win = Services.wm.getMostRecentWindow("navigator:browser");
-    if (!sidebarURLSecurityCheck(aContentURL))
-      return;
-
-    var uri = null;
-    try {
-      uri = Services.io.newURI(aContentURL, null, null);
-    }
-    catch(ex) { return; }
-
-    win.PlacesUIUtils.showBookmarkDialog({ action: "add"
-                                         , type: "bookmark"
-                                         , hiddenRows: [ "description"
-                                                       , "keyword"
-                                                       , "location" ]
-                                         , uri: uri
-                                         , title: aTitle
-                                         , loadBookmarkInSidebar: true
-                                         }, win);
-}
 
 nsSidebar.prototype.validateSearchEngine =
 function (engineURL, iconURL)
@@ -175,15 +116,9 @@ function (aSearchURL)
   return 0;
 }
 
-nsSidebar.prototype.classInfo = XPCOMUtils.generateCI({classID: SIDEBAR_CID,
-                                                       contractID: SIDEBAR_CONTRACTID,
-                                                       classDescription: "Sidebar",
-                                                       interfaces: [nsISidebar, nsISidebarExternal],
-                                                       flags: nsIClassInfo.DOM_OBJECT});
+nsSidebar.prototype.QueryInterface = XPCOMUtils.generateQI([Components.interfaces.nsISupports]);
 
-nsSidebar.prototype.QueryInterface = XPCOMUtils.generateQI([nsISidebar, nsISidebarExternal]);
-
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsSidebar]);
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory([nsSidebar]);
 
 /* static functions */
 if (DEBUG)

@@ -209,6 +209,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=668855
   let make_live_map = function () {
     let live = get_live_dom();
     wn_live_map.set(live, {});
+    ok(wn_live_map.has(get_live_dom()), "Live map should have live DOM node before GC.");
   }
 
   make_live_map();
@@ -220,13 +221,17 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=668855
 
     let dummy_test_map = new WeakMap;
 
-    let navi_fail = false;
+    let rule_fail = false;
+    let got_rule = false;
     try {
-      dummy_test_map.set(window.navigator, 1);
+      var rule = document.styleSheets[0].cssRules[0];
+      got_rule = true;
+      dummy_test_map.set(rule, 1);
     } catch (e) {
-      navi_fail = true;
+      rule_fail = true;
     }
-    ok(navi_fail, "Using window.navigator as a weak map key should produce an exception because it can't be wrapper preserved.");
+    ok(got_rule, "Got the CSS rule");
+    ok(rule_fail, "Using a CSS rule as a weak map key should produce an exception because it can't be wrapper preserved.");
 
   }
 
@@ -237,15 +242,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=668855
   SimpleTest.waitForExplicitFinish();
 
   Cu.schedulePreciseGC(function () {
-    window.QueryInterface(Ci.nsIInterfaceRequestor)
-         .getInterface(Ci.nsIDOMWindowUtils)
-         .cycleCollect();
-    window.QueryInterface(Ci.nsIInterfaceRequestor)
-         .getInterface(Ci.nsIDOMWindowUtils)
-         .garbageCollect();
-    window.QueryInterface(Ci.nsIInterfaceRequestor)
-         .getInterface(Ci.nsIDOMWindowUtils)
-         .garbageCollect();
+    SpecialPowers.DOMWindowUtils.cycleCollect();
+    SpecialPowers.DOMWindowUtils.garbageCollect();
+    SpecialPowers.DOMWindowUtils.garbageCollect();
 
     ok(weak_ref_dead(weakref), "Garbage gray cycle should be collected.");
 
@@ -262,6 +261,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=668855
     // fixed by Bug 680937
     is(Cu.nondeterministicGetWeakMapKeys(wn_live_map).length, 1,
        "Live weak map wrapped native key should not be removed.");
+
+    ok(wn_live_map.has(get_live_dom()), "Live map should have live dom.");
 
     SimpleTest.finish();
   });

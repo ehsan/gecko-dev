@@ -3,30 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsMathMLmactionFrame.h"
 #include "nsCOMPtr.h"
-#include "nsFrame.h"
 #include "nsPresContext.h"
-#include "nsStyleContext.h"
-#include "nsStyleConsts.h"
-#include "nsINameSpaceManager.h"
-
-#include "nsCSSRendering.h"
+#include "nsNameSpaceManager.h"
 #include "prprf.h"         // For PR_snprintf()
-
-#include "nsIDocShellTreeItem.h"
+#include "nsIDocShell.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIWebBrowserChrome.h"
-#include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsIDOMElement.h"
 #include "nsTextFragment.h"
-
-#include "nsIDOMEventTarget.h"
-
-#include "nsMathMLmactionFrame.h"
-#include "nsAutoPtr.h"
-#include "nsStyleSet.h"
-#include "nsDisplayList.h"
+#include "nsIDOMEvent.h"
+#include "mozilla/gfx/2D.h"
 
 //
 // <maction> -- bind actions to a subexpression - implementation
@@ -91,41 +79,18 @@ nsMathMLmactionFrame::~nsMathMLmactionFrame()
   }
 }
 
-NS_IMETHODIMP
-nsMathMLmactionFrame::Init(nsIContent*      aContent,
-                           nsIFrame*        aParent,
-                           nsIFrame*        aPrevInFlow)
+void
+nsMathMLmactionFrame::Init(nsIContent*       aContent,
+                           nsContainerFrame* aParent,
+                           nsIFrame*         aPrevInFlow)
 {
   // Init our local attributes
 
   mChildCount = -1; // these will be updated in GetSelectedFrame()
-  mSelection = 0;
-  mSelectedFrame = nullptr;
   mActionType = GetActionType(aContent);
 
   // Let the base class do the rest
-  return nsMathMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
-}
-
-NS_IMETHODIMP
-nsMathMLmactionFrame::TransmitAutomaticData() {
-  // The REC defines the following element to be space-like:
-  // * an maction element whose selected sub-expression exists and is
-  //   space-like;
-  nsIMathMLFrame* mathMLFrame = do_QueryFrame(mSelectedFrame);
-  if (mathMLFrame && mathMLFrame->IsSpaceLike()) {
-    mPresentationData.flags |= NS_MATHML_SPACE_LIKE;
-  } else {
-    mPresentationData.flags &= ~NS_MATHML_SPACE_LIKE;
-  }
-
-  // The REC defines the following element to be an embellished operator:
-  // * an maction element whose selected sub-expression exists and is an
-  //   embellished operator;
-  mPresentationData.baseFrame = mSelectedFrame;
-  GetEmbellishDataFrom(mSelectedFrame, mEmbellishData);
-
-  return NS_OK;
+  return nsMathMLSelectedFrame::Init(aContent, aParent, aPrevInFlow);
 }
 
 nsresult
@@ -133,11 +98,9 @@ nsMathMLmactionFrame::ChildListChanged(int32_t aModType)
 {
   // update cached values
   mChildCount = -1;
-  mSelection = 0;
   mSelectedFrame = nullptr;
-  GetSelectedFrame();
 
-  return nsMathMLContainerFrame::ChildListChanged(aModType);
+  return nsMathMLSelectedFrame::ChildListChanged(aModType);
 }
 
 // return the frame whose number is given by the attribute selection="number"
@@ -149,8 +112,8 @@ nsMathMLmactionFrame::GetSelectedFrame()
 
   if ((mActionType & NS_MATHML_ACTION_TYPE_CLASS_BITMASK) == 
        NS_MATHML_ACTION_TYPE_CLASS_ERROR) {
-    // Mark mSelection as an error.
     mSelection = -1;
+    mInvalidMarkup = true;
     mSelectedFrame = nullptr;
     return mSelectedFrame;
   }
@@ -163,12 +126,12 @@ nsMathMLmactionFrame::GetSelectedFrame()
     // and it's inefficient to count the children. It's fine to leave
     // it be equal -1 because it's not used with other actiontypes.
     mSelection = 1;
+    mInvalidMarkup = false;
     mSelectedFrame = mFrames.FirstChild();
     return mSelectedFrame;
   }
 
-  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::selection_,
-               value);
+  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::selection_, value);
   if (!value.IsEmpty()) {
     nsresult errorCode;
     selection = value.ToInteger(&errorCode);
@@ -203,20 +166,19 @@ nsMathMLmactionFrame::GetSelectedFrame()
 
   mChildCount = count;
   mSelection = selection;
+  mInvalidMarkup = (mSelection == -1);
   TransmitAutomaticData();
 
   return mSelectedFrame;
 }
 
-NS_IMETHODIMP
+void
 nsMathMLmactionFrame::SetInitialChildList(ChildListID     aListID,
                                           nsFrameList&    aChildList)
 {
-  nsresult rv = nsMathMLContainerFrame::SetInitialChildList(aListID, aChildList);
+  nsMathMLSelectedFrame::SetInitialChildList(aListID, aChildList);
 
-  // This very first call to GetSelectedFrame() will cause us to be marked as an
-  // embellished operator if the selected child is an embellished operator
-  if (!GetSelectedFrame()) {
+  if (!mSelectedFrame) {
     mActionType = NS_MATHML_ACTION_TYPE_NONE;
   }
   else {
@@ -230,10 +192,9 @@ nsMathMLmactionFrame::SetInitialChildList(ChildListID     aListID,
     mContent->AddSystemEventListener(NS_LITERAL_STRING("mouseout"), mListener,
                                      false, false);
   }
-  return rv;
 }
 
-NS_IMETHODIMP
+nsresult
 nsMathMLmactionFrame::AttributeChanged(int32_t  aNameSpaceID,
                                        nsIAtom* aAttribute,
                                        int32_t  aModType)
@@ -270,117 +231,27 @@ nsMathMLmactionFrame::AttributeChanged(int32_t  aNameSpaceID,
   return NS_OK;
 }
 
-//  Only paint the selected child...
-NS_IMETHODIMP
-nsMathMLmactionFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                       const nsRect&           aDirtyRect,
-                                       const nsDisplayListSet& aLists)
-{
-  // Report an error if something wrong was found in this frame.
-  // We can't call nsDisplayMathMLError from here,
-  // so ask nsMathMLContainerFrame to do the work for us.
-  if (NS_MATHML_HAS_ERROR(mPresentationData.flags)) {
-    return nsMathMLContainerFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
-  }
-
-  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsIFrame* childFrame = GetSelectedFrame();
-  if (childFrame) {
-    // Put the child's background directly onto the content list
-    nsDisplayListSet set(aLists, aLists.Content());
-    // The children should be in content order
-    rv = BuildDisplayListForChild(aBuilder, childFrame, aDirtyRect, set);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-#if defined(DEBUG) && defined(SHOW_BOUNDING_BOX)
-  // visual debug
-  rv = DisplayBoundingMetrics(aBuilder, this, mReference, mBoundingMetrics, aLists);
-#endif
-  return rv;
-}
-
-// Only reflow the selected child ...
-NS_IMETHODIMP
-nsMathMLmactionFrame::Reflow(nsPresContext*          aPresContext,
-                             nsHTMLReflowMetrics&     aDesiredSize,
-                             const nsHTMLReflowState& aReflowState,
-                             nsReflowStatus&          aStatus)
-{
-  nsresult rv = NS_OK;
-  aStatus = NS_FRAME_COMPLETE;
-  aDesiredSize.width = aDesiredSize.height = 0;
-  aDesiredSize.ascent = 0;
-  mBoundingMetrics = nsBoundingMetrics();
-  nsIFrame* childFrame = GetSelectedFrame();
-  if (childFrame) {
-    nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
-    nsHTMLReflowState childReflowState(aPresContext, aReflowState,
-                                       childFrame, availSize);
-    rv = ReflowChild(childFrame, aPresContext, aDesiredSize,
-                     childReflowState, aStatus);
-    SaveReflowAndBoundingMetricsFor(childFrame, aDesiredSize,
-                                    aDesiredSize.mBoundingMetrics);
-    mBoundingMetrics = aDesiredSize.mBoundingMetrics;
-  }
-  FinalizeReflow(*aReflowState.rendContext, aDesiredSize);
-  NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
-  return rv;
-}
-
-// Only place the selected child ...
-/* virtual */ nsresult
-nsMathMLmactionFrame::Place(nsRenderingContext& aRenderingContext,
-                            bool                 aPlaceOrigin,
-                            nsHTMLReflowMetrics& aDesiredSize)
-{
-  nsIFrame* childFrame = GetSelectedFrame();
-
-  if (mSelection == -1) {
-    return ReflowError(aRenderingContext, aDesiredSize);
-  }
-
-  aDesiredSize.width = aDesiredSize.height = 0;
-  aDesiredSize.ascent = 0;
-  mBoundingMetrics = nsBoundingMetrics();
-  if (childFrame) {
-    GetReflowAndBoundingMetricsFor(childFrame, aDesiredSize, mBoundingMetrics);
-    if (aPlaceOrigin) {
-      FinishReflowChild(childFrame, PresContext(), nullptr, aDesiredSize, 0, 0, 0);
-    }
-    mReference.x = 0;
-    mReference.y = aDesiredSize.ascent;
-  }
-  aDesiredSize.mBoundingMetrics = mBoundingMetrics;
-  return NS_OK;
-}
-
 // ################################################################
 // Event handlers 
 // ################################################################
 
-NS_IMPL_ISUPPORTS1(nsMathMLmactionFrame::MouseListener,
-                   nsIDOMEventListener)
+NS_IMPL_ISUPPORTS(nsMathMLmactionFrame::MouseListener,
+                  nsIDOMEventListener)
 
 
 // helper to show a msg on the status bar
-// curled from nsObjectFrame.cpp ...
+// curled from nsPluginFrame.cpp ...
 void
 ShowStatus(nsPresContext* aPresContext, nsString& aStatusMsg)
 {
-  nsCOMPtr<nsISupports> cont = aPresContext->GetContainer();
-  if (cont) {
-    nsCOMPtr<nsIDocShellTreeItem> docShellItem(do_QueryInterface(cont));
-    if (docShellItem) {
-      nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
-      docShellItem->GetTreeOwner(getter_AddRefs(treeOwner));
-      if (treeOwner) {
-        nsCOMPtr<nsIWebBrowserChrome> browserChrome(do_GetInterface(treeOwner));
-        if (browserChrome) {
-          browserChrome->SetStatus(nsIWebBrowserChrome::STATUS_LINK, aStatusMsg.get());
-        }
+  nsCOMPtr<nsIDocShellTreeItem> docShellItem(aPresContext->GetDocShell());
+  if (docShellItem) {
+    nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
+    docShellItem->GetTreeOwner(getter_AddRefs(treeOwner));
+    if (treeOwner) {
+      nsCOMPtr<nsIWebBrowserChrome> browserChrome(do_GetInterface(treeOwner));
+      if (browserChrome) {
+        browserChrome->SetStatus(nsIWebBrowserChrome::STATUS_LINK, aStatusMsg.get());
       }
     }
   }

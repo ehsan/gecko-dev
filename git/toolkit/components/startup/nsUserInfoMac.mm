@@ -11,12 +11,12 @@
 #import <Cocoa/Cocoa.h>
 #import <AddressBook/AddressBook.h>
 
-NS_IMPL_ISUPPORTS1(nsUserInfo, nsIUserInfo)
+NS_IMPL_ISUPPORTS(nsUserInfo, nsIUserInfo)
 
 nsUserInfo::nsUserInfo() {}
 
 NS_IMETHODIMP
-nsUserInfo::GetFullname(PRUnichar **aFullname)
+nsUserInfo::GetFullname(char16_t **aFullname)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT
   
@@ -32,7 +32,7 @@ nsUserInfo::GetUsername(char **aUsername)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT
   
-  nsCAutoString username([NSUserName() UTF8String]);
+  nsAutoCString username([NSUserName() UTF8String]);
   *aUsername = ToNewCString(username);
   return NS_OK;
   
@@ -63,7 +63,7 @@ nsUserInfo::GetPrimaryEmailAddress(nsCString &aEmailAddress)
 NS_IMETHODIMP 
 nsUserInfo::GetEmailAddress(char **aEmailAddress)
 {
-  nsCAutoString email;
+  nsAutoCString email;
   if (NS_SUCCEEDED(GetPrimaryEmailAddress(email))) 
     *aEmailAddress = ToNewCString(email);
   return NS_OK;
@@ -72,7 +72,7 @@ nsUserInfo::GetEmailAddress(char **aEmailAddress)
 NS_IMETHODIMP 
 nsUserInfo::GetDomain(char **aDomain)
 {
-  nsCAutoString email;
+  nsAutoCString email;
   if (NS_SUCCEEDED(GetPrimaryEmailAddress(email))) {
     int32_t index = email.FindChar('@');
     if (index != -1) {

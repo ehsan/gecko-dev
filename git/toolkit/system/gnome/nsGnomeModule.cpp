@@ -22,8 +22,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsGnomeVFSService, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsGIOService)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsGSettingsService, Init)
 #endif
-#include "nsAlertsService.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsAlertsService, Init)
+#include "nsSystemAlertsService.h"
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsSystemAlertsService, Init)
 
 #ifdef MOZ_ENABLE_GCONF
 NS_DEFINE_NAMED_CID(NS_GCONFSERVICE_CID);
@@ -37,20 +37,19 @@ NS_DEFINE_NAMED_CID(NS_GSETTINGSSERVICE_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_SYSTEMALERTSSERVICE_CID);
 
-
 static const mozilla::Module::CIDEntry kGnomeCIDs[] = {
 #ifdef MOZ_ENABLE_GCONF
-  { &kNS_GCONFSERVICE_CID, false, NULL, nsGConfServiceConstructor },
+  { &kNS_GCONFSERVICE_CID, false, nullptr, nsGConfServiceConstructor },
 #endif
 #ifdef MOZ_ENABLE_GNOMEVFS
-  { &kNS_GNOMEVFSSERVICE_CID, false, NULL, nsGnomeVFSServiceConstructor },
+  { &kNS_GNOMEVFSSERVICE_CID, false, nullptr, nsGnomeVFSServiceConstructor },
 #endif
 #ifdef MOZ_ENABLE_GIO
-  { &kNS_GIOSERVICE_CID, false, NULL, nsGIOServiceConstructor },
-  { &kNS_GSETTINGSSERVICE_CID, false, NULL, nsGSettingsServiceConstructor },
+  { &kNS_GIOSERVICE_CID, false, nullptr, nsGIOServiceConstructor },
+  { &kNS_GSETTINGSSERVICE_CID, false, nullptr, nsGSettingsServiceConstructor },
 #endif
-  { &kNS_SYSTEMALERTSSERVICE_CID, false, NULL, nsAlertsServiceConstructor },
-  { NULL }
+  { &kNS_SYSTEMALERTSSERVICE_CID, false, nullptr, nsSystemAlertsServiceConstructor },
+  { nullptr }
 };
 
 static const mozilla::Module::ContractIDEntry kGnomeContracts[] = {
@@ -65,7 +64,7 @@ static const mozilla::Module::ContractIDEntry kGnomeContracts[] = {
   { NS_GSETTINGSSERVICE_CONTRACTID, &kNS_GSETTINGSSERVICE_CID },
 #endif
   { NS_SYSTEMALERTSERVICE_CONTRACTID, &kNS_SYSTEMALERTSSERVICE_CID },
-  { NULL }
+  { nullptr }
 };
 
 static nsresult
@@ -79,8 +78,8 @@ static const mozilla::Module kGnomeModule = {
   mozilla::Module::kVersion,
   kGnomeCIDs,
   kGnomeContracts,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   InitGType
 };
 

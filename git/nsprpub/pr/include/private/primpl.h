@@ -50,6 +50,10 @@ typedef struct PRSegment PRSegment;
 #include <sys/sem.h>
 #endif
 
+#ifdef HAVE_SYSCALL
+#include <sys/syscall.h>
+#endif
+
 /*************************************************************************
 *****  A Word about Model Dependent Function Naming Convention ***********
 *************************************************************************/
@@ -185,6 +189,17 @@ typedef struct PTDebug
 #endif /* defined(DEBUG) */
 
 NSPR_API(void) PT_FPrintStats(PRFileDesc *fd, const char *msg);
+
+/*
+ * On Linux and its derivatives POSIX priority scheduling works only for
+ * real-time threads. On those platforms we set thread's nice values
+ * instead which requires us to track kernel thread IDs for each POSIX
+ * thread we create.
+ */
+#if defined(LINUX) && defined(HAVE_SETPRIORITY) && \
+    ((defined(HAVE_SYSCALL) && defined(SYS_gettid)) || defined(HAVE_GETTID))
+#define _PR_NICE_PRIORITY_SCHEDULING
+#endif
 
 #else /* defined(_PR_PTHREADS) */
 
@@ -524,6 +539,8 @@ NSPR_API(void) _PR_PauseCPU(void);
     _PR_MD_UNLOCK(&(_lock)->ilock);
     
 extern void _PR_UnblockLockWaiter(PRLock *lock);
+extern PRStatus _PR_InitLock(PRLock *lock);
+extern void _PR_FreeLock(PRLock *lock);
 
 #define _PR_LOCK_PTR(_qp) \
     ((PRLock*) ((char*) (_qp) - offsetof(PRLock,links)))
@@ -535,8 +552,11 @@ extern void _PR_UnblockLockWaiter(PRLock *lock);
 #define _PR_CVAR_UNLOCK(_cvar) \
     _PR_MD_UNLOCK(&(_cvar)->ilock);
 
+extern PRStatus _PR_InitCondVar(PRCondVar *cvar, PRLock *lock);
+extern void _PR_FreeCondVar(PRCondVar *cvar);
 extern PRStatus _PR_WaitCondVar(
     PRThread *thread, PRCondVar *cvar, PRLock *lock, PRIntervalTime timeout);
+extern void _PR_NotifyCondVar(PRCondVar *cvar, PRThread *me);
 extern PRUint32 _PR_CondVarToString(PRCondVar *cvar, char *buf, PRUint32 buflen);
 
 NSPR_API(void) _PR_Notify(PRMonitor *mon, PRBool all, PRBool sticky);
@@ -1405,8 +1425,6 @@ struct PRLock {
 #endif
 };
 
-extern void _PR_InitLocks(void);
-
 struct PRCondVar {
     PRLock *lock;               /* associated lock that protects the condition */
 #if defined(_PR_PTHREADS)
@@ -1431,13 +1449,38 @@ struct PRCondVar {
 struct PRMonitor {
     const char* name;           /* monitor name for debugging */
 #if defined(_PR_PTHREADS)
-    PRLock lock;                /* the lock structure */
-    pthread_t owner;            /* the owner of the lock or invalid */
-    PRCondVar *cvar;            /* condition variable queue */
+    pthread_mutex_t lock;       /* lock is only held when accessing fields
+                                 * of the PRMonitor, instead of being held
+                                 * while the monitor is entered. The only
+                                 * exception is notifyTimes, which is
+                                 * protected by the monitor. */
+    pthread_t owner;            /* the owner of the monitor or invalid */
+    pthread_cond_t entryCV;     /* for threads waiting to enter the monitor */
+
+    pthread_cond_t waitCV;      /* for threads waiting on the monitor */
+    PRInt32 refCount;           /* reference count, an atomic variable.
+                                 * PR_NewMonitor adds a reference to the
+                                 * newly created PRMonitor, and
+                                 * PR_DestroyMonitor releases that reference.
+                                 * PR_ExitMonitor adds a reference before
+                                 * unlocking the internal lock if it needs to
+                                 * signal entryCV, and releases the reference
+                                 * after signaling entryCV. */
 #else  /* defined(_PR_PTHREADS) */
-    PRCondVar *cvar;            /* associated lock and condition variable queue */
+    PRLock lock;                /* lock is only held when accessing fields
+                                 * of the PRMonitor, instead of being held
+                                 * while the monitor is entered. The only
+                                 * exception is notifyTimes, which is
+                                 * protected by the monitor. */
+    PRThread *owner;            /* the owner of the monitor or invalid */
+    PRCondVar entryCV;          /* for threads waiting to enter the monitor */
+
+    PRCondVar waitCV;           /* for threads waiting on the monitor */
 #endif /* defined(_PR_PTHREADS) */
     PRUint32 entryCount;        /* # of times re-entered */
+    PRIntn notifyTimes;         /* number of pending notifies for waitCV.
+                                 * The special value -1 means a broadcast
+                                 * (PR_NotifyAll). */
 };
 
 /************************************************************************/
@@ -1456,8 +1499,6 @@ struct PRSemaphore {
 #endif /* defined(_PR_PTHREADS) */
 #endif /* defined(_PR_BTHREADS) */
 };
-
-NSPR_API(void) _PR_InitSem(void);
 
 /*************************************************************************/
 
@@ -1540,6 +1581,11 @@ struct PRThread {
 
 #if defined(_PR_PTHREADS)
     pthread_t id;                   /* pthread identifier for the thread */
+    PRBool idSet;                   /* whether 'id' has been set. Protected by
+                                     * pt_book.ml. */
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
+    pid_t tid;                      /* Linux-specific kernel thread ID */
+#endif
     PRBool okToDelete;              /* ok to delete the PRThread struct? */
     PRCondVar *waiting;             /* where the thread is waiting | NULL */
     void *sp;                       /* recorded sp for garbage collection */
@@ -1727,6 +1773,7 @@ struct PRDirUTF16 {
 }; 
 #endif /* MOZ_UNICODE */
 
+extern void _PR_InitLocks(void);
 extern void _PR_InitSegs(void);
 extern void _PR_InitStacks(void);
 extern void _PR_InitTPD(void);
@@ -1744,7 +1791,6 @@ extern void _PR_InitDtoa(void);
 extern void _PR_InitTime(void);
 extern void _PR_InitMW(void);
 extern void _PR_InitRWLocks(void);
-extern void _PR_NotifyCondVar(PRCondVar *cvar, PRThread *me);
 extern void _PR_CleanupThread(PRThread *thread);
 extern void _PR_CleanupCallOnce(void);
 extern void _PR_CleanupMW(void);
@@ -1826,7 +1872,6 @@ extern void _PR_DestroyZones(void);
         && !defined(_PR_PTHREADS) && !defined(_PR_GLOBAL_THREADS_ONLY) \
         && !defined(PURIFY) \
         && !defined(DARWIN) \
-        && !defined(NEXTSTEP) \
         && !defined(QNX) \
         && !(defined (UNIXWARE) && defined (USE_SVR4_THREADS))
 #define _PR_OVERRIDE_MALLOC
@@ -1956,6 +2001,12 @@ extern PRStatus _PR_MD_MEM_UNMAP(void *addr, PRUint32 size);
 
 extern PRStatus _PR_MD_CLOSE_FILE_MAP(PRFileMap *fmap);
 #define _PR_MD_CLOSE_FILE_MAP _MD_CLOSE_FILE_MAP
+
+extern PRStatus _PR_MD_SYNC_MEM_MAP(
+    PRFileDesc *fd,
+    void *addr,
+    PRUint32 len);
+#define _PR_MD_SYNC_MEM_MAP _MD_SYNC_MEM_MAP
 
 /* Named Shared Memory */
 

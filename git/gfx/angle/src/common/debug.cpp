@@ -7,93 +7,105 @@
 // debug.cpp: Debugging utilities.
 
 #include "common/debug.h"
+#include "common/platform.h"
+#include "common/angleutils.h"
 
-#include <stdio.h>
 #include <stdarg.h>
-#include <d3d9.h>
-#include <windows.h>
+#include <vector>
+#include <fstream>
+#include <cstdio>
 
 namespace gl
 {
-
+#if defined(ANGLE_ENABLE_PERF)
 typedef void (WINAPI *PerfOutputFunction)(D3DCOLOR, LPCWSTR);
+#else
+typedef void (*PerfOutputFunction)(unsigned int, const wchar_t*);
+#endif
 
 static void output(bool traceFileDebugOnly, PerfOutputFunction perfFunc, const char *format, va_list vararg)
 {
-#if !defined(ANGLE_DISABLE_PERF)
-    if (perfActive())
-    {
-        char message[32768];
-        int len = vsprintf_s(message, format, vararg);
-        if (len < 0)
-        {
-            return;
-        }
-
-        // There are no ASCII variants of these D3DPERF functions.
-        wchar_t wideMessage[32768];
-        for (int i = 0; i < len; ++i)
-        {
-            wideMessage[i] = message[i];
-        }
-        wideMessage[len] = 0;
-
-        perfFunc(0, wideMessage);
-    }
+#if defined(ANGLE_ENABLE_PERF) || defined(ANGLE_ENABLE_TRACE)
+    std::string formattedMessage = FormatString(format, vararg);
 #endif
 
-#if !defined(ANGLE_DISABLE_TRACE)
+#if defined(ANGLE_ENABLE_PERF)
+    if (perfActive())
+    {
+        // The perf function only accepts wide strings, widen the ascii message
+        static std::wstring wideMessage;
+        if (wideMessage.capacity() < formattedMessage.length())
+        {
+            wideMessage.reserve(formattedMessage.size());
+        }
+
+        wideMessage.assign(formattedMessage.begin(), formattedMessage.end());
+
+        perfFunc(0, wideMessage.c_str());
+    }
+#endif // ANGLE_ENABLE_PERF
+
+#if defined(ANGLE_ENABLE_TRACE)
 #if defined(NDEBUG)
     if (traceFileDebugOnly)
     {
         return;
     }
-#endif
+#endif // NDEBUG
 
-    FILE* file = fopen(TRACE_OUTPUT_FILE, "a");
+    static std::ofstream file(TRACE_OUTPUT_FILE, std::ofstream::app);
     if (file)
     {
-        vfprintf(file, format, vararg);
-        fclose(file);
+        file.write(formattedMessage.c_str(), formattedMessage.length());
+        file.flush();
     }
-#endif
+
+#endif // ANGLE_ENABLE_TRACE
 }
 
 void trace(bool traceFileDebugOnly, const char *format, ...)
 {
     va_list vararg;
     va_start(vararg, format);
-#if defined(ANGLE_DISABLE_PERF)
-    output(traceFileDebugOnly, NULL, format, vararg);
-#else
+#if defined(ANGLE_ENABLE_PERF)
     output(traceFileDebugOnly, D3DPERF_SetMarker, format, vararg);
+#else
+    output(traceFileDebugOnly, NULL, format, vararg);
 #endif
     va_end(vararg);
 }
 
 bool perfActive()
 {
-#if defined(ANGLE_DISABLE_PERF)
-    return false;
-#else
+#if defined(ANGLE_ENABLE_PERF)
     static bool active = D3DPERF_GetStatus() != 0;
     return active;
+#else
+    return false;
 #endif
 }
 
 ScopedPerfEventHelper::ScopedPerfEventHelper(const char* format, ...)
 {
-#if !defined(ANGLE_DISABLE_PERF)
+#if !defined(ANGLE_ENABLE_TRACE)
+    if (!perfActive())
+    {
+        return;
+    }
+#endif // !ANGLE_ENABLE_TRACE
     va_list vararg;
     va_start(vararg, format);
+#if defined(ANGLE_ENABLE_PERF)
     output(true, reinterpret_cast<PerfOutputFunction>(D3DPERF_BeginEvent), format, vararg);
+#else
+    output(true, NULL, format, vararg);
+#endif // ANGLE_ENABLE_PERF
     va_end(vararg);
-#endif
 }
 
 ScopedPerfEventHelper::~ScopedPerfEventHelper()
 {
-#if !defined(ANGLE_DISABLE_PERF)
+#if defined(ANGLE_ENABLE_PERF)
     if (perfActive())
     {
         D3DPERF_EndEvent();

@@ -9,31 +9,43 @@ function test() {
   const baseURL = "http://mochi.test:8888/browser/" +
     "browser/components/sessionstore/test/browser_447951_sample.html#";
 
-  let tab = gBrowser.addTab();
-  tab.linkedBrowser.addEventListener("load", function(aEvent) {
-    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
+  // Make sure the functionality added in bug 943339 doesn't affect the results
+  gPrefService.setIntPref("browser.sessionstore.max_serialize_back", -1);
+  gPrefService.setIntPref("browser.sessionstore.max_serialize_forward", -1);
+  registerCleanupFunction(function () {
+    gPrefService.clearUserPref("browser.sessionstore.max_serialize_back");
+    gPrefService.clearUserPref("browser.sessionstore.max_serialize_forward");
+  });
 
+  let tab = gBrowser.addTab();
+  whenBrowserLoaded(tab.linkedBrowser, function() {
     let tabState = { entries: [] };
     let max_entries = gPrefService.getIntPref("browser.sessionhistory.max_entries");
     for (let i = 0; i < max_entries; i++)
       tabState.entries.push({ url: baseURL + i });
 
     ss.setTabState(tab, JSON.stringify(tabState));
-    tab.addEventListener("SSTabRestored", function(aEvent) {
-      tab.removeEventListener("SSTabRestored", arguments.callee, false);
+    whenTabRestored(tab, function() {
+      TabState.flush(tab.linkedBrowser);
       tabState = JSON.parse(ss.getTabState(tab));
       is(tabState.entries.length, max_entries, "session history filled to the limit");
       is(tabState.entries[0].url, baseURL + 0, "... but not more");
 
       // visit yet another anchor (appending it to session history)
-      let doc = tab.linkedBrowser.contentDocument;
-      let event = doc.createEvent("MouseEvents");
-      event.initMouseEvent("click", true, true, doc.defaultView, 1,
-                           0, 0, 0, 0, false, false, false, false, 0, null);
-      doc.querySelector("a").dispatchEvent(event);
+      runInContent(tab.linkedBrowser, function(win) {
+        win.document.querySelector("a").click();
+      }, null).then(check);
 
-      executeSoon(function() {
+      function check() {
+        TabState.flush(tab.linkedBrowser);
         tabState = JSON.parse(ss.getTabState(tab));
+        if (tab.linkedBrowser.currentURI.spec != baseURL + "end") {
+          // It may take a few passes through the event loop before we
+          // get the right URL.
+          executeSoon(check);
+          return;
+        }
+
         is(tab.linkedBrowser.currentURI.spec, baseURL + "end",
            "the new anchor was loaded");
         is(tabState.entries[tabState.entries.length - 1].url, baseURL + "end",
@@ -44,7 +56,7 @@ function test() {
         // clean up
         gBrowser.removeTab(tab);
         finish();
-      });
-    }, false);
-  }, true);
+      }
+    });
+  });
 }

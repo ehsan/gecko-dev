@@ -7,6 +7,7 @@
 
 #include "nsIAutoCompleteController.h"
 
+#include "nsCOMPtr.h"
 #include "nsIAutoCompleteInput.h"
 #include "nsIAutoCompletePopup.h"
 #include "nsIAutoCompleteResult.h"
@@ -19,10 +20,10 @@
 #include "nsCOMArray.h"
 #include "nsCycleCollectionParticipant.h"
 
-class nsAutoCompleteController : public nsIAutoCompleteController,
-                                 public nsIAutoCompleteObserver,
-                                 public nsITimerCallback,
-                                 public nsITreeView
+class nsAutoCompleteController MOZ_FINAL : public nsIAutoCompleteController,
+                                           public nsIAutoCompleteObserver,
+                                           public nsITimerCallback,
+                                           public nsITreeView
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -34,9 +35,10 @@ public:
   NS_DECL_NSITIMERCALLBACK
    
   nsAutoCompleteController();
-  virtual ~nsAutoCompleteController();
   
 protected:
+  virtual ~nsAutoCompleteController();
+
   nsresult OpenPopup();
   nsresult ClosePopup();
 
@@ -46,6 +48,7 @@ protected:
   nsresult StartSearches();
   void AfterSearches();
   nsresult ClearSearchTimer();
+  void MaybeCompletePlaceholder();
 
   nsresult ProcessResult(int32_t aSearchIndex, nsIAutoCompleteResult *aResult);
   nsresult PostSearchCleanup();
@@ -58,12 +61,11 @@ protected:
 
   nsresult GetResultAt(int32_t aIndex, nsIAutoCompleteResult** aResult,
                        int32_t* aRowIndex);
-  nsresult GetResultValueAt(int32_t aIndex, bool aValueOnly,
+  nsresult GetResultValueAt(int32_t aIndex, bool aGetFinalValue,
                             nsAString & _retval);
-  nsresult GetResultLabelAt(int32_t aIndex, bool aValueOnly,
-                            nsAString & _retval);
+  nsresult GetResultLabelAt(int32_t aIndex, nsAString & _retval);
 private:
-  nsresult GetResultValueLabelAt(int32_t aIndex, bool aValueOnly,
+  nsresult GetResultValueLabelAt(int32_t aIndex, bool aGetFinalValue,
                                  bool aGetValue, nsAString & _retval);
 protected:
 
@@ -133,6 +135,7 @@ protected:
   nsCOMPtr<nsITreeBoxObject> mTree;
 
   nsString mSearchString;
+  nsString mPlaceholderCompletionString;
   bool mDefaultIndexCompleted;
   bool mBackspaced;
   bool mPopupClosedByCompositionStart;
@@ -148,6 +151,14 @@ protected:
   uint32_t mSearchesFailed;
   bool mFirstSearchResult;
   uint32_t mImmediateSearchesCount;
+  // The index of the match on the popup that was selected using the keyboard,
+  // if the completeselectedindex attribute is set.
+  // This is used to distinguish that selection (which would have been put in
+  // the input on being selected) from a moused-over selectedIndex value. This
+  // distinction is used to prevent mouse moves from inadvertently changing
+  // what happens once the user hits Enter on the keyboard.
+  // See bug 1043584 for more details.
+  int32_t  mCompletedSelectionIndex;
 };
 
 #endif /* __nsAutoCompleteController__ */

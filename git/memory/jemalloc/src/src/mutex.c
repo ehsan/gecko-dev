@@ -6,7 +6,7 @@
 #endif
 
 #ifndef _CRT_SPINCOUNT
-#define _CRT_SPINCOUNT 4000
+#define	_CRT_SPINCOUNT 4000
 #endif
 
 /******************************************************************************/
@@ -64,7 +64,7 @@ pthread_create(pthread_t *__restrict thread,
 /******************************************************************************/
 
 #ifdef JEMALLOC_MUTEX_INIT_CB
-int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
+JEMALLOC_EXPORT int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
     void *(calloc_cb)(size_t, size_t));
 #endif
 

@@ -17,6 +17,32 @@
 #include "nsString.h"
 #include "mozilla/Attributes.h"
 
+namespace mozilla {
+namespace places {
+
+class AnnotatedResult MOZ_FINAL : public mozIAnnotatedResult
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_MOZIANNOTATEDRESULT
+
+  AnnotatedResult(const nsCString& aGUID, nsIURI* aURI, int64_t aItemd,
+                  const nsACString& aAnnotationName,
+                  nsIVariant* aAnnotationValue);
+
+private:
+  ~AnnotatedResult();
+
+  const nsCString mGUID;
+  nsCOMPtr<nsIURI> mURI;
+  const int64_t mItemId;
+  const nsCString mAnnotationName;
+  nsCOMPtr<nsIVariant> mAnnotationValue;
+};
+
+} // namespace places
+} // namespace mozilla
+
 class nsAnnotationService MOZ_FINAL : public nsIAnnotationService
                                     , public nsIObserver
                                     , public nsSupportsWeakReference
@@ -31,16 +57,12 @@ public:
   /**
    * Obtains the service's object.
    */
-  static nsAnnotationService* GetSingleton();
+  static already_AddRefed<nsAnnotationService> GetSingleton();
 
   /**
    * Initializes the service's object.  This should only be called once.
    */
   nsresult Init();
-
-  static nsAnnotationService* GetAnnotationServiceIfAvailable() {
-    return gAnnotationService;
-  }
 
   /**
    * Returns a cached pointer to the annotation service for consumers in the
@@ -72,7 +94,6 @@ protected:
   static const int kAnnoIndex_ID;
   static const int kAnnoIndex_PageOrItem;
   static const int kAnnoIndex_NameID;
-  static const int kAnnoIndex_MimeType;
   static const int kAnnoIndex_Content;
   static const int kAnnoIndex_Flags;
   static const int kAnnoIndex_Expiration;
@@ -122,20 +143,10 @@ protected:
                                        double aValue,
                                        int32_t aFlags,
                                        uint16_t aExpiration);
-  nsresult SetAnnotationBinaryInternal(nsIURI* aURI,
-                                       int64_t aItemId,
-                                       const nsACString& aName,
-                                       const uint8_t* aData,
-                                       uint32_t aDataLen,
-                                       const nsACString& aMimeType,
-                                       int32_t aFlags,
-                                       uint16_t aExpiration);
 
   nsresult RemoveAnnotationInternal(nsIURI* aURI,
                                     int64_t aItemId,
                                     const nsACString& aName);
-
-  bool InPrivateBrowsingMode() const;
 
 public:
   nsresult GetPagesWithAnnotationCOMArray(const nsACString& aName,

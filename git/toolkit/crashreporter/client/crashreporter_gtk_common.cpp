@@ -5,6 +5,7 @@
 
 #include "crashreporter.h"
 
+#include <unistd.h>
 #include <dlfcn.h>
 #include <errno.h>
 #include <glib.h>
@@ -16,14 +17,20 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <gdk/gdkkeysyms.h>
 
 #include <algorithm>
 #include <string>
 #include <vector>
 
+#include "mozilla/NullPtr.h"
 #include "common/linux/http_upload.h"
 #include "crashreporter.h"
 #include "crashreporter_gtk_common.h"
+
+#ifndef GDK_KEY_Escape
+#define GDK_KEY_Escape GDK_Escape
+#endif
 
 using std::string;
 using std::vector;
@@ -40,7 +47,7 @@ GtkWidget* gRestartButton = 0;
 
 bool gInitialized = false;
 bool gDidTrySend = false;
-string gDumpFile;
+StringTable gFiles;
 StringTable gQueryParameters;
 string gHttpProxy;
 string gAuth;
@@ -50,7 +57,7 @@ string gURLParameter;
 vector<string> gRestartArgs;
 GThread* gSendThreadID;
 
-// From crashreporter_linux.cpp or crashreporter_maemo_gtk.cpp
+// From crashreporter_linux.cpp
 void SaveSettings();
 void SendReport();
 void TryInitGnome();
@@ -92,7 +99,7 @@ static gboolean CloseApp(gpointer data)
 
 static gboolean ReportCompleted(gpointer success)
 {
-  gtk_widget_hide_all(gThrobber);
+  gtk_widget_hide(gThrobber);
   string str = success ? gStrings[ST_REPORTSUBMITSUCCESS]
                        : gStrings[ST_SUBMITFAILED];
   gtk_label_set_text(GTK_LABEL(gProgressLabel), str.c_str());
@@ -137,14 +144,14 @@ void LoadProxyinfo()
 
   GConfClient *conf = gconf_client_get_default();
 
-  if (gconf_client_get_bool(conf, HTTP_PROXY_DIR "/use_http_proxy", NULL)) {
+  if (gconf_client_get_bool(conf, HTTP_PROXY_DIR "/use_http_proxy", nullptr)) {
     gint port;
-    gchar *host = NULL, *httpproxy = NULL;
+    gchar *host = nullptr, *httpproxy = nullptr;
 
-    host = gconf_client_get_string(conf, HTTP_PROXY_DIR "/host", NULL);
-    port = gconf_client_get_int(conf, HTTP_PROXY_DIR "/port", NULL);
+    host = gconf_client_get_string(conf, HTTP_PROXY_DIR "/host", nullptr);
+    port = gconf_client_get_int(conf, HTTP_PROXY_DIR "/port", nullptr);
 
-    if (port && host && host != '\0') {
+    if (port && host && *host != '\0') {
       httpproxy = g_strdup_printf("http://%s:%d/", host, port);
       gHttpProxy = httpproxy;
     }
@@ -152,16 +159,17 @@ void LoadProxyinfo()
     g_free(host);
     g_free(httpproxy);
 
-    if(gconf_client_get_bool(conf, HTTP_PROXY_DIR "/use_authentication", NULL)) {
-      gchar *user, *password, *auth = NULL;
+    if (gconf_client_get_bool(conf, HTTP_PROXY_DIR "/use_authentication",
+                              nullptr)) {
+      gchar *user, *password, *auth = nullptr;
 
       user = gconf_client_get_string(conf,
                                      HTTP_PROXY_DIR "/authentication_user",
-                                     NULL);
+                                     nullptr);
       password = gconf_client_get_string(conf,
                                          HTTP_PROXY_DIR
                                          "/authentication_password",
-                                         NULL);
+                                         nullptr);
 
       if (user && password) {
         auth = g_strdup_printf("%s:%s", user, password);
@@ -183,15 +191,16 @@ void LoadProxyinfo()
 gpointer SendThread(gpointer args)
 {
   string response, error;
+  long response_code;
 
   bool success = google_breakpad::HTTPUpload::SendRequest
     (gSendURL,
      gQueryParameters,
-     gDumpFile,
-     "upload_file_minidump",
+     gFiles,
      gHttpProxy, gAuth,
      gCACertificateFile,
      &response,
+     &response_code,
      &error);
   if (success) {
     LogMessage("Crash report submitted successfully");
@@ -206,16 +215,27 @@ gpointer SendThread(gpointer args)
   // http://library.gnome.org/devel/gtk-faq/stable/x499.html
   g_idle_add(ReportCompleted, (gpointer)success);
 
-  return NULL;
+  return nullptr;
 }
 
 gboolean WindowDeleted(GtkWidget* window,
-                              GdkEvent* event,
-                              gpointer userData)
+                       GdkEvent* event,
+                       gpointer userData)
 {
   SaveSettings();
   gtk_main_quit();
   return TRUE;
+}
+
+gboolean check_escape(GtkWidget* window,
+                      GdkEventKey* event,
+                      gpointer userData)
+{
+  if (event->keyval == GDK_KEY_Escape) {
+    gtk_main_quit();
+    return TRUE;
+  }
+  return FALSE;
 }
 
 static void MaybeSubmitReport()
@@ -272,7 +292,7 @@ bool UIInit()
   sigprocmask(SIG_UNBLOCK, &signals, &old);
 
   // tell glib we're going to use threads
-  g_thread_init(NULL);
+  g_thread_init(nullptr);
 
   if (gtk_init_check(&gArgc, &gArgv)) {
     gInitialized = true;
@@ -281,9 +301,6 @@ bool UIInit()
         gStrings["isRTL"] == "yes")
       gtk_widget_set_default_direction(GTK_TEXT_DIR_RTL);
 
-#ifndef MOZ_PLATFORM_MAEMO
-    TryInitGnome();
-#endif
     return true;
   }
 
@@ -293,7 +310,7 @@ bool UIInit()
 void UIShowDefaultUI()
 {
   GtkWidget* errorDialog =
-    gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL,
+    gtk_message_dialog_new(nullptr, GTK_DIALOG_MODAL,
                            GTK_MESSAGE_ERROR,
                            GTK_BUTTONS_CLOSE,
                            "%s", gStrings[ST_CRASHREPORTERDEFAULT].c_str());
@@ -312,7 +329,7 @@ void UIError_impl(const string& message)
   }
 
   GtkWidget* errorDialog =
-    gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL,
+    gtk_message_dialog_new(nullptr, GTK_DIALOG_MODAL,
                            GTK_MESSAGE_ERROR,
                            GTK_BUTTONS_CLOSE,
                            "%s", message.c_str());
@@ -421,9 +438,19 @@ std::ifstream* UIOpenRead(const string& filename)
   return new std::ifstream(filename.c_str(), std::ios::in);
 }
 
-std::ofstream* UIOpenWrite(const string& filename, bool append) // append=false
+std::ofstream* UIOpenWrite(const string& filename,
+                           bool append, // append=false
+                           bool binary) // binary=false
 {
-  return new std::ofstream(filename.c_str(),
-                           append ? std::ios::out | std::ios::app
-                                  : std::ios::out);
+  std::ios_base::openmode mode = std::ios::out;
+
+  if (append) {
+    mode = mode | std::ios::app;
+  }
+
+  if (binary) {
+    mode = mode | std::ios::binary;
+  }
+
+  return new std::ofstream(filename.c_str(), mode);
 }

@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 var MockFilePicker = SpecialPowers.MockFilePicker;
-MockFilePicker.init();
+MockFilePicker.init(window);
 
 /**
  * Test for bug 471962 <https://bugzilla.mozilla.org/show_bug.cgi?id=471962>:
@@ -18,11 +18,6 @@ function test() {
   waitForExplicitFinish();
 
   gBrowser.loadURI("http://mochi.test:8888/browser/toolkit/content/tests/browser/data/post_form_outer.sjs");
-
-  registerCleanupFunction(function () {
-    gBrowser.addTab();
-    gBrowser.removeCurrentTab();
-  });
 
   gBrowser.addEventListener("pageshow", function pageShown(event) {
     if (event.target.location == "about:blank")
@@ -78,7 +73,7 @@ function test() {
     internalSave(docToSave.location.href, docToSave, null, null,
                  docToSave.contentType, false, null, null,
                  docToSave.referrer ? makeURI(docToSave.referrer) : null,
-                 false, null);
+                 docToSave, false, null);
   }
 
   function onTransferComplete(downloadSuccess) {

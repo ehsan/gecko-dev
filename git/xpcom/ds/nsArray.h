@@ -12,47 +12,62 @@
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
 
-#define NS_ARRAY_CLASSNAME \
-  "nsIArray implementation"
-
 // {35C66FD1-95E9-4e0a-80C5-C3BD2B375481}
 #define NS_ARRAY_CID \
 { 0x35c66fd1, 0x95e9, 0x4e0a, \
   { 0x80, 0xc5, 0xc3, 0xbd, 0x2b, 0x37, 0x54, 0x81 } }
 
-
-// adapter class to map nsIArray->nsCOMArray
-// do NOT declare this as a stack or member variable, use
-// nsCOMArray instead!
-// if you need to convert a nsCOMArray->nsIArray, see NS_NewArray above
-class nsArray : public nsIMutableArray
+// nsArray without any refcounting declarations
+class nsArrayBase : public nsIMutableArray
 {
 public:
-    nsArray() { }
-    nsArray(const nsCOMArray_base& aBaseArray) : mArray(aBaseArray)
-    { }
-    
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIARRAY
-    NS_DECL_NSIMUTABLEARRAY
+  NS_DECL_NSIARRAY
+  NS_DECL_NSIMUTABLEARRAY
 
+  /* Both of these factory functions create a cycle-collectable array
+     on the main thread and a non-cycle-collectable array on other
+     threads.  */
+  static already_AddRefed<nsIMutableArray> Create();
+  /* Only for the benefit of the XPCOM module system, use Create()
+     instead.  */
+  static nsresult XPCOMConstructor(nsISupports* aOuter, const nsIID& aIID,
+                                   void** aResult);
 protected:
-    virtual ~nsArray(); // nsArrayCC inherits from this
+  nsArrayBase() {}
+  nsArrayBase(const nsArrayBase& aOther);
+  explicit nsArrayBase(const nsCOMArray_base& aBaseArray) : mArray(aBaseArray) {}
+  virtual ~nsArrayBase();
 
-    nsCOMArray_base mArray;
+  nsCOMArray_base mArray;
 };
 
-class nsArrayCC MOZ_FINAL : public nsArray
+class nsArray MOZ_FINAL : public nsArrayBase
 {
+  friend class nsArrayBase;
+
 public:
-    nsArrayCC() : nsArray() { }
-    nsArrayCC(const nsCOMArray_base& aBaseArray) : nsArray(aBaseArray)
-    { }
-    
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(nsArrayCC)
+  NS_DECL_ISUPPORTS
+
+private:
+  nsArray() : nsArrayBase() {}
+  nsArray(const nsArray& aOther);
+  explicit nsArray(const nsCOMArray_base& aBaseArray) : nsArrayBase(aBaseArray) {}
+  ~nsArray() {}
 };
 
-nsresult nsArrayConstructor(nsISupports *aOuter, const nsIID& aIID, void **aResult);
+class nsArrayCC MOZ_FINAL : public nsArrayBase
+{
+  friend class nsArrayBase;
+
+public:
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsArrayCC)
+
+private:
+  nsArrayCC() : nsArrayBase() {}
+  nsArrayCC(const nsArrayCC& aOther);
+  explicit nsArrayCC(const nsCOMArray_base& aBaseArray) : nsArrayBase(aBaseArray) {}
+  ~nsArrayCC() {}
+};
 
 #endif

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko.sync.setup.auth;
 
@@ -11,10 +11,11 @@ import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
 
-import org.mozilla.gecko.sync.Logger;
+import org.mozilla.gecko.background.common.log.Logger;
+import org.mozilla.gecko.sync.SyncConstants;
+import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.SyncResourceDelegate;
-import org.mozilla.gecko.sync.setup.Constants;
+import org.mozilla.gecko.sync.net.BaseResourceDelegate;
 
 import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.client.ClientProtocolException;
@@ -61,7 +62,7 @@ public class FetchUserNodeStage implements AuthenticatorStage {
         aa.abort(AuthenticationResult.FAILURE_OTHER, e);
       }
     };
-    String nodeRequestUrl = aa.nodeServer + Constants.AUTH_NODE_PATHNAME + Constants.AUTH_NODE_VERSION + aa.username + "/" + Constants.AUTH_NODE_SUFFIX;
+    String nodeRequestUrl = Utils.nodeWeaveURL(aa.nodeServer, aa.username);
     // Might contain a plaintext username in the case of old Sync accounts.
     Logger.pii(LOG_TAG, "NodeUrl: " + nodeRequestUrl);
     final BaseResource httpResource = makeFetchNodeRequest(callbackDelegate, nodeRequestUrl);
@@ -77,7 +78,11 @@ public class FetchUserNodeStage implements AuthenticatorStage {
   private BaseResource makeFetchNodeRequest(final FetchNodeStageDelegate callbackDelegate, String fetchNodeUrl) throws URISyntaxException {
     // Fetch node containing user.
     final BaseResource httpResource = new BaseResource(fetchNodeUrl);
-    httpResource.delegate = new SyncResourceDelegate(httpResource) {
+    httpResource.delegate = new BaseResourceDelegate(httpResource) {
+      @Override
+      public String getUserAgent() {
+        return SyncConstants.USER_AGENT;
+      }
 
       @Override
       public void handleHttpResponse(HttpResponse response) {
@@ -91,9 +96,7 @@ public class FetchUserNodeStage implements AuthenticatorStage {
             callbackDelegate.handleSuccess(server);
             BaseResource.consumeReader(reader);
             reader.close();
-          } catch (IllegalStateException e) {
-            callbackDelegate.handleError(e);
-          } catch (IOException e) {
+          } catch (IllegalStateException | IOException e) {
             callbackDelegate.handleError(e);
           }
           break;

@@ -1,41 +1,8 @@
 #!/bin/bash
 #
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is the Netscape security libraries.
-#
-# The Initial Developer of the Original Code is
-# Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1994-2000
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#   Slavomir Katuscak <slavomir.katuscak@sun.com>, Sun Microsystems
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 ########################################################################
 #
@@ -68,6 +35,7 @@
 #   dbupgrade.sh - upgrade databases to new shareable version (used
 #                  only in upgrade test cycle)
 #   memleak.sh   - memory leak testing (optional)
+#   ssl_gtests.sh- Gtest based unit tests for ssl (optional)
 #
 # NSS testing is now devided to 4 cycles:
 # ---------------------------------------
@@ -92,7 +60,7 @@
 #
 # Optional environment variables to enable specific NSS features:
 # ---------------------------------------------------------------
-#   NSS_ENABLE_ECC              - enable ECC
+#   NSS_DISABLE_ECC             - disable ECC
 #   NSS_ECC_MORE_THAN_SUITE_B   - enable extended ECC
 #
 # Optional environment variables to select which cycles/suites to test:
@@ -216,7 +184,7 @@ run_cycle_upgrade_db()
     init_directories
 
     if [ -r "${OLDHOSTDIR}/cert.log" ]; then
-        DIRS="alicedir bobdir CA cert_extensions client clientCA dave eccurves eve ext_client ext_server fips SDR server serverCA tools/copydir cert.log cert.done tests.*"
+        DIRS="alicedir bobdir CA cert_extensions client clientCA dave eccurves eve ext_client ext_server fips SDR server serverCA stapling tools/copydir cert.log cert.done tests.*"
         for i in $DIRS
         do
             cp -r ${OLDHOSTDIR}/${i} ${HOSTDIR} #2> /dev/null
@@ -306,7 +274,7 @@ run_cycles()
 cycles="standard pkix upgradedb sharedb"
 CYCLES=${NSS_CYCLES:-$cycles}
 
-tests="cipher libpkix cert dbtests tools fips sdr crmf smime ssl ocsp merge pkits chains"
+tests="cipher lowhash libpkix cert dbtests tools fips sdr crmf smime ssl ocsp merge pkits chains"
 TESTS=${NSS_TESTS:-$tests}
 
 ALL_TESTS=${TESTS}
@@ -314,7 +282,7 @@ ALL_TESTS=${TESTS}
 nss_ssl_tests="crl bypass_normal normal_bypass fips_normal normal_fips iopr"
 NSS_SSL_TESTS="${NSS_SSL_TESTS:-$nss_ssl_tests}"
 
-nss_ssl_run="cov auth stress"
+nss_ssl_run="cov auth stapling stress"
 NSS_SSL_RUN="${NSS_SSL_RUN:-$nss_ssl_run}"
 
 SCRIPTNAME=all.sh
@@ -332,9 +300,15 @@ fi
 # created, we check for modutil to know whether the build
 # is complete. If a new file is created after that, the 
 # following test for modutil should check for that instead.
+# Exception: when building softoken only, shlibsign is the
+# last file created.
+if [ ${NSS_BUILD_SOFTOKEN_ONLY} -eq "1" ]; then
+  LAST_FILE_BUILT=shlibsign
+else
+  LAST_FILE_BUILT=modutil
+fi
 
-if [ ! -f ${DIST}/${OBJDIR}/bin/modutil -a  \
-     ! -f ${DIST}/${OBJDIR}/bin/modutil.exe ]; then
+if [ ! -f ${DIST}/${OBJDIR}/bin/${LAST_FILE_BUILT}${PROG_SUFFIX} ]; then
     echo "Build Incomplete. Aborting test." >> ${LOGFILE}
     html_head "Testing Initialization"
     Exit "Checking for build"

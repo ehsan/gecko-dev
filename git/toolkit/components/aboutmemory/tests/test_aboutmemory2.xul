@@ -22,22 +22,8 @@
   let mgr = Cc["@mozilla.org/memory-reporter-manager;1"].
             getService(Ci.nsIMemoryReporterManager);
 
-  // Remove all the real reporters and multi-reporters;  save them to
-  // restore at the end.
-  let e = mgr.enumerateReporters();
-  let realReporters = [];
-  while (e.hasMoreElements()) {
-    let r = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
-    mgr.unregisterReporter(r);
-    realReporters.push(r);
-  }
-  e = mgr.enumerateMultiReporters();
-  let realMultiReporters = [];
-  while (e.hasMoreElements()) {
-    let r = e.getNext().QueryInterface(Ci.nsIMemoryMultiReporter);
-    mgr.unregisterMultiReporter(r);
-    realMultiReporters.push(r);
-  }
+  // Hide all the real reporters;  we'll restore them at the end.
+  mgr.blockRegistrationAndHideExistingReporters();
 
   // Setup various fake-but-deterministic reporters.
   const KB = 1024;
@@ -46,39 +32,34 @@
   const OTHER = Ci.nsIMemoryReporter.KIND_OTHER;
   const BYTES = Ci.nsIMemoryReporter.UNITS_BYTES;
 
-  function f(aPath, aKind, aAmount) {
-    return {
-      process:     "",
-      path:        aPath,
-      kind:        aKind,
-      units:       BYTES,
-      description: "Desc.",
-      amount:      aAmount
-    };
-  }
-
-  let hiReport  = f("explicit/h/i",  HEAP,  10 * MB);
-  let hi2Report = f("explicit/h/i2", HEAP,   9 * MB);
-  let jkReport  = f("explicit/j/k",  HEAP, 0.5 * MB);
-  let jk2Report = f("explicit/j/k2", HEAP, 0.3 * MB);
+  let hiPath  = "explicit/h/i";
+  let hi2Path = "explicit/h/i2";
+  let jkPath  = "explicit/j/k";
+  let jk2Path = "explicit/j/k2";
 
   let fakeReporters = [
-    f("heap-allocated",     OTHER,   250 * MB),
-    f("explicit/a/b",       HEAP,     50 * MB),
-    f("explicit/a/c/d",     HEAP,     25 * MB),
-    f("explicit/a/c/e",     HEAP,     15 * MB),
-    f("explicit/a/f",       HEAP,     30 * MB),
-    f("explicit/g",         HEAP,    100 * MB),
-    hiReport,
-    hi2Report,
-    jkReport,
-    jk2Report,
-    f("explicit/a/l/m",     HEAP,    0.1 * MB),
-    f("explicit/a/l/n",     HEAP,    0.1 * MB),
+    { collectReports: function(aCbObj, aClosure, aAnonymize) {
+        function f(aP, aK, aA) {
+          aCbObj.callback("", aP, aK, BYTES, aA, "Desc.", aClosure);
+        }
+        f("heap-allocated",     OTHER,   250 * MB);
+        f("explicit/a/b",       HEAP,     50 * MB);
+        f("explicit/a/c/d",     HEAP,     25 * MB);
+        f("explicit/a/c/e",     HEAP,     15 * MB);
+        f("explicit/a/f",       HEAP,     30 * MB);
+        f("explicit/g",         HEAP,    100 * MB);
+        f(hiPath,               HEAP,     10 * MB);
+        f(hi2Path,              HEAP,      9 * MB);
+        f(jkPath,               HEAP,    0.5 * MB);
+        f(jk2Path,              HEAP,    0.3 * MB);
+        f("explicit/a/l/m",     HEAP,    0.1 * MB);
+        f("explicit/a/l/n",     HEAP,    0.1 * MB);
+      }
+    }
   ];
 
   for (let i = 0; i < fakeReporters.length; i++) {
-    mgr.registerReporter(fakeReporters[i]);
+    mgr.registerStrongReporterEvenIfBlocked(fakeReporters[i]);
   }
 
   ]]>
@@ -90,38 +71,29 @@
   <![CDATA[
   function finish()
   {
-    // Unregister fake reporters and multi-reporters, re-register the real
-    // reporters and multi-reporters, just in case subsequent tests rely on
-    // them.
-    for (let i = 0; i < fakeReporters.length; i++) {
-      mgr.unregisterReporter(fakeReporters[i]);
-    }
-    for (let i = 0; i < realReporters.length; i++) {
-      mgr.registerReporter(realReporters[i]);
-    }
-    for (let i = 0; i < realMultiReporters.length; i++) {
-      mgr.registerMultiReporter(realMultiReporters[i]);
-    }
+    mgr.unblockRegistrationAndRestoreOriginalReporters();
     SimpleTest.finish();
   }
 
   // Click on the identified element, then cut+paste the entire page and
   // check that the cut text matches what we expect.
-  function test(aId, aExpected, aNext) {
+  function test(aId, aSwap, aExpected, aNext) {
     let win = document.getElementById("amFrame").contentWindow;
     if (aId) {
       let node = win.document.getElementById(aId);
 
       // Yuk:  clicking a button is easy;  but for tree entries we need to
       // click on a child of the span identified via |id|.
-      // Also, we swap the paths of hiReport/hi2Report and
-      // jkReport/jk2Report just before updating, to test what happens when
-      // significant nodes become insignificant and vice versa.
       if (node.nodeName === "button") {
-        hiReport.path  = "explicit/j/k";
-        hi2Report.path = "explicit/j/k2";
-        jkReport.path  = "explicit/h/i";
-        jk2Report.path = "explicit/h/i2";
+        if (aSwap) {
+          // We swap hipath/hi2Path and jkPath/jk2Path just before updating, to
+          // test what happens when significant nodes become insignificant and
+          // vice versa.
+          hiPath  = "explicit/j/k";
+          hi2Path = "explicit/j/k2";
+          jkPath  = "explicit/h/i";
+          jk2Path = "explicit/h/i2";
+        }
         node.click();
       } else {
         node.childNodes[0].click();
@@ -158,7 +130,7 @@
   function chain(aIds) {
     let x = aIds.shift();
     if (x) {
-      return function() { test(x.id, x.expected, chain(aIds)); }
+      return function() { test(x.id, x.swap, x.expected, chain(aIds)); }
     } else {
       return function() { finish(); };
     }
@@ -167,8 +139,8 @@
   let startExpected =
 "\
 Main Process\n\
-\n\
 Explicit Allocations\n\
+\n\
 250.00 MB (100.0%) -- explicit\n\
 ├──120.20 MB (48.08%) -- a\n\
 │  ├───50.00 MB (20.00%) ── b\n\
@@ -185,15 +157,17 @@ Explicit Allocations\n\
 └────0.80 MB (00.32%) ++ j\n\
 \n\
 Other Measurements\n\
+\n\
 250.00 MB ── heap-allocated\n\
 \n\
+End of Main Process\n\
 ";
 
   let acCollapsedExpected =
 "\
 Main Process\n\
-\n\
 Explicit Allocations\n\
+\n\
 250.00 MB (100.0%) -- explicit\n\
 ├──120.20 MB (48.08%) -- a\n\
 │  ├───50.00 MB (20.00%) ── b\n\
@@ -208,15 +182,17 @@ Explicit Allocations\n\
 └────0.80 MB (00.32%) ++ j\n\
 \n\
 Other Measurements\n\
+\n\
 250.00 MB ── heap-allocated\n\
 \n\
+End of Main Process\n\
 ";
 
   let alExpandedExpected =
 "\
 Main Process\n\
-\n\
 Explicit Allocations\n\
+\n\
 250.00 MB (100.0%) -- explicit\n\
 ├──120.20 MB (48.08%) -- a\n\
 │  ├───50.00 MB (20.00%) ── b\n\
@@ -233,15 +209,17 @@ Explicit Allocations\n\
 └────0.80 MB (00.32%) ++ j\n\
 \n\
 Other Measurements\n\
+\n\
 250.00 MB ── heap-allocated\n\
 \n\
+End of Main Process\n\
 ";
 
   let aCollapsedExpected =
 "\
 Main Process\n\
-\n\
 Explicit Allocations\n\
+\n\
 250.00 MB (100.0%) -- explicit\n\
 ├──120.20 MB (48.08%) ++ a\n\
 ├──100.00 MB (40.00%) ── g\n\
@@ -252,15 +230,17 @@ Explicit Allocations\n\
 └────0.80 MB (00.32%) ++ j\n\
 \n\
 Other Measurements\n\
+\n\
 250.00 MB ── heap-allocated\n\
 \n\
+End of Main Process\n\
 ";
 
   let hCollapsedExpected =
 "\
 Main Process\n\
-\n\
 Explicit Allocations\n\
+\n\
 250.00 MB (100.0%) -- explicit\n\
 ├──120.20 MB (48.08%) ++ a\n\
 ├──100.00 MB (40.00%) ── g\n\
@@ -269,15 +249,17 @@ Explicit Allocations\n\
 └────0.80 MB (00.32%) ++ j\n\
 \n\
 Other Measurements\n\
+\n\
 250.00 MB ── heap-allocated\n\
 \n\
+End of Main Process\n\
 ";
 
   let jExpandedExpected =
 "\
 Main Process\n\
-\n\
 Explicit Allocations\n\
+\n\
 250.00 MB (100.0%) -- explicit\n\
 ├──120.20 MB (48.08%) ++ a\n\
 ├──100.00 MB (40.00%) ── g\n\
@@ -288,8 +270,10 @@ Explicit Allocations\n\
      └──0.30 MB (00.12%) ── k2\n\
 \n\
 Other Measurements\n\
+\n\
 250.00 MB ── heap-allocated\n\
 \n\
+End of Main Process\n\
 ";
 
   // The important thing here is that two values have been swapped.
@@ -298,8 +282,8 @@ Other Measurements\n\
   let updatedExpected =
 "\
 Main Process\n\
-\n\
 Explicit Allocations\n\
+\n\
 250.00 MB (100.0%) -- explicit\n\
 ├──120.20 MB (48.08%) ++ a\n\
 ├──100.00 MB (40.00%) ── g\n\
@@ -310,15 +294,17 @@ Explicit Allocations\n\
 └────0.80 MB (00.32%) ++ h\n\
 \n\
 Other Measurements\n\
+\n\
 250.00 MB ── heap-allocated\n\
 \n\
+End of Main Process\n\
 ";
 
   let aExpandedExpected =
 "\
 Main Process\n\
-\n\
 Explicit Allocations\n\
+\n\
 250.00 MB (100.0%) -- explicit\n\
 ├──120.20 MB (48.08%) -- a\n\
 │  ├───50.00 MB (20.00%) ── b\n\
@@ -335,15 +321,17 @@ Explicit Allocations\n\
 └────0.80 MB (00.32%) ++ h\n\
 \n\
 Other Measurements\n\
+\n\
 250.00 MB ── heap-allocated\n\
 \n\
+End of Main Process\n\
 ";
 
   let acExpandedExpected =
 "\
 Main Process\n\
-\n\
 Explicit Allocations\n\
+\n\
 250.00 MB (100.0%) -- explicit\n\
 ├──120.20 MB (48.08%) -- a\n\
 │  ├───50.00 MB (20.00%) ── b\n\
@@ -362,15 +350,17 @@ Explicit Allocations\n\
 └────0.80 MB (00.32%) ++ h\n\
 \n\
 Other Measurements\n\
+\n\
 250.00 MB ── heap-allocated\n\
 \n\
+End of Main Process\n\
 ";
 
   let alCollapsedExpected =
 "\
 Main Process\n\
-\n\
 Explicit Allocations\n\
+\n\
 250.00 MB (100.0%) -- explicit\n\
 ├──120.20 MB (48.08%) -- a\n\
 │  ├───50.00 MB (20.00%) ── b\n\
@@ -387,8 +377,10 @@ Explicit Allocations\n\
 └────0.80 MB (00.32%) ++ h\n\
 \n\
 Other Measurements\n\
+\n\
 250.00 MB ── heap-allocated\n\
 \n\
+End of Main Process\n\
 ";
 
   // Test the following cases:
@@ -404,16 +396,16 @@ Other Measurements\n\
   //   upon update (and should remain expanded)
   //
   let idsToClick = [
-    { id: "",                  expected: startExpected },
-    { id: "Main:explicit/a/c", expected: acCollapsedExpected },
-    { id: "Main:explicit/a/l", expected: alExpandedExpected },
-    { id: "Main:explicit/a",   expected: aCollapsedExpected },
-    { id: "Main:explicit/h",   expected: hCollapsedExpected },
-    { id: "Main:explicit/j",   expected: jExpandedExpected },
-    { id: "updateButton",      expected: updatedExpected },
-    { id: "Main:explicit/a",   expected: aExpandedExpected },
-    { id: "Main:explicit/a/c", expected: acExpandedExpected },
-    { id: "Main:explicit/a/l", expected: alCollapsedExpected }
+    { id: "measureButton",             swap: 0, expected: startExpected },
+    { id: "Main Process:explicit/a/c", swap: 0, expected: acCollapsedExpected },
+    { id: "Main Process:explicit/a/l", swap: 0, expected: alExpandedExpected },
+    { id: "Main Process:explicit/a",   swap: 0, expected: aCollapsedExpected },
+    { id: "Main Process:explicit/h",   swap: 0, expected: hCollapsedExpected },
+    { id: "Main Process:explicit/j",   swap: 0, expected: jExpandedExpected },
+    { id: "measureButton",             swap: 1, expected: updatedExpected },
+    { id: "Main Process:explicit/a",   swap: 0, expected: aExpandedExpected },
+    { id: "Main Process:explicit/a/c", swap: 0, expected: acExpandedExpected },
+    { id: "Main Process:explicit/a/l", swap: 0, expected: alCollapsedExpected }
   ];
 
   SimpleTest.waitForFocus(chain(idsToClick));

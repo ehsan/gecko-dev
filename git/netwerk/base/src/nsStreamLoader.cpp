@@ -7,20 +7,17 @@
 #include "nsIInputStream.h"
 #include "nsIChannel.h"
 #include "nsError.h"
-#include "sampler.h"
+#include "GeckoProfiler.h"
+
+#include <limits>
 
 nsStreamLoader::nsStreamLoader()
-  : mData(nullptr),
-    mAllocated(0),
-    mLength(0)
+  : mData()
 {
 }
 
 nsStreamLoader::~nsStreamLoader()
 {
-  if (mData) {
-    NS_Free(mData);
-  }
 }
 
 NS_IMETHODIMP
@@ -45,13 +42,14 @@ nsStreamLoader::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
   return rv;
 }
 
-NS_IMPL_ISUPPORTS3(nsStreamLoader, nsIStreamLoader,
-                   nsIRequestObserver, nsIStreamListener)
+NS_IMPL_ISUPPORTS(nsStreamLoader, nsIStreamLoader,
+                  nsIRequestObserver, nsIStreamListener,
+                  nsIThreadRetargetableStreamListener)
 
 NS_IMETHODIMP 
 nsStreamLoader::GetNumBytesRead(uint32_t* aNumBytes)
 {
-  *aNumBytes = mLength;
+  *aNumBytes = mData.length();
   return NS_OK;
 }
 
@@ -63,44 +61,49 @@ nsStreamLoader::GetRequest(nsIRequest **aRequest)
   return NS_OK;
 }
 
-NS_IMETHODIMP 
+NS_IMETHODIMP
 nsStreamLoader::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
 {
   nsCOMPtr<nsIChannel> chan( do_QueryInterface(request) );
   if (chan) {
-    int32_t contentLength = -1;
+    int64_t contentLength = -1;
     chan->GetContentLength(&contentLength);
     if (contentLength >= 0) {
-      // preallocate buffer
-      mData = static_cast<uint8_t*>(NS_Alloc(contentLength));
-      if (!mData) {
+      if (uint64_t(contentLength) > std::numeric_limits<size_t>::max()) {
+        // Too big to fit into size_t, so let's bail.
         return NS_ERROR_OUT_OF_MEMORY;
       }
-      mAllocated = contentLength;
+      // preallocate buffer
+      if (!mData.initCapacity(contentLength)) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
     }
   }
   mContext = ctxt;
   return NS_OK;
 }
 
-NS_IMETHODIMP 
+NS_IMETHODIMP
 nsStreamLoader::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
                               nsresult aStatus)
 {
-  SAMPLE_LABEL("network", "nsStreamLoader::OnStopRequest");
+  PROFILER_LABEL("nsStreamLoader", "OnStopRequest",
+    js::ProfileEntry::Category::NETWORK);
+
   if (mObserver) {
     // provide nsIStreamLoader::request during call to OnStreamComplete
     mRequest = request;
+    size_t length = mData.length();
+    uint8_t* elems = mData.extractRawBuffer();
     nsresult rv = mObserver->OnStreamComplete(this, mContext, aStatus,
-                                              mLength, mData);
-    if (rv == NS_SUCCESS_ADOPTED_DATA) {
-      // the observer now owns the data buffer, and the loader must
-      // not deallocate it
-      mData = nullptr;
-      mLength = 0;
-      mAllocated = 0;
+                                              length, elems);
+    if (rv != NS_SUCCESS_ADOPTED_DATA) {
+      // The observer didn't take ownership of the extracted data buffer, so
+      // put it back into mData.
+      mData.replaceRawBuffer(elems, length);
     }
     // done.. cleanup
+    ReleaseData();
     mRequest = 0;
     mObserver = 0;
     mContext = 0;
@@ -118,23 +121,10 @@ nsStreamLoader::WriteSegmentFun(nsIInputStream *inStr,
 {
   nsStreamLoader *self = (nsStreamLoader *) closure;
 
-  if (count > PR_UINT32_MAX - self->mLength) {
-    return NS_ERROR_ILLEGAL_VALUE; // is there a better error to use here?
+  if (!self->mData.append(fromSegment, count)) {
+    self->mData.clearAndFree();
+    return NS_ERROR_OUT_OF_MEMORY;
   }
-
-  if (self->mLength + count > self->mAllocated) {
-    self->mData = static_cast<uint8_t*>(NS_Realloc(self->mData,
-                                                   self->mLength + count));
-    if (!self->mData) {
-      self->mLength = 0;
-      self->mAllocated = 0;
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-    self->mAllocated = self->mLength + count;
-  }
-
-  ::memcpy(self->mData + self->mLength, fromSegment, count);
-  self->mLength += count;
 
   *writeCount = count;
 
@@ -144,8 +134,20 @@ nsStreamLoader::WriteSegmentFun(nsIInputStream *inStr,
 NS_IMETHODIMP 
 nsStreamLoader::OnDataAvailable(nsIRequest* request, nsISupports *ctxt, 
                                 nsIInputStream *inStr, 
-                                uint32_t sourceOffset, uint32_t count)
+                                uint64_t sourceOffset, uint32_t count)
 {
   uint32_t countRead;
   return inStr->ReadSegments(WriteSegmentFun, this, count, &countRead);
+}
+
+void
+nsStreamLoader::ReleaseData()
+{
+  mData.clearAndFree();
+}
+
+NS_IMETHODIMP
+nsStreamLoader::CheckListenerChain()
+{
+  return NS_OK;
 }

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- tab-width: 2; indent-tabs-mode: nil; js-indent-level: 2 -*-
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -23,8 +23,8 @@ function onLoad()
     issuer = dialogParams.GetString(2);
 
     // added with bug 431819. reuse string from caps in order to avoid string changes
-    var capsBundle = srGetStrBundle("chrome://global/locale/security/caps.properties");
-    var rememberString = capsBundle.GetStringFromName("CheckMessage");
+    var capsBundle = document.getElementById("caps_bundle");
+    var rememberString = capsBundle.getString("CheckMessage");
     var rememberSetting = true;
 
     var pref = Components.classes['@mozilla.org/preferences-service;1']
@@ -44,13 +44,9 @@ function onLoad()
     rememberBox.label = rememberString;
     rememberBox.checked = rememberSetting;
 
-    var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
-    var message1 = bundle.formatStringFromName("clientAuthMessage1", 
-                                             [org],
-                                             1);
-    var message2 = bundle.formatStringFromName("clientAuthMessage2",
-                                             [issuer],
-                                             1);
+    var bundle = document.getElementById("pippki_bundle");
+    var message1 = bundle.getFormattedString("clientAuthMessage1", [org]);
+    var message2 = bundle.getFormattedString("clientAuthMessage2", [issuer]);
     setText("hostname", cn);
     setText("organization", message1);
     setText("issuer", message2);

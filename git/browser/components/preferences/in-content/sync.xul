@@ -1,6 +1,8 @@
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this file,
-   - You can obtain one at http://mozilla.org/MPL/2.0/.  -->
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+<!-- Synch panel -->
 
 <preferences>
   <preference id="engine.addons"
@@ -28,25 +30,30 @@
 <script type="application/javascript"
         src="chrome://browser/content/sync/utils.js"/>
 
-<hbox class="heading" data-category="paneSync" hidden="true">
-  <image class="preference-icon" type="sync"/>
-  <html:h1>&paneSync.title;</html:h1>
+<hbox id="header-sync"
+      class="header"
+      hidden="true"
+      data-category="paneSync">
+  <label class="header-name">&paneSync.title;</label>
 </hbox>
 
 <deck id="weavePrefsDeck" data-category="paneSync" hidden="true">
+  <!-- These panels are for the "legacy" sync provider -->
   <vbox id="noAccount" align="center">
     <spacer flex="1"/>
     <description id="syncDesc">
       &weaveDesc.label;
     </description>
     <separator/>
-    <label class="text-link"
-           onclick="event.stopPropagation(); gSyncPane.openSetup(null);"
-           value="&setupButton.label;"/>
-    <separator/>
-    <label class="text-link"
-           onclick="event.stopPropagation(); gSyncPane.openSetup('pair');"
-           value="&pairDevice.label;"/>
+    <label id="noAccountSetup" class="text-link">
+      &setupButton.label;
+    </label>
+    <vbox id="pairDevice">
+      <separator/>
+      <label id="noAccountPair" class="text-link">
+        &pairDevice.label;
+      </label>
+    </vbox>
     <spacer flex="3"/>
   </vbox>
 
@@ -55,7 +62,7 @@
       <!-- label is set to account name -->
       <caption id="accountCaption" align="center">
         <image id="accountCaptionImage"/>
-        <label id="accountName" value=""/>
+        <label id="accountName"/>
       </caption>
 
       <hbox>
@@ -63,32 +70,27 @@
                 label="&manageAccount.label;"
                 accesskey="&manageAccount.accesskey;">
           <menupopup>
-            <menuitem label="&viewQuota.label;"
-                      oncommand="gSyncPane.openQuotaDialog();"/>
+            <menuitem id="syncViewQuota" label="&viewQuota.label;"/>
             <menuseparator/>
-            <menuitem label="&changePassword2.label;"
-                      oncommand="gSyncUtils.changePassword();"/>
-            <menuitem label="&myRecoveryKey.label;"
-                      oncommand="gSyncUtils.resetPassphrase();"/>
+            <menuitem id="syncChangePassword" label="&changePassword2.label;"/>
+            <menuitem id="syncResetPassphrase" label="&myRecoveryKey.label;"/>
             <menuseparator/>
-            <menuitem label="&resetSync2.label;"
-                      oncommand="gSyncPane.resetSync();"/>
+            <menuitem id="syncReset" label="&resetSync2.label;"/>
           </menupopup>
         </button>
       </hbox>
 
       <hbox>
         <label id="syncAddDeviceLabel"
-               class="text-link"
-               onclick="gSyncPane.openAddDevice(); return false;"
-               value="&pairDevice.label;"/>
+               class="text-link">
+          &pairDevice.label;
+        </label>
       </hbox>
 
       <vbox>
-        <label value="&syncMy.label;" />
+        <label>&syncMy.label;</label>
         <richlistbox id="syncEnginesList"
-                     orient="vertical"
-                     onselect="if (this.selectedCount) this.clearSelection();">
+                     orient="vertical">
           <richlistitem>
             <checkbox label="&engine.addons.label;"
                       accesskey="&engine.addons.accesskey;"
@@ -131,43 +133,160 @@
         </columns>
         <rows>
           <row align="center">
-            <label value="&syncComputerName.label;"
-                   accesskey="&syncComputerName.accesskey;"
-                   control="syncComputerName"/>
-            <textbox id="syncComputerName"
-                     onchange="gSyncUtils.changeName(this)"/>
+            <label accesskey="&syncDeviceName.accesskey;"
+                   control="syncComputerName">
+              &syncDeviceName.label;
+            </label>
+            <textbox id="syncComputerName"/>
           </row>
         </rows>
       </grid>
       <hbox>
-        <label class="text-link"
-               onclick="gSyncPane.startOver(true); return false;"
-               value="&unlinkDevice.label;"/>
+        <label id="unlinkDevice" class="text-link">
+          &unlinkDevice.label;
+        </label>
       </hbox>
     </groupbox>
-    <hbox id="tosPP" pack="center">
-      <label class="text-link"
-             onclick="event.stopPropagation();gSyncUtils.openToS();"
-             value="&prefs.tosLink.label;"/>
-      <label class="text-link"
-             onclick="event.stopPropagation();gSyncUtils.openPrivacyPolicy();"
-             value="&prefs.ppLink.label;"/>
+    <hbox id="tosPP-normal" pack="center">
+      <label id="tosPP-normal-ToS" class="text-link">
+        &prefs.tosLink.label;
+      </label>
+      <label id="tosPP-normal-PP" class="text-link">
+        &prefs.ppLink.label;
+      </label>
     </hbox>
   </vbox>
 
   <vbox id="needsUpdate" align="center" pack="center">
     <hbox>
-      <label id="loginError" value=""/>
-      <label class="text-link"
-             onclick="gSyncPane.updatePass(); return false;"
-             value="&updatePass.label;"/>
-      <label class="text-link"
-             onclick="gSyncPane.resetPass(); return false;"
-             value="&resetPass.label;"/>
+      <label id="loginError"/>
+      <label id="loginErrorUpdatePass" class="text-link">
+        &updatePass.label;
+      </label>
+      <label id="loginErrorResetPass" class="text-link">
+        &resetPass.label;
+      </label>
     </hbox>
-    <label class="text-link"
-           onclick="gSyncPane.startOver(true); return false;"
-           value="&unlinkDevice.label;"/>
+    <label id="loginErrorStartOver" class="text-link">
+      &unlinkDevice.label;
+    </label>
   </vbox>
 
+  <!-- These panels are for the Firefox Accounts identity provider -->
+  <vbox id="fxaDeterminingStatus" align="center">
+    <spacer flex="1"/>
+    <label>&determiningAcctStatus.label;</label>
+    <spacer flex="1"/>
+  </vbox>
+
+  <vbox id="noFxaAccount" align="start">
+    <label>&welcome.description;</label>
+    <label id="noFxaSignUp" class="text-link">
+      &welcome.createAccount.label;
+    </label>
+    <label id="noFxaSignIn" class="text-link">
+      &welcome.signIn.label;
+    </label>
+    <separator/>
+    <label id="noFxaUseOldSync" class="text-link">
+      &welcome.useOldSync.label;
+    </label>
+  </vbox>
+
+  <vbox id="hasFxaAccount">
+    <groupbox id="fxaGroup">
+      <caption><label>&syncBrand.fxAccount.label;</label></caption>
+
+      <deck id="fxaLoginStatus">
+
+        <!-- logged in and verified and all is good -->
+        <hbox align="center">
+          <label id="fxaEmailAddress1"/>
+          <spacer flex="1"/>
+          <button id="verifiedManage"
+                  label="&manage.label;"/>
+          <button id="fxaUnlinkButton"
+                  label="&disconnect.label;"/>
+        </hbox>
+
+        <!-- logged in to an unverified account -->
+        <hbox flex="1">
+          <description>
+            &signedInUnverified.beforename.label;
+            <label id="fxaEmailAddress2"/>
+            &signedInUnverified.aftername.label;
+          </description>
+          <spacer flex="1"/>
+          <vbox align="end">
+            <button id="verifyFxaAccount"
+                    label="&verify.label;"/>
+            <label id="unverifiedUnlinkFxaAccount" class="text-link">
+              &forget.label;
+            </label>
+          </vbox>
+        </hbox>
+
+        <!-- logged in locally but server rejected credentials -->
+        <hbox flex="1">
+          <description>
+            &signedInLoginFailure.beforename.label;
+            <label id="fxaEmailAddress3"/>
+            &signedInLoginFailure.aftername.label;
+          </description>
+          <spacer flex="1"/>
+          <vbox align="end">
+            <button id="rejectReSignIn"
+                    label="&signIn.label;"/>
+            <label id="rejectUnlinkFxaAccount" class="text-link">
+              &forget.label;
+            </label>
+          </vbox>
+        </hbox>
+      </deck>
+    </groupbox>
+
+    <groupbox id="syncOptions">
+      <caption><label>&syncBrand.shortName.label;</label></caption>
+      <hbox id="fxaSyncEngines">
+        <vbox align="start">
+          <checkbox label="&engine.tabs.label;"
+                    accesskey="&engine.tabs.accesskey;"
+                    preference="engine.tabs"/>
+          <checkbox label="&engine.bookmarks.label;"
+                    accesskey="&engine.bookmarks.accesskey;"
+                    preference="engine.bookmarks"/>
+          <checkbox label="&engine.passwords.label;"
+                    accesskey="&engine.passwords.accesskey;"
+                    preference="engine.passwords"/>
+          <checkbox label="&engine.history.label;"
+                    accesskey="&engine.history.accesskey;"
+                    preference="engine.history"/>
+          <checkbox label="&engine.addons.label;"
+                    accesskey="&engine.addons.accesskey;"
+                    preference="engine.addons"/>
+          <checkbox label="&engine.prefs.label;"
+                    accesskey="&engine.prefs.accesskey;"
+                    preference="engine.prefs"/>
+        </vbox>
+        <spacer/>
+      </hbox>
+    </groupbox>
+    <hbox align="center">
+      <label accesskey="&syncDeviceName.accesskey;"
+             control="syncComputerName">
+        &syncDeviceName.label;
+      </label>
+      <textbox id="fxaSyncComputerName"
+                flex="1"/>
+    </hbox>
+    <spacer flex="1"/>
+    <hbox id="tosPP-small" pack="center">
+      <label id="tosPP-small-ToS" class="text-link small">
+        &prefs.tosLink.label;
+      </label>
+      <label id="tosPP-small-PP" class="text-link small">
+        &fxaPrivacyNotice.link.label;
+      </label>
+    </hbox>
+  </vbox>
 </deck>

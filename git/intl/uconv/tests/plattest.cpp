@@ -6,7 +6,6 @@
 #include "nsILocaleService.h"
 #include "nsCOMPtr.h"
 #include "nsReadableUtils.h"
-#include "nsLocaleCID.h"
 #include "nsIComponentManager.h"
 #include <stdio.h>
 
@@ -23,7 +22,7 @@ main(int argc, const char** argv)
     if (!locale_service) return -1;
 
     nsCOMPtr<nsILocale>             locale;
-    nsCAutoString                   charset;
+    nsAutoCString                   charset;
     nsAutoString                    category;
 
     nsresult rv = locale_service->GetSystemLocale(getter_AddRefs(locale));

@@ -9,7 +9,8 @@
  */
 
 #include "nsNthIndexCache.h"
-#include "nsIContent.h"
+#include "mozilla/dom/Element.h"
+#include "mozilla/dom/NodeInfoInlines.h"
 
 nsNthIndexCache::nsNthIndexCache()
 {
@@ -48,7 +49,7 @@ nsNthIndexCache::IndexDeterminedFromPreviousSibling(nsIContent* aSibling,
   if (SiblingMatchesElement(aSibling, aChild, aIsOfType)) {
     Cache::Ptr siblingEntry = aCache.lookup(aSibling);
     if (siblingEntry) {
-      int32_t siblingIndex = siblingEntry->value;
+      int32_t siblingIndex = siblingEntry->value();
       NS_ASSERTION(siblingIndex != 0,
                    "How can a non-anonymous node have an anonymous sibling?");
       if (siblingIndex > 0) {
@@ -57,13 +58,11 @@ nsNthIndexCache::IndexDeterminedFromPreviousSibling(nsIContent* aSibling,
         // |siblingIndex| is the index of aSibling.
         // So if aIsFromEnd, we want |aResult = siblingIndex - aResult| and
         // otherwise we want |aResult = siblingIndex + aResult|.
-        NS_ABORT_IF_FALSE(aIsFromEnd == 0 || aIsFromEnd == 1,
-                          "Bogus bool value");
         aResult = siblingIndex + aResult * (1 - 2 * aIsFromEnd);
         return true;
       }
     }
-    
+
     ++aResult;
   }
 
@@ -95,7 +94,7 @@ nsNthIndexCache::GetNthIndex(Element* aChild, bool aIsOfType,
     return 0;
   }
 
-  int32_t &slot = entry->value;
+  int32_t &slot = entry->value();
   if (slot != -2 && (slot != -1 || aCheckEdgeOnly)) {
     return slot;
   }

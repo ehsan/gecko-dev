@@ -16,8 +16,8 @@
  * http://www.whatwg.org/specs/web-apps/current-work/
  */
 
-[scriptable, uuid(BEDB0D8D-030E-409A-B3B5-28DC0E0D9C34)]
-interface nsIDOMHTMLOptGroupElement : nsIDOMHTMLElement
+[uuid(6fa79f99-4ce4-4634-840a-867fcfb32dba)]
+interface nsIDOMHTMLOptGroupElement : nsISupports
 {
            attribute boolean          disabled;
            attribute DOMString        label;

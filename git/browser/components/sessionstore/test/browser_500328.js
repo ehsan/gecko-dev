@@ -32,34 +32,43 @@ function checkState(tab) {
       elem.id = "new-elem";
       doc.body.appendChild(elem);
 
-      contentWindow.history.forward();
+      tab.linkedBrowser.goForward();
     }
     else if (popStateCount == 1) {
       popStateCount++;
-      is(aEvent.state.obj3.toString(), '/^a$/', "second popstate object.");
+      // When content fires a PopStateEvent and we observe it from a chrome event
+      // listener (as we do here, and, thankfully, nowhere else in the tree), the
+      // state object will be a cross-compartment wrapper to an object that was
+      // deserialized in the content scope. And in this case, since RegExps are
+      // not currently Xrayable (see bug 1014991), trying to pull |obj3| (a RegExp)
+      // off of an Xrayed Object won't work. So we need to waive.
+      runInContent(tab.linkedBrowser, function(win, event) {
+        return Cu.waiveXrays(event.state).obj3.toString();
+      }, aEvent).then(function(stateStr) {
+        is(stateStr, '/^a$/', "second popstate object.");
 
-      // Make sure that the new-elem node is present in the document.  If it's
-      // not, then this history entry has a different doc identifier than the
-      // previous entry, which is bad.
-      let doc = contentWindow.document;
-      let newElem = doc.getElementById("new-elem");
-      ok(newElem, "doc should contain new-elem.");
-      newElem.parentNode.removeChild(newElem);
-      ok(!doc.getElementById("new-elem"), "new-elem should be removed.");
+        // Make sure that the new-elem node is present in the document.  If it's
+        // not, then this history entry has a different doc identifier than the
+        // previous entry, which is bad.
+        let doc = contentWindow.document;
+        let newElem = doc.getElementById("new-elem");
+        ok(newElem, "doc should contain new-elem.");
+        newElem.parentNode.removeChild(newElem);
+        ok(!doc.getElementById("new-elem"), "new-elem should be removed.");
 
-      // Clean up after ourselves and finish the test.
-      tab.linkedBrowser.removeEventListener("popstate", arguments.callee, true);
-      gBrowser.removeTab(tab);
-      finish();
+        tab.linkedBrowser.removeEventListener("popstate", arguments.callee, true);
+        gBrowser.removeTab(tab);
+        finish();
+      });
     }
-  }, true);
+  });
 
   // Set some state in the page's window.  When we go back(), the page should
   // be retrieved from bfcache, and this state should still be there.
   tab.linkedBrowser.contentWindow.testState = 'foo';
 
   // Now go back.  This should trigger the popstate event handler above.
-  tab.linkedBrowser.contentWindow.history.back();
+  tab.linkedBrowser.goBack();
 }
 
 function test() {
@@ -72,43 +81,38 @@ function test() {
   // http://example.com.  We need to load the blank window first, otherwise the
   // docshell gets confused and doesn't have a current history entry.
   let tab = gBrowser.addTab("about:blank");
-  let tabBrowser = tab.linkedBrowser;
+  let browser = tab.linkedBrowser;
 
-  tabBrowser.addEventListener("load", function(aEvent) {
-    tabBrowser.removeEventListener("load", arguments.callee, true);
+  whenBrowserLoaded(browser, function() {
+    browser.loadURI("http://example.com", null, null);
 
-    tabBrowser.loadURI("http://example.com", null, null);
-
-    tabBrowser.addEventListener("load", function(aEvent) {
-      tabBrowser.removeEventListener("load", arguments.callee, true);
-
+    whenBrowserLoaded(browser, function() {
       // After these push/replaceState calls, the window should have three
       // history entries:
       //   testURL        (state object: null)          <-- oldest
       //   testURL        (state object: {obj1:1})
       //   testURL?page2  (state object: {obj3:/^a$/})  <-- newest
-      let contentWindow = tab.linkedBrowser.contentWindow;
-      let history = contentWindow.history;
-      history.pushState({obj1:1}, "title-obj1");
-      history.pushState({obj2:2}, "title-obj2", "?page2");
-      history.replaceState({obj3:/^a$/}, "title-obj3");
+      function contentTest(win) {
+        let history = win.history;
+        history.pushState({obj1:1}, "title-obj1");
+        history.pushState({obj2:2}, "title-obj2", "?page2");
+        history.replaceState({obj3:/^a$/}, "title-obj3");
+      }
+      runInContent(browser, contentTest, null).then(function() {
+        TabState.flush(tab.linkedBrowser);
+        let state = ss.getTabState(tab);
+        gBrowser.removeTab(tab);
 
-      let state = ss.getTabState(tab);
-      gBrowser.removeTab(tab);
+        // Restore the state into a new tab.  Things don't work well when we
+        // restore into the old tab, but that's not a real use case anyway.
+        let tab2 = gBrowser.addTab("about:blank");
+        ss.setTabState(tab2, state, true);
 
-      // Restore the state into a new tab.  Things don't work well when we
-      // restore into the old tab, but that's not a real use case anyway.
-      let tab2 = gBrowser.addTab("about:blank");
-      ss.setTabState(tab2, state, true);
-
-      // Run checkState() once the tab finishes loading its restored state.
-      tab2.linkedBrowser.addEventListener("load", function() {
-        tab2.linkedBrowser.removeEventListener("load", arguments.callee, true);
-        SimpleTest.executeSoon(function() {
+        // Run checkState() once the tab finishes loading its restored state.
+        whenTabRestored(tab2, function() {
           checkState(tab2);
         });
-      }, true);
-
-    }, true);
-  }, true);
+      });
+    });
+  });
 }

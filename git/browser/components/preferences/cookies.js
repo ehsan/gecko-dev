@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -38,7 +38,7 @@ var gCookiesWindow = {
 
   _populateList: function (aInitialLoad) {
     this._loadCookies();
-    this._tree.treeBoxObject.view = this._view;
+    this._tree.view = this._view;
     if (aInitialLoad)
       this.sort("rawHost");
     if (this._view.rowCount > 0)
@@ -307,9 +307,9 @@ var gCookiesWindow = {
     _selection: null,
     get selection () { return this._selection; },
     set selection (val) { this._selection = val; return val; },
-    getRowProperties: function (aIndex, aProperties) {},
-    getCellProperties: function (aIndex, aColumn, aProperties) {},
-    getColumnProperties: function (aColumn, aProperties) {},
+    getRowProperties: function (aIndex) { return ""; },
+    getCellProperties: function (aIndex, aColumn) { return ""; },
+    getColumnProperties: function (aColumn) { return ""; },
     isContainer: function (aIndex) {
       if (!this._filtered) {
         var item = this._getItemAtIndex(aIndex);
@@ -717,7 +717,11 @@ var gCookiesWindow = {
   },
 
   onCookieKeyPress: function (aEvent) {
-    if (aEvent.keyCode == 46)
+    if (aEvent.keyCode == KeyEvent.DOM_VK_DELETE
+#ifdef XP_MACOSX
+        || aEvent.keyCode == KeyEvent.DOM_VK_BACK_SPACE
+#endif
+       )
       this.deleteCookie();
   },
 
@@ -786,7 +790,7 @@ var gCookiesWindow = {
 
     // Just reload the list to make sure deletions are respected
     this._loadCookies();
-    this._tree.treeBoxObject.view = this._view;
+    this._tree.view = this._view;
 
     // Restore sort order
     var sortby = this._lastSortProperty;

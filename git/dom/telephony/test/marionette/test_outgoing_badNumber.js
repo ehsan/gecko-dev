@@ -1,60 +1,47 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_TIMEOUT = 10000;
+MARIONETTE_TIMEOUT = 60000;
+MARIONETTE_HEAD_JS = 'head.js';
 
-SpecialPowers.addPermission("telephony", true, document);
-
-let telephony = window.navigator.mozTelephony;
-let number = "not a valid phone number";
+let number = "****5555552368****";
 let outgoing;
-let calls;
 
-function verifyInitialState() {
-  log("Verifying initial state.");
-  ok(telephony);
-  is(telephony.active, null);
-  ok(telephony.calls);
-  is(telephony.calls.length, 0);
-  calls = telephony.calls;
-
-  runEmulatorCmd("gsm list", function(result) {
-    log("Initial call list: " + result);
-    is(result[0], "OK");
-    dial();
-  });
-}
 
 function dial() {
   log("Make an outgoing call to an invalid number.");
 
-  outgoing = telephony.dial(number);
-  ok(outgoing);
-  is(outgoing.number, number);
-  is(outgoing.state, "dialing");
+  // Note: The number is valid from the view of phone and the call could be
+  // dialed out successfully. However, it will later receive the BadNumberError
+  // from network side.
+  telephony.dial(number).then(call => {
+    outgoing = call;
+    ok(outgoing);
+    is(outgoing.id.number, number);
+    is(outgoing.state, "dialing");
 
-  //is(outgoing, telephony.active); // bug 757587
-  //ok(telephony.calls === calls); // bug 757587
-  //is(calls.length, 1); // bug 757587
-  //is(calls[0], outgoing); // bug 757587
+    is(outgoing, telephony.active);
+    is(telephony.calls.length, 1);
+    is(telephony.calls[0], outgoing);
 
-  outgoing.onerror = function onerror(event) {
-    log("Received 'error' event.");
-    is(event.call, outgoing);
-    ok(call.error);
-    is(call.error.name, "BadNumberError");
+    outgoing.onerror = function onerror(event) {
+      log("Received 'error' event.");
+      is(event.call, outgoing);
+      ok(event.call.error);
+      is(event.call.error.name, "BadNumberError");
 
-    runEmulatorCmd("gsm list", function(result) {
-      log("Initial call list: " + result);
-      is(result[0], "OK");
-      cleanUp();
-    });
-  };
+      emulator.runCmdWithCallback("gsm list", function(result) {
+        log("Initial call list: " + result);
+        cleanUp();
+      });
+    };
+  });
 }
 
 function cleanUp() {
-  SpecialPowers.removePermission("telephony", document);
   finish();
 }
 
-verifyInitialState();
+startTest(function() {
+  dial();
+});

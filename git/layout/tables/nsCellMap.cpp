@@ -7,7 +7,9 @@
 #include "nsCellMap.h"
 #include "nsTableFrame.h"
 #include "nsTableCellFrame.h"
+#include "nsTableRowFrame.h"
 #include "nsTableRowGroupFrame.h"
+#include <algorithm>
 
 
 static void
@@ -35,6 +37,8 @@ static nsCellMap::CellDataArray * sEmptyRow;
 CellData::CellData(nsTableCellFrame* aOrigCell)
 {
   MOZ_COUNT_CTOR(CellData);
+  static_assert(sizeof(mOrigCell) == sizeof(mBits),
+                "mOrigCell and mBits must be the same size");
   mOrigCell = aOrigCell;
 }
 
@@ -104,8 +108,7 @@ nsTableCellMap::GetRightMostBorder(int32_t aRowIndex)
     return &mBCInfo->mRightBorders.ElementAt(aRowIndex);
   }
 
-  if (!mBCInfo->mRightBorders.SetLength(aRowIndex+1))
-    ABORT1(nullptr);
+  mBCInfo->mRightBorders.SetLength(aRowIndex+1);
   return &mBCInfo->mRightBorders.ElementAt(aRowIndex);
 }
 
@@ -120,8 +123,7 @@ nsTableCellMap::GetBottomMostBorder(int32_t aColIndex)
     return &mBCInfo->mBottomBorders.ElementAt(aColIndex);
   }
 
-  if (!mBCInfo->mBottomBorders.SetLength(aColIndex+1))
-    ABORT1(nullptr);
+  mBCInfo->mBottomBorders.SetLength(aColIndex+1);
   return &mBCInfo->mBottomBorders.ElementAt(aColIndex);
 }
 
@@ -235,9 +237,9 @@ nsTableCellMap::GetMapFor(const nsTableRowGroupFrame* aRowGroup,
 
   // if aRowGroup is a repeated header or footer find the header or footer it was repeated from
   if (aRowGroup->IsRepeatable()) {
-    nsTableFrame* fifTable = static_cast<nsTableFrame*>(mTableFrame.GetFirstInFlow());
+    nsTableFrame* fifTable = static_cast<nsTableFrame*>(mTableFrame.FirstInFlow());
 
-    const nsStyleDisplay* display = aRowGroup->GetStyleDisplay();
+    const nsStyleDisplay* display = aRowGroup->StyleDisplay();
     nsTableRowGroupFrame* rgOrig =
       (NS_STYLE_DISPLAY_TABLE_HEADER_GROUP == display->mDisplay) ?
       fifTable->GetTHead() : fifTable->GetTFoot();
@@ -269,7 +271,8 @@ nsTableCellMap::Synchronize(nsTableFrame* aTableFrame)
   nsCellMap* map = nullptr;
   for (uint32_t rgX = 0; rgX < orderedRowGroups.Length(); rgX++) {
     nsTableRowGroupFrame* rgFrame = orderedRowGroups[rgX];
-    map = GetMapFor((nsTableRowGroupFrame*)rgFrame->GetFirstInFlow(), map);
+    map = GetMapFor(static_cast<nsTableRowGroupFrame*>(rgFrame->FirstInFlow()),
+                    map);
     if (map) {
       if (!maps.AppendElement(map)) {
         delete map;
@@ -278,6 +281,10 @@ nsTableCellMap::Synchronize(nsTableFrame* aTableFrame)
         break;
       }
     }
+  }
+  if (maps.IsEmpty()) {
+    MOZ_ASSERT(!mFirstMap);
+    return;
   }
 
   int32_t mapIndex = maps.Length() - 1;  // Might end up -1
@@ -479,15 +486,13 @@ nsTableCellMap::InsertRows(nsTableRowGroupFrame*       aParent,
         int32_t count = mBCInfo->mRightBorders.Length();
         if (aFirstRowIndex < count) {
           for (int32_t rowX = aFirstRowIndex; rowX < aFirstRowIndex + numNewRows; rowX++) {
-            if (!mBCInfo->mRightBorders.InsertElementAt(rowX))
-              ABORT0();
+            mBCInfo->mRightBorders.InsertElementAt(rowX);
           }
         }
         else {
           GetRightMostBorder(aFirstRowIndex); // this will create missing entries
           for (int32_t rowX = aFirstRowIndex + 1; rowX < aFirstRowIndex + numNewRows; rowX++) {
-            if (!mBCInfo->mRightBorders.AppendElement())
-              ABORT0();
+            mBCInfo->mRightBorders.AppendElement();
           }
         }
       }
@@ -542,7 +547,8 @@ nsTableCellMap::AppendCell(nsTableCellFrame& aCellFrame,
                            bool              aRebuildIfNecessary,
                            nsIntRect&        aDamageArea)
 {
-  NS_ASSERTION(&aCellFrame == aCellFrame.GetFirstInFlow(), "invalid call on continuing frame");
+  MOZ_ASSERT(&aCellFrame == aCellFrame.FirstInFlow(),
+             "invalid call on continuing frame");
   nsIFrame* rgFrame = aCellFrame.GetParent(); // get the row
   if (!rgFrame) return 0;
   rgFrame = rgFrame->GetParent();   // get the row group
@@ -603,8 +609,8 @@ nsTableCellMap::RemoveCell(nsTableCellFrame* aCellFrame,
                            nsIntRect&        aDamageArea)
 {
   if (!aCellFrame) ABORT0();
-  NS_ASSERTION(aCellFrame == (nsTableCellFrame *)aCellFrame->GetFirstInFlow(),
-               "invalid call on continuing frame");
+  MOZ_ASSERT(aCellFrame == aCellFrame->FirstInFlow(),
+             "invalid call on continuing frame");
   int32_t rowIndex = aRowIndex;
   int32_t rgStartRowIndex = 0;
   nsCellMap* cellMap = mFirstMap;
@@ -712,7 +718,7 @@ nsTableCellMap::Dump(char* aString) const
     const nsColInfo& colInfo = mCols.ElementAt(colX);
     printf ("%d=%d/%d ", colX, colInfo.mNumCellsOrig, colInfo.mNumCellsSpan);
   }
-  printf(" cols in cache %d\n", mTableFrame.GetColCache().Length());
+  printf(" cols in cache %d\n", int(mTableFrame.GetColCache().Length()));
   nsCellMap* cellMap = mFirstMap;
   while (cellMap) {
     cellMap->Dump(nullptr != mBCInfo);
@@ -722,7 +728,7 @@ nsTableCellMap::Dump(char* aString) const
     printf("***** bottom borders *****\n");
     nscoord       size;
     BCBorderOwner owner;
-    mozilla::css::Side side;
+    mozilla::Side side;
     bool          segStart;
     bool          bevel;
     int32_t       colIndex;
@@ -964,7 +970,7 @@ nsTableCellMap::ResetTopStart(uint8_t    aSide,
 // top/left at that location. If the new location is at the right or bottom edge of the
 // table, then store it one of the special arrays (right most borders, bottom most borders).
 void
-nsTableCellMap::SetBCBorderEdge(mozilla::css::Side aSide,
+nsTableCellMap::SetBCBorderEdge(mozilla::Side aSide,
                                 nsCellMap&    aCellMap,
                                 uint32_t      aCellMapStart,
                                 uint32_t      aRowIndex,
@@ -1064,7 +1070,7 @@ nsTableCellMap::SetBCBorderCorner(Corner      aCorner,
                                   uint32_t    aCellMapStart,
                                   uint32_t    aRowIndex,
                                   uint32_t    aColIndex,
-                                  mozilla::css::Side aOwner,
+                                  mozilla::Side aOwner,
                                   nscoord     aSubSize,
                                   bool        aBevel,
                                   bool        aIsBottomRight)
@@ -1340,7 +1346,7 @@ nsCellMap::InsertRows(nsTableCellMap&             aMap,
 
   if (!aConsiderSpans) {
     // update mContentRowCount, since non-empty rows will be added
-    mContentRowCount = NS_MAX(aFirstRowIndex, mContentRowCount);
+    mContentRowCount = std::max(aFirstRowIndex, mContentRowCount);
     ExpandWithRows(aMap, aRows, aFirstRowIndex, aRgFirstRowIndex, aDamageArea);
     return;
   }
@@ -1350,7 +1356,7 @@ nsCellMap::InsertRows(nsTableCellMap&             aMap,
                                               aFirstRowIndex, 0, numCols - 1);
 
   // update mContentRowCount, since non-empty rows will be added
-  mContentRowCount = NS_MAX(aFirstRowIndex, mContentRowCount);
+  mContentRowCount = std::max(aFirstRowIndex, mContentRowCount);
 
   // if any of the new cells span out of the new rows being added, then rebuild
   // XXX it would be better to only rebuild the portion of the map that follows the new rows
@@ -1477,7 +1483,7 @@ nsCellMap::AppendCell(nsTableCellMap&   aMap,
     aMap.RebuildConsideringCells(this, &newCellArray, aRowIndex, startColIndex, true, aDamageArea);
     return origData;
   }
-  mContentRowCount = NS_MAX(mContentRowCount, aRowIndex + 1);
+  mContentRowCount = std::max(mContentRowCount, aRowIndex + 1);
 
   // add new cols to the table map if necessary
   int32_t endColIndex = startColIndex + colSpan - 1;
@@ -1916,7 +1922,7 @@ void nsCellMap::ExpandWithCells(nsTableCellMap&              aMap,
     }
     cellFrame->SetColIndex(startColIndex);
   }
-  int32_t damageHeight = NS_MIN(GetRowGroup()->GetRowCount() - aRowIndex,
+  int32_t damageHeight = std::min(GetRowGroup()->GetRowCount() - aRowIndex,
                                 aRowSpan);
   SetDamageArea(aColIndex, aRgFirstRowIndex + aRowIndex,
                 1 + endColIndex - aColIndex, damageHeight, aDamageArea);
@@ -2047,7 +2053,7 @@ int32_t nsCellMap::GetEffectiveColSpan(const nsTableCellMap& aMap,
           nsTableCellFrame* cellFrame = origData->GetCellFrame();
           if (cellFrame) {
             // possible change the number of colums to iterate
-            maxCols = NS_MIN(aColIndex + cellFrame->GetColSpan(), maxCols);
+            maxCols = std::min(aColIndex + cellFrame->GetColSpan(), maxCols);
             if (colX >= maxCols)
               break;
           }
@@ -2078,7 +2084,7 @@ nsCellMap::GetRowSpanForNewCell(nsTableCellFrame* aCellFrameToAdd,
   if (0 == rowSpan) {
     // Use a min value of 2 for a zero rowspan to make computations easier
     // elsewhere. Zero rowspans are only content dependent!
-    rowSpan = NS_MAX(2, mContentRowCount - aRowIndex);
+    rowSpan = std::max(2, mContentRowCount - aRowIndex);
     aIsZeroRowSpan = true;
   }
   return rowSpan;
@@ -2177,7 +2183,7 @@ void nsCellMap::ShrinkWithoutCell(nsTableCellMap&   aMap,
     // endIndexForRow points at the first slot we don't want to clean up.  This
     // makes the aColIndex == 0 case work right with our unsigned int colX.
     NS_ASSERTION(endColIndex + 1 <= row.Length(), "span beyond the row size!");
-    uint32_t endIndexForRow = NS_MIN(endColIndex + 1, row.Length());
+    uint32_t endIndexForRow = std::min(endColIndex + 1, uint32_t(row.Length()));
 
     // Since endIndexForRow <= row.Length(), enough to compare aColIndex to it.
     if (uint32_t(aColIndex) < endIndexForRow) {
@@ -2225,7 +2231,7 @@ void nsCellMap::ShrinkWithoutCell(nsTableCellMap&   aMap,
   }
   aMap.RemoveColsAtEnd();
   SetDamageArea(aColIndex, aRgFirstRowIndex + aRowIndex,
-                NS_MAX(0, aMap.GetColCount() - aColIndex - 1),
+                std::max(0, aMap.GetColCount() - aColIndex - 1),
                 1 + endRowIndex - aRowIndex, aDamageArea);
 }
 
@@ -2262,7 +2268,7 @@ nsCellMap::RebuildConsideringRows(nsTableCellMap&             aMap,
 
   // aStartRowIndex might be after all existing rows so we should limit the
   // copy to the amount of exisiting rows
-  uint32_t copyEndRowIndex = NS_MIN(numOrigRows, uint32_t(aStartRowIndex));
+  uint32_t copyEndRowIndex = std::min(numOrigRows, uint32_t(aStartRowIndex));
 
   // rowX keeps track of where we are in mRows while setting up the
   // new cellmap.
@@ -2352,7 +2358,7 @@ nsCellMap::RebuildConsideringCells(nsTableCellMap&              aMap,
 
   // the new cells might extend the previous column number
   NS_ASSERTION(aNumOrigCols >= aColIndex, "Appending cells far beyond cellmap data?!");
-  int32_t numCols = aInsert ? NS_MAX(aNumOrigCols, aColIndex + 1) : aNumOrigCols;
+  int32_t numCols = aInsert ? std::max(aNumOrigCols, aColIndex + 1) : aNumOrigCols;
 
   // build the new cell map.  Hard to say what, if anything, we can preallocate
   // here...  Should come back to that sometime, perhaps.
@@ -2531,7 +2537,7 @@ void nsCellMap::Dump(bool aIsBorderCollapse) const
 {
   printf("\n  ***** START GROUP CELL MAP DUMP ***** %p\n", (void*)this);
   nsTableRowGroupFrame* rg = GetRowGroup();
-  const nsStyleDisplay* display = rg->GetStyleDisplay();
+  const nsStyleDisplay* display = rg->StyleDisplay();
   switch (display->mDisplay) {
   case NS_STYLE_DISPLAY_TABLE_HEADER_GROUP:
     printf("  thead ");
@@ -2578,7 +2584,7 @@ void nsCellMap::Dump(bool aIsBorderCollapse) const
     if (aIsBorderCollapse) {
       nscoord       size;
       BCBorderOwner owner;
-      mozilla::css::Side side;
+      mozilla::Side side;
       bool          segStart;
       bool          bevel;
       for (int32_t i = 0; i <= 2; i++) {
@@ -2810,7 +2816,7 @@ nsCellMapColumnIterator::AdvanceRowGroup()
 
     mCurMapContentRowCount = mCurMap->GetRowCount();
     uint32_t rowArrayLength = mCurMap->mRows.Length();
-    mCurMapRelevantRowCount = NS_MIN(mCurMapContentRowCount, rowArrayLength);
+    mCurMapRelevantRowCount = std::min(mCurMapContentRowCount, rowArrayLength);
   } while (0 == mCurMapRelevantRowCount);
 
   NS_ASSERTION(mCurMapRelevantRowCount != 0 || !mCurMap,

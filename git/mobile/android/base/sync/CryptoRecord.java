@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
 import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.mozilla.apache.commons.codec.binary.Base64;
 import org.mozilla.gecko.sync.crypto.CryptoException;
@@ -17,6 +16,7 @@ import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.crypto.MissingCryptoInputException;
 import org.mozilla.gecko.sync.crypto.NoKeyBundleException;
 import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.gecko.sync.repositories.domain.RecordParseException;
 
 /**
  * A Sync crypto record has:
@@ -129,32 +129,49 @@ public class CryptoRecord extends Record {
    * @throws IOException
    */
   public static CryptoRecord fromJSONRecord(String jsonRecord)
-      throws ParseException, NonObjectJSONException, IOException {
+      throws ParseException, NonObjectJSONException, IOException, RecordParseException {
     byte[] bytes = jsonRecord.getBytes("UTF-8");
-    ExtendedJSONObject object = CryptoRecord.parseUTF8AsJSONObject(bytes);
+    ExtendedJSONObject object = ExtendedJSONObject.parseUTF8AsJSONObject(bytes);
 
     return CryptoRecord.fromJSONRecord(object);
   }
 
   // TODO: defensive programming.
   public static CryptoRecord fromJSONRecord(ExtendedJSONObject jsonRecord)
-      throws IOException, ParseException, NonObjectJSONException {
+      throws IOException, ParseException, NonObjectJSONException, RecordParseException {
     String id                  = (String) jsonRecord.get(KEY_ID);
     String collection          = (String) jsonRecord.get(KEY_COLLECTION);
-    ExtendedJSONObject payload = jsonRecord.getJSONObject(KEY_PAYLOAD);
+    String jsonEncodedPayload  = (String) jsonRecord.get(KEY_PAYLOAD);
+
+    ExtendedJSONObject payload = ExtendedJSONObject.parseJSONObject(jsonEncodedPayload);
+
     CryptoRecord record = new CryptoRecord(payload);
     record.guid         = id;
     record.collection   = collection;
     if (jsonRecord.containsKey(KEY_MODIFIED)) {
-      record.lastModified = jsonRecord.getTimestamp(KEY_MODIFIED);
+      Long timestamp = jsonRecord.getTimestamp(KEY_MODIFIED);
+      if (timestamp == null) {
+        throw new RecordParseException("timestamp could not be parsed");
+      }
+      record.lastModified = timestamp;
     }
     if (jsonRecord.containsKey(KEY_SORTINDEX)) {
-      record.sortIndex = jsonRecord.getLong(KEY_SORTINDEX);
+      // getLong tries to cast to Long, and might return null. We catch all
+      // exceptions, just to be safe.
+      try {
+        record.sortIndex = jsonRecord.getLong(KEY_SORTINDEX);
+      } catch (Exception e) {
+        throw new RecordParseException("timestamp could not be parsed");
+      }
     }
     if (jsonRecord.containsKey(KEY_TTL)) {
       // TTLs are never returned by the sync server, so should never be true if
       // the record was fetched.
-      record.ttl = jsonRecord.getLong(KEY_TTL);
+      try {
+        record.ttl = jsonRecord.getLong(KEY_TTL);
+      } catch (Exception e) {
+        throw new RecordParseException("TTL could not be parsed");
+      }
     }
     // TODO: deleted?
     return record;
@@ -162,16 +179,6 @@ public class CryptoRecord extends Record {
 
   public void setKeyBundle(KeyBundle bundle) {
     this.keyBundle = bundle;
-  }
-
-  private static ExtendedJSONObject parseUTF8AsJSONObject(byte[] in)
-      throws UnsupportedEncodingException, ParseException, NonObjectJSONException {
-    Object obj = new JSONParser().parse(new String(in, "UTF-8"));
-    if (obj instanceof JSONObject) {
-      return new ExtendedJSONObject((JSONObject) obj);
-    } else {
-      throw new NonObjectJSONException(obj);
-    }
   }
 
   public CryptoRecord decrypt() throws CryptoException, IOException, ParseException,
@@ -190,7 +197,7 @@ public class CryptoRecord extends Record {
     // There's no difference between handling the crypto/keys object and
     // anything else; we just get this.keyBundle from a different source.
     byte[] cleartext = decryptPayload(payload, keyBundle);
-    payload = CryptoRecord.parseUTF8AsJSONObject(cleartext);
+    payload = ExtendedJSONObject.parseUTF8AsJSONObject(cleartext);
     return this;
   }
 
@@ -203,7 +210,7 @@ public class CryptoRecord extends Record {
     CryptoInfo info = CryptoInfo.encrypt(cleartextBytes, keyBundle);
     String message = new String(Base64.encodeBase64(info.getMessage()));
     String iv      = new String(Base64.encodeBase64(info.getIV()));
-    String hmac    = Utils.byte2hex(info.getHMAC());
+    String hmac    = Utils.byte2Hex(info.getHMAC());
     ExtendedJSONObject ciphertext = new ExtendedJSONObject();
     ciphertext.put(KEY_CIPHERTEXT, message);
     ciphertext.put(KEY_HMAC, hmac);

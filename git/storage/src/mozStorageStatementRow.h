@@ -24,8 +24,10 @@ public:
   NS_DECL_MOZISTORAGESTATEMENTROW
   NS_DECL_NSIXPCSCRIPTABLE
 
-  StatementRow(Statement *aStatement);
+  explicit StatementRow(Statement *aStatement);
 protected:
+
+  ~StatementRow() {}
 
   Statement *mStatement;
 

@@ -6,17 +6,9 @@
 #ifndef nsHTMLButtonControlFrame_h___
 #define nsHTMLButtonControlFrame_h___
 
-#include "nsCOMPtr.h"
+#include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
 #include "nsIFormControlFrame.h"
-#include "nsHTMLParts.h"
-
-#include "nsStyleContext.h"
-#include "nsLeafFrame.h"
-#include "nsCSSRendering.h"
-#include "nsISupports.h"
-#include "nsStyleConsts.h"
-#include "nsIComponentManager.h"
 #include "nsButtonFrameRenderer.h"
 
 class nsRenderingContext;
@@ -26,74 +18,73 @@ class nsHTMLButtonControlFrame : public nsContainerFrame,
                                  public nsIFormControlFrame 
 {
 public:
-  nsHTMLButtonControlFrame(nsStyleContext* aContext);
+  explicit nsHTMLButtonControlFrame(nsStyleContext* aContext);
   ~nsHTMLButtonControlFrame();
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
+  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
 
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
 
-  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
-                    nsHTMLReflowMetrics&     aDesiredSize,
-                    const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus);
+  virtual void Reflow(nsPresContext*           aPresContext,
+                      nsHTMLReflowMetrics&     aDesiredSize,
+                      const nsHTMLReflowState& aReflowState,
+                      nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
-  NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
-                         nsGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus);
+  virtual nsresult HandleEvent(nsPresContext* aPresContext, 
+                               mozilla::WidgetGUIEvent* aEvent,
+                               nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
-  NS_IMETHOD  Init(nsIContent*      aContent,
-                   nsIFrame*        aParent,
-                   nsIFrame*        asPrevInFlow);
+  virtual void Init(nsIContent*       aContent,
+                    nsContainerFrame* aParent,
+                    nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
 
-  virtual nsStyleContext* GetAdditionalStyleContext(int32_t aIndex) const;
+  virtual nsStyleContext* GetAdditionalStyleContext(int32_t aIndex) const MOZ_OVERRIDE;
   virtual void SetAdditionalStyleContext(int32_t aIndex, 
-                                         nsStyleContext* aStyleContext);
+                                         nsStyleContext* aStyleContext) MOZ_OVERRIDE;
  
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
-                          nsFrameList&    aFrameList);
-
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
-                          nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
-
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
-                         nsIFrame*       aOldFrame);
-
-#ifdef ACCESSIBILITY
-  virtual already_AddRefed<Accessible> CreateAccessible();
+#ifdef DEBUG
+  virtual void AppendFrames(ChildListID     aListID,
+                            nsFrameList&    aFrameList) MOZ_OVERRIDE;
+  virtual void InsertFrames(ChildListID     aListID,
+                            nsIFrame*       aPrevFrame,
+                            nsFrameList&    aFrameList) MOZ_OVERRIDE;
+  virtual void RemoveFrame(ChildListID     aListID,
+                           nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 #endif
 
-  virtual nsIAtom* GetType() const;
+#ifdef ACCESSIBILITY
+  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+#endif
+
+  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
   
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const {
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
     return MakeFrameName(NS_LITERAL_STRING("HTMLButtonControl"), aResult);
   }
 #endif
 
-  virtual bool HonorPrintBackgroundSettings() { return false; }
+  virtual bool HonorPrintBackgroundSettings() MOZ_OVERRIDE { return false; }
 
   // nsIFormControlFrame
-  void SetFocus(bool aOn, bool aRepaint);
-  virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
-  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const; 
+  void SetFocus(bool aOn, bool aRepaint) MOZ_OVERRIDE;
+  virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue) MOZ_OVERRIDE;
 
   // Inserted child content gets its frames parented by our child block
-  virtual nsIFrame* GetContentInsertionFrame() {
+  virtual nsContainerFrame* GetContentInsertionFrame() MOZ_OVERRIDE {
     return GetFirstPrincipalChild()->GetContentInsertionFrame();
   }
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
   {
     return nsContainerFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
@@ -101,14 +92,13 @@ public:
 
 protected:
   virtual bool IsInput() { return false; }
+  // Reflows the button's sole child frame, and computes the desired size
+  // of the button itself from the results.
   void ReflowButtonContents(nsPresContext* aPresContext,
-                            nsHTMLReflowMetrics& aDesiredSize,
-                            const nsHTMLReflowState& aReflowState,
-                            nsIFrame* aFirstKid,
-                            nsMargin aFocusPadding,
-                            nsReflowStatus& aStatus);
+                            nsHTMLReflowMetrics& aButtonDesiredSize,
+                            const nsHTMLReflowState& aButtonReflowState,
+                            nsIFrame* aFirstKid);
 
-  int GetSkipSides() const;
   nsButtonFrameRenderer mRenderer;
 };
 

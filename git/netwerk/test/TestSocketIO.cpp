@@ -8,9 +8,6 @@
 #ifdef WIN32
 #include <windows.h>
 #endif
-#ifdef OS2
-#include <os2.h>
-#endif
 
 #include "nspr.h"
 #include "nscore.h"
@@ -59,9 +56,9 @@ public:
     NS_DECL_NSISTREAMLISTENER
 };
 
-NS_IMPL_ISUPPORTS2(TestListener,
-                   nsIRequestObserver,
-                   nsIStreamListener);
+NS_IMPL_ISUPPORTS(TestListener,
+                  nsIRequestObserver,
+                  nsIStreamListener);
 
 NS_IMETHODIMP
 TestListener::OnStartRequest(nsIRequest* request, nsISupports* context)
@@ -120,25 +117,25 @@ protected:
     nsCOMPtr<nsIByteArrayInputStream> mData;
 };
 
-NS_IMPL_ISUPPORTS2(TestProvider,
-                   nsIStreamProvider,
-                   nsIRequestObserver)
+NS_IMPL_ISUPPORTS(TestProvider,
+                  nsIStreamProvider,
+                  nsIRequestObserver)
 
 TestProvider::TestProvider(char *data)
 {
     NS_NewByteArrayInputStream(getter_AddRefs(mData), data, strlen(data));
-    LOG(("Constructing TestProvider [this=%x]\n", this));
+    LOG(("Constructing TestProvider [this=%p]\n", this));
 }
 
 TestProvider::~TestProvider()
 {
-    LOG(("Destroying TestProvider [this=%x]\n", this));
+    LOG(("Destroying TestProvider [this=%p]\n", this));
 }
 
 NS_IMETHODIMP
 TestProvider::OnStartRequest(nsIRequest* request, nsISupports* context)
 {
-    LOG(("TestProvider::OnStartRequest [this=%x]\n", this));
+    LOG(("TestProvider::OnStartRequest [this=%p]\n", this));
     return NS_OK;
 }
 

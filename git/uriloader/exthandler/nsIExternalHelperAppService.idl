@@ -18,7 +18,7 @@ interface nsIInterfaceRequestor;
  * The external helper app service is used for finding and launching
  * platform specific external applications for a given mime content type.
  */
-[scriptable, uuid(9e456297-ba3e-42b1-92bd-b7db014268cb)]
+[scriptable, uuid(1E4F3AE1-B737-431F-A95D-31FA8DA70199)]
 interface nsIExternalHelperAppService : nsISupports
 {
   /**
@@ -28,16 +28,21 @@ interface nsIExternalHelperAppService : nsISupports
    * with this data.
    * @param aMimeContentType The content type of the incoming data
    * @param aRequest The request corresponding to the incoming data
-   * @param aWindowContext Use GetInterface to retrieve properties like the
-   *                       dom window or parent window...
-   *                       The service might need this in order to bring up dialogs.
+   * @param aContentContext Used in processing content document refresh
+   *  headers after target content is downloaded. Note in e10s land
+   *  this is likely a CPOW that points to a window in the child process.
    * @param aForceSave True to always save this content to disk, regardless of
-   *                   nsIMIMEInfo and other such influences.
+   *  nsIMIMEInfo and other such influences.
+   * @param aWindowContext Used in parenting helper app dialogs, usually
+   *  points to the parent browser window. This parameter may be null,
+   *  in which case dialogs will be parented to aContentContext.
    * @return A nsIStreamListener which the caller should pump the data into.
    */
-  nsIStreamListener doContent (in ACString aMimeContentType, in nsIRequest aRequest,
-                               in nsIInterfaceRequestor aWindowContext,
-                               in boolean aForceSave); 
+  nsIStreamListener doContent (in ACString aMimeContentType,
+                               in nsIRequest aRequest,
+                               in nsIInterfaceRequestor aContentContext,
+                               in boolean aForceSave,
+                               [optional] in nsIInterfaceRequestor aWindowContext); 
 
   /**
    * Returns true if data from a URL with this extension combination
@@ -76,7 +81,7 @@ interface nsPIExternalAppLauncher : nsISupports
  * Note that cancelling the load via the nsICancelable interface will release
  * the reference to the launcher dialog.
  */
-[scriptable, uuid(d9a19faf-497b-408c-b995-777d956b72c0)]
+[scriptable, uuid(acf2a516-7d7f-4771-8b22-6c4a559c088e)]
 interface nsIHelperAppLauncher : nsICancelable
 {
   /**
@@ -96,19 +101,28 @@ interface nsIHelperAppLauncher : nsICancelable
   readonly attribute AString suggestedFileName;
 
   /**
-   * Called when we want to just save the content to a particular file.
-   * NOTE: This will release the reference to the nsIHelperAppLauncherDialog.
-   * @param aNewFileLocation Location where the content should be saved
+   * Saves the final destination of the file. Does not actually perform the
+   * save.
+   * NOTE: This will release the reference to the
+   * nsIHelperAppLauncherDialog.
    */
   void saveToDisk(in nsIFile aNewFileLocation, in boolean aRememberThisPreference);
 
   /**
-   * Use aApplication to launch with this content.
+   * Remembers that aApplication should be used to launch this content. Does
+   * not actually launch the application.
    * NOTE: This will release the reference to the nsIHelperAppLauncherDialog.
    * @param aApplication nsIFile corresponding to the location of the application to use.
    * @param aRememberThisPreference TRUE if we should remember this choice.
    */
   void launchWithApplication(in nsIFile aApplication, in boolean aRememberThisPreference);
+
+  /**
+   * Callback invoked by nsIHelperAppLauncherDialog::promptForSaveToFileAsync
+   * after the user has chosen a file through the File Picker (or dismissed it).
+   * @param aFile The file that was chosen by the user (or null if dialog was dismissed).
+   */
+  void saveDestinationAvailable(in nsIFile aFile);
 
   /**
    * The following methods are used by the progress dialog to get or set
@@ -117,12 +131,6 @@ interface nsIHelperAppLauncher : nsICancelable
    * listener receives the STATE_STOP notification).
    */
   void setWebProgressListener(in nsIWebProgressListener2 aWebProgressListener);
-
-  /**
-   * when the stand alone progress window actually closes, it calls this method
-   * so we can release any local state...
-   */
-  void closeProgressWindow();
 
   /**
    * The file we are saving to

@@ -1,10 +1,12 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "vm/StringBuffer.h"
+
+#include "mozilla/Range.h"
 
 #include "jsobjinlines.h"
 
@@ -12,25 +14,24 @@
 
 using namespace js;
 
-jschar *
-StringBuffer::extractWellSized()
+template <typename CharT, class Buffer>
+static CharT *
+ExtractWellSized(ExclusiveContext *cx, Buffer &cb)
 {
     size_t capacity = cb.capacity();
     size_t length = cb.length();
 
-    jschar *buf = cb.extractRawBuffer();
+    CharT *buf = cb.extractRawBuffer();
     if (!buf)
-        return NULL;
+        return nullptr;
 
     /* For medium/big buffers, avoid wasting more than 1/4 of the memory. */
-    JS_ASSERT(capacity >= length);
-    if (length > CharBuffer::sMaxInlineStorage && capacity - length > length / 4) {
-        size_t bytes = sizeof(jschar) * (length + 1);
-        JSContext *cx = context();
-        jschar *tmp = (jschar *)cx->realloc_(buf, bytes);
+    MOZ_ASSERT(capacity >= length);
+    if (length > Buffer::sMaxInlineStorage && capacity - length > length / 4) {
+        CharT *tmp = cx->zone()->pod_realloc<CharT>(buf, capacity, length + 1);
         if (!tmp) {
-            cx->free_(buf);
-            return NULL;
+            js_free(buf);
+            return nullptr;
         }
         buf = tmp;
     }
@@ -38,52 +39,116 @@ StringBuffer::extractWellSized()
     return buf;
 }
 
-JSFixedString *
+char16_t *
+StringBuffer::stealChars()
+{
+    if (isLatin1() && !inflateChars())
+        return nullptr;
+
+    return ExtractWellSized<char16_t>(cx, twoByteChars());
+}
+
+bool
+StringBuffer::inflateChars()
+{
+    MOZ_ASSERT(isLatin1());
+
+    TwoByteCharBuffer twoByte(cx);
+
+    /*
+     * Note: we don't use Vector::capacity() because it always returns a
+     * value >= sInlineCapacity. Since Latin1CharBuffer::sInlineCapacity >
+     * TwoByteCharBuffer::sInlineCapacitychars, we'd always malloc here.
+     */
+    size_t capacity = Max(reserved_, latin1Chars().length());
+    if (!twoByte.reserve(capacity))
+        return false;
+
+    twoByte.infallibleAppend(latin1Chars().begin(), latin1Chars().length());
+
+    cb.destroy();
+    cb.construct<TwoByteCharBuffer>(Move(twoByte));
+    return true;
+}
+
+template <typename CharT, class Buffer>
+static JSFlatString *
+FinishStringFlat(ExclusiveContext *cx, StringBuffer &sb, Buffer &cb)
+{
+    size_t len = sb.length();
+    if (!sb.append('\0'))
+        return nullptr;
+
+    ScopedJSFreePtr<CharT> buf(ExtractWellSized<CharT>(cx, cb));
+    if (!buf)
+        return nullptr;
+
+    JSFlatString *str = NewStringDontDeflate<CanGC>(cx, buf.get(), len);
+    if (!str)
+        return nullptr;
+
+    /*
+     * The allocation was made on a TempAllocPolicy, so account for the string
+     * data on the string's zone.
+     */
+    str->zone()->updateMallocCounter(sizeof(CharT) * len);
+
+    buf.forget();
+    return str;
+}
+
+JSFlatString *
 StringBuffer::finishString()
 {
-    JSContext *cx = context();
-    if (cb.empty())
-        return cx->runtime->atomState.emptyAtom;
+    size_t len = length();
+    if (len == 0)
+        return cx->names().empty;
 
-    size_t length = cb.length();
-    if (!JSString::validateLength(cx, length))
-        return NULL;
+    if (!JSString::validateLength(cx, len))
+        return nullptr;
 
-    JS_STATIC_ASSERT(JSShortString::MAX_SHORT_LENGTH < CharBuffer::InlineLength);
-    if (JSShortString::lengthFits(length))
-        return NewShortString(cx, cb.begin(), length);
+    JS_STATIC_ASSERT(JSFatInlineString::MAX_LENGTH_TWO_BYTE < TwoByteCharBuffer::InlineLength);
+    JS_STATIC_ASSERT(JSFatInlineString::MAX_LENGTH_LATIN1 < Latin1CharBuffer::InlineLength);
 
-    if (!cb.append('\0'))
-        return NULL;
+    if (isLatin1()) {
+        if (JSFatInlineString::latin1LengthFits(len)) {
+            mozilla::Range<const Latin1Char> range(latin1Chars().begin(), len);
+            return NewFatInlineString<CanGC>(cx, range);
+        }
+    } else {
+        if (JSFatInlineString::twoByteLengthFits(len)) {
+            mozilla::Range<const char16_t> range(twoByteChars().begin(), len);
+            return NewFatInlineString<CanGC>(cx, range);
+        }
+    }
 
-    jschar *buf = extractWellSized();
-    if (!buf)
-        return NULL;
-
-    JSFixedString *str = js_NewString(cx, buf, length);
-    if (!str)
-        cx->free_(buf);
-    return str;
+    return isLatin1()
+        ? FinishStringFlat<Latin1Char>(cx, *this, latin1Chars())
+        : FinishStringFlat<char16_t>(cx, *this, twoByteChars());
 }
 
 JSAtom *
 StringBuffer::finishAtom()
 {
-    JSContext *cx = context();
+    size_t len = length();
+    if (len == 0)
+        return cx->names().empty;
 
-    size_t length = cb.length();
-    if (length == 0)
-        return cx->runtime->atomState.emptyAtom;
+    if (isLatin1()) {
+        JSAtom *atom = AtomizeChars(cx, latin1Chars().begin(), len);
+        latin1Chars().clear();
+        return atom;
+    }
 
-    JSAtom *atom = AtomizeChars(cx, cb.begin(), length);
-    cb.clear();
+    JSAtom *atom = AtomizeChars(cx, twoByteChars().begin(), len);
+    twoByteChars().clear();
     return atom;
 }
 
 bool
 js::ValueToStringBufferSlow(JSContext *cx, const Value &arg, StringBuffer &sb)
 {
-    Value v = arg;
+    RootedValue v(cx, arg);
     if (!ToPrimitive(cx, JSTYPE_STRING, &v))
         return false;
 
@@ -92,9 +157,13 @@ js::ValueToStringBufferSlow(JSContext *cx, const Value &arg, StringBuffer &sb)
     if (v.isNumber())
         return NumberValueToStringBuffer(cx, v, sb);
     if (v.isBoolean())
-        return BooleanToStringBuffer(cx, v.toBoolean(), sb);
+        return BooleanToStringBuffer(v.toBoolean(), sb);
     if (v.isNull())
-        return sb.append(cx->runtime->atomState.nullAtom);
-    JS_ASSERT(v.isUndefined());
-    return sb.append(cx->runtime->atomState.typeAtoms[JSTYPE_VOID]);
+        return sb.append(cx->names().null);
+    if (v.isSymbol()) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SYMBOL_TO_STRING);
+        return false;
+    }
+    MOZ_ASSERT(v.isUndefined());
+    return sb.append(cx->names().undefined);
 }

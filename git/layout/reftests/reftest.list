@@ -8,7 +8,7 @@
 # verify the tests work
 include reftest-sanity/reftest.list
 
-# images (if libpr0n is busted, could result in weird failures in other tests)
+# images (if ImageLib is busted, could result in weird failures in other tests)
 include ../../image/test/reftest/reftest.list
 
 # CSSWG tests
@@ -18,6 +18,8 @@ include w3c-css/received/reftest.list
 # relative and absolute positioning
 include abs-pos/reftest.list
 
+include async-scrolling/reftest.list
+
 # backgrounds/
 include backgrounds/reftest.list
 
@@ -25,7 +27,7 @@ include backgrounds/reftest.list
 include bidi/reftest.list
 
 # border-image
-skip-if(Android||B2G) include border-image/reftest.list
+include border-image/reftest.list
 
 # border-radius/
 include border-radius/reftest.list
@@ -40,13 +42,23 @@ include box-ordinal/reftest.list
 include box-properties/reftest.list
 
 # box-shadow/
-skip-if(Android||B2G) include box-shadow/reftest.list
+include box-shadow/reftest.list
 
 # bugs/
-skip-if(Android||B2G) include bugs/reftest.list
+include bugs/reftest.list
 
-# canvas 2D
+# canvas
 include canvas/reftest.list
+include ../../dom/canvas/test/reftest/reftest.list
+
+# css animations
+include css-animations/reftest.list
+
+# blending/
+include css-blending/reftest.list
+
+# Tests for the css-break spec
+include css-break/reftest.list
 
 # css calc() tests
 include css-calc/reftest.list
@@ -57,11 +69,14 @@ include css-charset/reftest.list
 # css default pseudo class tests
 include css-default/reftest.list
 
+# css-display spec tests
+include css-display/reftest.list
+
 # css :disable tests
-skip-if(Android||B2G) include css-disabled/reftest.list
+include css-disabled/reftest.list
 
 # css :enable tests
-skip-if(Android||B2G) include css-enabled/reftest.list
+include css-enabled/reftest.list
 
 # css @import tests
 include css-import/reftest.list
@@ -78,6 +93,10 @@ include css-parsing/reftest.list
 # css placeholder
 include css-placeholder/reftest.list
 
+# css ruby
+# (Skipping on B2G because of timeouts there; see bug 1054383)
+skip-if(B2G) include css-ruby/reftest.list
+
 # css required
 include css-required/reftest.list
 
@@ -85,10 +104,10 @@ include css-required/reftest.list
 include css-optional/reftest.list
 
 # css valid
-skip-if(Android||B2G) include css-valid/reftest.list
+include css-valid/reftest.list
 
 # css invalid
-skip-if(Android||B2G) include css-invalid/reftest.list
+include css-invalid/reftest.list
 
 # css-submit-invalid
 include css-submit-invalid/reftest.list
@@ -103,13 +122,16 @@ include css-selectors/reftest.list
 include css-transitions/reftest.list
 
 # css :-moz-ui-invalid
-skip-if(Android||B2G) include css-ui-invalid/reftest.list
+include css-ui-invalid/reftest.list
 
 # css :-moz-ui-valid
-skip-if(Android||B2G) include css-ui-valid/reftest.list
+include css-ui-valid/reftest.list
 
 # css values and units
 include css-valuesandunits/reftest.list
+
+# css variables
+include css-variables/reftest.list
 
 # Reftests in css-visited are run using
 # layout/style/test/test_visited_reftests instead of using the reftest
@@ -126,6 +148,9 @@ include ../../content/test/reftest/reftest.list
 # counters/
 include counters/reftest.list
 
+# counter-style/
+include counter-style/reftest.list
+
 # datalist
 include datalist/reftest.list
 
@@ -136,10 +161,16 @@ include dom/reftest.list
 include generated-content/reftest.list
 
 # first-letter/
-skip-if(Android||B2G) include first-letter/reftest.list
+include first-letter/reftest.list
 
 # first-line/
 include first-line/reftest.list
+
+# flexbox (display: flex, display: inline-flex)
+include flexbox/reftest.list
+
+# CSS Grid (display: grid, display: inline-grid)
+include css-grid/reftest.list
 
 # floats/
 include floats/reftest.list
@@ -151,13 +182,16 @@ include font-face/reftest.list
 include font-features/reftest.list
 
 # mobile font size inflation
-include font-inflation/reftest.list
+skip-if(B2G&&browserIsRemote) include font-inflation/reftest.list # Bug 972697
+
+# CSS Font Loading API
+include font-loading-api/reftest.list
 
 # font matching
 include font-matching/reftest.list
 
 # forms
-skip-if(Android||B2G) include forms/reftest.list
+include forms/reftest.list
 
 # gfx
 include ../../gfx/tests/reftest/reftest.list
@@ -179,6 +213,9 @@ include image-region/reftest.list
 
 # indic shaping with harfbuzz
 include indic-shaping/reftest.list
+
+# inline layout
+include inline/reftest.list
 
 # inline borders and padding
 include inline-borderpadding/reftest.list
@@ -202,19 +239,22 @@ include margin-collapsing/reftest.list
 include marquee/reftest.list
 
 # native-theme/
-skip-if(Android||B2G) include native-theme/reftest.list
+# skipping for B2G since something around radio-nonnative.html makes the whole suite hang
+skip-if(B2G) include native-theme/reftest.list
 
 # netwerk/
 include ../../netwerk/test/reftest/reftest.list
+
+include outline/reftest.list
 
 # object/
 include object/reftest.list
 
 # ogg-video/
-include ogg-video/reftest.list
+skip-if(!B2G&&browserIsRemote) include ogg-video/reftest.list
 
 # webm-video/
-include webm-video/reftest.list
+skip-if(!B2G&&browserIsRemote) include webm-video/reftest.list
 
 # parser/
 include ../../parser/htmlparser/tests/reftest/reftest.list
@@ -228,15 +268,24 @@ include pixel-rounding/reftest.list
 # plugin/
 include ../../dom/plugins/test/reftest/reftest.list
 
+# position-dynamic-changes/
+include position-dynamic-changes/reftest.list
+
 # printing
 include printing/reftest.list
 include pagination/reftest.list
+
+# <style scoped>
+include scoped-style/reftest.list
 
 # scrolling
 include scrolling/reftest.list
 
 # selection
 include selection/reftest.list
+
+# sticky positioning
+include position-sticky/reftest.list
 
 # svg/
 include svg/reftest.list
@@ -256,8 +305,12 @@ include table-bordercollapse/reftest.list
 # table-dom/
 include table-dom/reftest.list
 
+include table-overflow/reftest.list
+
 # table-width/
 include table-width/reftest.list
+
+include ../tables/reftests/reftest.list
 
 # text/
 include text/reftest.list
@@ -269,13 +322,18 @@ include text-decoration/reftest.list
 include text-indent/reftest.list
 
 # text-shadow/
-skip-if(Android||B2G) include text-shadow/reftest.list
+include text-shadow/reftest.list
 
-# theme (pinstripe)
-include ../../toolkit/themes/pinstripe/reftests/reftest.list
+# text-svgglyphs/
+include text-svgglyphs/reftest.list
 
 # text-transform/
 include text-transform/reftest.list
+
+# theme (osx)
+include ../../toolkit/themes/osx/reftests/reftest.list
+
+include ../../toolkit/content/tests/reftests/reftest.list
 
 # -moz-transform/
 include transform/reftest.list
@@ -285,6 +343,11 @@ include transform-3d/reftest.list
 
 # unicode/ (verify that we don't do expend effort doing unicode-aware case checks)
 include unicode/reftest.list
+
+include view-source/reftest.list
+
+# webcomponents/
+include webcomponents/reftest.list
 
 # widget/
 include ../../widget/reftests/reftest.list
@@ -299,17 +362,26 @@ include xul-document-load/reftest.list
 include xul/reftest.list
 
 # xul
-include ../xul/base/reftest/reftest.list
+include ../xul/reftest/reftest.list
 
 # xul grid
-include ../xul/base/src/grid/reftests/reftest.list
+include ../xul/grid/reftests/reftest.list
 
 # z-index/
 include z-index/reftest.list
 
 # reftest(s) to verify content bugfixes
-include ../../content/html/document/reftests/reftests.list
-include ../../content/html/content/reftests/reftest.list
+include ../../dom/html/reftests/reftest.list
+include ../../dom/imptests/reftest.list
 
 # editor/
 include ../../editor/reftests/reftest.list
+
+# box-sizing
+include box-sizing/reftest.list
+
+# invalidation
+include invalidation/reftest.list
+
+# encodings
+include ../../dom/encoding/test/reftest/reftest.list

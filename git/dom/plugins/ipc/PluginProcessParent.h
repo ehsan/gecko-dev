@@ -7,10 +7,10 @@
 #ifndef dom_plugins_PluginProcessParent_h
 #define dom_plugins_PluginProcessParent_h 1
 
+#include "mozilla/Attributes.h"
 #include "base/basictypes.h"
 
 #include "base/file_path.h"
-#include "base/scoped_ptr.h"
 #include "base/thread.h"
 #include "base/waitable_event.h"
 #include "chrome/common/child_process_host.h"
@@ -24,18 +24,23 @@ namespace plugins {
 class PluginProcessParent : public mozilla::ipc::GeckoChildProcessHost
 {
 public:
-    PluginProcessParent(const std::string& aPluginFilePath);
+    explicit PluginProcessParent(const std::string& aPluginFilePath);
     ~PluginProcessParent();
 
     /**
      * Synchronously launch the plugin process. If the process fails to launch
      * after timeoutMs, this method will return false.
+     *
+     * @param timeoutMs Timeout in milliseconds for the synchronous launch.
+     * @param aEnableSandbox Enables a process sandbox if one is available for
+     * this platform/build. Will assert if true passed and one is not available.
      */
-    bool Launch(int32_t timeoutMs);
+    bool Launch(int32_t timeoutMs,
+                bool aEnableSandbox = false);
 
     void Delete();
 
-    virtual bool CanShutdown()
+    virtual bool CanShutdown() MOZ_OVERRIDE
     {
         return true;
     }
@@ -44,7 +49,6 @@ public:
 
     using mozilla::ipc::GeckoChildProcessHost::GetShutDownEvent;
     using mozilla::ipc::GeckoChildProcessHost::GetChannel;
-    using mozilla::ipc::GeckoChildProcessHost::GetChildProcessHandle;
 
 private:
     std::string mPluginFilePath;

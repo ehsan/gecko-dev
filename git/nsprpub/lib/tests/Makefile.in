@@ -102,12 +102,10 @@ endif
 
 # Solaris
 ifeq ($(OS_ARCH), SunOS)
-ifneq ($(OS_RELEASE), 4.1.3_U1)
 ifdef NS_USE_GCC
 LDOPTS += -Xlinker -R -Xlinker $(PWD)/$(dist_libdir)
 else
 LDOPTS += -R $(PWD)/$(dist_libdir)
-endif
 endif
 
 # SunOS 5.5 needs to link with -lpthread, even though we already
@@ -118,17 +116,6 @@ EXTRA_LIBS = -lpthread
 endif
 endif
 endif # SunOS
-
-ifeq ($(OS_ARCH), NCR)
-# NCR needs to link against -lsocket -lnsl (and -lc, which is linked
-# implicitly by $(CC)) again even though we already linked with these
-# system libraries when we built libnspr.so.
-EXTRA_LIBS = -lsocket -lnsl
-# This hardcodes in the executable programs the directory to find
-# libnspr.so etc. at program startup.  Equivalent to the -R or -rpath
-# option for ld on other platforms.
-export LD_RUN_PATH = $(PWD)/$(dist_libdir)
-endif
 
 #####################################################
 #
@@ -172,7 +159,7 @@ $(OBJDIR)/%$(PROG_SUFFIX): $(OBJDIR)/%.$(OBJ_SUFFIX)
 	@$(MAKE_OBJDIR)
 
 ifeq ($(OS_ARCH), WINNT)
-	link $(LDOPTS) $< $(LIBPLC) $(LIBPLDS) $(LIBPR) wsock32.lib -out:$@
+	link $(LDOPTS) $< $(LIBPLC) $(LIBPLDS) $(LIBPR) ws2_32.lib -out:$@
 else
 ifeq ($(OS_ARCH), WINCE)
 	$(LD) $(LDOPTS) $< $(LIBPLC) $(LIBPLDS) $(LIBPR) ws2.lib -out:$@

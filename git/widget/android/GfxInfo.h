@@ -12,12 +12,21 @@
 #include "GfxDriverInfo.h"
 
 #include "nsString.h"
+#include "mozilla/UniquePtr.h"
 
 namespace mozilla {
+
+namespace gl {
+class GLContext;
+}
+
 namespace widget {
 
 class GfxInfo : public GfxInfoBase
 {
+private:
+  ~GfxInfo();
+
 public:
   GfxInfo();
 
@@ -31,6 +40,7 @@ public:
   NS_IMETHOD GetAdapterDriver(nsAString & aAdapterDriver);
   NS_IMETHOD GetAdapterVendorID(nsAString & aAdapterVendorID);
   NS_IMETHOD GetAdapterDeviceID(nsAString & aAdapterDeviceID);
+  NS_IMETHOD GetAdapterSubsysID(nsAString & aAdapterSubsysID);
   NS_IMETHOD GetAdapterRAM(nsAString & aAdapterRAM);
   NS_IMETHOD GetAdapterDriverVersion(nsAString & aAdapterDriverVersion);
   NS_IMETHOD GetAdapterDriverDate(nsAString & aAdapterDriverDate);
@@ -38,6 +48,7 @@ public:
   NS_IMETHOD GetAdapterDriver2(nsAString & aAdapterDriver);
   NS_IMETHOD GetAdapterVendorID2(nsAString & aAdapterVendorID);
   NS_IMETHOD GetAdapterDeviceID2(nsAString & aAdapterDeviceID);
+  NS_IMETHOD GetAdapterSubsysID2(nsAString & aAdapterSubsysID);
   NS_IMETHOD GetAdapterRAM2(nsAString & aAdapterRAM);
   NS_IMETHOD GetAdapterDriverVersion2(nsAString & aAdapterDriverVersion);
   NS_IMETHOD GetAdapterDriverDate2(nsAString & aAdapterDriverDate);
@@ -46,19 +57,19 @@ public:
   using GfxInfoBase::GetFeatureSuggestedDriverVersion;
   using GfxInfoBase::GetWebGLParameter;
 
-  void EnsureInitializedFromGfxInfoData();
+  void EnsureInitialized();
 
-  virtual const nsAString& Model() const;
-  virtual const nsAString& Hardware() const;
-  virtual const nsAString& Product() const;
-  virtual const nsAString& Manufacturer() const;
+  virtual nsString Model();
+  virtual nsString Hardware();
+  virtual nsString Product();
+  virtual nsString Manufacturer();
 
 #ifdef DEBUG
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIGFXINFODEBUG
 #endif
 
-  virtual uint32_t OperatingSystemVersion() const { return mOSVersion; }
+  virtual uint32_t OperatingSystemVersion() MOZ_OVERRIDE;
 
 protected:
 
@@ -73,21 +84,18 @@ private:
 
   void AddCrashReportAnnotations();
 
-  bool mInitializedFromJavaData;
+  bool mInitialized;
 
-  // the GL strings
-  nsCString mVendor;
-  nsCString mRenderer;
-  nsCString mVersion;
-  // a possible error message produced by the data source (e.g. if EGL initialization failed)
-  nsCString mError;
+  class GLStrings;
+  UniquePtr<GLStrings> mGLStrings;
 
   nsCString mAdapterDescription;
 
   OperatingSystem mOS;
-  uint32_t mOSVersion;
 
   nsString mModel, mHardware, mManufacturer, mProduct;
+  nsCString mOSVersion;
+  uint32_t mOSVersionInteger;
 };
 
 } // namespace widget

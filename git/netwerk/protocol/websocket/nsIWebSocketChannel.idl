@@ -9,13 +9,18 @@ interface nsIInterfaceRequestor;
 interface nsILoadGroup;
 interface nsIWebSocketListener;
 interface nsIInputStream;
+interface nsILoadInfo;
 
 #include "nsISupports.idl"
 
-/** 
- *  You probably want nsI{Moz}WebSocket.idl
+/**
+ * Low-level websocket API: handles network protocol.  
+ *
+ * This is primarly intended for use by the higher-level nsIWebSocket.idl.
+ * We are also making it scriptable for now, but this may change once we have
+ * WebSockets for Workers.
  */
-[uuid(0683E9A4-994D-11E1-9478-1E356188709B)]
+[scriptable, uuid(3fb248c2-c0fc-4516-9c58-505a92ad8c64)]
 interface nsIWebSocketChannel : nsISupports
 {
     /**
@@ -43,9 +48,14 @@ interface nsIWebSocketChannel : nsISupports
     readonly attribute nsISupports securityInfo;
 
     /**
-     * The load group of the websockets code.
+     * The load group of of the websocket
      */
     attribute nsILoadGroup loadGroup;
+
+    /**
+     * The load info of the websocket
+     */
+    attribute nsILoadInfo loadInfo;
 
     /**
      * Sec-Websocket-Protocol value
@@ -129,4 +139,27 @@ interface nsIWebSocketChannel : nsISupports
      */
     void sendBinaryStream(in nsIInputStream aStream, 
                           in unsigned long length);
+
+    /**
+     * This value determines how often (in seconds) websocket keepalive
+     * pings are sent.  If set to 0 (the default), no pings are ever sent.
+     *
+     * This value can currently only be set before asyncOpen is called, else 
+     * NS_ERROR_IN_PROGRESS is thrown.
+     *
+     * Be careful using this setting: ping traffic can consume lots of power and
+     * bandwidth over time.
+     */
+    attribute unsigned long pingInterval;
+
+    /**
+     * This value determines how long (in seconds) the websocket waits for
+     * the server to reply to a ping that has been sent before considering the
+     * connection broken.
+     *
+     * This value can currently only be set before asyncOpen is called, else 
+     * NS_ERROR_IN_PROGRESS is thrown.
+     */
+    attribute unsigned long pingTimeout;
+
 };

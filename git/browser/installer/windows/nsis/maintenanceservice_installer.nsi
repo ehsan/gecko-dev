@@ -12,6 +12,15 @@ SetCompress off
 CRCCheck on
 
 RequestExecutionLevel admin
+
+; The commands inside this ifdef require NSIS 3.0a2 or greater so the ifdef can
+; be removed after we require NSIS 3.0a2 or greater.
+!ifdef NSIS_PACKEDVERSION
+  Unicode true
+  ManifestSupportedOS all
+  ManifestDPIAware true
+!endif
+
 !addplugindir ./
 
 ; Variables
@@ -66,14 +75,11 @@ SetOverwrite on
 !define MaintUninstallKey \
  "Software\Microsoft\Windows\CurrentVersion\Uninstall\MozillaMaintenanceService"
 
-; The HAVE_64BIT_OS define also means that we have an x64 build,
-; not just an x64 OS.
-!ifdef HAVE_64BIT_OS
-  ; See below, we actually abort the install for x64 builds currently.
-  InstallDir "$PROGRAMFILES64\${MaintFullName}\"
-!else
-  InstallDir "$PROGRAMFILES32\${MaintFullName}\"
-!endif
+; Always install into the 32-bit location even if we have a 64-bit build.
+; This is because we use only 1 service for all Firefox channels.
+; Allow either x86 and x64 builds to exist at this location, depending on
+; what is the latest build.
+InstallDir "$PROGRAMFILES32\${MaintFullName}\"
 ShowUnInstDetails nevershow
 
 ################################################################################
@@ -106,13 +112,11 @@ ShowUnInstDetails nevershow
 BrandingText " "
 
 Function .onInit
+  ; Remove the current exe directory from the search order.
+  ; This only effects LoadLibrary calls and not implicitly loaded DLLs.
+  System::Call 'kernel32::SetDllDirectoryW(w "")'
+
   SetSilent silent
-!ifdef HAVE_64BIT_OS
-  ; We plan to eventually enable 64bit native builds to use the maintenance
-  ; service, but for the initial release, to reduce testing and development,
-  ; 64-bit builds will not install the maintenanceservice.
-  Abort
-!endif
 
   ; On Windows 2000 we do not install the maintenance service.
   ; We won't run this installer from the parent installer, but just in case 
@@ -123,6 +127,18 @@ Function .onInit
 FunctionEnd
 
 Function un.onInit
+  ; Remove the current exe directory from the search order.
+  ; This only effects LoadLibrary calls and not implicitly loaded DLLs.
+  System::Call 'kernel32::SetDllDirectoryW(w "")'
+
+; The commands inside this ifndef are needed prior to NSIS 3.0a2 and can be
+; removed after we require NSIS 3.0a2 or greater.
+!ifndef NSIS_PACKEDVERSION
+  ${If} ${AtLeastWinVista}
+    System::Call 'user32::SetProcessDPIAware()'
+  ${EndIf}
+!endif
+
   StrCpy $BrandFullNameDA "${MaintFullName}"
   StrCpy $BrandFullName "${MaintFullName}"
 FunctionEnd
@@ -164,11 +180,11 @@ Section "MaintenanceService"
   ${GetParameters} $0
   ${GetOptions} "$0" "/Upgrade" $0
   ${If} ${Errors}
-    nsExec::Exec '"$INSTDIR\$TempMaintServiceName" install'
+    ExecWait '"$INSTDIR\$TempMaintServiceName" install'
   ${Else}
     ; The upgrade cmdline is the same as install except
     ; It will fail if the service isn't already installed.
-    nsExec::Exec '"$INSTDIR\$TempMaintServiceName" upgrade'
+    ExecWait '"$INSTDIR\$TempMaintServiceName" upgrade'
   ${EndIf}
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -179,8 +195,7 @@ Section "MaintenanceService"
                    "$INSTDIR\Uninstall.exe,0"
   WriteRegStr HKLM "${MaintUninstallKey}" "DisplayVersion" "${AppVersion}"
   WriteRegStr HKLM "${MaintUninstallKey}" "Publisher" "Mozilla"
-  WriteRegStr HKLM "${MaintUninstallKey}" "Comments" \
-                   "${BrandFullName} ${AppVersion} (${ARCH} ${AB_CD})"
+  WriteRegStr HKLM "${MaintUninstallKey}" "Comments" "${BrandFullName}"
   WriteRegDWORD HKLM "${MaintUninstallKey}" "NoModify" 1
   ${GetSize} "$INSTDIR" "/S=0K" $R2 $R3 $R4
   WriteRegDWORD HKLM "${MaintUninstallKey}" "EstimatedSize" $R2
@@ -203,7 +218,7 @@ Section "MaintenanceService"
   ; These keys are used to bypass the installation dir is a valid installation
   ; check from the service so that tests can be run.
   ; WriteRegStr HKLM "${FallbackKey}\0" "name" "Mozilla Corporation"
-  ; WriteRegStr HKLM "${FallbackKey}\0" "issuer" "Thawte Code Signing CA - G2"
+  ; WriteRegStr HKLM "${FallbackKey}\0" "issuer" "DigiCert Assured ID Code Signing CA-1"
   ${If} ${RunningX64}
     SetRegView lastused
   ${EndIf}
@@ -229,7 +244,7 @@ FunctionEnd
 
 Section "Uninstall"
   ; Delete the service so that no updates will be attempted
-  nsExec::Exec '"$INSTDIR\maintenanceservice.exe" uninstall'
+  ExecWait '"$INSTDIR\maintenanceservice.exe" uninstall'
 
   Push "$INSTDIR\updater.ini"
   Call un.RenameDelete
@@ -241,6 +256,11 @@ Section "Uninstall"
   Call un.RenameDelete
   Push "$INSTDIR\Uninstall.exe"
   Call un.RenameDelete
+  Push "$INSTDIR\update\updater.ini"
+  Call un.RenameDelete
+  Push "$INSTDIR\update\updater.exe"
+  Call un.RenameDelete
+  RMDir /REBOOTOK "$INSTDIR\update"
   RMDir /REBOOTOK "$INSTDIR"
 
   DeleteRegKey HKLM "${MaintUninstallKey}"

@@ -18,8 +18,8 @@
 
 interface nsIDOMValidityState;
 
-[scriptable, uuid(AB2F9E30-1217-4172-9A95-262480FEC534)]
-interface nsIDOMHTMLFieldSetElement : nsIDOMHTMLElement
+[uuid(e3d91535-9da3-4c4b-a809-f17d85a4fb9f)]
+interface nsIDOMHTMLFieldSetElement : nsISupports
 {
            attribute boolean                disabled;
   readonly attribute nsIDOMHTMLFormElement  form;

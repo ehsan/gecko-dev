@@ -87,14 +87,14 @@ TestOpenInputStream(const char* url)
     rv = uri->GetSpec(&str);
     if (NS_FAILED(rv)) return rv;
     fprintf(stdout, "%s resolved to ", str);
-    nsCRT::free(str);
+    free(str);
 
     rv = channel->GetURI(getter_AddRefs(uri));
     if (NS_FAILED(rv)) return rv;
     rv = uri->GetSpec(&str);
     if (NS_FAILED(rv)) return rv;
     fprintf(stdout, "%s\n", str);
-    nsCRT::free(str);
+    free(str);
 
     return NS_OK;
 }
@@ -123,7 +123,7 @@ public:
             rv = uri->GetSpec(&str);
             if (NS_SUCCEEDED(rv)) {
                 fprintf(stdout, "Starting to load %s\n", str);
-                nsCRT::free(str);
+                free(str);
             }
         }
         return NS_OK;
@@ -141,7 +141,7 @@ public:
             rv = uri->GetSpec(&str);
             if (NS_SUCCEEDED(rv)) {
                 fprintf(stdout, "Ending load %s, status=%x\n", str, aStatus);
-                nsCRT::free(str);
+                free(str);
             }
         }
         gDone = true;
@@ -150,7 +150,7 @@ public:
 
     NS_IMETHOD OnDataAvailable(nsIRequest *request, nsISupports *ctxt, 
                                nsIInputStream *inStr,
-                               uint32_t sourceOffset, uint32_t count) {
+                               uint64_t sourceOffset, uint32_t count) {
         nsresult rv;
         char buf[1024];
         while (count > 0) {
@@ -166,7 +166,7 @@ public:
     }
 };
 
-NS_IMPL_ISUPPORTS2(Listener, nsIStreamListener, nsIRequestObserver)
+NS_IMPL_ISUPPORTS(Listener, nsIStreamListener, nsIRequestObserver)
 
 nsresult
 TestAsyncRead(const char* url)

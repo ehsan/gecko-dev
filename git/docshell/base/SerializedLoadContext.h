@@ -8,8 +8,9 @@
 #define SerializedLoadContext_h
 
 #include "base/basictypes.h"
-#include "IPC/IPCMessageUtils.h"
-#include "nsILoadContext.h"
+#include "ipc/IPCMessageUtils.h"
+
+class nsILoadContext;
 
 /*
  *  This file contains the IPC::SerializedLoadContext class, which is used to
@@ -30,21 +31,30 @@ public:
     Init(nullptr);
   }
 
-  SerializedLoadContext(nsILoadContext* aLoadContext);
-  SerializedLoadContext(nsIChannel* aChannel);
-  SerializedLoadContext(nsIWebSocketChannel* aChannel);
+  explicit SerializedLoadContext(nsILoadContext* aLoadContext);
+  explicit SerializedLoadContext(nsIChannel* aChannel);
+  explicit SerializedLoadContext(nsIWebSocketChannel* aChannel);
 
   void Init(nsILoadContext* aLoadContext);
 
-  bool IsNotNull() const 
+  bool IsNotNull() const
   {
     return mIsNotNull;
   }
 
+  bool IsPrivateBitValid() const
+  {
+    return mIsPrivateBitValid;
+  }
+
   // used to indicate if child-side LoadContext * was null.
   bool          mIsNotNull;
+  // used to indicate if child-side mUsePrivateBrowsing flag is valid, even if
+  // mIsNotNull is false, i.e., child LoadContext was null.
+  bool          mIsPrivateBitValid;
   bool          mIsContent;
   bool          mUsePrivateBrowsing;
+  bool          mUseRemoteTabs;
   bool          mIsInBrowserElement;
   uint32_t      mAppId;
 };
@@ -59,7 +69,9 @@ struct ParamTraits<SerializedLoadContext>
   {
     WriteParam(aMsg, aParam.mIsNotNull);
     WriteParam(aMsg, aParam.mIsContent);
+    WriteParam(aMsg, aParam.mIsPrivateBitValid);
     WriteParam(aMsg, aParam.mUsePrivateBrowsing);
+    WriteParam(aMsg, aParam.mUseRemoteTabs);
     WriteParam(aMsg, aParam.mAppId);
     WriteParam(aMsg, aParam.mIsInBrowserElement);
   }
@@ -68,7 +80,9 @@ struct ParamTraits<SerializedLoadContext>
   {
     if (!ReadParam(aMsg, aIter, &aResult->mIsNotNull) ||
         !ReadParam(aMsg, aIter, &aResult->mIsContent)  ||
+        !ReadParam(aMsg, aIter, &aResult->mIsPrivateBitValid)  ||
         !ReadParam(aMsg, aIter, &aResult->mUsePrivateBrowsing)  ||
+        !ReadParam(aMsg, aIter, &aResult->mUseRemoteTabs)  ||
         !ReadParam(aMsg, aIter, &aResult->mAppId)  ||
         !ReadParam(aMsg, aIter, &aResult->mIsInBrowserElement)) {
       return false;

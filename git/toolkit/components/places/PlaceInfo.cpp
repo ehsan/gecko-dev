@@ -8,12 +8,28 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIXPConnect.h"
 #include "mozilla/Services.h"
+#include "jsapi.h"
 
 namespace mozilla {
 namespace places {
 
 ////////////////////////////////////////////////////////////////////////////////
 //// PlaceInfo
+
+PlaceInfo::PlaceInfo(int64_t aId,
+                     const nsCString& aGUID,
+                     already_AddRefed<nsIURI> aURI,
+                     const nsString& aTitle,
+                     int64_t aFrecency)
+: mId(aId)
+, mGUID(aGUID)
+, mURI(aURI)
+, mTitle(aTitle)
+, mFrecency(aFrecency)
+, mVisitsAvailable(false)
+{
+  NS_PRECONDITION(mURI, "Must provide a non-null uri!");
+}
 
 PlaceInfo::PlaceInfo(int64_t aId,
                      const nsCString& aGUID,
@@ -27,6 +43,7 @@ PlaceInfo::PlaceInfo(int64_t aId,
 , mTitle(aTitle)
 , mFrecency(aFrecency)
 , mVisits(aVisits)
+, mVisitsAvailable(true)
 {
   NS_PRECONDITION(mURI, "Must provide a non-null uri!");
 }
@@ -71,14 +88,23 @@ PlaceInfo::GetFrecency(int64_t* _frecency)
 
 NS_IMETHODIMP
 PlaceInfo::GetVisits(JSContext* aContext,
-                     jsval* _visits)
+                     JS::MutableHandle<JS::Value> _visits)
 {
+  // If the visits data was not provided, return null rather
+  // than an empty array to distinguish this case from the case
+  // of a place without any visit.
+  if (!mVisitsAvailable) {
+    _visits.setNull();
+    return NS_OK;
+  }
+
   // TODO bug 625913 when we use this in situations that have more than one
   // visit here, we will likely want to make this cache the value.
-  JSObject* visits = JS_NewArrayObject(aContext, 0, NULL);
+  JS::Rooted<JSObject*> visits(aContext,
+                               JS_NewArrayObject(aContext, 0));
   NS_ENSURE_TRUE(visits, NS_ERROR_OUT_OF_MEMORY);
 
-  JSObject* global = JS_GetGlobalForScopeChain(aContext);
+  JS::Rooted<JSObject*> global(aContext, JS::CurrentGlobalOrNull(aContext));
   NS_ENSURE_TRUE(global, NS_ERROR_UNEXPECTED);
 
   nsCOMPtr<nsIXPConnect> xpc = mozilla::services::GetXPConnect();
@@ -90,24 +116,21 @@ PlaceInfo::GetVisits(JSContext* aContext,
                                   getter_AddRefs(wrapper));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JSObject* jsobj;
-    rv = wrapper->GetJSObject(&jsobj);
-    NS_ENSURE_SUCCESS(rv, rv);
-    jsval wrappedVisit = OBJECT_TO_JSVAL(jsobj);
+    JS::Rooted<JSObject*> jsobj(aContext, wrapper->GetJSObject());
+    NS_ENSURE_STATE(jsobj);
 
-    JSBool rc = JS_SetElement(aContext, visits, idx, &wrappedVisit);
+    bool rc = JS_SetElement(aContext, visits, idx, jsobj);
     NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
   }
 
-  *_visits = OBJECT_TO_JSVAL(visits);
-
+  _visits.setObject(*visits);
   return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsISupports
 
-NS_IMPL_ISUPPORTS1(
+NS_IMPL_ISUPPORTS(
   PlaceInfo
 , mozIPlaceInfo
 )

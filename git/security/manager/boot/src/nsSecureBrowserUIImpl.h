@@ -6,17 +6,18 @@
 #ifndef nsSecureBrowserUIImpl_h_
 #define nsSecureBrowserUIImpl_h_
 
+#ifdef DEBUG
+#include "mozilla/Atomics.h"
+#endif
 #include "mozilla/ReentrantMonitor.h"
 #include "nsCOMPtr.h"
-#include "nsXPIDLString.h"
 #include "nsString.h"
-#include "nsIObserver.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMHTMLFormElement.h"
-#include "nsIStringBundle.h"
 #include "nsISecureBrowserUI.h"
 #include "nsIDocShell.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsIWebProgressListener.h"
 #include "nsIFormSubmitObserver.h"
 #include "nsIURI.h"
@@ -40,34 +41,32 @@ class nsIInterfaceRequestor;
 class nsSecureBrowserUIImpl : public nsISecureBrowserUI,
                               public nsIWebProgressListener,
                               public nsIFormSubmitObserver,
-                              public nsIObserver,
                               public nsSupportsWeakReference,
                               public nsISSLStatusProvider
 {
 public:
   
   nsSecureBrowserUIImpl();
-  virtual ~nsSecureBrowserUIImpl();
   
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIWEBPROGRESSLISTENER
   NS_DECL_NSISECUREBROWSERUI
   
-  // nsIObserver
-  NS_DECL_NSIOBSERVER
   NS_DECL_NSISSLSTATUSPROVIDER
 
   NS_IMETHOD Notify(nsIDOMHTMLFormElement* formNode, nsIDOMWindow* window,
                     nsIURI *actionURL, bool* cancelSubmit);
   NS_IMETHOD NotifyInvalidSubmit(nsIDOMHTMLFormElement* formNode,
-                                 nsIArray* invalidElements) { return NS_OK; };
+                                 nsIArray* invalidElements) { return NS_OK; }
   
 protected:
+  virtual ~nsSecureBrowserUIImpl();
+
   mozilla::ReentrantMonitor mReentrantMonitor;
   
   nsWeakPtr mWindow;
+  nsWeakPtr mDocShell;
   nsCOMPtr<nsINetUtil> mIOService;
-  nsCOMPtr<nsIStringBundle> mStringBundle;
   nsCOMPtr<nsIURI> mCurrentURI;
   nsCOMPtr<nsISecurityEventSink> mToplevelEventSink;
   
@@ -75,7 +74,6 @@ protected:
     lis_no_security,
     lis_broken_security,
     lis_mixed_security,
-    lis_low_security,
     lis_high_security
   };
 
@@ -88,31 +86,27 @@ protected:
   bool mNewToplevelSecurityStateKnown;
   bool mIsViewSource;
 
-  nsXPIDLString mInfoTooltip;
   int32_t mDocumentRequestsInProgress;
-  int32_t mSubRequestsHighSecurity;
-  int32_t mSubRequestsLowSecurity;
   int32_t mSubRequestsBrokenSecurity;
   int32_t mSubRequestsNoSecurity;
   bool mRestoreSubrequests;
   bool mOnLocationChangeSeen;
 #ifdef DEBUG
   /* related to mReentrantMonitor */
-  int32_t mOnStateLocationChangeReentranceDetection;
+  mozilla::Atomic<int32_t> mOnStateLocationChangeReentranceDetection;
 #endif
 
   static already_AddRefed<nsISupports> ExtractSecurityInfo(nsIRequest* aRequest);
-  static nsresult MapInternalToExternalState(uint32_t* aState, lockIconState lock, bool ev);
+  nsresult MapInternalToExternalState(uint32_t* aState, lockIconState lock, bool ev);
   nsresult UpdateSecurityState(nsIRequest* aRequest, bool withNewLocation,
-                               bool withUpdateStatus, bool withUpdateTooltip);
-  bool UpdateMyFlags(bool &showWarning, lockIconState &warnSecurityState);
-  nsresult TellTheWorld(bool showWarning, 
-                        lockIconState warnSecurityState, 
+                               bool withUpdateStatus);
+  bool UpdateMyFlags(lockIconState &warnSecurityState);
+  nsresult TellTheWorld(lockIconState warnSecurityState, 
                         nsIRequest* aRequest);
 
   nsresult EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsISupports *info,
-                                          bool withNewLocation);
-  void UpdateSubrequestMembers(nsISupports *securityInfo);
+                                          bool withNewLocation, bool withNewSink);
+  void UpdateSubrequestMembers(nsISupports* securityInfo, nsIRequest* request);
 
   void ObtainEventSink(nsIChannel *channel, 
                        nsCOMPtr<nsISecurityEventSink> &sink);
@@ -120,8 +114,6 @@ protected:
   nsCOMPtr<nsISSLStatus> mSSLStatus;
   nsCOMPtr<nsISupports> mCurrentToplevelSecurityInfo;
 
-  void GetBundleString(const PRUnichar* name, nsAString &outString);
-  
   nsresult CheckPost(nsIURI *formURI, nsIURI *actionURL, bool *okayToPost);
   nsresult IsURLHTTPS(nsIURI* aURL, bool *value);
   nsresult IsURLJavaScript(nsIURI* aURL, bool *value);

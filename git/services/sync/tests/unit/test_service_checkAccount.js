@@ -1,8 +1,13 @@
+/* Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/ */
+
 Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://testing-common/services/sync/utils.js");
 
 function run_test() {
   do_test_pending();
+  ensureLegacyIdentityManager();
   let server = httpd_setup({
     "/user/1.0/johndoe": httpd_handler(200, "OK", "1"),
     "/user/1.0/janedoe": httpd_handler(200, "OK", "0"),
@@ -12,7 +17,7 @@ function run_test() {
     "/user/1.0/vuuf3eqgloxpxmzph27f5a6ve7gzlrms": httpd_handler(200, "OK", "1")
   });
   try {
-    Service.serverURL = TEST_SERVER_URL;
+    Service.serverURL = server.baseURI;
 
     _("A 404 will be recorded as 'generic-server-error'");
     do_check_eq(Service.checkAccount("jimdoe"), "generic-server-error");

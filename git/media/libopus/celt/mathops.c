@@ -18,11 +18,6 @@
    notice, this list of conditions and the following disclaimer in the
    documentation and/or other materials provided with the distribution.
 
-   - Neither the name of Internet Society, IETF or IETF Trust, nor the
-   names of specific contributors, may be used to endorse or promote
-   products derived from this software without specific prior written
-   permission.
-
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
    ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -80,10 +75,15 @@ opus_val32 frac_div32(opus_val32 a, opus_val32 b)
    b = VSHR32(b,shift);
    /* 16-bit reciprocal */
    rcp = ROUND16(celt_rcp(ROUND16(b,16)),3);
-   result = SHL32(MULT16_32_Q15(rcp, a),2);
-   rem = a-MULT32_32_Q31(result, b);
-   result += SHL32(MULT16_32_Q15(rcp, rem),2);
-   return result;
+   result = MULT16_32_Q15(rcp, a);
+   rem = PSHR32(a,2)-MULT32_32_Q31(result, b);
+   result = ADD32(result, SHL32(MULT16_32_Q15(rcp, rem),2));
+   if (result >= 536870912)       /*  2^29 */
+      return 2147483647;          /*  2^31 - 1 */
+   else if (result <= -536870912) /* -2^29 */
+      return -2147483647;         /* -2^31 */
+   else
+      return SHL32(result, 2);
 }
 
 /** Reciprocal sqrt approximation in the range [0.25,1) (Q16 in, Q14 out) */
@@ -123,6 +123,8 @@ opus_val32 celt_sqrt(opus_val32 x)
    static const opus_val16 C[5] = {23175, 11561, -3011, 1699, -664};
    if (x==0)
       return 0;
+   else if (x>=1073741824)
+      return 32767;
    k = (celt_ilog2(x)>>1)-7;
    x = VSHR32(x, 2*k);
    n = x-32768;
@@ -137,7 +139,7 @@ opus_val32 celt_sqrt(opus_val32 x)
 #define L3 8277
 #define L4 -626
 
-static inline opus_val16 _celt_cos_pi_2(opus_val16 x)
+static OPUS_INLINE opus_val16 _celt_cos_pi_2(opus_val16 x)
 {
    opus_val16 x2;
 

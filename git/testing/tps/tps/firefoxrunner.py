@@ -2,96 +2,83 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import copy
-import os
-import shutil
-import sys
 
-from mozprocess.pid import get_pids
+import copy
+import httplib2
+import os
+
+import mozfile
+import mozinstall
 from mozprofile import Profile
-from mozregression.mozInstall import MozInstaller
-from mozregression.utils import download_url, get_platform
 from mozrunner import FirefoxRunner
+
 
 class TPSFirefoxRunner(object):
 
-  PROCESS_TIMEOUT = 240
+    PROCESS_TIMEOUT = 240
 
-  def __init__(self, binary):
-    if binary is not None and ('http://' in binary or 'ftp://' in binary):
-      self.url = binary
-      self.binary = None
-    else:
-      self.url = None
-      self.binary = binary
-    self.runner = None
-    self.installdir = None
+    def __init__(self, binary):
+        if binary is not None and ('http://' in binary or 'ftp://' in binary):
+            self.url = binary
+            self.binary = None
+        else:
+            self.url = None
+            self.binary = binary
 
-  def __del__(self):
-    if self.installdir:
-      shutil.rmtree(self.installdir, True)
+        self.installdir = None
 
-  def download_build(self, installdir='downloadedbuild',
-                     appname='firefox', macAppName='Minefield.app'):
-    self.installdir = os.path.abspath(installdir)
-    buildName = os.path.basename(self.url)
-    pathToBuild = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                               buildName)
+    def __del__(self):
+        if self.installdir:
+            mozfile.remove(self.installdir, True)
 
-    # delete the build if it already exists
-    if os.access(pathToBuild, os.F_OK):
-      os.remove(pathToBuild)
+    def download_url(self, url, dest=None):
+        h = httplib2.Http()
+        resp, content = h.request(url, 'GET')
+        if dest == None:
+            dest = os.path.basename(url)
 
-    # download the build
-    print "downloading build"
-    download_url(self.url, pathToBuild)
+        local = open(dest, 'wb')
+        local.write(content)
+        local.close()
+        return dest
 
-    # install the build
-    print "installing %s" % pathToBuild
-    shutil.rmtree(self.installdir, True)
-    MozInstaller(src=pathToBuild, dest=self.installdir, dest_app=macAppName)
+    def download_build(self, installdir='downloadedbuild', appname='firefox'):
+        self.installdir = os.path.abspath(installdir)
+        buildName = os.path.basename(self.url)
+        pathToBuild = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   buildName)
 
-    # remove the downloaded archive
-    os.remove(pathToBuild)
+        # delete the build if it already exists
+        if os.access(pathToBuild, os.F_OK):
+            os.remove(pathToBuild)
 
-    # calculate path to binary
-    platform = get_platform()
-    if platform['name'] == 'Mac':
-      binary = '%s/%s/Contents/MacOS/%s-bin' % (installdir,
-                                                macAppName,
-                                                appname)
-    else:
-      binary = '%s/%s/%s%s' % (installdir,
-                               appname,
-                               appname,
-                               '.exe' if platform['name'] == 'Windows' else '')
+        # download the build
+        print 'downloading build'
+        self.download_url(self.url, pathToBuild)
 
-    return binary
+        # install the build
+        print 'installing %s' % pathToBuild
+        mozfile.remove(self.installdir, True)
+        binary = mozinstall.install(src=pathToBuild, dest=self.installdir)
 
-  def run(self, profile=None, timeout=PROCESS_TIMEOUT, env=None, args=None):
-    """Runs the given FirefoxRunner with the given Profile, waits
-       for completion, then returns the process exit code
-    """
-    if profile is None:
-      profile = Profile()
-    self.profile = profile
+        # remove the downloaded archive
+        os.remove(pathToBuild)
 
-    if self.binary is None and self.url:
-      self.binary = self.download_build()
+        return binary
 
-    if self.runner is None:
-      self.runner = FirefoxRunner(self.profile, binary=self.binary)
+    def run(self, profile=None, timeout=PROCESS_TIMEOUT, env=None, args=None):
+        """Runs the given FirefoxRunner with the given Profile, waits
+           for completion, then returns the process exit code
+        """
+        if profile is None:
+            profile = Profile()
+        self.profile = profile
 
-    self.runner.profile = self.profile
+        if self.binary is None and self.url:
+            self.binary = self.download_build()
 
-    if env is not None:
-      self.runner.env.update(env)
+        runner = FirefoxRunner(profile=self.profile, binary=self.binary,
+                               env=env, cmdargs=args)
 
-    if args is not None:
-      self.runner.cmdargs = copy.copy(args)
-
-    self.runner.start()
-
-    status = self.runner.process_handler.waitForFinish(timeout=timeout)
-
-    return status
+        runner.start(timeout=timeout)
+        return runner.wait()

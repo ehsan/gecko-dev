@@ -23,7 +23,12 @@ symbols appear in the resulting binary. Only works for ELF targets.
 from __future__ import with_statement
 import sys
 import os
-from expandlibs import ExpandArgs, relativize, isObject, ensureParentDir, ExpandLibsDeps
+from expandlibs import (
+    ExpandArgs,
+    relativize,
+    isDynamicLib,
+    isObject,
+)
 import expandlibs_config as conf
 from optparse import OptionParser
 import subprocess
@@ -31,6 +36,7 @@ import tempfile
 import shutil
 import subprocess
 import re
+from mozbuild.makeutil import Makefile
 
 # The are the insert points for a GNU ld linker script, assuming a more
 # or less "standard" default linker script. This is not a dict because
@@ -66,22 +72,49 @@ class ExpandArgsMore(ExpandArgs):
         '''
         ar_extract = conf.AR_EXTRACT.split()
         newlist = []
+
+        def lookup(base, f):
+            for root, dirs, files in os.walk(base):
+                if f in files:
+                    return os.path.join(root, f)
+
         for arg in args:
             if os.path.splitext(arg)[1] == conf.LIB_SUFFIX:
                 if os.path.exists(arg + conf.LIBS_DESC_SUFFIX):
                     newlist += self._extract(self._expand_desc(arg))
-                elif os.path.exists(arg) and len(ar_extract):
+                    continue
+                elif os.path.exists(arg) and (len(ar_extract) or conf.AR == 'lib'):
                     tmp = tempfile.mkdtemp(dir=os.curdir)
                     self.tmp.append(tmp)
-                    subprocess.call(ar_extract + [os.path.abspath(arg)], cwd=tmp)
+                    if conf.AR == 'lib':
+                        out = subprocess.check_output([conf.AR, '-NOLOGO', '-LIST', arg])
+                        files = out.splitlines()
+                        # If lib -list returns a list full of dlls, it's an
+                        # import lib.
+                        if all(isDynamicLib(f) for f in files):
+                            newlist += [arg]
+                            continue
+                        for f in files:
+                            subprocess.call([conf.AR, '-NOLOGO', '-EXTRACT:%s' % f, os.path.abspath(arg)], cwd=tmp)
+                    else:
+                        subprocess.call(ar_extract + [os.path.abspath(arg)], cwd=tmp)
                     objs = []
+                    basedir = os.path.dirname(arg)
                     for root, dirs, files in os.walk(tmp):
-                        objs += [relativize(os.path.join(root, f)) for f in files if isObject(f)]
-                    newlist += objs
-                else:
-                    newlist += [arg]
-            else:
-                newlist += [arg]
+                        for f in files:
+                            if isObject(f):
+                                # If the file extracted from the library also
+                                # exists in the directory containing the
+                                # library, or one of its subdirectories, use
+                                # that instead.
+                                maybe_obj = lookup(os.path.join(basedir, os.path.relpath(root, tmp)), f)
+                                if maybe_obj:
+                                    objs.append(relativize(maybe_obj))
+                                else:
+                                    objs.append(relativize(os.path.join(root, f)))
+                    newlist += sorted(objs)
+                    continue
+            newlist += [arg]
         return newlist
 
     def makelist(self):
@@ -94,6 +127,9 @@ class ExpandArgsMore(ExpandArgs):
         if conf.EXPAND_LIBS_LIST_STYLE == "linkerscript":
             content = ['INPUT("%s")\n' % obj for obj in objs]
             ref = tmp
+        elif conf.EXPAND_LIBS_LIST_STYLE == "filelist":
+            content = ["%s\n" % obj for obj in objs]
+            ref = "-Wl,-filelist," + tmp
         elif conf.EXPAND_LIBS_LIST_STYLE == "list":
             content = ["%s\n" % obj for obj in objs]
             ref = "@" + tmp
@@ -129,7 +165,7 @@ class ExpandArgsMore(ExpandArgs):
         for l in stderr.split('\n'):
             quoted = l.split("'")
             if len(quoted) > 5 and quoted[1] != quoted[5]:
-                result[quoted[1]] = quoted[5]
+                result[quoted[1]] = [quoted[5]]
                 if quoted[5] in result:
                     result[quoted[5]].append(quoted[1])
                 else:
@@ -267,12 +303,16 @@ class SectionFinder(object):
                 syms.append((tmp[-1], tmp[0]))
         return syms
 
-def main():
+def print_command(out, args):
+    print >>out, "Executing: " + " ".join(args)
+    for tmp in [f for f in args.tmp if os.path.isfile(f)]:
+        print >>out, tmp + ":"
+        with open(tmp) as file:
+            print >>out, "".join(["    " + l for l in file.readlines()])
+    out.flush()
+
+def main(args, proc_callback=None):
     parser = OptionParser()
-    parser.add_option("--depend", dest="depend", metavar="FILE",
-        help="generate dependencies for the given execution and store it in the given file")
-    parser.add_option("--target", dest="target", metavar="FILE",
-        help="designate the target for dependencies")
     parser.add_option("--extract", action="store_true", dest="extract",
         help="when a library has no descriptor file, extract it first, when possible")
     parser.add_option("--uselist", action="store_true", dest="uselist",
@@ -282,17 +322,8 @@ def main():
     parser.add_option("--symbol-order", dest="symbol_order", metavar="FILE",
         help="use the given list of symbols to order symbols in the resulting binary when using with a linker")
 
-    (options, args) = parser.parse_args()
+    (options, args) = parser.parse_args(args)
 
-    if not options.target:
-        options.depend = False
-    if options.depend:
-        deps = ExpandLibsDeps(args)
-        # Filter out common command wrappers
-        while os.path.basename(deps[0]) in ['ccache', 'distcc']:
-            deps.pop(0)
-        # Remove command
-        deps.pop(0)
     with ExpandArgsMore(args) as args:
         if options.extract:
             args.extract()
@@ -302,21 +333,22 @@ def main():
             args.makelist()
 
         if options.verbose:
-            print >>sys.stderr, "Executing: " + " ".join(args)
-            for tmp in [f for f in args.tmp if os.path.isfile(f)]:
-                print >>sys.stderr, tmp + ":"
-                with open(tmp) as file:
-                    print >>sys.stderr, "".join(["    " + l for l in file.readlines()])
-            sys.stderr.flush()
-        ret = subprocess.call(args)
-        if ret:
-            exit(ret)
-    if not options.depend:
-        return
-    ensureParentDir(options.depend)
-    with open(options.depend, 'w') as depfile:
-        depfile.write("%s : %s\n" % (options.target, ' '.join(dep for dep in deps if os.path.isfile(dep) and dep != options.target)))
-
+            print_command(sys.stderr, args)
+        try:
+            proc = subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+            if proc_callback:
+                proc_callback(proc)
+        except Exception, e:
+            print >>sys.stderr, 'error: Launching', args, ':', e
+            raise e
+        (stdout, stderr) = proc.communicate()
+        if proc.returncode and not options.verbose:
+            print_command(sys.stderr, args)
+        sys.stderr.write(stdout)
+        sys.stderr.flush()
+        if proc.returncode:
+            return proc.returncode
+        return 0
 
 if __name__ == '__main__':
-    main()
+    exit(main(sys.argv[1:]))

@@ -12,23 +12,23 @@
 #include "prlink.h"
 #include "prclist.h"
 #include "npapi.h"
-#include "nsNPAPIPluginInstance.h"
 #include "nsIPluginTag.h"
 #include "nsPluginsDir.h"
 #include "nsPluginDirServiceProvider.h"
 #include "nsAutoPtr.h"
 #include "nsWeakPtr.h"
 #include "nsIPrompt.h"
-#include "nsISupportsArray.h"
 #include "nsWeakReference.h"
-#include "nsThreadUtils.h"
+#include "MainThreadUtils.h"
 #include "nsTArray.h"
 #include "nsTObserverArray.h"
 #include "nsITimer.h"
 #include "nsPluginTags.h"
+#include "nsPluginPlayPreviewInfo.h"
 #include "nsIEffectiveTLDService.h"
 #include "nsIIDNService.h"
 #include "nsCRT.h"
+#include "mozilla/plugins/PluginTypes.h"
 
 class nsNPAPIPlugin;
 class nsIComponentManager;
@@ -37,37 +37,39 @@ class nsIChannel;
 class nsPluginNativeWindow;
 class nsObjectLoadingContent;
 class nsPluginInstanceOwner;
-
-#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
-#define MAC_CARBON_PLUGINS
-#endif
+class nsPluginUnloadRunnable;
+class nsNPAPIPluginInstance;
+class nsNPAPIPluginStreamListener;
+class nsIPluginInstanceOwner;
+class nsIInputStream;
+class nsIStreamListener;
 
 class nsInvalidPluginTag : public nsISupports
 {
-public:
-  nsInvalidPluginTag(const char* aFullPath, int64_t aLastModifiedTime = 0);
   virtual ~nsInvalidPluginTag();
-  
+public:
+  explicit nsInvalidPluginTag(const char* aFullPath, int64_t aLastModifiedTime = 0);
+
   NS_DECL_ISUPPORTS
-  
+
   nsCString   mFullPath;
   int64_t     mLastModifiedTime;
   bool        mSeen;
-  
+
   nsRefPtr<nsInvalidPluginTag> mPrev;
   nsRefPtr<nsInvalidPluginTag> mNext;
 };
 
-class nsPluginHost : public nsIPluginHost,
-                     public nsIObserver,
-                     public nsITimerCallback,
-                     public nsSupportsWeakReference
+class nsPluginHost MOZ_FINAL : public nsIPluginHost,
+                               public nsIObserver,
+                               public nsITimerCallback,
+                               public nsSupportsWeakReference
 {
+  virtual ~nsPluginHost();
 public:
   nsPluginHost();
-  virtual ~nsPluginHost();
 
-  static nsPluginHost* GetInst();
+  static already_AddRefed<nsPluginHost> GetInst();
 
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
 
@@ -82,15 +84,15 @@ public:
 
   nsresult SetUpPluginInstance(const char *aMimeType,
                                nsIURI *aURL,
-                               nsIPluginInstanceOwner *aOwner);
-  nsresult IsPluginEnabledForType(const char* aMimeType);
-  nsresult IsPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
-  bool     IsPluginClickToPlayForType(const char *aMimeType);
-  bool     IsPluginPlayPreviewForType(const char *aMimeType);
-  nsresult GetBlocklistStateForType(const char *aMimeType, uint32_t *state);
+                               nsPluginInstanceOwner *aOwner);
+  bool PluginExistsForType(const char* aMimeType);
 
-  nsresult GetPluginCount(uint32_t* aPluginCount);
-  nsresult GetPlugins(uint32_t aPluginCount, nsIDOMPlugin** aPluginArray);
+  nsresult IsPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
+
+  void GetPlugins(nsTArray<nsRefPtr<nsPluginTag> >& aPluginArray);
+  void FindPluginsForContent(uint32_t aPluginEpoch,
+                             nsTArray<mozilla::plugins::PluginTag>* aPlugins,
+                             uint32_t* aNewPluginEpoch);
 
   nsresult GetURL(nsISupports* pluginInst,
                   const char* url,
@@ -124,7 +126,6 @@ public:
 
   nsresult GetPluginName(nsNPAPIPluginInstance *aPluginInstance, const char** aPluginName);
   nsresult StopPluginInstance(nsNPAPIPluginInstance* aInstance);
-  nsresult HandleBadPlugin(PRLibrary* aLibrary, nsNPAPIPluginInstance *aInstance);
   nsresult GetPluginTagForInstance(nsNPAPIPluginInstance *aPluginInstance, nsIPluginTag **aPluginTag);
 
   nsresult
@@ -138,13 +139,13 @@ public:
   nsresult
   GetURLWithHeaders(nsNPAPIPluginInstance *pluginInst, 
                     const char* url, 
-                    const char* target = NULL,
-                    nsNPAPIPluginStreamListener* streamListener = NULL,
-                    const char* altHost = NULL,
-                    const char* referrer = NULL,
+                    const char* target = nullptr,
+                    nsNPAPIPluginStreamListener* streamListener = nullptr,
+                    const char* altHost = nullptr,
+                    const char* referrer = nullptr,
                     bool forceJSEnabled = false,
                     uint32_t getHeadersLength = 0, 
-                    const char* getHeaders = NULL);
+                    const char* getHeaders = nullptr);
 
   nsresult
   DoURLLoadSecurityCheck(nsNPAPIPluginInstance *aInstance,
@@ -159,7 +160,7 @@ public:
   // Writes updated plugins settings to disk and unloads the plugin
   // if it is now disabled
   nsresult UpdatePluginInfo(nsPluginTag* aPluginTag);
-  
+
   // Helper that checks if a type is whitelisted in plugin.allowed_types.
   // Always returns true if plugin.allowed_types is not set
   static bool IsTypeWhitelisted(const char *aType);
@@ -167,8 +168,6 @@ public:
   // checks whether aTag is a "java" plugin tag (a tag for a plugin
   // that does Java)
   static bool IsJavaMIMEType(const char *aType);
-
-  static nsresult GetPrompt(nsIPluginInstanceOwner *aOwner, nsIPrompt **aPrompt);
 
   static nsresult PostPluginUnloadEvent(PRLibrary* aLibrary);
 
@@ -182,42 +181,33 @@ public:
 
   nsTArray< nsRefPtr<nsNPAPIPluginInstance> > *InstanceArray();
 
-  void DestroyRunningInstances(nsISupportsArray* aReloadDocs, nsPluginTag* aPluginTag);
+  void DestroyRunningInstances(nsPluginTag* aPluginTag);
 
   // Return the tag for |aLibrary| if found, nullptr if not.
   nsPluginTag* FindTagForLibrary(PRLibrary* aLibrary);
 
   // The last argument should be false if we already have an in-flight stream
   // and don't need to set up a new stream.
-  nsresult InstantiateEmbeddedPluginInstance(const char *aMimeType, nsIURI* aURL,
-                                             nsObjectLoadingContent *aContent,
-                                             nsPluginInstanceOwner** aOwner);
+  nsresult InstantiatePluginInstance(const char *aMimeType, nsIURI* aURL,
+                                     nsObjectLoadingContent *aContent,
+                                     nsPluginInstanceOwner** aOwner);
 
-  nsresult InstantiateFullPagePluginInstance(const char *aMimeType,
-                                             nsIURI* aURI,
-                                             nsObjectLoadingContent *aContent,
-                                             nsPluginInstanceOwner **aOwner,
-                                             nsIStreamListener **aStreamListener);
-
-  // Does not accept NULL and should never fail.
+  // Does not accept nullptr and should never fail.
   nsPluginTag* TagForPlugin(nsNPAPIPlugin* aPlugin);
 
   nsresult GetPlugin(const char *aMimeType, nsNPAPIPlugin** aPlugin);
+  nsresult GetPluginForContentProcess(uint32_t aPluginId, nsNPAPIPlugin** aPlugin);
+  void NotifyContentModuleDestroyed(uint32_t aPluginId);
 
-  nsresult NewEmbeddedPluginStreamListener(nsIURI* aURL, nsObjectLoadingContent *aContent,
-                                           nsNPAPIPluginInstance* aInstance,
-                                           nsIStreamListener **aStreamListener);
-
-  nsresult NewFullPagePluginStreamListener(nsIURI* aURI,
-                                           nsNPAPIPluginInstance *aInstance,
-                                           nsIStreamListener **aStreamListener);
+  nsresult NewPluginStreamListener(nsIURI* aURL,
+                                   nsNPAPIPluginInstance* aInstance,
+                                   nsIStreamListener **aStreamListener);
 
 private:
-  nsresult
-  TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
+  friend class nsPluginUnloadRunnable;
 
   nsresult
-  NewEmbeddedPluginStream(nsIURI* aURL, nsObjectLoadingContent *aContent, nsNPAPIPluginInstance* aInstance);
+  TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsPluginInstanceOwner *aOwner);
 
   nsPluginTag*
   FindPreferredPlugin(const InfallibleTArray<nsPluginTag*>& matches);
@@ -233,6 +223,8 @@ private:
   nsresult
   FindStoppedPluginForURL(nsIURI* aURL, nsIPluginInstanceOwner *aOwner);
 
+  nsresult FindPluginsInContent(bool aCreatePluginList, bool * aPluginsChanged);
+
   nsresult
   FindPlugins(bool aCreatePluginList, bool * aPluginsChanged);
 
@@ -240,6 +232,8 @@ private:
   // (performs no checks - see UpdateCategoryManager)
   enum nsRegisterType { ePluginRegister, ePluginUnregister };
   void RegisterWithCategoryManager(nsCString &aMimeType, nsRegisterType aType);
+
+  void AddPluginTag(nsPluginTag* aPluginTag);
 
   nsresult
   ScanPluginsDirectory(nsIFile *pluginsDir,
@@ -274,17 +268,28 @@ private:
     
   // Returns the first plugin at |path|
   nsPluginTag* FirstPluginWithPath(const nsCString& path);
+  nsPluginTag* PluginWithId(uint32_t aId);
 
   nsresult EnsurePrivateDirServiceProvider();
 
   void OnPluginInstanceDestroyed(nsPluginTag* aPluginTag);
 
+  // To be used by the chrome process whenever the set of plugins changes.
+  void IncrementChromeEpoch();
+
+  // To be used by the chrome process; returns the current epoch.
+  uint32_t ChromeEpoch();
+
+  // To be used by the content process to get/set the last observed epoch value
+  // from the chrome process.
+  uint32_t ChromeEpochForContent();
+  void SetChromeEpochForContent(uint32_t aEpoch);
+
   nsRefPtr<nsPluginTag> mPlugins;
   nsRefPtr<nsPluginTag> mCachedPlugins;
   nsRefPtr<nsInvalidPluginTag> mInvalidPlugins;
-  nsTArray<nsCString> mPlayPreviewMimeTypes;
+  nsTArray< nsRefPtr<nsPluginPlayPreviewInfo> > mPlayPreviewMimeTypes;
   bool mPluginsLoaded;
-  bool mDontShowBadPluginMessage;
 
   // set by pref plugin.override_internal_types
   bool mOverrideInternalTypes;
@@ -309,40 +314,31 @@ private:
   // Helpers for ClearSiteData and SiteHasData.
   nsresult NormalizeHostname(nsCString& host);
   nsresult EnumerateSiteData(const nsACString& domain,
-                             const nsTArray<nsCString>& sites,
+                             const InfallibleTArray<nsCString>& sites,
                              InfallibleTArray<nsCString>& result,
                              bool firstMatchOnly);
 
   nsWeakPtr mCurrentDocument; // weak reference, we use it to id document only
+
+  // This epoch increases each time we load the list of plugins from disk.
+  // In the chrome process, this stores the actual epoch.
+  // In the content process, this stores the last epoch value observed
+  // when reading plugins from chrome.
+  uint32_t mPluginEpoch;
 
   static nsIFile *sPluginTempDir;
 
   // We need to hold a global ptr to ourselves because we register for
   // two different CIDs for some reason...
   static nsPluginHost* sInst;
-
-#ifdef MAC_CARBON_PLUGINS
-  nsCOMPtr<nsITimer> mVisiblePluginTimer;
-  nsTObserverArray<nsIPluginInstanceOwner*> mVisibleTimerTargets;
-  nsCOMPtr<nsITimer> mHiddenPluginTimer;
-  nsTObserverArray<nsIPluginInstanceOwner*> mHiddenTimerTargets;
-#endif
 };
 
-class NS_STACK_CLASS PluginDestructionGuard : protected PRCList
+class MOZ_STACK_CLASS PluginDestructionGuard : protected PRCList
 {
 public:
-  PluginDestructionGuard(nsNPAPIPluginInstance *aInstance)
-    : mInstance(aInstance)
-  {
-    Init();
-  }
+  explicit PluginDestructionGuard(nsNPAPIPluginInstance *aInstance);
 
-  PluginDestructionGuard(NPP npp)
-    : mInstance(npp ? static_cast<nsNPAPIPluginInstance*>(npp->ndata) : nullptr)
-  {
-    Init();
-  }
+  explicit PluginDestructionGuard(NPP npp);
 
   ~PluginDestructionGuard();
 

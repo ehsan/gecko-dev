@@ -6,10 +6,12 @@ let tiltOpened = false;
 
 function test() {
   if (!isTiltEnabled()) {
+	  aborting();
     info("Skipping part of the arcball test because Tilt isn't enabled.");
     return;
   }
   if (!isWebGLSupported()) {
+    aborting();
     info("Skipping part of the arcball test because WebGL isn't supported.");
     return;
   }
@@ -31,12 +33,12 @@ function test() {
 
           Services.prefs.setBoolPref("accessibility.typeaheadfind", false);
           Services.obs.addObserver(cleanup, DESTROYED, false);
-          InspectorUI.closeInspectorUI();
+          Tilt.destroy(Tilt.currentWindowId);
         });
       }
     }, false, function suddenDeath()
     {
-      info("Tilt could not be initialized properly.");
+      ok(false, "Tilt could not be initialized properly.");
       cleanup();
     });
   });
@@ -45,7 +47,6 @@ function test() {
 function performTest(canvas, arcball, callback) {
   is(document.activeElement, canvas,
     "The visualizer canvas should be focused when performing this test.");
-
 
   info("Starting arcball reset test.");
 

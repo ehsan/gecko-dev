@@ -14,6 +14,10 @@
 #include "nsILoadContext.h"
 
 namespace mozilla {
+namespace dom {
+  class PBrowserParent;
+}
+
 namespace net {
 
 class WyciwygChannelParent : public PWyciwygChannelParent
@@ -27,24 +31,36 @@ public:
   NS_DECL_NSIINTERFACEREQUESTOR
 
   WyciwygChannelParent();
-  virtual ~WyciwygChannelParent();
 
 protected:
-  virtual bool RecvInit(const URIParams& uri);
+  virtual ~WyciwygChannelParent();
+
+  virtual bool RecvInit(const URIParams&          uri,
+                        const ipc::PrincipalInfo& aRequestingPrincipalInfo,
+                        const ipc::PrincipalInfo& aTriggeringPrincipalInfo,
+                        const uint32_t&           aSecurityFlags,
+                        const uint32_t&           aContentPolicyType) MOZ_OVERRIDE;
   virtual bool RecvAsyncOpen(const URIParams& original,
                              const uint32_t& loadFlags,
-                             const IPC::SerializedLoadContext& loadContext);
-  virtual bool RecvWriteToCacheEntry(const nsString& data);
-  virtual bool RecvCloseCacheEntry(const nsresult& reason);
+                             const IPC::SerializedLoadContext& loadContext,
+                             const PBrowserOrId &parent) MOZ_OVERRIDE;
+  virtual bool RecvWriteToCacheEntry(const nsString& data) MOZ_OVERRIDE;
+  virtual bool RecvCloseCacheEntry(const nsresult& reason) MOZ_OVERRIDE;
   virtual bool RecvSetCharsetAndSource(const int32_t& source,
-                                       const nsCString& charset);
-  virtual bool RecvSetSecurityInfo(const nsCString& securityInfo);
-  virtual bool RecvCancel(const nsresult& statusCode);
+                                       const nsCString& charset) MOZ_OVERRIDE;
+  virtual bool RecvSetSecurityInfo(const nsCString& securityInfo) MOZ_OVERRIDE;
+  virtual bool RecvCancel(const nsresult& statusCode) MOZ_OVERRIDE;
+  virtual bool RecvAppData(const IPC::SerializedLoadContext& loadContext,
+                           const PBrowserOrId &parent) MOZ_OVERRIDE;
 
-  virtual void ActorDestroy(ActorDestroyReason why);
+  virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+
+  bool SetupAppData(const IPC::SerializedLoadContext& loadContext,
+                    const PBrowserOrId &aParent);
 
   nsCOMPtr<nsIWyciwygChannel> mChannel;
   bool mIPCClosed;
+  bool mReceivedAppData;
   nsCOMPtr<nsILoadContext> mLoadContext;
 };
 

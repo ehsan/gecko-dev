@@ -1,4 +1,4 @@
-// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -18,12 +18,12 @@ const gViewSourceCSS = 'resource://gre-resources/viewsource.css';
 const NS_XHTML = 'http://www.w3.org/1999/xhtml';
 
 // These are markers used to delimit the selection during processing. They
-// are removed from the final rendering, but we pick space-like characters for
-// safety (and futhermore, these are known to be mapped to a 0-length string
-// in transliterate.properties). It is okay to set start=end, we use findNext()
-// U+200B ZERO WIDTH SPACE
-const MARK_SELECTION_START = '\u200B\u200B\u200B\u200B\u200B';
-const MARK_SELECTION_END = '\u200B\u200B\u200B\u200B\u200B';
+// are removed from the final rendering.
+// We use noncharacter Unicode codepoints to minimize the risk of clashing
+// with anything that might legitimately be present in the document.
+// U+FDD0..FDEF <noncharacters>
+const MARK_SELECTION_START = '\uFDD0';
+const MARK_SELECTION_END = '\uFDEF';
 
 function onLoadViewPartialSource()
 {
@@ -68,7 +68,7 @@ function viewPartialSourceForSelection(selection)
     ancestorContainer = ancestorContainer.parentNode;
 
   // for selectAll, let's use the entire document, including <html>...</html>
-  // @see DocumentViewerImpl::SelectAll() for how selectAll is implemented
+  // @see nsDocumentViewer::SelectAll() for how selectAll is implemented
   try {
     if (ancestorContainer == doc.body)
       ancestorContainer = doc.documentElement;
@@ -173,11 +173,12 @@ function viewPartialSourceForSelection(selection)
 
   // all our content is held by the data:URI and URIs are internally stored as utf-8 (see nsIURI.idl)
   var loadFlags = Components.interfaces.nsIWebNavigation.LOAD_FLAGS_NONE;
-  getWebNavigation().loadURI((isHTML ?
-                              "view-source:data:text/html;charset=utf-8," :
-                              "view-source:data:application/xml;charset=utf-8,")
-                             + encodeURIComponent(tmpNode.innerHTML),
-                             loadFlags, null, null, null);
+  getWebNavigation().loadURIWithBase((isHTML ?
+                                      "view-source:data:text/html;charset=utf-8," :
+                                      "view-source:data:application/xml;charset=utf-8,")
+                                     + encodeURIComponent(tmpNode.innerHTML),
+                                     loadFlags, null, null, null,
+                                     Services.io.newURI(doc.baseURI, null, null));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -36,10 +36,11 @@ static bool pathBeginsWithVolName(const nsACString& path, nsACString& firstPathC
     do {
       HFSUniStr255 volName;
       FSRef rootDirectory;
-      err = ::FSGetVolumeInfo(0, volumeIndex, NULL, kFSVolInfoNone, NULL, &volName, &rootDirectory);
+      err = ::FSGetVolumeInfo(0, volumeIndex, nullptr, kFSVolInfoNone, nullptr,
+                              &volName, &rootDirectory);
       if (err == noErr) {
-        NS_ConvertUTF16toUTF8 volNameStr(Substring((PRUnichar *)volName.unicode,
-                                                   (PRUnichar *)volName.unicode + volName.length));
+        NS_ConvertUTF16toUTF8 volNameStr(Substring((char16_t *)volName.unicode,
+                                                   (char16_t *)volName.unicode + volName.length));
         gVolumeList->AppendElement(volNameStr);
         volumeIndex++;
       }
@@ -55,7 +56,7 @@ static bool pathBeginsWithVolName(const nsACString& path, nsACString& firstPathC
   nsACString::const_iterator component_end(start);
   FindCharInReadable('/', component_end, directory_end);
   
-  nsCAutoString flatComponent((Substring(start, component_end)));
+  nsAutoCString flatComponent((Substring(start, component_end)));
   NS_UnescapeURL(flatComponent);
   int32_t foundIndex = gVolumeList->IndexOf(flatComponent);
   firstPathComponent = flatComponent;
@@ -76,14 +77,14 @@ static nsresult convertHFSPathtoPOSIX(const nsACString& hfsPath, nsACString& pos
   // to UTF-8, and we need "/Volumes" (or whatever - Apple says this is subject to change)
   // prepended if the path is not on the boot drive.
 
-  CFStringRef pathStrRef = CFStringCreateWithCString(NULL,
+  CFStringRef pathStrRef = CFStringCreateWithCString(nullptr,
                               PromiseFlatCString(hfsPath).get(),
                               kCFStringEncodingMacRoman);
   if (!pathStrRef)
     return NS_ERROR_FAILURE;
 
   nsresult rv = NS_ERROR_FAILURE;
-  CFURLRef urlRef = CFURLCreateWithFileSystemPath(NULL,
+  CFURLRef urlRef = CFURLCreateWithFileSystemPath(nullptr,
                               pathStrRef, kCFURLHFSPathStyle, true);
   if (urlRef) {
     UInt8 pathBuf[PATH_MAX];
@@ -115,14 +116,14 @@ net_GetURLSpecFromActualFile(nsIFile *aFile, nsACString &result)
   // NOTE: This is identical to the implementation in nsURLHelperUnix.cpp
   
   nsresult rv;
-  nsCAutoString ePath;
+  nsAutoCString ePath;
 
   // construct URL spec from native file path
   rv = aFile->GetNativePath(ePath);
   if (NS_FAILED(rv))
     return rv;
 
-  nsCAutoString escPath;
+  nsAutoCString escPath;
   NS_NAMED_LITERAL_CSTRING(prefix, "file://");
       
   // Escape the path with the directory mask
@@ -153,7 +154,7 @@ net_GetFileFromURLSpec(const nsACString &aURL, nsIFile **result)
   if (NS_FAILED(rv))
     return rv;
   
-  nsCAutoString directory, fileBaseName, fileExtension, path;
+  nsAutoCString directory, fileBaseName, fileExtension, path;
   bool bHFSPath = false;
 
   rv = net_ParseFileURL(aURL, directory, fileBaseName, fileExtension);
@@ -168,7 +169,7 @@ net_GetFileFromURLSpec(const nsACString &aURL, nsIFile **result)
     // But, we still encounter file URLs that use HFS paths:
     //   file:///volume-name/path-name
     // Determine that here and normalize HFS paths to POSIX.
-    nsCAutoString possibleVolName;
+    nsAutoCString possibleVolName;
     if (pathBeginsWithVolName(directory, possibleVolName)) {        
       // Though we know it begins with a volume name, it could still
       // be a valid POSIX path if the boot drive is named "Mac HD"

@@ -27,15 +27,24 @@
 
       testSelectableSelection(acc, []);
 
-      acc.selectAllSelection();
+      acc.selectAll();
       testSelectableSelection(acc, aSelectableChildren);
 
-      acc.clearSelection();
+      acc.unselectAll();
       testSelectableSelection(acc, []);
     }
 
     function doTest()
     {
+      //////////////////////////////////////////////////////////////////////////
+      // role="tablist"
+
+      id = "tablist";
+      ok(isAccessible(id, [nsIAccessibleSelectable]),
+         "No selectable accessible for " + id);
+
+      testSelectableSelection(id, [ ]);
+
       //////////////////////////////////////////////////////////////////////////
       // role="listbox"
 
@@ -55,13 +64,13 @@
       testSelectableSelection(id, [ ]);
 
       select = getAccessible(id, [nsIAccessibleSelectable]);
-      select.addChildToSelection(0);
+      select.addItemToSelection(0);
       testSelectableSelection(id, [ "listbox2_item1" ]);
-      select.removeChildFromSelection(0);
+      select.removeItemFromSelection(0);
       testSelectableSelection(id, [ ]);
-      select.selectAllSelection();
+      select.selectAll();
       testSelectableSelection(id, [ "listbox2_item1", "listbox2_item2" ]);
-      select.clearSelection();
+      select.unselectAll();
       testSelectableSelection(id, [ ]);
       
       //////////////////////////////////////////////////////////////////////////
@@ -117,21 +126,31 @@
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=530014"
      title="ARIA single selectable widget should implement nsIAccessibleSelectable">
     Mozilla Bug 530014
-  </a><br>
+  </a>
   <a target="_blank"
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=566551"
      title="ARIA grid and accessible selectable methods shouldn't use GetNextSibling">
     Mozilla Bug 566551
-  </a><br>
+  </a>
   <a target="_blank"
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=590176"
      title="add pseudo SelectAccessible interface">
     Mozilla Bug 590176
-  </a><br>
+  </a>
+  <a target="_blank"
+     href="https://bugzilla.mozilla.org/show_bug.cgi?id=804040"
+     title="Selection event not fired when selection of ARIA tab changes">
+    Mozilla Bug 804040
+  </a>
   <p id="display"></p>
   <div id="content" style="display: none"></div>
   <pre id="test">
   </pre>
+
+  <div role="tablist" id="tablist">
+    <div role="tab">tab1</div>
+    <div role="tab">tab2</div>
+  </div>
 
   <div role="listbox" id="listbox1">
     <div role="option">item1</div>

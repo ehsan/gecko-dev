@@ -9,12 +9,16 @@
 #ifndef LIBGLESV2_QUERY_H_
 #define LIBGLESV2_QUERY_H_
 
-#define GL_APICALL
-#include <GLES2/gl2.h>
-#include <d3d9.h>
-
+#include "libGLESv2/Error.h"
 #include "common/angleutils.h"
 #include "common/RefCountObject.h"
+
+#include "angle_gl.h"
+
+namespace rx
+{
+class QueryImpl;
+}
 
 namespace gl
 {
@@ -22,25 +26,21 @@ namespace gl
 class Query : public RefCountObject
 {
   public:
-    Query(GLuint id, GLenum type);
+    Query(rx::QueryImpl *impl, GLuint id);
     virtual ~Query();
 
-    void begin();
-    void end();
-    GLuint getResult();
-    GLboolean isResultAvailable();
+    Error begin();
+    Error end();
+
+    Error getResult(GLuint *params);
+    Error isResultAvailable(GLuint *available);
 
     GLenum getType() const;
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Query);
 
-    GLboolean testQuery();
-
-    IDirect3DQuery9* mQuery;
-    GLenum mType;
-    GLboolean mStatus;
-    GLint mResult;
+    rx::QueryImpl *mQuery;
 };
 
 }

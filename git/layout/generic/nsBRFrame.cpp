@@ -6,8 +6,8 @@
 /* rendering object for HTML <br> elements */
 
 #include "nsCOMPtr.h"
+#include "nsFontMetrics.h"
 #include "nsFrame.h"
-#include "nsHTMLParts.h"
 #include "nsPresContext.h"
 #include "nsLineLayout.h"
 #include "nsStyleConsts.h"
@@ -15,15 +15,11 @@
 #include "nsRenderingContext.h"
 #include "nsLayoutUtils.h"
 
-#ifdef ACCESSIBILITY
-#include "nsIServiceManager.h"
-#include "nsAccessibilityService.h"
-#endif
-
 //FOR SELECTION
 #include "nsIContent.h"
-#include "nsFrameSelection.h"
 //END INCLUDES FOR SELECTION
+
+using namespace mozilla;
 
 class BRFrame : public nsFrame {
 public:
@@ -31,39 +27,40 @@ public:
 
   friend nsIFrame* NS_NewBRFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  virtual ContentOffsets CalcContentOffsetsFromFramePoint(nsPoint aPoint);
+  virtual ContentOffsets CalcContentOffsetsFromFramePoint(nsPoint aPoint) MOZ_OVERRIDE;
 
-  virtual bool PeekOffsetNoAmount(bool aForward, int32_t* aOffset);
-  virtual bool PeekOffsetCharacter(bool aForward, int32_t* aOffset,
-                                     bool aRespectClusters = true);
-  virtual bool PeekOffsetWord(bool aForward, bool aWordSelectEatSpace, bool aIsKeyboardSelect,
-                                int32_t* aOffset, PeekWordState* aState);
+  virtual FrameSearchResult PeekOffsetNoAmount(bool aForward, int32_t* aOffset) MOZ_OVERRIDE;
+  virtual FrameSearchResult PeekOffsetCharacter(bool aForward, int32_t* aOffset,
+                                     bool aRespectClusters = true) MOZ_OVERRIDE;
+  virtual FrameSearchResult PeekOffsetWord(bool aForward, bool aWordSelectEatSpace,
+                              bool aIsKeyboardSelect, int32_t* aOffset,
+                              PeekWordState* aState) MOZ_OVERRIDE;
 
-  NS_IMETHOD Reflow(nsPresContext* aPresContext,
-                    nsHTMLReflowMetrics& aDesiredSize,
-                    const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus& aStatus);
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
-                                 InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
-                                  InlinePrefWidthData *aData);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual nsIAtom* GetType() const;
-  virtual nscoord GetBaseline() const;
+  virtual void Reflow(nsPresContext* aPresContext,
+                          nsHTMLReflowMetrics& aDesiredSize,
+                          const nsHTMLReflowState& aReflowState,
+                          nsReflowStatus& aStatus) MOZ_OVERRIDE;
+  virtual void AddInlineMinISize(nsRenderingContext *aRenderingContext,
+                                 InlineMinISizeData *aData) MOZ_OVERRIDE;
+  virtual void AddInlinePrefISize(nsRenderingContext *aRenderingContext,
+                                  InlinePrefISizeData *aData) MOZ_OVERRIDE;
+  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nscoord GetLogicalBaseline(mozilla::WritingMode aWritingMode) const MOZ_OVERRIDE;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
   {
     return nsFrame::IsFrameOfType(aFlags & ~(nsIFrame::eReplaced |
                                              nsIFrame::eLineParticipant));
   }
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<Accessible> CreateAccessible();
+  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
 #endif
 
 protected:
-  BRFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
+  explicit BRFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
   virtual ~BRFrame();
 
   nscoord mAscent;
@@ -81,7 +78,7 @@ BRFrame::~BRFrame()
 {
 }
 
-NS_IMETHODIMP
+void
 BRFrame::Reflow(nsPresContext* aPresContext,
                 nsHTMLReflowMetrics& aMetrics,
                 const nsHTMLReflowState& aReflowState,
@@ -89,11 +86,13 @@ BRFrame::Reflow(nsPresContext* aPresContext,
 {
   DO_GLOBAL_REFLOW_COUNT("BRFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aMetrics, aStatus);
-  aMetrics.height = 0; // BR frames with height 0 are ignored in quirks
-                       // mode by nsLineLayout::VerticalAlignFrames .
-                       // However, it's not always 0.  See below.
-  aMetrics.width = 0;
-  aMetrics.ascent = 0;
+  WritingMode wm = aReflowState.GetWritingMode();
+  LogicalSize finalSize(wm);
+  finalSize.BSize(wm) = 0; // BR frames with block size 0 are ignored in quirks
+                           // mode by nsLineLayout::VerticalAlignFrames .
+                           // However, it's not always 0.  See below.
+  finalSize.ISize(wm) = 0;
+  aMetrics.SetBlockStartAscent(0);
 
   // Only when the BR is operating in a line-layout situation will it
   // behave like a BR.
@@ -120,15 +119,14 @@ BRFrame::Reflow(nsPresContext* aPresContext,
       nsRefPtr<nsFontMetrics> fm;
       nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
         nsLayoutUtils::FontSizeInflationFor(this));
-      aReflowState.rendContext->SetFont(fm); // FIXME: maybe not needed?
       if (fm) {
         nscoord logicalHeight = aReflowState.CalcLineHeight();
-        aMetrics.height = logicalHeight;
-        aMetrics.ascent =
-          nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight);
+        finalSize.BSize(wm) = logicalHeight;
+        aMetrics.SetBlockStartAscent(nsLayoutUtils::GetCenteredFontBaseline(
+                                       fm, logicalHeight, wm.IsLineInverted()));
       }
       else {
-        aMetrics.ascent = aMetrics.height = 0;
+        aMetrics.SetBlockStartAscent(aMetrics.BSize(wm) = 0);
       }
 
       // XXX temporary until I figure out a better solution; see the
@@ -137,7 +135,7 @@ BRFrame::Reflow(nsPresContext* aPresContext,
       // XXX This also fixes bug 10036!
       // Warning: nsTextControlFrame::CalculateSizeStandard depends on
       // the following line, see bug 228752.
-      aMetrics.width = 1;
+      finalSize.ISize(wm) = 1;
     }
 
     // Return our reflow status
@@ -154,30 +152,30 @@ BRFrame::Reflow(nsPresContext* aPresContext,
     aStatus = NS_FRAME_COMPLETE;
   }
 
+  aMetrics.SetSize(wm, finalSize);
   aMetrics.SetOverflowAreasToDesiredBounds();
 
-  mAscent = aMetrics.ascent;
+  mAscent = aMetrics.BlockStartAscent();
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
-  return NS_OK;
 }
 
 /* virtual */ void
-BRFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
-                           nsIFrame::InlineMinWidthData *aData)
+BRFrame::AddInlineMinISize(nsRenderingContext *aRenderingContext,
+                           nsIFrame::InlineMinISizeData *aData)
 {
   aData->ForceBreak(aRenderingContext);
 }
 
 /* virtual */ void
-BRFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
-                            nsIFrame::InlinePrefWidthData *aData)
+BRFrame::AddInlinePrefISize(nsRenderingContext *aRenderingContext,
+                            nsIFrame::InlinePrefISizeData *aData)
 {
   aData->ForceBreak(aRenderingContext);
 }
 
 /* virtual */ nscoord
-BRFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+BRFrame::GetMinISize(nsRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_MIN_WIDTH(this, result);
@@ -185,7 +183,7 @@ BRFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-BRFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+BRFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_PREF_WIDTH(this, result);
@@ -199,7 +197,7 @@ BRFrame::GetType() const
 }
 
 nscoord
-BRFrame::GetBaseline() const
+BRFrame::GetLogicalBaseline(mozilla::WritingMode aWritingMode) const
 {
   return mAscent;
 }
@@ -211,12 +209,12 @@ nsIFrame::ContentOffsets BRFrame::CalcContentOffsetsFromFramePoint(nsPoint aPoin
   if (offsets.content) {
     offsets.offset = offsets.content->IndexOf(mContent);
     offsets.secondaryOffset = offsets.offset;
-    offsets.associateWithNext = true;
+    offsets.associate = CARET_ASSOCIATE_AFTER;
   }
   return offsets;
 }
 
-bool
+nsIFrame::FrameSearchResult
 BRFrame::PeekOffsetNoAmount(bool aForward, int32_t* aOffset)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
@@ -224,48 +222,43 @@ BRFrame::PeekOffsetNoAmount(bool aForward, int32_t* aOffset)
   // If we hit the end of a BR going backwards, go to its beginning and stay there.
   if (!aForward && startOffset != 0) {
     *aOffset = 0;
-    return true;
+    return FOUND;
   }
   // Otherwise, stop if we hit the beginning, continue (forward) if we hit the end.
-  return (startOffset == 0);
+  return (startOffset == 0) ? FOUND : CONTINUE;
 }
 
-bool
+nsIFrame::FrameSearchResult
 BRFrame::PeekOffsetCharacter(bool aForward, int32_t* aOffset,
                              bool aRespectClusters)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   // Keep going. The actual line jumping will stop us.
-  return false;
+  return CONTINUE;
 }
 
-bool
+nsIFrame::FrameSearchResult
 BRFrame::PeekOffsetWord(bool aForward, bool aWordSelectEatSpace, bool aIsKeyboardSelect,
                         int32_t* aOffset, PeekWordState* aState)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   // Keep going. The actual line jumping will stop us.
-  return false;
+  return CONTINUE;
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
-BRFrame::CreateAccessible()
+a11y::AccType
+BRFrame::AccessibleType()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (!accService) {
-    return nullptr;
-  }
   nsIContent *parent = mContent->GetParent();
-  if (parent &&
-      parent->IsRootOfNativeAnonymousSubtree() &&
+  if (parent && parent->IsRootOfNativeAnonymousSubtree() &&
       parent->GetChildCount() == 1) {
     // This <br> is the only node in a text control, therefore it is the hacky
     // "bogus node" used when there is no text in the control
-    return nullptr;
+    return a11y::eNoType;
   }
-  return accService->CreateHTMLBRAccessible(mContent,
-                                            PresContext()->PresShell());
+
+  return a11y::eHTMLBRType;
 }
 #endif
 

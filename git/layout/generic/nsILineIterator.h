@@ -6,7 +6,8 @@
 #define nsILineIterator_h___
 
 #include "nscore.h"
-#include "nsCoord.h"
+#include "nsPoint.h"
+#include "mozilla/Attributes.h"
 
 class nsIFrame;
 struct nsRect;
@@ -48,6 +49,8 @@ public:
    *
    * @return true if the CSS direction property for the block is
    *         "rtl", otherwise false
+   *
+   *XXX after bug 924851 change this to return a UBiDiDirection
    */
   virtual bool GetDirection() = 0;
 
@@ -79,35 +82,34 @@ public:
   virtual int32_t FindLineContaining(nsIFrame* aFrame,
                                      int32_t aStartLine = 0) = 0;
 
-  // Given a line number and an X coordinate, find the frame on the
-  // line that is nearest to the X coordinate. The
-  // aXIsBeforeFirstFrame and aXIsAfterLastFrame flags are updated
+  // Given a line number and a coordinate, find the frame on the line
+  // that is nearest to aPos along the inline axis. (The block-axis coord
+  // of aPos is irrelevant.)
+  // The aPosIsBeforeFirstFrame and aPosIsAfterLastFrame flags are updated
   // appropriately.
   NS_IMETHOD FindFrameAt(int32_t aLineNumber,
-                         nscoord aX,
+                         nsPoint aPos,
                          nsIFrame** aFrameFound,
-                         bool* aXIsBeforeFirstFrame,
-                         bool* aXIsAfterLastFrame) = 0;
+                         bool* aPosIsBeforeFirstFrame,
+                         bool* aPosIsAfterLastFrame) = 0;
 
   // Give the line iterator implementor a chance todo something more complicated than
   // nsIFrame::GetNextSibling()
   NS_IMETHOD GetNextSiblingOnLine(nsIFrame*& aFrame, int32_t aLineNumber) = 0;
 
-#ifdef IBMBIDI
   // Check whether visual and logical order of frames within a line are identical.
   //  If not, return the first and last visual frames
   NS_IMETHOD CheckLineOrder(int32_t                  aLine,
                             bool                     *aIsReordered,
                             nsIFrame                 **aFirstVisual,
                             nsIFrame                 **aLastVisual) = 0;
-#endif
 };
 
 class nsAutoLineIterator
 {
 public:
   nsAutoLineIterator() : mRawPtr(nullptr) { }
-  nsAutoLineIterator(nsILineIterator *i) : mRawPtr(i) { }
+  MOZ_IMPLICIT nsAutoLineIterator(nsILineIterator *i) : mRawPtr(i) { }
 
   ~nsAutoLineIterator() {
     if (mRawPtr)

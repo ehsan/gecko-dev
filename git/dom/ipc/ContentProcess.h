@@ -11,9 +11,6 @@
 #include "mozilla/ipc/ScopedXREEmbed.h"
 #include "ContentChild.h"
 
-#undef _MOZ_LOG
-#define _MOZ_LOG(s)  printf("[ContentProcess] %s", s)
-
 namespace mozilla {
 namespace dom {
 
@@ -26,7 +23,7 @@ class ContentProcess : public mozilla::ipc::ProcessChild
     typedef mozilla::ipc::ProcessChild ProcessChild;
 
 public:
-    ContentProcess(ProcessHandle mParentHandle)
+    explicit ContentProcess(ProcessHandle mParentHandle)
         : ProcessChild(mParentHandle)
     { }
 
@@ -35,6 +32,8 @@ public:
 
     virtual bool Init() MOZ_OVERRIDE;
     virtual void CleanUp() MOZ_OVERRIDE;
+
+    void SetAppDir(const nsACString& aPath);
 
 private:
     ContentChild mContent;

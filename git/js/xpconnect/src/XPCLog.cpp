@@ -1,12 +1,18 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim: set ts=8 sts=4 et sw=4 tw=99: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* Debug Logging support. */
 
-#include "xpcprivate.h"
+#include "XPCLog.h"
+#include "prlog.h"
+#include "prprf.h"
+#include "mozilla/mozalloc.h"
+#include "mozilla/NullPtr.h"
+#include <string.h>
+#include <stdarg.h>
 
 // this all only works for DEBUG...
 #ifdef DEBUG
@@ -89,38 +95,4 @@ XPC_Log_Clear_Indent()
     g_Indent = 0;
 }
 
-#endif
-
-#ifdef DEBUG_slimwrappers
-void
-LogSlimWrapperWillMorph(JSContext *cx, JSObject *obj, const char *propname,
-                        const char *functionName)
-{
-    if (obj && IS_SLIM_WRAPPER(obj)) {
-        XPCNativeScriptableInfo *si =
-            GetSlimWrapperProto(obj)->GetScriptableInfo();
-        printf("***** morphing %s from %s", si->GetJSClass()->name,
-               functionName);
-        if (propname)
-            printf(" for %s", propname);
-        printf(" (%p, %p)\n", obj,
-               static_cast<nsISupports*>(xpc_GetJSPrivate(obj)));
-        xpc_DumpJSStack(cx, false, false, false);
-    }
-}
-
-void
-LogSlimWrapperNotCreated(JSContext *cx, nsISupports *obj, const char *reason)
-{
-    char* className = nullptr;
-    nsCOMPtr<nsIClassInfo> ci = do_QueryInterface(obj);
-    if (ci)
-        ci->GetClassDescription(&className);
-    printf("***** refusing to create slim wrapper%s%s, reason: %s (%p)\n",
-           className ? " for " : "", className ? className : "", reason, obj);
-    if (className)
-        PR_Free(className);
-    JSAutoRequest autoRequest(cx);
-    xpc_DumpJSStack(cx, false, false, false);
-}
 #endif

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -13,15 +13,21 @@
 #include "nsInputStreamPump.h"
 
 #include "nsIChannel.h"
-#include "nsIInputStream.h"
 #include "nsIURI.h"
 #include "nsILoadGroup.h"
+#include "nsILoadInfo.h"
 #include "nsIStreamListener.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIProgressEventSink.h"
 #include "nsITransport.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
+#include "nsIThreadRetargetableRequest.h"
+#include "nsIThreadRetargetableStreamListener.h"
+#include "PrivateBrowsingChannel.h"
 #include "nsThreadUtils.h"
+#include "nsNetUtil.h"
+
+class nsIInputStream;
 
 //-----------------------------------------------------------------------------
 // nsBaseChannel is designed to be subclassed.  The subclass is responsible for
@@ -37,10 +43,13 @@
 
 class nsBaseChannel : public nsHashPropertyBag
                     , public nsIChannel
+                    , public nsIThreadRetargetableRequest
                     , public nsIInterfaceRequestor
                     , public nsITransportEventSink
                     , public nsIAsyncVerifyRedirectCallback
-                    , private nsIStreamListener
+                    , public mozilla::net::PrivateBrowsingChannel<nsBaseChannel>
+                    , protected nsIStreamListener
+                    , protected nsIThreadRetargetableStreamListener
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -49,19 +58,21 @@ public:
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSITRANSPORTEVENTSINK
   NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
+  NS_DECL_NSITHREADRETARGETABLEREQUEST
+  NS_DECL_NSITHREADRETARGETABLESTREAMLISTENER
 
   nsBaseChannel(); 
 
   // This method must be called to initialize the basechannel instance.
   nsresult Init() {
-    return nsHashPropertyBag::Init();
+    return NS_OK;
   }
 
 protected:
   // -----------------------------------------------
   // Methods to be implemented by the derived class:
 
-  virtual ~nsBaseChannel() {}
+  virtual ~nsBaseChannel();
 
 private:
   // Implemented by subclass to supply data stream.  The parameter, async, is
@@ -96,6 +107,10 @@ private:
 
   // Called when the callbacks available to this channel may have changed.
   virtual void OnCallbacksChanged() {
+  }
+
+  // Called when our channel is done, to allow subclasses to drop resources.
+  virtual void OnChannelDone() {
   }
 
 public:
@@ -149,14 +164,9 @@ public:
   }
 
   // This is a short-cut to calling nsIRequest::IsPending()
-  bool IsPending() const {
+  virtual bool Pending() const {
     return mPump || mWaitingOnAsyncRedirect;
-  }
-
-  // Set the content length that should be reported for this channel.  Pass -1
-  // to indicate an unspecified content length.
-  void SetContentLength64(int64_t len);
-  int64_t ContentLength64();
+ }
 
   // Helper function for querying the channel's notification callbacks.
   template <class T> void GetCallback(nsCOMPtr<T> &result) {
@@ -200,6 +210,11 @@ public:
                                bool invalidatesContentLength = true,
                                nsIStreamListener **converter = nullptr);
 
+protected:
+  void DisallowThreadRetargeting() {
+    mAllowThreadRetargeting = false;
+  }
+
 private:
   NS_DECL_NSISTREAMLISTENER
   NS_DECL_NSIREQUESTOBSERVER
@@ -212,6 +227,13 @@ private:
     mProgressSink = nullptr;
     mQueriedProgressSink = false;
     OnCallbacksChanged();
+  }
+
+  // Called when our channel is done.  This should drop no-longer-needed pointers.
+  void ChannelDone() {
+      mListener = nullptr;
+      mListenerContext = nullptr;
+      OnChannelDone();
   }
 
   // Handle an async redirect callback.  This will only be called if we
@@ -248,6 +270,7 @@ private:
   nsCOMPtr<nsIProgressEventSink>      mProgressSink;
   nsCOMPtr<nsIURI>                    mOriginalURI;
   nsCOMPtr<nsISupports>               mOwner;
+  nsCOMPtr<nsILoadInfo>               mLoadInfo;
   nsCOMPtr<nsISupports>               mSecurityInfo;
   nsCOMPtr<nsIChannel>                mRedirectChannel;
   nsCString                           mContentType;
@@ -255,6 +278,7 @@ private:
   uint32_t                            mLoadFlags;
   bool                                mQueriedProgressSink;
   bool                                mSynthProgressEvents;
+  bool                                mAllowThreadRetargeting;
   bool                                mWasOpened;
   bool                                mWaitingOnAsyncRedirect;
   bool                                mOpenRedirectChannel;
@@ -267,6 +291,11 @@ protected:
   nsCOMPtr<nsIStreamListener>         mListener;
   nsCOMPtr<nsISupports>               mListenerContext;
   nsresult                            mStatus;
+  uint32_t                            mContentDispositionHint;
+  nsAutoPtr<nsString>                 mContentDispositionFilename;
+  int64_t                             mContentLength;
+
+  friend class mozilla::net::PrivateBrowsingChannel<nsBaseChannel>;
 };
 
 #endif // !nsBaseChannel_h__

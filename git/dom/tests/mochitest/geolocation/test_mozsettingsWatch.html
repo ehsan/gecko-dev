@@ -19,53 +19,77 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=478911
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
-function toggleGeolocationSetting(value, callback) {
-  var mozSettings = window.navigator.mozSettings;
-  var lock = mozSettings.getLock();
+SimpleTest.waitForExplicitFinish();
 
-  var geoenabled = {"geolocation.enabled": value};
+resume_geolocationProvider(function() {
+  force_prompt(true, test1);
+});
 
-  req = lock.set(geoenabled);
-  req.onsuccess = function () {
-    ok(true, "set done");
-    callback();
-  }
+if (SpecialPowers.isMainProcess()) {
+  SpecialPowers.Cu.import("resource://gre/modules/SettingsRequestManager.jsm");
 }
 
-SimpleTest.waitForExplicitFinish();
-resume_geolocationProvider();
-force_prompt(true);
+function test1() {
+  //This pushPermissions call is after pushPrefEnv call and pushPrefEnv calls follow after this
+  SpecialPowers.pushPermissions([{'type': 'settings-read', 'allow': true, 'context': document},
+                                 {'type': 'settings-write', 'allow': true, 'context': document},
+                                 {'type': 'settings-api-write', 'allow': true, 'context': document},
+                                 {'type': 'settings-api-read', 'allow': true, 'context': document}
+  ], test2);
+}
 
+var watchId;
+function test2() {
+  ok(navigator.geolocation, "get geolocation object");
 
-var comp = SpecialPowers.wrap(Components);
-SpecialPowers.setBoolPref("dom.mozSettings.enabled", true);
-SpecialPowers.addPermission("settings", true, document);
-comp.utils.import("resource://gre/modules/SettingsChangeNotifier.jsm");
-
-toggleGeolocationSetting(false, function() {
-    ok(true, "turned off geolocation via mozSettings");
-    setTimeout(function() {
-	navigator.geolocation.watchPosition(successCallbackAfterMozsetting, failureCallbackAfterMozsetting);
+  toggleGeolocationSetting(false, function() {
+      ok(true, "turned off geolocation via mozSettings");
+      setTimeout(function() {
+	      watchId = navigator.geolocation.watchPosition(successCallbackAfterMozsettingOff,
+                                                           failureCallbackAfterMozsettingOff);
       }, 500); // need to wait a bit for all of these async callbacks to finish
   });
+}
 
-function successCallbackAfterMozsetting(position) {
+function successCallbackAfterMozsettingOff(position) {
   ok(false, "Success callback should not have been called after setting geolocation.enabled to false.");
 
+  navigator.geolocation.clearWatch(watchId);
   toggleGeolocationSetting(true, function() {
-      reset_prompt();
-      SimpleTest.finish();
+      ok(true, "turned on geolocation via mozSettings");
+      setTimeout(function() {
+          watchId = navigator.geolocation.watchPosition(successCallbackAfterMozsettingOn,
+                                                        failureCallbackAfterMozsettingOn);
+        }, 500); // need to wait a bit for all of these async callbacks to finish
     });
 }
 
-function failureCallbackAfterMozsetting(error) {
+function failureCallbackAfterMozsettingOff(error) {
   ok(true, "Geolocation didn't work after setting geolocation.enabled to false.");
 
+  navigator.geolocation.clearWatch(watchId);
   toggleGeolocationSetting(true, function() {
-      reset_prompt();
-      SimpleTest.finish();
+      ok(true, "turned on geolocation via mozSettings");
+      setTimeout(function() {
+          watchId = navigator.geolocation.watchPosition(successCallbackAfterMozsettingOn,
+                                                        failureCallbackAfterMozsettingOn);
+        }, 500); // need to wait a bit for all of these async callbacks to finish
     });
- }
+}
+
+function successCallbackAfterMozsettingOn(position) {
+  ok(true, "Geolocation worked after setting geolocation.enabled to true.");
+
+  navigator.geolocation.clearWatch(watchId);
+  SimpleTest.finish();
+}
+
+function failureCallbackAfterMozsettingOn(error) {
+  ok(false, "Geolocation didn't work after setting geolocation.enabled to true.");
+
+  navigator.geolocation.clearWatch(watchId);
+  SimpleTest.finish();
+}
 
 </script>
 </pre>

@@ -25,7 +25,7 @@ class BindingParams : public mozIStorageBindingParams
                     , public IStorageBindingParamsInternal
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEBINDINGPARAMS
   NS_DECL_ISTORAGEBINDINGPARAMSINTERNAL
 
@@ -53,10 +53,10 @@ public:
 
   BindingParams(mozIStorageBindingParamsArray *aOwningArray,
                 Statement *aOwningStatement);
+protected:
   virtual ~BindingParams() {}
 
-protected:
-  BindingParams(mozIStorageBindingParamsArray *aOwningArray);
+  explicit BindingParams(mozIStorageBindingParamsArray *aOwningArray);
   nsCOMArray<nsIVariant> mParameters;
   bool mLocked;
 
@@ -97,7 +97,7 @@ public:
 
   virtual already_AddRefed<mozIStorageError> bind(sqlite3_stmt * aStatement);
 
-  AsyncBindingParams(mozIStorageBindingParamsArray *aOwningArray);
+  explicit AsyncBindingParams(mozIStorageBindingParamsArray *aOwningArray);
   virtual ~AsyncBindingParams() {}
 
 private:

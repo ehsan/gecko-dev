@@ -6,6 +6,9 @@
         href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <style>
+    #listitemnone {
+      list-style-type: none;
+    }
     h6.gencontent:before {
       content: "aga"
     }
@@ -58,7 +61,7 @@
       testTextAtOffset(0, BOUNDARY_LINE_START, "line ", 0, 5,
                        "hypertext3", kOk, kOk, kOk);
 
-      // XXX: see bug 638684.
+      // XXX: see bug 634202.
       testTextAtOffset(0, BOUNDARY_LINE_START, "line ", 0, 5,
                        "hypertext4", kTodo, kOk, kTodo);
 
@@ -67,12 +70,25 @@
       //////////////////////////////////////////////////////////////////////////
 
       IDs = [ "list" ];
-      testCharacterCount(IDs, 1);
-      testText(IDs, 0, 1, kEmbedChar);
+      testCharacterCount(IDs, 2);
+      testText(IDs, 0, 2, kEmbedChar + kEmbedChar);
 
       IDs = [ "listitem" ];
-      testCharacterCount(IDs, 5);
-      testText(IDs, 0, 5, "1.foo");
+      testCharacterCount(IDs, 6);
+      testText(IDs, 0, 6, "1. foo");
+
+      IDs = [ "listitemnone" ];
+      testCharacterCount(IDs, 3);
+      testText(IDs, 0, 3, "bar");
+
+      testText(["testbr"], 0, 3, "foo");
+
+      testTextAtOffset(2, nsIAccessibleText.BOUNDARY_CHAR, "o", 2, 3, "testbr",
+                       kOk, kOk, kOk);
+      testTextAtOffset(2, nsIAccessibleText.BOUNDARY_WORD_START, "foo\n", 0, 4,
+                       "testbr", kTodo, kOk, kTodo);
+      testTextBeforeOffset(2, nsIAccessibleText.BOUNDARY_LINE_START, "foo\n",
+                           0, 4, "testbr", kTodo, kOk, kTodo);
 
       SimpleTest.finish();
     }
@@ -108,7 +124,10 @@
 
   <div id="hypertext">hello <a>friend</a> see <img></div>
   <div id="hypertext2">hello <a>friend</a> see <input></div>
-  <ol id="list"><li id="listitem">foo</li></ol>
+  <ol id="list">
+    <li id="listitem">foo</li>
+    <li id="listitemnone">bar</li>
+  </ol>
 
   <div id="hypertext3">line
 <!-- haha -->
@@ -121,6 +140,8 @@
 <!-- hahaha -->
 <h6 role="presentation" class="gencontent">heading</h6>
   </div>
+
+  <div id="testbr">foo<br/></div>
 
 </body>
 </html>

@@ -4,21 +4,26 @@
 
 #include "nsUsageArrayHelper.h"
 
+#include "mozilla/Assertions.h"
 #include "nsCOMPtr.h"
-#include "nsIDateTimeFormat.h"
-#include "nsDateTimeFormatCID.h"
 #include "nsComponentManagerUtils.h"
-#include "nsReadableUtils.h"
+#include "nsDateTimeFormatCID.h"
+#include "nsIDateTimeFormat.h"
 #include "nsNSSCertificate.h"
-
+#include "nsReadableUtils.h"
+#include "nsServiceManagerUtils.h"
 #include "nspr.h"
-#include "nsNSSCertHeader.h"
-
-extern "C" {
+#include "pkix/pkixnss.h"
 #include "secerr.h"
-}
 
-static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+using namespace mozilla;
+using namespace mozilla::psm;
+
+#ifdef PR_LOGGING
+extern PRLogModuleInfo* gPIPNSSLog;
+#endif
+
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID); // XXX? needed?::
 
 nsUsageArrayHelper::nsUsageArrayHelper(CERTCertificate *aCert)
 :mCert(aCert)
@@ -28,23 +33,55 @@ nsUsageArrayHelper::nsUsageArrayHelper(CERTCertificate *aCert)
   nssComponent = do_GetService(kNSSComponentCID, &m_rv);
 }
 
-void
-nsUsageArrayHelper::check(const char *suffix,
-                        SECCertificateUsage aCertUsage,
-                        uint32_t &aCounter,
-                        PRUnichar **outUsages)
+namespace {
+
+// Some validation errors are non-fatal in that, we should keep checking the
+// cert for other usages after receiving them; i.e. they are errors that NSS
+// returns when a certificate isn't valid for a particular usage, but which
+// don't indicate that the certificate is invalid for ANY usage. Others errors
+// (e.g. revocation) are fatal, and we should immediately stop validation of
+// the cert when we encounter them.
+bool
+isFatalError(uint32_t checkResult)
 {
-  if (!aCertUsage) return;
-  nsCAutoString typestr;
+  return checkResult != nsIX509Cert::VERIFIED_OK &&
+         checkResult != nsIX509Cert::USAGE_NOT_ALLOWED &&
+         checkResult != nsIX509Cert::ISSUER_NOT_TRUSTED &&
+         checkResult != nsIX509Cert::ISSUER_UNKNOWN;
+}
+
+} // unnamed namespace
+
+// Validates the certificate for the given usage. If the certificate is valid
+// for the given usage, aCounter is incremented, a string description of the
+// usage is appended to outUsages, and nsNSSCertificate::VERIFIED_OK is
+// returned. Otherwise, if validation failed, one of the other "Constants for
+// certificate verification results" in nsIX509Cert is returned.
+uint32_t
+nsUsageArrayHelper::check(uint32_t previousCheckResult,
+                          const char *suffix,
+                          CertVerifier * certVerifier,
+                          SECCertificateUsage aCertUsage,
+                          mozilla::pkix::Time time,
+                          CertVerifier::Flags flags,
+                          uint32_t &aCounter,
+                          char16_t **outUsages)
+{
+  if (!aCertUsage) {
+    MOZ_CRASH("caller should have supplied non-zero aCertUsage");
+  }
+
+  if (isFatalError(previousCheckResult)) {
+      return previousCheckResult;
+  }
+
+  nsAutoCString typestr;
   switch (aCertUsage) {
   case certificateUsageSSLClient:
     typestr = "VerifySSLClient";
     break;
   case certificateUsageSSLServer:
     typestr = "VerifySSLServer";
-    break;
-  case certificateUsageSSLServerWithStepUp:
-    typestr = "VerifySSLStepUp";
     break;
   case certificateUsageEmailSigner:
     typestr = "VerifyEmailSigner";
@@ -55,12 +92,6 @@ nsUsageArrayHelper::check(const char *suffix,
   case certificateUsageObjectSigner:
     typestr = "VerifyObjSign";
     break;
-  case certificateUsageProtectedObjectSigner:
-    typestr = "VerifyProtectObjSign";
-    break;
-  case certificateUsageUserCertImport:
-    typestr = "VerifyUserImport";
-    break;
   case certificateUsageSSLCA:
     typestr = "VerifySSLCA";
     break;
@@ -70,22 +101,46 @@ nsUsageArrayHelper::check(const char *suffix,
   case certificateUsageStatusResponder:
     typestr = "VerifyStatusResponder";
     break;
-  case certificateUsageAnyCA:
-    typestr = "VerifyAnyCA";
-    break;
   default:
-    break;
+    MOZ_CRASH("unknown cert usage passed to check()");
   }
-  if (!typestr.IsEmpty()) {
+
+  SECStatus rv = certVerifier->VerifyCert(mCert, aCertUsage, time,
+                                          nullptr /*XXX:wincx*/,
+                                          nullptr /*hostname*/, flags);
+
+  if (rv == SECSuccess) {
     typestr.Append(suffix);
     nsAutoString verifyDesc;
     m_rv = nssComponent->GetPIPNSSBundleString(typestr.get(), verifyDesc);
     if (NS_SUCCEEDED(m_rv)) {
       outUsages[aCounter++] = ToNewUnicode(verifyDesc);
     }
+    return nsIX509Cert::VERIFIED_OK;
   }
+
+  PRErrorCode error = PR_GetError();
+
+  uint32_t result = nsIX509Cert::NOT_VERIFIED_UNKNOWN;
+  verifyFailed(&result, error);
+
+  // USAGE_NOT_ALLOWED is the weakest non-fatal error; let all other errors
+  // override it.
+  if (result == nsIX509Cert::USAGE_NOT_ALLOWED &&
+      previousCheckResult != nsIX509Cert::VERIFIED_OK) {
+      result = previousCheckResult;
+  }
+
+  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
+          ("error validating certificate for usage %s: %s (%d) -> %ud \n",
+          typestr.get(), PR_ErrorToName(error), (int) error, (int) result));
+
+  return result;
 }
 
+
+// Maps the error code to one of the Constants for certificate verification
+// results" in nsIX509Cert.
 void
 nsUsageArrayHelper::verifyFailed(uint32_t *_verified, int err)
 {
@@ -93,6 +148,10 @@ nsUsageArrayHelper::verifyFailed(uint32_t *_verified, int err)
   /* For these cases, verify only failed for the particular usage */
   case SEC_ERROR_INADEQUATE_KEY_USAGE:
   case SEC_ERROR_INADEQUATE_CERT_TYPE:
+  case SEC_ERROR_CA_CERT_INVALID:
+  case mozilla::pkix::MOZILLA_PKIX_ERROR_CA_CERT_USED_AS_END_ENTITY:
+  case mozilla::pkix::MOZILLA_PKIX_ERROR_INADEQUATE_KEY_SIZE:
+  case mozilla::pkix::MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA:
     *_verified = nsNSSCertificate::USAGE_NOT_ALLOWED; break;
   /* These are the cases that have individual error messages */
   case SEC_ERROR_REVOKED_CERTIFICATE:
@@ -110,10 +169,6 @@ nsUsageArrayHelper::verifyFailed(uint32_t *_verified, int err)
     *_verified = nsNSSCertificate::INVALID_CA; break;
   case SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED:
     *_verified = nsNSSCertificate::SIGNATURE_ALGORITHM_DISABLED; break;
-  case SEC_ERROR_CERT_USAGES_INVALID: // XXX what is this?
-  // there are some OCSP errors from PSM 1.x to add here
-  case SECSuccess:
-    // this means, no verification result has ever been received
   default:
     *_verified = nsNSSCertificate::NOT_VERIFIED_UNKNOWN; break;
   }
@@ -125,103 +180,56 @@ nsUsageArrayHelper::GetUsagesArray(const char *suffix,
                       uint32_t outArraySize,
                       uint32_t *_verified,
                       uint32_t *_count,
-                      PRUnichar **outUsages)
+                      char16_t **outUsages)
 {
   nsNSSShutDownPreventionLock locker;
   if (NS_FAILED(m_rv))
     return m_rv;
 
+  NS_ENSURE_TRUE(nssComponent, NS_ERROR_NOT_AVAILABLE);
+
   if (outArraySize < max_returned_out_array_size)
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsINSSComponent> nssComponent;
+  RefPtr<SharedCertVerifier> certVerifier(GetDefaultCertVerifier());
+  NS_ENSURE_TRUE(certVerifier, NS_ERROR_UNEXPECTED);
 
-  if (!nsNSSComponent::globalConstFlagUsePKIXVerification && localOnly) {
-    nsresult rv;
-    nssComponent = do_GetService(kNSSComponentCID, &rv);
-    if (NS_FAILED(rv))
-      return rv;
-    
-    if (nssComponent) {
-      nssComponent->SkipOcsp();
-    }
-  }
-  
   uint32_t &count = *_count;
   count = 0;
-  SECCertificateUsage usages = 0;
-  int err = 0;
-  
-if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
-  // CERT_VerifyCertificateNow returns SECFailure unless the certificate is
-  // valid for all the given usages. Hoewver, we are only looking for the list
-  // of usages for which the cert *is* valid.
-  (void)
-  CERT_VerifyCertificateNow(defaultcertdb, mCert, true,
-			    certificateUsageSSLClient |
-			    certificateUsageSSLServer |
-			    certificateUsageSSLServerWithStepUp |
-			    certificateUsageEmailSigner |
-			    certificateUsageEmailRecipient |
-			    certificateUsageObjectSigner |
-			    certificateUsageSSLCA |
-			    certificateUsageStatusResponder,
-			    NULL, &usages);
-  err = PR_GetError();
-}
-else {
-  nsresult nsrv;
-  nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
-  if (!inss)
-    return nsrv;
-  nsRefPtr<nsCERTValInParamWrapper> survivingParams;
-  if (localOnly)
-    nsrv = inss->GetDefaultCERTValInParamLocalOnly(survivingParams);
-  else
-    nsrv = inss->GetDefaultCERTValInParam(survivingParams);
-  
-  if (NS_FAILED(nsrv))
-    return nsrv;
 
-  CERTValOutParam cvout[2];
-  cvout[0].type = cert_po_usages;
-  cvout[0].value.scalar.usages = 0;
-  cvout[1].type = cert_po_end;
-  
-  CERT_PKIXVerifyCert(mCert, certificateUsageCheckAllUsages,
-                      survivingParams->GetRawPointerForNSS(),
-                      cvout, NULL);
-  err = PR_GetError();
-  usages = cvout[0].value.scalar.usages;
-}
+  mozilla::pkix::Time now(mozilla::pkix::Now());
+
+  CertVerifier::Flags flags = localOnly ? CertVerifier::FLAG_LOCAL_ONLY : 0;
 
   // The following list of checks must be < max_returned_out_array_size
-  
-  check(suffix, usages & certificateUsageSSLClient, count, outUsages);
-  check(suffix, usages & certificateUsageSSLServer, count, outUsages);
-  check(suffix, usages & certificateUsageSSLServerWithStepUp, count, outUsages);
-  check(suffix, usages & certificateUsageEmailSigner, count, outUsages);
-  check(suffix, usages & certificateUsageEmailRecipient, count, outUsages);
-  check(suffix, usages & certificateUsageObjectSigner, count, outUsages);
-#if 0
-  check(suffix, usages & certificateUsageProtectedObjectSigner, count, outUsages);
-  check(suffix, usages & certificateUsageUserCertImport, count, outUsages);
-#endif
-  check(suffix, usages & certificateUsageSSLCA, count, outUsages);
-#if 0
-  check(suffix, usages & certificateUsageVerifyCA, count, outUsages);
-#endif
-  check(suffix, usages & certificateUsageStatusResponder, count, outUsages);
-#if 0
-  check(suffix, usages & certificateUsageAnyCA, count, outUsages);
-#endif
 
-  if (!nsNSSComponent::globalConstFlagUsePKIXVerification && localOnly && nssComponent) {
-    nssComponent->SkipOcspOff();
-  }
+  uint32_t result;
+  result = check(nsIX509Cert::VERIFIED_OK, suffix, certVerifier,
+                 certificateUsageSSLClient, now, flags, count, outUsages);
+  result = check(result, suffix, certVerifier,
+                 certificateUsageSSLServer, now, flags, count, outUsages);
+  result = check(result, suffix, certVerifier,
+                 certificateUsageEmailSigner, now, flags, count, outUsages);
+  result = check(result, suffix, certVerifier,
+                 certificateUsageEmailRecipient, now, flags, count, outUsages);
+  result = check(result, suffix, certVerifier,
+                 certificateUsageObjectSigner, now, flags, count, outUsages);
+  result = check(result, suffix, certVerifier,
+                 certificateUsageSSLCA, now, flags, count, outUsages);
+  result = check(result, suffix, certVerifier,
+                 certificateUsageStatusResponder, now, flags, count, outUsages);
 
-  if (count == 0) {
-    verifyFailed(_verified, err);
+  if (isFatalError(result) || count == 0) {
+    MOZ_ASSERT(result != nsIX509Cert::VERIFIED_OK);
+
+    // Clear the output usage strings in the case where we encountered a fatal
+    // error after we already successfully validated the cert for some usages.
+    for (uint32_t i = 0; i < count; ++i) {
+      delete outUsages[i];
+      outUsages[i] = nullptr;
+    }
+    count = 0;
+    *_verified = result;
   } else {
     *_verified = nsNSSCertificate::VERIFIED_OK;
   }

@@ -15,11 +15,6 @@
    notice, this list of conditions and the following disclaimer in the
    documentation and/or other materials provided with the distribution.
 
-   - Neither the name of Internet Society, IETF or IETF Trust, nor the
-   names of specific contributors, may be used to endorse or promote
-   products derived from this software without specific prior written
-   permission.
-
    THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
    IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
    OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -40,13 +35,16 @@
 #  include "custom_support.h"
 #endif
 
+#include "opus_types.h"
+#include "opus_defines.h"
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 /** Opus wrapper for malloc(). To do your own dynamic allocation, all you need to do is replace this function and opus_free */
 #ifndef OVERRIDE_OPUS_ALLOC
-static inline void *opus_alloc (size_t size)
+static OPUS_INLINE void *opus_alloc (size_t size)
 {
    return malloc(size);
 }
@@ -54,7 +52,7 @@ static inline void *opus_alloc (size_t size)
 
 /** Same as celt_alloc(), except that the area is only needed inside a CELT call (might cause problem with wideband though) */
 #ifndef OVERRIDE_OPUS_ALLOC_SCRATCH
-static inline void *opus_alloc_scratch (size_t size)
+static OPUS_INLINE void *opus_alloc_scratch (size_t size)
 {
    /* Scratch space doesn't need to be cleared */
    return opus_alloc(size);
@@ -63,7 +61,7 @@ static inline void *opus_alloc_scratch (size_t size)
 
 /** Opus wrapper for free(). To do your own dynamic allocation, all you need to do is replace this function and opus_alloc */
 #ifndef OVERRIDE_OPUS_FREE
-static inline void opus_free (void *ptr)
+static OPUS_INLINE void opus_free (void *ptr)
 {
    free(ptr);
 }

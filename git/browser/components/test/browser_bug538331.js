@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/
@@ -20,7 +20,7 @@ const XML_PREFIX =  "<updates xmlns=\"http://www.mozilla.org/2005/app-update\"" 
                     "extensionVersion=\"1.0\" installDate=\"1238441400314\" " +
                     "isCompleteUpdate=\"true\" name=\"Update Test 1.0\" " +
                     "serviceURL=\"https://example.com/\" showNeverForVersion=" +
-                    "\"false\" showPrompt=\"false\" showSurvey=\"false\" type=" +
+                    "\"false\" showPrompt=\"false\" type=" +
                     "\"minor\" version=\"version 1.0\" detailsURL=" +
                     "\"http://example.com/\" previousAppVersion=\"1.0\" " +
                     "statusText=\"The Update was successfully installed\" " +
@@ -107,7 +107,7 @@ const BCH_TESTS = [
 var gOriginalMStone;
 var gOriginalOverrideURL;
 
-__defineGetter__("gBG", function() {
+this.__defineGetter__("gBG", function() {
   delete this.gBG;
   return this.gBG = Cc["@mozilla.org/browser/browserglue;1"].
                     getService(Ci.nsIBrowserGlue).
@@ -117,6 +117,10 @@ __defineGetter__("gBG", function() {
 function test()
 {
   waitForExplicitFinish();
+
+  // Reset the startup page pref since it may have been set by other tests
+  // and we will assume it is default.
+  Services.prefs.clearUserPref('browser.startup.page');
 
   if (gPrefService.prefHasUserValue(PREF_MSTONE)) {
     gOriginalMStone = gPrefService.getCharPref(PREF_MSTONE);
@@ -412,10 +416,9 @@ function writeUpdatesToXMLFile(aText)
   const MODE_CREATE   = 0x08;
   const MODE_TRUNCATE = 0x20;
 
-  const kIsWin = (navigator.platform.indexOf("Win") == 0);
   let file = Cc["@mozilla.org/file/directory_service;1"].
              getService(Ci.nsIProperties).
-             get(kIsWin ? "UpdRootD" : "XCurProcD", Ci.nsIFile);
+             get("UpdRootD", Ci.nsIFile);
   file.append("updates.xml");
   let fos = Cc["@mozilla.org/network/file-output-stream;1"].
             createInstance(Ci.nsIFileOutputStream);

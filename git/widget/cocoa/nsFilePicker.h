@@ -21,7 +21,6 @@ class nsFilePicker : public nsBaseFilePicker
 {
 public:
   nsFilePicker(); 
-  virtual ~nsFilePicker();
 
   NS_DECL_ISUPPORTS
 
@@ -46,8 +45,9 @@ public:
   NSArray* GetFilterList();
 
 protected:
+  virtual ~nsFilePicker();
 
-  virtual void InitNative(nsIWidget *aParent, const nsAString& aTitle, int16_t aMode);
+  virtual void InitNative(nsIWidget *aParent, const nsAString& aTitle);
 
   // actual implementations of get/put dialogs using NSOpenPanel & NSSavePanel
   // aFile is an existing but unspecified file. These functions must specify it.
@@ -62,7 +62,6 @@ protected:
   NSView* GetAccessoryView();
                                                 
   nsString               mTitle;
-  int16_t                mMode;
   nsCOMArray<nsIFile>    mFiles;
   nsString               mDefault;
 

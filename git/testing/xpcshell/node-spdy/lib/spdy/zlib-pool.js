@@ -1,24 +1,27 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 var zlibpool = exports,
     spdy = require('../spdy');
 
 //
-// ### function Pool ()
+// ### function Pool (compression)
+// #### @compression {Boolean} whether to enable compression
 // Zlib streams pool
 //
-function Pool() {
-  this.pool = [];
+function Pool(compression) {
+  this.compression = compression;
+  this.pool = {
+    'spdy/2': [],
+    'spdy/3': [],
+    'spdy/3.1': []
+  };
 }
 
 //
-// ### function create ()
+// ### function create (compression)
+// #### @compression {Boolean} whether to enable compression
 // Returns instance of Pool
 //
-zlibpool.create = function create() {
-  return new Pool();
+zlibpool.create = function create(compression) {
+  return new Pool(compression);
 };
 
 var x = 0;
@@ -26,13 +29,16 @@ var x = 0;
 // ### function get ()
 // Returns pair from pool or a new one
 //
-Pool.prototype.get = function get(callback) {
-  if (this.pool.length > 0) {
-    return this.pool.pop();
+Pool.prototype.get = function get(version, callback) {
+  if (this.pool[version].length > 0) {
+    return this.pool[version].pop();
   } else {
+    var id = version.split('/', 2)[1];
+
     return {
-      deflate: spdy.utils.createDeflate(),
-      inflate: spdy.utils.createInflate()
+      version: version,
+      deflate: spdy.utils.createDeflate(id, this.compression),
+      inflate: spdy.utils.createInflate(id)
     };
   }
 };
@@ -49,8 +55,7 @@ Pool.prototype.put = function put(pair) {
   spdy.utils.resetZlibStream(pair.deflate, done);
 
   function done() {
-    if (--waiting === 0) {
-      self.pool.push(pair);
-    }
+    if (--waiting === 0)
+      self.pool[pair.version].push(pair);
   }
 };

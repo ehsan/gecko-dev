@@ -23,36 +23,30 @@ function setWindowName()
 
   //  Get the cert from the cert database
   certdb = Components.classes[nsX509CertDB].getService(nsIX509CertDB);
-  //var pkiParams = window.arguments[0].QueryInterface(nsIPKIParamBlock);
-  //var isupport = pkiParams.getISupportAtIndex(1);
-  //cert = isupport.QueryInterface(nsIX509Cert);
   cert = certdb.findCertByDBKey(dbkey, null);
 
-  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
-  var windowReference = document.getElementById('editCaCert');
+  var bundle = document.getElementById("pippki_bundle");
 
-  var message1 = bundle.formatStringFromName("editTrustCA",
-                                             [ cert.commonName ],
-                                             1);
+  var message1 = bundle.getFormattedString("editTrustCA", [cert.commonName]);
   setText("certmsg", message1);
 
   var ssl = document.getElementById("trustSSL");
-  if (certdb.isCertTrusted(cert, nsIX509Cert.CA_CERT, 
-                          nsIX509CertDB.TRUSTED_SSL)) {
+  if (certdb.isCertTrusted(cert, nsIX509Cert.CA_CERT,
+                           nsIX509CertDB.TRUSTED_SSL)) {
     ssl.setAttribute("checked", "true");
   } else {
     ssl.setAttribute("checked", "false");
   }
   var email = document.getElementById("trustEmail");
-  if (certdb.isCertTrusted(cert, nsIX509Cert.CA_CERT, 
-                          nsIX509CertDB.TRUSTED_EMAIL)) {
+  if (certdb.isCertTrusted(cert, nsIX509Cert.CA_CERT,
+                           nsIX509CertDB.TRUSTED_EMAIL)) {
     email.setAttribute("checked", "true");
   } else {
     email.setAttribute("checked", "false");
   }
   var objsign = document.getElementById("trustObjSign");
-  if (certdb.isCertTrusted(cert, nsIX509Cert.CA_CERT,  
-                          nsIX509CertDB.TRUSTED_OBJSIGN)) {
+  if (certdb.isCertTrusted(cert, nsIX509Cert.CA_CERT,
+                           nsIX509CertDB.TRUSTED_OBJSIGN)) {
     objsign.setAttribute("checked", "true");
   } else {
     objsign.setAttribute("checked", "false");
@@ -70,63 +64,8 @@ function doOK()
   //
   //  Set the cert trust
   //
-  certdb.setCertTrust(cert, nsIX509Cert.CA_CERT, 
+  certdb.setCertTrust(cert, nsIX509Cert.CA_CERT,
                       trustssl | trustemail | trustobjsign);
-  return true;
-}
-
-function doLoadForSSLCert()
-{
-  var dbkey = self.name;
-
-  //  Get the cert from the cert database
-  certdb = Components.classes[nsX509CertDB].getService(nsIX509CertDB);
-  cert = certdb.findCertByDBKey(dbkey, null);
-
-  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
-  var windowReference = document.getElementById('editWebsiteCert');
-
-  var message1 = bundle.formatStringFromName("editTrustSSL",
-                                             [ cert.commonName ],
-                                             1);
-  setText("certmsg", message1);
-
-  setText("issuer", cert.issuerName);
-
-  var cacert = getCaCertForEntityCert(cert);
-  if(cacert == null)
-  {
-     setText("explanations", bundle.GetStringFromName("issuerNotKnown"));
-  }
-  else if(certdb.isCertTrusted(cacert, nsIX509Cert.CA_CERT,
-                                                nsIX509CertDB.TRUSTED_SSL))
-  {
-     setText("explanations", bundle.GetStringFromName("issuerTrusted"));
-  }
-  else
-  {
-     setText("explanations", bundle.GetStringFromName("issuerNotTrusted"));
-  }
-/*
-  if(cacert == null)
-  {
-     var editButton = document.getElementById('editca-button');
-	 editButton.setAttribute("disabled","true");
-  }
-*/  
-  var sslTrust = document.getElementById("sslTrustGroup");
-  sslTrust.value = certdb.isCertTrusted(cert, nsIX509Cert.SERVER_CERT, 
-                                        nsIX509CertDB.TRUSTED_SSL);
-}
-
-function doSSLOK()
-{
-  var sslTrust = document.getElementById("sslTrustGroup");
-  var trustssl = sslTrust.value ? nsIX509CertDB.TRUSTED_SSL : 0;
-  //
-  //  Set the cert trust
-  //
-  certdb.setCertTrust(cert, nsIX509Cert.SERVER_CERT, trustssl);
   return true;
 }
 
@@ -138,12 +77,9 @@ function doLoadForEmailCert()
   certdb = Components.classes[nsX509CertDB].getService(nsIX509CertDB);
   cert = certdb.findCertByDBKey(dbkey, null);
 
-  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
-  var windowReference = document.getElementById('editEmailCert');
+  var bundle = document.getElementById("pippki_bundle");
 
-  var message1 = bundle.formatStringFromName("editTrustEmail",
-                                             [ cert.commonName ],
-                                             1);
+  var message1 = bundle.getFormattedString("editTrustEmail", [cert.commonName]);
   setText("certmsg", message1);
 
   setText("issuer", cert.issuerName);
@@ -151,33 +87,28 @@ function doLoadForEmailCert()
   var cacert = getCaCertForEntityCert(cert);
   if(cacert == null)
   {
-     setText("explanations", bundle.GetStringFromName("issuerNotKnown"));
+     setText("explanations", bundle.getString("issuerNotKnown"));
   }
   else if(certdb.isCertTrusted(cacert, nsIX509Cert.CA_CERT,
-                                                nsIX509CertDB.TRUSTED_EMAIL))
+                               nsIX509CertDB.TRUSTED_EMAIL))
   {
-     setText("explanations", bundle.GetStringFromName("issuerTrusted"));
+     setText("explanations", bundle.getString("issuerTrusted"));
   }
   else
   {
-     setText("explanations", bundle.GetStringFromName("issuerNotTrusted"));
+     setText("explanations", bundle.getString("issuerNotTrusted"));
   }
-/*
-  if(cacert == null)
-  {
-     var editButton = document.getElementById('editca-button');
-	 editButton.setAttribute("disabled","true");
-  }
-*/  
   var sslTrust = document.getElementById("sslTrustGroup");
-  sslTrust.value = certdb.isCertTrusted(cert, nsIX509Cert.EMAIL_CERT, 
+  sslTrust.value = certdb.isCertTrusted(cert, nsIX509Cert.EMAIL_CERT,
                                         nsIX509CertDB.TRUSTED_EMAIL);
 }
 
 function doEmailOK()
 {
   var sslTrust = document.getElementById("sslTrustGroup");
-  var trustemail = sslTrust.value ? nsIX509CertDB.TRUSTED_EMAIL : 0;
+  var trustemail = sslTrust.value == "true"
+                   ? nsIX509CertDB.TRUSTED_EMAIL
+                   : nsIX509CertDB.UNTRUSTED;
   //
   //  Set the cert trust
   //
@@ -195,14 +126,13 @@ function editCaTrust()
    }
    else
    {
-      var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
-      doPrompt(bundle.GetStringFromName("issuerCertNotFound"));
+      var bundle = document.getElementById("pippki_bundle");
+      doPrompt(bundle.getString("issuerCertNotFound"));
    }
 }
 
 function getCaCertForEntityCert(cert)
 {
-   var i=1;
    var nextCertInChain;
    nextCertInChain = cert;
    var lastSubjectName="";
@@ -212,7 +142,7 @@ function getCaCertForEntityCert(cert)
      {
         return null;
      }
-     if((nextCertInChain.type == nsIX509Cert.CA_CERT) || 
+     if((nextCertInChain.type == nsIX509Cert.CA_CERT) ||
         (nextCertInChain.subjectName == lastSubjectName))
      {
         break;
@@ -224,4 +154,3 @@ function getCaCertForEntityCert(cert)
 
    return nextCertInChain;
 }
-

@@ -27,18 +27,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-typedef struct _GtkXtBin GtkXtBin;
-typedef struct _GtkXtBinClass GtkXtBinClass;
-
-#define GTK_TYPE_XTBIN                  (gtk_xtbin_get_type ())
-#define GTK_XTBIN(obj)                  (G_TYPE_CHECK_INSTANCE_CAST  ((obj), \
-                                         GTK_TYPE_XTBIN, GtkXtBin))
-#define GTK_XTBIN_CLASS(klass)          (G_TYPE_CHECK_CLASS_CAST ((klass), \
-                                         GTK_TYPE_XTBIN, GtkXtBinClass))
-#define GTK_IS_XTBIN(obj)               (G_TYPE_CHECK_INSTANCE_TYPE ((obj), \
-                                         GTK_TYPE_XTBIN))
-#define GTK_IS_XTBIN_CLASS(klass)       (G_TYPE_CHECK_CLASS_TYPE ((klass), \
-                                         GTK_TYPE_XTBIN))
 typedef struct _XtClient XtClient;
 
 struct _XtClient {
@@ -51,6 +39,20 @@ struct _XtClient {
   Window	oldwindow;
 };
 
+#if (GTK_MAJOR_VERSION == 2)
+typedef struct _GtkXtBin GtkXtBin;
+typedef struct _GtkXtBinClass GtkXtBinClass;
+
+#define GTK_TYPE_XTBIN                  (gtk_xtbin_get_type ())
+#define GTK_XTBIN(obj)                  (G_TYPE_CHECK_INSTANCE_CAST  ((obj), \
+                                         GTK_TYPE_XTBIN, GtkXtBin))
+#define GTK_XTBIN_CLASS(klass)          (G_TYPE_CHECK_CLASS_CAST ((klass), \
+                                         GTK_TYPE_XTBIN, GtkXtBinClass))
+#define GTK_IS_XTBIN(obj)               (G_TYPE_CHECK_INSTANCE_TYPE ((obj), \
+                                         GTK_TYPE_XTBIN))
+#define GTK_IS_XTBIN_CLASS(klass)       (G_TYPE_CHECK_CLASS_TYPE ((klass), \
+                                         GTK_TYPE_XTBIN))
+
 struct _GtkXtBin
 {
   GtkSocket      gsocket;
@@ -58,8 +60,6 @@ struct _GtkXtBin
   Display       *xtdisplay;        /* Xt Toolkit Display */
 
   Window         xtwindow;         /* Xt Toolkit XWindow */
-  gint           x, y;
-  gint           width, height;
   XtClient	 xtclient;         /* Xt Client for XEmbed */
 };
   
@@ -70,12 +70,7 @@ struct _GtkXtBinClass
 
 GTKXTBIN_API(GType)       gtk_xtbin_get_type (void);
 GTKXTBIN_API(GtkWidget *) gtk_xtbin_new (GdkWindow *parent_window, String *f);
-GTKXTBIN_API(void)        gtk_xtbin_set_position (GtkXtBin *xtbin,
-                                                  gint       x,
-                                                  gint       y);
-GTKXTBIN_API(void)       gtk_xtbin_resize (GtkWidget *widget,
-                                           gint       width,
-                                           gint       height);
+#endif
 
 typedef struct _XtTMRec {
     XtTranslations  translations;       /* private to Translation Manager    */

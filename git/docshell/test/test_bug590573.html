@@ -96,11 +96,8 @@ function page2PageShow()
 
 function dumpSHistory(theWindow)
 {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
-  const Ci = Components.interfaces;
-  let sh = theWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                    .getInterface(Ci.nsIWebNavigation)
+  let sh = SpecialPowers.wrap(theWindow).QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor)
+                    .getInterface(SpecialPowers.Ci.nsIWebNavigation)
                     .sessionHistory;
   if (!sh) {
     dump(" window has no shistory.\n");
@@ -114,7 +111,7 @@ function dumpSHistory(theWindow)
   for (let i = 0; i < sh.count; i++) {
     let shentry = sh.getEntryAtIndex(i, false);
     dump(" " + i + ": " + shentry.URI.spec + '\n');
-    shentry.QueryInterface(Ci.nsISHContainer);
+    shentry.QueryInterface(SpecialPowers.Ci.nsISHContainer);
     for (let j = 0; j < shentry.childCount; j++) {
       let child = shentry.GetChildAt(j);
       dump("   child " + j + ": " + child.URI.spec + '\n');
@@ -194,11 +191,23 @@ function pageLoad()
     is(popup.location.search, "?pushed");
     ok(popup.document.getElementById('div1'), 'page should have div1.');
 
-    is(popup.scrollY, 200, "test 8");
+    // Bug 821821, on android 4.0.4 on panda we get 199 instead of 200
+    if (popup.scrollY >= 199 && popup.scrollY <= 200) {
+      is(1, 1, "test 8");
+    } else {
+      is(1, 0, "test 8, got " + popup.scrollY + " for popup.scrollY instead of 199|200");
+    }
+
     popup.history.back();
     is(popup.scrollY, 150, "test 9");
     popup.history.forward();
-    is(popup.scrollY, 200, "test 10");
+
+    // Bug 821821, on android 4.0.4 on panda we get 199 instead of 200
+    if (popup.scrollY >= 199 && popup.scrollY <= 200) {
+      is(1, 1, "test 10");
+    } else {
+      is(1, 0, "test 10, got " + popup.scrollY + " for popup.scrollY instead of 199|200");
+    }
 
     // Spin one last time...
     setTimeout(pageLoad, 0);
@@ -208,7 +217,12 @@ function pageLoad()
     popup.history.forward();
   }
   else if (loads == 8) {
-    is(popup.scrollY, 300, "test 11");
+    // Bug 821821, on Android tegras we get 299 instead of 300 sometimes
+    if (popup.scrollY >= 299 && popup.scrollY <= 300) {
+      is(1, 1, "test 11");
+    } else {
+      is(1, 0, "test 11, got " + popup.scrollY + " for popup.scrollY instead of 299|300");
+    }
     popup.close();
     SimpleTest.finish();
   }

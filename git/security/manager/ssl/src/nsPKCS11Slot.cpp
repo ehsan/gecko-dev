@@ -17,7 +17,7 @@
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
-NS_IMPL_ISUPPORTS1(nsPKCS11Slot, nsIPKCS11Slot)
+NS_IMPL_ISUPPORTS(nsPKCS11Slot, nsIPKCS11Slot)
 
 nsPKCS11Slot::nsPKCS11Slot(PK11SlotInfo *slot)
 {
@@ -53,12 +53,12 @@ nsPKCS11Slot::refreshSlotInfo()
     // Set the Hardware Version field
     mSlotHWVersion = EmptyString();
     mSlotHWVersion.AppendInt(slot_info.hardwareVersion.major);
-    mSlotHWVersion.AppendLiteral(".");
+    mSlotHWVersion.Append('.');
     mSlotHWVersion.AppendInt(slot_info.hardwareVersion.minor);
     // Set the Firmware Version field
     mSlotFWVersion = EmptyString();
     mSlotFWVersion.AppendInt(slot_info.firmwareVersion.major);
-    mSlotFWVersion.AppendLiteral(".");
+    mSlotFWVersion.Append('.');
     mSlotFWVersion.AppendInt(slot_info.firmwareVersion.minor);
   }
 
@@ -67,9 +67,9 @@ nsPKCS11Slot::refreshSlotInfo()
 nsPKCS11Slot::~nsPKCS11Slot()
 {
   nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown())
+  if (isAlreadyShutDown()) {
     return;
-
+  }
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -81,9 +81,6 @@ void nsPKCS11Slot::virtualDestroyNSSReference()
 
 void nsPKCS11Slot::destructorSafeDestroyNSSReference()
 {
-  if (isAlreadyShutDown())
-    return;
-
   if (mSlot) {
     PK11_FreeSlot(mSlot);
     mSlot = nullptr;
@@ -92,7 +89,7 @@ void nsPKCS11Slot::destructorSafeDestroyNSSReference()
 
 /* readonly attribute wstring name; */
 NS_IMETHODIMP 
-nsPKCS11Slot::GetName(PRUnichar **aName)
+nsPKCS11Slot::GetName(char16_t **aName)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -116,7 +113,7 @@ nsPKCS11Slot::GetName(PRUnichar **aName)
 
 /* readonly attribute wstring desc; */
 NS_IMETHODIMP 
-nsPKCS11Slot::GetDesc(PRUnichar **aDesc)
+nsPKCS11Slot::GetDesc(char16_t **aDesc)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -133,7 +130,7 @@ nsPKCS11Slot::GetDesc(PRUnichar **aDesc)
 
 /* readonly attribute wstring manID; */
 NS_IMETHODIMP 
-nsPKCS11Slot::GetManID(PRUnichar **aManID)
+nsPKCS11Slot::GetManID(char16_t **aManID)
 {
   if (mSeries != PK11_GetSlotSeries(mSlot)) {
     refreshSlotInfo();
@@ -145,7 +142,7 @@ nsPKCS11Slot::GetManID(PRUnichar **aManID)
 
 /* readonly attribute wstring HWVersion; */
 NS_IMETHODIMP 
-nsPKCS11Slot::GetHWVersion(PRUnichar **aHWVersion)
+nsPKCS11Slot::GetHWVersion(char16_t **aHWVersion)
 {
   if (mSeries != PK11_GetSlotSeries(mSlot)) {
     refreshSlotInfo();
@@ -157,7 +154,7 @@ nsPKCS11Slot::GetHWVersion(PRUnichar **aHWVersion)
 
 /* readonly attribute wstring FWVersion; */
 NS_IMETHODIMP 
-nsPKCS11Slot::GetFWVersion(PRUnichar **aFWVersion)
+nsPKCS11Slot::GetFWVersion(char16_t **aFWVersion)
 {
   if (mSeries != PK11_GetSlotSeries(mSlot)) {
     refreshSlotInfo();
@@ -176,8 +173,6 @@ nsPKCS11Slot::GetToken(nsIPK11Token **_retval)
     return NS_ERROR_NOT_AVAILABLE;
 
   nsCOMPtr<nsIPK11Token> token = new nsPK11Token(mSlot);
-  if (!token)
-    return NS_ERROR_OUT_OF_MEMORY;
   *_retval = token;
   NS_ADDREF(*_retval);
   return NS_OK;
@@ -185,7 +180,7 @@ nsPKCS11Slot::GetToken(nsIPK11Token **_retval)
 
 /* readonly attribute wstring tokenName; */
 NS_IMETHODIMP 
-nsPKCS11Slot::GetTokenName(PRUnichar **aName)
+nsPKCS11Slot::GetTokenName(char16_t **aName)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -219,7 +214,7 @@ nsPKCS11Slot::GetStatus(uint32_t *_retval)
     *_retval = SLOT_NOT_PRESENT;
   else if (PK11_NeedLogin(mSlot) && PK11_NeedUserInit(mSlot))
     *_retval = SLOT_UNINITIALIZED;
-  else if (PK11_NeedLogin(mSlot) && !PK11_IsLoggedIn(mSlot, NULL))
+  else if (PK11_NeedLogin(mSlot) && !PK11_IsLoggedIn(mSlot, nullptr))
     *_retval = SLOT_NOT_LOGGED_IN;
   else if (PK11_NeedLogin(mSlot))
     *_retval = SLOT_LOGGED_IN;
@@ -228,7 +223,7 @@ nsPKCS11Slot::GetStatus(uint32_t *_retval)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(nsPKCS11Module, nsIPKCS11Module)
+NS_IMPL_ISUPPORTS(nsPKCS11Module, nsIPKCS11Module)
 
 nsPKCS11Module::nsPKCS11Module(SECMODModule *module)
 {
@@ -243,9 +238,9 @@ nsPKCS11Module::nsPKCS11Module(SECMODModule *module)
 nsPKCS11Module::~nsPKCS11Module()
 {
   nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown())
+  if (isAlreadyShutDown()) {
     return;
-
+  }
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -257,9 +252,6 @@ void nsPKCS11Module::virtualDestroyNSSReference()
 
 void nsPKCS11Module::destructorSafeDestroyNSSReference()
 {
-  if (isAlreadyShutDown())
-    return;
-
   if (mModule) {
     SECMOD_DestroyModule(mModule);
     mModule = nullptr;
@@ -268,7 +260,7 @@ void nsPKCS11Module::destructorSafeDestroyNSSReference()
 
 /* readonly attribute wstring name; */
 NS_IMETHODIMP 
-nsPKCS11Module::GetName(PRUnichar **aName)
+nsPKCS11Module::GetName(char16_t **aName)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -280,7 +272,7 @@ nsPKCS11Module::GetName(PRUnichar **aName)
 
 /* readonly attribute wstring libName; */
 NS_IMETHODIMP 
-nsPKCS11Module::GetLibName(PRUnichar **aName)
+nsPKCS11Module::GetLibName(char16_t **aName)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -289,14 +281,14 @@ nsPKCS11Module::GetLibName(PRUnichar **aName)
   if ( mModule->dllName ) {
     *aName = ToNewUnicode(NS_ConvertUTF8toUTF16(mModule->dllName));
   } else {
-    *aName = NULL;
+    *aName = nullptr;
   }
   return NS_OK;
 }
 
 /*  nsIPKCS11Slot findSlotByName(in wstring name); */
 NS_IMETHODIMP 
-nsPKCS11Module::FindSlotByName(const PRUnichar *aName,
+nsPKCS11Module::FindSlotByName(const char16_t *aName,
                                nsIPKCS11Slot **_retval)
 {
   nsNSSShutDownPreventionLock locker;
@@ -305,13 +297,13 @@ nsPKCS11Module::FindSlotByName(const PRUnichar *aName,
 
   char *asciiname = ToNewUTF8String(nsDependentString(aName));
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("Getting \"%s\"\n", asciiname));
-  PK11SlotInfo *slotinfo = NULL;
+  PK11SlotInfo *slotinfo = nullptr;
   PK11SlotList *slotList = PK11_FindSlotsByNames(mModule->dllName, 
-        asciiname /* slotName */, NULL /* token Name */, false);
+        asciiname /* slotName */, nullptr /* token Name */, false);
   if (!slotList) {
     /* name must be the token name */
     slotList = PK11_FindSlotsByNames(mModule->dllName, 
-        NULL /*slot Name */, asciiname /* token Name */, false);
+        nullptr /*slot Name */, asciiname /* token Name */, false);
   }
   if (slotList) {
     /* should only be one */
@@ -322,7 +314,7 @@ nsPKCS11Module::FindSlotByName(const PRUnichar *aName,
   }
   if (!slotinfo) {
     // workaround - the builtin module has no name
-    if (asciiname == nullptr) {
+    if (!asciiname) {
       return NS_ERROR_FAILURE;
     } else if (nsCRT::strcmp(asciiname, "Root Certificates") == 0) {
       slotinfo = PK11_ReferenceSlot(mModule->slots[0]);
@@ -335,8 +327,6 @@ nsPKCS11Module::FindSlotByName(const PRUnichar *aName,
   nsMemory::Free(asciiname);
   nsCOMPtr<nsIPKCS11Slot> slot = new nsPKCS11Slot(slotinfo);
   PK11_FreeSlot(slotinfo);
-  if (!slot)
-    return NS_ERROR_OUT_OF_MEMORY;
   *_retval = slot;
   NS_ADDREF(*_retval);
   return NS_OK;
@@ -373,7 +363,7 @@ nsPKCS11Module::ListSlots(nsIEnumerator **_retval)
   return rv;
 }
 
-NS_IMPL_ISUPPORTS2(nsPKCS11ModuleDB, nsIPKCS11ModuleDB, nsICryptoFIPSInfo)
+NS_IMPL_ISUPPORTS(nsPKCS11ModuleDB, nsIPKCS11ModuleDB, nsICryptoFIPSInfo)
 
 nsPKCS11ModuleDB::nsPKCS11ModuleDB()
 {
@@ -389,11 +379,9 @@ nsPKCS11ModuleDB::GetInternal(nsIPKCS11Module **_retval)
 {
   nsNSSShutDownPreventionLock locker;
   SECMODModule *nssMod = 
-    SECMOD_CreateModule(NULL,SECMOD_INT_NAME, NULL,SECMOD_INT_FLAGS);
+    SECMOD_CreateModule(nullptr, SECMOD_INT_NAME, nullptr, SECMOD_INT_FLAGS);
   nsCOMPtr<nsIPKCS11Module> module = new nsPKCS11Module(nssMod);
   SECMOD_DestroyModule(nssMod);
-  if (!module)
-    return NS_ERROR_OUT_OF_MEMORY;
   *_retval = module;
   NS_ADDREF(*_retval);
   return NS_OK;
@@ -405,11 +393,9 @@ nsPKCS11ModuleDB::GetInternalFIPS(nsIPKCS11Module **_retval)
 {
   nsNSSShutDownPreventionLock locker;
   SECMODModule *nssMod = 
-    SECMOD_CreateModule(NULL, SECMOD_FIPS_NAME, NULL, SECMOD_FIPS_FLAGS);
+    SECMOD_CreateModule(nullptr, SECMOD_FIPS_NAME, nullptr, SECMOD_FIPS_FLAGS);
   nsCOMPtr<nsIPKCS11Module> module = new nsPKCS11Module(nssMod);
   SECMOD_DestroyModule(nssMod);
-  if (!module)
-    return NS_ERROR_OUT_OF_MEMORY;
   *_retval = module;
   NS_ADDREF(*_retval);
   return NS_OK;
@@ -417,7 +403,7 @@ nsPKCS11ModuleDB::GetInternalFIPS(nsIPKCS11Module **_retval)
 
 /* nsIPKCS11Module findModuleByName(in wstring name); */
 NS_IMETHODIMP 
-nsPKCS11ModuleDB::FindModuleByName(const PRUnichar *aName,
+nsPKCS11ModuleDB::FindModuleByName(const char16_t *aName,
                                    nsIPKCS11Module **_retval)
 {
   nsNSSShutDownPreventionLock locker;
@@ -428,8 +414,6 @@ nsPKCS11ModuleDB::FindModuleByName(const PRUnichar *aName,
     return NS_ERROR_FAILURE;
   nsCOMPtr<nsIPKCS11Module> module = new nsPKCS11Module(mod);
   SECMOD_DestroyModule(mod);
-  if (!module)
-    return NS_ERROR_OUT_OF_MEMORY;
   *_retval = module;
   NS_ADDREF(*_retval);
   return NS_OK;
@@ -440,7 +424,7 @@ nsPKCS11ModuleDB::FindModuleByName(const PRUnichar *aName,
  */
 /* nsIPKCS11Module findSlotByName(in wstring name); */
 NS_IMETHODIMP 
-nsPKCS11ModuleDB::FindSlotByName(const PRUnichar *aName,
+nsPKCS11ModuleDB::FindSlotByName(const char16_t *aName,
                                  nsIPKCS11Slot **_retval)
 {
   nsNSSShutDownPreventionLock locker;
@@ -451,8 +435,6 @@ nsPKCS11ModuleDB::FindSlotByName(const PRUnichar *aName,
     return NS_ERROR_FAILURE;
   nsCOMPtr<nsIPKCS11Slot> slot = new nsPKCS11Slot(slotinfo);
   PK11_FreeSlot(slotinfo);
-  if (!slot)
-    return NS_ERROR_OUT_OF_MEMORY;
   *_retval = slot;
   NS_ADDREF(*_retval);
   return NS_OK;

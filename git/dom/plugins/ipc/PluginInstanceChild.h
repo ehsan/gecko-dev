@@ -20,7 +20,6 @@
 #include "mozilla/gfx/QuartzSupport.h"
 #include "base/timer.h"
 
-using namespace mozilla::plugins::PluginUtilsOSX;
 #endif
 
 #include "npfunctions.h"
@@ -31,13 +30,14 @@ using namespace mozilla::plugins::PluginUtilsOSX;
 #include "nsRect.h"
 #include "nsTHashtable.h"
 #include "mozilla/PaintTracker.h"
-#include "gfxASurface.h"
 
 #include <map>
 
-#if defined(MOZ_WIDGET_GTK)
+#ifdef MOZ_WIDGET_GTK
 #include "gtk2xtbin.h"
 #endif
+
+class gfxASurface;
 
 namespace mozilla {
 
@@ -55,7 +55,8 @@ class PluginInstanceChild : public PPluginInstanceChild
 {
     friend class BrowserStreamChild;
     friend class PluginStreamChild;
-    friend class StreamNotifyChild; 
+    friend class StreamNotifyChild;
+    friend class PluginScriptableObjectChild;
 
 #ifdef OS_WIN
     friend LRESULT CALLBACK PluginWindowProc(HWND hWnd,
@@ -69,49 +70,50 @@ class PluginInstanceChild : public PPluginInstanceChild
 #endif
 
 protected:
-    virtual bool AnswerNPP_SetWindow(const NPRemoteWindow& window);
+    virtual bool AnswerNPP_SetWindow(const NPRemoteWindow& window) MOZ_OVERRIDE;
 
     virtual bool
-    AnswerNPP_GetValue_NPPVpluginWantsAllNetworkStreams(bool* wantsAllStreams, NPError* rv);
+    AnswerNPP_GetValue_NPPVpluginWantsAllNetworkStreams(bool* wantsAllStreams, NPError* rv) MOZ_OVERRIDE;
     virtual bool
-    AnswerNPP_GetValue_NPPVpluginNeedsXEmbed(bool* needs, NPError* rv);
+    AnswerNPP_GetValue_NPPVpluginNeedsXEmbed(bool* needs, NPError* rv) MOZ_OVERRIDE;
     virtual bool
     AnswerNPP_GetValue_NPPVpluginScriptableNPObject(PPluginScriptableObjectChild** value,
-                                                    NPError* result);
+                                                    NPError* result) MOZ_OVERRIDE;
     virtual bool
     AnswerNPP_GetValue_NPPVpluginNativeAccessibleAtkPlugId(nsCString* aPlugId,
-                                                     NPError* aResult);
+                                                           NPError* aResult) MOZ_OVERRIDE;
     virtual bool
-    AnswerNPP_SetValue_NPNVprivateModeBool(const bool& value, NPError* result);
+    AnswerNPP_SetValue_NPNVprivateModeBool(const bool& value, NPError* result) MOZ_OVERRIDE;
 
     virtual bool
-    AnswerNPP_HandleEvent(const NPRemoteEvent& event, int16_t* handled);
+    AnswerNPP_HandleEvent(const NPRemoteEvent& event, int16_t* handled) MOZ_OVERRIDE;
     virtual bool
-    AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event, Shmem& mem, int16_t* handled, Shmem* rtnmem);
+    AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event,
+                                Shmem& mem,
+                                int16_t* handled,
+                                Shmem* rtnmem) MOZ_OVERRIDE;
     virtual bool
-    AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event, const uint32_t& surface, int16_t* handled);
+    AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
+                                    const uint32_t& surface,
+                                    int16_t* handled) MOZ_OVERRIDE;
 
     // Async rendering
     virtual bool
     RecvAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
-                       const NPRemoteWindow& aWindow);
+                       const NPRemoteWindow& aWindow) MOZ_OVERRIDE;
 
     virtual void
     DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
                      const NPRemoteWindow& aWindow,
                      bool aIsAsync);
 
-    virtual bool
-    AnswerHandleKeyEvent(const nsKeyEvent& aEvent, bool* handled);
-    virtual bool
-    AnswerHandleTextEvent(const nsTextEvent& aEvent, bool* handled);
-
-    virtual PPluginSurfaceChild* AllocPPluginSurface(const WindowsSharedMemoryHandle&,
-                                                     const gfxIntSize&, const bool&) {
+    virtual PPluginSurfaceChild*
+    AllocPPluginSurfaceChild(const WindowsSharedMemoryHandle&,
+                             const gfxIntSize&, const bool&) MOZ_OVERRIDE {
         return new PPluginSurfaceChild();
     }
 
-    virtual bool DeallocPPluginSurface(PPluginSurfaceChild* s) {
+    virtual bool DeallocPPluginSurfaceChild(PPluginSurfaceChild* s) MOZ_OVERRIDE {
         delete s;
         return true;
     }
@@ -127,27 +129,30 @@ protected:
     RecvWindowPosChanged(const NPRemoteEvent& event) MOZ_OVERRIDE;
 
     virtual bool
-    AnswerNPP_Destroy(NPError* result);
-
-    virtual PPluginScriptableObjectChild*
-    AllocPPluginScriptableObject();
+    RecvContentsScaleFactorChanged(const double& aContentsScaleFactor) MOZ_OVERRIDE;
 
     virtual bool
-    DeallocPPluginScriptableObject(PPluginScriptableObjectChild* aObject);
+    AnswerNPP_Destroy(NPError* result) MOZ_OVERRIDE;
+
+    virtual PPluginScriptableObjectChild*
+    AllocPPluginScriptableObjectChild() MOZ_OVERRIDE;
+
+    virtual bool
+    DeallocPPluginScriptableObjectChild(PPluginScriptableObjectChild* aObject) MOZ_OVERRIDE;
 
     virtual bool
     RecvPPluginScriptableObjectConstructor(PPluginScriptableObjectChild* aActor) MOZ_OVERRIDE;
 
     virtual PBrowserStreamChild*
-    AllocPBrowserStream(const nsCString& url,
-                        const uint32_t& length,
-                        const uint32_t& lastmodified,
-                        PStreamNotifyChild* notifyData,
-                        const nsCString& headers,
-                        const nsCString& mimeType,
-                        const bool& seekable,
-                        NPError* rv,
-                        uint16_t *stype);
+    AllocPBrowserStreamChild(const nsCString& url,
+                             const uint32_t& length,
+                             const uint32_t& lastmodified,
+                             PStreamNotifyChild* notifyData,
+                             const nsCString& headers,
+                             const nsCString& mimeType,
+                             const bool& seekable,
+                             NPError* rv,
+                             uint16_t *stype) MOZ_OVERRIDE;
 
     virtual bool
     AnswerPBrowserStreamConstructor(
@@ -160,36 +165,36 @@ protected:
             const nsCString& mimeType,
             const bool& seekable,
             NPError* rv,
-            uint16_t* stype);
-        
+            uint16_t* stype) MOZ_OVERRIDE;
+
     virtual bool
-    DeallocPBrowserStream(PBrowserStreamChild* stream);
+    DeallocPBrowserStreamChild(PBrowserStreamChild* stream) MOZ_OVERRIDE;
 
     virtual PPluginStreamChild*
-    AllocPPluginStream(const nsCString& mimeType,
-                       const nsCString& target,
-                       NPError* result);
+    AllocPPluginStreamChild(const nsCString& mimeType,
+                            const nsCString& target,
+                            NPError* result) MOZ_OVERRIDE;
 
     virtual bool
-    DeallocPPluginStream(PPluginStreamChild* stream);
+    DeallocPPluginStreamChild(PPluginStreamChild* stream) MOZ_OVERRIDE;
 
     virtual PStreamNotifyChild*
-    AllocPStreamNotify(const nsCString& url, const nsCString& target,
-                       const bool& post, const nsCString& buffer,
-                       const bool& file,
-                       NPError* result);
+    AllocPStreamNotifyChild(const nsCString& url, const nsCString& target,
+                            const bool& post, const nsCString& buffer,
+                            const bool& file,
+                            NPError* result) MOZ_OVERRIDE;
 
     virtual bool
-    DeallocPStreamNotify(PStreamNotifyChild* notifyData) MOZ_OVERRIDE;
+    DeallocPStreamNotifyChild(PStreamNotifyChild* notifyData) MOZ_OVERRIDE;
 
     virtual bool
-    AnswerSetPluginFocus();
+    AnswerSetPluginFocus() MOZ_OVERRIDE;
 
     virtual bool
-    AnswerUpdateWindow();
+    AnswerUpdateWindow() MOZ_OVERRIDE;
 
     virtual bool
-    RecvNPP_DidComposite();
+    RecvNPP_DidComposite() MOZ_OVERRIDE;
 
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
     bool CreateWindow(const NPRemoteWindow& aWindow);
@@ -197,7 +202,7 @@ protected:
 #endif
 
 public:
-    PluginInstanceChild(const NPPluginFuncs* aPluginIface);
+    explicit PluginInstanceChild(const NPPluginFuncs* aPluginIface);
 
     virtual ~PluginInstanceChild();
 
@@ -236,12 +241,6 @@ public:
 
     void NPN_URLRedirectResponse(void* notifyData, NPBool allow);
 
-    NPError NPN_InitAsyncSurface(NPSize *size, NPImageFormat format,
-                                 void *initData, NPAsyncSurface *surface);
-    NPError NPN_FinalizeAsyncSurface(NPAsyncSurface *surface);
-
-    void NPN_SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect *changed);
-
     void DoAsyncRedraw();
 private:
     friend class PluginModuleChild;
@@ -252,19 +251,17 @@ private:
 
     bool IsAsyncDrawing();
 
-    NPError DeallocateAsyncBitmapSurface(NPAsyncSurface *aSurface);
-
     virtual bool RecvUpdateBackground(const SurfaceDescriptor& aBackground,
                                       const nsIntRect& aRect) MOZ_OVERRIDE;
 
     virtual PPluginBackgroundDestroyerChild*
-    AllocPPluginBackgroundDestroyer() MOZ_OVERRIDE;
+    AllocPPluginBackgroundDestroyerChild() MOZ_OVERRIDE;
 
     virtual bool
     RecvPPluginBackgroundDestroyerConstructor(PPluginBackgroundDestroyerChild* aActor) MOZ_OVERRIDE;
 
     virtual bool
-    DeallocPPluginBackgroundDestroyer(PPluginBackgroundDestroyerChild* aActor) MOZ_OVERRIDE;
+    DeallocPPluginBackgroundDestroyerChild(PPluginBackgroundDestroyerChild* aActor) MOZ_OVERRIDE;
 
 #if defined(OS_WIN)
     static bool RegisterWindowClass();
@@ -357,18 +354,11 @@ private:
     const NPPluginFuncs* mPluginIface;
     NPP_t mData;
     NPWindow mWindow;
+#if defined(XP_MACOSX)
+    double mContentsScaleFactor;
+#endif
     int16_t               mDrawingModel;
-    NPAsyncSurface* mCurrentAsyncSurface;
-    struct AsyncBitmapData {
-      void *mRemotePtr;
-      Shmem mShmem;
-    };
 
-    static PLDHashOperator DeleteSurface(NPAsyncSurface* surf, nsAutoPtr<AsyncBitmapData> &data, void* userArg);
-    nsClassHashtable<nsPtrHashKey<NPAsyncSurface>, AsyncBitmapData> mAsyncBitmaps;
-    Shmem mRemoteImageDataShmem;
-    mozilla::layers::RemoteImageData *mRemoteImageData;
-    nsAutoPtr<CrossProcessMutex> mRemoteImageDataMutex;
     mozilla::Mutex mAsyncInvalidateMutex;
     CancelableTask *mAsyncInvalidateTask;
 
@@ -378,7 +368,7 @@ private:
 
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
     NPSetWindowCallbackStruct mWsInfo;
-#if defined(MOZ_WIDGET_GTK)
+#ifdef MOZ_WIDGET_GTK
     bool mXEmbed;
     XtClient mXtClient;
 #endif
@@ -535,6 +525,10 @@ private:
     // Clear all surfaces in response to NPP_Destroy
     void ClearAllSurfaces();
 
+    void Destroy();
+
+    void ActorDestroy(ActorDestroyReason why);
+
     // Set as true when SetupLayer called
     // and go with different path in InvalidateRect function
     bool mLayersRendering;
@@ -549,7 +543,7 @@ private:
 #ifdef XP_MACOSX
     // Current IOSurface available for rendering
     // We can't use thebes gfxASurface like other platforms.
-    nsDoubleBufferCARenderer mDoubleBufferCARenderer; 
+    PluginUtilsOSX::nsDoubleBufferCARenderer mDoubleBufferCARenderer; 
 #endif
 
     // (Not to be confused with mBackSurface).  This is a recent copy
@@ -593,9 +587,10 @@ private:
     // that surface here.
     nsRefPtr<gfxASurface> mHelperSurface;
 
-    // true when plugin does not support painting to ARGB32 surface
-    // this is false for maemo platform, and false if plugin
-    // supports NPPVpluginTransparentAlphaBool (which is not part of NPAPI yet)
+    // true when plugin does not support painting to ARGB32
+    // surface this is false if plugin supports
+    // NPPVpluginTransparentAlphaBool (which is not part of
+    // NPAPI yet)
     bool mDoAlphaExtraction;
 
     // true when the plugin has painted at least once. We use this to ensure
@@ -608,11 +603,8 @@ private:
     // in plugin coordinates.
     nsIntRect mSurfaceDifferenceRect;
 
-#if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
-    // Maemo5 Flash does not remember WindowlessLocal state
-    // we should listen for NPP values negotiation and remember it
-    bool                  mMaemoImageRendering;
-#endif
+    // Has this instance been destroyed, either by ActorDestroy or NPP_Destroy?
+    bool mDestroyed;
 };
 
 } // namespace plugins

@@ -8,6 +8,7 @@
 
 #include "gfxPlatform.h"
 
+#include "mozilla/MathAlgorithms.h"
 #include "nsAutoRef.h"
 #include "nsTArray.h"
 #include "nsTHashtable.h"
@@ -52,13 +53,6 @@ class gfxIgnoreCaseCStringComparator
     }
 };
 
-class gfxFontNameList : public nsTArray<nsString>
-{
-public:
-    NS_INLINE_DECL_REFCOUNTING(gfxFontNameList)
-    bool Exists(nsAString& aName);
-};
-
 class gfxFontconfigUtils {
 public:
     gfxFontconfigUtils();
@@ -76,10 +70,6 @@ public:
                          nsTArray<nsString>& aListOfFonts);
 
     nsresult UpdateFontList();
-
-    nsresult ResolveFontName(const nsAString& aFontName,
-                             gfxPlatform::FontResolverCallback aCallback,
-                             void *aClosure, bool& aAborted);
 
     nsresult GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
 
@@ -164,7 +154,7 @@ protected:
         static PLDHashNumber HashKey(const FcChar8 *aKey) {
             uint32_t hash = 0;
             for (const FcChar8 *c = aKey; *c != '\0'; ++c) {
-                hash = PR_ROTATE_LEFT32(hash, 3) ^ FcToLower(*c);
+                hash = mozilla::RotateLeft(hash, 3) ^ FcToLower(*c);
             }
             return hash;
         }
@@ -180,11 +170,11 @@ public:
     class DepFcStrEntry : public FcStrEntryBase {
     public:
         // When constructing a new entry in the hashtable, the key is left
-        // NULL.  The caller of PutEntry() must fill in mKey when NULL.  This
-        // provides a mechanism for the caller of PutEntry() to determine
+        // nullptr.  The caller of PutEntry() must fill in mKey when nullptr.
+        // This provides a mechanism for the caller of PutEntry() to determine
         // whether the entry has been initialized.
-        DepFcStrEntry(KeyTypePointer aName)
-            : mKey(NULL) { }
+        explicit DepFcStrEntry(KeyTypePointer aName)
+            : mKey(nullptr) { }
 
         DepFcStrEntry(const DepFcStrEntry& toCopy)
             : mKey(toCopy.mKey) { }
@@ -205,7 +195,7 @@ public:
         // The caller of PutEntry() must call InitKey() when IsKeyInitialized()
         // returns false.  This provides a mechanism for the caller of
         // PutEntry() to determine whether the entry has been initialized.
-        CopiedFcStrEntry(KeyTypePointer aName) {
+        explicit CopiedFcStrEntry(KeyTypePointer aName) {
             mKey.SetIsVoid(true);
         }
 
@@ -226,7 +216,7 @@ public:
 protected:
     class FontsByFcStrEntry : public DepFcStrEntry {
     public:
-        FontsByFcStrEntry(KeyTypePointer aName)
+        explicit FontsByFcStrEntry(KeyTypePointer aName)
             : DepFcStrEntry(aName) { }
 
         FontsByFcStrEntry(const FontsByFcStrEntry& toCopy)
@@ -252,10 +242,10 @@ protected:
     class FontsByFullnameEntry : public DepFcStrEntry {
     public:
         // When constructing a new entry in the hashtable, the key is left
-        // NULL.  The caller of PutEntry() is must fill in mKey when adding
+        // nullptr.  The caller of PutEntry() is must fill in mKey when adding
         // the first font if the key is not derived from the family and style.
         // If the key is derived from family and style, a font must be added.
-        FontsByFullnameEntry(KeyTypePointer aName)
+        explicit FontsByFullnameEntry(KeyTypePointer aName)
             : DepFcStrEntry(aName) { }
 
         FontsByFullnameEntry(const FontsByFullnameEntry& toCopy)
@@ -279,7 +269,7 @@ protected:
 
     class LangSupportEntry : public CopiedFcStrEntry {
     public:
-        LangSupportEntry(KeyTypePointer aName)
+        explicit LangSupportEntry(KeyTypePointer aName)
             : CopiedFcStrEntry(aName) { }
 
         LangSupportEntry(const LangSupportEntry& toCopy)
@@ -312,9 +302,14 @@ protected:
     nsTHashtable<LangSupportEntry> mLangSupportTable;
     const nsTArray< nsCountedRef<FcPattern> > mEmptyPatternArray;
 
-    nsTArray<nsCString> mAliasForMultiFonts;
-
     FcConfig *mLastConfig;
+
+#ifdef MOZ_BUNDLED_FONTS
+    void      ActivateBundledFonts();
+
+    nsCString mBundledFontsPath;
+    bool      mBundledFontsInitialized;
+#endif
 };
 
 #endif /* GFX_FONTCONFIG_UTILS_H */

@@ -9,30 +9,24 @@
 #include "nsNSSDialogs.h"
 #include "nsPKIParamBlock.h"
 #include "nsASN1Tree.h"
-#include "nsFormSigningDialog.h"
-#include "nsISSLCertErrorDialog.h"
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNSSDialogs, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPKIParamBlock, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsNSSASN1Tree)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormSigningDialog)
 
 NS_DEFINE_NAMED_CID(NS_NSSDIALOGS_CID);
 NS_DEFINE_NAMED_CID(NS_NSSASN1OUTINER_CID);
 NS_DEFINE_NAMED_CID(NS_PKIPARAMBLOCK_CID);
-NS_DEFINE_NAMED_CID(NS_FORMSIGNINGDIALOG_CID);
 
 
 static const mozilla::Module::CIDEntry kPKICIDs[] = {
-  { &kNS_NSSDIALOGS_CID, false, NULL, nsNSSDialogsConstructor },
-  { &kNS_NSSASN1OUTINER_CID, false, NULL, nsNSSASN1TreeConstructor },
-  { &kNS_PKIPARAMBLOCK_CID, false, NULL, nsPKIParamBlockConstructor },
-  { &kNS_FORMSIGNINGDIALOG_CID, false, NULL, nsFormSigningDialogConstructor },
-  { NULL }
+  { &kNS_NSSDIALOGS_CID, false, nullptr, nsNSSDialogsConstructor },
+  { &kNS_NSSASN1OUTINER_CID, false, nullptr, nsNSSASN1TreeConstructor },
+  { &kNS_PKIPARAMBLOCK_CID, false, nullptr, nsPKIParamBlockConstructor },
+  { nullptr }
 };
 
 static const mozilla::Module::ContractIDEntry kPKIContracts[] = {
-  { NS_SSLCERTERRORDIALOG_CONTRACTID, &kNS_NSSDIALOGS_CID },
   { NS_TOKENPASSWORDSDIALOG_CONTRACTID, &kNS_NSSDIALOGS_CID },
   { NS_CERTIFICATEDIALOGS_CONTRACTID, &kNS_NSSDIALOGS_CID },
   { NS_CLIENTAUTHDIALOGS_CONTRACTID, &kNS_NSSDIALOGS_CID },
@@ -42,8 +36,7 @@ static const mozilla::Module::ContractIDEntry kPKIContracts[] = {
   { NS_GENERATINGKEYPAIRINFODIALOGS_CONTRACTID, &kNS_NSSDIALOGS_CID },
   { NS_ASN1TREE_CONTRACTID, &kNS_NSSASN1OUTINER_CID },
   { NS_PKIPARAMBLOCK_CONTRACTID, &kNS_PKIPARAMBLOCK_CID },
-  { NS_FORMSIGNINGDIALOG_CONTRACTID, &kNS_FORMSIGNINGDIALOG_CID },
-  { NULL }
+  { nullptr }
 };
 
 static const mozilla::Module kPKIModule = {

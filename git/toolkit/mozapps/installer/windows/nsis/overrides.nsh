@@ -8,6 +8,10 @@
 !ifndef OVERRIDES_INCLUDED
 !define OVERRIDES_INCLUDED
 
+!ifndef ___WINVER__NSH___
+!include WinVer.nsh
+!endif
+
 ; When including a file check if its verbose macro is defined to prevent
 ; loading the file a second time.
 !ifmacrondef TEXTFUNC_VERBOSE
@@ -20,23 +24,28 @@
 
 !macro __MOZ__WinVer_DefineOSTests WinVer
   !insertmacro __WinVer_DefineOSTest AtLeast ${WinVer} ""
-  !insertmacro __WinVer_DefineOSTest AtMost ${WinVer} ""
   !insertmacro __WinVer_DefineOSTest Is ${WinVer} ""
+  !insertmacro __WinVer_DefineOSTest AtMost ${WinVer} ""
 !macroend
 
-!ifndef WINVER_7
-  !define WINVER_7    0x06010000 ;6.01.????
-  !insertmacro __MOZ__WinVer_DefineOSTests 7
-!endif
- 
-!ifndef WINVER_2008R2
-  !define WINVER_2008R2    0x06010001 ;6.01.????
-  !insertmacro __MOZ__WinVer_DefineOSTests 2008R2
+!ifndef WINVER_8
+  !define WINVER_8         0x06020000 ;6.02.9200
+  !insertmacro __MOZ__WinVer_DefineOSTests 8
 !endif
 
-!ifndef WINVER_8
-  !define WINVER_8    0x06020000 ;6.02.????
-  !insertmacro __MOZ__WinVer_DefineOSTests 8
+!ifndef WINVER_8.1
+  !define WINVER_8.1       0x06030000 ;6.03.9600
+  !insertmacro __MOZ__WinVer_DefineOSTests 8.1
+!endif
+
+!ifndef WINVER_2012
+  !define WINVER_2012      0x06020001 ;6.02.9200
+  !insertmacro __MOZ__WinVer_DefineOSTests 2012
+!endif
+
+!ifndef WINVER_2012R2
+  !define WINVER_2012R2    0x06030001 ;6.03.9600
+  !insertmacro __MOZ__WinVer_DefineOSTests 2012R2
 !endif
 
 !verbose push
@@ -404,7 +413,6 @@
 ; that is distributed with NSIS v2.46-Unicode. This version has the calls to
 ; SetDetailsPrint commented out.
 ; See <NSIS v2.46-Unicode App Dir>/include/TextFunc.nsh for more information.
-
 !macro TextCompareNoDetailsCall _FILE1 _FILE2 _OPTION _FUNC
   !verbose push
   !verbose ${_OVERRIDE_VERBOSE}

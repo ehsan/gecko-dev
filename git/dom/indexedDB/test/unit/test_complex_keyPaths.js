@@ -7,9 +7,6 @@ var testGenerator = testSteps();
 
 function testSteps()
 {
-  const nsIIDBObjectStore = Components.interfaces.nsIIDBObjectStore;
-  const nsIIDBTransaction = Components.interfaces.nsIIDBTransaction;
-
   // Test object stores
 
   const name = "test_complex_keyPaths";
@@ -44,6 +41,7 @@ function testSteps()
     { keyPath: "foo.2.bar", exception: true },
     { keyPath: "foo. .bar", exception: true },
     { keyPath: ".bar",    exception: true },
+    { keyPath: [],        exception: true },
 
     { keyPath: ["foo", "bar"],        value: { foo: 1, bar: 2 },              key: [1, 2] },
     { keyPath: ["foo"],               value: { foo: 1, bar: 2 },              key: [1] },
@@ -70,7 +68,7 @@ function testSteps()
   openRequest.onerror = errorHandler;
   openRequest.onupgradeneeded = grabEventAndContinueHandler;
   openRequest.onsuccess = unexpectedSuccessHandler;
-  let event = yield;
+  let event = yield undefined;
   let db = event.target.result;
 
   let stores = {};
@@ -115,26 +113,26 @@ function testSteps()
     request.onerror = errorHandler;
     request.onsuccess = grabEventAndContinueHandler;
 
-    let e = yield;
+    let e = yield undefined;
     is(e.type, "success", "inserted successfully" + test);
     is(e.target, request, "expected target" + test);
     ok(compareKeys(request.result, info.key), "found correct key" + test);
     is(indexedDB.cmp(request.result, info.key), 0, "returned key compares correctly" + test);
 
     store.get(info.key).onsuccess = grabEventAndContinueHandler;
-    e = yield;
+    e = yield undefined;
     isnot(e.target.result, undefined, "Did find entry");
 
     // Check that cursor.update work as expected
     request = store.openCursor();
     request.onerror = errorHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    e = yield;
+    e = yield undefined;
     let cursor = e.target.result;
     request = cursor.update(info.value);
     request.onerror = errorHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    yield;
+    yield undefined;
     ok(true, "Successfully updated cursor" + test);
 
     // Check that cursor.update throws as expected when key is changed
@@ -159,15 +157,15 @@ function testSteps()
 
     // Clear object store to prepare for next test
     store.clear().onsuccess = grabEventAndContinueHandler;
-    yield;
+    yield undefined;
   }
 
   // Attempt to create indexes and insert data
   let store = db.createObjectStore("indexStore");
   let indexes = {};
   for (let i = 0; i < keyPaths.length; i++) {
-    let test = " for index test " + JSON.stringify(info);
     let info = keyPaths[i];
+    let test = " for index test " + JSON.stringify(info);
     let indexName = JSON.stringify(info.keyPath);
     if (!indexes[indexName]) {
       try {
@@ -192,17 +190,17 @@ function testSteps()
     request = store.add(info.value, 1);
     if ("key" in info) {
       index.getKey(info.key).onsuccess = grabEventAndContinueHandler;
-      e = yield;
+      e = yield undefined;
       is(e.target.result, 1, "found value when reading" + test);
     }
     else {
       index.count().onsuccess = grabEventAndContinueHandler;
-      e = yield;
+      e = yield undefined;
       is(e.target.result, 0, "should be empty" + test);
     }
 
     store.clear().onsuccess = grabEventAndContinueHandler;
-    yield;
+    yield undefined;
   }
 
   // Autoincrement and complex key paths
@@ -251,30 +249,18 @@ function testSteps()
       }
     }
 
-    let e = yield;
+    let e = yield undefined;
     is(e.target.result, info.k, "got correct return key" + test);
 
     store.get(info.k).onsuccess = grabEventAndContinueHandler;
-    e = yield;
+    e = yield undefined;
     is(JSON.stringify(e.target.result), JSON.stringify(info.res || info.v),
        "expected value stored" + test);
   }
 
-  // Can't handle autoincrement and empty keypath
-  try {
-    store = db.createObjectStore("storefail", { keyPath: "", autoIncrement: true });
-    ok(false, "Should have thrown when creating empty-keypath autoincrement store");
-  }
-  catch(e) {
-    ok(true, "Did throw when creating empty-keypath autoincrement store");
-    is(e.name, "InvalidAccessError", "expect an InvalidAccessError when creating empty-keypath autoincrement store");
-    ok(e instanceof DOMException, "Got a DOMException when creating empty-keypath autoincrement store");
-    is(e.code, DOMException.INVALID_ACCESS_ERR, "expect an INVALID_ACCESS_ERR when creating empty-keypath autoincrement store");
-  }
-
   openRequest.onsuccess = grabEventAndContinueHandler;
-  yield;
+  yield undefined;
 
   finishTest();
-  yield;
+  yield undefined;
 }

@@ -1,14 +1,18 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim: set ts=8 sts=4 et sw=4 tw=99: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* Private maps (hashtables). */
 
+#include "mozilla/MathAlgorithms.h"
+#include "mozilla/MemoryReporting.h"
 #include "xpcprivate.h"
 
 #include "js/HashTable.h"
+
+using namespace mozilla;
 
 /***************************************************************************/
 // static shared...
@@ -16,27 +20,27 @@
 // Note this is returning the bit pattern of the first part of the nsID, not
 // the pointer to the nsID.
 
-static JSDHashNumber
-HashIIDPtrKey(JSDHashTable *table, const void *key)
+static PLDHashNumber
+HashIIDPtrKey(PLDHashTable *table, const void *key)
 {
     return *((js::HashNumber*)key);
 }
 
-static JSBool
-MatchIIDPtrKey(JSDHashTable *table,
-               const JSDHashEntryHdr *entry,
+static bool
+MatchIIDPtrKey(PLDHashTable *table,
+               const PLDHashEntryHdr *entry,
                const void *key)
 {
     return ((const nsID*)key)->
-                Equals(*((const nsID*)((JSDHashEntryStub*)entry)->key));
+                Equals(*((const nsID*)((PLDHashEntryStub*)entry)->key));
 }
 
-static JSDHashNumber
-HashNativeKey(JSDHashTable *table, const void *key)
+static PLDHashNumber
+HashNativeKey(PLDHashTable *table, const void *key)
 {
     XPCNativeSetKey* Key = (XPCNativeSetKey*) key;
 
-    JSDHashNumber h = 0;
+    PLDHashNumber h = 0;
 
     XPCNativeSet*       Set;
     XPCNativeInterface* Addition;
@@ -53,7 +57,7 @@ HashNativeKey(JSDHashTable *table, const void *key)
     }
 
     if (!Set) {
-        NS_ASSERTION(Addition, "bad key");
+        MOZ_ASSERT(Addition, "bad key");
         // This would be an XOR like below.
         // But "0 ^ x == x". So it does not matter.
         h = (js::HashNumber) NS_PTR_TO_INT32(Addition) >> 2;
@@ -81,32 +85,81 @@ HashNativeKey(JSDHashTable *table, const void *key)
 // implement JSObject2WrappedJSMap...
 
 void
-JSObject2WrappedJSMap::FindDyingJSObjects(nsTArray<nsXPCWrappedJS*>* dying)
+JSObject2WrappedJSMap::UpdateWeakPointersAfterGC(XPCJSRuntime *runtime)
 {
-    for (Map::Range r = mTable.all(); !r.empty(); r.popFront()) {
-        nsXPCWrappedJS* wrapper = r.front().value;
-        NS_ASSERTION(wrapper, "found a null JS wrapper!");
+    // Check all wrappers and update their JSObject pointer if it has been
+    // moved, or if it is about to be finalized queue the wrapper for
+    // destruction by adding it to an array held by the runtime.
+    // Note that we do not want to be changing the refcount of these wrappers.
+    // We add them to the array now and Release the array members later to avoid
+    // the posibility of doing any JS GCThing allocations during the gc cycle.
 
-        // walk the wrapper chain and find any whose JSObject is to be finalized
+    nsTArray<nsXPCWrappedJS*> &dying = runtime->WrappedJSToReleaseArray();
+    MOZ_ASSERT(dying.IsEmpty());
+
+    for (Map::Enum e(mTable); !e.empty(); e.popFront()) {
+        nsXPCWrappedJS* wrapper = e.front().value();
+        MOZ_ASSERT(wrapper, "found a null JS wrapper!");
+
+        // Walk the wrapper chain and update all JSObjects.
         while (wrapper) {
+#ifdef DEBUG
+            if (!wrapper->IsSubjectToFinalization()) {
+                // If a wrapper is not subject to finalization then it roots its
+                // JS object.  If so, then it will not be about to be finalized
+                // and any necessary pointer update will have already happened
+                // when it was marked.
+                JSObject *obj = wrapper->GetJSObjectPreserveColor();
+                JSObject *prior = obj;
+                JS_UpdateWeakPointerAfterGCUnbarriered(&obj);
+                MOZ_ASSERT(obj == prior);
+            }
+#endif
             if (wrapper->IsSubjectToFinalization()) {
-                if (JS_IsAboutToBeFinalized(wrapper->GetJSObjectPreserveColor()))
-                    dying->AppendElement(wrapper);
+                wrapper->UpdateObjectPointerAfterGC();
+                if (!wrapper->GetJSObjectPreserveColor())
+                    dying.AppendElement(wrapper);
             }
             wrapper = wrapper->GetNextWrapper();
         }
+
+        // Remove or update the JSObject key in the table if necessary.
+        JSObject *obj = e.front().key();
+        JSObject *prior = obj;
+        JS_UpdateWeakPointerAfterGCUnbarriered(&obj);
+        if (!obj)
+            e.removeFront();
+        else if (obj != prior)
+            e.rekeyFront(obj);
     }
 }
 
 void
-JSObject2WrappedJSMap::ShutdownMarker(JSRuntime* rt)
+JSObject2WrappedJSMap::ShutdownMarker()
 {
     for (Map::Range r = mTable.all(); !r.empty(); r.popFront()) {
-        nsXPCWrappedJS* wrapper = r.front().value;
-        NS_ASSERTION(wrapper, "found a null JS wrapper!");
-        NS_ASSERTION(wrapper->IsValid(), "found an invalid JS wrapper!");
-        wrapper->SystemIsBeingShutDown(rt);
+        nsXPCWrappedJS* wrapper = r.front().value();
+        MOZ_ASSERT(wrapper, "found a null JS wrapper!");
+        MOZ_ASSERT(wrapper->IsValid(), "found an invalid JS wrapper!");
+        wrapper->SystemIsBeingShutDown();
     }
+}
+
+size_t
+JSObject2WrappedJSMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const
+{
+    size_t n = mallocSizeOf(this);
+    n += mTable.sizeOfExcludingThis(mallocSizeOf);
+    return n;
+}
+
+size_t
+JSObject2WrappedJSMap::SizeOfWrappedJS(mozilla::MallocSizeOf mallocSizeOf) const
+{
+    size_t n = 0;
+    for (Map::Range r = mTable.all(); !r.empty(); r.popFront())
+        n += r.front().value()->SizeOfIncludingThis(mallocSizeOf);
+    return n;
 }
 
 /***************************************************************************/
@@ -114,43 +167,43 @@ JSObject2WrappedJSMap::ShutdownMarker(JSRuntime* rt)
 
 // static
 Native2WrappedNativeMap*
-Native2WrappedNativeMap::newMap(int size)
+Native2WrappedNativeMap::newMap(int length)
 {
-    Native2WrappedNativeMap* map = new Native2WrappedNativeMap(size);
+    Native2WrappedNativeMap* map = new Native2WrappedNativeMap(length);
     if (map && map->mTable)
         return map;
     // Allocation of the map or the creation of its hash table has
-    // failed. This will cause a NULL deref later when we attempt to
-    // use the map, so we abort immediately to provide a more useful
-    // crash stack.
+    // failed. This will cause a nullptr deref later when we attempt
+    // to use the map, so we abort immediately to provide a more
+    // useful crash stack.
     NS_RUNTIMEABORT("Ran out of memory.");
     return nullptr;
 }
 
-Native2WrappedNativeMap::Native2WrappedNativeMap(int size)
+Native2WrappedNativeMap::Native2WrappedNativeMap(int length)
 {
-    mTable = JS_NewDHashTable(JS_DHashGetStubOps(), nullptr,
-                              sizeof(Entry), size);
+    mTable = PL_NewDHashTable(PL_DHashGetStubOps(), nullptr,
+                              sizeof(Entry), length);
 }
 
 Native2WrappedNativeMap::~Native2WrappedNativeMap()
 {
     if (mTable)
-        JS_DHashTableDestroy(mTable);
+        PL_DHashTableDestroy(mTable);
 }
 
 size_t
-Native2WrappedNativeMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
+Native2WrappedNativeMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);
-    n += mTable ? JS_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
+    n += mTable ? PL_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
     return n;
 }
 
 /* static */ size_t
-Native2WrappedNativeMap::SizeOfEntryExcludingThis(JSDHashEntryHdr *hdr,
-                                                  JSMallocSizeOfFun mallocSizeOf, void *)
+Native2WrappedNativeMap::SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr,
+                                                  mozilla::MallocSizeOf mallocSizeOf, void *)
 {
     return mallocSizeOf(((Native2WrappedNativeMap::Entry*)hdr)->value);
 }
@@ -158,88 +211,88 @@ Native2WrappedNativeMap::SizeOfEntryExcludingThis(JSDHashEntryHdr *hdr,
 /***************************************************************************/
 // implement IID2WrappedJSClassMap...
 
-struct JSDHashTableOps IID2WrappedJSClassMap::Entry::sOps =
+const struct PLDHashTableOps IID2WrappedJSClassMap::Entry::sOps =
 {
-    JS_DHashAllocTable,
-    JS_DHashFreeTable,
+    PL_DHashAllocTable,
+    PL_DHashFreeTable,
     HashIIDPtrKey,
     MatchIIDPtrKey,
-    JS_DHashMoveEntryStub,
-    JS_DHashClearEntryStub,
-    JS_DHashFinalizeStub
+    PL_DHashMoveEntryStub,
+    PL_DHashClearEntryStub,
+    PL_DHashFinalizeStub
 };
 
 // static
 IID2WrappedJSClassMap*
-IID2WrappedJSClassMap::newMap(int size)
+IID2WrappedJSClassMap::newMap(int length)
 {
-    IID2WrappedJSClassMap* map = new IID2WrappedJSClassMap(size);
+    IID2WrappedJSClassMap* map = new IID2WrappedJSClassMap(length);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-IID2WrappedJSClassMap::IID2WrappedJSClassMap(int size)
+IID2WrappedJSClassMap::IID2WrappedJSClassMap(int length)
 {
-    mTable = JS_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), size);
+    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), length);
 }
 
 IID2WrappedJSClassMap::~IID2WrappedJSClassMap()
 {
     if (mTable)
-        JS_DHashTableDestroy(mTable);
+        PL_DHashTableDestroy(mTable);
 }
 
 
 /***************************************************************************/
 // implement IID2NativeInterfaceMap...
 
-struct JSDHashTableOps IID2NativeInterfaceMap::Entry::sOps =
+const struct PLDHashTableOps IID2NativeInterfaceMap::Entry::sOps =
 {
-    JS_DHashAllocTable,
-    JS_DHashFreeTable,
+    PL_DHashAllocTable,
+    PL_DHashFreeTable,
     HashIIDPtrKey,
     MatchIIDPtrKey,
-    JS_DHashMoveEntryStub,
-    JS_DHashClearEntryStub,
-    JS_DHashFinalizeStub
+    PL_DHashMoveEntryStub,
+    PL_DHashClearEntryStub,
+    PL_DHashFinalizeStub
 };
 
 // static
 IID2NativeInterfaceMap*
-IID2NativeInterfaceMap::newMap(int size)
+IID2NativeInterfaceMap::newMap(int length)
 {
-    IID2NativeInterfaceMap* map = new IID2NativeInterfaceMap(size);
+    IID2NativeInterfaceMap* map = new IID2NativeInterfaceMap(length);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-IID2NativeInterfaceMap::IID2NativeInterfaceMap(int size)
+IID2NativeInterfaceMap::IID2NativeInterfaceMap(int length)
 {
-    mTable = JS_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), size);
+    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), length);
 }
 
 IID2NativeInterfaceMap::~IID2NativeInterfaceMap()
 {
     if (mTable)
-        JS_DHashTableDestroy(mTable);
+        PL_DHashTableDestroy(mTable);
 }
 
 size_t
-IID2NativeInterfaceMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
+IID2NativeInterfaceMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);
-    n += mTable ? JS_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
+    n += mTable ? PL_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
     return n;
 }
 
 /* static */ size_t
-IID2NativeInterfaceMap::SizeOfEntryExcludingThis(JSDHashEntryHdr *hdr,
-                                                 JSMallocSizeOfFun mallocSizeOf, void *)
+IID2NativeInterfaceMap::SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr,
+                                                 mozilla::MallocSizeOf mallocSizeOf, void *)
 {
     XPCNativeInterface *iface = ((IID2NativeInterfaceMap::Entry*)hdr)->value;
     return iface->SizeOfIncludingThis(mallocSizeOf);
@@ -250,34 +303,34 @@ IID2NativeInterfaceMap::SizeOfEntryExcludingThis(JSDHashEntryHdr *hdr,
 
 // static
 ClassInfo2NativeSetMap*
-ClassInfo2NativeSetMap::newMap(int size)
+ClassInfo2NativeSetMap::newMap(int length)
 {
-    ClassInfo2NativeSetMap* map = new ClassInfo2NativeSetMap(size);
+    ClassInfo2NativeSetMap* map = new ClassInfo2NativeSetMap(length);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-ClassInfo2NativeSetMap::ClassInfo2NativeSetMap(int size)
+ClassInfo2NativeSetMap::ClassInfo2NativeSetMap(int length)
 {
-    mTable = JS_NewDHashTable(JS_DHashGetStubOps(), nullptr,
-                              sizeof(Entry), size);
+    mTable = PL_NewDHashTable(PL_DHashGetStubOps(), nullptr,
+                              sizeof(Entry), length);
 }
 
 ClassInfo2NativeSetMap::~ClassInfo2NativeSetMap()
 {
     if (mTable)
-        JS_DHashTableDestroy(mTable);
+        PL_DHashTableDestroy(mTable);
 }
 
 size_t
-ClassInfo2NativeSetMap::ShallowSizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
+ClassInfo2NativeSetMap::ShallowSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);
-    // The second arg is NULL because this is a "shallow" measurement of the map.
-    n += mTable ? JS_DHashTableSizeOfIncludingThis(mTable, NULL, mallocSizeOf) : 0;
+    // The second arg is nullptr because this is a "shallow" measurement of the map.
+    n += mTable ? PL_DHashTableSizeOfIncludingThis(mTable, nullptr, mallocSizeOf) : 0;
     return n;
 }
 
@@ -286,43 +339,43 @@ ClassInfo2NativeSetMap::ShallowSizeOfIncludingThis(nsMallocSizeOfFun mallocSizeO
 
 // static
 ClassInfo2WrappedNativeProtoMap*
-ClassInfo2WrappedNativeProtoMap::newMap(int size)
+ClassInfo2WrappedNativeProtoMap::newMap(int length)
 {
-    ClassInfo2WrappedNativeProtoMap* map = new ClassInfo2WrappedNativeProtoMap(size);
+    ClassInfo2WrappedNativeProtoMap* map = new ClassInfo2WrappedNativeProtoMap(length);
     if (map && map->mTable)
         return map;
     // Allocation of the map or the creation of its hash table has
-    // failed. This will cause a NULL deref later when we attempt to
-    // use the map, so we abort immediately to provide a more useful
-    // crash stack.
+    // failed. This will cause a nullptr deref later when we attempt
+    // to use the map, so we abort immediately to provide a more
+    // useful crash stack.
     NS_RUNTIMEABORT("Ran out of memory.");
     return nullptr;
 }
 
-ClassInfo2WrappedNativeProtoMap::ClassInfo2WrappedNativeProtoMap(int size)
+ClassInfo2WrappedNativeProtoMap::ClassInfo2WrappedNativeProtoMap(int length)
 {
-    mTable = JS_NewDHashTable(JS_DHashGetStubOps(), nullptr,
-                              sizeof(Entry), size);
+    mTable = PL_NewDHashTable(PL_DHashGetStubOps(), nullptr,
+                              sizeof(Entry), length);
 }
 
 ClassInfo2WrappedNativeProtoMap::~ClassInfo2WrappedNativeProtoMap()
 {
     if (mTable)
-        JS_DHashTableDestroy(mTable);
+        PL_DHashTableDestroy(mTable);
 }
 
 size_t
-ClassInfo2WrappedNativeProtoMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
+ClassInfo2WrappedNativeProtoMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);
-    n += mTable ? JS_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
+    n += mTable ? PL_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
     return n;
 }
 
 /* static */ size_t
-ClassInfo2WrappedNativeProtoMap::SizeOfEntryExcludingThis(JSDHashEntryHdr *hdr,
-                                                          JSMallocSizeOfFun mallocSizeOf, void *)
+ClassInfo2WrappedNativeProtoMap::SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr,
+                                                          mozilla::MallocSizeOf mallocSizeOf, void *)
 {
     return mallocSizeOf(((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value);
 }
@@ -330,9 +383,9 @@ ClassInfo2WrappedNativeProtoMap::SizeOfEntryExcludingThis(JSDHashEntryHdr *hdr,
 /***************************************************************************/
 // implement NativeSetMap...
 
-JSBool
-NativeSetMap::Entry::Match(JSDHashTable *table,
-                           const JSDHashEntryHdr *entry,
+bool
+NativeSetMap::Entry::Match(PLDHashTable *table,
+                           const PLDHashEntryHdr *entry,
                            const void *key)
 {
     XPCNativeSetKey* Key = (XPCNativeSetKey*) key;
@@ -373,10 +426,10 @@ NativeSetMap::Entry::Match(JSDHashTable *table,
         // it would end up really being a set with two interfaces (except for
         // the case where the one interface happened to be nsISupports).
 
-        return ((SetInTable->GetInterfaceCount() == 1 &&
-                 SetInTable->GetInterfaceAt(0) == Addition) ||
-                (SetInTable->GetInterfaceCount() == 2 &&
-                 SetInTable->GetInterfaceAt(1) == Addition));
+        return (SetInTable->GetInterfaceCount() == 1 &&
+                SetInTable->GetInterfaceAt(0) == Addition) ||
+               (SetInTable->GetInterfaceCount() == 2 &&
+                SetInTable->GetInterfaceAt(1) == Addition);
     }
 
     if (!Addition && Set == SetInTable)
@@ -402,50 +455,50 @@ NativeSetMap::Entry::Match(JSDHashTable *table,
     return true;
 }
 
-struct JSDHashTableOps NativeSetMap::Entry::sOps =
+const struct PLDHashTableOps NativeSetMap::Entry::sOps =
 {
-    JS_DHashAllocTable,
-    JS_DHashFreeTable,
+    PL_DHashAllocTable,
+    PL_DHashFreeTable,
     HashNativeKey,
     Match,
-    JS_DHashMoveEntryStub,
-    JS_DHashClearEntryStub,
-    JS_DHashFinalizeStub
+    PL_DHashMoveEntryStub,
+    PL_DHashClearEntryStub,
+    PL_DHashFinalizeStub
 };
 
 // static
 NativeSetMap*
-NativeSetMap::newMap(int size)
+NativeSetMap::newMap(int length)
 {
-    NativeSetMap* map = new NativeSetMap(size);
+    NativeSetMap* map = new NativeSetMap(length);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-NativeSetMap::NativeSetMap(int size)
+NativeSetMap::NativeSetMap(int length)
 {
-    mTable = JS_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), size);
+    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), length);
 }
 
 NativeSetMap::~NativeSetMap()
 {
     if (mTable)
-        JS_DHashTableDestroy(mTable);
+        PL_DHashTableDestroy(mTable);
 }
 
 size_t
-NativeSetMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
+NativeSetMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);
-    n += mTable ? JS_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
+    n += mTable ? PL_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
     return n;
 }
 
 /* static */ size_t
-NativeSetMap::SizeOfEntryExcludingThis(JSDHashEntryHdr *hdr, JSMallocSizeOfFun mallocSizeOf, void *)
+NativeSetMap::SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *)
 {
     XPCNativeSet *set = ((NativeSetMap::Entry*)hdr)->key_value;
     return set->SizeOfIncludingThis(mallocSizeOf);
@@ -454,60 +507,60 @@ NativeSetMap::SizeOfEntryExcludingThis(JSDHashEntryHdr *hdr, JSMallocSizeOfFun m
 /***************************************************************************/
 // implement IID2ThisTranslatorMap...
 
-JSBool
-IID2ThisTranslatorMap::Entry::Match(JSDHashTable *table,
-                                    const JSDHashEntryHdr *entry,
+bool
+IID2ThisTranslatorMap::Entry::Match(PLDHashTable *table,
+                                    const PLDHashEntryHdr *entry,
                                     const void *key)
 {
     return ((const nsID*)key)->Equals(((Entry*)entry)->key);
 }
 
 void
-IID2ThisTranslatorMap::Entry::Clear(JSDHashTable *table, JSDHashEntryHdr *entry)
+IID2ThisTranslatorMap::Entry::Clear(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
-    NS_IF_RELEASE(((Entry*)entry)->value);
-    memset(entry, 0, table->entrySize);
+    static_cast<Entry*>(entry)->value = nullptr;
+    memset(entry, 0, table->EntrySize());
 }
 
-struct JSDHashTableOps IID2ThisTranslatorMap::Entry::sOps =
+const struct PLDHashTableOps IID2ThisTranslatorMap::Entry::sOps =
 {
-    JS_DHashAllocTable,
-    JS_DHashFreeTable,
+    PL_DHashAllocTable,
+    PL_DHashFreeTable,
     HashIIDPtrKey,
     Match,
-    JS_DHashMoveEntryStub,
+    PL_DHashMoveEntryStub,
     Clear,
-    JS_DHashFinalizeStub
+    PL_DHashFinalizeStub
 };
 
 // static
 IID2ThisTranslatorMap*
-IID2ThisTranslatorMap::newMap(int size)
+IID2ThisTranslatorMap::newMap(int length)
 {
-    IID2ThisTranslatorMap* map = new IID2ThisTranslatorMap(size);
+    IID2ThisTranslatorMap* map = new IID2ThisTranslatorMap(length);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-IID2ThisTranslatorMap::IID2ThisTranslatorMap(int size)
+IID2ThisTranslatorMap::IID2ThisTranslatorMap(int length)
 {
-    mTable = JS_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), size);
+    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), length);
 }
 
 IID2ThisTranslatorMap::~IID2ThisTranslatorMap()
 {
     if (mTable)
-        JS_DHashTableDestroy(mTable);
+        PL_DHashTableDestroy(mTable);
 }
 
 /***************************************************************************/
 
-JSDHashNumber
-XPCNativeScriptableSharedMap::Entry::Hash(JSDHashTable *table, const void *key)
+PLDHashNumber
+XPCNativeScriptableSharedMap::Entry::Hash(PLDHashTable *table, const void *key)
 {
-    JSDHashNumber h;
+    PLDHashNumber h;
     const unsigned char *s;
 
     XPCNativeScriptableShared* obj =
@@ -517,15 +570,15 @@ XPCNativeScriptableSharedMap::Entry::Hash(JSDHashTable *table, const void *key)
     // bitmap since it's very rare that it's different when flags and classname
     // are the same.
 
-    h = (JSDHashNumber) obj->GetFlags();
+    h = (PLDHashNumber) obj->GetFlags();
     for (s = (const unsigned char*) obj->GetJSClass()->name; *s != '\0'; s++)
-        h = JS_ROTATE_LEFT32(h, 4) ^ *s;
+        h = RotateLeft(h, 4) ^ *s;
     return h;
 }
 
-JSBool
-XPCNativeScriptableSharedMap::Entry::Match(JSDHashTable *table,
-                                           const JSDHashEntryHdr *entry,
+bool
+XPCNativeScriptableSharedMap::Entry::Match(PLDHashTable *table,
+                                           const PLDHashEntryHdr *entry,
                                            const void *key)
 {
     XPCNativeScriptableShared* obj1 =
@@ -534,10 +587,9 @@ XPCNativeScriptableSharedMap::Entry::Match(JSDHashTable *table,
     XPCNativeScriptableShared* obj2 =
         (XPCNativeScriptableShared*) key;
 
-    // match the flags, the classname string and the interfaces bitmap
+    // match the flags and the classname string
 
-    if (obj1->GetFlags() != obj2->GetFlags() ||
-        obj1->GetInterfacesBitmap() != obj2->GetInterfacesBitmap())
+    if (obj1->GetFlags() != obj2->GetFlags())
         return false;
 
     const char* name1 = obj1->GetJSClass()->name;
@@ -549,52 +601,51 @@ XPCNativeScriptableSharedMap::Entry::Match(JSDHashTable *table,
     return 0 == strcmp(name1, name2);
 }
 
-struct JSDHashTableOps XPCNativeScriptableSharedMap::Entry::sOps =
+const struct PLDHashTableOps XPCNativeScriptableSharedMap::Entry::sOps =
 {
-    JS_DHashAllocTable,
-    JS_DHashFreeTable,
+    PL_DHashAllocTable,
+    PL_DHashFreeTable,
     Hash,
     Match,
-    JS_DHashMoveEntryStub,
-    JS_DHashClearEntryStub,
-    JS_DHashFinalizeStub
+    PL_DHashMoveEntryStub,
+    PL_DHashClearEntryStub,
+    PL_DHashFinalizeStub
 };
 
 // static
 XPCNativeScriptableSharedMap*
-XPCNativeScriptableSharedMap::newMap(int size)
+XPCNativeScriptableSharedMap::newMap(int length)
 {
     XPCNativeScriptableSharedMap* map =
-        new XPCNativeScriptableSharedMap(size);
+        new XPCNativeScriptableSharedMap(length);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-XPCNativeScriptableSharedMap::XPCNativeScriptableSharedMap(int size)
+XPCNativeScriptableSharedMap::XPCNativeScriptableSharedMap(int length)
 {
-    mTable = JS_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), size);
+    mTable = PL_NewDHashTable(&Entry::sOps, nullptr, sizeof(Entry), length);
 }
 
 XPCNativeScriptableSharedMap::~XPCNativeScriptableSharedMap()
 {
     if (mTable)
-        JS_DHashTableDestroy(mTable);
+        PL_DHashTableDestroy(mTable);
 }
 
-JSBool
+bool
 XPCNativeScriptableSharedMap::GetNewOrUsed(uint32_t flags,
                                            char* name,
-                                           uint32_t interfacesBitmap,
                                            XPCNativeScriptableInfo* si)
 {
     NS_PRECONDITION(name,"bad param");
     NS_PRECONDITION(si,"bad param");
 
-    XPCNativeScriptableShared key(flags, name, interfacesBitmap);
+    XPCNativeScriptableShared key(flags, name);
     Entry* entry = (Entry*)
-        JS_DHashTableOperate(mTable, &key, JS_DHASH_ADD);
+        PL_DHashTableOperate(mTable, &key, PL_DHASH_ADD);
     if (!entry)
         return false;
 
@@ -602,8 +653,7 @@ XPCNativeScriptableSharedMap::GetNewOrUsed(uint32_t flags,
 
     if (!shared) {
         entry->key = shared =
-            new XPCNativeScriptableShared(flags, key.TransferNameOwnership(),
-                                          interfacesBitmap);
+            new XPCNativeScriptableShared(flags, key.TransferNameOwnership());
         if (!shared)
             return false;
         shared->PopulateJSClass();
@@ -617,25 +667,25 @@ XPCNativeScriptableSharedMap::GetNewOrUsed(uint32_t flags,
 
 // static
 XPCWrappedNativeProtoMap*
-XPCWrappedNativeProtoMap::newMap(int size)
+XPCWrappedNativeProtoMap::newMap(int length)
 {
-    XPCWrappedNativeProtoMap* map = new XPCWrappedNativeProtoMap(size);
+    XPCWrappedNativeProtoMap* map = new XPCWrappedNativeProtoMap(length);
     if (map && map->mTable)
         return map;
     delete map;
     return nullptr;
 }
 
-XPCWrappedNativeProtoMap::XPCWrappedNativeProtoMap(int size)
+XPCWrappedNativeProtoMap::XPCWrappedNativeProtoMap(int length)
 {
-    mTable = JS_NewDHashTable(JS_DHashGetStubOps(), nullptr,
-                              sizeof(JSDHashEntryStub), size);
+    mTable = PL_NewDHashTable(PL_DHashGetStubOps(), nullptr,
+                              sizeof(PLDHashEntryStub), length);
 }
 
 XPCWrappedNativeProtoMap::~XPCWrappedNativeProtoMap()
 {
     if (mTable)
-        JS_DHashTableDestroy(mTable);
+        PL_DHashTableDestroy(mTable);
 }
 
 /***************************************************************************/

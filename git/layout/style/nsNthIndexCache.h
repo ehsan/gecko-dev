@@ -5,9 +5,15 @@
 #ifndef nsContentIndexCache_h__
 #define nsContentIndexCache_h__
 
-#include "nscore.h"
 #include "js/HashTable.h"
-#include "mozilla/dom/Element.h"
+
+class nsIContent;
+
+namespace mozilla {
+namespace dom {
+class Element;
+} // namespace dom
+} // namespace mozilla
 
 /*
  * A class that computes and caches the indices used for :nth-* pseudo-class
@@ -55,6 +61,12 @@ private:
   class SystemAllocPolicy {
   public:
     void *malloc_(size_t bytes) { return ::malloc(bytes); }
+
+    template <typename T>
+    T *pod_calloc(size_t numElems) {
+      return static_cast<T *>(::calloc(numElems, sizeof(T)));
+    }
+
     void *realloc_(void *p, size_t bytes) { return ::realloc(p, bytes); }
     void free_(void *p) { ::free(p); }
     void reportAllocOverflow() const {}

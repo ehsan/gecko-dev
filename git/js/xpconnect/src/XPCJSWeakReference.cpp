@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim: set ts=8 sts=4 et sw=4 tw=99: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,26 +9,26 @@
 
 #include "nsContentUtils.h"
 
+using namespace JS;
+
 xpcJSWeakReference::xpcJSWeakReference()
 {
 }
 
-NS_IMPL_ISUPPORTS1(xpcJSWeakReference, xpcIJSWeakReference)
+NS_IMPL_ISUPPORTS(xpcJSWeakReference, xpcIJSWeakReference)
 
 nsresult xpcJSWeakReference::Init(JSContext* cx, const JS::Value& object)
 {
-    JSAutoRequest ar(cx);
-
     if (!object.isObject())
         return NS_OK;
 
-    JSObject& obj = object.toObject();
+    JS::RootedObject obj(cx, &object.toObject());
 
     XPCCallContext ccx(NATIVE_CALLER, cx);
 
     // See if the object is a wrapped native that supports weak references.
     nsISupports* supports =
-        nsXPConnect::GetXPConnect()->GetNativeOfWrapper(cx, &obj);
+        nsXPConnect::XPConnect()->GetNativeOfWrapper(cx, obj);
     nsCOMPtr<nsISupportsWeakReference> supportsWeakRef =
         do_QueryInterface(supports);
     if (supportsWeakRef) {
@@ -41,10 +42,8 @@ nsresult xpcJSWeakReference::Init(JSContext* cx, const JS::Value& object)
 
     // See if object is a wrapped JSObject.
     nsRefPtr<nsXPCWrappedJS> wrapped;
-    nsresult rv = nsXPCWrappedJS::GetNewOrUsed(ccx,
-                                               &obj,
+    nsresult rv = nsXPCWrappedJS::GetNewOrUsed(obj,
                                                NS_GET_IID(nsISupports),
-                                               nullptr,
                                                getter_AddRefs(wrapped));
     if (!wrapped) {
         NS_ERROR("can't get nsISupportsWeakReference wrapper for obj");
@@ -55,9 +54,9 @@ nsresult xpcJSWeakReference::Init(JSContext* cx, const JS::Value& object)
 }
 
 NS_IMETHODIMP
-xpcJSWeakReference::Get(JSContext* aCx, JS::Value* aRetval)
+xpcJSWeakReference::Get(JSContext* aCx, MutableHandleValue aRetval)
 {
-    *aRetval = JSVAL_NULL;
+    aRetval.setNull();
 
     if (!mReferent) {
         return NS_OK;
@@ -72,13 +71,12 @@ xpcJSWeakReference::Get(JSContext* aCx, JS::Value* aRetval)
     if (!wrappedObj) {
         // We have a generic XPCOM object that supports weak references here.
         // Wrap it and pass it out.
-        return nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx),
-                                          supports, &NS_GET_IID(nsISupports),
+        return nsContentUtils::WrapNative(aCx, supports,
+                                          &NS_GET_IID(nsISupports),
                                           aRetval);
     }
 
-    JSObject *obj;
-    wrappedObj->GetJSObject(&obj);
+    JS::RootedObject obj(aCx, wrappedObj->GetJSObject());
     if (!obj) {
         return NS_OK;
     }
@@ -92,6 +90,6 @@ xpcJSWeakReference::Get(JSContext* aCx, JS::Value* aRetval)
         return NS_ERROR_FAILURE;
     }
 
-    *aRetval = OBJECT_TO_JSVAL(obj);
+    aRetval.setObject(*obj);
     return NS_OK;
 }

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
  * vim: sw=2 ts=2 sts=2 et filetype=javascript
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -84,18 +84,18 @@
  *  var components = [MyComponent];
  *
  * 3. Define the NSGetFactory entry point:
- *  const NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+ *  this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
  */
 
 
-var EXPORTED_SYMBOLS = [ "XPCOMUtils" ];
+this.EXPORTED_SYMBOLS = [ "XPCOMUtils" ];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-var XPCOMUtils = {
+this.XPCOMUtils = {
   /**
    * Generate a QueryInterface implementation. The returned function must be
    * assigned to the 'QueryInterface' property of a JS object. When invoked on
@@ -107,7 +107,16 @@ var XPCOMUtils = {
    */
   generateQI: function XPCU_generateQI(interfaces) {
     /* Note that Ci[Ci.x] == Ci.x for all x */
-    return makeQI([Ci[i].name for each (i in interfaces) if (Ci[i])]);
+    let a = [];
+    if (interfaces) {
+      for (let i = 0; i < interfaces.length; i++) {
+        let iface = interfaces[i];
+        if (Ci[iface]) {
+          a.push(Ci[iface].name);
+        }
+      }
+    }
+    return makeQI(a);
   },
 
   /**
@@ -123,7 +132,13 @@ var XPCOMUtils = {
     if (QueryInterface in classInfo)
       throw Error("In generateCI, don't use a component for generating classInfo");
     /* Note that Ci[Ci.x] == Ci.x for all x */
-    var _interfaces = [Ci[i] for each (i in classInfo.interfaces) if (Ci[i])];
+    let _interfaces = [];
+    for (let i = 0; i < classInfo.interfaces.length; i++) {
+      let iface = classInfo.interfaces[i];
+      if (Ci[iface]) {
+        _interfaces.push(Ci[iface]);
+      }
+    }
     return {
       getInterfaces: function XPCU_getInterfaces(countRef) {
         countRef.value = _interfaces.length;
@@ -144,7 +159,8 @@ var XPCOMUtils = {
    */
   generateNSGetFactory: function XPCU_generateNSGetFactory(componentsArray) {
     let classes = {};
-    for each (let component in componentsArray) {
+    for (let i = 0; i < componentsArray.length; i++) {
+        let component = componentsArray[i];
         if (!(component.prototype.classID instanceof Components.ID))
           throw Error("In generateNSGetFactory, classID missing or incorrect for component " + component);
 
@@ -171,9 +187,13 @@ var XPCOMUtils = {
    */
   defineLazyGetter: function XPCU_defineLazyGetter(aObject, aName, aLambda)
   {
-    aObject.__defineGetter__(aName, function() {
-      delete aObject[aName];
-      return aObject[aName] = aLambda.apply(aObject);
+    Object.defineProperty(aObject, aName, {
+      get: function () {
+        delete aObject[aName];
+        return aObject[aName] = aLambda.apply(aObject);
+      },
+      configurable: true,
+      enumerable: true
     });
   },
 
@@ -219,7 +239,12 @@ var XPCOMUtils = {
   {
     this.defineLazyGetter(aObject, aName, function XPCU_moduleLambda() {
       var temp = {};
-      Cu.import(aResource, temp);
+      try {
+        Cu.import(aResource, temp);
+      } catch (ex) {
+        Cu.reportError("Failed to load module " + aResource + ".");
+        throw ex;
+      }
       return temp[aSymbol || aName];
     });
   },
@@ -275,13 +300,13 @@ var XPCOMUtils = {
    * Allows you to fake a relative import. Expects the global object from the
    * module that's calling us, and the relative filename that we wish to import.
    */
-  importRelative: function XPCOMUtils__importRelative(that, path) {
+  importRelative: function XPCOMUtils__importRelative(that, path, scope) {
     if (!("__URI__" in that))
       throw Error("importRelative may only be used from a JSM, and its first argument "+
                   "must be that JSM's global object (hint: use this)");
     let uri = that.__URI__;
     let i = uri.lastIndexOf("/");
-    Components.utils.import(uri.substring(0, i+1) + path, that);
+    Components.utils.import(uri.substring(0, i+1) + path, scope || that);
   },
 
   /**
@@ -320,8 +345,8 @@ function makeQI(interfaceNames) {
       return this;
     if (iid.equals(Ci.nsIClassInfo) && "classInfo" in this)
       return this.classInfo;
-    for each(let interfaceName in interfaceNames) {
-      if (Ci[interfaceName].equals(iid))
+    for (let i = 0; i < interfaceNames.length; i++) {
+      if (Ci[interfaceNames[i]].equals(iid))
         return this;
     }
 

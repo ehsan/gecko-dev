@@ -40,9 +40,6 @@ endif
 ifeq ($(TARGET_OS),linux-gnu)
 MOZ_PKG_PLATFORM := linux-$(TARGET_CPU)
 endif
-ifeq ($(OS_ARCH),OS2)
-MOZ_PKG_PLATFORM := os2
-endif
 endif #MOZ_PKG_PLATFORM
 
 ifdef MOZ_PKG_SPECIAL
@@ -60,10 +57,11 @@ endif
 PKG_BASENAME = $(MOZ_PKG_APPNAME)-$(MOZ_PKG_VERSION).$(AB_CD).$(MOZ_PKG_PLATFORM)
 PKG_PATH =
 PKG_INST_BASENAME = $(PKG_BASENAME).installer
+PKG_STUB_BASENAME = $(PKG_BASENAME).installer-stub
 PKG_INST_PATH = install/sea/
 PKG_UPDATE_BASENAME = $(PKG_BASENAME)
 CHECKSUMS_FILE_BASENAME = $(PKG_BASENAME)
-MOZ_SOURCESTAMP_FILE_BASENAME = $(PKG_BASENAME)
+MOZ_INFO_BASENAME = $(PKG_BASENAME)
 PKG_UPDATE_PATH = update/
 COMPLETE_MAR = $(PKG_UPDATE_PATH)$(PKG_UPDATE_BASENAME).complete.mar
 # PARTIAL_MAR needs to be processed by $(wildcard) before you use it.
@@ -82,18 +80,18 @@ MOZ_PKG_APPNAME = $(MOZ_APP_DISPLAYNAME)
 endif
 MOZ_PKG_APPNAME_LC = $(shell echo $(MOZ_PKG_APPNAME) | tr '[A-Z]' '[a-z]')
 
-
 ifndef MOZ_PKG_LONGVERSION
-MOZ_PKG_LONGVERSION = $(shell echo $(MOZ_PKG_VERSION))
+MOZ_PKG_LONGVERSION = $(MOZ_PKG_VERSION)
 endif
 
-ifeq (,$(filter-out Darwin OS2, $(OS_ARCH))) # Mac and OS2
+ifeq (,$(filter-out Darwin, $(OS_ARCH))) # Mac
 PKG_BASENAME = $(MOZ_PKG_APPNAME) $(MOZ_PKG_LONGVERSION)
 PKG_INST_BASENAME = $(MOZ_PKG_APPNAME) Setup $(MOZ_PKG_LONGVERSION)
 else
 ifeq (,$(filter-out WINNT, $(OS_ARCH))) # Windows
 PKG_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
 PKG_INST_BASENAME = $(MOZ_PKG_APPNAME) Setup $(MOZ_PKG_LONGVERSION)
+PKG_STUB_BASENAME = $(MOZ_PKG_APPNAME) Setup Stub $(MOZ_PKG_LONGVERSION)
 else # unix (actually, not Windows, Mac or OS/2)
 PKG_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
 PKG_INST_BASENAME = $(MOZ_PKG_APPNAME_LC)-setup-$(MOZ_PKG_VERSION)
@@ -101,12 +99,12 @@ endif
 endif
 PKG_PATH = $(MOZ_PKG_PLATFORM)/$(AB_CD)/
 CHECKSUMS_FILE_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
-MOZ_SOURCESTAMP_FILE_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
+MOZ_INFO_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
 ifeq ($(MOZ_APP_NAME),xulrunner)
 PKG_PATH = runtimes/
 PKG_BASENAME = $(MOZ_APP_NAME)-$(MOZ_PKG_VERSION).$(AB_CD).$(MOZ_PKG_PLATFORM)
 CHECKSUMS_FILE_BASENAME = $(PKG_BASENAME)
-MOZ_SOURCESTAMP_FILE_BASENAME = $(PKG_BASENAME)
+MOZ_INFO_BASENAME = $(PKG_BASENAME)
 endif
 PKG_INST_PATH = $(PKG_PATH)
 PKG_UPDATE_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
@@ -127,6 +125,9 @@ endif # MOZ_PKG_PRETTYNAMES
 SYMBOL_FULL_ARCHIVE_BASENAME = $(PKG_BASENAME).crashreporter-symbols-full
 SYMBOL_ARCHIVE_BASENAME = $(PKG_BASENAME).crashreporter-symbols
 
+# Code coverage package naming
+CODE_COVERAGE_ARCHIVE_BASENAME = $(PKG_BASENAME).code-coverage-gcno
+
 # Test package naming
 TEST_PACKAGE = $(PKG_BASENAME).tests.zip
 
@@ -136,15 +137,24 @@ else
 BUILDID = $(shell $(PYTHON) $(MOZILLA_DIR)/config/printconfigsetting.py $(DIST)/bin/platform.ini Build BuildID)
 endif
 
+ifndef INCLUDED_RCS_MK
+  USE_RCS_MK := 1
+  include $(topsrcdir)/config/makefiles/makeutils.mk
+endif
+
 MOZ_SOURCE_STAMP = $(firstword $(shell hg -R $(MOZILLA_DIR) parent --template="{node|short}\n" 2>/dev/null))
 
-# strip a trailing slash from the repo URL because it's not always present,
-# and we want to construct a working URL in the sourcestamp file.
-# make+shell+sed = awful
-_dollar=$$
-MOZ_SOURCE_REPO = $(shell cd $(MOZILLA_DIR) && hg showconfig paths.default 2>/dev/null | head -n1 | sed -e "s/^ssh:/http:/" -e "s/\/$(_dollar)//" )
+###########################################################################
+# bug: 746277 - preserve existing functionality.
+# MOZILLA_DIR="": cd $(SPACE); hg # succeeds if ~/.hg exists
+###########################################################################
+ifdef MOZILLA_OFFICIAL
+MOZ_SOURCE_REPO = $(call getSourceRepo,$(MOZILLA_DIR)$(NULL) $(NULL))
+endif
 
-MOZ_SOURCESTAMP_FILE = $(DIST)/$(PKG_PATH)/$(MOZ_SOURCESTAMP_FILE_BASENAME).txt
+MOZ_SOURCESTAMP_FILE = $(DIST)/$(PKG_PATH)/$(MOZ_INFO_BASENAME).txt
+MOZ_BUILDINFO_FILE = $(DIST)/$(PKG_PATH)/$(MOZ_INFO_BASENAME).json
+MOZ_MOZINFO_FILE = $(DIST)/$(PKG_PATH)/$(MOZ_INFO_BASENAME).mozinfo.json
 
 # JavaScript Shell
 PKG_JSSHELL = $(DIST)/jsshell-$(MOZ_PKG_PLATFORM).zip

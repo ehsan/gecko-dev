@@ -34,9 +34,20 @@ enum nsCSSProperty {
   #undef CSS_PROP_SHORTHAND
 
   eCSSProperty_COUNT,
+  // Make the count continue where it left off:
+  eCSSProperty_COUNT_DUMMY2 = eCSSProperty_COUNT - 1,
 
-  // Some of the values below could probably overlap with each other and
-  // with eCSSProperty_COUNT if we had a need for them to do so.
+  #define CSS_PROP_ALIAS(aliasname_, id_, method_, pref_) \
+    eCSSPropertyAlias_##method_,
+  #include "nsCSSPropAliasList.h"
+  #undef CSS_PROP_ALIAS
+
+  eCSSProperty_COUNT_with_aliases,
+  // Make the count continue where it left off:
+  eCSSProperty_COUNT_DUMMY3 = eCSSProperty_COUNT_with_aliases - 1,
+
+  // Some of the values below could probably overlap with each other
+  // if we had a need for them to do so.
 
   // Extra values for use in the values of the 'transition-property'
   // property.
@@ -45,7 +56,10 @@ enum nsCSSProperty {
 
   // Extra dummy values for nsCSSParser internal use.
   eCSSPropertyExtra_x_none_value,
-  eCSSPropertyExtra_x_auto_value
+  eCSSPropertyExtra_x_auto_value,
+
+  // Extra value to represent custom properties (--*).
+  eCSSPropertyExtra_variable
 };
 
 // The "descriptors" that can appear in a @font-face rule.
@@ -56,6 +70,16 @@ enum nsCSSFontDesc {
 #include "nsCSSFontDescList.h"
 #undef CSS_FONT_DESC
   eCSSFontDesc_COUNT
+};
+
+// The "descriptors" that can appear in a @counter-style rule.
+// They have the syntax of properties but different value rules.
+enum nsCSSCounterDesc {
+  eCSSCounterDesc_UNKNOWN = -1,
+#define CSS_COUNTER_DESC(name_, method_) eCSSCounterDesc_##method_,
+#include "nsCSSCounterDescList.h"
+#undef CSS_COUNTER_DESC
+  eCSSCounterDesc_COUNT
 };
 
 #endif /* nsCSSProperty_h___ */

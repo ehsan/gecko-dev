@@ -33,6 +33,7 @@
 #if defined(DARWIN)
 #include <mach/mach_init.h>
 #include <mach/mach_host.h>
+#include <mach/mach_port.h>
 #endif
 
 #if defined(HPUX)
@@ -54,24 +55,6 @@
 #if defined(AIX)
 #include <cf.h>
 #include <sys/cfgodm.h>
-#endif
-
-#if defined(WIN32)
-/* This struct is not present in VC6 headers, so declare it here */
-typedef struct {
-    DWORD dwLength;
-    DWORD dwMemoryLoad;
-    DWORDLONG ullTotalPhys;
-    DWORDLONG ullAvailPhys;
-    DWORDLONG ullToalPageFile;
-    DWORDLONG ullAvailPageFile;
-    DWORDLONG ullTotalVirtual;
-    DWORDLONG ullAvailVirtual;
-    DWORDLONG ullAvailExtendedVirtual;
-} PR_MEMORYSTATUSEX;
-
-/* Typedef for dynamic lookup of GlobalMemoryStatusEx(). */
-typedef BOOL (WINAPI *GlobalMemoryStatusExFn)(PR_MEMORYSTATUSEX *);
 #endif
 
 PR_IMPLEMENT(char) PR_GetDirectorySeparator(void)
@@ -315,41 +298,24 @@ PR_IMPLEMENT(PRUint64) PR_GetPhysicalMemorySize(void)
 
 #elif defined(DARWIN)
 
+    mach_port_t mach_host = mach_host_self();
     struct host_basic_info hInfo;
     mach_msg_type_number_t count = HOST_BASIC_INFO_COUNT;
 
-    int result = host_info(mach_host_self(),
+    int result = host_info(mach_host,
                            HOST_BASIC_INFO,
                            (host_info_t) &hInfo,
                            &count);
+    mach_port_deallocate(mach_task_self(), mach_host);
     if (result == KERN_SUCCESS)
         bytes = hInfo.max_mem;
 
 #elif defined(WIN32)
 
-    /* Try to use the newer GlobalMemoryStatusEx API for Windows 2000+. */
-    GlobalMemoryStatusExFn globalMemory = (GlobalMemoryStatusExFn) NULL;
-    HMODULE module = GetModuleHandleW(L"kernel32.dll");
-
-    if (module) {
-        globalMemory = (GlobalMemoryStatusExFn)GetProcAddress(module, "GlobalMemoryStatusEx");
-
-        if (globalMemory) {
-            PR_MEMORYSTATUSEX memStat;
-            memStat.dwLength = sizeof(memStat);
-
-            if (globalMemory(&memStat))
-                bytes = memStat.ullTotalPhys;
-        }
-    }
-
-    if (!bytes) {
-        /* Fall back to the older API. */
-        MEMORYSTATUS memStat;
-        memset(&memStat, 0, sizeof(memStat));
-        GlobalMemoryStatus(&memStat);
-        bytes = memStat.dwTotalPhys;
-    }
+    MEMORYSTATUSEX memStat;
+    memStat.dwLength = sizeof(memStat);
+    if (GlobalMemoryStatusEx(&memStat))
+        bytes = memStat.ullTotalPhys;
 
 #elif defined(OS2)
 

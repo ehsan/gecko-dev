@@ -5,6 +5,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/PluginPRLibrary.h"
+#include "nsNPAPIPluginInstance.h"
+
 // Some plugins on Windows, notably Quake Live, implement NP_Initialize using
 // cdecl instead of the documented stdcall. In order to work around this,
 // we force the caller to use a frame pointer.
@@ -27,6 +29,8 @@ static int gNotOptimized;
 #define ALOG(args...) __android_log_print(ANDROID_LOG_INFO, "GeckoJavaEnv", ## args)
 #endif
 
+using namespace mozilla::layers;
+
 namespace mozilla {
 #ifdef MOZ_WIDGET_ANDROID
 nsresult
@@ -34,8 +38,8 @@ PluginPRLibrary::NP_Initialize(NPNetscapeFuncs* bFuncs,
 			       NPPluginFuncs* pFuncs, NPError* error)
 {
   JNIEnv* env = GetJNIForThread();
-  if (!env)
-    return NS_ERROR_FAILURE;
+
+  mozilla::AutoLocalJNIFrame jniFrame(env);
 
   if (mNP_Initialize) {
     *error = mNP_Initialize(bFuncs, pFuncs, env);
@@ -160,7 +164,7 @@ PluginPRLibrary::NP_GetValue(void *future, NPPVariable aVariable,
 #endif
 }
 
-#if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_OS2)
+#if defined(XP_WIN) || defined(XP_MACOSX)
 nsresult
 PluginPRLibrary::NP_GetEntryPoints(NPPluginFuncs* pFuncs, NPError* error)
 {
@@ -192,6 +196,8 @@ PluginPRLibrary::NPP_New(NPMIMEType pluginType, NPP instance,
 {
   if (!mNPP_New)
     return NS_ERROR_FAILURE;
+
+  MAIN_THREAD_JNI_REF_GUARD;
   *error = mNPP_New(pluginType, instance, mode, argc, argn, argv, saved);
   return NS_OK;
 }
@@ -204,6 +210,7 @@ PluginPRLibrary::NPP_ClearSiteData(const char* site, uint64_t flags,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
+  MAIN_THREAD_JNI_REF_GUARD;
   NPError result = mNPP_ClearSiteData(site, flags, maxAge);
 
   switch (result) {
@@ -227,6 +234,7 @@ PluginPRLibrary::NPP_GetSitesWithData(InfallibleTArray<nsCString>& result)
 
   result.Clear();
 
+  MAIN_THREAD_JNI_REF_GUARD;
   char** sites = mNPP_GetSitesWithData();
   if (!sites) {
     return NS_OK;
@@ -251,17 +259,6 @@ PluginPRLibrary::AsyncSetWindow(NPP instance, NPWindow* window)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-nsresult
-PluginPRLibrary::HandleGUIEvent(NPP instance, const nsGUIEvent& anEvent,
-                                bool* handled)
-{
-  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
-  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-#endif
-
 nsresult
 PluginPRLibrary::GetImageContainer(NPP instance, ImageContainer** aContainer)
 {
@@ -275,6 +272,13 @@ PluginPRLibrary::IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing)
   nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
   NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
   *aDrawing = false; 
+  return NS_OK;
+}
+nsresult
+PluginPRLibrary::ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor)
+{
+  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
+  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
   return NS_OK;
 }
 #endif

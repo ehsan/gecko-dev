@@ -22,10 +22,9 @@
 SimpleTest.waitForExplicitFinish();
 
 function setOrRestoreTabFocus(newValue) {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   const prefSvcContractID = "@mozilla.org/preferences-service;1";
-  const prefSvcIID = Components.interfaces.nsIPrefService;
-  var prefs = Components.classes[prefSvcContractID].getService(prefSvcIID)
+  const prefSvcIID = SpecialPowers.Ci.nsIPrefService;
+  var prefs = SpecialPowers.Cc[prefSvcContractID].getService(prefSvcIID)
                                                    .getBranch("accessibility.");
   if (!newValue) {
     if (prefs.prefHasUserValue("tabfocus")) {
@@ -38,14 +37,9 @@ function setOrRestoreTabFocus(newValue) {
 
 function snapShot(element) {
   var rect = element.getBoundingClientRect();
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-  var canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-  canvas.setAttribute("width", rect.width + 12);
-  canvas.setAttribute("height", rect.height + 12);
-  var ctx = canvas.getContext("2d");
-  ctx.drawWindow(window, rect.left - 6, rect.top - 6, rect.width + 6, rect.height + 6,
-                 "transparent");
-  return canvas;
+  adjustedRect = { left: rect.left - 6, top: rect.top - 6,
+                   width: rect.width + 12, height: rect.height + 12 }
+  return SpecialPowers.snapshotRect(window, adjustedRect, "transparent");
 }
 
 function runTest()
@@ -80,10 +74,8 @@ function runTest()
   testHTMLElements(htmlElements, isMac, isWin && !expectedVisible);
 
   if (isMac) {
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-    var prefs = Components.classes["@mozilla.org/preferences-service;1"].
-                  getService(Components.interfaces.nsIPrefBranch);
+    var prefs = SpecialPowers.Cc["@mozilla.org/preferences-service;1"].
+                  getService(SpecialPowers.Ci.nsIPrefBranch);
     prefs.setBoolPref("accessibility.mouse_focuses_formcontrol", true);
 
     testHTMLElements(htmlElementsMacPrefSet, true, false);

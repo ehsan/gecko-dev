@@ -7,10 +7,9 @@
 #define nsIFormControlFrame_h___
 
 #include "nsQueryFrame.h"
+
 class nsAString;
-class nsIContent;
 class nsIAtom;
-struct nsSize;
 
 /** 
   * nsIFormControlFrame is the common interface for frames of form controls. It
@@ -37,16 +36,6 @@ public:
    * @returns NS_OK if the property name is valid, otherwise an error code
    */
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue) = 0;
-  
-  /**
-   * Get a property from the form control frame
-   *
-   * @param aName name of the property to get.
-   * @param aValue Value to set.
-   * @returns NS_OK if the property name is valid, otherwise an error code.
-   */
-
-  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const = 0;
 };
 
 #endif

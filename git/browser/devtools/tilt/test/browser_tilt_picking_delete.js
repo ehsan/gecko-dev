@@ -7,10 +7,12 @@ let presenter;
 
 function test() {
   if (!isTiltEnabled()) {
+    aborting();
     info("Skipping picking delete test because Tilt isn't enabled.");
     return;
   }
   if (!isWebGLSupported()) {
+    aborting();
     info("Skipping picking delete test because WebGL isn't supported.");
     return;
   }
@@ -43,7 +45,7 @@ function test() {
       }
     }, false, function suddenDeath()
     {
-      info("Tilt could not be initialized properly.");
+      ok(false, "Tilt could not be initialized properly.");
       cleanup();
     });
   });
@@ -65,7 +67,7 @@ function whenNodeRemoved() {
 
   executeSoon(function() {
     Services.obs.addObserver(cleanup, DESTROYED, false);
-    InspectorUI.closeInspectorUI();
+    Tilt.destroy(Tilt.currentWindowId);
   });
 }
 

@@ -29,9 +29,8 @@ function test() {
 function end_test() {
   // Test generates a lot of available installs so just cancel them all
   AddonManager.getAllInstalls(function(aInstalls) {
-    aInstalls.forEach(function(aInstall) {
-      aInstall.cancel();
-    });
+    for (let install of aInstalls)
+      install.cancel();
 
     close_manager(gManagerWindow, finish);
   });
@@ -65,7 +64,7 @@ function check_allresultslink(aShouldShow) {
     is_element_visible(link, "All Results link should be visible");
     is(link.value, "See all " + SEARCH_EXPECTED_TOTAL + " results", "All Results link should show the correct message");
     var scope = {};
-    Components.utils.import("resource://gre/modules/AddonRepository.jsm", scope);
+    Components.utils.import("resource://gre/modules/addons/AddonRepository.jsm", scope);
     is(link.href, scope.AddonRepository.getSearchURL(SEARCH_QUERY), "All Results link should have the correct href");
   } else {
     is_element_hidden(link, "All Results link should be hidden");

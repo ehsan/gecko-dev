@@ -49,7 +49,7 @@ function test() {
         let win = doc.defaultView;
         let filter = doc.getElementById("filter");
         let tree = doc.getElementById("signonsTree");
-        let view = tree.treeBoxObject.view;
+        let view = tree.view;
 
         is(filter.value, "", "Filter box should initially be empty");
         is(view.rowCount, 10, "There should be 10 passwords initially");
@@ -99,7 +99,7 @@ function test() {
 
             Services.obs.addObserver(function (aSubject, aTopic, aData) {
                 if (aTopic == "passwordmgr-password-toggle-complete") {
-                    Services.obs.removeObserver(arguments.callee, aTopic, false);
+                    Services.obs.removeObserver(arguments.callee, aTopic);
                     func();
                 }
             }, "passwordmgr-password-toggle-complete", false);

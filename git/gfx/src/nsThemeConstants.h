@@ -18,6 +18,9 @@
 // like images (e.g. HTML <button> elements)
 #define NS_THEME_BUTTON_BEVEL                              7
 
+// A themed focus outline (for outline:auto)
+#define NS_THEME_FOCUS_OUTLINE                             8
+
 // The toolbox that contains the toolbars.
 #define NS_THEME_TOOLBOX                                   11
 
@@ -137,6 +140,9 @@
 // The textfield of a spin control
 #define NS_THEME_SPINNER_TEXTFIELD                         75
 
+// For HTML's <input type=number>
+#define NS_THEME_NUMBER_INPUT                              76
+
 // A scrollbar.
 #define NS_THEME_SCROLLBAR                                 80
 
@@ -156,6 +162,9 @@
 // The scrollbar thumb
 #define NS_THEME_SCROLLBAR_THUMB_HORIZONTAL                88
 #define NS_THEME_SCROLLBAR_THUMB_VERTICAL                  89
+
+// A non-disappearing scrollbar.
+#define NS_THEME_SCROLLBAR_NON_DISAPPEARING                90
 
 // A textfield or text area
 #define NS_THEME_TEXTFIELD                                 95
@@ -196,6 +205,10 @@
 
 // The ticks for a slider.
 #define NS_THEME_SCALE_TICK                               117
+
+// nsRangeFrame and its subparts
+#define NS_THEME_RANGE                                    120
+#define NS_THEME_RANGE_THUMB                              121
 
 // A groupbox
 #define NS_THEME_GROUPBOX                                  149
@@ -242,8 +255,12 @@
 #define NS_THEME_WIN_MEDIA_TOOLBOX                         222
 #define NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX               223
 
-// Unified toolbar on the Mac
+// Unified toolbar and titlebar elements on the Mac
 #define NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR                   224
+#define NS_THEME_MOZ_MAC_FULLSCREEN_BUTTON                 226
+
+// Mac help button
+#define NS_THEME_MOZ_MAC_HELP_BUTTON                       227
 
 // Vista glass
 #define NS_THEME_WIN_BORDERLESS_GLASS                      229
@@ -265,3 +282,7 @@
 // moz-apperance style used in setting proper glass margins
 #define NS_THEME_WIN_EXCLUDE_GLASS                         242
 
+#define NS_THEME_MAC_VIBRANCY_LIGHT                        243
+#define NS_THEME_MAC_VIBRANCY_DARK                         244
+#define NS_THEME_MAC_DISCLOSURE_BUTTON_OPEN                245
+#define NS_THEME_MAC_DISCLOSURE_BUTTON_CLOSED              246

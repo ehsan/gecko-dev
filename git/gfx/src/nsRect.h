@@ -7,16 +7,22 @@
 #ifndef NSRECT_H
 #define NSRECT_H
 
-#include <stdio.h>
-#include "nsCoord.h"
-#include "nsPoint.h"
-#include "nsSize.h"
-#include "nsMargin.h"
-#include "gfxCore.h"
-#include "nsTraceRefcnt.h"
-#include "mozilla/gfx/BaseRect.h"
+#include <stdio.h>                      // for FILE
+#include <stdint.h>                     // for int32_t, int64_t
+#include <algorithm>                    // for min/max
+#include "nsDebug.h"                    // for NS_WARNING
+#include "gfxCore.h"                    // for NS_GFX
+#include "mozilla/Likely.h"             // for MOZ_UNLIKELY
+#include "mozilla/gfx/BaseRect.h"       // for BaseRect
+#include "nsCoord.h"                    // for nscoord, etc
+#include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
+#include "nsPoint.h"                    // for nsIntPoint, nsPoint
+#include "nsSize.h"                     // for nsIntSize, nsSize
+#include "nscore.h"                     // for NS_BUILD_REFCNT_LOGGING
 
 struct nsIntRect;
+struct nsMargin;
+struct nsIntMargin;
 
 struct NS_GFX nsRect :
   public mozilla::gfx::BaseRect<nscoord, nsRect, nsPoint, nsSize, nsMargin> {
@@ -49,58 +55,6 @@ struct NS_GFX nsRect :
   }
 #endif
 
-  // A version of Inflate that caps the values to the nscoord range.
-  // x & y is capped at the minimum value nscoord_MIN and
-  // width & height is capped at the maximum value nscoord_MAX.
-  void SaturatingInflate(const nsMargin& aMargin)
-  {
-#ifdef NS_COORD_IS_FLOAT
-    Inflate(aMargin);
-#else
-    int64_t nx = int64_t(x) - aMargin.left;
-    int64_t w = int64_t(width) + int64_t(aMargin.left) + aMargin.right;
-    if (NS_UNLIKELY(w > nscoord_MAX)) {
-      NS_WARNING("Overflowed nscoord_MAX in conversion to nscoord width");
-      int64_t xdiff = nx - nscoord_MIN / 2;
-      if (xdiff < 0) {
-        // Clamp huge negative x to nscoord_MIN / 2 and try again.
-        nx = nscoord_MIN / 2;
-        w += xdiff;
-      }
-      if (NS_UNLIKELY(w > nscoord_MAX)) {
-        w = nscoord_MAX;
-      }
-    }
-    width = nscoord(w);
-    if (NS_UNLIKELY(nx < nscoord_MIN)) {
-      NS_WARNING("Underflowed nscoord_MIN in conversion to nscoord x");
-      nx = nscoord_MIN;
-    }
-    x = nscoord(nx);
-
-    int64_t ny = int64_t(y) - aMargin.top;
-    int64_t h = int64_t(height) + int64_t(aMargin.top) + aMargin.bottom;
-    if (NS_UNLIKELY(h > nscoord_MAX)) {
-      NS_WARNING("Overflowed nscoord_MAX in conversion to nscoord height");
-      int64_t ydiff = ny - nscoord_MIN / 2;
-      if (ydiff < 0) {
-        // Clamp huge negative y to nscoord_MIN / 2 and try again.
-        ny = nscoord_MIN / 2;
-        h += ydiff;
-      }
-      if (NS_UNLIKELY(h > nscoord_MAX)) {
-        h = nscoord_MAX;
-      }
-    }
-    height = nscoord(h);
-    if (NS_UNLIKELY(ny < nscoord_MIN)) {
-      NS_WARNING("Underflowed nscoord_MIN in conversion to nscoord y");
-      ny = nscoord_MIN;
-    }
-    y = nscoord(ny);
-#endif
-  }
-
   // We have saturating versions of all the Union methods. These avoid
   // overflowing nscoord values in the 'width' and 'height' fields by
   // clamping the width and height values to nscoord_MAX if necessary.
@@ -122,27 +76,27 @@ struct NS_GFX nsRect :
     return UnionEdges(aRect);
 #else
     nsRect result;
-    result.x = NS_MIN(aRect.x, x);
-    int64_t w = NS_MAX(int64_t(aRect.x) + aRect.width, int64_t(x) + width) - result.x;
-    if (NS_UNLIKELY(w > nscoord_MAX)) {
+    result.x = std::min(aRect.x, x);
+    int64_t w = std::max(int64_t(aRect.x) + aRect.width, int64_t(x) + width) - result.x;
+    if (MOZ_UNLIKELY(w > nscoord_MAX)) {
       NS_WARNING("Overflowed nscoord_MAX in conversion to nscoord width");
       // Clamp huge negative x to nscoord_MIN / 2 and try again.
-      result.x = NS_MAX(result.x, nscoord_MIN / 2);
-      w = NS_MAX(int64_t(aRect.x) + aRect.width, int64_t(x) + width) - result.x;
-      if (NS_UNLIKELY(w > nscoord_MAX)) {
+      result.x = std::max(result.x, nscoord_MIN / 2);
+      w = std::max(int64_t(aRect.x) + aRect.width, int64_t(x) + width) - result.x;
+      if (MOZ_UNLIKELY(w > nscoord_MAX)) {
         w = nscoord_MAX;
       }
     }
     result.width = nscoord(w);
 
-    result.y = NS_MIN(aRect.y, y);
-    int64_t h = NS_MAX(int64_t(aRect.y) + aRect.height, int64_t(y) + height) - result.y;
-    if (NS_UNLIKELY(h > nscoord_MAX)) {
+    result.y = std::min(aRect.y, y);
+    int64_t h = std::max(int64_t(aRect.y) + aRect.height, int64_t(y) + height) - result.y;
+    if (MOZ_UNLIKELY(h > nscoord_MAX)) {
       NS_WARNING("Overflowed nscoord_MAX in conversion to nscoord height");
       // Clamp huge negative y to nscoord_MIN / 2 and try again.
-      result.y = NS_MAX(result.y, nscoord_MIN / 2);
-      h = NS_MAX(int64_t(aRect.y) + aRect.height, int64_t(y) + height) - result.y;
-      if (NS_UNLIKELY(h > nscoord_MAX)) {
+      result.y = std::max(result.y, nscoord_MIN / 2);
+      h = std::max(int64_t(aRect.y) + aRect.height, int64_t(y) + height) - result.y;
+      if (MOZ_UNLIKELY(h > nscoord_MAX)) {
         h = nscoord_MAX;
       }
     }
@@ -230,16 +184,16 @@ struct NS_GFX nsIntRect :
 
   // Returns a special nsIntRect that's used in some places to signify
   // "all available space".
-  static const nsIntRect& GetMaxSizedIntRect() { return kMaxSizedIntRect; }
+  static const nsIntRect& GetMaxSizedIntRect() {
+    static const nsIntRect r(0, 0, INT32_MAX, INT32_MAX);
+    return r;
+  }
 
   // This is here only to keep IPDL-generated code happy. DO NOT USE.
   bool operator==(const nsIntRect& aRect) const
   {
     return IsEqualEdges(aRect);
   }
-
-protected:
-  static const nsIntRect kMaxSizedIntRect;
 };
 
 /*
@@ -290,10 +244,11 @@ nsRect::ScaleToNearestPixels(float aXScale, float aYScale,
   nsIntRect rect;
   rect.x = NSToIntRoundUp(NSAppUnitsToDoublePixels(x, aAppUnitsPerPixel) * aXScale);
   rect.y = NSToIntRoundUp(NSAppUnitsToDoublePixels(y, aAppUnitsPerPixel) * aYScale);
-  rect.width  = NSToIntRoundUp(NSAppUnitsToDoublePixels(XMost(),
-                               aAppUnitsPerPixel) * aXScale) - rect.x;
-  rect.height = NSToIntRoundUp(NSAppUnitsToDoublePixels(YMost(),
-                               aAppUnitsPerPixel) * aYScale) - rect.y;
+  // Avoid negative widths and heights due to overflow
+  rect.width  = std::max(0, NSToIntRoundUp(NSAppUnitsToDoublePixels(XMost(),
+                               aAppUnitsPerPixel) * aXScale) - rect.x);
+  rect.height = std::max(0, NSToIntRoundUp(NSAppUnitsToDoublePixels(YMost(),
+                               aAppUnitsPerPixel) * aYScale) - rect.y);
   return rect;
 }
 
@@ -305,10 +260,11 @@ nsRect::ScaleToOutsidePixels(float aXScale, float aYScale,
   nsIntRect rect;
   rect.x = NSToIntFloor(NSAppUnitsToFloatPixels(x, float(aAppUnitsPerPixel)) * aXScale);
   rect.y = NSToIntFloor(NSAppUnitsToFloatPixels(y, float(aAppUnitsPerPixel)) * aYScale);
-  rect.width  = NSToIntCeil(NSAppUnitsToFloatPixels(XMost(),
-                            float(aAppUnitsPerPixel)) * aXScale) - rect.x;
-  rect.height = NSToIntCeil(NSAppUnitsToFloatPixels(YMost(),
-                            float(aAppUnitsPerPixel)) * aYScale) - rect.y;
+  // Avoid negative widths and heights due to overflow
+  rect.width  = std::max(0, NSToIntCeil(NSAppUnitsToFloatPixels(XMost(),
+                            float(aAppUnitsPerPixel)) * aXScale) - rect.x);
+  rect.height = std::max(0, NSToIntCeil(NSAppUnitsToFloatPixels(YMost(),
+                            float(aAppUnitsPerPixel)) * aYScale) - rect.y);
   return rect;
 }
 
@@ -320,10 +276,11 @@ nsRect::ScaleToInsidePixels(float aXScale, float aYScale,
   nsIntRect rect;
   rect.x = NSToIntCeil(NSAppUnitsToFloatPixels(x, float(aAppUnitsPerPixel)) * aXScale);
   rect.y = NSToIntCeil(NSAppUnitsToFloatPixels(y, float(aAppUnitsPerPixel)) * aYScale);
-  rect.width  = NSToIntFloor(NSAppUnitsToFloatPixels(XMost(),
-                             float(aAppUnitsPerPixel)) * aXScale) - rect.x;
-  rect.height = NSToIntFloor(NSAppUnitsToFloatPixels(YMost(),
-                             float(aAppUnitsPerPixel)) * aYScale) - rect.y;
+  // Avoid negative widths and heights due to overflow
+  rect.width  = std::max(0, NSToIntFloor(NSAppUnitsToFloatPixels(XMost(),
+                             float(aAppUnitsPerPixel)) * aXScale) - rect.x);
+  rect.height = std::max(0, NSToIntFloor(NSAppUnitsToFloatPixels(YMost(),
+                             float(aAppUnitsPerPixel)) * aYScale) - rect.y);
   return rect;
 }
 

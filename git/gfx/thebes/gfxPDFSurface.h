@@ -13,7 +13,7 @@
 #include "nsCOMPtr.h"
 #include "nsIOutputStream.h"
 
-class THEBES_API gfxPDFSurface : public gfxASurface {
+class gfxPDFSurface : public gfxASurface {
 public:
     gfxPDFSurface(nsIOutputStream *aStream, const gfxSize& aSizeInPoints);
     virtual ~gfxPDFSurface();
@@ -32,13 +32,6 @@ public:
     virtual const gfxIntSize GetSize() const
     {
         return gfxIntSize(mSize.width, mSize.height);
-    }
-
-    virtual int32_t GetDefaultContextFlags() const
-    {
-        return gfxContext::FLAG_SIMPLIFY_OPERATORS |
-               gfxContext::FLAG_DISABLE_SNAPPING |
-               gfxContext::FLAG_DISABLE_COPY_BACKGROUND;
     }
 
 private:

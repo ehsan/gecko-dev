@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <?xml-stylesheet href="chrome://global/skin" type="text/css"?>
 <?xml-stylesheet href="chrome://mochikit/content/tests/SimpleTest/test.css" type="text/css"?>
+<?xml-stylesheet href="test_offsets.css" type="text/css"?>
 <!--
   XUL Tests for client/scroll properties
   -->
@@ -26,14 +27,17 @@
              style="margin: 0; padding: 0; border: 0;"/>
     </vbox>
     <vbox id="scrollbox-test">
-       <scrollbar orient="vertical" style="margin: 0; border: 0; padding: 0;"/>
+       <scrollbar orient="vertical" style="border: 0; padding: 0;"/>
     </vbox>
   </hbox>
 </vbox>
 
+<!-- wrap svg in a div so that it can take its intrinsic width -->
+<div>
 <svg:svg id="svgbase" width="45" height="20" xmlns:svg="http://www.w3.org/2000/svg">
   <svg:rect id="svgrect" x="3" y="5" width="45" height="20" fill="red"/>
 </svg:svg>
+</div>
 
 </vbox>
 

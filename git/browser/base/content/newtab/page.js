@@ -4,6 +4,9 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 #endif
 
+// The amount of time we wait while coalescing updates for hidden pages.
+const SCHEDULE_UPDATE_TIMEOUT_MS = 1000;
+
 /**
  * This singleton represents the whole 'New Tab Page' and takes care of
  * initializing all its components.
@@ -19,9 +22,10 @@ let gPage = {
     // Listen for 'unload' to unregister this page.
     addEventListener("unload", this, false);
 
-    // Listen for toggle button clicks.
-    let button = document.getElementById("newtab-toggle");
-    button.addEventListener("click", this, false);
+    // XXX bug 991111 - Not all click events are correctly triggered when
+    // listening from xhtml nodes -- in particular middle clicks on sites, so
+    // listen from the xul window and filter then delegate
+    addEventListener("click", this, false);
 
     // Check if the new tab feature is enabled.
     let enabled = gAllPages.enabled;
@@ -29,25 +33,78 @@ let gPage = {
       this._init();
 
     this._updateAttributes(enabled);
+
+    // Initialize customize controls.
+    gCustomize.init();
+
+    // Initialize intro panel.
+    gIntro.init();
   },
 
   /**
    * Listens for notifications specific to this page.
    */
-  observe: function Page_observe() {
-    let enabled = gAllPages.enabled;
-    this._updateAttributes(enabled);
+  observe: function Page_observe(aSubject, aTopic, aData) {
+    if (aTopic == "nsPref:changed") {
+      gCustomize.updateSelected();
 
-    // Initialize the whole page if we haven't done that, yet.
-    if (enabled)
-      this._init();
+      let enabled = gAllPages.enabled;
+      this._updateAttributes(enabled);
+
+      // Update thumbnails to the new enhanced setting
+      if (aData == "browser.newtabpage.enhanced") {
+        this.update();
+      }
+
+      // Initialize the whole page if we haven't done that, yet.
+      if (enabled) {
+        this._init();
+      } else {
+        gUndoDialog.hide();
+      }
+    } else if (aTopic == "page-thumbnail:create" && gGrid.ready) {
+      for (let site of gGrid.sites) {
+        if (site && site.url === aData) {
+          site.refreshThumbnail();
+        }
+      }
+    }
   },
 
   /**
-   * Updates the whole page and the grid when the storage has changed.
+   * Updates the page's grid right away for visible pages. If the page is
+   * currently hidden, i.e. in a background tab or in the preloader, then we
+   * batch multiple update requests and refresh the grid once after a short
+   * delay. Accepts a single parameter the specifies the reason for requesting
+   * a page update. The page may decide to delay or prevent a requested updated
+   * based on the given reason.
    */
-  update: function Page_update() {
-    gGrid.refresh();
+  update(reason = "") {
+    // Update immediately if we're visible.
+    if (!document.hidden) {
+      // Ignore updates where reason=links-changed as those signal that the
+      // provider's set of links changed. We don't want to update visible pages
+      // in that case, it is ok to wait until the user opens the next tab.
+      if (reason != "links-changed" && gGrid.ready) {
+        gGrid.refresh();
+      }
+
+      return;
+    }
+
+    // Bail out if we scheduled before.
+    if (this._scheduleUpdateTimeout) {
+      return;
+    }
+
+    this._scheduleUpdateTimeout = setTimeout(() => {
+      // Refresh if the grid is ready.
+      if (gGrid.ready) {
+        gGrid.refresh();
+      }
+
+      this._scheduleUpdateTimeout = null;
+    }, SCHEDULE_UPDATE_TIMEOUT_MS);
   },
 
   /**
@@ -60,19 +117,26 @@ let gPage = {
 
     this._initialized = true;
 
-    gLinks.populateCache(function () {
-      // Initialize and render the grid.
-      gGrid.init();
+    // Initialize search.
+    gSearch.init();
 
-      // Initialize the drop target shim.
-      gDropTargetShim.init();
+    if (document.hidden) {
+      addEventListener("visibilitychange", this);
+    } else {
+      setTimeout(_ => this.onPageFirstVisible());
+    }
+
+    // Initialize and render the grid.
+    gGrid.init();
+
+    // Initialize the drop target shim.
+    gDropTargetShim.init();
 
 #ifdef XP_MACOSX
-      // Workaround to prevent a delay on MacOSX due to a slow drop animation.
-      document.addEventListener("dragover", this, false);
-      document.addEventListener("drop", this, false);
+    // Workaround to prevent a delay on MacOSX due to a slow drop animation.
+    document.addEventListener("dragover", this, false);
+    document.addEventListener("drop", this, false);
 #endif
-    }.bind(this));
   },
 
   /**
@@ -81,7 +145,7 @@ let gPage = {
    */
   _updateAttributes: function Page_updateAttributes(aValue) {
     // Set the nodes' states.
-    let nodeSelector = "#newtab-scrollbox, #newtab-toggle, #newtab-grid";
+    let nodeSelector = "#newtab-scrollbox, #newtab-grid, #newtab-search-container";
     for (let node of document.querySelectorAll(nodeSelector)) {
       if (aValue)
         node.removeAttribute("page-disabled");
@@ -97,10 +161,6 @@ let gPage = {
       else
         input.setAttribute("tabindex", "-1");
     }
-
-    // Update the toggle button's title.
-    let toggle = document.getElementById("newtab-toggle");
-    toggle.setAttribute("title", newTabString(aValue ? "hide" : "show"));
   },
 
   /**
@@ -108,11 +168,22 @@ let gPage = {
    */
   handleEvent: function Page_handleEvent(aEvent) {
     switch (aEvent.type) {
+      case "load":
+        this.onPageVisibleAndLoaded();
+        break;
       case "unload":
         gAllPages.unregister(this);
         break;
       case "click":
-        gAllPages.enabled = !gAllPages.enabled;
+        let {button, target} = aEvent;
+        // Go up ancestors until we find a Site or not
+        while (target) {
+          if (target.hasOwnProperty("_newtabSite")) {
+            target._newtabSite.onClick(aEvent);
+            break;
+          }
+          target = target.parentNode;
+        }
         break;
       case "dragover":
         if (gDrag.isValid(aEvent) && gDrag.draggedSite)
@@ -124,6 +195,67 @@ let gPage = {
           aEvent.stopPropagation();
         }
         break;
+      case "visibilitychange":
+        // Cancel any delayed updates for hidden pages now that we're visible.
+        if (this._scheduleUpdateTimeout) {
+          clearTimeout(this._scheduleUpdateTimeout);
+          this._scheduleUpdateTimeout = null;
+
+          // An update was pending so force an update now.
+          this.update();
+        }
+
+        setTimeout(() => this.onPageFirstVisible());
+        removeEventListener("visibilitychange", this);
+        break;
     }
+  },
+
+  onPageFirstVisible: function () {
+    // Record another page impression.
+    Services.telemetry.getHistogramById("NEWTAB_PAGE_SHOWN").add(true);
+
+    for (let site of gGrid.sites) {
+      if (site) {
+        site.captureIfMissing();
+      }
+    }
+
+    if (document.readyState == "complete") {
+      this.onPageVisibleAndLoaded();
+    } else {
+      addEventListener("load", this);
+    }
+  },
+
+  onPageVisibleAndLoaded() {
+    // Send the index of the last visible tile.
+    this.reportLastVisibleTileIndex();
+
+    // Show the panel now that anchors are sized
+    gIntro.showIfNecessary();
+  },
+
+  reportLastVisibleTileIndex() {
+    let cwu = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                    .getInterface(Ci.nsIDOMWindowUtils);
+
+    let rect = cwu.getBoundsWithoutFlushing(gGrid.node);
+    let nodes = cwu.nodesFromRect(rect.left, rect.top, 0, rect.width,
+                                  rect.height, 0, true, false);
+
+    let i = -1;
+    let lastIndex = -1;
+    let sites = gGrid.sites;
+
+    for (let node of nodes) {
+      if (node.classList && node.classList.contains("newtab-cell")) {
+        if (sites[++i]) {
+          lastIndex = i;
+        }
+      }
+    }
+
+    DirectoryLinksProvider.reportSitesAction(sites, "view", lastIndex);
   }
 };

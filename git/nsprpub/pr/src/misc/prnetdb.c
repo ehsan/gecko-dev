@@ -1998,7 +1998,7 @@ PR_IMPLEMENT(PRAddrInfo *) PR_GetAddrInfoByName(const char  *hostname,
 #endif
     {
         PRADDRINFO *res, hints;
-        PRStatus rv;
+        int rv;
 
         /*
          * we assume a RFC 2553 compliant getaddrinfo.  this may at some
@@ -2228,10 +2228,6 @@ PR_IMPLEMENT(PRStatus) PR_StringToNetAddr(const char *string, PRNetAddr *addr)
 #if !defined(_PR_HAVE_GETADDRINFO)
     return pr_StringToNetAddrFB(string, addr);
 #else
-#if defined(_PR_INET6_PROBE)
-    if (!_pr_ipv6_is_present())
-        return pr_StringToNetAddrFB(string, addr);
-#endif
     /*
      * getaddrinfo with AI_NUMERICHOST is much slower than pr_inet_aton on some
      * platforms, such as Mac OS X (bug 404399), Linux glibc 2.10 (bug 344809),
@@ -2240,6 +2236,11 @@ PR_IMPLEMENT(PRStatus) PR_StringToNetAddr(const char *string, PRNetAddr *addr)
      */
     if (!strchr(string, '%'))
         return pr_StringToNetAddrFB(string, addr);
+
+#if defined(_PR_INET6_PROBE)
+    if (!_pr_ipv6_is_present())
+        return pr_StringToNetAddrFB(string, addr);
+#endif
 
     return pr_StringToNetAddrGAI(string, addr);
 #endif
@@ -2263,7 +2264,7 @@ static PRStatus pr_NetAddrToStringGNI(
         md_af = AF_INET6;
 #ifndef _PR_HAVE_SOCKADDR_LEN
         addrcopy = *addr;
-        addrcopy.raw.family = AF_INET6;
+        addrcopy.raw.family = md_af;
         addrp = &addrcopy;
 #endif
     }

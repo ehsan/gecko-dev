@@ -5,6 +5,7 @@
 #ifndef nsPageContentFrame_h___
 #define nsPageContentFrame_h___
 
+#include "mozilla/Attributes.h"
 #include "nsViewportFrame.h"
 class nsPageFrame;
 class nsSharedPageData;
@@ -15,16 +16,17 @@ class nsPageContentFrame : public ViewportFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  friend nsIFrame* NS_NewPageContentFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  friend nsPageContentFrame* NS_NewPageContentFrame(nsIPresShell* aPresShell,
+                                                    nsStyleContext* aContext);
   friend class nsPageFrame;
 
   // nsIFrame
-  NS_IMETHOD  Reflow(nsPresContext*      aPresContext,
-                     nsHTMLReflowMetrics& aDesiredSize,
-                     const nsHTMLReflowState& aMaxSize,
-                     nsReflowStatus&      aStatus);
+  virtual void Reflow(nsPresContext*      aPresContext,
+                      nsHTMLReflowMetrics& aDesiredSize,
+                      const nsHTMLReflowState& aMaxSize,
+                      nsReflowStatus&      aStatus) MOZ_OVERRIDE;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
   {
     return ViewportFrame::IsFrameOfType(aFlags &
              ~(nsIFrame::eCanContainOverflowContainers));
@@ -32,29 +34,22 @@ public:
 
   virtual void SetSharedPageData(nsSharedPageData* aPD) { mPD = aPD; }
 
-  /**
-   *  Computes page size based on shared page data; SetSharedPageData must be
-   *  given valid data first.
-   */
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
-                             nsSize aCBSize, nscoord aAvailableWidth,
-                             nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             uint32_t aFlags) MOZ_OVERRIDE;
+  virtual bool HasTransformGetter() const MOZ_OVERRIDE { return true; }
 
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::pageContentFrame
    */
-  virtual nsIAtom* GetType() const;
+  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
   
-#ifdef DEBUG
+#ifdef DEBUG_FRAME_DUMP
   // Debugging
-  NS_IMETHOD  GetFrameName(nsAString& aResult) const;
+  virtual nsresult  GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
 protected:
-  nsPageContentFrame(nsStyleContext* aContext) : ViewportFrame(aContext) {}
+  explicit nsPageContentFrame(nsStyleContext* aContext) : ViewportFrame(aContext) {}
 
   nsSharedPageData*         mPD;
 };

@@ -3,10 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef MOZ_LOGGING
-// sorry, this has to be before the pre-compiled header
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
 #include "nsAutoConfig.h"
 #include "nsIURI.h"
 #include "nsIHttpChannel.h"
@@ -14,14 +10,15 @@
 #include "nsThreadUtils.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "prmem.h"
-#include "nsIProfile.h"
 #include "nsIObserverService.h"
 #include "nsLiteralString.h"
 #include "nsIPromptService.h"
 #include "nsIServiceManager.h"
 #include "nsIStringBundle.h"
+#include "nsContentUtils.h"
 #include "nsCRT.h"
 #include "nspr.h"
+#include <algorithm>
 
 PRLogModuleInfo *MCD;
 
@@ -33,7 +30,7 @@ extern nsresult EvaluateAdminConfigScript(const char *js_buffer, size_t length,
 
 // nsISupports Implementation
 
-NS_IMPL_THREADSAFE_ISUPPORTS6(nsAutoConfig, nsIAutoConfig, nsITimerCallback, nsIStreamListener, nsIObserver, nsIRequestObserver, nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(nsAutoConfig, nsIAutoConfig, nsITimerCallback, nsIStreamListener, nsIObserver, nsIRequestObserver, nsISupportsWeakReference)
 
 nsAutoConfig::nsAutoConfig()
 {
@@ -96,7 +93,7 @@ NS_IMETHODIMP
 nsAutoConfig::OnDataAvailable(nsIRequest *request, 
                               nsISupports *context,
                               nsIInputStream *aIStream, 
-                              uint32_t aSourceOffset,
+                              uint64_t aSourceOffset,
                               uint32_t aLength)
 {    
     uint32_t amt, size;
@@ -104,7 +101,7 @@ nsAutoConfig::OnDataAvailable(nsIRequest *request,
     char buf[1024];
     
     while (aLength) {
-        size = NS_MIN<size_t>(aLength, sizeof(buf));
+        size = std::min<size_t>(aLength, sizeof(buf));
         rv = aIStream->Read(buf, size, &amt);
         if (NS_FAILED(rv))
             return rv;
@@ -175,25 +172,10 @@ NS_IMETHODIMP nsAutoConfig::Notify(nsITimer *timer)
 
 NS_IMETHODIMP nsAutoConfig::Observe(nsISupports *aSubject, 
                                     const char *aTopic, 
-                                    const PRUnichar *someData)
+                                    const char16_t *someData)
 {
     nsresult rv = NS_OK;
     if (!nsCRT::strcmp(aTopic, "profile-after-change")) {
-
-        // Getting the current profile name since we already have the 
-        // pointer to the object.
-        nsCOMPtr<nsIProfile> profile = do_QueryInterface(aSubject);
-        if (profile) {
-            nsXPIDLString profileName;
-            rv = profile->GetCurrentProfile(getter_Copies(profileName));
-            if (NS_SUCCEEDED(rv)) {
-                // setting the member variable to the current profile name
-                CopyUTF16toUTF8(profileName, mCurrProfile);
-            }
-            else {
-                NS_WARNING("nsAutoConfig::GetCurrentProfile() failed");
-            }
-        } 
 
         // We will be calling downloadAutoConfig even if there is no profile 
         // name. Nothing will be passed as a parameter to the URL and the
@@ -209,7 +191,7 @@ NS_IMETHODIMP nsAutoConfig::Observe(nsISupports *aSubject,
 nsresult nsAutoConfig::downloadAutoConfig()
 {
     nsresult rv;
-    nsCAutoString emailAddr;
+    nsAutoCString emailAddr;
     nsXPIDLCString urlName;
     static bool firstTime = true;
     
@@ -223,7 +205,7 @@ nsresult nsAutoConfig::downloadAutoConfig()
     // in the previous read, we need to remove it when timer kicks in and 
     // downloads the autoconfig file again. 
     // If necessary, the email address will be added again as an argument.
-    int32_t index = mConfigURL.RFindChar((PRUnichar)'?');
+    int32_t index = mConfigURL.RFindChar((char16_t)'?');
     if (index != -1)
         mConfigURL.Truncate(index);
 
@@ -276,7 +258,7 @@ nsresult nsAutoConfig::downloadAutoConfig()
                In this case the autoconfig URL is a script and 
                emailAddr as passed as an argument 
             */
-            mConfigURL.Append("?");
+            mConfigURL.Append('?');
             mConfigURL.Append(emailAddr); 
         }
     }
@@ -294,7 +276,16 @@ nsresult nsAutoConfig::downloadAutoConfig()
 
     PR_LOG(MCD, PR_LOG_DEBUG, ("running MCD url %s\n", mConfigURL.get()));
     // open a channel for the url
-    rv = NS_NewChannel(getter_AddRefs(channel),url, nullptr, nullptr, nullptr, nsIRequest::INHIBIT_PERSISTENT_CACHING | nsIRequest::LOAD_BYPASS_CACHE);
+    rv = NS_NewChannel(getter_AddRefs(channel),
+                       url,
+                       nsContentUtils::GetSystemPrincipal(),
+                       nsILoadInfo::SEC_NORMAL,
+                       nsIContentPolicy::TYPE_OTHER,
+                       nullptr,  // loadGroup
+                       nullptr,  // aCallbacks
+                       nsIRequest::INHIBIT_PERSISTENT_CACHING |
+                       nsIRequest::LOAD_BYPASS_CACHE);
+
     if (NS_FAILED(rv)) 
         return rv;
 
@@ -418,13 +409,13 @@ nsresult nsAutoConfig::evaluateLocalFile(nsIFile *file)
         return rv;
         
     int64_t fileSize;
-    uint32_t fs, amt=0;
     file->GetFileSize(&fileSize);
-    LL_L2UI(fs, fileSize); // Converting 64 bit structure to unsigned int
+    uint32_t fs = fileSize; // Converting 64 bit structure to unsigned int
     char *buf = (char *)PR_Malloc(fs * sizeof(char));
     if (!buf) 
         return NS_ERROR_OUT_OF_MEMORY;
-    
+
+    uint32_t amt = 0;
     rv = inStr->Read(buf, fs, &amt);
     if (NS_SUCCEEDED(rv)) {
       EvaluateAdminConfigScript(buf, fs, nullptr, false, 
@@ -496,8 +487,8 @@ nsresult nsAutoConfig::getEmailAddr(nsACString & emailAddr)
                                   getter_Copies(prefValue));
         if (NS_SUCCEEDED(rv) && !prefValue.IsEmpty())
             emailAddr = prefValue;
-        else if (NS_FAILED(PromptForEMailAddress(emailAddr))  && (!mCurrProfile.IsEmpty()))
-            emailAddr = mCurrProfile;
+        else
+            PromptForEMailAddress(emailAddr);
     }
     
     return NS_OK;
@@ -517,11 +508,11 @@ nsresult nsAutoConfig::PromptForEMailAddress(nsACString &emailAddress)
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsXPIDLString title;
-    rv = bundle->GetStringFromName(NS_LITERAL_STRING("emailPromptTitle").get(), getter_Copies(title));
+    rv = bundle->GetStringFromName(MOZ_UTF16("emailPromptTitle"), getter_Copies(title));
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsXPIDLString err;
-    rv = bundle->GetStringFromName(NS_LITERAL_STRING("emailPromptMsg").get(), getter_Copies(err));
+    rv = bundle->GetStringFromName(MOZ_UTF16("emailPromptMsg"), getter_Copies(err));
     NS_ENSURE_SUCCESS(rv, rv);
     bool check = false;
     nsXPIDLString emailResult;

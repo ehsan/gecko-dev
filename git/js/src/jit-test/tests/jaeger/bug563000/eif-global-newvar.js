@@ -1,8 +1,6 @@
-// |jit-test| mjitalways;debug
-setDebug(true);
+load(libdir + "evalInFrame.js");
 
 function callee() {
-  assertJit();
   evalInFrame(1, "var x = 'success'");
 }
 callee();

@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
+interface nsIPrincipal;
 %{C++
 namespace mozilla {
 class TimeStamp;
@@ -12,30 +13,55 @@ class TimeStamp;
 native TimeStamp(mozilla::TimeStamp);
 
 // All properties return zero if the value is not available
-[scriptable, uuid(c259b593-a9bf-4d08-8149-ef89e1977dc4)]
+[scriptable, uuid(ca63784d-959c-4c3a-9a59-234a2a520de0)]
 interface nsITimedChannel : nsISupports {
   // Set this attribute to true to enable collection of timing data.
   // channelCreationTime will be available even with this attribute set to
   // false.
   attribute boolean timingEnabled;
 
-  [notxpcom] readonly attribute TimeStamp channelCreation;
-  [notxpcom] readonly attribute TimeStamp asyncOpen;
+  // The number of redirects
+  attribute uint16_t redirectCount;
+
+  [noscript] readonly attribute TimeStamp channelCreation;
+  [noscript] readonly attribute TimeStamp asyncOpen;
 
   // The following are only set when the document is not (only) read from the
   // cache
-  [notxpcom] readonly attribute TimeStamp domainLookupStart;
-  [notxpcom] readonly attribute TimeStamp domainLookupEnd;
-  [notxpcom] readonly attribute TimeStamp connectStart;
-  [notxpcom] readonly attribute TimeStamp connectEnd;
-  [notxpcom] readonly attribute TimeStamp requestStart;
-  [notxpcom] readonly attribute TimeStamp responseStart;
-  [notxpcom] readonly attribute TimeStamp responseEnd;
+  [noscript] readonly attribute TimeStamp domainLookupStart;
+  [noscript] readonly attribute TimeStamp domainLookupEnd;
+  [noscript] readonly attribute TimeStamp connectStart;
+  [noscript] readonly attribute TimeStamp connectEnd;
+  [noscript] readonly attribute TimeStamp requestStart;
+  [noscript] readonly attribute TimeStamp responseStart;
+  [noscript] readonly attribute TimeStamp responseEnd;
+
+  // The redirect attributes timings must be writeble, se we can transfer
+  // the data from one channel to the redirected channel.
+  [noscript] attribute TimeStamp redirectStart;
+  [noscript] attribute TimeStamp redirectEnd;
+
+  // The initiator type
+  [noscript] attribute AString initiatorType;
+
+  // This flag should be set to false only if a cross-domain redirect occurred
+  [noscript] attribute boolean allRedirectsSameOrigin;
+  // This flag is set to false if the timing allow check fails
+  [noscript] attribute boolean allRedirectsPassTimingAllowCheck;
+  // Implements the timing-allow-check to determine if we should report
+  // timing info for the resourceTiming object.
+  [noscript] boolean timingAllowCheck(in nsIPrincipal origin);
+  %{C++
+  inline bool TimingAllowCheck(nsIPrincipal* aOrigin) {
+    bool allowed = false;
+    return NS_SUCCEEDED(TimingAllowCheck(aOrigin, &allowed)) && allowed;
+  }
+  %}
 
   // The following are only set if the document is (partially) read from the
   // cache
-  [notxpcom] readonly attribute TimeStamp cacheReadStart;
-  [notxpcom] readonly attribute TimeStamp cacheReadEnd;
+  [noscript] readonly attribute TimeStamp cacheReadStart;
+  [noscript] readonly attribute TimeStamp cacheReadEnd;
 
   // All following are PRTime versions of the above.
   readonly attribute PRTime channelCreationTime;
@@ -49,4 +75,6 @@ interface nsITimedChannel : nsISupports {
   readonly attribute PRTime responseEndTime;
   readonly attribute PRTime cacheReadStartTime;
   readonly attribute PRTime cacheReadEndTime;
+  readonly attribute PRTime redirectStartTime;
+  readonly attribute PRTime redirectEndTime;
 };

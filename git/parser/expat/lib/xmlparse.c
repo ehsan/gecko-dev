@@ -49,7 +49,7 @@ typedef char ICHAR;
 
 #endif
 
-/* BEGIN MOZILLA CHANGE (typedef XML_Char to PRUnichar) */
+/* BEGIN MOZILLA CHANGE (typedef XML_Char to char16_t) */
 #if 0
 
 #ifdef XML_UNICODE
@@ -136,7 +136,9 @@ typedef struct {
 #define INIT_DATA_BUF_SIZE 1024
 #define INIT_ATTS_SIZE 16
 #define INIT_ATTS_VERSION 0xFFFFFFFF
-#define INIT_BLOCK_SIZE 1024
+/* BEGIN MOZILLA CHANGE (Avoid slop in poolGrow() allocations) */
+#define INIT_BLOCK_SIZE ((int)(1024 - (offsetof(BLOCK, s) / sizeof(XML_Char))))
+/* END MOZILLA CHANGE */
 #define INIT_BUFFER_SIZE 1024
 
 #define EXPAND_SPARE 24
@@ -1512,7 +1514,9 @@ XML_Parse(XML_Parser parser, const char *s, int len, int isFinal)
   else if (bufferPtr == bufferEnd) {
     const char *end;
     int nLeftOver;
-    enum XML_Error result;
+/* BEGIN MOZILLA CHANGE (|result| has type XML_Status, not XML_Error) */
+    enum XML_Status result;
+/* END MOZILLA CHANGE */
     parseEndByteIndex += len;
     positionPtr = s;
     ps_finalBuffer = (XML_Bool)isFinal;

@@ -42,11 +42,16 @@
     }
 
     function parseQueryString() {
-      let url = document.documentURI;
-      let queryString = url.replace(/^about:socialerror\??/, "");
-
-      let modeMatch = queryString.match(/mode=([^&]+)/);
-      let mode = modeMatch && modeMatch[1] ? modeMatch[1] : "";
+      let searchParams = new URLSearchParams(location.href.split("?")[1]);
+      let mode = searchParams.get("mode");
+      config.directory = searchParams.get("directory");
+      config.origin = searchParams.get("origin");
+      let encodedURL = searchParams.get("url");
+      let url = decodeURIComponent(encodedURL);
+      if (config.directory) {
+        let URI = Services.io.newURI(url, null, null);
+        config.origin = Services.scriptSecurityManager.getNoAppCodebasePrincipal(URI).origin;
+      }
 
       switch (mode) {
         case "compactInfo":
@@ -57,10 +62,6 @@
           document.getElementById("btnCloseSidebar").style.display = 'none';
           //intentional fall-through
         case "tryAgain":
-          let urlMatch = queryString.match(/url=([^&]+)/);
-          let encodedURL = urlMatch && urlMatch[1] ? urlMatch[1] : "";
-          let url = decodeURIComponent(encodedURL);
-
           config.tryAgainCallback = loadQueryURL;
           config.queryURL = url;
           break;
@@ -77,7 +78,8 @@
       let browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
 
       let productName = brandBundle.GetStringFromName("brandShortName");
-      let providerName = Social && Social.provider && Social.provider.name;
+      let provider = Social._getProviderFromOrigin(config.origin);
+      let providerName = provider ? provider.name : config.origin;
 
       // Sets up the error message
       let msg = browserBundle.formatStringFromName("social.error.message", [productName, providerName], 2);
@@ -94,7 +96,7 @@
     }
 
     function closeSidebarButton() {
-      Social.toggleSidebar();
+      SocialSidebar.toggleSidebar();
     }
 
     function tryAgainButton() {
@@ -106,10 +108,20 @@
     }
 
     function reloadProvider() {
-      Social.enabled = false;
-      Services.tm.mainThread.dispatch(function() {
-        Social.enabled = true;
-      }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
+      // Just incase the current provider *isn't* in a frameworker-error
+      // state, reload the current one.
+      let provider = Social._getProviderFromOrigin(config.origin);
+      provider.reload();
+      // If the problem is a frameworker-error, it may be that the child
+      // process crashed - and if that happened, then *all* providers in that
+      // process will have crashed.  However, only the current provider is
+      // likely to have the error surfaced in the UI - so we reload *all*
+      // providers that are in a frameworker-error state.
+      for (let provider of Social.providers) {
+        if (provider.enabled && provider.errorState == "frameworker-error") {
+          provider.reload();
+        }
+      }
     }
 
     parseQueryString();

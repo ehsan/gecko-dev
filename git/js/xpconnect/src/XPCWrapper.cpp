@@ -1,17 +1,21 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=78: */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "xpcprivate.h"
 #include "XPCWrapper.h"
-#include "AccessCheck.h"
 #include "WrapperFactory.h"
+#include "AccessCheck.h"
+
+using namespace xpc;
+using namespace mozilla;
 
 namespace XPCNativeWrapper {
 
 static inline
-JSBool
+bool
 ThrowException(nsresult ex, JSContext *cx)
 {
   XPCThrower::Throw(ex, cx);
@@ -19,87 +23,65 @@ ThrowException(nsresult ex, JSContext *cx)
   return false;
 }
 
-static JSBool
+static bool
 UnwrapNW(JSContext *cx, unsigned argc, jsval *vp)
 {
-  if (argc != 1) {
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  if (args.length() != 1) {
     return ThrowException(NS_ERROR_XPC_NOT_ENOUGH_ARGS, cx);
   }
 
-  jsval v = JS_ARGV(cx, vp)[0];
-  if (JSVAL_IS_PRIMITIVE(v)) {
-    return ThrowException(NS_ERROR_INVALID_ARG, cx);
-  }
-
-  JSObject *obj = JSVAL_TO_OBJECT(v);
-  if (!js::IsWrapper(obj)) {
-    JS_SET_RVAL(cx, vp, v);
+  JS::RootedValue v(cx, args[0]);
+  if (!v.isObject() || !js::IsWrapper(&v.toObject())) {
+    args.rval().set(v);
     return true;
   }
 
-  if (xpc::WrapperFactory::IsXrayWrapper(obj) &&
-      !xpc::WrapperFactory::IsPartiallyTransparent(obj)) {
-    return JS_GetProperty(cx, obj, "wrappedJSObject", vp);
+  if (AccessCheck::wrapperSubsumes(&v.toObject())) {
+    bool ok = xpc::WrapperFactory::WaiveXrayAndWrap(cx, &v);
+    NS_ENSURE_TRUE(ok, false);
   }
 
-  JS_SET_RVAL(cx, vp, v);
+  args.rval().set(v);
   return true;
 }
 
-static JSBool
+static bool
 XrayWrapperConstructor(JSContext *cx, unsigned argc, jsval *vp)
 {
-  if (argc == 0) {
+  JS::CallArgs args = CallArgsFromVp(argc, vp);
+  if (args.length() == 0) {
     return ThrowException(NS_ERROR_XPC_NOT_ENOUGH_ARGS, cx);
   }
 
-  if (JSVAL_IS_PRIMITIVE(vp[2])) {
-    return ThrowException(NS_ERROR_ILLEGAL_VALUE, cx);
-  }
-
-  JSObject *obj = JSVAL_TO_OBJECT(vp[2]);
-  if (!js::IsWrapper(obj)) {
-    *vp = OBJECT_TO_JSVAL(obj);
+  if (!args[0].isObject()) {
+    args.rval().set(args[0]);
     return true;
   }
 
-  obj = js::UnwrapObject(obj);
-
-  *vp = OBJECT_TO_JSVAL(obj);
-  return JS_WrapValue(cx, vp);
+  args.rval().setObject(*js::UncheckedUnwrap(&args[0].toObject()));
+  return JS_WrapValue(cx, args.rval());
 }
 // static
 bool
-AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject)
+AttachNewConstructorObject(JSContext *aCx, JS::HandleObject aGlobalObject)
 {
+  // Pushing a JSContext calls ActivateDebugger which calls this function, so
+  // we can't use an AutoJSContext here until JSD is gone.
+  JSAutoCompartment ac(aCx, aGlobalObject);
   JSFunction *xpcnativewrapper =
-    JS_DefineFunction(ccx, aGlobalObject, "XPCNativeWrapper",
+    JS_DefineFunction(aCx, aGlobalObject, "XPCNativeWrapper",
                       XrayWrapperConstructor, 1,
                       JSPROP_READONLY | JSPROP_PERMANENT | JSFUN_STUB_GSOPS | JSFUN_CONSTRUCTOR);
   if (!xpcnativewrapper) {
     return false;
   }
-  return JS_DefineFunction(ccx, JS_GetFunctionObject(xpcnativewrapper), "unwrap", UnwrapNW, 1,
+  JS::RootedObject obj(aCx, JS_GetFunctionObject(xpcnativewrapper));
+  return JS_DefineFunction(aCx, obj, "unwrap", UnwrapNW, 1,
                            JSPROP_READONLY | JSPROP_PERMANENT) != nullptr;
 }
 
 } // namespace XPCNativeWrapper
-
-namespace xpc {
-
-JSObject *
-Unwrap(JSContext *cx, JSObject *wrapper, bool stopAtOuter)
-{
-  if (js::IsWrapper(wrapper)) {
-    if (xpc::AccessCheck::isScriptAccessOnly(cx, wrapper))
-      return nullptr;
-    return js::UnwrapObject(wrapper, stopAtOuter);
-  }
-
-  return nullptr;
-}
-
-} // namespace xpc
 
 namespace XPCWrapper {
 
@@ -107,7 +89,7 @@ JSObject *
 UnsafeUnwrapSecurityWrapper(JSObject *obj)
 {
   if (js::IsProxy(obj)) {
-    return js::UnwrapObject(obj);
+    return js::UncheckedUnwrap(obj);
   }
 
   return obj;

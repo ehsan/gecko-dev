@@ -3,7 +3,7 @@
    - You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 "use strict";
- 
+
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
@@ -12,60 +12,92 @@ const Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+let gLastHash = "";
+
+addEventListener("DOMContentLoaded", function onLoad() {
+  removeEventListener("DOMContentLoaded", onLoad);
+  init_all();
+});
+
 function init_all() {
   document.documentElement.instantApply = true;
-  window.history.replaceState("landing", document.title);
-  window.addEventListener("popstate", onStatePopped, true);
-  updateCommands();
+
+  gSubDialog.init();
   gMainPane.init();
-#ifdef XP_WIN
-  gTabsPane.init();
-#endif
+  gSearchPane.init();
   gPrivacyPane.init();
   gAdvancedPane.init();
   gApplicationsPane.init();
   gContentPane.init();
   gSyncPane.init();
   gSecurityPane.init();
-  var initFinished = document.createEvent("Event");
-  initFinished.initEvent("Initialized", true, true);
+
+  var initFinished = new CustomEvent("Initialized", {
+  'bubbles': true,
+  'cancelable': true
+  });
   document.dispatchEvent(initFinished);
+
+  let categories = document.getElementById("categories");
+  categories.addEventListener("select", event => gotoPref(event.target.value));
+
+  document.documentElement.addEventListener("keydown", function(event) {
+    if (event.keyCode == KeyEvent.DOM_VK_TAB) {
+      categories.setAttribute("keyboard-navigation", "true");
+    }
+  });
+  categories.addEventListener("mousedown", function() {
+    this.removeAttribute("keyboard-navigation");
+  });
+
+  window.addEventListener("hashchange", onHashChange);
+  gotoPref();
+
+  let helpCmd = document.getElementById("help-button");
+  helpCmd.addEventListener("command", helpButtonCommand);
+
+  // Wait until initialization of all preferences are complete before
+  // notifying observers that the UI is now ready.
+  Services.obs.notifyObservers(window, "advanced-pane-loaded", null);
 }
 
-function gotoPref(page) {
-  search(page, "data-category");
-  window.history.pushState(page, document.title);
-  updateCommands();
-}
- 
-function cmd_back() {
-  window.history.back();
-}
- 
-function cmd_forward() {
-  window.history.forward();
+window.addEventListener("unload", function onUnload() {
+  gSubDialog.uninit();
+});
+
+function onHashChange() {
+  gotoPref();
 }
 
-function onStatePopped(aEvent) {
-  updateCommands();
-  search(aEvent.state, "data-category");
-}
+function gotoPref(aCategory) {
+  let categories = document.getElementById("categories");
+  const kDefaultCategoryInternalName = categories.firstElementChild.value;
+  let hash = document.location.hash;
+  let category = aCategory || hash.substr(1) || kDefaultCategoryInternalName;
+  category = friendlyPrefCategoryNameToInternalName(category);
 
-function updateCommands() {
-  document.getElementById("back-btn").disabled = !canGoBack();
-  document.getElementById("forward-btn").disabled = !canGoForward();
-}
+  // Updating the hash (below) or changing the selected category
+  // will re-enter gotoPref.
+  if (gLastHash == category)
+    return;
+  let item = categories.querySelector(".category[value=" + category + "]");
+  if (!item) {
+    category = kDefaultCategoryInternalName;
+    item = categories.querySelector(".category[value=" + category + "]");
+  }
 
-function canGoBack() {
-  return window.QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .canGoBack;
-}
-
-function canGoForward() {
-  return window.QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .canGoForward;
+  let newHash = internalPrefCategoryNameToFriendlyName(category);
+  if (gLastHash || category != kDefaultCategoryInternalName) {
+    document.location.hash = newHash;
+  }
+  // Need to set the gLastHash before setting categories.selectedItem since
+  // the categories 'select' event will re-enter the gotoPref codepath.
+  gLastHash = category;
+  categories.selectedItem = item;
+  window.history.replaceState(category, document.title);
+  search(category, "data-category");
+  let mainContent = document.querySelector(".main-content");
+  mainContent.scrollTop = 0;
 }
 
 function search(aQuery, aAttribute) {
@@ -74,4 +106,23 @@ function search(aQuery, aAttribute) {
     let attributeValue = element.getAttribute(aAttribute);
     element.hidden = (attributeValue != aQuery);
   }
+}
+
+function helpButtonCommand() {
+  let pane = history.state;
+  let categories = document.getElementById("categories");
+  let helpTopic = categories.querySelector(".category[value=" + pane + "]")
+                            .getAttribute("helpTopic");
+  openHelpLink(helpTopic);
+}
+
+function friendlyPrefCategoryNameToInternalName(aName) {
+  if (aName.startsWith("pane"))
+    return aName;
+  return "pane" + aName.substring(0,1).toUpperCase() + aName.substr(1);
+}
+
+// This function is duplicated inside of utilityOverlay.js's openPreferences.
+function internalPrefCategoryNameToFriendlyName(aName) {
+  return (aName || "").replace(/^pane./, function(toReplace) { return toReplace[4].toLowerCase(); });
 }

@@ -14,13 +14,15 @@ namespace places {
 VisitInfo::VisitInfo(int64_t aVisitId,
                      PRTime aVisitDate,
                      uint32_t aTransitionType,
-                     already_AddRefed<nsIURI> aReferrer,
-                     int64_t aSessionId)
+                     already_AddRefed<nsIURI> aReferrer)
 : mVisitId(aVisitId)
 , mVisitDate(aVisitDate)
 , mTransitionType(aTransitionType)
 , mReferrer(aReferrer)
-, mSessionId(aSessionId)
+{
+}
+
+VisitInfo::~VisitInfo()
 {
 }
 
@@ -55,17 +57,10 @@ VisitInfo::GetReferrerURI(nsIURI** _referrer)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-VisitInfo::GetSessionId(int64_t* _sessionId)
-{
-  *_sessionId = mSessionId;
-  return NS_OK;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// nsISupports
 
-NS_IMPL_ISUPPORTS1(
+NS_IMPL_ISUPPORTS(
   VisitInfo
 , mozIVisitInfo
 )

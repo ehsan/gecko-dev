@@ -4,14 +4,16 @@
 
 package org.mozilla.gecko.sync.net;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.util.Scanner;
 
 import org.json.simple.parser.ParseException;
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NonObjectJSONException;
 import org.mozilla.gecko.sync.Utils;
 
@@ -47,6 +49,20 @@ public class SyncResponse {
     return this.getStatusCode() == 200;
   }
 
+  /**
+   * Fetch the content type of the HTTP response body.
+   *
+   * @return a <code>Header</code> instance, or <code>null</code> if there was
+   *         no body or no valid Content-Type.
+   */
+  public Header getContentType() {
+    HttpEntity entity = this.response.getEntity();
+    if (entity == null) {
+      return null;
+    }
+    return entity.getContentType();
+  }
+
   private String body = null;
   public String body() throws IllegalStateException, IOException {
     if (body != null) {
@@ -56,34 +72,6 @@ public class SyncResponse {
     // Oh, Java, you are so evil.
     body = new Scanner(is).useDelimiter("\\A").next();
     return body;
-  }
-
-  /**
-   * Return the body as an Object.
-   *
-   * @return null if there is no body, or an Object if it successfully parses.
-   *         The return value will be an ExtendedJSONObject if it's a JSON object.
-   * @throws IllegalStateException
-   * @throws IOException
-   * @throws ParseException
-   */
-  public Object jsonBody() throws IllegalStateException, IOException,
-                          ParseException {
-    if (body != null) {
-      // Do it from the cached String.
-      return ExtendedJSONObject.parse(body);
-    }
-
-    HttpEntity entity = this.response.getEntity();
-    if (entity == null) {
-      return null;
-    }
-    InputStream content = entity.getContent();
-    try {
-      return ExtendedJSONObject.parse(content);
-    } finally {
-      content.close();
-    }
   }
 
   /**
@@ -99,11 +87,23 @@ public class SyncResponse {
   public ExtendedJSONObject jsonObjectBody() throws IllegalStateException,
                                             IOException, ParseException,
                                             NonObjectJSONException {
-    Object body = this.jsonBody();
-    if (body instanceof ExtendedJSONObject) {
-      return (ExtendedJSONObject) body;
+    if (body != null) {
+      // Do it from the cached String.
+      return ExtendedJSONObject.parseJSONObject(body);
     }
-    throw new NonObjectJSONException(body);
+
+    HttpEntity entity = this.response.getEntity();
+    if (entity == null) {
+      throw new IOException("no entity");
+    }
+
+    InputStream content = entity.getContent();
+    try {
+      Reader in = new BufferedReader(new InputStreamReader(content, "UTF-8"));
+      return ExtendedJSONObject.parseJSONObject(in);
+    } finally {
+      content.close();
+    }
   }
 
   private boolean hasHeader(String h) {
@@ -160,6 +160,14 @@ public class SyncResponse {
   }
 
   /**
+   * @return A number of seconds, or -1 if the 'X-Backoff' header was not
+   *         present.
+   */
+  public int backoffInSeconds() throws NumberFormatException {
+    return this.getIntegerHeader("x-backoff");
+  }
+
+  /**
    * @return A number of seconds, or -1 if the 'X-Weave-Backoff' header was not
    *         present.
    */
@@ -168,14 +176,21 @@ public class SyncResponse {
   }
 
   /**
-   * @return A number of milliseconds, or -1 if neither the 'Retry-After' or
-   *         'X-Weave-Backoff' header was present.
+   * Extract a number of seconds, or -1 if none of the specified headers were present.
+   *
+   * @param includeRetryAfter
+   *          if <code>true</code>, the Retry-After header is excluded. This is
+   *          useful for processing non-error responses where a Retry-After
+   *          header would be unexpected.
+   * @return the maximum of the three possible backoff headers, in seconds.
    */
-  public long totalBackoffInMilliseconds() {
+  public int totalBackoffInSeconds(boolean includeRetryAfter) {
     int retryAfterInSeconds = -1;
-    try {
-      retryAfterInSeconds = retryAfterInSeconds();
-    } catch (NumberFormatException e) {
+    if (includeRetryAfter) {
+      try {
+        retryAfterInSeconds = retryAfterInSeconds();
+      } catch (NumberFormatException e) {
+      }
     }
 
     int weaveBackoffInSeconds = -1;
@@ -184,7 +199,26 @@ public class SyncResponse {
     } catch (NumberFormatException e) {
     }
 
-    long totalBackoff = (long) Math.max(retryAfterInSeconds, weaveBackoffInSeconds);
+    int backoffInSeconds = -1;
+    try {
+      backoffInSeconds = backoffInSeconds();
+    } catch (NumberFormatException e) {
+    }
+
+    int totalBackoff = Math.max(retryAfterInSeconds, Math.max(backoffInSeconds, weaveBackoffInSeconds));
+    if (totalBackoff < 0) {
+      return -1;
+    } else {
+      return totalBackoff;
+    }
+  }
+
+  /**
+   * @return A number of milliseconds, or -1 if neither the 'Retry-After',
+   *         'X-Backoff', or 'X-Weave-Backoff' header were present.
+   */
+  public long totalBackoffInMilliseconds() {
+    long totalBackoff = totalBackoffInSeconds(true);
     if (totalBackoff < 0) {
       return -1;
     } else {

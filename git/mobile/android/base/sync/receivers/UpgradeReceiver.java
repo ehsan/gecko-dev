@@ -5,10 +5,11 @@
 package org.mozilla.gecko.sync.receivers;
 
 import org.mozilla.gecko.sync.CredentialException;
-import org.mozilla.gecko.sync.GlobalConstants;
-import org.mozilla.gecko.sync.Logger;
+import org.mozilla.gecko.background.common.GlobalConstants;
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.SyncConfiguration;
 import org.mozilla.gecko.sync.ThreadPool;
+import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.config.ConfigurationMigrator;
 import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
@@ -53,7 +54,7 @@ public class UpgradeReceiver extends BroadcastReceiver {
         final Account[] accounts = SyncAccounts.syncAccounts(context);
 
         for (Account account : accounts) {
-          Logger.info(LOG_TAG, "Migrating preferences on upgrade for Android account named " + account.name + ".");
+          Logger.info(LOG_TAG, "Migrating preferences on upgrade for Android account named " + Utils.obfuscateEmail(account.name) + ".");
 
           SyncAccountParameters params;
           try {

@@ -285,15 +285,12 @@ main(int argc, char **argv)
 	  case 'd':
 	    dodir = 1;
 	    break;
-	  case 'l':
-	    dolink = 1;
-	    break;
 	  case 'L':
 	    linkprefix = optarg;
 	    lplen = strlen(linkprefix);
 	    dolink = 1;
 	    break;
-     case 'R':
+	  case 'R':
 	    dolink = dorelsymlink = 1;
 	    break;
 	  case 'm':
@@ -389,7 +386,7 @@ main(int argc, char **argv)
 		linkname = 0;
 	    } else {
 		if (linkprefix) {
-		    /* -L implies -l and prefixes names with a $cwd arg. */
+		    /* -L prefixes names with a $cwd arg. */
 		    len += lplen + 1;
 		    linkname = xmalloc((unsigned int)(len + 1));
 		    sprintf(linkname, "%s/%s", linkprefix, name);
@@ -413,11 +410,12 @@ main(int argc, char **argv)
 	    }
 
 	    /* Check for a pre-existing symlink with identical content. */
-	    if ((exists && (!S_ISLNK(tosb.st_mode) ||
+	    if (exists && (!S_ISLNK(tosb.st_mode) ||
 						readlink(toname, buf, sizeof buf) != len ||
-						strncmp(buf, name, (unsigned int)len) != 0)) || 
-			((stat(name, &fromsb) == 0) && 
-			 (fromsb.st_mtime > tosb.st_mtime))) {
+						strncmp(buf, name, (unsigned int)len) != 0 || 
+			((stat(name, &fromsb) == 0) &&
+			 (fromsb.st_mtime > tosb.st_mtime) 
+			 ))) {
 		(void) (S_ISDIR(tosb.st_mode) ? rmdir : unlink)(toname);
 		exists = 0;
 	    }

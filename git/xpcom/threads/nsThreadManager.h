@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et cindent: */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -20,7 +20,9 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSITHREADMANAGER
 
-  static nsThreadManager *get() {
+  static nsThreadManager* get()
+  {
+    static nsThreadManager sInstance;
     return &sInstance;
   }
 
@@ -32,41 +34,52 @@ public:
 
   // Called by nsThread to inform the ThreadManager it exists.  This method
   // must be called when the given thread is the current thread.
-  void RegisterCurrentThread(nsThread *thread);
+  void RegisterCurrentThread(nsThread* aThread);
 
   // Called by nsThread to inform the ThreadManager it is going away.  This
   // method must be called when the given thread is the current thread.
-  void UnregisterCurrentThread(nsThread *thread);
+  void UnregisterCurrentThread(nsThread* aThread);
 
   // Returns the current thread.  Returns null if OOM or if ThreadManager isn't
   // initialized.
-  nsThread *GetCurrentThread();
+  nsThread* GetCurrentThread();
+
+  // Returns the maximal number of threads that have been in existence
+  // simultaneously during the execution of the thread manager.
+  uint32_t GetHighestNumberOfThreads();
 
   // This needs to be public in order to support static instantiation of this
   // class with older compilers (e.g., egcs-2.91.66).
-  ~nsThreadManager() {}
+  ~nsThreadManager()
+  {
+  }
 
 private:
   nsThreadManager()
     : mCurThreadIndex(0)
     , mMainPRThread(nullptr)
     , mLock(nullptr)
-    , mInitialized(false) {
+    , mInitialized(false)
+    , mCurrentNumberOfThreads(1)
+    , mHighestNumberOfThreads(1)
+  {
   }
-  
-  static nsThreadManager sInstance;
 
   nsRefPtrHashtable<nsPtrHashKey<PRThread>, nsThread> mThreadsByPRThread;
   unsigned             mCurThreadIndex;  // thread-local-storage index
   nsRefPtr<nsThread>  mMainThread;
-  PRThread           *mMainPRThread;
+  PRThread*           mMainPRThread;
   // This is a pointer in order to allow creating nsThreadManager from
   // the static context in debug builds.
   nsAutoPtr<mozilla::Mutex> mLock;  // protects tables
   bool                mInitialized;
+
+  // The current number of threads
+  uint32_t            mCurrentNumberOfThreads;
+  // The highest number of threads encountered so far during the session
+  uint32_t            mHighestNumberOfThreads;
 };
 
-#define NS_THREADMANAGER_CLASSNAME "nsThreadManager"
 #define NS_THREADMANAGER_CID                       \
 { /* 7a4204c6-e45a-4c37-8ebb-6709a22c917c */       \
   0x7a4204c6,                                      \

@@ -5,12 +5,12 @@
 #ifndef mozilla_PaintTracker_h
 #define mozilla_PaintTracker_h
 
-#include "nscore.h"
+#include "mozilla/Attributes.h"
 #include "nsDebug.h"
 
 namespace mozilla {
 
-class NS_STACK_CLASS PaintTracker
+class MOZ_STACK_CLASS PaintTracker
 {
 public:
   PaintTracker() {

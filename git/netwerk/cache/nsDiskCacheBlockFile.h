@@ -7,6 +7,7 @@
 #ifndef _nsDiskCacheBlockFile_h_
 #define _nsDiskCacheBlockFile_h_
 
+#include "mozilla/MemoryReporting.h"
 #include "nsIFile.h"
 #include "nsDiskCache.h"
 
@@ -44,7 +45,9 @@ public:
                            int32_t * startBlock);
     nsresult  ReadBlocks( void * buffer, int32_t  startBlock, int32_t  numBlocks, 
                           int32_t * bytesRead);
-    
+
+    size_t   SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+
 private:
     nsresult  FlushBitMap();
     int32_t   AllocateBlocks( int32_t  numBlocks);

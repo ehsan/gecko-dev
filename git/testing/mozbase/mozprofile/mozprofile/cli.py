@@ -11,20 +11,24 @@ If no profile is specified, a new profile is created and the path of the resulti
 """
 
 import sys
-from addons import AddonManager
 from optparse import OptionParser
 from prefs import Preferences
+from profile import FirefoxProfile
 from profile import Profile
 
 __all__ = ['MozProfileCLI', 'cli']
 
 class MozProfileCLI(object):
+    """The Command Line Interface for ``mozprofile``."""
 
     module = 'mozprofile'
+    profile_class = Profile
 
-    def __init__(self, args=sys.argv[1:]):
+    def __init__(self, args=sys.argv[1:], add_options=None):
         self.parser = OptionParser(description=__doc__)
         self.add_options(self.parser)
+        if add_options:
+            add_options(self.parser)
         (self.options, self.args) = self.parser.parse_args(args)
 
     def add_options(self, parser):
@@ -75,16 +79,42 @@ class MozProfileCLI(object):
 
         return prefs()
 
+    def profile(self, restore=False):
+        """create the profile"""
+
+        kwargs = self.profile_args()
+        kwargs['restore'] = restore
+        return self.profile_class(**kwargs)
+
 
 def cli(args=sys.argv[1:]):
+    """ Handles the command line arguments for ``mozprofile`` via ``sys.argv``"""
+
+    # add a view method for this cli method only
+    def add_options(parser):
+        parser.add_option('--view', dest='view',
+                          action='store_true', default=False,
+                          help="view summary of profile following invocation")
+        parser.add_option('--firefox', dest='firefox_profile',
+                          action='store_true', default=False,
+                          help="use FirefoxProfile defaults")
 
     # process the command line
-    cli = MozProfileCLI(args)
+    cli = MozProfileCLI(args, add_options)
+
+    if cli.args:
+        cli.parser.error("Program doesn't support positional arguments.")
+
+    if cli.options.firefox_profile:
+        cli.profile_class = FirefoxProfile
 
     # create the profile
-    kwargs = cli.profile_args()
-    kwargs['restore'] = False
-    profile = Profile(**kwargs)
+    profile = cli.profile()
+
+    if cli.options.view:
+        # view the profile, if specified
+        print profile.summary()
+        return
 
     # if no profile was passed in print the newly created profile
     if not cli.options.profile:

@@ -1,15 +1,13 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 et sw=4 tw=80:
- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsnativestack_h__
-#define jsnativestack_h__
+#ifndef jsnativestack_h
+#define jsnativestack_h
 
-#include "jspubtd.h"
-#include "jsutil.h"
+#include "js/Utility.h"
 
 namespace js {
 
@@ -20,10 +18,11 @@ inline uintptr_t
 GetNativeStackBase()
 {
     uintptr_t stackBase = reinterpret_cast<uintptr_t>(GetNativeStackBaseImpl());
-    JS_ASSERT(stackBase % sizeof(void *) == 0);
+    MOZ_ASSERT(stackBase != 0);
+    MOZ_ASSERT(stackBase % sizeof(void *) == 0);
     return stackBase;
 }
 
 } /* namespace js */
 
-#endif /* jsnativestack_h__ */
+#endif /* jsnativestack_h */

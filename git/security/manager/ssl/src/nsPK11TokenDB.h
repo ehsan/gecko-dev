@@ -12,7 +12,6 @@
 #include "nsISupports.h"
 #include "nsIPK11TokenDB.h"
 #include "nsIPK11Token.h"
-#include "nsISupportsArray.h"
 #include "nsNSSHelper.h"
 #include "pk11func.h"
 #include "nsNSSShutDown.h"
@@ -24,9 +23,11 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPK11TOKEN
 
-  nsPK11Token(PK11SlotInfo *slot);
-  virtual ~nsPK11Token();
+  explicit nsPK11Token(PK11SlotInfo *slot);
   /* additional members */
+
+protected:
+  virtual ~nsPK11Token();
 
 private:
   friend class nsPK11TokenDB;
@@ -49,6 +50,8 @@ public:
   NS_DECL_NSIPK11TOKENDB
 
   nsPK11TokenDB();
+
+protected:
   virtual ~nsPK11TokenDB();
   /* additional members */
 };

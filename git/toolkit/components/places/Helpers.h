@@ -15,7 +15,6 @@
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
 #include "mozilla/Telemetry.h"
-#include "jsapi.h"
 
 namespace mozilla {
 namespace places {
@@ -137,7 +136,7 @@ nsresult GenerateGUID(nsCString& _guid);
  *        The guid to test.
  * @return true if it is a valid guid, false otherwise.
  */
-bool IsValidGUID(const nsCString& aGUID);
+bool IsValidGUID(const nsACString& aGUID);
 
 /**
  * Truncates the title if it's longer than TITLE_LENGTH_MAX.
@@ -217,11 +216,12 @@ bool GetHiddenState(bool aIsRedirect,
 class PlacesEvent : public nsRunnable
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIRUNNABLE
 
-  PlacesEvent(const char* aTopic);
+  explicit PlacesEvent(const char* aTopic);
 protected:
+  ~PlacesEvent() {}
   void Notify();
 
   const char* const mTopic;
@@ -233,7 +233,7 @@ protected:
 class AsyncStatementCallbackNotifier : public AsyncStatementCallback
 {
 public:
-  AsyncStatementCallbackNotifier(const char* aTopic)
+  explicit AsyncStatementCallbackNotifier(const char* aTopic)
     : mTopic(aTopic)
   {
   }
@@ -250,8 +250,8 @@ private:
 class AsyncStatementTelemetryTimer : public AsyncStatementCallback
 {
 public:
-  AsyncStatementTelemetryTimer(Telemetry::ID aHistogramId,
-                               TimeStamp aStart = TimeStamp::Now())
+  explicit AsyncStatementTelemetryTimer(Telemetry::ID aHistogramId,
+                                        TimeStamp aStart = TimeStamp::Now())
     : mHistogramId(aHistogramId)
     , mStart(aStart)
   {

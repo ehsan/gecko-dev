@@ -6,10 +6,11 @@
 #define nsIPageSequenceFrame_h___
 
 #include "nsQueryFrame.h"
-#include "nsRect.h"
+#include "nsCoord.h"
 
 class nsPresContext;
 class nsIPrintSettings;
+class nsITimerCallback;
 
 /**
  * Interface for accessing special capabilities of the page sequence frame.
@@ -26,7 +27,7 @@ public:
    *
    * @param   aPrintOptions options for printing
    * @param   aStatusCallback interface that the client provides to receive
-   *            progress notifications. Can be NULL
+   *            progress notifications. Can be nullptr
    * @return  NS_OK if successful
    *          NS_ERROR_ABORT if the client cancels printing using the callback
    *            interface
@@ -34,11 +35,14 @@ public:
    *            and the start page is greater than the total number of pages
    *          NS_ERROR_FAILURE if there is an error
    */
-  NS_IMETHOD StartPrint(nsPresContext*  aPresContext,
+  NS_IMETHOD StartPrint(nsPresContext*    aPresContext,
                         nsIPrintSettings* aPrintOptions,
-                        PRUnichar* aDocTitle,
-                        PRUnichar* aDocURL) = 0;
+                        const nsAString&  aDocTitle,
+                        const nsAString&  aDocURL) = 0;
+
+  NS_IMETHOD PrePrintNextPage(nsITimerCallback* aCallback, bool* aDone) = 0;
   NS_IMETHOD PrintNextPage() = 0;
+  NS_IMETHOD ResetPrintCanvasList() = 0;
   NS_IMETHOD GetCurrentPageNum(int32_t* aPageNum) = 0;
   NS_IMETHOD GetNumPages(int32_t* aNumPages) = 0;
   NS_IMETHOD IsDoingPrintRange(bool* aDoing) = 0;

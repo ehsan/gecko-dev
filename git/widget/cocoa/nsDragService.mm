@@ -3,9 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG
-#endif
 #include "prlog.h"
 
 #include "nsDragService.h"
@@ -22,16 +19,18 @@
 #include "nsIDOMNode.h"
 #include "nsRect.h"
 #include "nsPoint.h"
-#include "nsICharsetConverterManager.h"
 #include "nsIIOService.h"
 #include "nsNetUtil.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
-#include "nsIView.h"
-#include "gfxASurface.h"
+#include "nsView.h"
 #include "gfxContext.h"
+#include "nsCocoaUtils.h"
+#include "mozilla/gfx/2D.h"
+#include "gfxPlatform.h"
 
-#import <Cocoa/Cocoa.h>
+using namespace mozilla;
+using namespace mozilla::gfx;
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* sCocoaLog;
@@ -116,7 +115,8 @@ static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
       else if (currentKey == NSTIFFPboardType) {
         [dragPBoard setData:currentValue forType:currentKey];
       }
-      else if (currentKey == NSFilesPromisePboardType) {
+      else if (currentKey == NSFilesPromisePboardType ||
+               currentKey == NSFilenamesPboardType) {
         [dragPBoard setPropertyList:currentValue forType:currentKey];        
       }
     }
@@ -134,19 +134,26 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  NSPoint screenPoint = [[gLastDragView window] convertBaseToScreen:[gLastDragMouseDownEvent locationInWindow]];
+  NSPoint screenPoint =
+    [[gLastDragView window] convertBaseToScreen:
+      [gLastDragMouseDownEvent locationInWindow]];
   // Y coordinates are bottom to top, so reverse this
-  if ([[NSScreen screens] count] > 0)
-    screenPoint.y = NSMaxY([[[NSScreen screens] objectAtIndex:0] frame]) - screenPoint.y;
+  screenPoint.y = nsCocoaUtils::FlippedScreenY(screenPoint.y);
 
-  nsRefPtr<gfxASurface> surface;
+  CGFloat scaleFactor = nsCocoaUtils::GetBackingScaleFactor(gLastDragView);
+
+  RefPtr<SourceSurface> surface;
   nsPresContext* pc;
   nsresult rv = DrawDrag(aDOMNode, aRegion,
-                         NSToIntRound(screenPoint.x), NSToIntRound(screenPoint.y),
-                         aDragRect, getter_AddRefs(surface), &pc);
+                         NSToIntRound(screenPoint.x),
+                         NSToIntRound(screenPoint.y),
+                         aDragRect, &surface, &pc);
   if (!aDragRect->width || !aDragRect->height) {
     // just use some suitable defaults
-    aDragRect->SetRect(NSToIntRound(screenPoint.x), NSToIntRound(screenPoint.y), 20, 20);
+    int32_t size = nsCocoaUtils::CocoaPointsToDevPixels(20, scaleFactor);
+    aDragRect->SetRect(nsCocoaUtils::CocoaPointsToDevPixels(screenPoint.x, scaleFactor),
+                       nsCocoaUtils::CocoaPointsToDevPixels(screenPoint.y, scaleFactor),
+                       size, size);
   }
 
   if (NS_FAILED(rv) || !surface)
@@ -155,36 +162,46 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
   uint32_t width = aDragRect->width;
   uint32_t height = aDragRect->height;
 
-  nsRefPtr<gfxImageSurface> imgSurface = new gfxImageSurface(
-    gfxIntSize(width, height), gfxImageSurface::ImageFormatARGB32);
-  if (!imgSurface)
+
+
+  RefPtr<DataSourceSurface> dataSurface =
+    Factory::CreateDataSourceSurface(IntSize(width, height),
+                                     SurfaceFormat::B8G8R8A8);
+  DataSourceSurface::MappedSurface map;
+  if (!dataSurface->Map(DataSourceSurface::MapType::READ_WRITE, &map)) {
     return nil;
+  }
 
-  nsRefPtr<gfxContext> context = new gfxContext(imgSurface);
-  if (!context)
+  RefPtr<DrawTarget> dt =
+    Factory::CreateDrawTargetForData(BackendType::CAIRO,
+                                     map.mData,
+                                     dataSurface->GetSize(),
+                                     map.mStride,
+                                     dataSurface->GetFormat());
+  if (!dt) {
+    dataSurface->Unmap();
     return nil;
+  }
 
-  context->SetOperator(gfxContext::OPERATOR_SOURCE);
-  context->SetSource(surface);
-  context->Paint();
+  dt->FillRect(gfx::Rect(0, 0, width, height),
+               SurfacePattern(surface, ExtendMode::CLAMP),
+               DrawOptions(1.0f, CompositionOp::OP_SOURCE));
 
-  uint32_t* imageData = (uint32_t*)imgSurface->Data();
-  int32_t stride = imgSurface->Stride();
-
-  NSBitmapImageRep* imageRep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
-                                                                       pixelsWide:width
-                                                                       pixelsHigh:height
-                                                                    bitsPerSample:8
-                                                                  samplesPerPixel:4
-                                                                         hasAlpha:YES
-                                                                         isPlanar:NO
-                                                                   colorSpaceName:NSDeviceRGBColorSpace
-                                                                      bytesPerRow:width * 4
-                                                                     bitsPerPixel:32];
+  NSBitmapImageRep* imageRep =
+    [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+                                            pixelsWide:width
+                                            pixelsHigh:height
+                                         bitsPerSample:8
+                                       samplesPerPixel:4
+                                              hasAlpha:YES
+                                              isPlanar:NO
+                                        colorSpaceName:NSDeviceRGBColorSpace
+                                           bytesPerRow:width * 4
+                                          bitsPerPixel:32];
 
   uint8_t* dest = [imageRep bitmapData];
   for (uint32_t i = 0; i < height; ++i) {
-    uint8_t* src = (uint8_t *)imageData + i * stride;
+    uint8_t* src = map.mData + i * map.mStride;
     for (uint32_t j = 0; j < width; ++j) {
       // Reduce transparency overall by multipying by a factor. Remember, Alpha
       // is premultipled here. Also, Quartz likes RGBA, so do that translation as well.
@@ -203,8 +220,11 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
       dest += 4;
     }
   }
+  dataSurface->Unmap();
 
-  NSImage* image = [[NSImage alloc] initWithSize:NSMakeSize((float)width, (float)height)];
+  NSImage* image =
+    [[NSImage alloc] initWithSize:NSMakeSize(width / scaleFactor,
+                                             height / scaleFactor)];
   [image addRepresentation:imageRep];
   [imageRep release];
 
@@ -254,12 +274,10 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
     [image unlockFocus];
   }
 
-  NSPoint point;
-  point.x = dragRect.x;
-  if ([[NSScreen screens] count] > 0)
-    point.y = NSMaxY([[[NSScreen screens] objectAtIndex:0] frame]) - dragRect.YMost();
-  else
-    point.y = dragRect.y;
+  nsIntPoint pt(dragRect.x, dragRect.YMost());
+  CGFloat scaleFactor = nsCocoaUtils::GetBackingScaleFactor(gLastDragView);
+  NSPoint point = nsCocoaUtils::DevPixelsToCocoaPoints(pt, scaleFactor);
+  point.y = nsCocoaUtils::FlippedScreenY(point.y);
 
   point = [[gLastDragView window] convertScreenToBase: point];
   NSPoint localPoint = [gLastDragView convertPoint:point fromView:nil];
@@ -362,11 +380,11 @@ nsDragService::GetData(nsITransferable* aTransferable, uint32_t aItemIndex)
         continue;
 
       unsigned int stringLength = [filePath length];
-      unsigned int dataLength = (stringLength + 1) * sizeof(PRUnichar); // in bytes
-      PRUnichar* clipboardDataPtr = (PRUnichar*)malloc(dataLength);
+      unsigned int dataLength = (stringLength + 1) * sizeof(char16_t); // in bytes
+      char16_t* clipboardDataPtr = (char16_t*)malloc(dataLength);
       if (!clipboardDataPtr)
         return NS_ERROR_OUT_OF_MEMORY;
-      [filePath getCharacters:clipboardDataPtr];
+      [filePath getCharacters:reinterpret_cast<unichar*>(clipboardDataPtr)];
       clipboardDataPtr[stringLength] = 0; // null terminate
 
       nsCOMPtr<nsIFile> file;
@@ -375,9 +393,7 @@ nsDragService::GetData(nsITransferable* aTransferable, uint32_t aItemIndex)
       if (NS_FAILED(rv))
         continue;
 
-      nsCOMPtr<nsISupports> genericDataWrapper;
-      genericDataWrapper = do_QueryInterface(file);
-      aTransferable->SetTransferData(flavorStr, genericDataWrapper, dataLength);
+      aTransferable->SetTransferData(flavorStr, file, dataLength);
       
       break;
     }
@@ -405,11 +421,11 @@ nsDragService::GetData(nsITransferable* aTransferable, uint32_t aItemIndex)
       dataLength = signedDataLength;
 
       // skip BOM (Byte Order Mark to distinguish little or big endian)      
-      PRUnichar* clipboardDataPtrNoBOM = (PRUnichar*)clipboardDataPtr;
+      char16_t* clipboardDataPtrNoBOM = (char16_t*)clipboardDataPtr;
       if ((dataLength > 2) &&
           ((clipboardDataPtrNoBOM[0] == 0xFEFF) ||
            (clipboardDataPtrNoBOM[0] == 0xFFFE))) {
-        dataLength -= sizeof(PRUnichar);
+        dataLength -= sizeof(char16_t);
         clipboardDataPtrNoBOM += 1;
       }
 

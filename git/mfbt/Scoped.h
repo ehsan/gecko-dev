@@ -1,13 +1,17 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* A number of structures to simplify scope-based RAII management. */
+/* DEPRECATED: Use UniquePtr.h instead. */
 
-#ifndef mozilla_Scoped_h_
-#define mozilla_Scoped_h_
+#ifndef mozilla_Scoped_h
+#define mozilla_Scoped_h
 
 /*
+ * DEPRECATED: Use UniquePtr.h instead.
+ *
  * Resource Acquisition Is Initialization is a programming idiom used
  * to write robust code that is able to deallocate resources properly,
  * even in presence of execution errors or exceptions that need to be
@@ -21,8 +25,8 @@
  *   |free()| at the end of the scope;
  * - |ScopedDeletePtr| - a container for a pointer, that automatically calls
  *   |delete| at the end of the scope;
- * - |ScopedDeleteArray| - a container for a pointer to an array, that
- *   automatically calls |delete[]| at the end of the scope.
+ *
+ * |ScopedDeleteArray| is removed in favor of |UniquePtr<T[]>|.
  *
  * The general scenario for each of the RAII classes is the following:
  *
@@ -43,14 +47,18 @@
  *
  * Extension:
  *
- * In addition, this header provides class |Scoped| and macro |SCOPED_TEMPLATE|
- * to simplify the definition of RAII classes for other scenarios. These macros
- * have been used to automatically close file descriptors/file handles when
- * reaching the end of the scope, graphics contexts, etc.
+ * In addition, this header provides class |Scoped| and macros |SCOPED_TEMPLATE|
+ * and |MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE|  to simplify the definition
+ * of RAII classes for other scenarios. These macros have been used to
+ * automatically close file descriptors/file handles when reaching the end of
+ * the scope, graphics contexts, etc.
  */
 
+#include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/GuardObjects.h"
+#include "mozilla/Move.h"
+#include "mozilla/NullPtr.h"
 
 namespace mozilla {
 
@@ -58,7 +66,8 @@ namespace mozilla {
  * Scoped is a helper to create RAII wrappers
  * Type argument |Traits| is expected to have the following structure:
  *
- *   struct Traits {
+ *   struct Traits
+ *   {
  *     // Define the type of the value stored in the wrapper
  *     typedef value_type type;
  *     // Returns the value corresponding to the uninitialized or freed state
@@ -71,84 +80,102 @@ namespace mozilla {
 template<typename Traits>
 class Scoped
 {
-  public:
-    typedef typename Traits::type Resource;
+public:
+  typedef typename Traits::type Resource;
 
-    explicit Scoped(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
-      : value(Traits::empty())
-    {
-      MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-    explicit Scoped(const Resource& value
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : value(value)
-    {
-      MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-    ~Scoped() {
-      Traits::release(value);
-    }
+  explicit Scoped(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
+    : mValue(Traits::empty())
+  {
+    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+  }
 
-    // Constant getter
-    operator const Resource&() const { return value; }
-    const Resource& operator->() const { return value; }
-    const Resource& get() const { return value; }
-    // Non-constant getter.
-    Resource& rwget() { return value; }
+  explicit Scoped(const Resource& aValue
+                  MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    : mValue(aValue)
+  {
+    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+  }
 
-    /*
-     * Forget the resource.
-     *
-     * Once |forget| has been called, the |Scoped| is neutralized, i.e. it will
-     * have no effect at destruction (unless it is reset to another resource by
-     * |operator=|).
-     *
-     * @return The original resource.
-     */
-    Resource forget() {
-      Resource tmp = value;
-      value = Traits::empty();
-      return tmp;
-    }
+  /* Move constructor. */
+  explicit Scoped(Scoped&& aOther
+                  MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    : mValue(Move(aOther.mValue))
+  {
+    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    aOther.mValue = Traits::empty();
+  }
 
-    /*
-     * Perform immediate clean-up of this |Scoped|.
-     *
-     * If this |Scoped| is currently empty, this method has no effect.
-     */
-    void dispose() {
-      Traits::release(value);
-      value = Traits::empty();
-    }
+  ~Scoped() { Traits::release(mValue); }
 
-    bool operator==(const Resource& other) const {
-      return value == other;
-    }
+  // Constant getter
+  operator const Resource&() const { return mValue; }
+  const Resource& operator->() const { return mValue; }
+  const Resource& get() const { return mValue; }
+  // Non-constant getter.
+  Resource& rwget() { return mValue; }
 
-    /*
-     * Replace the resource with another resource.
-     *
-     * Calling |operator=| has the side-effect of triggering clean-up. If you do
-     * not want to trigger clean-up, you should first invoke |forget|.
-     *
-     * @return this
-     */
-    Scoped<Traits>& operator=(const Resource& other) {
-      return reset(other);
-    }
-    Scoped<Traits>& reset(const Resource& other) {
-      Traits::release(value);
-      value = other;
-      return *this;
-    }
+  /*
+   * Forget the resource.
+   *
+   * Once |forget| has been called, the |Scoped| is neutralized, i.e. it will
+   * have no effect at destruction (unless it is reset to another resource by
+   * |operator=|).
+   *
+   * @return The original resource.
+   */
+  Resource forget()
+  {
+    Resource tmp = mValue;
+    mValue = Traits::empty();
+    return tmp;
+  }
 
-  private:
-    explicit Scoped(const Scoped<Traits>& value) MOZ_DELETE;
-    Scoped<Traits>& operator=(const Scoped<Traits>& value) MOZ_DELETE;
+  /*
+   * Perform immediate clean-up of this |Scoped|.
+   *
+   * If this |Scoped| is currently empty, this method has no effect.
+   */
+  void dispose()
+  {
+    Traits::release(mValue);
+    mValue = Traits::empty();
+  }
 
-  private:
-    Resource value;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+  bool operator==(const Resource& aOther) const { return mValue == aOther; }
+
+  /*
+   * Replace the resource with another resource.
+   *
+   * Calling |operator=| has the side-effect of triggering clean-up. If you do
+   * not want to trigger clean-up, you should first invoke |forget|.
+   *
+   * @return this
+   */
+  Scoped& operator=(const Resource& aOther) { return reset(aOther); }
+
+  Scoped& reset(const Resource& aOther)
+  {
+    Traits::release(mValue);
+    mValue = aOther;
+    return *this;
+  }
+
+  /* Move assignment operator. */
+  Scoped& operator=(Scoped&& aRhs)
+  {
+    MOZ_ASSERT(&aRhs != this, "self-move-assignment not allowed");
+    this->~Scoped();
+    new(this) Scoped(Move(aRhs));
+    return *this;
+  }
+
+private:
+  explicit Scoped(const Scoped& aValue) MOZ_DELETE;
+  Scoped& operator=(const Scoped& aValue) MOZ_DELETE;
+
+private:
+  Resource mValue;
+  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /*
@@ -159,26 +186,38 @@ class Scoped
  * @param Traits A struct implementing clean-up. See the implementations
  * for more details.
  */
-#define SCOPED_TEMPLATE(name, Traits)                          \
-template<typename Type>                                        \
-struct name : public mozilla::Scoped<Traits<Type> >            \
-{                                                              \
-    typedef mozilla::Scoped<Traits<Type> > Super;              \
-    typedef typename Super::Resource Resource;                 \
-    name& operator=(Resource ptr) {                            \
-      Super::operator=(ptr);                                   \
-      return *this;                                            \
-    }                                                          \
-    explicit name(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)        \
-      : Super(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM_TO_PARENT)  \
-    {}                                                         \
-    explicit name(Resource ptr                                 \
-                  MOZ_GUARD_OBJECT_NOTIFIER_PARAM)             \
-      : Super(ptr MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT)   \
-    {}                                                         \
-  private:                                                     \
-    explicit name(name& source) MOZ_DELETE;                    \
-    name& operator=(name& source) MOZ_DELETE;                  \
+#define SCOPED_TEMPLATE(name, Traits)                                         \
+template<typename Type>                                                       \
+struct name : public mozilla::Scoped<Traits<Type> >                           \
+{                                                                             \
+  typedef mozilla::Scoped<Traits<Type> > Super;                               \
+  typedef typename Super::Resource Resource;                                  \
+  name& operator=(Resource aRhs)                                              \
+  {                                                                           \
+    Super::operator=(aRhs);                                                   \
+    return *this;                                                             \
+  }                                                                           \
+  name& operator=(name&& aRhs)                                                \
+  {                                                                           \
+    Super::operator=(Move(aRhs));                                             \
+    return *this;                                                             \
+  }                                                                           \
+  explicit name(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)                         \
+    : Super(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM_TO_PARENT)                   \
+  {}                                                                          \
+  explicit name(Resource aRhs                                                 \
+                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)                              \
+    : Super(aRhs                                                              \
+            MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT)                        \
+  {}                                                                          \
+  explicit name(name&& aRhs                                                   \
+                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)                              \
+    : Super(Move(aRhs)                                                        \
+            MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT)                        \
+  {}                                                                          \
+private:                                                                      \
+  explicit name(name&) MOZ_DELETE;                                            \
+  name& operator=(name&) MOZ_DELETE;                                          \
 };
 
 /*
@@ -191,9 +230,9 @@ struct name : public mozilla::Scoped<Traits<Type> >            \
 template<typename T>
 struct ScopedFreePtrTraits
 {
-    typedef T* type;
-    static T* empty() { return NULL; }
-    static void release(T* ptr) { free(ptr); }
+  typedef T* type;
+  static T* empty() { return nullptr; }
+  static void release(T* aPtr) { free(aPtr); }
 };
 SCOPED_TEMPLATE(ScopedFreePtr, ScopedFreePtrTraits)
 
@@ -206,23 +245,53 @@ SCOPED_TEMPLATE(ScopedFreePtr, ScopedFreePtrTraits)
 template<typename T>
 struct ScopedDeletePtrTraits : public ScopedFreePtrTraits<T>
 {
-    static void release(T* ptr) { delete ptr; }
+  static void release(T* aPtr) { delete aPtr; }
 };
 SCOPED_TEMPLATE(ScopedDeletePtr, ScopedDeletePtrTraits)
 
 /*
- * ScopedDeleteArray is a RAII wrapper for pointers that need to be delete[]ed.
+ * MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE makes it easy to create scoped
+ * pointers for types with custom deleters; just overload
+ * TypeSpecificDelete(T*) in the same namespace as T to call the deleter for
+ * type T.
  *
- *   struct S { ... };
- *   ScopedDeleteArray<S> foo = new S[42];
+ * @param name The name of the class to define.
+ * @param Type A struct implementing clean-up. See the implementations
+ * for more details.
+ * *param Deleter The function that is used to delete/destroy/free a
+ *        non-null value of Type*.
+ *
+ * Example:
+ *
+ *   MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedPRFileDesc, PRFileDesc, \
+ *                                             PR_Close)
+ *   ...
+ *   {
+ *       ScopedPRFileDesc file(PR_OpenFile(...));
+ *       ...
+ *   } // file is closed with PR_Close here
  */
-template<typename T>
-struct ScopedDeleteArrayTraits : public ScopedFreePtrTraits<T>
+#define MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(name, Type, Deleter) \
+template <> inline void TypeSpecificDelete(Type* aValue) { Deleter(aValue); } \
+typedef ::mozilla::TypeSpecificScopedPointer<Type> name;
+
+template <typename T> void TypeSpecificDelete(T* aValue);
+
+template <typename T>
+struct TypeSpecificScopedPointerTraits
 {
-    static void release(T* ptr) { delete [] ptr; }
+  typedef T* type;
+  static type empty() { return nullptr; }
+  static void release(type aValue)
+  {
+    if (aValue) {
+      TypeSpecificDelete(aValue);
+    }
+  }
 };
-SCOPED_TEMPLATE(ScopedDeleteArray, ScopedDeleteArrayTraits)
+
+SCOPED_TEMPLATE(TypeSpecificScopedPointer, TypeSpecificScopedPointerTraits)
 
 } /* namespace mozilla */
 
-#endif // mozilla_Scoped_h_
+#endif /* mozilla_Scoped_h */

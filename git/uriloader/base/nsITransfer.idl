@@ -5,12 +5,13 @@
 
 #include "nsIWebProgressListener2.idl"
 
+interface nsIArray;
 interface nsIURI;
 interface nsICancelable;
 interface nsIMIMEInfo;
 interface nsIFile;
 
-[scriptable, uuid(3a982955-dc44-422e-8734-8462bf8d2121)]
+[scriptable, uuid(37ec75d3-97ad-4da8-afaa-eabe5b4afd73)]
 interface nsITransfer : nsIWebProgressListener2 {
 
     /**
@@ -44,6 +45,10 @@ interface nsITransfer : nsIWebProgressListener2 {
      *                    reference to this object until the download is
      *                    finished, at which point they should release the
      *                    reference.
+     *
+     * @param aIsPrivate Used to determine the privacy status of the new transfer.
+     *                   If true, indicates that the transfer was initiated from
+     *                   a source that desires privacy.
      */
     void init(in nsIURI aSource,
               in nsIURI aTarget,
@@ -51,7 +56,34 @@ interface nsITransfer : nsIWebProgressListener2 {
               in nsIMIMEInfo aMIMEInfo,
               in PRTime startTime,
               in nsIFile aTempFile,
-              in nsICancelable aCancelable);
+              in nsICancelable aCancelable,
+              in boolean aIsPrivate);
+
+    /*
+     * Used to notify the transfer object of the hash of the downloaded file.
+     * Must be called on the main thread, only after the download has finished
+     * successfully.
+     * @param aHash The SHA-256 hash in raw bytes of the downloaded file.
+     */
+    void setSha256Hash(in ACString aHash);
+
+    /*
+     * Used to notify the transfer object of the signature of the downloaded
+     * file.  Must be called on the main thread, only after the download has
+     * finished successfully.
+     * @param aSignatureInfo The nsIArray of nsIX509CertList of nsIX509Cert
+     *        certificates of the downloaded file.
+     */
+    void setSignatureInfo(in nsIArray aSignatureInfo);
+
+    /*
+     * Used to notify the transfer object of the redirects associated with the
+     * channel that terminated in the downloaded file.  Must be called on the
+     * main thread, only after the download has finished successfully.
+     * @param aRedirects The nsIArray of nsIPrincipal of redirected URIs
+     *        associated with the downloaded file.
+     */
+    void setRedirects(in nsIArray aRedirects);
 };
 
 %{C++

@@ -3,6 +3,8 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
+Components.utils.import("resource://gre/modules/ForgetAboutSite.jsm");
+
 const domains = [
   "mochi.test:8888",
   "www.example.com"
@@ -18,10 +20,11 @@ const testPageURL4 = "http://" + domains[1] + getPath;
 
 function test()
 {
+  requestLongerTimeout(2);
   waitForExplicitFinish();
   // Avoids the prompt
-  setPermission(testPageURL1, "indexedDB", "unknown");
-  setPermission(testPageURL2, "indexedDB", "unknown");
+  setPermission(testPageURL1, "indexedDB");
+  setPermission(testPageURL2, "indexedDB");
   executeSoon(test1);
 }
 
@@ -64,10 +67,8 @@ function test2()
 function test3()
 {
   // Remove database from domain 2
-  Components.classes["@mozilla.org/privatebrowsing;1"]
-            .getService(Components.interfaces.nsIPrivateBrowsingService)
-            .removeDataFromDomain(domains[1]);
-  setPermission(testPageURL4, "indexedDB", "unknown");
+  ForgetAboutSite.removeDataFromDomain(domains[1]);
+  setPermission(testPageURL4, "indexedDB");
   executeSoon(test4);
 }
 

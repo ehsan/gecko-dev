@@ -10,6 +10,7 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -18,16 +19,20 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.json.simple.JSONArray;
 import org.json.simple.parser.ParseException;
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.crypto.CryptoException;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
+import org.mozilla.gecko.sync.delegates.BaseGlobalSessionCallback;
 import org.mozilla.gecko.sync.delegates.ClientsDataDelegate;
 import org.mozilla.gecko.sync.delegates.FreshStartDelegate;
-import org.mozilla.gecko.sync.delegates.GlobalSessionCallback;
-import org.mozilla.gecko.sync.delegates.InfoCollectionsDelegate;
+import org.mozilla.gecko.sync.delegates.JSONRecordFetchDelegate;
 import org.mozilla.gecko.sync.delegates.KeyUploadDelegate;
 import org.mozilla.gecko.sync.delegates.MetaGlobalDelegate;
+import org.mozilla.gecko.sync.delegates.NodeAssignmentCallback;
 import org.mozilla.gecko.sync.delegates.WipeServerDelegate;
+import org.mozilla.gecko.sync.net.AuthHeaderProvider;
 import org.mozilla.gecko.sync.net.BaseResource;
 import org.mozilla.gecko.sync.net.HttpResponseObserver;
 import org.mozilla.gecko.sync.net.SyncResponse;
@@ -53,14 +58,11 @@ import org.mozilla.gecko.sync.stage.SyncClientsEngineStage;
 import org.mozilla.gecko.sync.stage.UploadMetaGlobalStage;
 
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.os.Bundle;
 import ch.boye.httpclientandroidlib.HttpResponse;
 
-public class GlobalSession implements CredentialsSource, PrefsSource, HttpResponseObserver {
+public class GlobalSession implements HttpResponseObserver {
   private static final String LOG_TAG = "GlobalSession";
 
-  public static final String API_VERSION   = "1.1";
   public static final long STORAGE_VERSION = 5;
 
   public SyncConfiguration config = null;
@@ -68,16 +70,18 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
   protected Map<Stage, GlobalSyncStage> stages;
   public Stage currentState = Stage.idle;
 
-  public final GlobalSessionCallback callback;
-  private Context context;
-  private ClientsDataDelegate clientsDelegate;
+  public final BaseGlobalSessionCallback callback;
+  protected final Context context;
+  protected final ClientsDataDelegate clientsDelegate;
+  protected final NodeAssignmentCallback nodeAssignmentCallback;
 
   /**
    * Map from engine name to new settings for an updated meta/global record.
+   * Engines to remove will have <code>null</code> EngineSettings.
    */
   public final Map<String, EngineSettings> enginesToUpdate = new HashMap<String, EngineSettings>();
 
-  /*
+   /*
    * Key accessors.
    */
   public KeyBundle keyBundleForCollection(String collection) throws NoCollectionKeysSetException {
@@ -87,86 +91,37 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
   /*
    * Config passthrough for convenience.
    */
-  @Override
-  public String credentials() {
-    return config.credentials();
+  public AuthHeaderProvider getAuthHeaderProvider() {
+    return config.getAuthHeaderProvider();
   }
 
   public URI wboURI(String collection, String id) throws URISyntaxException {
     return config.wboURI(collection, id);
   }
 
-  /*
-   * Validators.
-   */
-  private static boolean isInvalidString(String s) {
-    return s == null ||
-           s.trim().length() == 0;
-  }
-
-  private static boolean anyInvalidStrings(String s, String...strings) {
-    if (isInvalidString(s)) {
-      return true;
-    }
-    for (String str : strings) {
-      if (isInvalidString(str)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  public GlobalSession(String userAPI,
-                       String serverURL,
-                       String username,
-                       String password,
-                       String prefsPath,
-                       KeyBundle syncKeyBundle,
-                       GlobalSessionCallback callback,
+  public GlobalSession(SyncConfiguration config,
+                       BaseGlobalSessionCallback callback,
                        Context context,
-                       Bundle extras,
-                       ClientsDataDelegate clientsDelegate)
-                           throws SyncConfigurationException, IllegalArgumentException, IOException, ParseException, NonObjectJSONException {
+                       ClientsDataDelegate clientsDelegate, NodeAssignmentCallback nodeAssignmentCallback)
+    throws SyncConfigurationException, IllegalArgumentException, IOException, ParseException, NonObjectJSONException {
+
     if (callback == null) {
       throw new IllegalArgumentException("Must provide a callback to GlobalSession constructor.");
-    }
-
-    if (anyInvalidStrings(username, password)) {
-      throw new SyncConfigurationException();
-    }
-
-    Logger.debug(LOG_TAG, "GlobalSession initialized with bundle " + extras);
-    URI serverURI;
-    try {
-      serverURI = (serverURL == null) ? null : new URI(serverURL);
-    } catch (URISyntaxException e) {
-      throw new SyncConfigurationException();
-    }
-
-    if (syncKeyBundle == null ||
-        syncKeyBundle.getEncryptionKey() == null ||
-        syncKeyBundle.getHMACKey() == null) {
-      throw new SyncConfigurationException();
     }
 
     this.callback        = callback;
     this.context         = context;
     this.clientsDelegate = clientsDelegate;
+    this.nodeAssignmentCallback = nodeAssignmentCallback;
 
-    config = new SyncConfiguration(prefsPath, this);
-    config.userAPI       = userAPI;
-    config.serverURL     = serverURI;
-    config.username      = username;
-    config.password      = password;
-    config.syncKeyBundle = syncKeyBundle;
-
+    this.config = config;
     registerCommands();
     prepareStages();
-    Collection<String> knownStageNames = new HashSet<String>();
-    for (Stage stage : Stage.getNamedStages()) {
-      knownStageNames.add(stage.getRepositoryName());
+
+    if (config.stagesToSync == null) {
+      Logger.info(LOG_TAG, "No stages to sync specified; defaulting to all valid engine names.");
+      config.stagesToSync = Collections.unmodifiableCollection(SyncConfiguration.validEngineNames());
     }
-    config.stagesToSync = Utils.getStagesToSyncFromBundle(knownStageNames, extras);
 
     // TODO: data-driven plan for the sync, referring to prepareStages.
   }
@@ -220,23 +175,23 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
   }
 
   protected void prepareStages() {
-    HashMap<Stage, GlobalSyncStage> stages = new HashMap<Stage, GlobalSyncStage>();
+    Map<Stage, GlobalSyncStage> stages = new EnumMap<Stage, GlobalSyncStage>(Stage.class);
 
-    stages.put(Stage.checkPreconditions,      new CheckPreconditionsStage(this));
-    stages.put(Stage.ensureClusterURL,        new EnsureClusterURLStage(this));
-    stages.put(Stage.fetchInfoCollections,    new FetchInfoCollectionsStage(this));
-    stages.put(Stage.fetchMetaGlobal,         new FetchMetaGlobalStage(this));
-    stages.put(Stage.ensureKeysStage,         new EnsureCrypto5KeysStage(this));
-    stages.put(Stage.syncClientsEngine,       new SyncClientsEngineStage(this));
+    stages.put(Stage.checkPreconditions,      new CheckPreconditionsStage());
+    stages.put(Stage.ensureClusterURL,        new EnsureClusterURLStage(nodeAssignmentCallback));
+    stages.put(Stage.fetchInfoCollections,    new FetchInfoCollectionsStage());
+    stages.put(Stage.fetchMetaGlobal,         new FetchMetaGlobalStage());
+    stages.put(Stage.ensureKeysStage,         new EnsureCrypto5KeysStage());
+    stages.put(Stage.syncClientsEngine,       new SyncClientsEngineStage());
 
-    stages.put(Stage.syncTabs,                new FennecTabsServerSyncStage(this));
-    stages.put(Stage.syncPasswords,           new PasswordsServerSyncStage(this));
-    stages.put(Stage.syncBookmarks,           new AndroidBrowserBookmarksServerSyncStage(this));
-    stages.put(Stage.syncHistory,             new AndroidBrowserHistoryServerSyncStage(this));
-    stages.put(Stage.syncFormHistory,         new FormHistoryServerSyncStage(this));
+    stages.put(Stage.syncTabs,                new FennecTabsServerSyncStage());
+    stages.put(Stage.syncPasswords,           new PasswordsServerSyncStage());
+    stages.put(Stage.syncBookmarks,           new AndroidBrowserBookmarksServerSyncStage());
+    stages.put(Stage.syncHistory,             new AndroidBrowserHistoryServerSyncStage());
+    stages.put(Stage.syncFormHistory,         new FormHistoryServerSyncStage());
 
-    stages.put(Stage.uploadMetaGlobal,        new UploadMetaGlobalStage(this));
-    stages.put(Stage.completed,               new CompletedStage(this));
+    stages.put(Stage.uploadMetaGlobal,        new UploadMetaGlobalStage());
+    stages.put(Stage.completed,               new CompletedStage());
 
     this.stages = Collections.unmodifiableMap(stages);
   }
@@ -314,20 +269,12 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
     this.currentState = next;
     Logger.info(LOG_TAG, "Running next stage " + next + " (" + nextStage + ")...");
     try {
-      nextStage.execute();
+      nextStage.execute(this);
     } catch (Exception ex) {
       Logger.warn(LOG_TAG, "Caught exception " + ex + " running stage " + next);
       this.abort(ex, "Uncaught exception in stage.");
       return;
     }
-  }
-
-  /*
-   * PrefsSource methods.
-   */
-  @Override
-  public SharedPreferences getPrefs(String name, int mode) {
-    return this.getContext().getSharedPreferences(name, mode);
   }
 
   public Context getContext() {
@@ -360,7 +307,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
    */
   protected void restart() throws AlreadySyncingException {
     this.currentState = GlobalSyncStage.Stage.idle;
-    if (callback.shouldBackOff()) {
+    if (callback.shouldBackOffStorage()) {
       this.callback.handleAborted(this, "Told to back off.");
       return;
     }
@@ -388,8 +335,19 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
    * @param engineName engine to update.
    * @param engineSettings new syncID and version.
    */
-  public void updateMetaGlobalWith(String engineName, EngineSettings engineSettings) {
+  public void recordForMetaGlobalUpdate(String engineName, EngineSettings engineSettings) {
     enginesToUpdate.put(engineName, engineSettings);
+  }
+
+  /**
+   * Record that an updated meta/global record should be uploaded without the
+   * given engine name.
+   *
+   * @param engineName
+   *          engine to remove.
+   */
+  public void removeEngineFromMetaGlobal(String engineName) {
+    enginesToUpdate.put(engineName, null);
   }
 
   public boolean hasUpdatedMetaGlobal() {
@@ -399,18 +357,24 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
     }
 
     if (Logger.shouldLogVerbose(LOG_TAG)) {
-      Logger.trace(LOG_TAG, "Uploading updated meta/global record since there are engines requesting upload: " +
-          Utils.toCommaSeparatedString(enginesToUpdate.keySet()));
+      Logger.trace(LOG_TAG, "Uploading updated meta/global record since there are engine changes to meta/global.");
+      Logger.trace(LOG_TAG, "Engines requesting update [" + Utils.toCommaSeparatedString(enginesToUpdate.keySet()) + "]");
     }
 
     return true;
   }
 
   public void updateMetaGlobalInPlace() {
+    config.metaGlobal.declined = this.declinedEngineNames();
     ExtendedJSONObject engines = config.metaGlobal.getEngines();
     for (Entry<String, EngineSettings> pair : enginesToUpdate.entrySet()) {
-      engines.put(pair.getKey(), pair.getValue().toJSONObject());
+      if (pair.getValue() == null) {
+        engines.remove(pair.getKey());
+      } else {
+        engines.put(pair.getKey(), pair.getValue().toJSONObject());
+      }
     }
+
     enginesToUpdate.clear();
   }
 
@@ -432,6 +396,11 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
           @Override
           public void handleSuccess(MetaGlobal global, SyncStorageResponse response) {
             Logger.info(LOG_TAG, "Successfully uploaded updated meta/global record.");
+            // Engine changes are stored as diffs, so update enabled engines in config to match uploaded meta/global.
+            config.enabledEngineNames = config.metaGlobal.getEnabledEngineNames();
+            // Clear userSelectedEngines because they are updated in config and meta/global.
+            config.userSelectedEngines = null;
+
             synchronized (monitor) {
               monitor.notify();
             }
@@ -547,11 +516,9 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
     }
   }
 
-  public void fetchInfoCollections(InfoCollectionsDelegate callback) throws URISyntaxException {
-    if (this.config.infoCollections == null) {
-      this.config.infoCollections = new InfoCollections(config.infoURL(), credentials());
-    }
-    this.config.infoCollections.fetch(callback);
+  public void fetchInfoCollections(JSONRecordFetchDelegate callback) throws URISyntaxException {
+    final JSONRecordFetcher fetcher = new JSONRecordFetcher(config.infoCollectionsURL(), getAuthHeaderProvider());
+    fetcher.fetch(callback);
   }
 
   /**
@@ -565,7 +532,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
   public void uploadKeys(final CollectionKeys keys,
                          final KeyUploadDelegate keyUploadDelegate) {
     SyncStorageRecordRequest request;
-    final GlobalSession self = this;
     try {
       request = new SyncStorageRecordRequest(this.config.keysURI());
     } catch (URISyntaxException e) {
@@ -590,7 +556,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
       @Override
       public void handleRequestFailure(SyncStorageResponse response) {
         Logger.debug(LOG_TAG, "Failed to upload keys.");
-        self.interpretHTTPFailure(response.httpResponse());
+        GlobalSession.this.interpretHTTPFailure(response.httpResponse());
         BaseResource.consumeEntity(response); // The exception thrown should not need the body of the response.
         keyUploadDelegate.onKeyUploadFailed(new HTTPFailureException(response));
       }
@@ -602,8 +568,8 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
       }
 
       @Override
-      public String credentials() {
-        return self.credentials();
+      public AuthHeaderProvider getAuthHeaderProvider() {
+        return GlobalSession.this.getAuthHeaderProvider();
       }
     };
 
@@ -661,6 +627,12 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
       config.purgeCryptoKeys();
       config.syncID = remoteSyncID;
     }
+    // Compare lastModified timestamps for remote/local engine selection times.
+    Logger.debug(LOG_TAG, "Comparing local engine selection timestamp [" + config.userSelectedEnginesTimestamp + "] to server meta/global timestamp [" + config.persistedMetaGlobal().lastModified() + "].");
+    if (config.userSelectedEnginesTimestamp < config.persistedMetaGlobal().lastModified()) {
+      // Remote has later meta/global timestamp. Don't upload engine changes.
+      config.userSelectedEngines = null;
+    }
     // Persist enabled engine names.
     config.enabledEngineNames = global.getEnabledEngineNames();
     if (config.enabledEngineNames == null) {
@@ -671,6 +643,38 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
             Utils.toCommaSeparatedString(config.enabledEngineNames) + "' from meta/global.");
       }
     }
+
+    // Persist declined.
+    // Our declined engines at any point are:
+    // Whatever they were remotely, plus whatever they were locally, less any
+    // engines that were just enabled locally or remotely.
+    // If remote just 'won', our recently enabled list just got cleared.
+    final HashSet<String> allDeclined = new HashSet<String>();
+
+    final Set<String> newRemoteDeclined = global.getDeclinedEngineNames();
+    final Set<String> oldLocalDeclined = config.declinedEngineNames;
+
+    allDeclined.addAll(newRemoteDeclined);
+    allDeclined.addAll(oldLocalDeclined);
+
+    if (config.userSelectedEngines != null) {
+      for (Entry<String, Boolean> selection : config.userSelectedEngines.entrySet()) {
+        if (selection.getValue()) {
+          allDeclined.remove(selection.getKey());
+        }
+      }
+    }
+
+    config.declinedEngineNames = allDeclined;
+    if (config.declinedEngineNames.isEmpty()) {
+      Logger.debug(LOG_TAG, "meta/global reported no declined engine names, and we have none declined locally.");
+    } else {
+      if (Logger.shouldLogVerbose(LOG_TAG)) {
+        Logger.trace(LOG_TAG, "Persisting declined engine names '" +
+            Utils.toCommaSeparatedString(config.declinedEngineNames) + "' from meta/global.");
+      }
+    }
+
     config.persistToPrefs();
     advance();
   }
@@ -723,7 +727,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
 
     final MetaGlobal mg = session.generateNewMetaGlobal();
 
-    session.wipeServer(session, new WipeServerDelegate() {
+    session.wipeServer(session.getAuthHeaderProvider(), new WipeServerDelegate() {
 
       @Override
       public void onWiped(long timestamp) {
@@ -823,12 +827,12 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
   // reset client to prompt reupload.
   // If sync ID mismatch: take that syncID and reset client.
 
-  protected void wipeServer(final CredentialsSource credentials, final WipeServerDelegate wipeDelegate) {
+  protected void wipeServer(final AuthHeaderProvider authHeaderProvider, final WipeServerDelegate wipeDelegate) {
     SyncStorageRequest request;
     final GlobalSession self = this;
 
     try {
-      request = new SyncStorageRequest(config.storageURL(false));
+      request = new SyncStorageRequest(config.storageURL());
     } catch (URISyntaxException ex) {
       Logger.warn(LOG_TAG, "Invalid URI in wipeServer.");
       wipeDelegate.onWipeFailed(ex);
@@ -864,8 +868,8 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
       }
 
       @Override
-      public String credentials() {
-        return credentials.credentials();
+      public AuthHeaderProvider getAuthHeaderProvider() {
+        return GlobalSession.this.getAuthHeaderProvider();
       }
     };
     request.delete();
@@ -877,11 +881,11 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
     this.wipeStagesByEnum(Stage.getNamedStages());
   }
 
-  public static void wipeStages(Collection<GlobalSyncStage> stages) {
+  public void wipeStages(Collection<GlobalSyncStage> stages) {
     for (GlobalSyncStage stage : stages) {
       try {
         Logger.info(LOG_TAG, "Wiping " + stage);
-        stage.wipeLocal();
+        stage.wipeLocal(this);
       } catch (Exception e) {
         Logger.error(LOG_TAG, "Ignoring wipe failure for stage " + stage, e);
       }
@@ -889,11 +893,11 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
   }
 
   public void wipeStagesByEnum(Collection<Stage> stages) {
-    GlobalSession.wipeStages(this.getSyncStagesByEnum(stages));
+    wipeStages(this.getSyncStagesByEnum(stages));
   }
 
   public void wipeStagesByName(Collection<String> names) {
-    GlobalSession.wipeStages(this.getSyncStagesByName(names));
+    wipeStages(this.getSyncStagesByName(names));
   }
 
   public void resetAllStages() {
@@ -902,11 +906,11 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
     this.resetStagesByEnum(Stage.getNamedStages());
   }
 
-  public static void resetStages(Collection<GlobalSyncStage> stages) {
+  public void resetStages(Collection<GlobalSyncStage> stages) {
     for (GlobalSyncStage stage : stages) {
       try {
         Logger.info(LOG_TAG, "Resetting " + stage);
-        stage.resetLocal();
+        stage.resetLocal(this);
       } catch (Exception e) {
         Logger.error(LOG_TAG, "Ignoring reset failure for stage " + stage, e);
       }
@@ -914,20 +918,32 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
   }
 
   public void resetStagesByEnum(Collection<Stage> stages) {
-    GlobalSession.resetStages(this.getSyncStagesByEnum(stages));
+    resetStages(this.getSyncStagesByEnum(stages));
   }
 
   public void resetStagesByName(Collection<String> names) {
-    Collection<GlobalSyncStage> stages = new ArrayList<GlobalSyncStage>();
-    for (String name : names) {
-      try {
-        GlobalSyncStage stage = this.getSyncStageByName(name);
-        stages.add(stage);
-      } catch (NoSuchStageException e) {
-        Logger.warn(LOG_TAG, "Cannot reset stage " + name + ": no such stage.");
-      }
-    }
-    GlobalSession.resetStages(stages);
+    resetStages(this.getSyncStagesByName(names));
+  }
+
+  /**
+   * Engines to explicitly mark as declined in a fresh meta/global record.
+   * <p>
+   * Returns an empty array if the user hasn't elected to customize data types,
+   * or an array of engines that the user un-checked during customization.
+   * <p>
+   * Engines that Android Sync doesn't recognize are <b>not</b> included in
+   * the returned array.
+   *
+   * @return a new JSONArray of engine names.
+   */
+  @SuppressWarnings("unchecked")
+  protected JSONArray declinedEngineNames() {
+    final JSONArray declined = new JSONArray();
+    for (String engine : config.declinedEngineNames) {
+      declined.add(engine);
+    };
+
+    return declined;
   }
 
   /**
@@ -945,11 +961,30 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
     if (config.enabledEngineNames != null) {
       return config.enabledEngineNames;
     }
-    Set<String> engineNames = new HashSet<String>();
-    for (Stage stage : Stage.getNamedStages()) {
-      engineNames.add(stage.getRepositoryName());
+
+    // These are the default set of engine names.
+    Set<String> validEngineNames = SyncConfiguration.validEngineNames();
+
+    // If the user hasn't set any selected engines, that's okay -- default to
+    // everything.
+    if (config.userSelectedEngines == null) {
+      return validEngineNames;
     }
-    return engineNames;
+
+    // userSelectedEngines has keys that are engine names, and boolean values
+    // corresponding to whether the user asked for the engine to sync or not. If
+    // an engine is not present, that means the user didn't change its sync
+    // setting. Since we default to everything on, that means the user didn't
+    // turn it off; therefore, it's included in the set of engines to sync.
+    Set<String> validAndSelectedEngineNames = new HashSet<String>();
+    for (String engineName : validEngineNames) {
+      if (config.userSelectedEngines.containsKey(engineName) &&
+          !config.userSelectedEngines.get(engineName)) {
+        continue;
+      }
+      validAndSelectedEngineNames.add(engineName);
+    }
+    return validAndSelectedEngineNames;
   }
 
   /**
@@ -957,6 +992,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
    * @return crypto/keys collection.
    * @throws CryptoException
    */
+  @SuppressWarnings("static-method")
   public CollectionKeys generateNewCryptoKeys() throws CryptoException {
     return CollectionKeys.generateCollectionKeys();
   }
@@ -968,7 +1004,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
   public MetaGlobal generateNewMetaGlobal() {
     final String newSyncID   = Utils.generateGuid();
     final String metaURL     = this.config.metaURL();
-    final String credentials = this.credentials();
 
     ExtendedJSONObject engines = new ExtendedJSONObject();
     for (String engineName : enabledEngineNames()) {
@@ -979,7 +1014,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
         if (version == null) {
           continue; // Don't want this stage to be included in meta/global.
         }
-        engineSettings = new EngineSettings(Utils.generateGuid(), version.intValue());
+        engineSettings = new EngineSettings(Utils.generateGuid(), version);
       } catch (NoSuchStageException e) {
         // No trouble; Android Sync might not recognize this engine yet.
         // By default, version 0.  Other clients will see the 0 version and reset/wipe accordingly.
@@ -988,10 +1023,14 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
       engines.put(engineName, engineSettings.toJSONObject());
     }
 
-    MetaGlobal metaGlobal = new MetaGlobal(metaURL, credentials);
+    MetaGlobal metaGlobal = new MetaGlobal(metaURL, this.getAuthHeaderProvider());
     metaGlobal.setSyncID(newSyncID);
     metaGlobal.setStorageVersion(STORAGE_VERSION);
     metaGlobal.setEngines(engines);
+
+    // We assume that the config's declined engines have been updated
+    // according to the user's selections.
+    metaGlobal.setDeclinedEngineNames(this.declinedEngineNames());
 
     return metaGlobal;
   }
@@ -1010,6 +1049,9 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
    * If meta/global is missing or malformed, throws a MetaGlobalException.
    * Otherwise, returns true if there is an entry for this engine in the
    * meta/global "engines" object.
+   * <p>
+   * This is a global/permanent setting, not a local/temporary setting. For the
+   * latter, see {@link GlobalSession#isEngineLocallyEnabled(String)}.
    *
    * @param engineName the name to check (e.g., "bookmarks").
    * @param engineSettings
@@ -1021,7 +1063,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
    *
    * @throws MetaGlobalException
    */
-  public boolean engineIsEnabled(String engineName, EngineSettings engineSettings) throws MetaGlobalException {
+  public boolean isEngineRemotelyEnabled(String engineName, EngineSettings engineSettings) throws MetaGlobalException {
     if (this.config.metaGlobal == null) {
       throw new MetaGlobalNotSetException();
     }
@@ -1045,6 +1087,25 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
     }
 
     return true;
+  }
+
+
+  /**
+   * Return true if the named stage should be synced this session.
+   * <p>
+   * This is a local/temporary setting, in contrast to the meta/global record,
+   * which is a global/permanent setting. For the latter, see
+   * {@link GlobalSession#isEngineRemotelyEnabled(String, EngineSettings)}.
+   *
+   * @param stageName
+   *          to query.
+   * @return true if named stage is enabled for this sync.
+   */
+  public boolean isEngineLocallyEnabled(String stageName) {
+    if (config.stagesToSync == null) {
+      return true;
+    }
+    return config.stagesToSync.contains(stageName);
   }
 
   public ClientsDataDelegate getClientsDelegate() {

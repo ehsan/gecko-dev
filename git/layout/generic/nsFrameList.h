@@ -6,13 +6,21 @@
 #ifndef nsFrameList_h___
 #define nsFrameList_h___
 
-#include "nscore.h"
-#include "nsTraceRefcnt.h"
 #include <stdio.h> /* for FILE* */
 #include "nsDebug.h"
-#include "nsTArray.h"
+#include "nsTArrayForwardDeclare.h"
 
+#if defined(DEBUG) || defined(MOZ_DUMP_PAINTING)
+// DEBUG_FRAME_DUMP enables nsIFrame::List and related methods.
+// You can also define this in a non-DEBUG build if you need frame dumps.
+#define DEBUG_FRAME_DUMP 1
+#endif
+
+class nsContainerFrame;
 class nsIFrame;
+class nsIPresShell;
+class nsPresContext;
+
 namespace mozilla {
 namespace layout {
   class FrameChildList;
@@ -50,26 +58,29 @@ public:
   nsFrameList() :
     mFirstChild(nullptr), mLastChild(nullptr)
   {
-    MOZ_COUNT_CTOR(nsFrameList);
   }
 
   nsFrameList(nsIFrame* aFirstFrame, nsIFrame* aLastFrame) :
     mFirstChild(aFirstFrame), mLastChild(aLastFrame)
   {
-    MOZ_COUNT_CTOR(nsFrameList);
     VerifyList();
   }
 
   nsFrameList(const nsFrameList& aOther) :
     mFirstChild(aOther.mFirstChild), mLastChild(aOther.mLastChild)
   {
-    MOZ_COUNT_CTOR(nsFrameList);
   }
 
-  ~nsFrameList() {
-    MOZ_COUNT_DTOR(nsFrameList);
-    // Don't destroy our frames here, so that we can have temporary nsFrameLists
-  }
+  /**
+   * Allocate a nsFrameList from the shell arena.
+   */
+  void* operator new(size_t sz, nsIPresShell* aPresShell) CPP_THROW_NEW;
+
+  /**
+   * Deallocate this list that was allocated from the shell arena.
+   * The list is required to be empty.
+   */
+  void Delete(nsIPresShell* aPresShell);
 
   /**
    * For each frame in this list: remove it from the list then call
@@ -79,23 +90,9 @@ public:
 
   /**
    * For each frame in this list: remove it from the list then call
-   * DestroyFrom() on it.
+   * DestroyFrom(aDestructRoot) on it.
    */
   void DestroyFramesFrom(nsIFrame* aDestructRoot);
-
-  /**
-   * For each frame in this list: remove it from the list then call
-   * Destroy() on it. Finally <code>delete this</code>.
-   * 
-   */
-  void Destroy();
-
-  /**
-   * For each frame in this list: remove it from the list then call
-   * DestroyFrom() on it. Finally <code>delete this</code>.
-   *
-   */
-  void DestroyFrom(nsIFrame* aDestructRoot);
 
   void Clear() { mFirstChild = mLastChild = nullptr; }
 
@@ -116,7 +113,7 @@ public:
    * reparents the newly added frames.  Clears out aFrameList and
    * returns a list slice represening the newly-appended frames.
    */
-  Slice AppendFrames(nsIFrame* aParent, nsFrameList& aFrameList) {
+  Slice AppendFrames(nsContainerFrame* aParent, nsFrameList& aFrameList) {
     return InsertFrames(aParent, LastChild(), aFrameList);
   }
 
@@ -125,7 +122,7 @@ public:
    * Append aFrame to this list.  If aParent is not null,
    * reparents the newly added frame.
    */
-  void AppendFrame(nsIFrame* aParent, nsIFrame* aFrame) {
+  void AppendFrame(nsContainerFrame* aParent, nsIFrame* aFrame) {
     nsFrameList temp(aFrame, aFrame);
     AppendFrames(aParent, temp);
   }
@@ -136,14 +133,6 @@ public:
    * this list.
    */
   void RemoveFrame(nsIFrame* aFrame);
-
-  /**
-   * Take aFrame out of the frame list, if present. This also disconnects
-   * aFrame from the sibling list. aFrame must be non-null but is not
-   * required to be on the list.
-   * @return true if aFrame was removed
-   */
-  bool RemoveFrameIfPresent(nsIFrame* aFrame);
 
   /**
    * Take the frames after aAfterFrame out of the frame list.  If
@@ -160,17 +149,40 @@ public:
   nsIFrame* RemoveFirstChild();
 
   /**
+   * The following two functions are intended to be used in concert for
+   * removing a frame from its frame list when the set of possible frame
+   * lists is known in advance, but the exact frame list is unknown.
+   * aFrame must be non-null.
+   * Example use:
+   *   bool removed = frameList1.StartRemoveFrame(aFrame) ||
+   *                  frameList2.ContinueRemoveFrame(aFrame) ||
+   *                  frameList3.ContinueRemoveFrame(aFrame);
+   *   MOZ_ASSERT(removed);
+   *
+   * @note One of the frame lists MUST contain aFrame, if it's on some other
+   *       frame list then the example above will likely lead to crashes.
+   * This function is O(1).
+   * @return true iff aFrame was removed from /some/ list, not necessarily
+   *         this one.  If it was removed from a different list then it is
+   *         guaranteed that that list is still non-empty.
+   * (this method is implemented in nsIFrame.h to be able to inline)
+   */
+  inline bool StartRemoveFrame(nsIFrame* aFrame);
+
+  /**
+   * Precondition: StartRemoveFrame MUST be called before this.
+   * This function is O(1).
+   * @see StartRemoveFrame
+   * @return true iff aFrame was removed from this list
+   * (this method is implemented in nsIFrame.h to be able to inline)
+   */
+  inline bool ContinueRemoveFrame(nsIFrame* aFrame);
+
+  /**
    * Take aFrame out of the frame list and then destroy it.
    * The frame must be non-null and present on this list.
    */
   void DestroyFrame(nsIFrame* aFrame);
-
-  /**
-   * If aFrame is present on this list then take it out of the list and
-   * then destroy it. The frame must be non-null.
-   * @return true if the frame was found
-   */
-  bool DestroyFrameIfPresent(nsIFrame* aFrame);
 
   /**
    * Insert aFrame right after aPrevSibling, or prepend it to this
@@ -178,7 +190,7 @@ public:
    * reparents newly-added frame. Note that this method always
    * sets the frame's nextSibling pointer.
    */
-  void InsertFrame(nsIFrame* aParent, nsIFrame* aPrevSibling,
+  void InsertFrame(nsContainerFrame* aParent, nsIFrame* aPrevSibling,
                    nsIFrame* aFrame) {
     nsFrameList temp(aFrame, aFrame);
     InsertFrames(aParent, aPrevSibling, temp);
@@ -191,7 +203,7 @@ public:
    * frames.  Clears out aFrameList and returns a list slice representing the
    * newly-inserted frames.
    */
-  Slice InsertFrames(nsIFrame* aParent, nsIFrame* aPrevSibling,
+  Slice InsertFrames(nsContainerFrame* aParent, nsIFrame* aPrevSibling,
                      nsFrameList& aFrameList);
 
   class FrameLinkEnumerator;
@@ -248,7 +260,7 @@ public:
    * Call SetParent(aParent) for each frame in this list.
    * @param aParent the new parent frame, must be non-null
    */
-  void ApplySetParent(nsIFrame* aParent) const;
+  void ApplySetParent(nsContainerFrame* aParent) const;
 
   /**
    * If this frame list is non-empty then append it to aLists as the
@@ -258,7 +270,6 @@ public:
   inline void AppendIfNonempty(nsTArray<mozilla::layout::FrameChildList>* aLists,
                                mozilla::layout::FrameChildListID aListID) const;
 
-#ifdef IBMBIDI
   /**
    * Return the frame before this frame in visual order (after Bidi reordering).
    * If aFrame is null, return the last frame in visual order.
@@ -270,15 +281,12 @@ public:
    * If aFrame is null, return the first frame in visual order.
    */
   nsIFrame* GetNextVisualFor(nsIFrame* aFrame) const;
-#endif // IBMBIDI
 
-#ifdef DEBUG
+#ifdef DEBUG_FRAME_DUMP
   void List(FILE* out) const;
 #endif
 
-  static void Init();
-  static void Shutdown() { delete sEmptyList; }
-  static const nsFrameList& EmptyList() { return *sEmptyList; }
+  static inline const nsFrameList& EmptyList();
 
   class Enumerator;
 
@@ -291,7 +299,7 @@ public:
   public:
     // Implicit on purpose, so that we can easily create enumerators from
     // nsFrameList via this impicit constructor.
-    Slice(const nsFrameList& aList) :
+    MOZ_IMPLICIT Slice(const nsFrameList& aList) :
 #ifdef DEBUG
       mList(aList),
 #endif
@@ -326,7 +334,7 @@ public:
 
   class Enumerator {
   public:
-    Enumerator(const Slice& aSlice) :
+    explicit Enumerator(const Slice& aSlice) :
 #ifdef DEBUG
       mSlice(aSlice),
 #endif
@@ -407,7 +415,7 @@ public:
   public:
     friend class nsFrameList;
 
-    FrameLinkEnumerator(const nsFrameList& aList) :
+    explicit FrameLinkEnumerator(const nsFrameList& aList) :
       Enumerator(aList),
       mPrev(nullptr)
     {}
@@ -428,10 +436,7 @@ public:
       mPrev = aOther.mPrev;
     }
 
-    void Next() {
-      mPrev = mFrame;
-      Enumerator::Next();
-    }
+    inline void Next();
 
     bool AtEnd() const { return Enumerator::AtEnd(); }
 
@@ -443,17 +448,61 @@ public:
   };
 
 private:
+  void operator delete(void*) MOZ_DELETE;
+
 #ifdef DEBUG_FRAME_LIST
   void VerifyList() const;
 #else
   void VerifyList() const {}
 #endif
 
-  static const nsFrameList* sEmptyList;
-
 protected:
+  /**
+   * Disconnect aFrame from its siblings.  This must only be called if aFrame
+   * is NOT the first or last sibling, because otherwise its nsFrameList will
+   * have a stale mFirst/LastChild pointer.  This precondition is asserted.
+   * This function is O(1).
+   */
+  static void UnhookFrameFromSiblings(nsIFrame* aFrame);
+
   nsIFrame* mFirstChild;
   nsIFrame* mLastChild;
 };
+
+namespace mozilla {
+namespace layout {
+
+/**
+ * Simple "auto_ptr" for nsFrameLists allocated from the shell arena.
+ * The frame list given to the constructor will be deallocated (if non-null)
+ * in the destructor.  The frame list must then be empty.
+ */
+class AutoFrameListPtr {
+public:
+  AutoFrameListPtr(nsPresContext* aPresContext, nsFrameList* aFrameList)
+    : mPresContext(aPresContext), mFrameList(aFrameList) {}
+  ~AutoFrameListPtr();
+  operator nsFrameList*() const { return mFrameList; }
+  nsFrameList* operator->() const { return mFrameList; }
+private:
+  nsPresContext* mPresContext;
+  nsFrameList* mFrameList;
+};
+
+namespace detail {
+union AlignedFrameListBytes {
+  void* ptr;
+  char bytes[sizeof(nsFrameList)];
+};
+extern const AlignedFrameListBytes gEmptyFrameListBytes;
+}
+}
+}
+
+/* static */ inline const nsFrameList&
+nsFrameList::EmptyList()
+{
+  return *reinterpret_cast<const nsFrameList*>(&mozilla::layout::detail::gEmptyFrameListBytes);
+}
 
 #endif /* nsFrameList_h___ */

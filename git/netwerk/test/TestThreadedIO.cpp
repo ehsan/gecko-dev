@@ -9,6 +9,8 @@
 #include "nsIStreamListener.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
+#include "nsContentUtils.h"
+#include <algorithm>
 //#include "prthread.h"
 
 // This test attempts to load a URL on a separate thread.  It is currently
@@ -48,7 +50,12 @@ createChannel( const char *url ) {
 
         // Allocate a new input channel on this thread.
         printf( "Calling NS_OpenURI...\n" );
-        nsresult rv = NS_OpenURI( getter_AddRefs( result ), uri, 0 );
+
+        nsresult rv = NS_OpenURI(getter_AddRefs(result),
+                                 uri,
+                                 nsContentUtils::GetSystemPrincipal(),
+                                 nsILoadInfo::SEC_NORMAL,
+                                 nsIContentPolicy::TYPE_OTHER);
 
         if ( NS_SUCCEEDED( rv ) ) {
             printf( "...NS_OpenURI completed OK\n" );
@@ -92,7 +99,7 @@ TestListener::~TestListener() {
     printf( "TestListener dtor called on thread %d\n", mThreadNo );
 }
 
-NS_IMPL_ISUPPORTS2( TestListener, nsIStreamListener, nsIRequestObserver )
+NS_IMPL_ISUPPORTS( TestListener, nsIStreamListener, nsIRequestObserver )
 
 NS_IMETHODIMP
 TestListener::OnStartRequest( nsIChannel *aChannel, nsISupports *aContext ) {
@@ -113,7 +120,7 @@ NS_IMETHODIMP
 TestListener::OnStopRequest( nsIChannel *aChannel,
                              nsISupports *aContext,
                              nsresult aStatus,
-                             const PRUnichar *aMsg ) {
+                             const char16_t *aMsg ) {
     nsresult rv = NS_OK;
 
     printf( "TestListener::OnStopRequest called on thread %d\n", mThreadNo );
@@ -128,7 +135,7 @@ NS_IMETHODIMP
 TestListener::OnDataAvailable( nsIChannel *aChannel,
                                nsISupports *aContext,
                                nsIInputStream *aStream,
-                               uint32_t offset,
+                               uint64_t offset,
                                uint32_t aLength ) {
     nsresult rv = NS_OK;
 
@@ -142,7 +149,7 @@ TestListener::OnDataAvailable( nsIChannel *aChannel,
         unsigned int bytesRead;
         // Read a buffer full or the number remaining (whichever is smaller).
         rv = aStream->Read( buffer,
-                            NS_MIN( sizeof( buffer ), bytesRemaining ),
+                            std::min( sizeof( buffer ), bytesRemaining ),
                             &bytesRead );
         if ( NS_SUCCEEDED( rv ) ) {
             // Write the bytes just read to the output file.
@@ -251,7 +258,7 @@ main( int argc, char* argv[] ) {
                                                       TestListener::IOThread,
                                                       argv[threadNo],
                                                       PR_PRIORITY_NORMAL,
-                                                      PR_LOCAL_THREAD,
+                                                      PR_GLOBAL_THREAD,
                                                       PR_JOINABLE_THREAD,
                                                       0 );
                 if ( ioThread ) {

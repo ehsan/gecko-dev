@@ -8,41 +8,56 @@
 #define nsDSURIContentListener_h__
 
 #include "nsCOMPtr.h"
-#include "nsString.h"
 #include "nsIURIContentListener.h"
 #include "nsWeakReference.h"
 
 class nsDocShell;
 class nsIWebNavigationInfo;
+class nsIHttpChannel;
+class nsAString;
 
-class nsDSURIContentListener :
+class nsDSURIContentListener MOZ_FINAL :
     public nsIURIContentListener,
     public nsSupportsWeakReference
 
 {
 friend class nsDocShell;
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIURICONTENTLISTENER
 
     nsresult Init();
 
 protected:
-    nsDSURIContentListener(nsDocShell* aDocShell);
+    explicit nsDSURIContentListener(nsDocShell* aDocShell);
     virtual ~nsDSURIContentListener();
 
     void DropDocShellreference() {
         mDocShell = nullptr;
+        mExistingJPEGRequest = nullptr;
+        mExistingJPEGStreamListener = nullptr;
     }
 
     // Determine if X-Frame-Options allows content to be framed
     // as a subdocument
     bool CheckFrameOptions(nsIRequest* request);
-    bool CheckOneFrameOptionsPolicy(nsIRequest* request,
+    bool CheckOneFrameOptionsPolicy(nsIHttpChannel* httpChannel,
                                     const nsAString& policy);
 
+    enum XFOHeader {
+      eDENY,
+      eSAMEORIGIN,
+      eALLOWFROM
+    };
+
+    void ReportXFOViolation(nsIDocShellTreeItem* aTopDocShellItem,
+                            nsIURI* aThisURI,
+                            XFOHeader aHeader);
 protected:
     nsDocShell*                      mDocShell;
+    // Hack to handle multipart images without creating a new viewer
+    nsCOMPtr<nsIStreamListener>      mExistingJPEGStreamListener;
+    nsCOMPtr<nsIChannel>             mExistingJPEGRequest;
 
     // Store the parent listener in either of these depending on
     // if supports weak references or not. Proper weak refs are

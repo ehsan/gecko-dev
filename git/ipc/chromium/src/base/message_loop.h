@@ -9,13 +9,11 @@
 #include <queue>
 #include <string>
 #include <vector>
-
 #include <map>
+
 #include "base/lock.h"
 #include "base/message_pump.h"
 #include "base/observer_list.h"
-#include "base/ref_counted.h"
-#include "base/scoped_ptr.h"
 #include "base/task.h"
 #include "base/timer.h"
 
@@ -26,6 +24,8 @@
 #elif defined(OS_POSIX)
 #include "base/message_pump_libevent.h"
 #endif
+
+#include "nsAutoPtr.h"
 
 namespace mozilla {
 namespace ipc {
@@ -203,12 +203,22 @@ public:
   //   This type of ML is used in Mozilla parent processes which initialize
   //   XPCOM and use the gecko event loop.
   //
+  // TYPE_MOZILLA_NONMAINTHREAD
+  //   This type of ML is used in Mozilla parent processes which initialize
+  //   XPCOM and use the nsThread event loop.
+  //
+  // TYPE_MOZILLA_NONMAINUITHREAD
+  //   This type of ML is used in Mozilla processes which initialize XPCOM
+  //   and use TYPE_UI loop logic.
+  //
   enum Type {
     TYPE_DEFAULT,
     TYPE_UI,
     TYPE_IO,
     TYPE_MOZILLA_CHILD,
-    TYPE_MOZILLA_UI
+    TYPE_MOZILLA_UI,
+    TYPE_MOZILLA_NONMAINTHREAD,
+    TYPE_MOZILLA_NONMAINUITHREAD
   };
 
   // Normally, it is not necessary to instantiate a MessageLoop.  Instead, it
@@ -218,6 +228,9 @@ public:
 
   // Returns the type passed to the constructor.
   Type type() const { return type_; }
+
+  // Unique, non-repeating ID for this message loop.
+  int32_t id() const { return id_; }
 
   // Optional call to connect the thread name with this loop.
   void set_thread_name(const std::string& thread_name) {
@@ -266,6 +279,20 @@ public:
   }
 #endif  // OS_WIN
 
+  // Set the timeouts for background hang monitoring.
+  // A value of 0 indicates there is no timeout.
+  void set_hang_timeouts(uint32_t transient_timeout_ms,
+                         uint32_t permanent_timeout_ms) {
+    transient_hang_timeout_ = transient_timeout_ms;
+    permanent_hang_timeout_ = permanent_timeout_ms;
+  }
+  uint32_t transient_hang_timeout() const {
+    return transient_hang_timeout_;
+  }
+  uint32_t permanent_hang_timeout() const {
+    return permanent_hang_timeout_;
+  }
+
   //----------------------------------------------------------------------------
  protected:
   struct RunState {
@@ -292,10 +319,10 @@ public:
 
   // This structure is copied around by value.
   struct PendingTask {
-    Task* task;                   // The task to run.
-    base::Time delayed_run_time;  // The time when the task should be run.
-    int sequence_num;             // Used to facilitate sorting by run time.
-    bool nestable;                // True if OK to dispatch from a nested loop.
+    Task* task;                        // The task to run.
+    base::TimeTicks delayed_run_time;  // The time when the task should be run.
+    int sequence_num;                  // Secondary sort key for run time.
+    bool nestable;                     // OK to dispatch from a nested loop.
 
     PendingTask(Task* task, bool nestable)
         : task(task), sequence_num(0), nestable(nestable) {
@@ -370,10 +397,11 @@ public:
 
   // base::MessagePump::Delegate methods:
   virtual bool DoWork();
-  virtual bool DoDelayedWork(base::Time* next_delayed_work_time);
+  virtual bool DoDelayedWork(base::TimeTicks* next_delayed_work_time);
   virtual bool DoIdleWork();
 
   Type type_;
+  int32_t id_;
 
   // A list of tasks that need to be processed by this instance.  Note that
   // this queue is only accessed (push/pop) by our current thread.
@@ -387,7 +415,7 @@ public:
   // once we're out of nested message loops.
   TaskQueue deferred_non_nestable_work_queue_;
 
-  scoped_refptr<base::MessagePump> pump_;
+  nsRefPtr<base::MessagePump> pump_;
 
   base::ObserverList<DestructionObserver> destruction_observers_;
 
@@ -408,12 +436,17 @@ public:
   Lock incoming_queue_lock_;
 
   RunState* state_;
+  int run_depth_base_;
 
 #if defined(OS_WIN)
   // Should be set to true before calling Windows APIs like TrackPopupMenu, etc
   // which enter a modal message loop.
   bool os_modal_loop_;
 #endif
+
+  // Timeout values for hang monitoring
+  uint32_t transient_hang_timeout_;
+  uint32_t permanent_hang_timeout_;
 
   // The next sequence number to use for delayed tasks.
   int next_sequence_num_;
@@ -430,7 +463,7 @@ public:
 //
 class MessageLoopForUI : public MessageLoop {
  public:
-  MessageLoopForUI(Type type=TYPE_UI) : MessageLoop(type) {
+  explicit MessageLoopForUI(Type type=TYPE_UI) : MessageLoop(type) {
   }
 
   // Returns the MessageLoopForUI of the current thread.
@@ -508,6 +541,7 @@ class MessageLoopForIO : public MessageLoop {
   typedef base::MessagePumpLibevent::Watcher Watcher;
   typedef base::MessagePumpLibevent::FileDescriptorWatcher
       FileDescriptorWatcher;
+  typedef base::LineWatcher LineWatcher;
 
   enum Mode {
     WATCH_READ = base::MessagePumpLibevent::WATCH_READ,

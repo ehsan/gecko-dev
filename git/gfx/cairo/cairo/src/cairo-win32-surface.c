@@ -59,6 +59,7 @@
 #include "cairo-private.h"
 #include <wchar.h>
 #include <windows.h>
+#include <d3d9.h>
 
 #if defined(__MINGW32__) && !defined(ETO_PDY)
 # define ETO_PDY 0x2000
@@ -389,6 +390,7 @@ _cairo_win32_surface_create_for_dc (HDC             original_dc,
 	goto FAIL;
 
     surface->format = format;
+    surface->d3d9surface = NULL;
 
     surface->clip_rect.x = 0;
     surface->clip_rect.y = 0;
@@ -486,11 +488,68 @@ _cairo_win32_surface_finish (void *abstract_surface)
 	_cairo_win32_restore_initial_clip (surface);
     }
 
+    if (surface->d3d9surface) {
+        IDirect3DSurface9_ReleaseDC (surface->d3d9surface, surface->dc);
+        IDirect3DSurface9_Release (surface->d3d9surface);
+    }
+
     if (surface->initial_clip_rgn)
 	DeleteObject (surface->initial_clip_rgn);
 
     if (surface->font_subsets != NULL)
 	_cairo_scaled_font_subsets_destroy (surface->font_subsets);
+
+    return CAIRO_STATUS_SUCCESS;
+}
+
+static void
+get_d3d9_dc_and_clear_clip (cairo_win32_surface_t *surface)
+{
+    IDirect3DSurface9_GetDC (surface->d3d9surface, &surface->dc);
+    // The DC that we get back from the surface will not have
+    // a clip so clear surface->clip_region so that we don't think we have
+    // one when we don't.
+    _cairo_win32_surface_set_clip_region (surface, NULL);
+}
+
+static cairo_status_t
+_cairo_win32_surface_d3d9_lock_rect (cairo_win32_surface_t  *surface,
+				   int                     x,
+				   int                     y,
+				   int                     width,
+				   int                     height,
+				   cairo_image_surface_t **local_out)
+{
+    cairo_image_surface_t *local;
+    cairo_int_status_t status;
+
+    RECT rectin = { x, y, x+width, y+height };
+    D3DLOCKED_RECT rectout;
+    HRESULT hr;
+    hr = IDirect3DSurface9_ReleaseDC (surface->d3d9surface, surface->dc);
+    hr = IDirect3DSurface9_LockRect (surface->d3d9surface,
+	                             &rectout, &rectin, 0);
+    surface->dc = 0; // Don't use the DC when this is locked!
+    if (hr) {
+	get_d3d9_dc_and_clear_clip (surface);
+        return CAIRO_INT_STATUS_UNSUPPORTED;
+    }
+    local = cairo_image_surface_create_for_data (rectout.pBits,
+	                                         surface->format,
+						 width, height,
+						 rectout.Pitch);
+    if (local == NULL) {
+	IDirect3DSurface9_UnlockRect (surface->d3d9surface);
+	get_d3d9_dc_and_clear_clip (surface);
+        return CAIRO_INT_STATUS_UNSUPPORTED;
+    }
+    if (local->base.status) {
+	IDirect3DSurface9_UnlockRect (surface->d3d9surface);
+	get_d3d9_dc_and_clear_clip (surface);
+        return local->base.status;
+    }
+
+    *local_out = local;
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -604,7 +663,6 @@ _cairo_win32_surface_acquire_source_image (void                    *abstract_sur
 					   void                   **image_extra)
 {
     cairo_win32_surface_t *surface = abstract_surface;
-    cairo_win32_surface_t *local;
     cairo_status_t status;
 
     if (!surface->image && !surface->is_dib && surface->bitmap &&
@@ -624,14 +682,30 @@ _cairo_win32_surface_acquire_source_image (void                    *abstract_sur
 	return CAIRO_STATUS_SUCCESS;
     }
 
-    status = _cairo_win32_surface_get_subimage (abstract_surface, 0, 0,
-						surface->extents.width,
-						surface->extents.height, &local);
-    if (status)
-	return status;
+    if (surface->d3d9surface) {
+	cairo_image_surface_t *local;
+	status = _cairo_win32_surface_d3d9_lock_rect (abstract_surface, 0, 0,
+						      surface->extents.width,
+						      surface->extents.height, &local);
+	if (status)
+	    return status;
 
-    *image_out = (cairo_image_surface_t *)local->image;
-    *image_extra = local;
+	*image_out = local;
+	*image_extra = surface;
+    } else {
+	cairo_win32_surface_t *local;
+	status = _cairo_win32_surface_get_subimage (abstract_surface, 0, 0,
+						    surface->extents.width,
+						    surface->extents.height, &local);
+	if (status)
+	    return status;
+
+	*image_out = (cairo_image_surface_t *)local->image;
+	*image_extra = local;
+    }
+    // image_extra is always of type cairo_win32_surface_t. For d3d9surface it points
+    // to the original surface to get back the d3d9surface and properly unlock.
+
     return CAIRO_STATUS_SUCCESS;
 }
 
@@ -640,10 +714,16 @@ _cairo_win32_surface_release_source_image (void                   *abstract_surf
 					   cairo_image_surface_t  *image,
 					   void                   *image_extra)
 {
+    cairo_win32_surface_t *surface = abstract_surface;
     cairo_win32_surface_t *local = image_extra;
 
-    if (local)
+    if (local && local->d3d9surface) {
+	IDirect3DSurface9_UnlockRect (local->d3d9surface);
+	get_d3d9_dc_and_clear_clip (surface);
+	cairo_surface_destroy ((cairo_surface_t *)image);
+    } else {
 	cairo_surface_destroy ((cairo_surface_t *)local);
+    }
 }
 
 static cairo_status_t
@@ -654,7 +734,6 @@ _cairo_win32_surface_acquire_dest_image (void                    *abstract_surfa
 					 void                   **image_extra)
 {
     cairo_win32_surface_t *surface = abstract_surface;
-    cairo_win32_surface_t *local = NULL;
     cairo_status_t status;
 
     if (surface->image) {
@@ -666,17 +745,36 @@ _cairo_win32_surface_acquire_dest_image (void                    *abstract_surfa
 	return CAIRO_STATUS_SUCCESS;
     }
 
-    status = _cairo_win32_surface_get_subimage (abstract_surface,
+    if (surface->d3d9surface) {
+	cairo_image_surface_t *local = NULL;
+	status = _cairo_win32_surface_d3d9_lock_rect (abstract_surface,
 						interest_rect->x,
 						interest_rect->y,
 						interest_rect->width,
-						interest_rect->height,
-						&local);
-    if (status)
-	return status;
+						interest_rect->height, &local);
 
-    *image_out = (cairo_image_surface_t *) local->image;
-    *image_extra = local;
+	if (status)
+	    return status;
+
+	*image_out = local;
+	*image_extra = surface;
+    } else {
+	cairo_win32_surface_t *local = NULL;
+	status = _cairo_win32_surface_get_subimage (abstract_surface,
+						interest_rect->x,
+						interest_rect->y,
+						interest_rect->width,
+						interest_rect->height, &local);
+
+	if (status)
+	    return status;
+
+	*image_out = (cairo_image_surface_t *) local->image;
+	*image_extra = local;
+    }
+    // image_extra is always of type cairo_win32_surface_t. For d3d9surface it points
+    // to the original surface to get back the d3d9surface and properly unlock.
+
     *image_rect = *interest_rect;
     return CAIRO_STATUS_SUCCESS;
 }
@@ -694,19 +792,27 @@ _cairo_win32_surface_release_dest_image (void                    *abstract_surfa
     if (!local)
 	return;
 
-    /* clear any clip that's currently set on the surface
-       so that we can blit uninhibited. */
-    _cairo_win32_surface_set_clip_region (surface, NULL);
+    if (local->d3d9surface) {
+	IDirect3DSurface9_UnlockRect (local->d3d9surface);
+	get_d3d9_dc_and_clear_clip (surface);
+	cairo_surface_destroy ((cairo_surface_t *)image);
+    } else {
 
-    if (!BitBlt (surface->dc,
-		 image_rect->x, image_rect->y,
-		 image_rect->width, image_rect->height,
-		 local->dc,
-		 0, 0,
-		 SRCCOPY))
-	_cairo_win32_print_gdi_error ("_cairo_win32_surface_release_dest_image");
+	/* clear any clip that's currently set on the surface
+	   so that we can blit uninhibited. */
+	_cairo_win32_surface_set_clip_region (surface, NULL);
 
-    cairo_surface_destroy ((cairo_surface_t *)local);
+	if (!BitBlt (surface->dc,
+		     image_rect->x, image_rect->y,
+		     image_rect->width, image_rect->height,
+		     local->dc,
+		     0, 0,
+		     SRCCOPY))
+	    _cairo_win32_print_gdi_error ("_cairo_win32_surface_release_dest_image");
+
+	cairo_surface_destroy ((cairo_surface_t *)local);
+    }
+
 }
 
 cairo_status_t
@@ -889,6 +995,18 @@ _composite_alpha_blend (cairo_win32_surface_t *dst,
     return CAIRO_STATUS_SUCCESS;
 }
 
+/* makes the alpha channel in a RGB24 surface 0xff */
+static void
+make_opaque (cairo_image_surface_t *image, cairo_rectangle_int_t src_r)
+{
+    int x; int y;
+    for (y = 0; y < src_r.height; y++) {
+        for (x = 0; x < src_r.width; x++) {
+            image->data[(src_r.y + y) * image->stride + (src_r.x + x)*4 + 3] = 0xff;
+        }
+    }
+}
+
 static cairo_int_status_t
 _cairo_win32_surface_composite_inner (cairo_win32_surface_t *src,
 				      cairo_image_surface_t *src_image,
@@ -940,6 +1058,14 @@ _cairo_win32_surface_composite_inner (cairo_win32_surface_t *src,
 		return _cairo_win32_print_gdi_error ("_cairo_win32_surface_composite(StretchDIBits)");
 	}
     } else if (!needs_alpha) {
+	if (src->format == CAIRO_FORMAT_RGB24 && dst->format == CAIRO_FORMAT_ARGB32) {
+	    /* Because we store RGB24 & ARGB32 in the same way GDI has no way
+	     * to ignore the alpha channel from a RGB24 source. Therefore, we set
+	     * the alpha channel in our RGB24 source to opaque so that we can treat
+	     * it like ARGB32. */
+	    GdiFlush();
+	    make_opaque(src->image, src_r);
+	}
 	/* BitBlt or StretchBlt? */
 	if (!needs_scale && (dst->flags & CAIRO_WIN32_SURFACE_CAN_BITBLT)) {
             if (!BitBlt (dst->dc,
@@ -1003,7 +1129,7 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
     cairo_fixed_t x0_fixed, y0_fixed;
     cairo_int_status_t status;
 
-    cairo_bool_t needs_alpha, needs_scale, needs_repeat;
+    cairo_bool_t needs_alpha, needs_scale, needs_repeat, needs_pad;
     cairo_image_surface_t *src_image = NULL;
 
     cairo_format_t src_format;
@@ -1034,7 +1160,8 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
 	goto UNSUPPORTED;
 
     if (pattern->extend != CAIRO_EXTEND_NONE &&
-	pattern->extend != CAIRO_EXTEND_REPEAT)
+	pattern->extend != CAIRO_EXTEND_REPEAT &&
+	pattern->extend != CAIRO_EXTEND_PAD)
 	goto UNSUPPORTED;
 
     if (mask_pattern) {
@@ -1141,6 +1268,7 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
      * black.
      */
 
+    needs_pad = FALSE;
     if (pattern->extend != CAIRO_EXTEND_REPEAT) {
 	needs_repeat = FALSE;
 
@@ -1162,6 +1290,7 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
 	    dst_r.x -= src_r.x;
 
             src_r.x = 0;
+            needs_pad = TRUE;
 	}
 
 	if (src_r.y < 0) {
@@ -1171,36 +1300,51 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
 	    dst_r.y -= src_r.y;
 	    
             src_r.y = 0;
+            needs_pad = TRUE;
 	}
 
 	if (src_r.x + src_r.width > src_extents.width) {
 	    src_r.width = src_extents.width - src_r.x;
 	    dst_r.width = src_r.width;
+            needs_pad = TRUE;
 	}
 
 	if (src_r.y + src_r.height > src_extents.height) {
 	    src_r.height = src_extents.height - src_r.y;
 	    dst_r.height = src_r.height;
+            needs_pad = TRUE;
 	}
     } else {
 	needs_repeat = TRUE;
     }
 
+    if (pattern->extend == CAIRO_EXTEND_PAD && needs_pad) {
+        goto UNSUPPORTED;
+    }
+
     /*
      * Operations that we can do:
      *
+     * AlphaBlend uses the following formula for alpha when not use the per-pixel alpha (AlphaFormat = 0)
+     *   Dst.Alpha = Src.Alpha * (SCA/255.0) + Dst.Alpha * (1.0 - (SCA/255.0))
+     * This turns into Dst.Alpha = Src.Alpha when SCA = 255.
+     * (http://msdn.microsoft.com/en-us/library/aa921335.aspx)
+     *
      *  RGB OVER  RGB -> BitBlt (same as SOURCE)
-     *  RGB OVER ARGB -> UNSUPPORTED (AlphaBlend treats this as a BitBlt, even with SCA 255 and no AC_SRC_ALPHA)
+     *  RGB OVER ARGB -> Partially supported, We convert this operation into a ARGB SOURCE ARGB
+     *                   by setting the alpha values of the source to 255.
      * ARGB OVER ARGB -> AlphaBlend, with AC_SRC_ALPHA
      * ARGB OVER  RGB -> AlphaBlend, with AC_SRC_ALPHA; we'll have junk in the dst A byte
      * 
      *  RGB OVER  RGB + mask -> AlphaBlend, no AC_SRC_ALPHA
-     *  RGB OVER ARGB + mask -> UNSUPPORTED
+     *  RGB OVER ARGB + mask -> Partially supported, We convert this operation into a ARGB OVER ARGB + mask
+     *                          by setting the alpha values of the source to 255.
      * ARGB OVER ARGB + mask -> AlphaBlend, with AC_SRC_ALPHA
      * ARGB OVER  RGB + mask -> AlphaBlend, with AC_SRC_ALPHA; junk in the dst A byte
      * 
      *  RGB SOURCE  RGB -> BitBlt
-     *  RGB SOURCE ARGB -> UNSUPPORTED (AlphaBlend treats this as a BitBlt, even with SCA 255 and no AC_SRC_ALPHA)
+     *  RGB SOURCE ARGB -> Partially supported, We convert this operation into a ARGB SOURCE ARGB
+     *                     by setting the alpha values of the source to 255.
      * ARGB SOURCE ARGB -> BitBlt
      * ARGB SOURCE  RGB -> BitBlt
      * 
@@ -1227,12 +1371,22 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
 		   dst->format == CAIRO_FORMAT_RGB24)
 	{
 	    needs_alpha = TRUE;
+	} else if (src_format == CAIRO_FORMAT_RGB24 &&
+		   dst->format == CAIRO_FORMAT_ARGB32 &&
+		   src->image)
+	{
+	    if (alpha == 255) {
+		needs_alpha = FALSE;
+	    } else {
+		needs_alpha = TRUE;
+	    }
 	} else {
 	    goto UNSUPPORTED;
 	}
     } else if (alpha == 255 && op == CAIRO_OPERATOR_SOURCE) {
 	if ((src_format == dst->format) ||
-	    (src_format == CAIRO_FORMAT_ARGB32 && dst->format == CAIRO_FORMAT_RGB24))
+	    (src_format == CAIRO_FORMAT_ARGB32 && dst->format == CAIRO_FORMAT_RGB24) ||
+	    (src_format == CAIRO_FORMAT_RGB24  && dst->format == CAIRO_FORMAT_ARGB32 && src->image))
 	{
 	    needs_alpha = FALSE;
 	} else {
@@ -1816,6 +1970,7 @@ cairo_win32_surface_create_internal (HDC hdc, cairo_format_t format)
     surface->image = NULL;
     surface->format = format;
 
+    surface->d3d9surface = NULL;
     surface->dc = hdc;
     surface->bitmap = NULL;
     surface->is_dib = FALSE;
@@ -1976,6 +2131,21 @@ FINISH:
     return (cairo_surface_t*) new_surf;
 }
 
+cairo_public cairo_surface_t *
+cairo_win32_surface_create_with_d3dsurface9 (IDirect3DSurface9 *surface)
+{
+    HDC dc;
+    cairo_surface_t *win_surface;
+
+    IDirect3DSurface9_AddRef (surface);
+    IDirect3DSurface9_GetDC (surface, &dc);
+    win_surface = cairo_win32_surface_create_internal(dc, CAIRO_FORMAT_RGB24);
+    if (likely(win_surface->status == CAIRO_STATUS_SUCCESS)) {
+	((cairo_win32_surface_t*)win_surface)->d3d9surface = surface;
+    }
+    return win_surface;
+
+}
 /**
  * _cairo_surface_is_win32:
  * @surface: a #cairo_surface_t

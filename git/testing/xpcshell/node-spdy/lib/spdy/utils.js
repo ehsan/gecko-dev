@@ -1,53 +1,57 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+var spdy = require('../spdy'),
+    utils = exports;
 
-var utils = exports;
-
-var zlib = require('zlib'),
+var stream = require('stream'),
+    zlib = require('zlib'),
     Buffer = require('buffer').Buffer;
 
-// SPDY deflate/inflate dictionary
-var dictionary = new Buffer([
-  'optionsgetheadpostputdeletetraceacceptaccept-charsetaccept-encodingaccept-',
-  'languageauthorizationexpectfromhostif-modified-sinceif-matchif-none-matchi',
-  'f-rangeif-unmodifiedsincemax-forwardsproxy-authorizationrangerefererteuser',
-  '-agent10010120020120220320420520630030130230330430530630740040140240340440',
-  '5406407408409410411412413414415416417500501502503504505accept-rangesageeta',
-  'glocationproxy-authenticatepublicretry-afterservervarywarningwww-authentic',
-  'ateallowcontent-basecontent-encodingcache-controlconnectiondatetrailertran',
-  'sfer-encodingupgradeviawarningcontent-languagecontent-lengthcontent-locati',
-  'oncontent-md5content-rangecontent-typeetagexpireslast-modifiedset-cookieMo',
-  'ndayTuesdayWednesdayThursdayFridaySaturdaySundayJanFebMarAprMayJunJulAugSe',
-  'pOctNovDecchunkedtext/htmlimage/pngimage/jpgimage/gifapplication/xmlapplic',
-  'ation/xhtmltext/plainpublicmax-agecharset=iso-8859-1utf-8gzipdeflateHTTP/1',
-  '.1statusversionurl\x00'
-].join(''));
+// Export streams related stuff
+utils.isLegacy = !stream.Duplex;
+if (utils.isLegacy)
+  utils.DuplexStream = stream;
+else
+  utils.DuplexStream = stream.Duplex;
 
 //
-// ### function createDeflate ()
+// ### function createDeflate (version, compression)
+// #### @version {Number} SPDY version
+// #### @compression {Boolean} whether to enable compression
 // Creates deflate stream with SPDY dictionary
 //
-utils.createDeflate = function createDeflate() {
-  var deflate = zlib.createDeflate({ dictionary: dictionary, windowBits: 11 });
+utils.createDeflate = function createDeflate(version, compression) {
+  var deflate = zlib.createDeflate({
+    dictionary: spdy.protocol.dictionary[version],
+    flush: zlib.Z_SYNC_FLUSH,
+    windowBits: 11,
+    level: compression ? zlib.Z_DEFAULT_COMPRESSION : zlib.Z_NO_COMPRESSION
+  });
 
   // Define lock information early
   deflate.locked = false;
-  deflate.lockBuffer = [];
+  deflate.lockQueue = [];
+  if (spdy.utils.isLegacy)
+    deflate._flush = zlib.Z_SYNC_FLUSH;
 
   return deflate;
 };
 
 //
-// ### function createInflate ()
+// ### function createInflate (version)
+// #### @version {Number} SPDY version
 // Creates inflate stream with SPDY dictionary
 //
-utils.createInflate = function createInflate() {
-  var inflate = zlib.createInflate({ dictionary: dictionary, windowBits: 15 });
+utils.createInflate = function createInflate(version) {
+  var inflate = zlib.createInflate({
+    dictionary: spdy.protocol.dictionary[version],
+    flush: zlib.Z_SYNC_FLUSH,
+    windowBits: 15
+  });
 
   // Define lock information early
   inflate.locked = false;
-  inflate.lockBuffer = [];
+  inflate.lockQueue = [];
+  if (spdy.utils.isLegacy)
+    inflate._flush = zlib.Z_SYNC_FLUSH;
 
   return inflate;
 };
@@ -59,14 +63,14 @@ utils.createInflate = function createInflate() {
 //
 utils.resetZlibStream = function resetZlibStream(stream, callback) {
   if (stream.locked) {
-    stream.lockBuffer.push(function() {
+    stream.lockQueue.push(function() {
       resetZlibStream(stream, callback);
     });
     return;
   }
 
   stream.reset();
-  stream.lockBuffer = [];
+  stream.lockQueue = [];
 
   callback(null);
 };
@@ -80,12 +84,11 @@ var delta = 0;
 // Compress/decompress data and pass it to callback
 //
 utils.zstream = function zstream(stream, buffer, callback) {
-  var flush = stream._flush,
-      chunks = [],
+  var chunks = [],
       total = 0;
 
   if (stream.locked) {
-    stream.lockBuffer.push(function() {
+    stream.lockQueue.push(function() {
       zstream(stream, buffer, callback);
     });
     return;
@@ -97,17 +100,26 @@ utils.zstream = function zstream(stream, buffer, callback) {
     total += chunk.length;
   }
   stream.on('data', collect);
-  stream.write(buffer);
 
-  stream.flush(function() {
+  stream.write(buffer, done);
+
+  function done() {
     stream.removeAllListeners('data');
-    stream._flush = flush;
+    stream.removeAllListeners('error');
 
-    callback(null, chunks, total);
+    if (callback)
+      callback(null, chunks, total);
 
     stream.locked = false;
-    var deferred = stream.lockBuffer.shift();
-    if (deferred) deferred();
+    var deferred = stream.lockQueue.shift();
+    if (deferred)
+      deferred();
+  };
+
+  stream.once('error', function(err) {
+    stream.removeAllListeners('data');
+    callback(err);
+    callback = null;
   });
 };
 
@@ -122,3 +134,7 @@ utils.zwrap = function zwrap(stream) {
   };
 };
 
+if (typeof setImmediate === 'undefined')
+  utils.nextTick = process.nextTick.bind(process);
+else
+  utils.nextTick = setImmediate;

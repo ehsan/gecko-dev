@@ -5,10 +5,11 @@
 #ifndef nsTableOuterFrame_h__
 #define nsTableOuterFrame_h__
 
+#include "mozilla/Attributes.h"
 #include "nscore.h"
 #include "nsContainerFrame.h"
+#include "nsCellMap.h"
 #include "nsBlockFrame.h"
-#include "nsITableLayout.h"
 #include "nsTableFrame.h"
 
 class nsTableCaptionFrame : public nsBlockFrame
@@ -16,148 +17,212 @@ class nsTableCaptionFrame : public nsBlockFrame
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  // nsISupports
-  virtual nsIAtom* GetType() const;
-  friend nsIFrame* NS_NewTableCaptionFrame(nsIPresShell* aPresShell, nsStyleContext*  aContext);
+  friend nsTableCaptionFrame* NS_NewTableCaptionFrame(nsIPresShell* aPresShell,
+                                                      nsStyleContext*  aContext);
+  // nsIFrame
+  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
-  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                                 nsSize aCBSize, nscoord aAvailableWidth,
-                                 nsSize aMargin, nsSize aBorder,
-                                 nsSize aPadding, bool aShrinkWrap);
+  virtual mozilla::LogicalSize
+  ComputeAutoSize(nsRenderingContext *aRenderingContext,
+                  mozilla::WritingMode aWritingMode,
+                  const mozilla::LogicalSize& aCBSize,
+                  nscoord aAvailableISize,
+                  const mozilla::LogicalSize& aMargin,
+                  const mozilla::LogicalSize& aBorder,
+                  const mozilla::LogicalSize& aPadding,
+                  bool aShrinkWrap) MOZ_OVERRIDE;
 
-  virtual nsIFrame* GetParentStyleContextFrame() const;
+  virtual nsStyleContext* GetParentStyleContext(nsIFrame** aProviderFrame) const MOZ_OVERRIDE;
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<Accessible> CreateAccessible();
+  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
 #endif
 
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const;
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
 protected:
-  nsTableCaptionFrame(nsStyleContext*  aContext);
+  explicit nsTableCaptionFrame(nsStyleContext*  aContext);
   virtual ~nsTableCaptionFrame();
 };
 
 
-/* TODO
-1. decide if we'll allow subclassing.  If so, decide which methods really need to be virtual.
-*/
-
 /**
- * main frame for an nsTable content object, 
+ * Primary frame for a table element,
  * the nsTableOuterFrame contains 0 or one caption frame, and a nsTableFrame
  * pseudo-frame (referred to as the "inner frame').
  */
-class nsTableOuterFrame : public nsContainerFrame, public nsITableLayout
+class nsTableOuterFrame : public nsContainerFrame
 {
 public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
+
+  NS_DECL_QUERYFRAME_TARGET(nsTableOuterFrame)
 
   /** instantiate a new instance of nsTableRowFrame.
     * @param aPresShell the pres shell for this frame
     *
     * @return           the frame that was created
     */
-  friend nsIFrame* NS_NewTableOuterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  friend nsTableOuterFrame* NS_NewTableOuterFrame(nsIPresShell* aPresShell,
+                                                  nsStyleContext* aContext);
   
   // nsIFrame overrides - see there for a description
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
-                                 nsFrameList&    aChildList);
- 
-  virtual const nsFrameList& GetChildList(ChildListID aListID) const;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+  virtual const nsFrameList& GetChildList(ChildListID aListID) const MOZ_OVERRIDE;
+  virtual void GetChildLists(nsTArray<ChildList>* aLists) const MOZ_OVERRIDE;
 
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
-                          nsFrameList&    aFrameList);
+  virtual void SetInitialChildList(ChildListID     aListID,
+                                   nsFrameList&    aChildList) MOZ_OVERRIDE;
+  virtual void AppendFrames(ChildListID     aListID,
+                            nsFrameList&    aFrameList) MOZ_OVERRIDE;
+  virtual void InsertFrames(ChildListID     aListID,
+                            nsIFrame*       aPrevFrame,
+                            nsFrameList&    aFrameList) MOZ_OVERRIDE;
+  virtual void RemoveFrame(ChildListID     aListID,
+                           nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
-                          nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
-
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
-                         nsIFrame*       aOldFrame);
-
-  virtual nsIFrame* GetContentInsertionFrame() {
+  virtual nsContainerFrame* GetContentInsertionFrame() MOZ_OVERRIDE {
     return GetFirstPrincipalChild()->GetContentInsertionFrame();
   }
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<Accessible> CreateAccessible();
+  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
 #endif
 
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
+  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  nsresult BuildDisplayListForInnerTable(nsDisplayListBuilder*   aBuilder,
-                                         const nsRect&           aDirtyRect,
-                                         const nsDisplayListSet& aLists);
+  void BuildDisplayListForInnerTable(nsDisplayListBuilder*   aBuilder,
+                                     const nsRect&           aDirtyRect,
+                                     const nsDisplayListSet& aLists);
 
-  virtual nscoord GetBaseline() const;
+  virtual nscoord GetLogicalBaseline(mozilla::WritingMode aWritingMode) const MOZ_OVERRIDE;
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                                 nsSize aCBSize, nscoord aAvailableWidth,
-                                 nsSize aMargin, nsSize aBorder,
-                                 nsSize aPadding, bool aShrinkWrap);
+  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+
+  virtual mozilla::LogicalSize
+  ComputeAutoSize(nsRenderingContext *aRenderingContext,
+                  mozilla::WritingMode aWritingMode,
+                  const mozilla::LogicalSize& aCBSize,
+                  nscoord aAvailableISize,
+                  const mozilla::LogicalSize& aMargin,
+                  const mozilla::LogicalSize& aBorder,
+                  const mozilla::LogicalSize& aPadding,
+                  bool aShrinkWrap) MOZ_OVERRIDE;
 
   /** process a reflow command for the table.
     * This involves reflowing the caption and the inner table.
     * @see nsIFrame::Reflow */
-  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
-                    nsHTMLReflowMetrics&     aDesiredSize,
-                    const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus);
+  virtual void Reflow(nsPresContext*           aPresContext,
+                      nsHTMLReflowMetrics&     aDesiredSize,
+                      const nsHTMLReflowState& aReflowState,
+                      nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::tableOuterFrame
    */
-  virtual nsIAtom* GetType() const;
+  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const;
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
-  virtual nsIFrame* GetParentStyleContextFrame() const;
+  virtual nsStyleContext* GetParentStyleContext(nsIFrame** aProviderFrame) const MOZ_OVERRIDE;
 
-  /*---------------- nsITableLayout methods ------------------------*/
+  /**
+   * Return the content for the cell at the given row and column.
+   */
+  nsIContent* GetCellAt(uint32_t aRowIdx, uint32_t aColIdx) const;
 
-  /** @see nsITableFrame::GetCellDataAt */
-  NS_IMETHOD GetCellDataAt(int32_t aRowIndex, int32_t aColIndex, 
-                           nsIDOMElement* &aCell,   //out params
-                           int32_t& aStartRowIndex, int32_t& aStartColIndex, 
-                           int32_t& aRowSpan, int32_t& aColSpan,
-                           int32_t& aActualRowSpan, int32_t& aActualColSpan,
-                           bool& aIsSelected);
+  /**
+   * Return the number of rows in the table.
+   */
+  int32_t GetRowCount() const
+  {
+    return InnerTableFrame()->GetRowCount();
+  }
 
-  /** @see nsITableFrame::GetTableSize */
-  NS_IMETHOD GetTableSize(int32_t& aRowCount, int32_t& aColCount);
+  /**
+   * Return the number of columns in the table.
+   */
+  int32_t GetColCount() const
+  {
+    return InnerTableFrame()->GetColCount();
+  }
 
-  NS_IMETHOD GetIndexByRowAndColumn(int32_t aRow, int32_t aColumn, int32_t *aIndex);
-  NS_IMETHOD GetRowAndColumnByIndex(int32_t aIndex, int32_t *aRow, int32_t *aColumn);
+  /**
+   * Return the index of the cell at the given row and column.
+   */
+  int32_t GetIndexByRowAndColumn(int32_t aRowIdx, int32_t aColIdx) const
+  {
+    nsTableCellMap* cellMap = InnerTableFrame()->GetCellMap();
+    if (!cellMap)
+      return -1;
+
+    return cellMap->GetIndexByRowAndColumn(aRowIdx, aColIdx);
+  }
+
+  /**
+   * Get the row and column indices for the cell at the given index.
+   */
+  void GetRowAndColumnByIndex(int32_t aCellIdx, int32_t* aRowIdx,
+                              int32_t* aColIdx) const
+  {
+    *aRowIdx = *aColIdx = 0;
+    nsTableCellMap* cellMap = InnerTableFrame()->GetCellMap();
+    if (cellMap) {
+      cellMap->GetRowAndColumnByIndex(aCellIdx, aRowIdx, aColIdx);
+    }
+  }
+
+  /**
+   * return the frame for the cell at the given row and column.
+   */
+  nsTableCellFrame* GetCellFrameAt(uint32_t aRowIdx, uint32_t aColIdx) const
+  {
+    nsTableCellMap* map = InnerTableFrame()->GetCellMap();
+    if (!map) {
+      return nullptr;
+    }
+
+    return map->GetCellInfoAt(aRowIdx, aColIdx);
+  }
+
+  /**
+   * Return the col span of the cell at the given row and column indices.
+   */
+  uint32_t GetEffectiveColSpanAt(uint32_t aRowIdx, uint32_t aColIdx) const
+  {
+    nsTableCellMap* map = InnerTableFrame()->GetCellMap();
+    return map->GetEffectiveColSpan(aRowIdx, aColIdx);
+  }
+
+  /**
+   * Return the effective row span of the cell at the given row and column.
+   */
+  uint32_t GetEffectiveRowSpanAt(uint32_t aRowIdx, uint32_t aColIdx) const
+  {
+    nsTableCellMap* map = InnerTableFrame()->GetCellMap();
+    return map->GetEffectiveRowSpan(aRowIdx, aColIdx);
+  }
 
 protected:
 
 
-  nsTableOuterFrame(nsStyleContext* aContext);
+  explicit nsTableOuterFrame(nsStyleContext* aContext);
   virtual ~nsTableOuterFrame();
 
   void InitChildReflowState(nsPresContext&    aPresContext,                     
                             nsHTMLReflowState& aReflowState);
-
-  /** Always returns 0, since the outer table frame has no border of its own
-    * The inner table frame can answer this question in a meaningful way.
-    * @see nsContainerFrame::GetSkipSides */
-  virtual int GetSkipSides() const;
 
   uint8_t GetCaptionSide(); // NS_STYLE_CAPTION_SIDE_* or NO_SIDE
 
@@ -196,13 +261,13 @@ protected:
                              nsIFrame*                aChildFrame,
                              const nsHTMLReflowState& aOuterRS,
                              void*                    aChildRSSpace,
-                             nscoord                  aAvailWidth);
+                             nscoord                  aAvailISize);
 
-  nsresult OuterDoReflowChild(nsPresContext*           aPresContext,
-                              nsIFrame*                aChildFrame,
-                              const nsHTMLReflowState& aChildRS,
-                              nsHTMLReflowMetrics&     aMetrics,
-                              nsReflowStatus&          aStatus);
+  void OuterDoReflowChild(nsPresContext*           aPresContext,
+                          nsIFrame*                aChildFrame,
+                          const nsHTMLReflowState& aChildRS,
+                          nsHTMLReflowMetrics&     aMetrics,
+                          nsReflowStatus&          aStatus);
 
   // Set the reflow metrics
   void UpdateReflowMetrics(uint8_t              aCaptionSide,
@@ -216,7 +281,13 @@ protected:
                       const nsHTMLReflowState& aOuterRS,
                       nsIFrame*                aChildFrame,
                       nscoord                  aAvailableWidth,
-                      nsMargin&                aMargin);
+                      mozilla::LogicalMargin&  aMargin);
+
+  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  {
+    return nsContainerFrame::IsFrameOfType(aFlags &
+                                           (~eCanContainOverflowContainers));
+  }
 
   nsTableFrame* InnerTableFrame() const {
     return static_cast<nsTableFrame*>(mFrames.FirstChild());
@@ -225,8 +296,5 @@ protected:
 private:
   nsFrameList   mCaptionFrames;
 };
-
-inline int nsTableOuterFrame::GetSkipSides() const
-{ return 0; }
 
 #endif

@@ -6,7 +6,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-let EXPORTED_SYMBOLS = ["TelemetryStopwatch"];
+this.EXPORTED_SYMBOLS = ["TelemetryStopwatch"];
 
 let Telemetry = Cc["@mozilla.org/base/telemetry;1"]
                   .getService(Ci.nsITelemetry);
@@ -17,7 +17,7 @@ let Telemetry = Cc["@mozilla.org/base/telemetry;1"]
 let simpleTimers = {};
 let objectTimers = new WeakMap();
 
-let TelemetryStopwatch = {
+this.TelemetryStopwatch = {
   /**
    * Starts a timer associated with a telemetry histogram. The timer can be
    * directly associated with a histogram, or with a pair of a histogram and
@@ -41,7 +41,7 @@ let TelemetryStopwatch = {
 
     let timers;
     if (aObj) {
-      timers = objectTimers.get(aObj, {});
+      timers = objectTimers.get(aObj) || {};
       objectTimers.set(aObj, timers);
     } else {
       timers = simpleTimers;
@@ -54,8 +54,40 @@ let TelemetryStopwatch = {
       return false;
     }
 
-    timers[aHistogram] = Date.now();
+    timers[aHistogram] = Components.utils.now();
     return true;
+  },
+
+  /**
+   * Deletes the timer associated with a telemetry histogram. The timer can be
+   * directly associated with a histogram, or with a pair of a histogram and
+   * an object. Important: Only use this method when a legitimate cancellation
+   * should be done.
+   *
+   * @param aHistogram a string which must be a valid histogram name
+   *                   from TelemetryHistograms.json
+   *
+   * @param aObj Optional parameter. If specified, the timer is associated
+   *             with this object, meaning that multiple timers for a same
+   *             histogram may be run concurrently, as long as they are
+   *             associated with different objects.
+   *
+   * @return true if the timer exist and it was cleared, false otherwise.
+   */
+  cancel: function ts_cancel(aHistogram, aObj) {
+    if (!validTypes(aHistogram, aObj))
+      return false;
+
+    let timers = aObj
+                 ? objectTimers.get(aObj) || {}
+                 : simpleTimers;
+
+    if (timers.hasOwnProperty(aHistogram)) {
+      delete timers[aHistogram];
+      return true;
+    }
+
+    return false;
   },
 
   /**
@@ -78,14 +110,15 @@ let TelemetryStopwatch = {
       return false;
 
     let timers = aObj
-                 ? objectTimers.get(aObj, {})
+                 ? objectTimers.get(aObj) || {}
                  : simpleTimers;
 
     let start = timers[aHistogram];
     delete timers[aHistogram];
 
     if (start) {
-      let delta = Date.now() - start;
+      let delta = Components.utils.now() - start;
+      delta = Math.round(delta);
       let histogram = Telemetry.getHistogramById(aHistogram);
       histogram.add(delta);
       return true;

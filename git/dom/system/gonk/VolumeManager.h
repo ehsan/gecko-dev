@@ -11,7 +11,7 @@
 #include "base/message_loop.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/Observer.h"
-#include "mozilla/RefPtr.h"
+#include "nsISupportsImpl.h"
 #include "nsString.h"
 #include "nsTArray.h"
 
@@ -73,15 +73,16 @@ namespace system {
 *
 ***************************************************************************/
 
-class VolumeManager : public MessageLoopForIO::Watcher,
-                      public RefCounted<VolumeManager>
+class VolumeManager MOZ_FINAL : public MessageLoopForIO::LineWatcher
 {
-public:
+  virtual ~VolumeManager();
 
-  typedef nsTArray<RefPtr<Volume> > VolumeArray;
+public:
+  NS_INLINE_DECL_REFCOUNTING(VolumeManager)
+
+  typedef nsTArray<RefPtr<Volume>> VolumeArray;
 
   VolumeManager();
-  virtual ~VolumeManager();
 
   //-----------------------------------------------------------------------
   //
@@ -103,8 +104,8 @@ public:
   };
 
   static STATE State();
-  static const char *StateStr(STATE aState);
-  static const char *StateStr() { return StateStr(State()); }
+  static const char* StateStr(STATE aState);
+  static const char* StateStr() { return StateStr(State()); }
 
   class StateChangedEvent
   {
@@ -115,24 +116,27 @@ public:
   typedef mozilla::Observer<StateChangedEvent>      StateObserver;
   typedef mozilla::ObserverList<StateChangedEvent>  StateObserverList;
 
-  static void RegisterStateObserver(StateObserver *aObserver);
-  static void UnregisterStateObserver(StateObserver *aObserver);
+  static void RegisterStateObserver(StateObserver* aObserver);
+  static void UnregisterStateObserver(StateObserver* aObserver);
 
   //-----------------------------------------------------------------------
 
   static void Start();
+  static void Dump(const char* aLabel);
 
   static VolumeArray::size_type NumVolumes();
   static TemporaryRef<Volume> GetVolume(VolumeArray::index_type aIndex);
-  static TemporaryRef<Volume> FindVolumeByName(const nsCSubstring &aName);
-  static TemporaryRef<Volume> FindAddVolumeByName(const nsCSubstring &aName);
+  static TemporaryRef<Volume> FindVolumeByName(const nsCSubstring& aName);
+  static TemporaryRef<Volume> FindAddVolumeByName(const nsCSubstring& aName);
+  static void InitConfig();
 
-  static void       PostCommand(VolumeCommand *aCommand);
+  static void       PostCommand(VolumeCommand* aCommand);
 
 protected:
 
-  virtual void OnFileCanReadWithoutBlocking(int aFd);
+  virtual void OnLineRead(int aFd, nsDependentCSubstring& aMessage);
   virtual void OnFileCanWriteWithoutBlocking(int aFd);
+  virtual void OnError();
 
 private:
   bool OpenSocket();
@@ -143,7 +147,7 @@ private:
 
   void Restart();
   void WriteCommandData();
-  void HandleBroadcast(int aResponseCode, nsCString &aResponseLine);
+  void HandleBroadcast(int aResponseCode, nsCString& aResponseLine);
 
   typedef std::queue<RefPtr<VolumeCommand> > CommandQueue;
 
@@ -155,9 +159,6 @@ private:
   VolumeArray         mVolumeArray;
   CommandQueue        mCommands;
   bool                mCommandPending;
-  char                mRcvBuf[kRcvBufSize];
-  size_t              mRcvIdx;
-  MessageLoopForIO                       *mIOLoop;
   MessageLoopForIO::FileDescriptorWatcher mReadWatcher;
   MessageLoopForIO::FileDescriptorWatcher mWriteWatcher;
   RefPtr<VolumeResponseCallback>          mBroadcastCallback;

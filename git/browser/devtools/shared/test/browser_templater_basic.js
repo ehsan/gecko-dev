@@ -9,12 +9,13 @@
  * We should endevour to keep the source in sync.
  */
 
-var imports = {};
-Cu.import("resource:///modules/devtools/Templater.jsm", imports);
-Cu.import("resource:///modules/devtools/Promise.jsm", imports);
+var promise = Cu.import("resource://gre/modules/devtools/deprecated-sync-thenables.js", {}).Promise;
+var template = Cu.import("resource://gre/modules/devtools/Templater.jsm", {}).template;
+
+const TEST_URI = TEST_URI_ROOT + "browser_templater_basic.html";
 
 function test() {
-  addTab("http://example.com/browser/browser/devtools/shared/test/browser_templater_basic.html", function() {
+  addTab(TEST_URI, function() {
     info("Starting DOM Templater Tests");
     runTest(0);
   });
@@ -29,13 +30,14 @@ function runTest(index) {
   holder.innerHTML = options.template;
 
   info('Running ' + options.name);
-  imports.template(holder, options.data, options.options);
+  template(holder, options.data, options.options);
 
   if (typeof options.result == 'string') {
     is(holder.innerHTML, options.result, options.name);
   }
   else {
-    ok(holder.innerHTML.match(options.result), options.name);
+    ok(holder.innerHTML.match(options.result) != null,
+       options.name + ' result=\'' + holder.innerHTML + '\'');
   }
 
   if (options.also) {
@@ -56,10 +58,10 @@ function runTest(index) {
     var ais = is.bind(this);
 
     function createTester(holder, options) {
-      return function() {
+      return () => {
         ais(holder.innerHTML, options.later, options.name + ' later');
         runNextTest();
-      }.bind(this);
+      };
     }
 
     executeSoon(createTester(holder, options));
@@ -278,9 +280,9 @@ var tests = [
 ];
 
 function delayReply(data) {
-  var p = new imports.Promise();
+  var d = promise.defer();
   executeSoon(function() {
-    p.resolve(data);
+    d.resolve(data);
   });
-  return p;
+  return d.promise;
 }

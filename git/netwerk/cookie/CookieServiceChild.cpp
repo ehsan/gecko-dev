@@ -4,12 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/net/CookieServiceChild.h"
-
 #include "mozilla/ipc/URIUtils.h"
 #include "mozilla/net/NeckoChild.h"
 #include "nsIURI.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsNetUtil.h"
+#include "SerializedLoadContext.h"
 
 using namespace mozilla::ipc;
 
@@ -19,7 +20,8 @@ namespace net {
 // Behavior pref constants
 static const int32_t BEHAVIOR_ACCEPT = 0;
 static const int32_t BEHAVIOR_REJECTFOREIGN = 1;
-static const int32_t BEHAVIOR_REJECT = 2;
+// static const int32_t BEHAVIOR_REJECT = 2;
+static const int32_t BEHAVIOR_LIMITFOREIGN = 3;
 
 // Pref string constants
 static const char kPrefCookieBehavior[] = "network.cookie.cookieBehavior";
@@ -38,10 +40,10 @@ CookieServiceChild::GetSingleton()
   return gCookieService;
 }
 
-NS_IMPL_ISUPPORTS3(CookieServiceChild,
-                   nsICookieService,
-                   nsIObserver,
-                   nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(CookieServiceChild,
+                  nsICookieService,
+                  nsIObserver,
+                  nsISupportsWeakReference)
 
 CookieServiceChild::CookieServiceChild()
   : mCookieBehavior(BEHAVIOR_ACCEPT)
@@ -78,7 +80,7 @@ CookieServiceChild::PrefChanged(nsIPrefBranch *aPrefBranch)
   int32_t val;
   if (NS_SUCCEEDED(aPrefBranch->GetIntPref(kPrefCookieBehavior, &val)))
     mCookieBehavior =
-      val >= BEHAVIOR_ACCEPT && val <= BEHAVIOR_REJECT ? val : BEHAVIOR_ACCEPT;
+      val >= BEHAVIOR_ACCEPT && val <= BEHAVIOR_LIMITFOREIGN ? val : BEHAVIOR_ACCEPT;
 
   bool boolval;
   if (NS_SUCCEEDED(aPrefBranch->GetBoolPref(kPrefThirdPartySession, &boolval)))
@@ -93,7 +95,7 @@ CookieServiceChild::PrefChanged(nsIPrefBranch *aPrefBranch)
 bool
 CookieServiceChild::RequireThirdPartyCheck()
 {
-  return mCookieBehavior == BEHAVIOR_REJECTFOREIGN || mThirdPartySession;
+  return mCookieBehavior == BEHAVIOR_REJECTFOREIGN || mCookieBehavior == BEHAVIOR_LIMITFOREIGN || mThirdPartySession;
 }
 
 nsresult
@@ -105,7 +107,7 @@ CookieServiceChild::GetCookieStringInternal(nsIURI *aHostURI,
   NS_ENSURE_ARG(aHostURI);
   NS_ENSURE_ARG_POINTER(aCookieString);
 
-  *aCookieString = NULL;
+  *aCookieString = nullptr;
 
   // Determine whether the request is foreign. Failure is acceptable.
   bool isForeign = true;
@@ -116,8 +118,9 @@ CookieServiceChild::GetCookieStringInternal(nsIURI *aHostURI,
   SerializeURI(aHostURI, uriParams);
 
   // Synchronously call the parent.
-  nsCAutoString result;
-  SendGetCookieString(uriParams, !!isForeign, aFromHttp, &result);
+  nsAutoCString result;
+  SendGetCookieString(uriParams, !!isForeign, aFromHttp,
+                      IPC::SerializedLoadContext(aChannel), &result);
   if (!result.IsEmpty())
     *aCookieString = ToNewCString(result);
 
@@ -149,14 +152,14 @@ CookieServiceChild::SetCookieStringInternal(nsIURI *aHostURI,
 
   // Synchronously call the parent.
   SendSetCookieString(uriParams, !!isForeign, cookieString, serverTime,
-                      aFromHttp);
+                      aFromHttp, IPC::SerializedLoadContext(aChannel));
   return NS_OK;
 }
 
 NS_IMETHODIMP
 CookieServiceChild::Observe(nsISupports     *aSubject,
                             const char      *aTopic,
-                            const PRUnichar *aData)
+                            const char16_t *aData)
 {
   NS_ASSERTION(strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) == 0,
                "not a pref change topic!");

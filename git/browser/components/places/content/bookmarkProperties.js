@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -57,6 +57,10 @@
  * window.arguments[0].performed is set to true if any transaction has
  * been performed by the dialog.
  */
+
+Components.utils.import('resource://gre/modules/XPCOMUtils.jsm');
+XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
+                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 const BOOKMARK_ITEM = 0;
 const BOOKMARK_FOLDER = 1;
@@ -247,24 +251,20 @@ var BookmarkPropertiesPanel = {
 
         case "folder":
           this._itemType = BOOKMARK_FOLDER;
-          PlacesUtils.livemarks.getLivemark(
-            { id: this._itemId },
-            (function (aStatus, aLivemark) {
-              if (Components.isSuccessCode(aStatus)) {
-                this._itemType = LIVEMARK_CONTAINER;
-                this._feedURI = aLivemark.feedURI;
-                this._siteURI = aLivemark.siteURI;
-                this._fillEditProperties();
+          PlacesUtils.livemarks.getLivemark({ id: this._itemId })
+            .then(aLivemark => {
+              this._itemType = LIVEMARK_CONTAINER;
+              this._feedURI = aLivemark.feedURI;
+              this._siteURI = aLivemark.siteURI;
+              this._fillEditProperties();
 
-                let acceptButton = document.documentElement.getButton("accept");
-                acceptButton.disabled = !this._inputIsValid();
+              let acceptButton = document.documentElement.getButton("accept");
+              acceptButton.disabled = !this._inputIsValid();
 
-                let newHeight = window.outerHeight +
-                                this._element("descriptionField").boxObject.height;
-                window.resizeTo(window.outerWidth, newHeight);
-              }
-            }).bind(this)
-          );
+              let newHeight = window.outerHeight +
+                              this._element("descriptionField").boxObject.height;
+              window.resizeTo(window.outerWidth, newHeight);
+            }, () => undefined);
 
           break;
       }
@@ -401,7 +401,7 @@ var BookmarkPropertiesPanel = {
     if (this._batching)
       return;
 
-    PlacesUtils.transactionManager.beginBatch();
+    PlacesUtils.transactionManager.beginBatch(null);
     this._batching = true;
   },
 
@@ -409,7 +409,7 @@ var BookmarkPropertiesPanel = {
     if (!this._batching)
       return;
 
-    PlacesUtils.transactionManager.endBatch();
+    PlacesUtils.transactionManager.endBatch(false);
     this._batching = false;
   },
 
@@ -467,7 +467,6 @@ var BookmarkPropertiesPanel = {
     // The order here is important! We have to uninit the panel first, otherwise
     // late changes could force it to commit more transactions.
     gEditItemOverlay.uninitPanel(true);
-    gEditItemOverlay = null;
     this._endBatch();
     window.arguments[0].performed = true;
   },
@@ -477,7 +476,6 @@ var BookmarkPropertiesPanel = {
     // changes done as part of Undo may change the panel contents and by
     // that force it to commit more transactions.
     gEditItemOverlay.uninitPanel(true);
-    gEditItemOverlay = null;
     this._endBatch();
     PlacesUtils.transactionManager.undoTransaction();
     window.arguments[0].performed = false;
@@ -553,10 +551,7 @@ var BookmarkPropertiesPanel = {
 
     if (this._loadInSidebar) {
       let annoObj = { name   : PlacesUIUtils.LOAD_IN_SIDEBAR_ANNO,
-                      type   : Ci.nsIAnnotationService.TYPE_INT32,
-                      flags  : 0,
-                      value  : this._loadInSidebar,
-                      expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
+                      value  : true };
       let setLoadTxn = new PlacesSetItemAnnotationTransaction(-1, annoObj);
       childTransactions.push(setLoadTxn);
     }
@@ -567,8 +562,8 @@ var BookmarkPropertiesPanel = {
     }
 
     //XXX TODO: this should be in a transaction!
-    if (this._charSet)
-      PlacesUtils.history.setCharsetForURI(this._uri, this._charSet);
+    if (this._charSet && !PrivateBrowsingUtils.isWindowPrivate(window))
+      PlacesUtils.setCharsetForURI(this._uri, this._charSet);
 
     let createTxn = new PlacesCreateBookmarkTransaction(this._uri,
                                                         aContainer,

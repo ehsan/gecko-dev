@@ -2,199 +2,76 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 /**
- * Tests if the same script is shown after a page is reloaded.
+ * Tests if the same source is shown after a page is reloaded.
  */
 
-const TAB_URL = EXAMPLE_URL + "browser_dbg_script-switching.html";
+const TAB_URL = EXAMPLE_URL + "doc_script-switching-01.html";
+const FIRST_URL = EXAMPLE_URL + "code_script-switching-01.js";
+const SECOND_URL = EXAMPLE_URL + "code_script-switching-02.js";
 
-let gPane = null;
-let gTab = null;
-let gDebuggee = null;
-let gDebugger = null;
-let gView = null;
+function test() {
+  // Debug test slaves are a bit slow at this test.
+  requestLongerTimeout(2);
 
-function test()
-{
-  let step = 0;
-  let expectedScript = "";
-  let expectedScriptShown = false;
-  let scriptShownUrl = null;
-  let resumed = false;
-  let testStarted = false;
+  let gTab, gPanel, gDebugger;
+  let gSources, gStep;
 
-  debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
+  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
     gTab = aTab;
-    gDebuggee = aDebuggee;
-    gPane = aPane;
-    gDebugger = gPane.contentWindow;
-    gView = gDebugger.DebuggerView;
-    resumed = true;
+    gPanel = aPanel;
+    gDebugger = aPanel.panelWin;
+    gSources = gDebugger.DebuggerView.Sources;
+    gStep = 0;
 
-    startTest();
+    waitForSourceShown(gPanel, FIRST_URL).then(performTest);
   });
 
-  function onScriptShown(aEvent)
-  {
-    expectedScriptShown = aEvent.detail.url.indexOf("-01.js") != -1;
-    scriptShownUrl = aEvent.detail.url;
-    startTest();
-  }
-
-  function onUlteriorScriptShown(aEvent)
-  {
-    ok(expectedScript,
-      "The expected script to show up should have been specified.");
-
-    info("The expected script for this ScriptShown event is: " + expectedScript);
-    info("The current script for this ScriptShown event is: " + aEvent.detail.url);
-
-    expectedScriptShown = aEvent.detail.url.indexOf(expectedScript) != -1;
-    scriptShownUrl = aEvent.detail.url;
-    testScriptShown();
-  }
-
-  window.addEventListener("Debugger:ScriptShown", onScriptShown);
-
-  function startTest()
-  {
-    if (expectedScriptShown && resumed && !testStarted) {
-      window.removeEventListener("Debugger:ScriptShown", onScriptShown);
-      window.addEventListener("Debugger:ScriptShown", onUlteriorScriptShown);
-      testStarted = true;
-      Services.tm.currentThread.dispatch({ run: performTest }, 0);
+  function performTest() {
+    switch (gStep++) {
+      case 0:
+        testCurrentSource(FIRST_URL, null);
+        reload().then(performTest);
+        break;
+      case 1:
+        testCurrentSource(FIRST_URL);
+        reload().then(performTest);
+        break;
+      case 2:
+        testCurrentSource(FIRST_URL);
+        switchAndReload(SECOND_URL).then(performTest);
+        break;
+      case 3:
+        testCurrentSource(SECOND_URL);
+        reload().then(performTest);
+        break;
+      case 4:
+        testCurrentSource(SECOND_URL);
+        reload().then(performTest);
+        break;
+      case 5:
+        testCurrentSource(SECOND_URL);
+        closeDebuggerAndFinish(gPanel);
+        break;
     }
   }
 
-  function finishTest()
-  {
-    if (expectedScriptShown && resumed && testStarted) {
-      window.removeEventListener("Debugger:ScriptShown", onUlteriorScriptShown);
-      closeDebuggerAndFinish();
-    }
+  function reload() {
+    return reloadActiveTab(gPanel, gDebugger.EVENTS.SOURCES_ADDED);
   }
 
-  function performTest()
-  {
-    testCurrentScript("-01.js", step);
-    expectedScript = "-01.js";
-    reloadPage();
+  function switchAndReload(aUrl) {
+    let finished = waitForDebuggerEvents(gPanel, gDebugger.EVENTS.SOURCE_SHOWN).then(reload);
+    gSources.selectedValue = getSourceActor(gSources, aUrl);
+    return finished;
   }
 
-  function testScriptShown()
-  {
-    if (!expectedScriptShown) {
-      return;
-    }
-    step++;
+  function testCurrentSource(aUrl, aExpectedUrl = aUrl) {
+    info("Currently preferred source: '" + gSources.preferredValue + "'.");
+    info("Currently selected source: '" + gSources.selectedValue + "'.");
 
-    if (step === 1) {
-      testCurrentScript("-01.js", step);
-      expectedScript = "-01.js";
-      reloadPage();
-    }
-    else if (step === 2) {
-      testCurrentScript("-01.js", step);
-      expectedScript = "-02.js";
-      switchScript(1);
-    }
-    else if (step === 3) {
-      testCurrentScript("-02.js", step);
-      expectedScript = "-02.js";
-      reloadPage();
-    }
-    else if (step === 4) {
-      testCurrentScript("-02.js", step);
-      expectedScript = "-01.js";
-      switchScript(0);
-    }
-    else if (step === 5) {
-      testCurrentScript("-01.js", step);
-      expectedScript = "-01.js";
-      reloadPage();
-    }
-    else if (step === 6) {
-      testCurrentScript("-01.js", step);
-      expectedScript = "-01.js";
-      reloadPage();
-    }
-    else if (step === 7) {
-      testCurrentScript("-01.js", step);
-      expectedScript = "-01.js";
-      reloadPage();
-    }
-    else if (step === 8) {
-      testCurrentScript("-01.js", step);
-      expectedScript = "-02.js";
-      switchScript(1);
-    }
-    else if (step === 9) {
-      testCurrentScript("-02.js", step);
-      expectedScript = "-02.js";
-      reloadPage();
-    }
-    else if (step === 10) {
-      testCurrentScript("-02.js", step);
-      expectedScript = "-02.js";
-      reloadPage();
-    }
-    else if (step === 11) {
-      testCurrentScript("-02.js", step);
-      expectedScript = "-02.js";
-      reloadPage();
-    }
-    else if (step === 12) {
-      testCurrentScript("-02.js", step);
-      expectedScript = "-01.js";
-      switchScript(0);
-    }
-    else if (step === 13) {
-      testCurrentScript("-01.js", step);
-      finishTest();
-    }
+    is(getSourceURL(gSources, gSources.preferredValue), aExpectedUrl,
+      "The preferred source url wasn't set correctly (" + gStep + ").");
+    is(getSourceURL(gSources, gSources.selectedValue), aUrl,
+      "The selected source isn't the correct one (" + gStep + ").");
   }
-
-  function testCurrentScript(part, step)
-  {
-    info("Currently preferred script: " + gView.Scripts.preferredScriptUrl);
-    info("Currently selected script: " + gView.Scripts.selected);
-
-    isnot(gView.Scripts.preferredScriptUrl.indexOf(part), -1,
-      "The preferred script url wasn't set correctly. (" + step + ")");
-    isnot(gView.Scripts.selected.indexOf(part), -1,
-      "The selected script isn't the correct one. (" + step + ")");
-    is(gView.Scripts.selected, scriptShownUrl,
-      "The shown script is not the the correct one. (" + step + ")");
-  }
-
-  function switchScript(index)
-  {
-    let scriptsView = gView.Scripts;
-    let scriptLocations = scriptsView.scriptLocations;
-    info("Available scripts: " + scriptLocations);
-
-    if (scriptLocations.length === 2) {
-      // We got all the scripts, it's safe to switch.
-      scriptsView.selectScript(scriptLocations[index]);
-      return;
-    }
-
-    window.addEventListener("Debugger:AfterNewScript", function _onEvent(aEvent) {
-      window.removeEventListener(aEvent.type, _onEvent);
-      switchScript(index);
-    });
-  }
-
-  function reloadPage()
-  {
-    gDebuggee.location.reload();
-  }
-
-  registerCleanupFunction(function() {
-    removeTab(gTab);
-    gPane = null;
-    gTab = null;
-    gDebuggee = null;
-    gDebugger = null;
-    gView = null;
-  });
 }

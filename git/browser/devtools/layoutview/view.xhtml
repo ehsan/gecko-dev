@@ -10,104 +10,58 @@
 <html xmlns="http://www.w3.org/1999/xhtml"
       xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <head>
-    <title>Layout View</title>
+    <title>&title;</title>
 
-    <script type="application/javascript;version=1.8">
-    <![CDATA[
-      let elts;
-      let tooltip;
+    <script type="application/javascript;version=1.8"
+            src="chrome://browser/content/devtools/theme-switching.js"/>
 
-      const Ci = Components.interfaces;
-      const Cc = Components.classes;
+    <script type="application/javascript;version=1.8" src="view.js"></script>
 
-      window.onload = function() {
-
-        // Tooltip mechanism
-        elts = document.querySelectorAll("*[tooltip]");
-        tooltip = document.querySelector(".tooltip");
-        for (let i = 0; i < elts.length; i++) {
-          let elt = elts[i];
-          elt.addEventListener("mouseover", onmouseover, true);
-          elt.addEventListener("mouseout", onmouseout, true);
-        }
-
-        // Mark document as RTL or LTR:
-        let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].
-          getService(Ci.nsIXULChromeRegistry);
-        let dir = chromeReg.isLocaleRTL("global");
-        document.body.setAttribute("dir", dir ? "rtl" : "ltr");
-
-        window.parent.postMessage("layoutview-ready", "*");
-      }
-
-      window.onunload = function() {
-        if (elts) {
-          for (let i = 0; i < elts.length; i++) {
-            let elt = elts[i];
-            elt.removeEventListener("mouseover", onmouseover, true);
-            elt.removeEventListener("mouseout", onmouseout, true);
-          }
-        }
-      }
-
-      function onmouseover(e) {
-        tooltip.textContent = e.target.getAttribute("tooltip");
-      }
-
-      function onmouseout(e) {
-        tooltip.textContent = "";
-      }
-
-      function toggleView() {
-        window.parent.postMessage("layoutview-toggle-view", "*");
-      }
-    ]]>
-    </script>
-
+    <link rel="stylesheet" href="chrome://browser/skin/devtools/common.css" type="text/css"/>
     <link rel="stylesheet" href="chrome://browser/skin/devtools/layoutview.css" type="text/css"/>
     <link rel="stylesheet" href="view.css" type="text/css"/>
 
   </head>
-  <body>
+  <body class="theme-sidebar devtools-monospace">
 
-    <!-- Header: always visible, even when the view is closed. -->
-    <a onclick="toggleView()" href="#" id="header">
-        <span id="element-size"></span>
-        <span id="togglebutton"></span>
-    </a>
+    <p id="header">
+      <span id="element-size"></span><span id="element-position"></span>
+    </p>
 
-    <!-- Boxes: hidden when the view is closed. -->
     <div id="main">
 
-      <div id="margins" tooltip="&margins.tooltip;">
-        <div id="borders" tooltip="&borders.tooltip;">
-          <div id="padding" tooltip="&padding.tooltip;">
-            <div id="content" tooltip="&content.tooltip;">
+      <div id="margins" data-box="margin" tooltip="&margin.tooltip;">
+        <div id="borders" data-box="border" tooltip="&border.tooltip;">
+          <div id="padding" data-box="padding" tooltip="&padding.tooltip;">
+            <div id="content" data-box="content" tooltip="&content.tooltip;">
             </div>
           </div>
         </div>
       </div>
 
-      <p class="border top"><span tooltip="border-top"></span></p>
-      <p class="border right"><span tooltip="border-right"></span></p>
-      <p class="border bottom"><span tooltip="border-bottom"></span></p>
-      <p class="border left"><span tooltip="border-left"></span></p>
+      <p class="border top"><span data-box="border" class="editable" tooltip="border-top"></span></p>
+      <p class="border right"><span data-box="border" class="editable" tooltip="border-right"></span></p>
+      <p class="border bottom"><span data-box="border" class="editable" tooltip="border-bottom"></span></p>
+      <p class="border left"><span data-box="border" class="editable" tooltip="border-left"></span></p>
 
-      <p class="margin top"><span tooltip="margin-top"></span></p>
-      <p class="margin right"><span tooltip="margin-right"></span></p>
-      <p class="margin bottom"><span tooltip="margin-bottom"></span></p>
-      <p class="margin left"><span tooltip="margin-left"></span></p>
+      <p class="margin top"><span data-box="margin" class="editable" tooltip="margin-top"></span></p>
+      <p class="margin right"><span data-box="margin" class="editable" tooltip="margin-right"></span></p>
+      <p class="margin bottom"><span data-box="margin" class="editable" tooltip="margin-bottom"></span></p>
+      <p class="margin left"><span data-box="margin" class="editable" tooltip="margin-left"></span></p>
 
-      <p class="padding top"><span tooltip="padding-top"></span></p>
-      <p class="padding right"><span tooltip="padding-right"></span></p>
-      <p class="padding bottom"><span tooltip="padding-bottom"></span></p>
-      <p class="padding left"><span tooltip="padding-left"></span></p>
+      <p class="padding top"><span data-box="padding" class="editable" tooltip="padding-top"></span></p>
+      <p class="padding right"><span data-box="padding" class="editable" tooltip="padding-right"></span></p>
+      <p class="padding bottom"><span data-box="padding" class="editable" tooltip="padding-bottom"></span></p>
+      <p class="padding left"><span data-box="padding" class="editable" tooltip="padding-left"></span></p>
 
-      <p class="size"><span tooltip="&content.tooltip;"></span></p>
+      <p class="size"><span data-box="content" tooltip="&content.tooltip;"></span></p>
 
       <span class="tooltip"></span>
 
     </div>
 
+    <div style="display: none">
+      <p id="dummy"></p>
+    </div>
   </body>
 </html>

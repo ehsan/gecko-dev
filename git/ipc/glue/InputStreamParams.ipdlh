@@ -2,9 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-include "IPC/IPCMessageUtils.h";
+include protocol PBlob;
+include protocol PFileDescriptorSet;
 
-using mozilla::void_t;
+include DOMTypes;
+
+using struct mozilla::void_t
+  from "ipc/IPCMessageUtils.h";
 
 namespace mozilla {
 namespace ipc {
@@ -16,7 +20,7 @@ struct StringInputStreamParams
 
 struct FileInputStreamParams
 {
-  FileDescriptor file;
+  uint32_t fileDescriptorIndex;
   int32_t behaviorFlags;
   int32_t ioFlags;
 };
@@ -36,6 +40,19 @@ struct MultiplexInputStreamParams
   bool startedReadingCurrent;
 };
 
+struct RemoteInputStreamParams
+{
+  nsID id;
+};
+
+// XXX This may only be used for same-process inter-thread communication! The
+//     value should be reinterpret_cast'd to nsIInputStream. It carries a
+//     reference.
+struct SameProcessInputStreamParams
+{
+  intptr_t addRefedInputStream;
+};
+
 union InputStreamParams
 {
   StringInputStreamParams;
@@ -44,6 +61,8 @@ union InputStreamParams
   BufferedInputStreamParams;
   MIMEInputStreamParams;
   MultiplexInputStreamParams;
+  RemoteInputStreamParams;
+  SameProcessInputStreamParams;
 };
 
 union OptionalInputStreamParams
@@ -65,6 +84,12 @@ struct MIMEInputStreamParams
   nsCString contentLength;
   bool startedReading;
   bool addContentLength;
+};
+
+union OptionalFileDescriptorSet
+{
+  PFileDescriptorSet;
+  void_t;
 };
 
 } // namespace ipc

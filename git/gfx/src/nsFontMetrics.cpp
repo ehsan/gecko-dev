@@ -4,10 +4,23 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsFontMetrics.h"
-#include "nsBoundingMetrics.h"
-#include "nsRenderingContext.h"
-#include "nsDeviceContext.h"
-#include "nsStyleConsts.h"
+#include <math.h>                       // for floor, ceil
+#include <algorithm>                    // for max
+#include "gfxFontConstants.h"           // for NS_FONT_SYNTHESIS_*
+#include "gfxPlatform.h"                // for gfxPlatform
+#include "gfxPoint.h"                   // for gfxPoint
+#include "gfxRect.h"                    // for gfxRect
+#include "gfxTypes.h"                   // for gfxFloat
+#include "nsBoundingMetrics.h"          // for nsBoundingMetrics
+#include "nsDebug.h"                    // for NS_ERROR, NS_ABORT_IF_FALSE
+#include "nsDeviceContext.h"            // for nsDeviceContext
+#include "nsIAtom.h"                    // for nsIAtom
+#include "nsMathUtils.h"                // for NS_round
+#include "nsRenderingContext.h"         // for nsRenderingContext
+#include "nsString.h"               // for nsString
+#include "nsStyleConsts.h"              // for NS_STYLE_HYPHENS_NONE
+
+class gfxUserFontSet;
 
 namespace {
 
@@ -24,7 +37,7 @@ public:
     }
 
     AutoTextRun(nsFontMetrics* aMetrics, nsRenderingContext* aRC,
-                const PRUnichar* aString, int32_t aLength)
+                const char16_t* aString, int32_t aLength)
     {
         mTextRun = aMetrics->GetThebesFontGroup()->MakeTextRun(
             aString, aLength,
@@ -62,6 +75,14 @@ public:
         NS_ERROR("This shouldn't be called because we never enable hyphens");
         return 0;
     }
+    virtual already_AddRefed<gfxContext> GetContext() {
+        NS_ERROR("This shouldn't be called because we never enable hyphens");
+        return nullptr;
+    }
+    virtual uint32_t GetAppUnitsPerDevUnit() {
+        NS_ERROR("This shouldn't be called because we never enable hyphens");
+        return 60;
+    }
     virtual void GetSpacing(uint32_t aStart, uint32_t aLength,
                             Spacing* aSpacing) {
         NS_ERROR("This shouldn't be called because we never enable spacing");
@@ -82,14 +103,18 @@ nsFontMetrics::~nsFontMetrics()
 }
 
 nsresult
-nsFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
+nsFontMetrics::Init(const nsFont& aFont,
+                    nsIAtom* aLanguage, bool aExplicitLanguage,
+                    gfxFont::Orientation aOrientation,
                     nsDeviceContext *aContext,
-                    gfxUserFontSet *aUserFontSet)
+                    gfxUserFontSet *aUserFontSet,
+                    gfxTextPerfMetrics *aTextPerf)
 {
     NS_ABORT_IF_FALSE(mP2A == 0, "already initialized");
 
     mFont = aFont;
     mLanguage = aLanguage;
+    mOrientation = aOrientation;
     mDeviceContext = aContext;
     mP2A = mDeviceContext->AppUnitsPerDevPixel();
 
@@ -98,18 +123,19 @@ nsFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
                        aFont.stretch,
                        gfxFloat(aFont.size) / mP2A,
                        aLanguage,
+                       aExplicitLanguage,
                        aFont.sizeAdjust,
                        aFont.systemFont,
                        mDeviceContext->IsPrinterSurface(),
+                       aFont.synthesis & NS_FONT_SYNTHESIS_WEIGHT,
+                       aFont.synthesis & NS_FONT_SYNTHESIS_STYLE,
                        aFont.languageOverride);
 
     aFont.AddFontFeaturesToStyle(&style);
 
     mFontGroup = gfxPlatform::GetPlatform()->
-        CreateFontGroup(aFont.name, &style, aUserFontSet);
-    if (mFontGroup->FontListLength() < 1)
-        return NS_ERROR_UNEXPECTED;
-
+        CreateFontGroup(aFont.fontlist, &style, aUserFontSet);
+    mFontGroup->SetTextPerfMetrics(aTextPerf);
     return NS_OK;
 }
 
@@ -125,7 +151,7 @@ nsFontMetrics::Destroy()
 
 const gfxFont::Metrics& nsFontMetrics::GetMetrics() const
 {
-    return mFontGroup->GetFontAt(0)->GetMetrics();
+    return mFontGroup->GetFirstValidFont()->GetMetrics(mOrientation);
 }
 
 nscoord
@@ -137,13 +163,15 @@ nsFontMetrics::XHeight()
 nscoord
 nsFontMetrics::SuperscriptOffset()
 {
-    return ROUND_TO_TWIPS(GetMetrics().superscriptOffset);
+    return ROUND_TO_TWIPS(GetMetrics().emHeight *
+                          NS_FONT_SUPERSCRIPT_OFFSET_RATIO);
 }
 
 nscoord
 nsFontMetrics::SubscriptOffset()
 {
-    return ROUND_TO_TWIPS(GetMetrics().subscriptOffset);
+    return ROUND_TO_TWIPS(GetMetrics().emHeight *
+                          NS_FONT_SUBSCRIPT_OFFSET_RATIO);
 }
 
 void
@@ -171,7 +199,7 @@ static gfxFloat ComputeMaxDescent(const gfxFont::Metrics& aMetrics,
     gfxFloat offset = floor(-aFontGroup->GetUnderlineOffset() + 0.5);
     gfxFloat size = NS_round(aMetrics.underlineSize);
     gfxFloat minDescent = floor(offset + size + 0.5);
-    return NS_MAX(minDescent, aMetrics.maxDescent);
+    return std::max(minDescent, aMetrics.maxDescent);
 }
 
 static gfxFloat ComputeMaxAscent(const gfxFont::Metrics& aMetrics)
@@ -253,7 +281,7 @@ nsFontMetrics::GetMaxStringLength()
     const gfxFont::Metrics& m = GetMetrics();
     const double x = 32767.0 / m.maxAdvance;
     int32_t len = (int32_t)floor(x);
-    return NS_MAX(1, len);
+    return std::max(1, len);
 }
 
 nscoord
@@ -273,7 +301,7 @@ nsFontMetrics::GetWidth(const char* aString, uint32_t aLength,
 }
 
 nscoord
-nsFontMetrics::GetWidth(const PRUnichar* aString, uint32_t aLength,
+nsFontMetrics::GetWidth(const char16_t* aString, uint32_t aLength,
                         nsRenderingContext *aContext)
 {
     if (aLength == 0)
@@ -306,12 +334,12 @@ nsFontMetrics::DrawString(const char *aString, uint32_t aLength,
     if (mTextRunRTL) {
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
-    textRun->Draw(aContext->ThebesContext(), pt, gfxFont::GLYPH_FILL, 0, aLength,
+    textRun->Draw(aContext->ThebesContext(), pt, DrawMode::GLYPH_FILL, 0, aLength,
                   &provider, nullptr, nullptr);
 }
 
 void
-nsFontMetrics::DrawString(const PRUnichar* aString, uint32_t aLength,
+nsFontMetrics::DrawString(const char16_t* aString, uint32_t aLength,
                           nscoord aX, nscoord aY,
                           nsRenderingContext *aContext,
                           nsRenderingContext *aTextRunConstructionContext)
@@ -328,12 +356,12 @@ nsFontMetrics::DrawString(const PRUnichar* aString, uint32_t aLength,
     if (mTextRunRTL) {
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
-    textRun->Draw(aContext->ThebesContext(), pt, gfxFont::GLYPH_FILL, 0, aLength,
+    textRun->Draw(aContext->ThebesContext(), pt, DrawMode::GLYPH_FILL, 0, aLength,
                   &provider, nullptr, nullptr);
 }
 
 static nsBoundingMetrics
-GetTextBoundingMetrics(nsFontMetrics* aMetrics, const PRUnichar *aString, uint32_t aLength,
+GetTextBoundingMetrics(nsFontMetrics* aMetrics, const char16_t *aString, uint32_t aLength,
                        nsRenderingContext *aContext, gfxFont::BoundingBoxType aType)
 {
     if (aLength == 0)
@@ -358,7 +386,7 @@ GetTextBoundingMetrics(nsFontMetrics* aMetrics, const PRUnichar *aString, uint32
 }
 
 nsBoundingMetrics
-nsFontMetrics::GetBoundingMetrics(const PRUnichar *aString, uint32_t aLength,
+nsFontMetrics::GetBoundingMetrics(const char16_t *aString, uint32_t aLength,
                                   nsRenderingContext *aContext)
 {
   return GetTextBoundingMetrics(this, aString, aLength, aContext, gfxFont::TIGHT_HINTED_OUTLINE_EXTENTS);
@@ -366,7 +394,7 @@ nsFontMetrics::GetBoundingMetrics(const PRUnichar *aString, uint32_t aLength,
 }
 
 nsBoundingMetrics
-nsFontMetrics::GetInkBoundsForVisualOverflow(const PRUnichar *aString, uint32_t aLength,
+nsFontMetrics::GetInkBoundsForVisualOverflow(const char16_t *aString, uint32_t aLength,
                                              nsRenderingContext *aContext)
 {
   return GetTextBoundingMetrics(this, aString, aLength, aContext, gfxFont::LOOSE_INK_EXTENTS);

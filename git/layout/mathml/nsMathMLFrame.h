@@ -6,19 +6,17 @@
 #ifndef nsMathMLFrame_h___
 #define nsMathMLFrame_h___
 
-#include "nsCOMPtr.h"
-#include "nsPresContext.h"
+#include "mozilla/Attributes.h"
 #include "nsFontMetrics.h"
-#include "nsStyleContext.h"
-#include "nsMathMLAtoms.h"
 #include "nsMathMLOperators.h"
 #include "nsIMathMLFrame.h"
-#include "nsFrame.h"
-#include "nsCSSValue.h"
-#include "nsMathMLElement.h"
 #include "nsLayoutUtils.h"
+#include "nsBoundingMetrics.h"
+#include "nsIFrame.h"
 
 class nsMathMLChar;
+class nsCSSValue;
+class nsDisplayListSet;
 
 // Concrete base class with default methods that derived MathML frames can override
 class nsMathMLFrame : public nsIMathMLFrame {
@@ -27,71 +25,83 @@ public:
   // nsIMathMLFrame ---
 
   virtual bool
-  IsSpaceLike() {
+  IsSpaceLike() MOZ_OVERRIDE {
     return NS_MATHML_IS_SPACE_LIKE(mPresentationData.flags);
   }
 
   NS_IMETHOD
-  GetBoundingMetrics(nsBoundingMetrics& aBoundingMetrics) {
+  GetBoundingMetrics(nsBoundingMetrics& aBoundingMetrics) MOZ_OVERRIDE {
     aBoundingMetrics = mBoundingMetrics;
     return NS_OK;
   }
 
   NS_IMETHOD
-  SetBoundingMetrics(const nsBoundingMetrics& aBoundingMetrics) {
+  SetBoundingMetrics(const nsBoundingMetrics& aBoundingMetrics) MOZ_OVERRIDE {
     mBoundingMetrics = aBoundingMetrics;
     return NS_OK;
   }
 
   NS_IMETHOD
-  SetReference(const nsPoint& aReference) {
+  SetReference(const nsPoint& aReference) MOZ_OVERRIDE {
     mReference = aReference;
     return NS_OK;
   }
 
-  virtual eMathMLFrameType GetMathMLFrameType();
+  virtual eMathMLFrameType GetMathMLFrameType() MOZ_OVERRIDE;
 
   NS_IMETHOD
   Stretch(nsRenderingContext& aRenderingContext,
           nsStretchDirection   aStretchDirection,
           nsBoundingMetrics&   aContainerSize,
-          nsHTMLReflowMetrics& aDesiredStretchSize)
+          nsHTMLReflowMetrics& aDesiredStretchSize) MOZ_OVERRIDE
   {
     return NS_OK;
   }
 
   NS_IMETHOD
-  GetEmbellishData(nsEmbellishData& aEmbellishData) {
+  GetEmbellishData(nsEmbellishData& aEmbellishData) MOZ_OVERRIDE {
     aEmbellishData = mEmbellishData;
     return NS_OK;
   }
 
   NS_IMETHOD
-  GetPresentationData(nsPresentationData& aPresentationData) {
+  GetPresentationData(nsPresentationData& aPresentationData) MOZ_OVERRIDE {
     aPresentationData = mPresentationData;
     return NS_OK;
   }
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent);
+  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
 
   NS_IMETHOD
-  TransmitAutomaticData()
+  TransmitAutomaticData() MOZ_OVERRIDE
   {
     return NS_OK;
   }
 
   NS_IMETHOD
   UpdatePresentationData(uint32_t        aFlagsValues,
-                         uint32_t        aFlagsToUpdate);
+                         uint32_t        aFlagsToUpdate) MOZ_OVERRIDE;
 
   NS_IMETHOD
   UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
                                     int32_t         aLastIndex,
                                     uint32_t        aFlagsValues,
-                                    uint32_t        aFlagsToUpdate)
+                                    uint32_t        aFlagsToUpdate) MOZ_OVERRIDE
   {
     return NS_OK;
+  }
+
+  uint8_t
+  ScriptIncrement(nsIFrame* aFrame) MOZ_OVERRIDE
+  {
+    return 0;
+  }
+
+  bool
+  IsMrowLike() MOZ_OVERRIDE
+  {
+    return false;
   }
 
   // helper to give a style context suitable for doing the stretching to the
@@ -101,8 +111,7 @@ public:
   ResolveMathMLCharStyle(nsPresContext*  aPresContext,
                          nsIContent*      aContent,
                          nsStyleContext*  aParenStyleContext,
-                         nsMathMLChar*    aMathMLChar,
-                         bool             aIsMutableChar);
+                         nsMathMLChar*    aMathMLChar);
 
   // helper to get the mEmbellishData of a frame
   // The MathML REC precisely defines an "embellished operator" as:
@@ -130,26 +139,6 @@ public:
                           nsPresentationData& aPresentationData,
                           bool                aClimbTree = true);
 
-  // helper used by <mstyle> and <mtable> to see if they have a displaystyle attribute 
-  static void
-  FindAttrDisplaystyle(nsIContent*         aContent,
-                       nsPresentationData& aPresentationData);
-
-  // helper used to see if an element has a dir attribute 
-  static void
-  FindAttrDirectionality(nsIContent*         aContent,
-                         nsPresentationData& aPresentationData);
-
-  // helper to check if a content has an attribute. If content is nullptr or if
-  // the attribute is not there, check if the attribute is on the mstyle hierarchy
-  // @return true     --if attribute exists
-  //         false --if attribute doesn't exist
-  static bool
-  GetAttribute(nsIContent* aContent,
-               nsIFrame*   aMathMLmstyleFrame,          
-               nsIAtom*    aAttributeAtom,
-               nsString&   aValue);
-
   // utilities to parse and retrieve numeric values in CSS units
   // All values are stored in twips.
   // @pre  aLengthValue is the default length value of the attribute.
@@ -158,12 +147,14 @@ public:
                                 nscoord*          aLengthValue,
                                 uint32_t          aFlags,
                                 nsPresContext*    aPresContext,
-                                nsStyleContext*   aStyleContext);
+                                nsStyleContext*   aStyleContext,
+                                float             aFontSizeInflation);
 
   static nscoord 
   CalcLength(nsPresContext*   aPresContext,
              nsStyleContext*   aStyleContext,
-             const nsCSSValue& aCSSValue);
+             const nsCSSValue& aCSSValue,
+             float             aFontSizeInflation);
 
   static eMathMLFrameType
   GetMathMLFrameTypeFor(nsIFrame* aFrame)
@@ -205,19 +196,23 @@ public:
   // helper methods for getting sup/subdrop's from a child
   static void 
   GetSubDropFromChild(nsIFrame*       aChild,
-                      nscoord&        aSubDrop) 
+                      nscoord&        aSubDrop,
+                      float           aFontSizeInflation) 
   {
     nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm));
+    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm),
+                                          aFontSizeInflation);
     GetSubDrop(fm, aSubDrop);
   }
 
   static void 
   GetSupDropFromChild(nsIFrame*       aChild,
-                      nscoord&        aSupDrop) 
+                      nscoord&        aSupDrop,
+                      float           aFontSizeInflation) 
   {
     nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm));
+    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm),
+                                          aFontSizeInflation);
     GetSupDrop(fm, aSupDrop);
   }
 
@@ -350,6 +345,13 @@ public:
                 nsFontMetrics*      aFontMetrics,
                 nscoord&             aAxisHeight);
 
+  static void
+  GetRadicalParameters(nsFontMetrics* aFontMetrics,
+                       bool aDisplayStyle,
+                       nscoord& aRadicalRuleThickness,
+                       nscoord& aRadicalExtraAscender,
+                       nscoord& aRadicalVerticalGap);
+
 protected:
 #if defined(DEBUG) && defined(SHOW_BOUNDING_BOX)
   nsresult DisplayBoundingMetrics(nsDisplayListBuilder* aBuilder,
@@ -362,9 +364,9 @@ protected:
    * Display a solid rectangle in the frame's text color. Used for drawing
    * fraction separators and root/sqrt overbars.
    */
-  nsresult DisplayBar(nsDisplayListBuilder* aBuilder,
-                      nsIFrame* aFrame, const nsRect& aRect,
-                      const nsDisplayListSet& aLists);
+  void DisplayBar(nsDisplayListBuilder* aBuilder,
+                  nsIFrame* aFrame, const nsRect& aRect,
+                  const nsDisplayListSet& aLists);
 
   // information about the presentation policy of the frame
   nsPresentationData mPresentationData;

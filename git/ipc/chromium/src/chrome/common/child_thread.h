@@ -8,6 +8,7 @@
 #include "base/thread.h"
 #include "chrome/common/ipc_sync_channel.h"
 #include "chrome/common/message_router.h"
+#include "mozilla/UniquePtr.h"
 
 class ResourceDispatcher;
 
@@ -17,15 +18,15 @@ class ChildThread : public IPC::Channel::Listener,
                     public base::Thread {
  public:
   // Creates the thread.
-  ChildThread(Thread::Options options);
+  explicit ChildThread(Thread::Options options);
   virtual ~ChildThread();
 
   // IPC::Message::Sender implementation:
   virtual bool Send(IPC::Message* msg);
 
   // See documentation on MessageRouter for AddRoute and RemoveRoute
-  void AddRoute(int32 routing_id, IPC::Channel::Listener* listener);
-  void RemoveRoute(int32 routing_id);
+  void AddRoute(int32_t routing_id, IPC::Channel::Listener* listener);
+  void RemoveRoute(int32_t routing_id);
 
   MessageLoop* owner_loop() { return owner_loop_; }
 
@@ -61,11 +62,15 @@ class ChildThread : public IPC::Channel::Listener,
   virtual void OnMessageReceived(const IPC::Message& msg);
   virtual void OnChannelError();
 
+#ifdef MOZ_NUWA_PROCESS
+  static void MarkThread();
+#endif
+
   // The message loop used to run tasks on the thread that started this thread.
   MessageLoop* owner_loop_;
 
   std::wstring channel_name_;
-  scoped_ptr<IPC::Channel> channel_;
+  mozilla::UniquePtr<IPC::Channel> channel_;
 
   // Used only on the background render thread to implement message routing
   // functionality to the consumers of the ChildThread.

@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim: set ts=8 sts=4 et sw=4 tw=99: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -18,38 +18,19 @@ XPCContext::XPCContext(XPCJSRuntime* aRuntime,
         mJSContext(aJSContext),
         mLastResult(NS_OK),
         mPendingResult(NS_OK),
-        mSecurityManager(nullptr),
-        mException(nullptr),
-        mCallingLangType(LANG_UNKNOWN),
-        mSecurityManagerFlags(0)
+        mCallingLangType(LANG_UNKNOWN)
 {
     MOZ_COUNT_CTOR(XPCContext);
 
-    PR_INIT_CLIST(&mScopes);
-
-    NS_ASSERTION(!JS_GetSecondContextPrivate(mJSContext), "Must be null");
+    MOZ_ASSERT(!JS_GetSecondContextPrivate(mJSContext), "Must be null");
     JS_SetSecondContextPrivate(mJSContext, this);
 }
 
 XPCContext::~XPCContext()
 {
     MOZ_COUNT_DTOR(XPCContext);
-    NS_ASSERTION(JS_GetSecondContextPrivate(mJSContext) == this, "Must match this");
+    MOZ_ASSERT(JS_GetSecondContextPrivate(mJSContext) == this, "Must match this");
     JS_SetSecondContextPrivate(mJSContext, nullptr);
-    NS_IF_RELEASE(mException);
-    NS_IF_RELEASE(mSecurityManager);
-
-    // Iterate over our scopes and tell them that we have been destroyed
-    for (PRCList *scopeptr = PR_NEXT_LINK(&mScopes);
-         scopeptr != &mScopes;
-         scopeptr = PR_NEXT_LINK(scopeptr)) {
-        XPCWrappedNativeScope *scope =
-            static_cast<XPCWrappedNativeScope*>(scopeptr);
-        scope->ClearContext();
-    }
-
-    // we do not call JS_RemoveArgumentFormatter because we now only
-    // delete XPCContext *after* the underlying JSContext is dead
 }
 
 void
@@ -63,10 +44,7 @@ XPCContext::DebugDump(int16_t depth)
         XPC_LOG_ALWAYS(("mJSContext @ %x", mJSContext));
         XPC_LOG_ALWAYS(("mLastResult of %x", mLastResult));
         XPC_LOG_ALWAYS(("mPendingResult of %x", mPendingResult));
-        XPC_LOG_ALWAYS(("mSecurityManager @ %x", mSecurityManager));
-        XPC_LOG_ALWAYS(("mSecurityManagerFlags of %x", mSecurityManagerFlags));
-
-        XPC_LOG_ALWAYS(("mException @ %x", mException));
+        XPC_LOG_ALWAYS(("mException @ %x", mException.get()));
         if (depth && mException) {
             // XXX show the exception here...
         }

@@ -11,15 +11,16 @@
 #include "nsThreadUtils.h"
 #include "nsTransportUtils.h"
 #include "nsStreamUtils.h"
-#include "nsURLHelper.h"
 #include "nsMimeTypes.h"
 #include "nsNetUtil.h"
 #include "nsProxyRelease.h"
 #include "nsAutoPtr.h"
-#include "nsStandardURL.h"
+#include "nsIContentPolicy.h"
+#include "nsContentUtils.h"
 
 #include "nsIFileURL.h"
 #include "nsIMIMEService.h"
+#include <algorithm>
 
 //-----------------------------------------------------------------------------
 
@@ -85,7 +86,7 @@ nsFileCopyEvent::DoCopy()
     if (NS_FAILED(rv))
       break;
 
-    int32_t num = NS_MIN((int32_t) len, chunk);
+    int32_t num = std::min((int32_t) len, chunk);
 
     uint32_t result;
     rv = mSource->ReadSegments(NS_CopySegmentToStream, mDest, num, &result);
@@ -179,6 +180,8 @@ public:
                           uint32_t count, nsIEventTarget *target);
 
 private:
+  virtual ~nsFileUploadContentStream() {}
+
   void OnCopyComplete();
 
   nsRefPtr<nsFileCopyEvent> mCopyEvent;
@@ -247,7 +250,7 @@ nsFileChannel::nsFileChannel(nsIURI *uri)
   // can point to different resources right after the first resource is loaded.
   nsCOMPtr<nsIFile> file;
   nsCOMPtr <nsIURI> targetURI;
-  nsCAutoString fileTarget;
+  nsAutoCString fileTarget;
   nsCOMPtr<nsIFile> resolvedFile;
   bool symLink;
   nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(uri);
@@ -270,10 +273,15 @@ nsFileChannel::nsFileChannel(nsIURI *uri)
   }
 }
 
+nsFileChannel::~nsFileChannel()
+{
+}
+
 nsresult
 nsFileChannel::MakeFileInputStream(nsIFile *file,
                                    nsCOMPtr<nsIInputStream> &stream,
-                                   nsCString &contentType)
+                                   nsCString &contentType,
+                                   bool async)
 {
   // we accept that this might result in a disk hit to stat the file
   bool isDir;
@@ -282,7 +290,14 @@ nsFileChannel::MakeFileInputStream(nsIFile *file,
     // canonicalize error message
     if (rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST)
       rv = NS_ERROR_FILE_NOT_FOUND;
-    return rv;
+
+    if (async && (NS_ERROR_FILE_NOT_FOUND == rv)) {
+      // We don't return "Not Found" errors here. Since we could not find
+      // the file, it's not a directory anyway.
+      isDir = false;
+    } else {
+      return rv;
+    }
   }
 
   if (isDir) {
@@ -290,7 +305,8 @@ nsFileChannel::MakeFileInputStream(nsIFile *file,
     if (NS_SUCCEEDED(rv) && !HasContentTypeHint())
       contentType.AssignLiteral(APPLICATION_HTTP_INDEX_FORMAT);
   } else {
-    rv = NS_NewLocalFileInputStream(getter_AddRefs(stream), file);
+    rv = NS_NewLocalFileInputStream(getter_AddRefs(stream), file, -1, -1,
+                                    async? nsIFileInputStream::DEFER_OPEN : 0);
     if (NS_SUCCEEDED(rv) && !HasContentTypeHint()) {
       // Use file extension to infer content type
       nsCOMPtr<nsIMIMEService> mime = do_GetService("@mozilla.org/mime;1", &rv);
@@ -322,7 +338,12 @@ nsFileChannel::OpenContentStream(bool async, nsIInputStream **result,
   rv = fileHandler->ReadURLFile(file, getter_AddRefs(newURI));
   if (NS_SUCCEEDED(rv)) {
     nsCOMPtr<nsIChannel> newChannel;
-    rv = NS_NewChannel(getter_AddRefs(newChannel), newURI);
+    rv = NS_NewChannel(getter_AddRefs(newChannel),
+                       newURI,
+                       nsContentUtils::GetSystemPrincipal(),
+                       nsILoadInfo::SEC_NORMAL,
+                       nsIContentPolicy::TYPE_OTHER);
+
     if (NS_FAILED(rv))
       return rv;
 
@@ -345,16 +366,15 @@ nsFileChannel::OpenContentStream(bool async, nsIInputStream **result,
     if (NS_FAILED(rv))
       return rv;
 
-    nsFileUploadContentStream *uploadStream =
+    nsRefPtr<nsFileUploadContentStream> uploadStream =
         new nsFileUploadContentStream(async, fileStream, mUploadStream,
                                       mUploadLength, this);
     if (!uploadStream || !uploadStream->IsInitialized()) {
-      delete uploadStream;
       return NS_ERROR_OUT_OF_MEMORY;
     }
-    stream = uploadStream;
+    stream = uploadStream.forget();
 
-    SetContentLength64(0);
+    mContentLength = 0;
 
     // Since there isn't any content to speak of we just set the content-type
     // to something other than "unknown" to avoid triggering the content-type
@@ -363,20 +383,27 @@ nsFileChannel::OpenContentStream(bool async, nsIInputStream **result,
     if (!HasContentTypeHint())
       SetContentType(NS_LITERAL_CSTRING(APPLICATION_OCTET_STREAM));
   } else {
-    nsCAutoString contentType;
-    rv = MakeFileInputStream(file, stream, contentType);
+    nsAutoCString contentType;
+    rv = MakeFileInputStream(file, stream, contentType, async);
     if (NS_FAILED(rv))
       return rv;
 
     EnableSynthesizedProgressEvents(true);
 
     // fixup content length and type
-    if (ContentLength64() < 0) {
+    if (mContentLength < 0) {
       int64_t size;
       rv = file->GetFileSize(&size);
-      if (NS_FAILED(rv))
-        return rv;
-      SetContentLength64(size);
+      if (NS_FAILED(rv)) {
+        if (async && 
+            (NS_ERROR_FILE_NOT_FOUND == rv ||
+             NS_ERROR_FILE_TARGET_DOES_NOT_EXIST == rv)) {
+          size = 0;
+        } else {
+          return rv;
+        }
+      }
+      mContentLength = size;
     }
     if (!contentType.IsEmpty())
       SetContentType(contentType);
@@ -390,10 +417,10 @@ nsFileChannel::OpenContentStream(bool async, nsIInputStream **result,
 //-----------------------------------------------------------------------------
 // nsFileChannel::nsISupports
 
-NS_IMPL_ISUPPORTS_INHERITED2(nsFileChannel,
-                             nsBaseChannel,
-                             nsIUploadChannel,
-                             nsIFileChannel)
+NS_IMPL_ISUPPORTS_INHERITED(nsFileChannel,
+                            nsBaseChannel,
+                            nsIUploadChannel,
+                            nsIFileChannel)
 
 //-----------------------------------------------------------------------------
 // nsFileChannel::nsIFileChannel
@@ -414,9 +441,9 @@ nsFileChannel::GetFile(nsIFile **file)
 NS_IMETHODIMP
 nsFileChannel::SetUploadStream(nsIInputStream *stream,
                                const nsACString &contentType,
-                               int32_t contentLength)
+                               int64_t contentLength)
 {
-  NS_ENSURE_TRUE(!IsPending(), NS_ERROR_IN_PROGRESS);
+  NS_ENSURE_TRUE(!Pending(), NS_ERROR_IN_PROGRESS);
 
   if ((mUploadStream = stream)) {
     mUploadLength = contentLength;
@@ -426,7 +453,7 @@ nsFileChannel::SetUploadStream(nsIInputStream *stream,
       nsresult rv = mUploadStream->Available(&avail);
       if (NS_FAILED(rv))
         return rv;
-      if (avail < PR_INT64_MAX)
+      if (avail < INT64_MAX)
         mUploadLength = avail;
     }
   } else {

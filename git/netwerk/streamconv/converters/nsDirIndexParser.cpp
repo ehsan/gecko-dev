@@ -5,29 +5,25 @@
 
 /* This parsing code originally lived in xpfe/components/directory/ - bbaetz */
 
-#include "mozilla/Util.h"
+#include "mozilla/ArrayUtils.h"
 
 #include "prprf.h"
 
 #include "nsDirIndexParser.h"
-#include "nsReadableUtils.h"
-#include "nsDirIndex.h"
 #include "nsEscape.h"
-#include "nsIServiceManager.h"
 #include "nsIInputStream.h"
-#include "nsIChannel.h"
-#include "nsIURI.h"
 #include "nsCRT.h"
-#include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
-#include "nsIPrefLocalizedString.h"
+#include "mozilla/dom/FallbackEncoding.h"
+#include "nsITextToSubURI.h"
+#include "nsIDirIndex.h"
+#include "nsServiceManagerUtils.h"
 
 using namespace mozilla;
 
-NS_IMPL_ISUPPORTS3(nsDirIndexParser,
-                   nsIRequestObserver,
-                   nsIStreamListener,
-                   nsIDirIndexParser)
+NS_IMPL_ISUPPORTS(nsDirIndexParser,
+                  nsIRequestObserver,
+                  nsIStreamListener,
+                  nsIDirIndexParser)
 
 nsDirIndexParser::nsDirIndexParser() {
 }
@@ -37,24 +33,7 @@ nsDirIndexParser::Init() {
   mLineStart = 0;
   mHasDescription = false;
   mFormat = nullptr;
-
-  // get default charset to be used for directory listings (fallback to
-  // ISO-8859-1 if pref is unavailable).
-  NS_NAMED_LITERAL_CSTRING(kFallbackEncoding, "ISO-8859-1");
-  nsXPIDLString defCharset;
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-  if (prefs) {
-    nsCOMPtr<nsIPrefLocalizedString> prefVal;
-    prefs->GetComplexValue("intl.charset.default",
-                           NS_GET_IID(nsIPrefLocalizedString),
-                           getter_AddRefs(prefVal));
-    if (prefVal)
-      prefVal->ToString(getter_Copies(defCharset));
-  }
-  if (!defCharset.IsEmpty())
-    LossyCopyUTF16toASCII(defCharset, mEncoding); // charset labels are always ASCII
-  else
-    mEncoding.Assign(kFallbackEncoding);
+  mozilla::dom::FallbackEncoding::FromLocale(mEncoding);
  
   nsresult rv;
   // XXX not threadsafe
@@ -152,7 +131,7 @@ nsDirIndexParser::ParseFormat(const char* aFormatStr) {
   const char* pos = aFormatStr;
   unsigned int num = 0;
   do {
-    while (*pos && nsCRT::IsAsciiSpace(PRUnichar(*pos)))
+    while (*pos && nsCRT::IsAsciiSpace(char16_t(*pos)))
       ++pos;
     
     ++num;
@@ -164,29 +143,29 @@ nsDirIndexParser::ParseFormat(const char* aFormatStr) {
     if (! *pos)
       break;
 
-    while (*pos && !nsCRT::IsAsciiSpace(PRUnichar(*pos)))
+    while (*pos && !nsCRT::IsAsciiSpace(char16_t(*pos)))
       ++pos;
 
   } while (*pos);
 
   delete[] mFormat;
   mFormat = new int[num+1];
-  // Prevent NULL Deref - Bug 443299 
+  // Prevent nullptr Deref - Bug 443299 
   if (mFormat == nullptr)
     return NS_ERROR_OUT_OF_MEMORY;
   mFormat[num] = -1;
   
   int formatNum=0;
   do {
-    while (*aFormatStr && nsCRT::IsAsciiSpace(PRUnichar(*aFormatStr)))
+    while (*aFormatStr && nsCRT::IsAsciiSpace(char16_t(*aFormatStr)))
       ++aFormatStr;
     
     if (! *aFormatStr)
       break;
 
-    nsCAutoString name;
+    nsAutoCString name;
     int32_t     len = 0;
-    while (aFormatStr[len] && !nsCRT::IsAsciiSpace(PRUnichar(aFormatStr[len])))
+    while (aFormatStr[len] && !nsCRT::IsAsciiSpace(char16_t(aFormatStr[len])))
       ++len;
     name.SetCapacity(len + 1);
     name.Append(aFormatStr, len);
@@ -224,7 +203,7 @@ nsDirIndexParser::ParseData(nsIDirIndex *aIdx, char* aDataStr) {
 
   nsresult rv = NS_OK;
 
-  nsCAutoString filename;
+  nsAutoCString filename;
 
   for (int32_t i = 0; mFormat[i] != -1; ++i) {
     // If we've exhausted the data before we run out of fields, just
@@ -267,7 +246,7 @@ nsDirIndexParser::ParseData(nsIDirIndex *aIdx, char* aDataStr) {
       nsAutoString entryuri;
       
       if (gTextToSubURI) {
-        PRUnichar   *result = nullptr;
+        char16_t   *result = nullptr;
         if (NS_SUCCEEDED(rv = gTextToSubURI->UnEscapeAndConvert(mEncoding.get(), filename.get(),
                                                                 &result)) && (result)) {
           if (*result) {
@@ -305,7 +284,7 @@ nsDirIndexParser::ParseData(nsIDirIndex *aIdx, char* aDataStr) {
         if (status == 1)
           aIdx->SetSize(len);
         else
-          aIdx->SetSize(LL_MAXUINT); // LL_MAXUINT means unknown
+          aIdx->SetSize(UINT64_MAX); // UINT64_MAX means unknown
       }
       break;
     case FIELD_LASTMODIFIED:
@@ -345,7 +324,7 @@ nsDirIndexParser::ParseData(nsIDirIndex *aIdx, char* aDataStr) {
 NS_IMETHODIMP
 nsDirIndexParser::OnDataAvailable(nsIRequest *aRequest, nsISupports *aCtxt,
                                   nsIInputStream *aStream,
-                                  uint32_t aSourceOffset,
+                                  uint64_t aSourceOffset,
                                   uint32_t aCount) {
   if (aCount < 1)
     return NS_OK;
@@ -354,7 +333,7 @@ nsDirIndexParser::OnDataAvailable(nsIRequest *aRequest, nsISupports *aCtxt,
   
   // Ensure that our mBuf has capacity to hold the data we're about to
   // read.
-  if (!EnsureStringLength(mBuf, len + aCount))
+  if (!mBuf.SetLength(len + aCount, fallible_t()))
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Now read the data into our buffer.
@@ -383,7 +362,7 @@ nsDirIndexParser::ProcessData(nsIRequest *aRequest, nsISupports *aCtxt) {
     
     int32_t             eol = mBuf.FindCharInSet("\n\r", mLineStart);
     if (eol < 0)        break;
-    mBuf.SetCharAt(PRUnichar('\0'), eol);
+    mBuf.SetCharAt(char16_t('\0'), eol);
     
     const char  *line = mBuf.get() + mLineStart;
     

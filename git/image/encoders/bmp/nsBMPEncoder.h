@@ -25,16 +25,18 @@ class nsBMPEncoder MOZ_FINAL : public imgIEncoder
 {
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_IMGIENCODER
   NS_DECL_NSIINPUTSTREAM
   NS_DECL_NSIASYNCINPUTSTREAM
 
   nsBMPEncoder();
-  ~nsBMPEncoder();
 
 protected:
-  enum Version {
+  ~nsBMPEncoder();
+
+  enum Version
+  {
       VERSION_3 = 3,
       VERSION_5 = 5
   };
@@ -69,7 +71,7 @@ protected:
     return static_cast<int32_t>(mImageBufferCurr - mImageBufferStart);
   }
 
-  // These headers will always contain endian independent stuff 
+  // These headers will always contain endian independent stuff
   // They store the BMP headers which will be encoded
   mozilla::image::BMPFILEHEADER mBMPFileHeader;
   mozilla::image::BITMAPV5HEADER mBMPInfoHeader;

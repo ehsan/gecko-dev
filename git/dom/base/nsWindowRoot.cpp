@@ -3,29 +3,33 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/BasicEvents.h"
+#include "mozilla/EventDispatcher.h"
+#include "mozilla/EventListenerManager.h"
+#include "mozilla/dom/WindowRootBinding.h"
 #include "nsCOMPtr.h"
 #include "nsWindowRoot.h"
 #include "nsPIDOMWindow.h"
-#include "nsEventListenerManager.h"
 #include "nsPresContext.h"
 #include "nsLayoutCID.h"
 #include "nsContentCID.h"
 #include "nsString.h"
-#include "nsEventDispatcher.h"
-#include "nsGUIEvent.h"
 #include "nsGlobalWindow.h"
 #include "nsFocusManager.h"
+#include "nsIContent.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIControllers.h"
-
+#include "nsIController.h"
+#include "xpcpublic.h"
 #include "nsCycleCollectionParticipant.h"
 
 #ifdef MOZ_XUL
 #include "nsIDOMXULElement.h"
 #endif
 
-static NS_DEFINE_CID(kEventListenerManagerCID,    NS_EVENTLISTENERMANAGER_CID);
+using namespace mozilla;
+using namespace mozilla::dom;
 
 nsWindowRoot::nsWindowRoot(nsPIDOMWindow* aWindow)
 {
@@ -39,25 +43,18 @@ nsWindowRoot::~nsWindowRoot()
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsWindowRoot)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsWindowRoot)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mListenerManager,
-                                                  nsEventListenerManager)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPopupNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParent)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsWindowRoot)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mListenerManager)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPopupNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParent)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(nsWindowRoot,
+                                      mWindow,
+                                      mListenerManager,
+                                      mPopupNode,
+                                      mParent)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsWindowRoot)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMEventTarget)
   NS_INTERFACE_MAP_ENTRY(nsPIWindowRoot)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
+  NS_INTERFACE_MAP_ENTRY(mozilla::dom::EventTarget)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsWindowRoot)
@@ -68,8 +65,7 @@ NS_IMPL_DOMTARGET_DEFAULTS(nsWindowRoot)
 NS_IMETHODIMP
 nsWindowRoot::RemoveEventListener(const nsAString& aType, nsIDOMEventListener* aListener, bool aUseCapture)
 {
-  nsRefPtr<nsEventListenerManager> elm = GetListenerManager(false);
-  if (elm) {
+  if (nsRefPtr<EventListenerManager> elm = GetExistingListenerManager()) {
     elm->RemoveEventListener(aType, aListener, aUseCapture);
   }
   return NS_OK;
@@ -81,21 +77,21 @@ NS_IMETHODIMP
 nsWindowRoot::DispatchEvent(nsIDOMEvent* aEvt, bool *aRetVal)
 {
   nsEventStatus status = nsEventStatus_eIgnore;
-  nsresult rv =  nsEventDispatcher::DispatchDOMEvent(
-    static_cast<nsIDOMEventTarget*>(this), nullptr, aEvt, nullptr, &status);
+  nsresult rv =  EventDispatcher::DispatchDOMEvent(
+    static_cast<EventTarget*>(this), nullptr, aEvt, nullptr, &status);
   *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
   return rv;
 }
 
 nsresult
-nsWindowRoot::DispatchDOMEvent(nsEvent* aEvent,
+nsWindowRoot::DispatchDOMEvent(WidgetEvent* aEvent,
                                nsIDOMEvent* aDOMEvent,
                                nsPresContext* aPresContext,
                                nsEventStatus* aEventStatus)
 {
-  return nsEventDispatcher::DispatchDOMEvent(static_cast<nsIDOMEventTarget*>(this),
-                                             aEvent, aDOMEvent,
-                                             aPresContext, aEventStatus);
+  return EventDispatcher::DispatchDOMEvent(static_cast<EventTarget*>(this),
+                                           aEvent, aDOMEvent,
+                                           aPresContext, aEventStatus);
 }
 
 NS_IMETHODIMP
@@ -109,11 +105,28 @@ nsWindowRoot::AddEventListener(const nsAString& aType,
                "aWantsUntrusted to false or make the aWantsUntrusted "
                "explicit by making optional_argc non-zero.");
 
-  nsEventListenerManager* elm = GetListenerManager(true);
+  EventListenerManager* elm = GetOrCreateListenerManager();
   NS_ENSURE_STATE(elm);
   elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
   return NS_OK;
 }
+
+void
+nsWindowRoot::AddEventListener(const nsAString& aType,
+                                EventListener* aListener,
+                                bool aUseCapture,
+                                const Nullable<bool>& aWantsUntrusted,
+                                ErrorResult& aRv)
+{
+  bool wantsUntrusted = !aWantsUntrusted.IsNull() && aWantsUntrusted.Value();
+  EventListenerManager* elm = GetOrCreateListenerManager();
+  if (!elm) {
+    aRv.Throw(NS_ERROR_UNEXPECTED);
+    return;
+  }
+  elm->AddEventListener(aType, aListener, aUseCapture, wantsUntrusted);
+}
+
 
 NS_IMETHODIMP
 nsWindowRoot::AddSystemEventListener(const nsAString& aType,
@@ -131,14 +144,20 @@ nsWindowRoot::AddSystemEventListener(const nsAString& aType,
                                    aWantsUntrusted);
 }
 
-nsEventListenerManager*
-nsWindowRoot::GetListenerManager(bool aCreateIfNotFound)
+EventListenerManager*
+nsWindowRoot::GetOrCreateListenerManager()
 {
-  if (!mListenerManager && aCreateIfNotFound) {
+  if (!mListenerManager) {
     mListenerManager =
-      new nsEventListenerManager(static_cast<nsIDOMEventTarget*>(this));
+      new EventListenerManager(static_cast<EventTarget*>(this));
   }
 
+  return mListenerManager;
+}
+
+EventListenerManager*
+nsWindowRoot::GetExistingListenerManager() const
+{
   return mListenerManager;
 }
 
@@ -150,7 +169,7 @@ nsWindowRoot::GetContextForEventHandlers(nsresult* aRv)
 }
 
 nsresult
-nsWindowRoot::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
+nsWindowRoot::PreHandleEvent(EventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = true;
   aVisitor.mForceContentDispatch = true; //FIXME! Bug 329119
@@ -161,9 +180,15 @@ nsWindowRoot::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 }
 
 nsresult
-nsWindowRoot::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
+nsWindowRoot::PostHandleEvent(EventChainPostVisitor& aVisitor)
 {
   return NS_OK;
+}
+
+nsIDOMWindow*
+nsWindowRoot::GetOwnerGlobal()
+{
+  return GetWindow();
 }
 
 nsPIDOMWindow*
@@ -268,12 +293,23 @@ nsWindowRoot::SetPopupNode(nsIDOMNode* aNode)
   mPopupNode = aNode;
 }
 
+nsIGlobalObject*
+nsWindowRoot::GetParentObject()
+{
+  return xpc::NativeGlobal(xpc::PrivilegedJunkScope());
+}
+
+JSObject*
+nsWindowRoot::WrapObject(JSContext* aCx)
+{
+  return mozilla::dom::WindowRootBinding::Wrap(aCx, this);
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 
-nsresult
-NS_NewWindowRoot(nsPIDOMWindow* aWindow, nsIDOMEventTarget** aResult)
+already_AddRefed<EventTarget>
+NS_NewWindowRoot(nsPIDOMWindow* aWindow)
 {
-  *aResult = new nsWindowRoot(aWindow);
-  NS_ADDREF(*aResult);
-  return NS_OK;
+  nsCOMPtr<EventTarget> result = new nsWindowRoot(aWindow);
+  return result.forget();
 }

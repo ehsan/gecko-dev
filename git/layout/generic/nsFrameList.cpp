@@ -4,43 +4,36 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsFrameList.h"
-#include "nsIFrame.h"
+#include "nsContainerFrame.h"
 #include "nsLayoutUtils.h"
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 
-#ifdef IBMBIDI
-#include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
 #include "nsILineIterator.h"
 #include "nsBidiPresUtils.h"
-#endif // IBMBIDI
 
-const nsFrameList* nsFrameList::sEmptyList;
+namespace mozilla {
+namespace layout {
+namespace detail {
+const AlignedFrameListBytes gEmptyFrameListBytes = { 0 };
+}
+}
+}
 
-/* static */
-void
-nsFrameList::Init()
+void*
+nsFrameList::operator new(size_t sz, nsIPresShell* aPresShell) CPP_THROW_NEW
 {
-  NS_PRECONDITION(!sEmptyList, "Shouldn't be allocated");
-
-  sEmptyList = new nsFrameList();
+  return aPresShell->AllocateByObjectID(nsPresArena::nsFrameList_id, sz);
 }
 
 void
-nsFrameList::Destroy()
+nsFrameList::Delete(nsIPresShell* aPresShell)
 {
-  NS_PRECONDITION(this != sEmptyList, "Shouldn't Destroy() sEmptyList");
+  NS_PRECONDITION(this != &EmptyList(), "Shouldn't Delete() this list");
+  NS_ASSERTION(IsEmpty(), "Shouldn't Delete() a non-empty list");
 
-  DestroyFrames();
-  delete this;
-}
-
-void
-nsFrameList::DestroyFrom(nsIFrame* aDestructRoot)
-{
-  NS_PRECONDITION(this != sEmptyList, "Shouldn't Destroy() sEmptyList");
-
-  DestroyFramesFrom(aDestructRoot);
-  delete this;
+  aPresShell->FreeByObjectID(nsPresArena::nsFrameList_id, this);
 }
 
 void
@@ -101,20 +94,6 @@ nsFrameList::RemoveFrame(nsIFrame* aFrame)
   }
 }
 
-bool
-nsFrameList::RemoveFrameIfPresent(nsIFrame* aFrame)
-{
-  NS_PRECONDITION(aFrame, "null ptr");
-
-  for (Enumerator e(*this); !e.AtEnd(); e.Next()) {
-    if (e.get() == aFrame) {
-      RemoveFrame(aFrame);
-      return true;
-    }
-  }
-  return false;
-}
-
 nsFrameList
 nsFrameList::RemoveFramesAfter(nsIFrame* aAfterFrame)
 {
@@ -156,20 +135,8 @@ nsFrameList::DestroyFrame(nsIFrame* aFrame)
   aFrame->Destroy();
 }
 
-bool
-nsFrameList::DestroyFrameIfPresent(nsIFrame* aFrame)
-{
-  NS_PRECONDITION(aFrame, "null ptr");
-
-  if (RemoveFrameIfPresent(aFrame)) {
-    aFrame->Destroy();
-    return true;
-  }
-  return false;
-}
-
 nsFrameList::Slice
-nsFrameList::InsertFrames(nsIFrame* aParent, nsIFrame* aPrevSibling,
+nsFrameList::InsertFrames(nsContainerFrame* aParent, nsIFrame* aPrevSibling,
                           nsFrameList& aFrameList)
 {
   NS_PRECONDITION(aFrameList.NotEmpty(), "Unexpected empty list");
@@ -342,7 +309,7 @@ nsFrameList::GetLength() const
 }
 
 void
-nsFrameList::ApplySetParent(nsIFrame* aParent) const
+nsFrameList::ApplySetParent(nsContainerFrame* aParent) const
 {
   NS_ASSERTION(aParent, "null ptr");
 
@@ -351,50 +318,59 @@ nsFrameList::ApplySetParent(nsIFrame* aParent) const
   }
 }
 
-#ifdef DEBUG
+/* static */ void
+nsFrameList::UnhookFrameFromSiblings(nsIFrame* aFrame)
+{
+  MOZ_ASSERT(aFrame->GetPrevSibling() && aFrame->GetNextSibling());
+  nsIFrame* const nextSibling = aFrame->GetNextSibling();
+  nsIFrame* const prevSibling = aFrame->GetPrevSibling();
+  aFrame->SetNextSibling(nullptr);
+  prevSibling->SetNextSibling(nextSibling);
+  MOZ_ASSERT(!aFrame->GetPrevSibling() && !aFrame->GetNextSibling());
+}
+
+#ifdef DEBUG_FRAME_DUMP
 void
 nsFrameList::List(FILE* out) const
 {
-  fputs("<\n", out);
+  fprintf_stderr(out, "<\n");
   for (nsIFrame* frame = mFirstChild; frame;
        frame = frame->GetNextSibling()) {
-    frame->List(out, 1);
+    frame->List(out, "  ");
   }
-  fputs(">\n", out);
+  fprintf_stderr(out, ">\n");
 }
 #endif
 
-#ifdef IBMBIDI
 nsIFrame*
 nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 {
   if (!mFirstChild)
     return nullptr;
-  
+
   nsIFrame* parent = mFirstChild->GetParent();
   if (!parent)
     return aFrame ? aFrame->GetPrevSibling() : LastChild();
 
-  nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);  
+  nsBidiDirection paraDir = nsBidiPresUtils::ParagraphDirection(mFirstChild);
 
   nsAutoLineIterator iter = parent->GetLineIterator();
-  if (!iter) { 
+  if (!iter) {
     // Parent is not a block Frame
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
-      if (baseLevel == NSBIDI_LTR) {
+      if (paraDir == NSBIDI_LTR) {
         return nsBidiPresUtils::GetFrameToLeftOf(aFrame, mFirstChild, -1);
       } else { // RTL
         return nsBidiPresUtils::GetFrameToRightOf(aFrame, mFirstChild, -1);
       }
     } else {
       // Just get the next or prev sibling, depending on block and frame direction.
-      nsBidiLevel frameEmbeddingLevel = nsBidiPresUtils::GetFrameEmbeddingLevel(mFirstChild);
-      if ((frameEmbeddingLevel & 1) == (baseLevel & 1)) {
+      if (nsBidiPresUtils::IsFrameInParagraphDirection(mFirstChild)) {
         return aFrame ? aFrame->GetPrevSibling() : LastChild();
       } else {
         return aFrame ? aFrame->GetNextSibling() : mFirstChild;
-      }    
+      }
     }
   }
 
@@ -419,7 +395,7 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
   if (aFrame) {
     iter->GetLine(thisLine, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
 
-    if (baseLevel == NSBIDI_LTR) {
+    if (paraDir == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToLeftOf(aFrame, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
       frame = nsBidiPresUtils::GetFrameToRightOf(aFrame, firstFrameOnLine, numFramesOnLine);
@@ -430,7 +406,7 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
     // Get the last frame of the previous line
     iter->GetLine(thisLine - 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
 
-    if (baseLevel == NSBIDI_LTR) {
+    if (paraDir == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToLeftOf(nullptr, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
       frame = nsBidiPresUtils::GetFrameToRightOf(nullptr, firstFrameOnLine, numFramesOnLine);
@@ -449,22 +425,21 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   if (!parent)
     return aFrame ? aFrame->GetPrevSibling() : mFirstChild;
 
-  nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);
-  
+  nsBidiDirection paraDir = nsBidiPresUtils::ParagraphDirection(mFirstChild);
+
   nsAutoLineIterator iter = parent->GetLineIterator();
   if (!iter) { 
     // Parent is not a block Frame
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
-      if (baseLevel == NSBIDI_LTR) {
+      if (paraDir == NSBIDI_LTR) {
         return nsBidiPresUtils::GetFrameToRightOf(aFrame, mFirstChild, -1);
       } else { // RTL
         return nsBidiPresUtils::GetFrameToLeftOf(aFrame, mFirstChild, -1);
       }
     } else {
       // Just get the next or prev sibling, depending on block and frame direction.
-      nsBidiLevel frameEmbeddingLevel = nsBidiPresUtils::GetFrameEmbeddingLevel(mFirstChild);
-      if ((frameEmbeddingLevel & 1) == (baseLevel & 1)) {
+      if (nsBidiPresUtils::IsFrameInParagraphDirection(mFirstChild)) {
         return aFrame ? aFrame->GetNextSibling() : mFirstChild;
       } else {
         return aFrame ? aFrame->GetPrevSibling() : LastChild();
@@ -492,20 +467,20 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
 
   if (aFrame) {
     iter->GetLine(thisLine, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
-    
-    if (baseLevel == NSBIDI_LTR) {
+
+    if (paraDir == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToRightOf(aFrame, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
       frame = nsBidiPresUtils::GetFrameToLeftOf(aFrame, firstFrameOnLine, numFramesOnLine);
     }
   }
-  
+
   int32_t numLines = iter->GetNumLines();
   if (!frame && thisLine < numLines - 1) {
     // Get the first frame of the next line
     iter->GetLine(thisLine + 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
-    
-    if (baseLevel == NSBIDI_LTR) {
+
+    if (paraDir == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToRightOf(nullptr, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
       frame = nsBidiPresUtils::GetFrameToLeftOf(nullptr, firstFrameOnLine, numFramesOnLine);
@@ -513,7 +488,6 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   }
   return frame;
 }
-#endif
 
 #ifdef DEBUG_FRAME_LIST
 void
@@ -559,3 +533,16 @@ nsFrameList::VerifyList() const
   // prevents that, e.g. table captions.
 }
 #endif
+
+namespace mozilla {
+namespace layout {
+
+AutoFrameListPtr::~AutoFrameListPtr()
+{
+  if (mFrameList) {
+    mFrameList->Delete(mPresContext->PresShell());
+  }
+}
+
+}
+}

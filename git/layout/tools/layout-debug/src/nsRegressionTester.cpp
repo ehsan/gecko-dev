@@ -9,10 +9,6 @@
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsIWindowWatcher.h"
-#include "nsVoidArray.h"
-#include "prmem.h"
-#include "nsIDocShellTreeItem.h"
-#include "nsIDocShellTreeNode.h"
 #include "nsPIDOMWindow.h"
 #include "nsIPresShell.h"
 #include "nsIURI.h"
@@ -26,8 +22,8 @@
 #include "nsLayoutCID.h"
 #include "nsNetUtil.h"
 #include "nsIFile.h"
-#include "nsIViewManager.h"
-#include "nsIView.h"
+#include "nsViewManager.h"
+#include "nsView.h"
 
 
 
@@ -42,7 +38,7 @@ nsRegressionTester::~nsRegressionTester()
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsRegressionTester, nsILayoutRegressionTester)
+NS_IMPL_ISUPPORTS(nsRegressionTester, nsILayoutRegressionTester)
 
 NS_IMETHODIMP
 nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump,
@@ -75,8 +71,7 @@ nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump,
     return NS_OK;
   }
 
-  nsCOMPtr<nsIPresShell> presShell;
-  docShell->GetPresShell(getter_AddRefs(presShell));
+  nsCOMPtr<nsIPresShell> presShell = docShell->GetPresShell();
 
   nsIFrame* root = presShell->GetRootFrame();
 

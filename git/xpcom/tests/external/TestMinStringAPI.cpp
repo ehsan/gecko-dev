@@ -11,7 +11,7 @@
 
 static const char kAsciiData[] = "Hello World";
 
-static const PRUnichar kUnicodeData[] =
+static const char16_t kUnicodeData[] =
   {'H','e','l','l','o',' ','W','o','r','l','d','\0'};
 
 static bool test_basic_1()
@@ -30,7 +30,7 @@ static bool test_basic_1()
         return false;
       }
 
-    NS_CStringSetData(s, kAsciiData, PR_UINT32_MAX);
+    NS_CStringSetData(s, kAsciiData, UINT32_MAX);
     len = NS_CStringGetData(s, &ptr);
     if (ptr == nullptr || strcmp(ptr, kAsciiData) != 0)
       {
@@ -78,9 +78,9 @@ static bool test_basic_2()
     nsStringContainer s;
     NS_StringContainerInit(s);
 
-    const PRUnichar *ptr;
+    const char16_t *ptr;
     uint32_t len;
-    PRUnichar *clone;
+    char16_t *clone;
 
     NS_StringGetData(s, &ptr);
     if (ptr == nullptr || *ptr != '\0')
@@ -89,7 +89,7 @@ static bool test_basic_2()
         return false;
       }
 
-    NS_StringSetData(s, kUnicodeData, PR_UINT32_MAX);
+    NS_StringSetData(s, kUnicodeData, UINT32_MAX);
     len = NS_StringGetData(s, &ptr);
     if (len != sizeof(kUnicodeData)/2 - 1)
       {
@@ -177,12 +177,12 @@ static void ReplaceSubstring( nsACString& str,
                               const nsACString& matchVal,
                               const nsACString& newVal )
   {
-    const char* sp, *mp, *np;
-    uint32_t sl, ml, nl;
-
-    sl = NS_CStringGetData(str, &sp);
-    ml = NS_CStringGetData(matchVal, &mp);
-    nl = NS_CStringGetData(newVal, &np);
+    const char* sp;
+    const char* mp;
+    const char* np;
+    uint32_t sl = NS_CStringGetData(str, &sp);
+    uint32_t ml = NS_CStringGetData(matchVal, &mp);
+    uint32_t nl = NS_CStringGetData(newVal, &np);
 
     for (const char* iter = sp; iter <= sp + sl - ml; ++iter)
       {
@@ -361,7 +361,7 @@ static bool test_adopt()
 
     nsCStringContainer s;
     NS_ENSURE_SUCCESS(
-        NS_CStringContainerInit2(s, data, PR_UINT32_MAX,
+        NS_CStringContainerInit2(s, data, UINT32_MAX,
                                  NS_CSTRING_CONTAINER_INIT_ADOPT),
         false); // leaks data on failure *shrug*
 
@@ -480,12 +480,12 @@ static bool test_stripchars()
 {
   nsCString test(kAsciiData);
   test.StripChars("ld");
-  if (!test.Equals("Heo Wor"))
+  if (!test.EqualsLiteral("Heo Wor"))
     return false;
 
   test.Assign(kAsciiData);
   test.StripWhitespace();
-  if (!test.Equals("HelloWorld"))
+  if (!test.EqualsLiteral("HelloWorld"))
     return false;
 
   return true;
@@ -504,13 +504,13 @@ static bool test_trim()
   test2.Trim(kWS, true, false);
   test3.Trim(kWS, false, true);
 
-  if (!test1.Equals("Testing..."))
+  if (!test1.EqualsLiteral("Testing..."))
     return false;
 
-  if (!test2.Equals("Testing...\n\r"))
+  if (!test2.EqualsLiteral("Testing...\n\r"))
     return false;
 
-  if (!test3.Equals(" \n\tTesting..."))
+  if (!test3.EqualsLiteral(" \n\tTesting..."))
     return false;
 
   return true;
@@ -557,7 +557,7 @@ static bool test_compressws()
 {
   nsString check(NS_LITERAL_STRING(" \tTesting  \n\t1\n 2 3\n "));
   CompressWhitespace(check);
-  return check.Equals(NS_LITERAL_STRING("Testing 1 2 3"));
+  return check.EqualsLiteral("Testing 1 2 3");
 }
 
 static bool test_comparisons()

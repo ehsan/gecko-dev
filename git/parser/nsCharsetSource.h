@@ -7,8 +7,8 @@
 
 // note: the value order defines the priority; higher numbers take priority
 #define kCharsetUninitialized           0
-#define kCharsetFromWeakDocTypeDefault  1
-#define kCharsetFromUserDefault         2
+#define kCharsetFromFallback            1
+#define kCharsetFromTopLevelDomain      2
 #define kCharsetFromDocTypeDefault      3 // This and up confident for XHR
 #define kCharsetFromCache               4
 #define kCharsetFromParentFrame         5
@@ -17,12 +17,10 @@
 #define kCharsetFromMetaPrescan         8 // this one and smaller: HTML5 Tentative
 #define kCharsetFromMetaTag             9 // this one and greater: HTML5 Confident
 #define kCharsetFromIrreversibleAutoDetection 10
-#define kCharsetFromByteOrderMark      11
-#define kCharsetFromChannel            12
-#define kCharsetFromOtherComponent     13
-// Levels below here will be forced onto childframes too
-#define kCharsetFromParentForced       14
-#define kCharsetFromUserForced         15
-#define kCharsetFromPreviousLoading    16
+#define kCharsetFromChannel            11
+#define kCharsetFromOtherComponent     12
+#define kCharsetFromParentForced       13 // propagates to child frames
+#define kCharsetFromUserForced         14 // propagates to child frames
+#define kCharsetFromByteOrderMark      15
 
 #endif /* nsCharsetSource_h_ */

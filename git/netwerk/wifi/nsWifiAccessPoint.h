@@ -7,6 +7,7 @@
 
 #include "nsString.h"
 #include "nsCOMArray.h"
+#include "mozilla/ArrayUtils.h" // ArrayLength
 #include "mozilla/Attributes.h"
 
 #ifndef __nsWifiAccessPoint__
@@ -14,12 +15,13 @@
 
 class nsWifiAccessPoint MOZ_FINAL : public nsIWifiAccessPoint
 {
+  ~nsWifiAccessPoint();
+
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIWIFIACCESSPOINT
 
   nsWifiAccessPoint();
-  ~nsWifiAccessPoint();
 
   char mMac[18];
   int  mSignal;
@@ -29,6 +31,11 @@ public:
   void setSignal(int signal)
   {
     mSignal = signal;
+  }
+
+  void setMacRaw(const char* aString)
+  {
+    memcpy(mMac, aString, mozilla::ArrayLength(mMac));
   }
 
   void setMac(const unsigned char mac_as_int[6])
@@ -48,6 +55,11 @@ public:
             mac_as_int[3], mac_as_int[4], mac_as_int[5]);
 
     mMac[17] = 0;
+  }
+
+  void setSSIDRaw(const char* aSSID, unsigned long len) {
+    memcpy(mSsid, aSSID, mozilla::ArrayLength(mSsid));
+    mSsidLen = PR_MIN(len, mozilla::ArrayLength(mSsid));
   }
 
   void setSSID(const char* aSSID, unsigned long len) {

@@ -4,14 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "nsCOMPtr.h"
-#include "nsCRT.h"  // to get NS_IS_SPACE
-#include "nsFrame.h"
-#include "nsPresContext.h"
-#include "nsStyleContext.h"
-#include "nsStyleConsts.h"
-
 #include "nsMathMLmpaddedFrame.h"
+#include "nsMathMLElement.h"
+#include "mozilla/gfx/2D.h"
+#include <algorithm>
 
 //
 // <mpadded> -- adjust space around content - implementation
@@ -67,52 +63,51 @@ nsMathMLmpaddedFrame::ProcessAttributes()
 
   nsAutoString value;
 
-  /* The REC says:
-  There is one exceptional element, <mpadded>, whose attributes cannot be 
-  set with <mstyle>. When the attributes width, height and depth are specified
-  on an <mstyle> element, they apply only to the <mspace/> element. Similarly, 
-  when lspace is set with <mstyle>, it applies only to the <mo> element. To be
-  consistent, the voffset attribute of the mpadded element can not be set on
-  mstyle. 
-  */
-
-  // See if attributes are local, don't access mstyle !
-
   // width
   mWidthSign = NS_MATHML_SIGN_INVALID;
-  GetAttribute(mContent, nullptr, nsGkAtoms::width, value);
+  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::width, value);
   if (!value.IsEmpty()) {
-    ParseAttribute(value, mWidthSign, mWidth, mWidthPseudoUnit);
+    if (!ParseAttribute(value, mWidthSign, mWidth, mWidthPseudoUnit)) {      
+      ReportParseError(nsGkAtoms::width->GetUTF16String(), value.get());
+    }
   }
 
   // height
   mHeightSign = NS_MATHML_SIGN_INVALID;
-  GetAttribute(mContent, nullptr, nsGkAtoms::height, value);
+  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::height, value);
   if (!value.IsEmpty()) {
-    ParseAttribute(value, mHeightSign, mHeight, mHeightPseudoUnit);
+    if (!ParseAttribute(value, mHeightSign, mHeight, mHeightPseudoUnit)) {
+      ReportParseError(nsGkAtoms::height->GetUTF16String(), value.get());
+    }
   }
 
   // depth
   mDepthSign = NS_MATHML_SIGN_INVALID;
-  GetAttribute(mContent, nullptr, nsGkAtoms::depth_, value);
+  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::depth_, value);
   if (!value.IsEmpty()) {
-    ParseAttribute(value, mDepthSign, mDepth, mDepthPseudoUnit);
+    if (!ParseAttribute(value, mDepthSign, mDepth, mDepthPseudoUnit)) {
+      ReportParseError(nsGkAtoms::depth_->GetUTF16String(), value.get());
+    }
   }
 
   // lspace
   mLeadingSpaceSign = NS_MATHML_SIGN_INVALID;
-  GetAttribute(mContent, nullptr, nsGkAtoms::lspace_, value);
+  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::lspace_, value);
   if (!value.IsEmpty()) {
-    ParseAttribute(value, mLeadingSpaceSign, mLeadingSpace,
-                   mLeadingSpacePseudoUnit);
+    if (!ParseAttribute(value, mLeadingSpaceSign, mLeadingSpace, 
+                        mLeadingSpacePseudoUnit)) {
+      ReportParseError(nsGkAtoms::lspace_->GetUTF16String(), value.get());
+    }
   }
 
   // voffset
   mVerticalOffsetSign = NS_MATHML_SIGN_INVALID;
-  GetAttribute(mContent, nullptr, nsGkAtoms::voffset_, value);
+  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::voffset_, value);
   if (!value.IsEmpty()) {
-    ParseAttribute(value, mVerticalOffsetSign, mVerticalOffset, 
-                   mVerticalOffsetPseudoUnit);
+    if (!ParseAttribute(value, mVerticalOffsetSign, mVerticalOffset,
+                        mVerticalOffsetPseudoUnit)) {
+      ReportParseError(nsGkAtoms::voffset_->GetUTF16String(), value.get());
+    }
   }
   
 }
@@ -155,7 +150,7 @@ nsMathMLmpaddedFrame::ParseAttribute(nsString&   aString,
   // get the number
   bool gotDot = false, gotPercent = false;
   for (; i < stringLength; i++) {
-    PRUnichar c = aString[i];
+    char16_t c = aString[i];
     if (gotDot && c == '.') {
       // error - two dots encountered
       aSign = NS_MATHML_SIGN_INVALID;
@@ -174,10 +169,6 @@ nsMathMLmpaddedFrame::ParseAttribute(nsString&   aString,
   // floatValue = 1, to cater for cases such as width="height", but that wouldn't
   // be in line with the spec which requires an explicit number
   if (number.IsEmpty()) {
-#ifdef DEBUG
-    printf("mpadded: attribute with bad numeric value: %s\n",
-            NS_LossyConvertUTF16toASCII(aString).get());
-#endif
     aSign = NS_MATHML_SIGN_INVALID;
     return false;
   }
@@ -234,7 +225,9 @@ nsMathMLmpaddedFrame::ParseAttribute(nsString&   aString,
     // We are not supposed to have a unitless, percent, negative or namedspace
     // value here.
     number.Append(unit); // leave the sign out if it was there
-    if (nsMathMLElement::ParseNumericValue(number, aCSSValue, 0))
+    if (nsMathMLElement::ParseNumericValue(number, aCSSValue, 
+                                           nsMathMLElement::
+                                           PARSE_SUPPRESS_WARNINGS, nullptr))
       return true;
   }
 
@@ -262,8 +255,9 @@ void
 nsMathMLmpaddedFrame::UpdateValue(int32_t                  aSign,
                                   int32_t                  aPseudoUnit,
                                   const nsCSSValue&        aCSSValue,
-                                  const nsBoundingMetrics& aBoundingMetrics,
-                                  nscoord&                 aValueToUpdate) const
+                                  const nsHTMLReflowMetrics& aDesiredSize,
+                                  nscoord&                 aValueToUpdate,
+                                  float                aFontSizeInflation) const
 {
   nsCSSUnit unit = aCSSValue.GetUnit();
   if (NS_MATHML_SIGN_INVALID != aSign && eCSSUnit_Null != unit) {
@@ -272,15 +266,15 @@ nsMathMLmpaddedFrame::UpdateValue(int32_t                  aSign,
     if (eCSSUnit_Percent == unit || eCSSUnit_Number == unit) {
       switch(aPseudoUnit) {
         case NS_MATHML_PSEUDO_UNIT_WIDTH:
-             scaler = aBoundingMetrics.width;
+             scaler = aDesiredSize.Width();
              break;
 
         case NS_MATHML_PSEUDO_UNIT_HEIGHT:
-             scaler = aBoundingMetrics.ascent;
+             scaler = aDesiredSize.BlockStartAscent();
              break;
 
         case NS_MATHML_PSEUDO_UNIT_DEPTH:
-             scaler = aBoundingMetrics.descent;
+             scaler = aDesiredSize.Height() - aDesiredSize.BlockStartAscent();
              break;
 
         default:
@@ -296,7 +290,8 @@ nsMathMLmpaddedFrame::UpdateValue(int32_t                  aSign,
     else if (eCSSUnit_Percent == unit)
       amount = NSToCoordRound(float(scaler) * aCSSValue.GetPercentValue());
     else
-      amount = CalcLength(PresContext(), mStyleContext, aCSSValue);
+      amount = CalcLength(PresContext(), mStyleContext, aCSSValue,
+                          aFontSizeInflation);
 
     if (NS_MATHML_SIGN_PLUS == aSign)
       aValueToUpdate += amount;
@@ -307,7 +302,7 @@ nsMathMLmpaddedFrame::UpdateValue(int32_t                  aSign,
   }
 }
 
-NS_IMETHODIMP
+void
 nsMathMLmpaddedFrame::Reflow(nsPresContext*          aPresContext,
                              nsHTMLReflowMetrics&     aDesiredSize,
                              const nsHTMLReflowState& aReflowState,
@@ -317,10 +312,9 @@ nsMathMLmpaddedFrame::Reflow(nsPresContext*          aPresContext,
 
   ///////////////
   // Let the base class format our content like an inferred mrow
-  nsresult rv = nsMathMLContainerFrame::Reflow(aPresContext, aDesiredSize,
-                                               aReflowState, aStatus);
+  nsMathMLContainerFrame::Reflow(aPresContext, aDesiredSize,
+                                 aReflowState, aStatus);
   //NS_ASSERTION(NS_FRAME_IS_COMPLETE(aStatus), "bad status");
-  return rv;
 }
 
 /* virtual */ nsresult
@@ -335,8 +329,8 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
     return rv;
   }
 
-  nscoord height = mBoundingMetrics.ascent;
-  nscoord depth  = mBoundingMetrics.descent;
+  nscoord height = aDesiredSize.BlockStartAscent();
+  nscoord depth  = aDesiredSize.Height() - aDesiredSize.BlockStartAscent();
   // The REC says:
   //
   // "The lspace attribute ('leading' space) specifies the horizontal location
@@ -362,45 +356,46 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
   // refer "to the horizontal distance between the positioning point of the
   // mpadded and the positioning point for the following content".  MathML2
   // doesn't make the distinction.
-  nscoord width  = mBoundingMetrics.width;
+  nscoord width  = aDesiredSize.Width();
   nscoord voffset = 0;
 
   int32_t pseudoUnit;
   nscoord initialWidth = width;
+  float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(this);
 
   // update width
   pseudoUnit = (mWidthPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
              ? NS_MATHML_PSEUDO_UNIT_WIDTH : mWidthPseudoUnit;
   UpdateValue(mWidthSign, pseudoUnit, mWidth,
-              mBoundingMetrics, width);
-  width = NS_MAX(0, width);
+              aDesiredSize, width, fontSizeInflation);
+  width = std::max(0, width);
 
   // update "height" (this is the ascent in the terminology of the REC)
   pseudoUnit = (mHeightPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
              ? NS_MATHML_PSEUDO_UNIT_HEIGHT : mHeightPseudoUnit;
   UpdateValue(mHeightSign, pseudoUnit, mHeight,
-              mBoundingMetrics, height);
-  height = NS_MAX(0, height);
+              aDesiredSize, height, fontSizeInflation);
+  height = std::max(0, height);
 
   // update "depth" (this is the descent in the terminology of the REC)
   pseudoUnit = (mDepthPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
              ? NS_MATHML_PSEUDO_UNIT_DEPTH : mDepthPseudoUnit;
   UpdateValue(mDepthSign, pseudoUnit, mDepth,
-              mBoundingMetrics, depth);
-  depth = NS_MAX(0, depth);
+              aDesiredSize, depth, fontSizeInflation);
+  depth = std::max(0, depth);
 
   // update lspace
   if (mLeadingSpacePseudoUnit != NS_MATHML_PSEUDO_UNIT_ITSELF) {
     pseudoUnit = mLeadingSpacePseudoUnit;
     UpdateValue(mLeadingSpaceSign, pseudoUnit, mLeadingSpace,
-                mBoundingMetrics, lspace);
+                aDesiredSize, lspace, fontSizeInflation);
   }
 
   // update voffset
   if (mVerticalOffsetPseudoUnit != NS_MATHML_PSEUDO_UNIT_ITSELF) {
     pseudoUnit = mVerticalOffsetPseudoUnit;
     UpdateValue(mVerticalOffsetSign, pseudoUnit, mVerticalOffset,
-                mBoundingMetrics, voffset);
+                aDesiredSize, voffset, fontSizeInflation);
   }
   // do the padding now that we have everything
   // The idea here is to maintain the invariant that <mpadded>...</mpadded> (i.e.,
@@ -408,14 +403,14 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
   // attributes, tweak our metrics and move children to achieve the desired visual
   // effects.
 
-  if ((NS_MATHML_IS_RTL(mPresentationData.flags) ?
+  if ((StyleVisibility()->mDirection ?
        mWidthSign : mLeadingSpaceSign) != NS_MATHML_SIGN_INVALID) {
     // there was padding on the left. dismiss the left italic correction now
     // (so that our parent won't correct us)
     mBoundingMetrics.leftBearing = 0;
   }
 
-  if ((NS_MATHML_IS_RTL(mPresentationData.flags) ?
+  if ((StyleVisibility()->mDirection ?
        mLeadingSpaceSign : mWidthSign) != NS_MATHML_SIGN_INVALID) {
     // there was padding on the right. dismiss the right italic correction now
     // (so that our parent won't correct us)
@@ -423,24 +418,31 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
     mBoundingMetrics.rightBearing = mBoundingMetrics.width;
   }
 
-  nscoord dy = height - mBoundingMetrics.ascent;
-  nscoord dx = NS_MATHML_IS_RTL(mPresentationData.flags) ?
-    width - initialWidth - lspace : lspace;
+  nscoord dx = (StyleVisibility()->mDirection ?
+                width - initialWidth - lspace : lspace);
     
-  aDesiredSize.ascent += dy;
-  aDesiredSize.width = mBoundingMetrics.width;
-  aDesiredSize.height += dy + depth - mBoundingMetrics.descent;
+  aDesiredSize.SetBlockStartAscent(height);
+  aDesiredSize.Width() = mBoundingMetrics.width;
+  aDesiredSize.Height() = depth + aDesiredSize.BlockStartAscent();
   mBoundingMetrics.ascent = height;
   mBoundingMetrics.descent = depth;
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
 
   mReference.x = 0;
-  mReference.y = aDesiredSize.ascent;
+  mReference.y = aDesiredSize.BlockStartAscent();
 
   if (aPlaceOrigin) {
     // Finish reflowing child frames, positioning their origins.
-    PositionRowChildFrames(dx, aDesiredSize.ascent - voffset);
+    PositionRowChildFrames(dx, aDesiredSize.BlockStartAscent() - voffset);
   }
 
   return NS_OK;
+}
+
+/* virtual */ nsresult
+nsMathMLmpaddedFrame::MeasureForWidth(nsRenderingContext& aRenderingContext,
+                                      nsHTMLReflowMetrics& aDesiredSize)
+{
+  ProcessAttributes();
+  return Place(aRenderingContext, false, aDesiredSize);
 }

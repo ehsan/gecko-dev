@@ -8,7 +8,7 @@
 #include "nsCOMPtr.h"
 #include "nsCocoaUtils.h"
 
-NS_IMPL_ISUPPORTS1(nsScreenManagerCocoa, nsIScreenManager)
+NS_IMPL_ISUPPORTS(nsScreenManagerCocoa, nsIScreenManager)
 
 nsScreenManagerCocoa::nsScreenManagerCocoa()
 {
@@ -33,6 +33,30 @@ nsScreenManagerCocoa::ScreenForCocoaScreen(NSScreen *screen)
     nsRefPtr<nsScreenCocoa> sc = new nsScreenCocoa(screen);
     mScreenList.AppendElement(sc);
     return sc.get();
+}
+
+NS_IMETHODIMP
+nsScreenManagerCocoa::ScreenForId (uint32_t aId, nsIScreen **outScreen)
+{
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT
+
+    *outScreen = nullptr;
+
+    for (uint32_t i = 0; i < mScreenList.Length(); ++i) {
+        nsScreenCocoa* sc = mScreenList[i];
+        uint32_t id;
+        nsresult rv = sc->GetId(&id);
+
+        if (NS_SUCCEEDED(rv) && id == aId) {
+            *outScreen = sc;
+            NS_ADDREF(*outScreen);
+            return NS_OK;
+        }
+    }
+
+    return NS_ERROR_FAILURE;
+
+    NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP
@@ -94,6 +118,13 @@ nsScreenManagerCocoa::GetNumberOfScreens (uint32_t *aNumberOfScreens)
     return NS_OK;
 
     NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+NS_IMETHODIMP
+nsScreenManagerCocoa::GetSystemDefaultScale(float *aDefaultScale)
+{
+    *aDefaultScale = 1.0f;
+    return NS_OK;
 }
 
 NS_IMETHODIMP

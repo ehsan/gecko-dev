@@ -20,24 +20,22 @@ let gUpdater = {
     // Find all sites that remain in the grid.
     let sites = this._findRemainingSites(links);
 
-    let self = this;
-
     // Remove sites that are no longer in the grid.
-    this._removeLegacySites(sites, function () {
+    this._removeLegacySites(sites, () => {
       // Freeze all site positions so that we can move their DOM nodes around
       // without any visual impact.
-      self._freezeSitePositions(sites);
+      this._freezeSitePositions(sites);
 
       // Move the sites' DOM nodes to their new position in the DOM. This will
       // have no visual effect as all the sites have been frozen and will
       // remain in their current position.
-      self._moveSiteNodes(sites);
+      this._moveSiteNodes(sites);
 
       // Now it's time to animate the sites actually moving to their new
       // positions.
-      self._rearrangeSites(sites, function () {
+      this._rearrangeSites(sites, () => {
         // Try to fill empty cells and finish.
-        self._fillEmptyCells(links, aCallback);
+        this._fillEmptyCells(links, aCallback);
 
         // Update other pages that might be open to keep them synced.
         gAllPages.update(gPage);
@@ -126,7 +124,7 @@ let gUpdater = {
    * @param aCallback The callback to call when finished.
    */
   _removeLegacySites: function Updater_removeLegacySites(aSites, aCallback) {
-    let batch = new Batch(aCallback);
+    let batch = [];
 
     // Delete sites that were removed from the grid.
     gGrid.sites.forEach(function (aSite) {
@@ -134,19 +132,19 @@ let gUpdater = {
       if (!aSite || aSites.indexOf(aSite) != -1)
         return;
 
-      batch.push();
+      batch.push(new Promise(resolve => {
+        // Fade out the to-be-removed site.
+        gTransformation.hideSite(aSite, function () {
+          let node = aSite.node;
 
-      // Fade out the to-be-removed site.
-      gTransformation.hideSite(aSite, function () {
-        let node = aSite.node;
-
-        // Remove the site from the DOM.
-        node.parentNode.removeChild(node);
-        batch.pop();
-      });
+          // Remove the site from the DOM.
+          node.parentNode.removeChild(node);
+          resolve();
+        });
+      }));
     });
 
-    batch.close();
+    Promise.all(batch).then(aCallback);
   },
 
   /**
@@ -156,27 +154,24 @@ let gUpdater = {
    */
   _fillEmptyCells: function Updater_fillEmptyCells(aLinks, aCallback) {
     let {cells, sites} = gGrid;
-    let batch = new Batch(aCallback);
 
     // Find empty cells and fill them.
-    sites.forEach(function (aSite, aIndex) {
+    Promise.all(sites.map((aSite, aIndex) => {
       if (aSite || !aLinks[aIndex])
-        return;
+        return null;
 
-      batch.push();
+      return new Promise(resolve => {
+        // Create the new site and fade it in.
+        let site = gGrid.createSite(aLinks[aIndex], cells[aIndex]);
 
-      // Create the new site and fade it in.
-      let site = gGrid.createSite(aLinks[aIndex], cells[aIndex]);
+        // Set the site's initial opacity to zero.
+        site.node.style.opacity = 0;
 
-      // Set the site's initial opacity to zero.
-      site.node.style.opacity = 0;
-
-      // Without the setTimeout() the node would just appear instead of fade in.
-      setTimeout(function () {
-        gTransformation.showSite(site, function () batch.pop());
-      }, 0);
-    });
-
-    batch.close();
+        // Flush all style changes for the dynamically inserted site to make
+        // the fade-in transition work.
+        window.getComputedStyle(site.node).opacity;
+        gTransformation.showSite(site, resolve);
+      });
+    })).then(aCallback).catch(console.exception);
   }
 };

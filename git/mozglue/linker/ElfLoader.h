@@ -9,8 +9,10 @@
 #include <dlfcn.h>
 #include <signal.h>
 #include "mozilla/RefPtr.h"
+#include "mozilla/UniquePtr.h"
 #include "Zip.h"
 #include "Elfxx.h"
+#include "Mappable.h"
 
 /**
  * dlfcn.h replacement functions
@@ -31,10 +33,6 @@ extern "C" {
 #endif
   int __wrap_dladdr(void *addr, Dl_info *info);
 
-  sighandler_t __wrap_signal(int signum, sighandler_t handler);
-  int __wrap_sigaction(int signum, const struct sigaction *act,
-                       struct sigaction *oldact);
-
   struct dl_phdr_info {
     Elf::Addr dlpi_addr;
     const char *dlpi_name;
@@ -44,21 +42,68 @@ extern "C" {
 
   typedef int (*dl_phdr_cb)(struct dl_phdr_info *, size_t, void *);
   int __wrap_dl_iterate_phdr(dl_phdr_cb callback, void *data);
+
+#ifdef __ARM_EABI__
+  const void *__wrap___gnu_Unwind_Find_exidx(void *pc, int *pcount);
+#endif
+
+/**
+ * faulty.lib public API
+ */
+MFBT_API size_t
+__dl_get_mappable_length(void *handle);
+
+MFBT_API void *
+__dl_mmap(void *handle, void *addr, size_t length, off_t offset);
+
+MFBT_API void
+__dl_munmap(void *handle, void *addr, size_t length);
+
+MFBT_API bool
+IsSignalHandlingBroken();
+
 }
+
+/* Forward declarations for use in LibHandle */
+class BaseElf;
+class CustomElf;
+class SystemElf;
+
+/**
+ * Specialize RefCounted template for LibHandle. We may get references to
+ * LibHandles during the execution of their destructor, so we need
+ * RefCounted<LibHandle>::Release to support some reentrancy. See further
+ * below.
+ */
+class LibHandle;
+
+namespace mozilla {
+namespace detail {
+
+template <> inline void RefCounted<LibHandle, AtomicRefCount>::Release() const;
+
+template <> inline RefCounted<LibHandle, AtomicRefCount>::~RefCounted()
+{
+  MOZ_ASSERT(mRefCnt == 0x7fffdead);
+}
+
+} /* namespace detail */
+} /* namespace mozilla */
 
 /**
  * Abstract class for loaded libraries. Libraries may be loaded through the
  * system linker or this linker, both cases will be derived from this class.
  */
-class LibHandle: public mozilla::RefCounted<LibHandle>
+class LibHandle: public mozilla::external::AtomicRefCounted<LibHandle>
 {
 public:
+  MOZ_DECLARE_REFCOUNTED_TYPENAME(LibHandle)
   /**
    * Constructor. Takes the path of the loaded library and will store a copy
    * of the leaf name.
    */
   LibHandle(const char *path)
-  : directRefCnt(0), path(path ? strdup(path) : NULL) { }
+  : directRefCnt(0), path(path ? strdup(path) : nullptr), mappable(nullptr) { }
 
   /**
    * Destructor.
@@ -77,6 +122,11 @@ public:
    * covered by the loaded library.
    */
   virtual bool Contains(void *addr) const = 0;
+
+  /**
+   * Returns the base address of the loaded library.
+   */
+  virtual void *GetBase() const = 0;
 
   /**
    * Returns the file name of the library without the containing directory.
@@ -101,7 +151,7 @@ public:
   void AddDirectRef()
   {
     ++directRefCnt;
-    mozilla::RefCounted<LibHandle>::AddRef();
+    mozilla::external::AtomicRefCounted<LibHandle>::AddRef();
   }
 
   /**
@@ -112,10 +162,11 @@ public:
   {
     bool ret = false;
     if (directRefCnt) {
-      MOZ_ASSERT(directRefCnt <= mozilla::RefCounted<LibHandle>::refCount());
+      MOZ_ASSERT(directRefCnt <=
+                 mozilla::external::AtomicRefCounted<LibHandle>::refCount());
       if (--directRefCnt)
         ret = true;
-      mozilla::RefCounted<LibHandle>::Release();
+      mozilla::external::AtomicRefCounted<LibHandle>::Release();
     }
     return ret;
   }
@@ -123,25 +174,100 @@ public:
   /**
    * Returns the number of direct references
    */
-  int DirectRefCount()
+  MozRefCountType DirectRefCount()
   {
     return directRefCnt;
   }
 
+  /**
+   * Returns the complete size of the file or stream behind the library
+   * handle.
+   */
+  size_t GetMappableLength() const;
+
+  /**
+   * Returns a memory mapping of the file or stream behind the library
+   * handle.
+   */
+  void *MappableMMap(void *addr, size_t length, off_t offset) const;
+
+  /**
+   * Unmaps a memory mapping of the file or stream behind the library
+   * handle.
+   */
+  void MappableMUnmap(void *addr, size_t length) const;
+
+#ifdef __ARM_EABI__
+  /**
+   * Find the address and entry count of the ARM.exidx section
+   * associated with the library
+   */
+  virtual const void *FindExidx(int *pcount) const = 0;
+#endif
+
+  /**
+   * Shows some stats about the Mappable instance. The when argument is to be
+   * used by the caller to give an identifier of the when the stats call is
+   * made.
+   */
+  virtual void stats(const char *when) const { };
+
 protected:
   /**
-   * Returns whether the handle is a SystemElf or not. (short of a better way
-   * to do this without RTTI)
+   * Returns a mappable object for use by MappableMMap and related functions.
+   */
+  virtual Mappable *GetMappable() const = 0;
+
+  /**
+   * Returns the instance, casted as the wanted type. Returns nullptr if
+   * that's not the actual type. (short of a better way to do this without
+   * RTTI)
    */
   friend class ElfLoader;
   friend class CustomElf;
   friend class SEGVHandler;
-  virtual bool IsSystemElf() const { return false; }
+  virtual BaseElf *AsBaseElf() { return nullptr; }
+  virtual SystemElf *AsSystemElf() { return nullptr; }
 
 private:
-  int directRefCnt;
+  MozRefCountType directRefCnt;
   char *path;
+
+  /* Mappable object keeping the result of GetMappable() */
+  mutable mozilla::RefPtr<Mappable> mappable;
 };
+
+/**
+ * Specialized RefCounted<LibHandle>::Release. Under normal operation, when
+ * mRefCnt reaches 0, the LibHandle is deleted. Its mRefCnt is however
+ * increased to 1 on normal builds, and 0x7fffdead on debug builds so that the
+ * LibHandle can still be referenced while the destructor is executing. The
+ * mRefCnt is allowed to grow > 0x7fffdead, but not to decrease under that
+ * value, which would mean too many Releases from within the destructor.
+ */
+namespace mozilla {
+namespace detail {
+
+template <> inline void RefCounted<LibHandle, AtomicRefCount>::Release() const {
+#ifdef DEBUG
+  if (mRefCnt > 0x7fff0000)
+    MOZ_ASSERT(mRefCnt > 0x7fffdead);
+#endif
+  MOZ_ASSERT(mRefCnt > 0);
+  if (mRefCnt > 0) {
+    if (0 == --mRefCnt) {
+#ifdef DEBUG
+      mRefCnt = 0x7fffdead;
+#else
+      mRefCnt = 1;
+#endif
+      delete static_cast<const LibHandle*>(this);
+    }
+  }
+}
+
+} /* namespace detail */
+} /* namespace mozilla */
 
 /**
  * Class handling libraries loaded by the system linker
@@ -161,14 +287,21 @@ public:
   virtual ~SystemElf();
   virtual void *GetSymbolPtr(const char *symbol) const;
   virtual bool Contains(void *addr) const { return false; /* UNIMPLEMENTED */ }
+  virtual void *GetBase() const { return nullptr; /* UNIMPLEMENTED */ }
+
+#ifdef __ARM_EABI__
+  virtual const void *FindExidx(int *pcount) const;
+#endif
 
 protected:
+  virtual Mappable *GetMappable() const;
+
   /**
-   * Returns whether the handle is a SystemElf or not. (short of a better way
-   * to do this without RTTI)
+   * Returns the instance, casted as SystemElf. (short of a better way to do
+   * this without RTTI)
    */
   friend class ElfLoader;
-  virtual bool IsSystemElf() const { return true; }
+  virtual SystemElf *AsSystemElf() { return this; }
 
   /**
    * Remove the reference to the system linker handle. This avoids dlclose()
@@ -176,7 +309,7 @@ protected:
    */
   void Forget()
   {
-    dlhandle = NULL;
+    dlhandle = nullptr;
   }
 
 private:
@@ -194,20 +327,35 @@ private:
  * The ElfLoader registers its own SIGSEGV handler to handle segmentation
  * faults within the address space of the loaded libraries. It however
  * allows a handler to be set for faults in other places, and redispatches
- * to the handler set through signal() or sigaction(). We assume no system
- * library loaded with system dlopen is going to call signal or sigaction
- * for SIGSEGV.
+ * to the handler set through signal() or sigaction().
  */
 class SEGVHandler
 {
+public:
+  bool hasRegisteredHandler() {
+    if (! initialized)
+      FinishInitialization();
+    return registeredHandler;
+  }
+
+  bool isSignalHandlingBroken() {
+    return signalHandlingBroken;
+  }
+
+  static int __wrap_sigaction(int signum, const struct sigaction *act,
+                              struct sigaction *oldact);
+
 protected:
   SEGVHandler();
   ~SEGVHandler();
 
 private:
-  friend sighandler_t __wrap_signal(int signum, sighandler_t handler);
-  friend int __wrap_sigaction(int signum, const struct sigaction *act,
-                              struct sigaction *oldact);
+
+  /**
+   * The constructor doesn't do all initialization, and the tail is done
+   * at a later time.
+   */
+  void FinishInitialization();
 
   /**
    * SIGSEGV handler registered with __wrap_signal or __wrap_sigaction.
@@ -218,6 +366,11 @@ private:
    * ElfLoader SIGSEGV handler.
    */
   static void handler(int signum, siginfo_t *info, void *context);
+
+  /**
+   * Temporary test handler.
+   */
+  static void test_handler(int signum, siginfo_t *info, void *context);
 
   /**
    * Size of the alternative stack. The printf family requires more than 8KB
@@ -235,6 +388,11 @@ private:
    * not set or not big enough.
    */
   MappedPtr stackPtr;
+
+  bool initialized;
+  bool registeredHandler;
+  bool signalHandlingBroken;
+  bool signalHandlingSlow;
 };
 
 /**
@@ -255,7 +413,7 @@ public:
    * directory containing that parent library for the library to load.
    */
   mozilla::TemporaryRef<LibHandle> Load(const char *path, int flags,
-                                        LibHandle *parent = NULL);
+                                        LibHandle *parent = nullptr);
 
   /**
    * Returns the handle of the library containing the given address in
@@ -265,18 +423,28 @@ public:
    */
   mozilla::TemporaryRef<LibHandle> GetHandleByPtr(void *addr);
 
+  /**
+   * Returns a Mappable object for the path. Paths in the form
+   *   /foo/bar/baz/archive!/directory/lib.so
+   * try to load the directory/lib.so in /foo/bar/baz/archive, provided
+   * that file is a Zip archive.
+   */
+  static Mappable *GetMappableFromPath(const char *path);
+
 protected:
   /**
    * Registers the given handle. This method is meant to be called by
    * LibHandle subclass creators.
    */
   void Register(LibHandle *handle);
+  void Register(CustomElf *handle);
 
   /**
    * Forget about the given handle. This method is meant to be called by
    * LibHandle subclass destructors.
    */
   void Forget(LibHandle *handle);
+  void Forget(CustomElf *handle);
 
   /* Last error. Used for dlerror() */
   friend class SystemElf;
@@ -286,8 +454,22 @@ protected:
   const char *lastError;
 
 private:
-  ElfLoader() { InitDebugger(); }
   ~ElfLoader();
+
+  /* Initialization code that can't run during static initialization. */
+  void Init();
+
+  /* System loader handle for the library/program containing our code. This
+   * is used to resolve wrapped functions. */
+  mozilla::RefPtr<LibHandle> self_elf;
+
+#if defined(ANDROID)
+  /* System loader handle for the libc. This is used to resolve weak symbols
+   * that some libcs contain that the Android linker won't dlsym(). Normally,
+   * we wouldn't treat non-Android differently, but glibc uses versioned
+   * symbols which this linker doesn't support. */
+  mozilla::RefPtr<LibHandle> libc;
+#endif
 
   /* Bookkeeping */
   typedef std::vector<LibHandle *> LibHandleList;
@@ -295,6 +477,7 @@ private:
 
 protected:
   friend class CustomElf;
+  friend class LoadedElf;
   /**
    * Show some stats about Mappables in CustomElfs. The when argument is to
    * be used by the caller to give an identifier of the when the stats call
@@ -364,11 +547,8 @@ private:
   /* Keep track of all registered destructors */
   std::vector<DestructorCaller> destructors;
 
-  /* Keep track of Zips used for library loading */
-  ZipCollection zips;
-
   /* Forward declaration, see further below */
-  class r_debug;
+  class DebuggerHelper;
 public:
   /* Loaded object descriptor for the debugger interface below*/
   struct link_map {
@@ -380,7 +560,7 @@ public:
     const void *l_ld;
 
   private:
-    friend class ElfLoader::r_debug;
+    friend class ElfLoader::DebuggerHelper;
     /* Double linked list of loaded objects. */
     link_map *l_next, *l_prev;
   };
@@ -388,9 +568,48 @@ public:
 private:
   /* Data structure used by the linker to give details about shared objects it
    * loaded to debuggers. This is normally defined in link.h, but Android
-   * headers lack this file. This also gives the opportunity to make it C++. */
-  class r_debug {
+   * headers lack this file. */
+  struct r_debug {
+    /* Version number of the protocol. */
+    int r_version;
+
+    /* Head of the linked list of loaded objects. */
+    link_map *r_map;
+
+    /* Function to be called when updates to the linked list of loaded objects
+     * are going to occur. The function is to be called before and after
+     * changes. */
+    void (*r_brk)(void);
+
+    /* Indicates to the debugger what state the linked list of loaded objects
+     * is in when the function above is called. */
+    enum {
+      RT_CONSISTENT, /* Changes are complete */
+      RT_ADD,        /* Beginning to add a new object */
+      RT_DELETE      /* Beginning to remove an object */
+    } r_state;
+  };
+
+  /* Memory representation of ELF Auxiliary Vectors */
+  struct AuxVector {
+    Elf::Addr type;
+    Elf::Addr value;
+  };
+
+  /* Helper class used to integrate libraries loaded by this linker in
+   * r_debug */
+  class DebuggerHelper
+  {
   public:
+    DebuggerHelper();
+
+    void Init(AuxVector *auvx);
+
+    operator bool()
+    {
+      return dbg;
+    }
+
     /* Make the debugger aware of a new loaded object */
     void Add(link_map *map);
 
@@ -414,12 +633,12 @@ private:
 
       bool operator<(const iterator &other) const
       {
-        if (other.item == NULL)
+        if (other.item == nullptr)
           return item ? true : false;
-        MOZ_NOT_REACHED("r_debug::iterator::operator< called with something else than r_debug::end()");
+        MOZ_CRASH("DebuggerHelper::iterator::operator< called with something else than DebuggerHelper::end()");
       }
     protected:
-      friend class r_debug;
+      friend class DebuggerHelper;
       iterator(const link_map *item): item(item) { }
 
     private:
@@ -428,41 +647,20 @@ private:
 
     iterator begin() const
     {
-      return iterator(r_map);
+      return iterator(dbg ? dbg->r_map : nullptr);
     }
 
     iterator end() const
     {
-      return iterator(NULL);
+      return iterator(nullptr);
     }
 
   private:
-    /* Version number of the protocol. */
-    int r_version;
-
-    /* Head of the linked list of loaded objects. */
-    struct link_map *r_map;
-
-    /* Function to be called when updates to the linked list of loaded objects
-     * are going to occur. The function is to be called before and after
-     * changes. */
-    void (*r_brk)(void);
-
-    /* Indicates to the debugger what state the linked list of loaded objects
-     * is in when the function above is called. */
-    enum {
-      RT_CONSISTENT, /* Changes are complete */
-      RT_ADD,        /* Beginning to add a new object */
-      RT_DELETE      /* Beginning to remove an object */
-    } r_state;
+    r_debug *dbg;
+    link_map *firstAdded;
   };
   friend int __wrap_dl_iterate_phdr(dl_phdr_cb callback, void *data);
-  r_debug *dbg;
-
-  /**
-   * Initializes the pointer to the debugger data structure.
-   */
-  void InitDebugger();
+  DebuggerHelper dbg;
 };
 
 #endif /* ElfLoader_h */

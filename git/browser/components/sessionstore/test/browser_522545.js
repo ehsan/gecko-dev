@@ -193,29 +193,25 @@ function test() {
       is(browser.userTypedValue, null, "userTypedValue is empty to start");
       is(browser.userTypedClear, 0, "userTypedClear is 0 to start");
 
-      gURLBar.value = "example.org";
-      let event = document.createEvent("Events");
-      event.initEvent("input", true, false);
-      gURLBar.dispatchEvent(event);
+      let inputText = "example.org";
+      gURLBar.focus();
+      gURLBar.value = inputText.slice(0, -1);
+      EventUtils.synthesizeKey(inputText.slice(-1) , {});
 
-      browser.addEventListener("load", function onLoad() {
-        browser.removeEventListener("load", onLoad, true);
+      executeSoon(function () {
+        is(browser.userTypedValue, "example.org",
+           "userTypedValue was set when changing URLBar value");
+        is(browser.userTypedClear, 0,
+           "userTypedClear was not changed when changing URLBar value");
 
-        executeSoon(function () {
-          is(browser.userTypedValue, "example.org",
-             "userTypedValue was set when changing gURLBar.value");
-          is(browser.userTypedClear, 0,
-             "userTypedClear was not changed when changing gURLBar.value");
-
-          // Now make sure ss gets these values too
-          let newState = JSON.parse(ss.getBrowserState());
-          is(newState.windows[0].tabs[0].userTypedValue, "example.org",
-             "sessionstore got correct userTypedValue");
-          is(newState.windows[0].tabs[0].userTypedClear, 0,
-             "sessionstore got correct userTypedClear");
-          runNextTest();
-        });
-      }, true);
+        // Now make sure ss gets these values too
+        let newState = JSON.parse(ss.getBrowserState());
+        is(newState.windows[0].tabs[0].userTypedValue, "example.org",
+           "sessionstore got correct userTypedValue");
+        is(newState.windows[0].tabs[0].userTypedClear, 0,
+           "sessionstore got correct userTypedClear");
+        runNextTest();
+      });
     });
   }
 
@@ -239,7 +235,7 @@ function test() {
          "userTypedValue was null after loading a URI");
       is(browser.userTypedClear, 0,
          "userTypeClear reset to 0");
-      is(gURLBar.value, gURLBar.trimValue("http://example.com/"),
+      is(gURLBar.textValue, gURLBar.trimValue("http://example.com/"),
          "Address bar's value set after loading URI");
       runNextTest();
     });
@@ -250,7 +246,7 @@ function test() {
                test_existingSHEnd_noClear, test_existingSHMiddle_noClear,
                test_getBrowserState_lotsOfTabsOpening,
                test_getBrowserState_userTypedValue, test_userTypedClearLoadURI];
-  let originalState = ss.getBrowserState();
+  let originalState = JSON.parse(ss.getBrowserState());
   let state = {
     windows: [{
       tabs: [{ entries: [{ url: "about:blank" }] }]
@@ -260,8 +256,7 @@ function test() {
     if (tests.length) {
       waitForBrowserState(state, tests.shift());
     } else {
-      ss.setBrowserState(originalState);
-      executeSoon(finish);
+      waitForBrowserState(originalState, finish);
     }
   }
 

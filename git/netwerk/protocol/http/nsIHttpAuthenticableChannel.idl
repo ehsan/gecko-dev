@@ -4,11 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIProxiedChannel.idl"
-#include "nsIChannel.idl"
 
 interface nsILoadGroup;
 interface nsIURI;
 interface nsIInterfaceRequestor;
+typedef unsigned long nsLoadFlags;
 
 [scriptable, uuid(701093ac-5c7f-429c-99e3-423b041fccb4)]
 interface nsIHttpAuthenticableChannel : nsIProxiedChannel
@@ -17,7 +17,7 @@ interface nsIHttpAuthenticableChannel : nsIProxiedChannel
      * If the channel being authenticated is using SSL.
      */
     readonly attribute boolean isSSL;
-    
+
     /**
      * Returns if the proxy HTTP method used is CONNECT. If no proxy is being
      * used it must return PR_FALSE.
@@ -72,7 +72,7 @@ interface nsIHttpAuthenticableChannel : nsIProxiedChannel
     readonly attribute ACString WWWChallenges;
 
     /**
-     * Sets the Proxy-Authorization request header. An empty string 
+     * Sets the Proxy-Authorization request header. An empty string
      * will clear it.
      */
     void setProxyCredentials(in ACString credentials);

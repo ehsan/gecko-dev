@@ -3,13 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdlib.h>
-#include "nsHttp.h"
+// HttpLog.h should generally be included first
+#include "HttpLog.h"
+
 #include "nsHttpBasicAuth.h"
 #include "plbase64.h"
-#include "plstr.h"
-#include "prmem.h"
 #include "nsString.h"
+
+namespace mozilla {
+namespace net {
 
 //-----------------------------------------------------------------------------
 // nsHttpBasicAuth <public>
@@ -27,7 +29,7 @@ nsHttpBasicAuth::~nsHttpBasicAuth()
 // nsHttpBasicAuth::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS1(nsHttpBasicAuth, nsIHttpAuthenticator)
+NS_IMPL_ISUPPORTS(nsHttpBasicAuth, nsIHttpAuthenticator)
 
 //-----------------------------------------------------------------------------
 // nsHttpBasicAuth::nsIHttpAuthenticator
@@ -51,9 +53,9 @@ NS_IMETHODIMP
 nsHttpBasicAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
                                      const char *challenge,
                                      bool isProxyAuth,
-                                     const PRUnichar *domain,
-                                     const PRUnichar *user,
-                                     const PRUnichar *password,
+                                     const char16_t *domain,
+                                     const char16_t *user,
+                                     const char16_t *password,
                                      nsISupports **sessionState,
                                      nsISupports **continuationState,
                                      uint32_t *aFlags,
@@ -71,7 +73,7 @@ nsHttpBasicAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
     NS_ENSURE_TRUE(isBasicAuth, NS_ERROR_UNEXPECTED);
 
     // we work with ASCII around here
-    nsCAutoString userpass;
+    nsAutoCString userpass;
     LossyCopyUTF16toASCII(user, userpass);
     userpass.Append(':'); // always send a ':' (see bug 129565)
     if (password)
@@ -94,3 +96,6 @@ nsHttpBasicAuth::GetAuthFlags(uint32_t *flags)
     *flags = REQUEST_BASED | REUSABLE_CREDENTIALS | REUSABLE_CHALLENGE;
     return NS_OK;
 }
+
+} // namespace mozilla::net
+} // namespace mozilla

@@ -5,13 +5,12 @@ let newWin;
 function test() {
   let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
 
+  requestLongerTimeout(2);
   waitForExplicitFinish();
 
   // open a new window and setup the window state.
-  newWin = openDialog(getBrowserURL(), "_blank", "chrome,all,dialog=no");
-  newWin.addEventListener("load", function onLoad(event) {
-    this.removeEventListener("load", onLoad, false);
-
+  newWin = openDialog(getBrowserURL(), "_blank", "chrome,all,dialog=no", "about:blank");
+  whenWindowLoaded(newWin, function () {
     let newState = {
       windows: [{
         tabs: [{
@@ -68,5 +67,5 @@ function test() {
     }
     newWin.addEventListener("tabviewshown", onTabViewShow, false);
     waitForFocus(function() { newWin.TabView.toggle(); });
-  }, false);
+  });
 }

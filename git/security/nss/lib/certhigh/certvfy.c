@@ -1,38 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "nspr.h"
 #include "secerr.h"
 #include "secport.h"
@@ -70,7 +38,7 @@ CERT_CertTimesValid(CERTCertificate *c)
  * verify the signature of a signed data object with the given DER publickey
  */
 SECStatus
-CERT_VerifySignedDataWithPublicKey(CERTSignedData *sd, 
+CERT_VerifySignedDataWithPublicKey(const CERTSignedData *sd,
                                    SECKEYPublicKey *pubKey,
 		                   void *wincx)
 {
@@ -128,7 +96,7 @@ CERT_VerifySignedDataWithPublicKeyInfo(CERTSignedData *sd,
  */
 SECStatus
 CERT_VerifySignedData(CERTSignedData *sd, CERTCertificate *cert,
-		      int64 t, void *wincx)
+		      PRTime t, void *wincx)
 {
     SECKEYPublicKey *pubKey = 0;
     SECStatus        rv     = SECFailure;
@@ -152,7 +120,7 @@ CERT_VerifySignedData(CERTSignedData *sd, CERTCertificate *cert,
 
 SECStatus
 SEC_CheckCRL(CERTCertDBHandle *handle,CERTCertificate *cert,
-	     CERTCertificate *caCert, int64 t, void * wincx)
+	     CERTCertificate *caCert, PRTime t, void * wincx)
 {
     return CERT_CheckCRL(cert, caCert, NULL, t, wincx);
 }
@@ -161,7 +129,7 @@ SEC_CheckCRL(CERTCertDBHandle *handle,CERTCertificate *cert,
  * Find the issuer of a cert.  Use the authorityKeyID if it exists.
  */
 CERTCertificate *
-CERT_FindCertIssuer(CERTCertificate *cert, int64 validTime, SECCertUsage usage)
+CERT_FindCertIssuer(CERTCertificate *cert, PRTime validTime, SECCertUsage usage)
 {
     NSSCertificate *me;
     NSSTime *nssTime;
@@ -261,7 +229,7 @@ loser:
 }
 
 void
-cert_AddToVerifyLog(CERTVerifyLog *log, CERTCertificate *cert, unsigned long error,
+cert_AddToVerifyLog(CERTVerifyLog *log, CERTCertificate *cert, long error,
 	       unsigned int depth, void *arg)
 {
     CERTVerifyLogNode *node, *tnode;
@@ -322,20 +290,22 @@ cert_AddToVerifyLog(CERTVerifyLog *log, CERTCertificate *cert, unsigned long err
 
 #define LOG_ERROR_OR_EXIT(log,cert,depth,arg) \
     if ( log != NULL ) { \
-	cert_AddToVerifyLog(log, cert, PORT_GetError(), depth, (void *)arg); \
+	cert_AddToVerifyLog(log, cert, PORT_GetError(), depth, \
+			    (void *)(PRWord)arg); \
     } else { \
 	goto loser; \
     }
 
 #define LOG_ERROR(log,cert,depth,arg) \
     if ( log != NULL ) { \
-	cert_AddToVerifyLog(log, cert, PORT_GetError(), depth, (void *)arg); \
+	cert_AddToVerifyLog(log, cert, PORT_GetError(), depth, \
+			    (void *)(PRWord)arg); \
     }
 
 static SECStatus
 cert_VerifyCertChainOld(CERTCertDBHandle *handle, CERTCertificate *cert,
 		     PRBool checkSig, PRBool* sigerror,
-                     SECCertUsage certUsage, int64 t, void *wincx,
+                     SECCertUsage certUsage, PRTime t, void *wincx,
                      CERTVerifyLog *log, PRBool* revoked)
 {
     SECTrustType trustType;
@@ -352,12 +322,13 @@ cert_VerifyCertChainOld(CERTCertDBHandle *handle, CERTCertificate *cert,
     unsigned int caCertType;
     unsigned int requiredCAKeyUsage;
     unsigned int requiredFlags;
-    PRArenaPool *arena = NULL;
+    PLArenaPool *arena = NULL;
     CERTGeneralName *namesList = NULL;
     CERTCertificate **certsList      = NULL;
     int certsListLen = 16;
     int namesCount = 0;
     PRBool subjectCertIsSelfIssued;
+    CERTCertTrust issuerTrust;
 
     if (revoked) {
         *revoked = PR_FALSE;
@@ -535,7 +506,18 @@ cert_VerifyCertChainOld(CERTCertDBHandle *handle, CERTCertificate *cert,
 	    PORT_SetError (SEC_ERROR_PATH_LEN_CONSTRAINT_INVALID);
 	    LOG_ERROR_OR_EXIT(log, issuerCert, count+1, pathLengthLimit);
 	}
-	
+
+        /* make sure that the entire chain is within the name space of the
+         * current issuer certificate.
+         */
+        rv = CERT_CompareNameSpace(issuerCert, namesList, certsList,
+                                   arena, &badCert);
+        if (rv != SECSuccess || badCert != NULL) {
+            PORT_SetError(SEC_ERROR_CERT_NOT_IN_NAME_SPACE);
+            LOG_ERROR_OR_EXIT(log, badCert, count + 1, 0);
+            goto loser;
+        }
+
 	/* XXX - the error logging may need to go down into CRL stuff at some
 	 * point
 	 */
@@ -558,7 +540,7 @@ cert_VerifyCertChainOld(CERTCertDBHandle *handle, CERTCertificate *cert,
             LOG_ERROR(log,subjectCert,count,0);
         }
 
-	if ( issuerCert->trust ) {
+	if ( CERT_GetCertTrust(issuerCert, &issuerTrust) == SECSuccess) {
 	    /* we have some trust info, but this does NOT imply that this
 	     * cert is actually trusted for any purpose.  The cert may be
 	     * explicitly UNtrusted.  We won't know until we examine the
@@ -582,7 +564,7 @@ cert_VerifyCertChainOld(CERTCertDBHandle *handle, CERTCertificate *cert,
 	            }
 	        }
 
-	        flags = SEC_GET_TRUST_FLAGS(issuerCert->trust, trustType);
+	        flags = SEC_GET_TRUST_FLAGS(&issuerTrust, trustType);
 	        if (( flags & requiredFlags ) == requiredFlags) {
 	            /* we found a trusted one, so return */
 	            rv = rvFinal; 
@@ -604,7 +586,7 @@ cert_VerifyCertChainOld(CERTCertDBHandle *handle, CERTCertificate *cert,
                  * certUsageAnyCA or certUsageStatusResponder. */
                 for (trustType = trustSSL; trustType < trustTypeNone;
                      trustType++) {
-                    flags = SEC_GET_TRUST_FLAGS(issuerCert->trust, trustType);
+                    flags = SEC_GET_TRUST_FLAGS(&issuerTrust, trustType);
                     if ((flags & requiredFlags) == requiredFlags) {
 	                rv = rvFinal; 
 	                goto done;
@@ -618,7 +600,7 @@ cert_VerifyCertChainOld(CERTCertDBHandle *handle, CERTCertificate *cert,
 		 * untrusted */
                 for (trustType = trustSSL; trustType < trustTypeNone;
                      trustType++) {
-                    flags = SEC_GET_TRUST_FLAGS(issuerCert->trust, trustType);
+                    flags = SEC_GET_TRUST_FLAGS(&issuerTrust, trustType);
 		    /* is it explicitly distrusted? */
 		    if ((flags & CERTDB_TERMINAL_RECORD) && 
 			((flags & (CERTDB_TRUSTED|CERTDB_TRUSTED_CA)) == 0)) {
@@ -657,16 +639,6 @@ cert_VerifyCertChainOld(CERTCertDBHandle *handle, CERTCertificate *cert,
 	    }
 	}
 
-	/* make sure that the entire chain is within the name space of the 
-	** current issuer certificate.
-	*/
-	rv = CERT_CompareNameSpace(issuerCert, namesList, certsList, 
-	                           arena, &badCert);
-	if (rv != SECSuccess || badCert != NULL) {
-	    PORT_SetError(SEC_ERROR_CERT_NOT_IN_NAME_SPACE);
-            LOG_ERROR_OR_EXIT(log, badCert, count + 1, 0);
-	    goto loser;
-	}
 	/* make sure that the issuer is not self signed.  If it is, then
 	 * stop here to prevent looping.
 	 */
@@ -720,7 +692,7 @@ done:
 SECStatus
 cert_VerifyCertChain(CERTCertDBHandle *handle, CERTCertificate *cert,
                      PRBool checkSig, PRBool* sigerror,
-                     SECCertUsage certUsage, int64 t, void *wincx,
+                     SECCertUsage certUsage, PRTime t, void *wincx,
                      CERTVerifyLog *log, PRBool* revoked)
 {
     if (CERT_GetUsePKIXForValidation()) {
@@ -733,7 +705,7 @@ cert_VerifyCertChain(CERTCertDBHandle *handle, CERTCertificate *cert,
 
 SECStatus
 CERT_VerifyCertChain(CERTCertDBHandle *handle, CERTCertificate *cert,
-		     PRBool checkSig, SECCertUsage certUsage, int64 t,
+		     PRBool checkSig, SECCertUsage certUsage, PRTime t,
 		     void *wincx, CERTVerifyLog *log)
 {
     return cert_VerifyCertChain(handle, cert, checkSig, NULL, certUsage, t,
@@ -745,7 +717,7 @@ CERT_VerifyCertChain(CERTCertDBHandle *handle, CERTCertificate *cert,
  */
 SECStatus
 CERT_VerifyCACertForUsage(CERTCertDBHandle *handle, CERTCertificate *cert,
-		PRBool checkSig, SECCertUsage certUsage, int64 t,
+		PRBool checkSig, SECCertUsage certUsage, PRTime t,
 		void *wincx, CERTVerifyLog *log)
 {
     SECTrustType trustType;
@@ -759,6 +731,7 @@ CERT_VerifyCACertForUsage(CERTCertDBHandle *handle, CERTCertificate *cert,
     unsigned int requiredCAKeyUsage;
     unsigned int requiredFlags;
     CERTCertificate *issuerCert;
+    CERTCertTrust certTrust;
 
 
     if (CERT_KeyUsageAndTypeForCertUsage(certUsage, PR_TRUE,
@@ -824,7 +797,7 @@ CERT_VerifyCACertForUsage(CERTCertDBHandle *handle, CERTCertificate *cert,
 	isca = PR_TRUE;
     }
 	
-    if ( cert->trust ) {
+    if ( CERT_GetCertTrust(cert, &certTrust) == SECSuccess ) {
 	/* we have some trust info, but this does NOT imply that this
 	 * cert is actually trusted for any purpose.  The cert may be
 	 * explicitly UNtrusted.  We won't know until we examine the
@@ -853,7 +826,7 @@ CERT_VerifyCACertForUsage(CERTCertDBHandle *handle, CERTCertificate *cert,
 	/*
 	 * check the trust params of the issuer
 	 */
-	flags = SEC_GET_TRUST_FLAGS(cert->trust, trustType);
+	flags = SEC_GET_TRUST_FLAGS(&certTrust, trustType);
 	if ( ( flags & requiredFlags ) == requiredFlags) {
 	    /* we found a trusted one, so return */
 	    rv = rvFinal; 
@@ -945,16 +918,17 @@ cert_CheckLeafTrust(CERTCertificate *cert, SECCertUsage certUsage,
 	            unsigned int *failedFlags, PRBool *trusted)
 {
     unsigned int flags;
+    CERTCertTrust trust;
 
     *failedFlags = 0;
     *trusted = PR_FALSE;
 			
     /* check trust flags to see if this cert is directly trusted */
-    if ( cert->trust ) { 
+    if ( CERT_GetCertTrust(cert, &trust) == SECSuccess ) { 
 	switch ( certUsage ) {
 	  case certUsageSSLClient:
 	  case certUsageSSLServer:
-	    flags = cert->trust->sslFlags;
+	    flags = trust.sslFlags;
 	    
 	    /* is the cert directly trusted or not trusted ? */
 	    if ( flags & CERTDB_TERMINAL_RECORD) { /* the trust record is 
@@ -970,7 +944,7 @@ cert_CheckLeafTrust(CERTCertificate *cert, SECCertUsage certUsage,
 	    break;
 	  case certUsageSSLServerWithStepUp:
 	    /* XXX - step up certs can't be directly trusted, only distrust */
-	    flags = cert->trust->sslFlags;
+	    flags = trust.sslFlags;
 	    if ( flags & CERTDB_TERMINAL_RECORD) { /* the trust record is 
 						    * authoritative */
 		if (( flags & CERTDB_TRUSTED ) == 0) {	
@@ -981,7 +955,7 @@ cert_CheckLeafTrust(CERTCertificate *cert, SECCertUsage certUsage,
 	    }
 	    break;
 	  case certUsageSSLCA:
-	    flags = cert->trust->sslFlags;
+	    flags = trust.sslFlags;
 	    if ( flags & CERTDB_TERMINAL_RECORD) { /* the trust record is 
 						    * authoritative */
 		if (( flags & (CERTDB_TRUSTED|CERTDB_TRUSTED_CA) ) == 0) {	
@@ -993,7 +967,7 @@ cert_CheckLeafTrust(CERTCertificate *cert, SECCertUsage certUsage,
 	    break;
 	  case certUsageEmailSigner:
 	  case certUsageEmailRecipient:
-	    flags = cert->trust->emailFlags;
+	    flags = trust.emailFlags;
 	    if ( flags & CERTDB_TERMINAL_RECORD) { /* the trust record is 
 						    * authoritative */
 		if ( flags & CERTDB_TRUSTED ) {	/* trust this cert */
@@ -1008,7 +982,7 @@ cert_CheckLeafTrust(CERTCertificate *cert, SECCertUsage certUsage,
 	    
 	    break;
 	  case certUsageObjectSigner:
-	    flags = cert->trust->objectSigningFlags;
+	    flags = trust.objectSigningFlags;
 
 	    if ( flags & CERTDB_TERMINAL_RECORD) { /* the trust record is 
 						    * authoritative */
@@ -1023,21 +997,21 @@ cert_CheckLeafTrust(CERTCertificate *cert, SECCertUsage certUsage,
 	    break;
 	  case certUsageVerifyCA:
 	  case certUsageStatusResponder:
-	    flags = cert->trust->sslFlags;
+	    flags = trust.sslFlags;
 	    /* is the cert directly trusted or not trusted ? */
 	    if ( ( flags & ( CERTDB_VALID_CA | CERTDB_TRUSTED_CA ) ) ==
 		( CERTDB_VALID_CA | CERTDB_TRUSTED_CA ) ) {
 		*trusted = PR_TRUE;
 		return SECSuccess;
 	    }
-	    flags = cert->trust->emailFlags;
+	    flags = trust.emailFlags;
 	    /* is the cert directly trusted or not trusted ? */
 	    if ( ( flags & ( CERTDB_VALID_CA | CERTDB_TRUSTED_CA ) ) ==
 		( CERTDB_VALID_CA | CERTDB_TRUSTED_CA ) ) {
 		*trusted = PR_TRUE;
 		return SECSuccess;
 	    }
-	    flags = cert->trust->objectSigningFlags;
+	    flags = trust.objectSigningFlags;
 	    /* is the cert directly trusted or not trusted ? */
 	    if ( ( flags & ( CERTDB_VALID_CA | CERTDB_TRUSTED_CA ) ) ==
 		( CERTDB_VALID_CA | CERTDB_TRUSTED_CA ) ) {
@@ -1048,7 +1022,7 @@ cert_CheckLeafTrust(CERTCertificate *cert, SECCertUsage certUsage,
 	  case certUsageAnyCA:
 	  case certUsageUserCertImport:
 	    /* do we distrust these certs explicitly */
-	    flags = cert->trust->sslFlags;
+	    flags = trust.sslFlags;
 	    if ( flags & CERTDB_TERMINAL_RECORD) { /* the trust record is 
 						    * authoritative */
 		if ((flags & (CERTDB_TRUSTED|CERTDB_TRUSTED_CA)) == 0) {
@@ -1056,7 +1030,7 @@ cert_CheckLeafTrust(CERTCertificate *cert, SECCertUsage certUsage,
 		    return SECFailure;
 		}
 	    }
-	    flags = cert->trust->emailFlags;
+	    flags = trust.emailFlags;
 	    if ( flags & CERTDB_TERMINAL_RECORD) { /* the trust record is 
 						    * authoritative */
 		if ((flags & (CERTDB_TRUSTED|CERTDB_TRUSTED_CA)) == 0) {
@@ -1066,7 +1040,7 @@ cert_CheckLeafTrust(CERTCertificate *cert, SECCertUsage certUsage,
 	    }
 	    /* fall through */
 	  case certUsageProtectedObjectSigner:
-	    flags = cert->trust->objectSigningFlags;
+	    flags = trust.objectSigningFlags;
 	    if ( flags & CERTDB_TERMINAL_RECORD) { /* the trust record is 
 						    * authoritative */
 		if ((flags & (CERTDB_TRUSTED|CERTDB_TRUSTED_CA)) == 0) {
@@ -1094,7 +1068,7 @@ cert_CheckLeafTrust(CERTCertificate *cert, SECCertUsage certUsage,
  */
 SECStatus
 CERT_VerifyCertificate(CERTCertDBHandle *handle, CERTCertificate *cert,
-		PRBool checkSig, SECCertificateUsage requiredUsages, int64 t,
+		PRBool checkSig, SECCertificateUsage requiredUsages, PRTime t,
 		void *wincx, CERTVerifyLog *log, SECCertificateUsage* returnedUsages)
 {
     SECStatus rv;
@@ -1227,7 +1201,7 @@ CERT_VerifyCertificate(CERTCertDBHandle *handle, CERTCertificate *cert,
 
         /*
          * Check OCSP revocation status, but only if the cert we are checking
-         * is not a status reponder itself.  We only do this in the case
+         * is not a status responder itself. We only do this in the case
          * where we checked the cert chain (above); explicit trust "wins"
          * (avoids status checking, just as it avoids CRL checking) by
          * bypassing this code.
@@ -1259,13 +1233,22 @@ loser:
 
 SECStatus
 CERT_VerifyCert(CERTCertDBHandle *handle, CERTCertificate *cert,
-		PRBool checkSig, SECCertUsage certUsage, int64 t,
+		PRBool checkSig, SECCertUsage certUsage, PRTime t,
 		void *wincx, CERTVerifyLog *log)
+{
+    return cert_VerifyCertWithFlags(handle, cert, checkSig, certUsage, t,
+                                    CERT_VERIFYCERT_USE_DEFAULTS, wincx, log);
+}
+
+SECStatus
+cert_VerifyCertWithFlags(CERTCertDBHandle *handle, CERTCertificate *cert,
+                         PRBool checkSig, SECCertUsage certUsage, PRTime t,
+                         PRUint32 flags, void *wincx, CERTVerifyLog *log)
 {
     SECStatus rv;
     unsigned int requiredKeyUsage;
     unsigned int requiredCertType;
-    unsigned int flags;
+    unsigned int failedFlags;
     unsigned int certType;
     PRBool       trusted;
     PRBool       allowOverride;
@@ -1334,12 +1317,12 @@ CERT_VerifyCert(CERTCertDBHandle *handle, CERTCertificate *cert,
 	LOG_ERROR_OR_EXIT(log,cert,0,requiredCertType);
     }
 
-    rv = cert_CheckLeafTrust(cert,certUsage, &flags, &trusted);
+    rv = cert_CheckLeafTrust(cert, certUsage, &failedFlags, &trusted);
     if (rv  == SECFailure) {
 	PORT_SetError(SEC_ERROR_UNTRUSTED_CERT);
-	LOG_ERROR_OR_EXIT(log,cert,0,flags);
+	LOG_ERROR_OR_EXIT(log, cert, 0, failedFlags);
     } else if (trusted) {
-	goto winner;
+	goto done;
     }
 
 
@@ -1350,15 +1333,17 @@ CERT_VerifyCert(CERTCertDBHandle *handle, CERTCertificate *cert,
     }
 
     /*
-     * Check revocation status, but only if the cert we are checking
-     * is not a status reponder itself.  We only do this in the case
-     * where we checked the cert chain (above); explicit trust "wins"
-     * (avoids status checking, just as it avoids CRL checking, which
-     * is all done inside VerifyCertChain) by bypassing this code.
+     * Check revocation status, but only if the cert we are checking is not a
+     * status responder itself and the caller did not ask us to skip the check.
+     * We only do this in the case where we checked the cert chain (above);
+     * explicit trust "wins" (avoids status checking, just as it avoids CRL
+     * checking, which is all done inside VerifyCertChain) by bypassing this
+     * code.
      */
-    statusConfig = CERT_GetStatusConfig(handle);
-    if (certUsage != certUsageStatusResponder && statusConfig != NULL) {
-	if (statusConfig->statusChecker != NULL) {
+    if (!(flags & CERT_VERIFYCERT_SKIP_OCSP) &&
+	certUsage != certUsageStatusResponder) {
+	statusConfig = CERT_GetStatusConfig(handle);
+	if (statusConfig && statusConfig->statusChecker) {
 	    rv = (* statusConfig->statusChecker)(handle, cert,
 							 t, wincx);
 	    if (rv != SECSuccess) {
@@ -1367,7 +1352,10 @@ CERT_VerifyCert(CERTCertDBHandle *handle, CERTCertificate *cert,
 	}
     }
 
-winner:
+done:
+    if (log && log->head) {
+      return SECFailure;
+    }
     return(SECSuccess);
 
 loser:
@@ -1413,10 +1401,11 @@ CERT_VerifyCertNow(CERTCertDBHandle *handle, CERTCertificate *cert,
 CERTCertificate *
 CERT_FindMatchingCert(CERTCertDBHandle *handle, SECItem *derName,
 		      CERTCertOwner owner, SECCertUsage usage,
-		      PRBool preferTrusted, int64 validTime, PRBool validOnly)
+		      PRBool preferTrusted, PRTime validTime, PRBool validOnly)
 {
     CERTCertList *certList = NULL;
     CERTCertificate *cert = NULL;
+    CERTCertTrust certTrust;
     unsigned int requiredTrustFlags;
     SECTrustType requiredTrustType;
     unsigned int flags;
@@ -1458,10 +1447,10 @@ CERT_FindMatchingCert(CERTCertDBHandle *handle, SECItem *derName,
 	    if ( ( owner == certOwnerCA ) && preferTrusted &&
 		( requiredTrustType != trustTypeNone ) ) {
 
-		if ( cert->trust == NULL ) {
+		if ( CERT_GetCertTrust(cert, &certTrust) != SECSuccess ) {
 		    flags = 0;
 		} else {
-		    flags = SEC_GET_TRUST_FLAGS(cert->trust, requiredTrustType);
+		    flags = SEC_GET_TRUST_FLAGS(&certTrust, requiredTrustType);
 		}
 
 		if ( ( flags & requiredTrustFlags ) != requiredTrustFlags ) {
@@ -1530,7 +1519,7 @@ CERT_FilterCertListByCANames(CERTCertList *certList, int nCANames,
     int n;
     char **names;
     PRBool found;
-    int64 time;
+    PRTime time;
     
     if ( nCANames <= 0 ) {
 	return(SECSuccess);
@@ -1606,7 +1595,7 @@ CERT_FilterCertListByCANames(CERTCertList *certList, int nCANames,
  *		not yet good.
  */
 char *
-CERT_GetCertNicknameWithValidity(PRArenaPool *arena, CERTCertificate *cert,
+CERT_GetCertNicknameWithValidity(PLArenaPool *arena, CERTCertificate *cert,
 				 char *expiredString, char *notYetGoodString)
 {
     SECCertTimeValidity validity;
@@ -1678,7 +1667,7 @@ CERT_NicknameStringsFromCertList(CERTCertList *certList, char *expiredString,
 				 char *notYetGoodString)
 {
     CERTCertNicknames *names;
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     CERTCertListNode *node;
     char **nn;
     
@@ -1813,7 +1802,7 @@ loser:
 }
 
 CERTCertList *
-CERT_GetCertChainFromCert(CERTCertificate *cert, int64 time, SECCertUsage usage)
+CERT_GetCertChainFromCert(CERTCertificate *cert, PRTime time, SECCertUsage usage)
 {
     CERTCertList *chain = NULL;
     int count = 0;

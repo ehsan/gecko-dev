@@ -3,12 +3,16 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#ifndef mozilla_dom_CrashReporterParent_h
+#define mozilla_dom_CrashReporterParent_h
+
 #include "mozilla/dom/PCrashReporterParent.h"
 #include "mozilla/dom/TabMessageUtils.h"
-#include "nsXULAppAPI.h"
 #include "nsIFile.h"
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
+#include "nsDataHashtable.h"
 #endif
 
 namespace mozilla {
@@ -34,13 +38,6 @@ public:
   bool
   GeneratePairedMinidump(Toplevel* t);
 
-  /* Attempt to create a bare-bones crash report for a hang, along with extra
-     process-specific annotations present in the given AnnotationTable. Returns
-     true if successful, false otherwise.
-  */
-  bool
-  GenerateHangCrashReport(const AnnotationTable* processNotes);
-
   /* Attempt to create a bare-bones crash report, along with extra process-
      specific annotations present in the given AnnotationTable. Returns true if
      successful, false otherwise.
@@ -48,6 +45,12 @@ public:
   template<class Toplevel>
   bool
   GenerateCrashReport(Toplevel* t, const AnnotationTable* processNotes);
+
+  /**
+   * Add the .extra data for an existing crash report.
+   */
+  bool
+  GenerateChildData(const AnnotationTable* processNotes);
 
   bool
   GenerateCrashReportForMinidump(nsIFile* minidump,
@@ -63,18 +66,6 @@ public:
   void
     SetChildData(const NativeThreadId& id, const uint32_t& processType);
 
-  /* Returns the shared hang ID of a parent/child paired minidump.
-     GeneratePairedMinidump must be called first.
-  */
-  const nsString& HangID() {
-    return mHangID;
-  }
-  /* Returns the ID of the parent minidump.
-     GeneratePairedMinidump must be called first.
-  */
-  const nsString& ParentDumpID() {
-    return mParentDumpID;
-  }
   /* Returns the ID of the child minidump.
      GeneratePairedMinidump or GenerateCrashReport must be called first.
   */
@@ -82,26 +73,33 @@ public:
     return mChildDumpID;
   }
 
+  void
+  AnnotateCrashReport(const nsCString& key, const nsCString& data);
+
  protected:
-  virtual void ActorDestroy(ActorDestroyReason why);
+  virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   virtual bool
-    RecvAddLibraryMappings(const InfallibleTArray<Mapping>& m);
+    RecvAnnotateCrashReport(const nsCString& key, const nsCString& data) MOZ_OVERRIDE {
+    AnnotateCrashReport(key, data);
+    return true;
+  }
   virtual bool
-    RecvAnnotateCrashReport(const nsCString& key, const nsCString& data);
-  virtual bool
-    RecvAppendAppNotes(const nsCString& data);
+    RecvAppendAppNotes(const nsCString& data) MOZ_OVERRIDE;
+  virtual mozilla::ipc::IProtocol*
+  CloneProtocol(Channel* aChannel,
+                mozilla::ipc::ProtocolCloneContext *aCtx) MOZ_OVERRIDE;
 
 #ifdef MOZ_CRASHREPORTER
-  bool
-  GenerateChildData(const AnnotationTable* processNotes);
+  void
+  NotifyCrashService();
+#endif
 
+#ifdef MOZ_CRASHREPORTER
   AnnotationTable mNotes;
 #endif
   nsCString mAppNotes;
-  nsString mHangID;
   nsString mChildDumpID;
-  nsString mParentDumpID;
   NativeThreadId mMainThread;
   time_t mStartTime;
   uint32_t mProcessType;
@@ -120,14 +118,10 @@ CrashReporterParent::GeneratePairedMinidump(Toplevel* t)
   child = t->OtherProcess();
 #endif
   nsCOMPtr<nsIFile> childDump;
-  nsCOMPtr<nsIFile> parentDump;
   if (CrashReporter::CreatePairedMinidumps(child,
                                            mMainThread,
-                                           &mHangID,
-                                           getter_AddRefs(childDump),
-                                           getter_AddRefs(parentDump)) &&
-      CrashReporter::GetIDFromMinidump(childDump, mChildDumpID) &&
-      CrashReporter::GetIDFromMinidump(parentDump, mParentDumpID)) {
+                                           getter_AddRefs(childDump)) &&
+      CrashReporter::GetIDFromMinidump(childDump, mChildDumpID)) {
     return true;
   }
   return false;
@@ -139,7 +133,7 @@ CrashReporterParent::GenerateCrashReport(Toplevel* t,
                                          const AnnotationTable* processNotes)
 {
   nsCOMPtr<nsIFile> crashDump;
-  if (t->TakeMinidump(getter_AddRefs(crashDump), NULL) &&
+  if (t->TakeMinidump(getter_AddRefs(crashDump), nullptr) &&
       CrashReporter::GetIDFromMinidump(crashDump, mChildDumpID)) {
     return GenerateChildData(processNotes);
   }
@@ -169,3 +163,5 @@ CrashReporterParent::CreateCrashReporter(Toplevel* actor)
 
 } // namespace dom
 } // namespace mozilla
+
+#endif // mozilla_dom_CrashReporterParent_h

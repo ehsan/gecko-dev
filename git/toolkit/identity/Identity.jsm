@@ -1,4 +1,4 @@
-/* -*- Mode: js2; js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
+/* -*- js-indent-level: 2; indent-tabs-mode: nil -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -6,7 +6,7 @@
 
 "use strict";
 
-const EXPORTED_SYMBOLS = ["IdentityService"];
+this.EXPORTED_SYMBOLS = ["IdentityService"];
 
 const Cu = Components.utils;
 const Ci = Components.interfaces;
@@ -75,7 +75,10 @@ IDService.prototype = {
   shutdown: function shutdown() {
     log("shutdown");
     Services.obs.removeObserver(this, "identity-auth-complete");
-    Services.obs.removeObserver(this, "quit-application-granted");
+    // try to prevent abort/crash during shutdown of mochitest-browser2...
+    try {
+      Services.obs.removeObserver(this, "quit-application-granted");
+    } catch(e) {}
   },
 
   /**
@@ -131,7 +134,7 @@ IDService.prototype = {
     let provId = rp.provId;
 
     let rpLoginOptions = {
-      loggedInEmail: aIdentity,
+      loggedInUser: aIdentity,
       origin: rp.origin
     };
     log("selectIdentity: provId:", provId, "origin:", rp.origin);
@@ -302,4 +305,4 @@ IDService.prototype = {
 
 };
 
-let IdentityService = new IDService();
+this.IdentityService = new IDService();

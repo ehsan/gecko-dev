@@ -17,17 +17,20 @@
 // of storing the time value in nanoseconds.
 
 #include <mach/mach_time.h>
+#include <sys/time.h>
+#include <sys/sysctl.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "mozilla/TimeStamp.h"
+#include "nsDebug.h"
 
 // Estimate of the smallest duration of time we can measure.
 static uint64_t sResolution;
 static uint64_t sResolutionSigDigs;
 
-static const uint16_t kNsPerUs   =       1000;
 static const uint64_t kNsPerMs   =    1000000;
-static const uint64_t kNsPerSec  = 1000000000;
+static const uint64_t kUsPerSec  =    1000000;
 static const double kNsPerMsd    =    1000000.0;
 static const double kNsPerSecd   = 1000000000.0;
 
@@ -62,8 +65,9 @@ ClockResolutionNs()
     end = ClockTime();
 
     uint64_t candidate = (start - end);
-    if (candidate < minres)
+    if (candidate < minres) {
       minres = candidate;
+    }
   }
 
   if (0 == minres) {
@@ -78,62 +82,59 @@ ClockResolutionNs()
 namespace mozilla {
 
 double
-TimeDuration::ToSeconds() const
+BaseTimeDurationPlatformUtils::ToSeconds(int64_t aTicks)
 {
   NS_ABORT_IF_FALSE(gInitialized, "calling TimeDuration too early");
-  return (mValue * sNsPerTick) / kNsPerSecd;
+  return (aTicks * sNsPerTick) / kNsPerSecd;
 }
 
 double
-TimeDuration::ToSecondsSigDigits() const
+BaseTimeDurationPlatformUtils::ToSecondsSigDigits(int64_t aTicks)
 {
   NS_ABORT_IF_FALSE(gInitialized, "calling TimeDuration too early");
   // don't report a value < mResolution ...
-  int64_t valueSigDigs = sResolution * (mValue / sResolution);
+  int64_t valueSigDigs = sResolution * (aTicks / sResolution);
   // and chop off insignificant digits
   valueSigDigs = sResolutionSigDigs * (valueSigDigs / sResolutionSigDigs);
   return (valueSigDigs * sNsPerTick) / kNsPerSecd;
 }
 
-TimeDuration
-TimeDuration::FromMilliseconds(double aMilliseconds)
+int64_t
+BaseTimeDurationPlatformUtils::TicksFromMilliseconds(double aMilliseconds)
 {
   NS_ABORT_IF_FALSE(gInitialized, "calling TimeDuration too early");
-  return TimeDuration::FromTicks(int64_t((aMilliseconds * kNsPerMsd) / sNsPerTick));
+  double result = (aMilliseconds * kNsPerMsd) / sNsPerTick;
+  if (result > INT64_MAX) {
+    return INT64_MAX;
+  } else if (result < INT64_MIN) {
+    return INT64_MIN;
+  }
+
+  return result;
 }
 
-TimeDuration
-TimeDuration::Resolution()
+int64_t
+BaseTimeDurationPlatformUtils::ResolutionInTicks()
 {
   NS_ABORT_IF_FALSE(gInitialized, "calling TimeDuration too early");
-  return TimeDuration::FromTicks(int64_t(sResolution));
+  return static_cast<int64_t>(sResolution);
 }
-
-struct TimeStampInitialization
-{
-  TimeStampInitialization() {
-    TimeStamp::Startup();
-  }
-  ~TimeStampInitialization() {
-    TimeStamp::Shutdown();
-  }
-};
-
-static TimeStampInitialization initOnce;
 
 nsresult
 TimeStamp::Startup()
 {
-  if (gInitialized)
+  if (gInitialized) {
     return NS_OK;
+  }
 
   mach_timebase_info_data_t timebaseInfo;
   // Apple's QA1398 suggests that the output from mach_timebase_info
   // will not change while a program is running, so it should be safe
   // to cache the result.
   kern_return_t kr = mach_timebase_info(&timebaseInfo);
-  if (kr != KERN_SUCCESS)
+  if (kr != KERN_SUCCESS) {
     NS_RUNTIMEABORT("mach_timebase_info failed");
+  }
 
   sNsPerTick = double(timebaseInfo.numer) / timebaseInfo.denom;
 
@@ -142,11 +143,12 @@ TimeStamp::Startup()
   // find the number of significant digits in sResolution, for the
   // sake of ToSecondsSigDigits()
   for (sResolutionSigDigs = 1;
-       !(sResolutionSigDigs == sResolution
-         || 10*sResolutionSigDigs > sResolution);
+       !(sResolutionSigDigs == sResolution ||
+         10 * sResolutionSigDigs > sResolution);
        sResolutionSigDigs *= 10);
 
   gInitialized = true;
+
   return NS_OK;
 }
 
@@ -156,9 +158,50 @@ TimeStamp::Shutdown()
 }
 
 TimeStamp
-TimeStamp::Now()
+TimeStamp::Now(bool aHighResolution)
 {
   return TimeStamp(ClockTime());
 }
 
+// Computes and returns the process uptime in microseconds.
+// Returns 0 if an error was encountered.
+
+uint64_t
+TimeStamp::ComputeProcessUptime()
+{
+  struct timeval tv;
+  int rv = gettimeofday(&tv, nullptr);
+
+  if (rv == -1) {
+    return 0;
+  }
+
+  int mib[] = {
+    CTL_KERN,
+    KERN_PROC,
+    KERN_PROC_PID,
+    getpid(),
+  };
+  u_int mibLen = sizeof(mib) / sizeof(mib[0]);
+
+  struct kinfo_proc proc;
+  size_t bufferSize = sizeof(proc);
+  rv = sysctl(mib, mibLen, &proc, &bufferSize, nullptr, 0);
+
+  if (rv == -1) {
+    return 0;
+  }
+
+  uint64_t startTime =
+    ((uint64_t)proc.kp_proc.p_un.__p_starttime.tv_sec * kUsPerSec) +
+    proc.kp_proc.p_un.__p_starttime.tv_usec;
+  uint64_t now = (tv.tv_sec * kUsPerSec) + tv.tv_usec;
+
+  if (startTime > now) {
+    return 0;
+  }
+
+  return now - startTime;
 }
+
+} // namespace mozilla

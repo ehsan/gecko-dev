@@ -2,58 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-html {
-  font-family: Roboto,"Droid Sans",helvetica,arial,clean,sans-serif;
-  font-size: 18px;
-  background-image: url("chrome://browser/skin/images/about-bg-lightblue.png");
-  -moz-text-size-adjust: none;
-}
-
-body {
-  margin: 0;
-}
-
-#addons-header {
-  color: black;
-  padding: 8px;
-  -moz-padding-start: 25px;
-  font-size: 20px;
-  font-weight: bold;
-  border-bottom: 2px solid;
-  -moz-border-bottom-colors: #ff9100 #f27900;
-}
-
-#addons-header > div {
-  width: 100%;
-  height: 44px;
-  display: -moz-box;
-  -moz-box-align: center;
-}
-
-#addons-header > div > div {
-  -moz-box-flex: 1;
-}
-
-.addon-item {
-  color: black;
-  background-image: url("chrome://browser/skin/images/row-bg-normal.png");
-  border-bottom: 2px solid;
-  -moz-border-bottom-colors: #ffffff #bac2ac;
-  position: relative;
-}
-
-.addon-item[isDisabled="true"] {
-  color: #999999;
-}
-
-.inner {
-  background-image: url("chrome://browser/skin/images/row-bg-light.png");
-  min-height: 70px;
-  padding: 8px;
-
-  /* make room for the favicon */
-  -moz-margin-start: 82px;
-}
+%filter substitution
+%include defines.inc
 
 .details {
   width: 100%;
@@ -63,23 +13,9 @@ body {
   display: inline;
 }
 
-.title {
-  font-size: 22px;
-  font-weight: bold;
-}
-
 .version {
   /* title is not localized, so keep the margin on the left side */
-  margin-left: 12px;
-}
-
-.tag {
-  float: right;
-  margin-left: 12px;
-
-  /* compensate for the title baseline */
-  position: relative;
-  bottom: -3px;
+  margin-left: .67em;
 }
 
 .description {
@@ -90,69 +26,16 @@ body {
 }
 
 .status {
-  background-image: url("chrome://browser/skin/images/row-bg-light.png");
-  border-top: 2px solid;
-  -moz-border-top-colors: #bac2ac #ffffff;
+  border-top: 1px solid @color_about_item_border@;
   font-weight: bold;
-  padding: 8px;
+  padding: 0.5em;
   width: 100%;
-}
-
-.buttons {
-  display: -moz-box;
-  -moz-box-orient: horizontal;
-  width: 100%;
-}
-
-.buttons > button {
-  -moz-appearance: none;
-  color: black;
-  font-size: 18px !important;
-  border: 1px solid transparent;
-  border-top-color: #bac2ac;
-  -moz-border-start-color: #bac2ac;
-  background-image: none;
-  background-color: #edf0f5;
-  border-radius: 0px !important;
-  -moz-box-flex: 1;
-  padding: 20px 8px;
-}
-
-.buttons > button[disabled="true"] {
-  color: #b5b5b5;
-}
-
-.buttons:first-child {
-  -moz-border-start-color: transparent;
-}
-
-body[dir="ltr"] .favicon {
-  left: 25px;
-}
-
-body[dir="ltr"] .favicon {
-  right: 25px;
-}
-
-.favicon {
-  border: none;
-  top: 27px;
-  width: 32px;
-  height: 32px;
-  position: absolute;
-}
-
-.addon-item[isDisabled="true"] .favicon {
-  opacity: 0.3;
 }
 
 .options-header {
   font-weight: bold;
-  padding: 18px 24px;
-}
-
-.options-box {
-  margin: 0 12px;
+  text-transform: uppercase;
+  margin-top: 1em;
 }
 
 .addon-item[isDisabled="true"] .options-header,
@@ -164,45 +47,45 @@ body[dir="ltr"] .favicon {
   display: none;
 }
 
+#addons-details > .list-item:active {
+  background-color: #fff;
+}
+
+/* Settings */
+
 setting {
-  padding: 18px 12px;
-  border-top: 2px solid;
-  -moz-border-top-colors: #bac2ac #ffffff;
+  padding-bottom: 1em;
   -moz-box-align: center;
-  -moz-box-sizing: border-box;
+  box-sizing: border-box;
   width: 100%;
+}
+
+setting[type="integer"],
+setting[type="string"],
+setting[type="menulist"],
+setting[type="control"] {
+  -moz-box-orient: vertical;
+  -moz-box-align: start;
 }
 
 setting > vbox {
   -moz-box-flex: 1;
 }
 
-.preferences-title {
-  font-weight: bold;
-}
-
 .preferences-description {
   margin-top: 4px;
+  color: #666;
 }
 
 .preferences-description:empty {
   display: none;
 }
 
-/* Put setting textboxes on a separate row */
-setting[type="integer"],
-setting[type="string"] {
-  -moz-box-align: stretch;
-  -moz-box-orient: vertical;
-}
-
-.preferences-alignment > textbox {
-  margin: 12px 0 0 0;
-  font-size: 22px !important;
-}
+/* Checkbox */
 
 checkbox {
   -moz-binding: url("chrome://global/content/bindings/checkbox.xml#checkbox-with-spacing") !important;
+  margin: 0;
 }
 
 checkbox[label=""] > .checkbox-label-box,
@@ -211,10 +94,11 @@ checkbox:not([label]) > .checkbox-label-box {
 }
 
 .checkbox-check {
-  background: url("chrome://browser/skin/images/checkbox_unchecked.png") no-repeat 50% 50%;
-  border: 0 transparent;
-  width: 48px;
+  background-color: transparent;
+  background-image: url("chrome://browser/skin/images/checkbox_unchecked.png");
+  border: none;
   height: 48px;
+  width: 48px;
 }
 
 setting:active checkbox > .checkbox-spacer-box > .checkbox-check {
@@ -244,14 +128,22 @@ textbox[type="number"] > spinbuttons {
 }
 
 textbox {
-  background: white -moz-linear-gradient(top, rgba(27,113,177,0.5) 0, rgba(198,225,246,0.2) 3px, rgba(255,255,255,0.2) 16px);
-  border-radius: 3px;
-  border-color: rgb(94,128,153);
-  padding: 0 !important;
+  min-width: 200px;
+  margin: 2px 0;
+  padding: 0.5em !important;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  color: #333;
 }
 
-.textbox-input-box {
-  padding: 8px 12px;
+/* Button */
+
+setting button {
+  margin: 2px 0;
+  background: #fff;
+  border: 1px solid #ccc;
+  padding: 0.5em;
 }
 
 /* Menulist */
@@ -259,39 +151,36 @@ textbox {
 menulist {
   -moz-appearance: none !important;
   -moz-user-focus: ignore;
-  /* min-width: 200px !important; */
-  color: #000 !important;
-  border-radius: 5px;
-  border-color: rgb(94,128,153);
-  border-style: solid;
-  padding: 8px 12px;
-  background: white;
-  border: 1px solid #cacdd5;
-  border-style: solid;
-  border-color: rgb(94,128,153);
   min-width: 200px;
-}
-
-.menulist-label {
-  background-color: transparent !important;
-}
-
-menulist > menupopup > menuitem > label{
--moz-padding-start:3px !important;
--moz-padding-end:7px !important;
+  margin: 2px 0;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.5em;
 }
 
 menulist > dropmarker {
-  height: 32px;
-  width: 32px;
+  height: 1.8em;
+  width: 1.8em;
   margin-left: @margin_snormal@;
-  background-color: transparent; /* for windows */
-  border: none;                  /* for windows */
+  background-color: transparent;
+  border: none;
   -moz-box-align: center;
   -moz-box-pack: center;
   list-style-image: url("chrome://browser/skin/images/dropmarker.svg") !important;
   -moz-image-region: auto;
   display: block;
+}
+
+/* Select */
+
+select {
+  min-width: 200px;
+  margin: 2px 0;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 1em;
 }
 
 /* XBL bindings */
@@ -338,4 +227,36 @@ setting[type="radio"],
 setting[type="menulist"] {
   display: -moz-box;
   -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-multi");
+}
+
+.hide-on-enable,
+.show-on-error,
+.show-on-uninstall,
+.show-on-install,
+.show-on-restart,
+div[isDisabled="true"] .hide-on-disable {
+  display: none;
+}
+
+div[error] .show-on-error,
+div[opType="needs-restart"] .show-on-restart,
+div[opType="needs-uninstall"] .show-on-uninstall,
+div[opType="needs-install"] .show-on-install,
+div[opType="needs-enable"] .show-on-enable,
+div[opType="needs-disable"] .show-on-disable,
+div[isDisabled="true"] .show-on-disable {
+  display: -moz-box;
+}
+
+div[opType="needs-restart"] .hide-on-restart,
+div[opType="needs-uninstall"] .hide-on-uninstall,
+div[isDisabled="true"][opType="needs-uninstall"],
+div[opType="needs-install"] .hide-on-install,
+div[opType="needs-enable"] .hide-on-enable,
+div[opType="needs-disable"] .hide-on-disable {
+  display: none;
+}
+
+#addons-list, #addons-details {
+  display: none;
 }

@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -30,56 +30,51 @@ function run_test() {
   Cu.import("resource://gre/modules/BookmarkHTMLUtils.jsm");
 
   // file pointer to legacy bookmarks file
-  //var bookmarksFileOld = do_get_file("bookmarks.large.html");
-  var bookmarksFileOld = do_get_file("bookmarks.preplaces.html");
+  var bookmarksFileOld = OS.Path.join(do_get_cwd().path, "bookmarks.preplaces.html");
   // file pointer to a new places-exported json file
-  var jsonFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
-  jsonFile.append("bookmarks.exported.json");
+  var jsonFile = OS.Path.join(OS.Constants.Path.profileDir, "bookmarks.exported.json");
+  Task.spawn(function () {
+    // create bookmarks.exported.json
+    if ((yield OS.File.exists(jsonFile)))
+      yield OS.File.remove(jsonFile);
 
-  // create bookmarks.exported.json
-  if (jsonFile.exists())
-    jsonFile.remove(false);
-  jsonFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, 0600);
-  if (!jsonFile.exists())
-    do_throw("couldn't create file: bookmarks.exported.json");
+    // Test importing a pre-Places canonical bookmarks file.
+    // 1. import bookmarks.preplaces.html
+    // Note: we do not empty the db before this import to catch bugs like 380999
+    try {
+      BookmarkHTMLUtils.importFromFile(bookmarksFileOld, true)
+                       .then(after_import, do_report_unexpected_exception);
+    } catch(ex) { do_throw("couldn't import legacy bookmarks file: " + ex); }
+  });
 
-  // Test importing a pre-Places canonical bookmarks file.
-  // 1. import bookmarks.preplaces.html
-  // Note: we do not empty the db before this import to catch bugs like 380999
-  try {
-    BookmarkHTMLUtils.importFromFile(bookmarksFileOld, true, after_import);
-  } catch(ex) { do_throw("couldn't import legacy bookmarks file: " + ex); }
-
-  function after_import(success) {
-    if (!success) {
-      do_throw("Couldn't import legacy bookmarks file.");
-    }
-
+  function after_import() {
     populate();
 
     // 2. run the test-suite
-    validate();
-  
-    waitForAsyncUpdates(function testJsonExport() {
+    Task.spawn(function() {
+      yield validate();
+      yield promiseAsyncUpdates();
+      
       // Test exporting a Places canonical json file.
       // 1. export to bookmarks.exported.json
       try {
-        PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
+        yield BookmarkJSONUtils.exportToFile(jsonFile);
       } catch(ex) { do_throw("couldn't export to file: " + ex); }
       LOG("exported json");
 
       // 2. empty bookmarks db
       // 3. import bookmarks.exported.json
       try {
-        PlacesUtils.restoreBookmarksFromJSONFile(jsonFile);
+        yield BookmarkJSONUtils.importFromFile(jsonFile, true);
       } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
       LOG("imported json");
 
       // 4. run the test-suite
-      validate();
+      yield validate();
       LOG("validated import");
   
-      waitForAsyncUpdates(do_test_finished);
+      yield promiseAsyncUpdates();
+      do_test_finished();
     });
   }
 }
@@ -117,8 +112,8 @@ function populate() {
 }
 
 function validate() {
-  testCanonicalBookmarks(PlacesUtils.bookmarks.bookmarksMenuFolder);
-  testToolbarFolder();
+  yield testCanonicalBookmarks();
+  yield testToolbarFolder();
   testUnfiledBookmarks();
   testTags();
 }
@@ -128,7 +123,7 @@ function validate() {
 function testCanonicalBookmarks() {
   // query to see if the deleted folder and items have been imported
   var query = PlacesUtils.history.getNewQuery();
-  query.setFolders([PlacesUtils.bookmarks.bookmarksMenuFolder], 1);
+  query.setFolders([PlacesUtils.bookmarksMenuFolderId], 1);
   var result = PlacesUtils.history.executeQuery(query, PlacesUtils.history.getNewQueryOptions());
   var rootNode = result.root;
   rootNode.containerOpen = true;
@@ -192,9 +187,9 @@ function testCanonicalBookmarks() {
 
   // last charset
   var testURI = PlacesUtils._uri(testBookmark1.uri);
-  do_check_eq("ISO-8859-1", PlacesUtils.history.getCharsetForURI(testURI));
+  do_check_eq("ISO-8859-1", (yield PlacesUtils.getCharsetForURI(testURI)));
 
-  // description 
+  // description
   do_check_true(PlacesUtils.annotations.itemHasAnnotation(testBookmark1.itemId,
                                                           DESCRIPTION_ANNO));
   do_check_eq("item description",
@@ -208,7 +203,7 @@ function testCanonicalBookmarks() {
 
 function testToolbarFolder() {
   var query = PlacesUtils.history.getNewQuery();
-  query.setFolders([PlacesUtils.bookmarks.toolbarFolder], 1);
+  query.setFolders([PlacesUtils.toolbarFolderId], 1);
   var result = PlacesUtils.history.executeQuery(query, PlacesUtils.history.getNewQueryOptions());
 
   var toolbar = result.root;
@@ -222,16 +217,11 @@ function testToolbarFolder() {
   // title
   do_check_eq("Latest Headlines", livemark.title);
 
-  PlacesUtils.livemarks.getLivemark(
-    { id: livemark.itemId },
-    function (aStatus, aLivemark) {
-      do_check_true(Components.isSuccessCode(aStatus));
-      do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
-                  aLivemark.siteURI.spec);
-      do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
-                  aLivemark.feedURI.spec);
-    }
-  );
+  let foundLivemark = yield PlacesUtils.livemarks.getLivemark({ id: livemark.itemId });
+  do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
+              foundLivemark.siteURI.spec);
+  do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
+              foundLivemark.feedURI.spec);
 
   // test added bookmark data
   var child = toolbar.getChild(2);
@@ -246,7 +236,7 @@ function testToolbarFolder() {
 
 function testUnfiledBookmarks() {
   var query = PlacesUtils.history.getNewQuery();
-  query.setFolders([PlacesUtils.bookmarks.unfiledBookmarksFolder], 1);
+  query.setFolders([PlacesUtils.unfiledBookmarksFolderId], 1);
   var result = PlacesUtils.history.executeQuery(query, PlacesUtils.history.getNewQueryOptions());
   var rootNode = result.root;
   rootNode.containerOpen = true;

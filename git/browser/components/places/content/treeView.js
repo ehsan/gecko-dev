@@ -23,18 +23,12 @@ function PlacesTreeView(aFlatList, aOnOpenFlatContainer, aController) {
 PlacesTreeView.prototype = {
   get wrappedJSObject() this,
 
-  _makeAtom: function PTV__makeAtom(aString) {
-    return Cc["@mozilla.org/atom-service;1"].
-           getService(Ci.nsIAtomService).
-           getAtom(aString);
-  },
-
-  _atoms: [],
-  _getAtomFor: function PTV__getAtomFor(aName) {
-    if (!this._atoms[aName])
-      this._atoms[aName] = this._makeAtom(aName);
-
-    return this._atoms[aName];
+  __xulStore: null,
+  get _xulStore() {
+    if (!this.__xulStore) {
+      this.__xulStore = Cc["@mozilla.org/xul/xulstore;1"].getService(Ci.nsIXULStore);
+    }
+    return this.__xulStore;
   },
 
   __dateService: null,
@@ -321,11 +315,14 @@ PlacesTreeView.prototype = {
       if (!this._flatList &&
           curChild instanceof Ci.nsINavHistoryContainerResultNode &&
           !this._controller.hasCachedLivemarkInfo(curChild)) {
-        let resource = this._getResourceForNode(curChild);
-        let isopen = resource != null &&
-                     PlacesUIUtils.localStore.HasAssertion(resource,
-                                                           openLiteral,
-                                                           trueLiteral, true);
+        let uri = curChild.uri;
+        let isopen = false;
+
+        if (uri) {
+          let val = this._xulStore.getValue(document.documentURI, uri, "open");
+          isopen = (val == "true");
+        }
+
         if (isopen != curChild.containerOpen)
           aToOpen.push(curChild);
         else if (curChild.containerOpen && curChild.childCount > 0)
@@ -466,7 +463,7 @@ PlacesTreeView.prototype = {
     for (let i = 0; i < aNodesInfo.length; i++) {
       let nodeInfo = aNodesInfo[i];
       let row = this._getNewRowForRemovedNode(aUpdatedContainer,
-                                              aNodesInfo[i].node);
+                                              nodeInfo.node);
       // Select the found node, if any.
       if (row != -1) {
         selection.rangedSelect(row, row, true);
@@ -479,9 +476,11 @@ PlacesTreeView.prototype = {
     // select the node at its old row, if any.
     if (aNodesInfo.length == 1 && selection.count == 0) {
       let row = Math.min(aNodesInfo[0].oldRow, this._rows.length - 1);
-      selection.rangedSelect(row, row, true);
-      if (aNodesInfo[0].wasVisible && scrollToRow == -1)
-        scrollToRow = aNodesInfo[0].oldRow;
+      if (row != -1) {
+        selection.rangedSelect(row, row, true);
+        if (aNodesInfo[0].wasVisible && scrollToRow == -1)
+          scrollToRow = aNodesInfo[0].oldRow;
+      }
     }
 
     if (scrollToRow != -1)
@@ -719,7 +718,8 @@ PlacesTreeView.prototype = {
 
     // Restore selection.
     let rowToSelect = Math.min(oldRow, this._rows.length - 1);
-    this.selection.rangedSelect(rowToSelect, rowToSelect, true);
+    if (rowToSelect != -1)
+      this.selection.rangedSelect(rowToSelect, rowToSelect, true);
   },
 
   nodeMoved:
@@ -732,7 +732,13 @@ PlacesTreeView.prototype = {
     if (PlacesUtils.nodeIsSeparator(aNode) && this.isSorted())
       return;
 
-    let oldRow = this._getRowForNode(aNode, true);
+    // Note that at this point the node has already been moved by the backend,
+    // so we must give hints to _getRowForNode to get the old row position.
+    let oldParentRow = aOldParent == this._rootNode ?
+                         undefined : this._getRowForNode(aOldParent, true);
+    let oldRow = this._getRowForNode(aNode, true, oldParentRow, aOldIndex);
+    if (oldRow < 0)
+      throw Cr.NS_ERROR_UNEXPECTED;
 
     // If this node is a container it could take up more than one row.
     let count = this._countVisibleRowsForNodeAtRow(oldRow);
@@ -760,24 +766,6 @@ PlacesTreeView.prototype = {
     if (nodesToReselect.length > 0) {
       this._restoreSelection(nodesToReselect, aNewParent);
       this.selection.selectEventsSuppressed = false;
-    }
-  },
-
-  /**
-   * Be careful, the parameter 'aIndex' here specifies the node's index in the
-   * parent node, not the visible index.
-   */
-  nodeReplaced:
-  function PTV_nodeReplaced(aParentNode, aOldNode, aNewNode, aIndexDoNotUse) {
-    NS_ASSERT(this._result, "Got a notification but have no result!");
-    if (!this._tree || !this._result)
-      return;
-
-    // Nothing to do if the replaced node was not set.
-    let row = this._getRowForNode(aOldNode);
-    if (row != -1) {
-      this._rows[row] = aNewNode;
-      this._tree.invalidateRow(row);
     }
   },
 
@@ -809,11 +797,11 @@ PlacesTreeView.prototype = {
   },
 
   _populateLivemarkContainer: function PTV__populateLivemarkContainer(aNode) {
-    PlacesUtils.livemarks.getLivemark({ id: aNode.itemId },
-      function (aStatus, aLivemark) {
+    PlacesUtils.livemarks.getLivemark({ id: aNode.itemId })
+      .then(aLivemark => {
         let placesNode = aNode;
         // Need to check containerOpen since getLivemark is async.
-        if (!Components.isSuccessCode(aStatus) || !placesNode.containerOpen)
+        if (!placesNode.containerOpen)
           return;
 
         let children = aLivemark.getNodesForContainer(placesNode);
@@ -821,7 +809,7 @@ PlacesTreeView.prototype = {
           let child = children[i];
           this.nodeInserted(placesNode, child, i);
         }
-      }.bind(this));
+      }, Components.utils.reportError);
   },
 
   nodeTitleChanged: function PTV_nodeTitleChanged(aNode, aNewTitle) {
@@ -870,20 +858,15 @@ PlacesTreeView.prototype = {
       this._invalidateCellValue(aNode, this.COLUMN_TYPE_DESCRIPTION);
     }
     else if (aAnno == PlacesUtils.LMANNO_FEEDURI) {
-      PlacesUtils.livemarks.getLivemark(
-        { id: aNode.itemId },
-        function (aStatus, aLivemark) {
-          if (Components.isSuccessCode(aStatus)) {
-            this._controller.cacheLivemarkInfo(aNode, aLivemark);
-            let properties = this._cellProperties.get(aNode, null);
-            if (properties)
-              properties.push(this._getAtomFor("livemark"));
+      PlacesUtils.livemarks.getLivemark({ id: aNode.itemId })
+        .then(aLivemark => {
+          this._controller.cacheLivemarkInfo(aNode, aLivemark);
+          let properties = this._cellProperties.get(aNode);
+          this._cellProperties.set(aNode, properties += " livemark ");
 
-            // The livemark attribute is set as a cell property on the title cell.
-            this._invalidateCellValue(aNode, this.COLUMN_TYPE_TITLE);
-          }
-        }.bind(this)
-      );
+          // The livemark attribute is set as a cell property on the title cell.
+          this._invalidateCellValue(aNode, this.COLUMN_TYPE_TITLE);
+        }, Components.utils.reportError);
     }
   },
 
@@ -907,26 +890,23 @@ PlacesTreeView.prototype = {
         return;
       }
 
-      PlacesUtils.livemarks.getLivemark({ id: aNode.itemId },
-        function (aStatus, aLivemark) {
-          if (Components.isSuccessCode(aStatus)) {
-            let shouldInvalidate = 
-              !this._controller.hasCachedLivemarkInfo(aNode);
-            this._controller.cacheLivemarkInfo(aNode, aLivemark);
-            if (aNewState == Components.interfaces.nsINavHistoryContainerResultNode.STATE_OPENED) {
-              aLivemark.registerForUpdates(aNode, this);
-              // Prioritize the current livemark.
-              aLivemark.reload();
-              PlacesUtils.livemarks.reloadLivemarks();
-              if (shouldInvalidate)
-                this.invalidateContainer(aNode);
-            }
-            else {
-              aLivemark.unregisterForUpdates(aNode);
-            }
+      PlacesUtils.livemarks.getLivemark({ id: aNode.itemId })
+        .then(aLivemark => {
+          let shouldInvalidate = 
+            !this._controller.hasCachedLivemarkInfo(aNode);
+          this._controller.cacheLivemarkInfo(aNode, aLivemark);
+          if (aNewState == Components.interfaces.nsINavHistoryContainerResultNode.STATE_OPENED) {
+            aLivemark.registerForUpdates(aNode, this);
+            // Prioritize the current livemark.
+            aLivemark.reload();
+            PlacesUtils.livemarks.reloadLivemarks();
+            if (shouldInvalidate)
+              this.invalidateContainer(aNode);
           }
-        }.bind(this)
-      );
+          else {
+            aLivemark.unregisterForUpdates(aNode);
+          }
+        }, () => undefined);
     }
   },
 
@@ -1140,104 +1120,93 @@ PlacesTreeView.prototype = {
     return Ci.nsINavHistoryResultTreeViewer.INDEX_INVISIBLE;
   },
 
-  _getResourceForNode: function PTV_getResourceForNode(aNode)
-  {
-    let uri = aNode.uri;
-    NS_ASSERT(uri, "if there is no uri, we can't persist the open state");
-    return uri ? PlacesUIUtils.RDF.GetResource(uri) : null;
-  },
-
   // nsITreeView
   get rowCount() this._rows.length,
   get selection() this._selection,
   set selection(val) this._selection = val,
 
-  getRowProperties: function() { },
+  getRowProperties: function() { return ""; },
 
   getCellProperties:
-  function PTV_getCellProperties(aRow, aColumn, aProperties) {
+  function PTV_getCellProperties(aRow, aColumn) {
     // for anonid-trees, we need to add the column-type manually
+    var props = "";
     let columnType = aColumn.element.getAttribute("anonid");
     if (columnType)
-      aProperties.AppendElement(this._getAtomFor(columnType));
+      props += columnType;
     else
       columnType = aColumn.id;
 
     // Set the "ltr" property on url cells
     if (columnType == "url")
-      aProperties.AppendElement(this._getAtomFor("ltr"));
+      props += " ltr";
 
     if (columnType != "title")
-      return;
+      return props;
 
     let node = this._getNodeForRow(aRow);
 
     if (this._cuttingNodes.has(node)) {
-      aProperties.AppendElement(this._getAtomFor("cutting"));
+      props += " cutting";
     }
 
-    let properties = this._cellProperties.get(node, null);
-    if (!properties) {
-      properties = [];
+    let properties = this._cellProperties.get(node);
+    if (properties === undefined) {
+      properties = "";
       let itemId = node.itemId;
       let nodeType = node.type;
       if (PlacesUtils.containerTypes.indexOf(nodeType) != -1) {
         if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY) {
-          properties.push(this._getAtomFor("query"));
+          properties += " query";
           if (PlacesUtils.nodeIsTagQuery(node))
-            properties.push(this._getAtomFor("tagContainer"));
+            properties += " tagContainer";
           else if (PlacesUtils.nodeIsDay(node))
-            properties.push(this._getAtomFor("dayContainer"));
+            properties += " dayContainer";
           else if (PlacesUtils.nodeIsHost(node))
-            properties.push(this._getAtomFor("hostContainer"));
+            properties += " hostContainer";
         }
         else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER ||
                  nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT) {
           if (this._controller.hasCachedLivemarkInfo(node)) {
-            properties.push(this._getAtomFor("livemark"));
+            properties += " livemark";
           }
           else {
-            PlacesUtils.livemarks.getLivemark(
-              { id: node.itemId },
-              function (aStatus, aLivemark) {
-                if (Components.isSuccessCode(aStatus)) {
-                  this._controller.cacheLivemarkInfo(node, aLivemark);
-                  properties.push(this._getAtomFor("livemark"));
-                  // The livemark attribute is set as a cell property on the title cell.
-                  this._invalidateCellValue(node, this.COLUMN_TYPE_TITLE);
-                }
-              }.bind(this)
-            );
+            PlacesUtils.livemarks.getLivemark({ id: node.itemId })
+              .then(aLivemark => {
+                this._controller.cacheLivemarkInfo(node, aLivemark);
+                properties += " livemark";
+                // The livemark attribute is set as a cell property on the title cell.
+                this._invalidateCellValue(node, this.COLUMN_TYPE_TITLE);
+              }, () => undefined);
           }
         }
 
         if (itemId != -1) {
           let queryName = PlacesUIUtils.getLeftPaneQueryNameFromId(itemId);
           if (queryName)
-            properties.push(this._getAtomFor("OrganizerQuery_" + queryName));
+            properties += " OrganizerQuery_" + queryName;
         }
       }
       else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR)
-        properties.push(this._getAtomFor("separator"));
+        properties += " separator";
       else if (PlacesUtils.nodeIsURI(node)) {
-        properties.push(this._getAtomFor(PlacesUIUtils.guessUrlSchemeForUI(node.uri)));
+        properties += " " + PlacesUIUtils.guessUrlSchemeForUI(node.uri);
 
         if (this._controller.hasCachedLivemarkInfo(node.parent)) {
-          properties.push(this._getAtomFor("livemarkItem"));
+          properties += " livemarkItem";
           if (node.accessCount) {
-            properties.push(this._getAtomFor("visited"));
+            properties += " visited";
           }
         }
       }
 
       this._cellProperties.set(node, properties);
     }
-    for (let property of properties) {
-      aProperties.AppendElement(property);
-    }
+
+    return props + " " + properties;
   },
 
-  getColumnProperties: function(aColumn, aProperties) { },
+  getColumnProperties: function(aColumn) { return ""; },
 
   isContainer: function PTV_isContainer(aRow) {
     // Only leaf nodes aren't listed in the rows array.
@@ -1374,9 +1343,10 @@ PlacesTreeView.prototype = {
     if (PlacesControllerDragHelper.disallowInsertion(container))
       return null;
 
+    let tagName = PlacesUtils.nodeIsTagQuery(container) ? container.title : null;
     return new InsertionPoint(PlacesUtils.getConcreteItemId(container),
                               index, orientation,
-                              PlacesUtils.nodeIsTagQuery(container),
+                              tagName,
                               dropNearItemId);
   },
 
@@ -1385,8 +1355,10 @@ PlacesTreeView.prototype = {
     // parameters into a container id and index within the container,
     // since this information is specific to the tree view.
     let ip = this._getInsertionPoint(aRow, aOrientation);
-    if (ip)
-      PlacesControllerDragHelper.onDrop(ip, aDataTransfer);
+    if (ip) {
+      PlacesControllerDragHelper.onDrop(ip, aDataTransfer)
+                                .then(null, Components.utils.reportError);
+    }
 
     PlacesControllerDragHelper.currentDropTarget = null;
   },
@@ -1431,7 +1403,11 @@ PlacesTreeView.prototype = {
     if (this._getColumnType(aColumn) != this.COLUMN_TYPE_TITLE)
       return "";
 
-    return this._getNodeForRow(aRow).icon;
+    let node = this._getNodeForRow(aRow);
+    if (PlacesUtils.nodeIsURI(node) && node.icon)
+      return PlacesUtils.getImageURLForResolution(window, node.icon);
+
+    return node.icon;
   },
 
   getProgressMode: function(aRow, aColumn) { },
@@ -1528,15 +1504,16 @@ PlacesTreeView.prototype = {
 
     // Persist containers open status, but never persist livemarks.
     if (!this._controller.hasCachedLivemarkInfo(node)) {
-      let resource = this._getResourceForNode(node);
-      if (resource) {
-        const openLiteral = PlacesUIUtils.RDF.GetResource("http://home.netscape.com/NC-rdf#open");
-        const trueLiteral = PlacesUIUtils.RDF.GetLiteral("true");
+      let uri = node.uri;
 
-        if (node.containerOpen)
-          PlacesUIUtils.localStore.Unassert(resource, openLiteral, trueLiteral);
-        else
-          PlacesUIUtils.localStore.Assert(resource, openLiteral, trueLiteral, true);
+      if (uri) {
+        let docURI = document.documentURI;
+
+        if (node.containerOpen) {
+          this._xulStore.removeValue(docURI, uri, "open");
+        } else {
+          this._xulStore.setValue(docURI, uri, "open", "true");
+        }
       }
     }
 
@@ -1672,23 +1649,39 @@ PlacesTreeView.prototype = {
     if (aColumn.index != 0)
       return false;
 
-    // Only bookmark-nodes are editable, and those are never built lazily
     let node = this._rows[aRow];
-    if (!node || node.itemId == -1)
+    if (!node) {
+      Cu.reportError("isEditable called for an unbuilt row.");
+      return false;
+    }
+    let itemId = node.itemId;
+
+    // Only bookmark-nodes are editable.  Fortunately, this checks also takes
+    // care of livemark children.
+    if (itemId == -1)
       return false;
 
-    // The following items are never editable:
-    // * Read-only items.
+    // The following items are also not editable, even though they are bookmark
+    // items.
     // * places-roots
+    // * the left pane special folders and queries (those are place: uri
+    //   bookmarks)
     // * separators
-    if (PlacesUtils.nodeIsReadOnly(node) ||
-        PlacesUtils.nodeIsSeparator(node))
+    //
+    // Note that concrete itemIds aren't used intentionally.  For example, we
+    // have no reason to disallow renaming a shortcut to the Bookmarks Toolbar,
+    // except for the one under All Bookmarks.
+    if (PlacesUtils.nodeIsSeparator(node) || PlacesUtils.isRootItem(itemId))
       return false;
 
-    if (PlacesUtils.nodeIsFolder(node)) {
-      let itemId = PlacesUtils.getConcreteItemId(node);
-      if (PlacesUtils.isRootItem(itemId))
-        return false;
+    let parentId = PlacesUtils.getConcreteItemId(node.parent);
+    if (parentId == PlacesUIUtils.leftPaneFolderId ||
+        parentId == PlacesUIUtils.allBookmarksFolderId) {
+      // Note that the for the time being this is the check that actually
+      // blocks renaming places "roots", and not the isRootItem check above.
+      // That's because places root are only exposed through folder shortcuts
+      // descendants of the left pane folder.
+      return false;
     }
 
     return true;

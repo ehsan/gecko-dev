@@ -3,8 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/PLayersParent.h"
-#include "BasicLayersImpl.h"
+#include "BasicLayersImpl.h"            // for FillRectWithMask, etc
+#include "Layers.h"                     // for ColorLayer, etc
+#include "BasicImplData.h"              // for BasicImplData
+#include "BasicLayers.h"                // for BasicLayerManager
+#include "gfxContext.h"                 // for gfxContext, etc
+#include "gfxRect.h"                    // for gfxRect
+#include "gfx2DGlue.h"
+#include "mozilla/mozalloc.h"           // for operator new
+#include "nsAutoPtr.h"                  // for nsRefPtr
+#include "nsCOMPtr.h"                   // for already_AddRefed
+#include "nsDebug.h"                    // for NS_ASSERTION
+#include "nsISupportsImpl.h"            // for Layer::AddRef, etc
+#include "nsRect.h"                     // for nsIntRect
+#include "nsRegion.h"                   // for nsIntRegion
+#include "mozilla/gfx/PathHelpers.h"
 
 using namespace mozilla::gfx;
 
@@ -13,16 +26,20 @@ namespace layers {
 
 class BasicColorLayer : public ColorLayer, public BasicImplData {
 public:
-  BasicColorLayer(BasicLayerManager* aLayerManager) :
-    ColorLayer(aLayerManager, static_cast<BasicImplData*>(this))
+  explicit BasicColorLayer(BasicLayerManager* aLayerManager) :
+    ColorLayer(aLayerManager,
+               static_cast<BasicImplData*>(MOZ_THIS_IN_INITIALIZER_LIST()))
   {
     MOZ_COUNT_CTOR(BasicColorLayer);
   }
+
+protected:
   virtual ~BasicColorLayer()
   {
     MOZ_COUNT_DTOR(BasicColorLayer);
   }
 
+public:
   virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(BasicManager()->InConstruction(),
@@ -30,17 +47,24 @@ public:
     ColorLayer::SetVisibleRegion(aRegion);
   }
 
-  virtual void Paint(gfxContext* aContext, Layer* aMaskLayer)
+  virtual void Paint(DrawTarget* aDT,
+                     const gfx::Point& aDeviceOffset,
+                     Layer* aMaskLayer) MOZ_OVERRIDE
   {
-    if (IsHidden())
+    if (IsHidden()) {
       return;
-    AutoSetOperator setOperator(aContext, GetOperator());
-    PaintColorTo(mColor, GetEffectiveOpacity(), aContext, aMaskLayer);
-  }
+    }
 
-  static void PaintColorTo(gfxRGBA aColor, float aOpacity,
-                           gfxContext* aContext,
-                           Layer* aMaskLayer);
+    Rect snapped(mBounds.x, mBounds.y, mBounds.width, mBounds.height);
+    MaybeSnapToDevicePixels(snapped, *aDT, true);
+
+    // Clip drawing in case we're using (unbounded) operator source.
+    aDT->PushClipRect(snapped);
+    FillRectWithMask(aDT, aDeviceOffset, snapped, ToColor(mColor),
+                     DrawOptions(GetEffectiveOpacity(), GetEffectiveOperator(this)),
+                     aMaskLayer);
+    aDT->PopClip();
+  }
 
 protected:
   BasicLayerManager* BasicManager()
@@ -49,105 +73,11 @@ protected:
   }
 };
 
-/*static*/ void
-BasicColorLayer::PaintColorTo(gfxRGBA aColor, float aOpacity,
-                              gfxContext* aContext,
-                              Layer* aMaskLayer)
-{
-  aContext->SetColor(aColor);
-  PaintWithMask(aContext, aOpacity, aMaskLayer);
-}
-
-class BasicShadowableColorLayer : public BasicColorLayer,
-                                  public BasicShadowableLayer
-{
-public:
-  BasicShadowableColorLayer(BasicShadowLayerManager* aManager) :
-    BasicColorLayer(aManager)
-  {
-    MOZ_COUNT_CTOR(BasicShadowableColorLayer);
-  }
-  virtual ~BasicShadowableColorLayer()
-  {
-    MOZ_COUNT_DTOR(BasicShadowableColorLayer);
-  }
-
-  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
-  {
-    aAttrs = ColorLayerAttributes(GetColor());
-  }
-
-  virtual Layer* AsLayer() { return this; }
-  virtual ShadowableLayer* AsShadowableLayer() { return this; }
-
-  virtual void Disconnect()
-  {
-    BasicShadowableLayer::Disconnect();
-  }
-
-  virtual void Paint(gfxContext* aContext, Layer* aMaskLayer);
-};
-
-void
-BasicShadowableColorLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
-{
-  BasicColorLayer::Paint(aContext, aMaskLayer);
-
-  if (!HasShadow()) {
-    return;
-  }
-
-  if (aMaskLayer) {
-    static_cast<BasicImplData*>(aMaskLayer->ImplData())
-      ->Paint(aContext, nullptr);
-  }
-}
-
-class BasicShadowColorLayer : public ShadowColorLayer,
-                              public BasicImplData
-{
-public:
-  BasicShadowColorLayer(BasicShadowLayerManager* aLayerManager) :
-    ShadowColorLayer(aLayerManager, static_cast<BasicImplData*>(this))
-  {
-    MOZ_COUNT_CTOR(BasicShadowColorLayer);
-  }
-  virtual ~BasicShadowColorLayer()
-  {
-    MOZ_COUNT_DTOR(BasicShadowColorLayer);
-  }
-
-  virtual void Paint(gfxContext* aContext, Layer* aMaskLayer)
-  {
-    AutoSetOperator setOperator(aContext, GetOperator());
-    BasicColorLayer::PaintColorTo(mColor, GetEffectiveOpacity(),
-                                  aContext, aMaskLayer);
-  }
-};
-
 already_AddRefed<ColorLayer>
 BasicLayerManager::CreateColorLayer()
 {
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
   nsRefPtr<ColorLayer> layer = new BasicColorLayer(this);
-  return layer.forget();
-}
-
-already_AddRefed<ColorLayer>
-BasicShadowLayerManager::CreateColorLayer()
-{
-  NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
-  nsRefPtr<BasicShadowableColorLayer> layer =
-    new BasicShadowableColorLayer(this);
-  MAYBE_CREATE_SHADOW(Color);
-  return layer.forget();
-}
-
-already_AddRefed<ShadowColorLayer>
-BasicShadowLayerManager::CreateShadowColorLayer()
-{
-  NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
-  nsRefPtr<ShadowColorLayer> layer = new BasicShadowColorLayer(this);
   return layer.forget();
 }
 

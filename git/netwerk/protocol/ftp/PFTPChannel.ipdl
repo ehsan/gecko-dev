@@ -9,10 +9,11 @@ include protocol PNecko;
 include InputStreamParams;
 include URIParams;
 
-include "SerializedLoadContext.h";
+//FIXME: bug #792908 (NeckoChannelParams already included by PNecko)
+include NeckoChannelParams;
+include protocol PBlob; //FIXME: bug #792908
 
-using IPC::SerializedLoadContext;
-using PRTime;
+using PRTime from "prtime.h";
 
 namespace mozilla {
 namespace net {
@@ -22,25 +23,47 @@ async protocol PFTPChannel
   manager PNecko;
 
 parent:
+  // Note: channels are opened during construction, so no open method here:
+  // see PNecko.ipdl
+
   __delete__();
 
-  AsyncOpen(URIParams uri,
-            uint64_t startPos,
-            nsCString entityID,
-            OptionalInputStreamParams uploadStream,
-            SerializedLoadContext loadContext);
-
-  ConnectChannel(uint32_t channelId);
   Cancel(nsresult status);
   Suspend();
   Resume();
 
+  // Divert OnDataAvailable to the parent.
+  DivertOnDataAvailable(nsCString data,
+                        uint64_t  offset,
+                        uint32_t  count);
+
+  // Divert OnStopRequest to the parent.
+  DivertOnStopRequest(nsresult statusCode);
+
+  // Child has no more events/messages to divert to the parent.
+  DivertComplete();
+
 child:
-  OnStartRequest(int32_t aContentLength, nsCString aContentType,
-                 PRTime aLastModified, nsCString aEntityID, URIParams aURI);
-  OnDataAvailable(nsCString data, uint32_t offset, uint32_t count);
-  OnStopRequest(nsresult statusCode);
+  OnStartRequest(nsresult aChannelStatus,
+                 int64_t aContentLength,
+                 nsCString aContentType,
+                 PRTime aLastModified,
+                 nsCString aEntityID,
+                 URIParams aURI);
+  OnDataAvailable(nsresult channelStatus,
+                  nsCString data,
+                  uint64_t offset,
+                  uint32_t count);
+  OnStopRequest(nsresult channelStatus);
   FailedAsyncOpen(nsresult statusCode);
+
+  // Parent has been suspended for diversion; no more events to be enqueued.
+  FlushedForDiversion();
+
+  // Child should resume processing the ChannelEventQueue, i.e. diverting any
+  // OnDataAvailable and OnStopRequest messages in the queue back to the parent.
+  DivertMessages();
+
   DeleteSelf();
 };
 

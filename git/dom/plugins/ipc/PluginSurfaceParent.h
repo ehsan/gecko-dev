@@ -7,13 +7,14 @@
 #define dom_plugins_PluginSurfaceParent_h
 
 #include "mozilla/plugins/PPluginSurfaceParent.h"
-#include "gfxASurface.h"
 #include "nsAutoPtr.h"
 #include "mozilla/plugins/PluginMessageUtils.h"
 
 #ifndef XP_WIN
 #error "This header is for Windows only."
 #endif
+
+class gfxASurface;
 
 namespace mozilla {
 namespace plugins {
@@ -24,7 +25,9 @@ public:
   PluginSurfaceParent(const WindowsSharedMemoryHandle& handle,
                       const gfxIntSize& size,
                       const bool transparent);
-  ~PluginSurfaceParent() { }
+  ~PluginSurfaceParent();
+
+  virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   gfxASurface* Surface() { return mSurface; }
 

@@ -1,9 +1,10 @@
 /*
  * jdhuff.c
  *
+ * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1991-1997, Thomas G. Lane.
+ * libjpeg-turbo Modifications:
  * Copyright (C) 2009-2011, D. R. Commander.
- * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
  * This file contains Huffman entropy decoding routines.
@@ -20,6 +21,7 @@
 #include "jpeglib.h"
 #include "jdhuff.h"		/* Declarations shared with jdphuff.c */
 #include "jpegcomp.h"
+#include "jstdhuff.c"
 
 
 /*
@@ -793,6 +795,12 @@ jinit_huff_decoder (j_decompress_ptr cinfo)
 {
   huff_entropy_ptr entropy;
   int i;
+
+  /* Motion JPEG frames typically do not include the Huffman tables if they
+     are the default tables.  Thus, if the tables are not set by the time
+     the Huffman decoder is initialized (usually within the body of
+     jpeg_start_decompress()), we set them to default values. */
+  std_huff_tables((j_common_ptr) cinfo);
 
   entropy = (huff_entropy_ptr)
     (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,

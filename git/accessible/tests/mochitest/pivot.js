@@ -4,11 +4,16 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 // Constants
 
 const PREFILTER_INVISIBLE = nsIAccessibleTraversalRule.PREFILTER_INVISIBLE;
+const PREFILTER_ARIA_HIDDEN = nsIAccessibleTraversalRule.PREFILTER_ARIA_HIDDEN;
+const PREFILTER_TRANSPARENT = nsIAccessibleTraversalRule.PREFILTER_TRANSPARENT;
 const FILTER_MATCH = nsIAccessibleTraversalRule.FILTER_MATCH;
 const FILTER_IGNORE = nsIAccessibleTraversalRule.FILTER_IGNORE;
 const FILTER_IGNORE_SUBTREE = nsIAccessibleTraversalRule.FILTER_IGNORE_SUBTREE;
+const CHAR_BOUNDARY = nsIAccessiblePivot.CHAR_BOUNDARY;
+const WORD_BOUNDARY = nsIAccessiblePivot.WORD_BOUNDARY;
 
 const NS_ERROR_NOT_IN_TREE = 0x80780026;
+const NS_ERROR_INVALID_ARG = 0x80070057;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Traversal rules
@@ -45,7 +50,7 @@ var ObjectTraversalRule =
     return 0;
   },
 
-  preFilter: PREFILTER_INVISIBLE,
+  preFilter: PREFILTER_INVISIBLE | PREFILTER_ARIA_HIDDEN | PREFILTER_TRANSPARENT,
 
   match: function(aAccessible)
   {
@@ -70,9 +75,25 @@ var ObjectTraversalRule =
 /**
  * A checker for virtual cursor changed events.
  */
-function VCChangedChecker(aDocAcc, aIdOrNameOrAcc, aTextOffsets, aPivotMoveMethod)
+function VCChangedChecker(aDocAcc, aIdOrNameOrAcc, aTextOffsets, aPivotMoveMethod,
+                          aIsFromUserInput)
 {
   this.__proto__ = new invokerChecker(EVENT_VIRTUALCURSOR_CHANGED, aDocAcc);
+
+  this.match = function VCChangedChecker_match(aEvent)
+  {
+    var event = null;
+    try {
+      event = aEvent.QueryInterface(nsIAccessibleVirtualCursorChangeEvent);
+    } catch (e) {
+      return false;
+    }
+
+    var expectedReason = VCChangedChecker.methodReasonMap[aPivotMoveMethod] ||
+      nsIAccessiblePivot.REASON_NONE;
+
+    return event.reason == expectedReason;
+  };
 
   this.check = function VCChangedChecker_check(aEvent)
   {
@@ -85,11 +106,6 @@ function VCChangedChecker(aDocAcc, aIdOrNameOrAcc, aTextOffsets, aPivotMoveMetho
       SimpleTest.ok(false, "Does not support correct interface: " + e);
     }
 
-    SimpleTest.is(
-      event.reason,
-      VCChangedChecker.methodReasonMap[aPivotMoveMethod],
-      'wrong move reason');
-
     var position = aDocAcc.virtualCursor.position;
     var idMatches = position && position.DOMNode.id == aIdOrNameOrAcc;
     var nameMatches = position && position.name == aIdOrNameOrAcc;
@@ -98,6 +114,9 @@ function VCChangedChecker(aDocAcc, aIdOrNameOrAcc, aTextOffsets, aPivotMoveMetho
     SimpleTest.ok(idMatches || nameMatches || accMatches, "id or name matches",
                   "expecting " + aIdOrNameOrAcc + ", got '" +
                   prettyName(position));
+
+    SimpleTest.is(aEvent.isFromUserInput, aIsFromUserInput,
+                  "Expected user input is " + aIsFromUserInput + '\n');
 
     if (aTextOffsets) {
       SimpleTest.is(aDocAcc.virtualCursor.startOffset, aTextOffsets[0],
@@ -143,6 +162,8 @@ VCChangedChecker.methodReasonMap = {
   'moveFirst': nsIAccessiblePivot.REASON_FIRST,
   'moveLast': nsIAccessiblePivot.REASON_LAST,
   'setTextRange': nsIAccessiblePivot.REASON_TEXT,
+  'moveNextByText': nsIAccessiblePivot.REASON_TEXT,
+  'movePreviousByText': nsIAccessiblePivot.REASON_TEXT,
   'moveToPoint': nsIAccessiblePivot.REASON_POINT
 };
 
@@ -173,7 +194,7 @@ function setVCRangeInvoker(aDocAcc, aTextAccessible, aTextOffsets)
   };
 
   this.eventSeq = [
-    new VCChangedChecker(aDocAcc, aTextAccessible, aTextOffsets, "setTextRange")
+    new VCChangedChecker(aDocAcc, aTextAccessible, aTextOffsets, "setTextRange", true)
   ];
 }
 
@@ -186,17 +207,38 @@ function setVCRangeInvoker(aDocAcc, aTextAccessible, aTextOffsets)
  * @param aIdOrNameOrAcc   [in] id, accessible or accessible name to expect
  *                         virtual cursor to land on after performing move method.
  *                         false if no move is expected.
+ * @param aIsFromUserInput [in] set user input flag when invoking method, and
+ *                         expect it in the event.
  */
-function setVCPosInvoker(aDocAcc, aPivotMoveMethod, aRule, aIdOrNameOrAcc)
+function setVCPosInvoker(aDocAcc, aPivotMoveMethod, aRule, aIdOrNameOrAcc,
+                         aIsFromUserInput)
 {
   var expectMove = (aIdOrNameOrAcc != false);
   this.invoke = function virtualCursorChangedInvoker_invoke()
   {
     VCChangedChecker.
       storePreviousPosAndOffset(aDocAcc.virtualCursor);
-    var moved = aDocAcc.virtualCursor[aPivotMoveMethod](aRule);
-    SimpleTest.ok((expectMove && moved) || (!expectMove && !moved),
-                  "moved pivot");
+    if (aPivotMoveMethod && aRule) {
+      var moved = false;
+      switch (aPivotMoveMethod) {
+        case 'moveFirst':
+        case 'moveLast':
+          moved = aDocAcc.virtualCursor[aPivotMoveMethod](aRule,
+            aIsFromUserInput === undefined ? true : aIsFromUserInput);
+          break;
+        case 'moveNext':
+        case 'movePrevious':
+          moved = aDocAcc.virtualCursor[aPivotMoveMethod](aRule,
+            aDocAcc.virtualCursor.position, false,
+            aIsFromUserInput === undefined ? true : aIsFromUserInput);
+          break;
+      }
+      SimpleTest.is(!!moved, !!expectMove,
+                    "moved pivot with " + aPivotMoveMethod +
+                    " to " + aIdOrNameOrAcc);
+    } else {
+      aDocAcc.virtualCursor.position = getAccessible(aIdOrNameOrAcc);
+    }
   };
 
   this.getID = function setVCPosInvoker_getID()
@@ -206,7 +248,8 @@ function setVCPosInvoker(aDocAcc, aPivotMoveMethod, aRule, aIdOrNameOrAcc)
 
   if (expectMove) {
     this.eventSeq = [
-      new VCChangedChecker(aDocAcc, aIdOrNameOrAcc, null, aPivotMoveMethod)
+      new VCChangedChecker(aDocAcc, aIdOrNameOrAcc, null, aPivotMoveMethod,
+        aIsFromUserInput === undefined ? !!aPivotMoveMethod : aIsFromUserInput)
     ];
   } else {
     this.eventSeq = [];
@@ -215,6 +258,56 @@ function setVCPosInvoker(aDocAcc, aPivotMoveMethod, aRule, aIdOrNameOrAcc)
     ];
   }
 }
+
+/**
+ * Move the pivot by text and wait for virtual cursor change event.
+ *
+ * @param aDocAcc          [in] document that manages the virtual cursor
+ * @param aPivotMoveMethod [in] method to test (ie. "moveNext", "moveFirst", etc.)
+ * @param aBoundary        [in] boundary constant
+ * @param aTextOffsets     [in] start and end offsets of text range to set in
+ *                         virtual cursor.
+ * @param aIdOrNameOrAcc   [in] id, accessible or accessible name to expect
+ *                         virtual cursor to land on after performing move method.
+ *                         false if no move is expected.
+ * @param aIsFromUserInput [in] set user input flag when invoking method, and
+ *                         expect it in the event.
+ */
+function setVCTextInvoker(aDocAcc, aPivotMoveMethod, aBoundary, aTextOffsets,
+                          aIdOrNameOrAcc, aIsFromUserInput)
+{
+  var expectMove = (aIdOrNameOrAcc != false);
+  this.invoke = function virtualCursorChangedInvoker_invoke()
+  {
+    VCChangedChecker.storePreviousPosAndOffset(aDocAcc.virtualCursor);
+    SimpleTest.info(aDocAcc.virtualCursor.position);
+    var moved = aDocAcc.virtualCursor[aPivotMoveMethod](aBoundary,
+      aIsFromUserInput === undefined ? true : false);
+    SimpleTest.is(!!moved, !!expectMove,
+                  "moved pivot by text with " + aPivotMoveMethod +
+                  " to " + aIdOrNameOrAcc);
+  };
+
+  this.getID = function setVCPosInvoker_getID()
+  {
+    return "Do " + (expectMove ? "" : "no-op ") + aPivotMoveMethod + " in " +
+      prettyName(aIdOrNameOrAcc) + ", " + boundaryToString(aBoundary) +
+      ", [" + aTextOffsets + "]";
+  };
+
+  if (expectMove) {
+    this.eventSeq = [
+      new VCChangedChecker(aDocAcc, aIdOrNameOrAcc, aTextOffsets, aPivotMoveMethod,
+        aIsFromUserInput === undefined ? true : aIsFromUserInput)
+    ];
+  } else {
+    this.eventSeq = [];
+    this.unexpectedEventSeq = [
+      new invokerChecker(EVENT_VIRTUALCURSOR_CHANGED, aDocAcc)
+    ];
+  }
+}
+
 
 /**
  * Move the pivot to the position under the point.
@@ -250,7 +343,7 @@ function moveVCCoordInvoker(aDocAcc, aX, aY, aIgnoreNoMatch,
 
   if (expectMove) {
     this.eventSeq = [
-      new VCChangedChecker(aDocAcc, aIdOrNameOrAcc, null, 'moveToPoint')
+      new VCChangedChecker(aDocAcc, aIdOrNameOrAcc, null, 'moveToPoint', true)
     ];
   } else {
     this.eventSeq = [];
@@ -261,20 +354,62 @@ function moveVCCoordInvoker(aDocAcc, aX, aY, aIgnoreNoMatch,
 }
 
 /**
+ * Change the pivot modalRoot
+ *
+ * @param aDocAcc         [in] document that manages the virtual cursor
+ * @param aModalRootAcc   [in] accessible of the modal root, or null
+ * @param aExpectedResult [in] error result expected. 0 if expecting success
+ */
+function setModalRootInvoker(aDocAcc, aModalRootAcc, aExpectedResult)
+{
+  this.invoke = function setModalRootInvoker_invoke()
+  {
+    var errorResult = 0;
+    try {
+      aDocAcc.virtualCursor.modalRoot = aModalRootAcc;
+    } catch (x) {
+      SimpleTest.ok(
+        x.result, "Unexpected exception when changing modal root: " + x);
+      errorResult = x.result;
+    }
+
+    SimpleTest.is(errorResult, aExpectedResult,
+                  "Did not get expected result when changing modalRoot");
+  };
+
+  this.getID = function setModalRootInvoker_getID()
+  {
+    return "Set modalRoot to " + prettyName(aModalRootAcc);
+  };
+
+  this.eventSeq = [];
+  this.unexpectedEventSeq = [
+    new invokerChecker(EVENT_VIRTUALCURSOR_CHANGED, aDocAcc)
+  ];
+}
+
+/**
  * Add invokers to a queue to test a rule and an expected sequence of element ids
  * or accessible names for that rule in the given document.
  *
- * @param aQueue    [in] event queue in which to push invoker sequence.
- * @param aDocAcc   [in] the managing document of the virtual cursor we are testing
- * @param aRule     [in] the traversal rule to use in the invokers
- * @param aSequence [in] a sequence of accessible names or elemnt ids to expect with
- *                  the given rule in the given document
+ * @param aQueue     [in] event queue in which to push invoker sequence.
+ * @param aDocAcc    [in] the managing document of the virtual cursor we are
+ *                   testing
+ * @param aRule      [in] the traversal rule to use in the invokers
+ * @param aModalRoot [in] a modal root to use in this traversal sequence
+ * @param aSequence  [in] a sequence of accessible names or element ids to expect
+ *                   with the given rule in the given document
  */
-function queueTraversalSequence(aQueue, aDocAcc, aRule, aSequence)
+function queueTraversalSequence(aQueue, aDocAcc, aRule, aModalRoot, aSequence)
 {
   aDocAcc.virtualCursor.position = null;
 
-  for (var i = 0; i < aSequence.length; i++) {
+  // Add modal root (if any)
+  aQueue.push(new setModalRootInvoker(aDocAcc, aModalRoot, 0));
+
+  aQueue.push(new setVCPosInvoker(aDocAcc, "moveFirst", aRule, aSequence[0]));
+
+  for (var i = 1; i < aSequence.length; i++) {
     var invoker =
       new setVCPosInvoker(aDocAcc, "moveNext", aRule, aSequence[i]);
     aQueue.push(invoker);
@@ -298,10 +433,14 @@ function queueTraversalSequence(aQueue, aDocAcc, aRule, aSequence)
   // No further more matches for given rule, expect no virtual cursor changes.
   aQueue.push(new setVCPosInvoker(aDocAcc, "moveNext", aRule, false));
 
-  aQueue.push(new setVCPosInvoker(aDocAcc, "moveFirst", aRule, aSequence[0]));
+  // set isFromUserInput to false, just to test..
+  aQueue.push(new setVCPosInvoker(aDocAcc, "moveFirst", aRule, aSequence[0], false));
 
   // No previous more matches for given rule, expect no virtual cursor changes.
   aQueue.push(new setVCPosInvoker(aDocAcc, "movePrevious", aRule, false));
+
+  // Remove modal root (if any).
+  aQueue.push(new setModalRootInvoker(aDocAcc, null, 0));
 }
 
 /**
@@ -402,7 +541,7 @@ function removeVCRootInvoker(aRootNode)
  */
 function dumpTraversalSequence(aPivot, aRule)
 {
-  var sequence = []
+  var sequence = [];
   if (aPivot.moveFirst(aRule)) {
     do {
       sequence.push("'" + prettyName(aPivot.position) + "'");

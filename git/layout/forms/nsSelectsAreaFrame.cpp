@@ -3,22 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "nsSelectsAreaFrame.h"
-#include "nsCOMPtr.h"
-#include "nsIDOMHTMLOptionElement.h"
 #include "nsIContent.h"
 #include "nsListControlFrame.h"
 #include "nsDisplayList.h"
 
-nsIFrame*
-NS_NewSelectsAreaFrame(nsIPresShell* aShell, nsStyleContext* aContext, uint32_t aFlags)
+nsContainerFrame*
+NS_NewSelectsAreaFrame(nsIPresShell* aShell, nsStyleContext* aContext, nsFrameState aFlags)
 {
   nsSelectsAreaFrame* it = new (aShell) nsSelectsAreaFrame(aContext);
 
-  if (it) {
-    // We need NS_BLOCK_FLOAT_MGR to ensure that the options inside the select
-    // aren't expanded by right floats outside the select.
-    it->SetFlags(aFlags | NS_BLOCK_FLOAT_MGR);
-  }
+  // We need NS_BLOCK_FLOAT_MGR to ensure that the options inside the select
+  // aren't expanded by right floats outside the select.
+  it->SetFlags(aFlags | NS_BLOCK_FLOAT_MGR);
 
   return it;
 }
@@ -41,10 +37,10 @@ public:
     : nsDisplayWrapList(aBuilder, aFrame, aList) {}
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+  virtual bool ShouldFlattenAway(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE {
+    return false;
+  }
   NS_DISPLAY_DECL_NAME("OptionEventGrabber", TYPE_OPTION_EVENT_GRABBER)
-
-  virtual nsDisplayWrapList* WrapWithClone(nsDisplayListBuilder* aBuilder,
-                                           nsDisplayItem* aItem);
 };
 
 void nsDisplayOptionEventGrabber::HitTest(nsDisplayListBuilder* aBuilder,
@@ -67,13 +63,6 @@ void nsDisplayOptionEventGrabber::HitTest(nsDisplayListBuilder* aBuilder,
       aOutFrames->AppendElement(outFrames.ElementAt(i));
     }
   }
-
-}
-
-nsDisplayWrapList* nsDisplayOptionEventGrabber::WrapWithClone(
-    nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem) {
-  return new (aBuilder)
-    nsDisplayOptionEventGrabber(aBuilder, aItem->GetUnderlyingFrame(), aItem);
 }
 
 class nsOptionEventGrabberWrapper : public nsDisplayWrapper
@@ -82,13 +71,11 @@ public:
   nsOptionEventGrabberWrapper() {}
   virtual nsDisplayItem* WrapList(nsDisplayListBuilder* aBuilder,
                                   nsIFrame* aFrame, nsDisplayList* aList) {
-    // We can't specify the underlying frame here. We need this list to be
-    // exploded if sorted.
-    return new (aBuilder) nsDisplayOptionEventGrabber(aBuilder, nullptr, aList);
+    return new (aBuilder) nsDisplayOptionEventGrabber(aBuilder, aFrame, aList);
   }
   virtual nsDisplayItem* WrapItem(nsDisplayListBuilder* aBuilder,
                                   nsDisplayItem* aItem) {
-    return new (aBuilder) nsDisplayOptionEventGrabber(aBuilder, aItem->GetUnderlyingFrame(), aItem);
+    return new (aBuilder) nsDisplayOptionEventGrabber(aBuilder, aItem->Frame(), aItem);
   }
 };
 
@@ -120,56 +107,54 @@ public:
     *aSnap = false;
     // override bounds because the list item focus ring may extend outside
     // the nsSelectsAreaFrame
-    nsListControlFrame* listFrame = GetEnclosingListFrame(GetUnderlyingFrame());
+    nsListControlFrame* listFrame = GetEnclosingListFrame(Frame());
     return listFrame->GetVisualOverflowRectRelativeToSelf() +
-           aBuilder->ToReferenceFrame(listFrame);
+           listFrame->GetOffsetToCrossDoc(ReferenceFrame());
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx) {
-    nsListControlFrame* listFrame = GetEnclosingListFrame(GetUnderlyingFrame());
+    nsListControlFrame* listFrame = GetEnclosingListFrame(Frame());
     // listFrame must be non-null or we wouldn't get called.
     listFrame->PaintFocus(*aCtx, aBuilder->ToReferenceFrame(listFrame));
   }
   NS_DISPLAY_DECL_NAME("ListFocus", TYPE_LIST_FOCUS)
 };
 
-NS_IMETHODIMP
+void
 nsSelectsAreaFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                      const nsRect&           aDirtyRect,
                                      const nsDisplayListSet& aLists)
 {
-  if (!aBuilder->IsForEventDelivery())
-    return BuildDisplayListInternal(aBuilder, aDirtyRect, aLists);
-    
+  if (!aBuilder->IsForEventDelivery()) {
+    BuildDisplayListInternal(aBuilder, aDirtyRect, aLists);
+    return;
+  }
+
   nsDisplayListCollection set;
-  nsresult rv = BuildDisplayListInternal(aBuilder, aDirtyRect, set);
-  NS_ENSURE_SUCCESS(rv, rv);
+  BuildDisplayListInternal(aBuilder, aDirtyRect, set);
   
   nsOptionEventGrabberWrapper wrapper;
-  return wrapper.WrapLists(aBuilder, this, set, aLists);
+  wrapper.WrapLists(aBuilder, this, set, aLists);
 }
 
-nsresult
+void
 nsSelectsAreaFrame::BuildDisplayListInternal(nsDisplayListBuilder*   aBuilder,
                                              const nsRect&           aDirtyRect,
                                              const nsDisplayListSet& aLists)
 {
-  nsresult rv = nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
 
   nsListControlFrame* listFrame = GetEnclosingListFrame(this);
   if (listFrame && listFrame->IsFocused()) {
     // we can't just associate the display item with the list frame,
     // because then the list's scrollframe won't clip it (the scrollframe
     // only clips contained descendants).
-    return aLists.Outlines()->AppendNewToTop(new (aBuilder)
+    aLists.Outlines()->AppendNewToTop(new (aBuilder)
       nsDisplayListFocus(aBuilder, this));
   }
-  
-  return NS_OK;
 }
 
-NS_IMETHODIMP 
+void
 nsSelectsAreaFrame::Reflow(nsPresContext*           aPresContext, 
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState, 
@@ -195,11 +180,9 @@ nsSelectsAreaFrame::Reflow(nsPresContext*           aPresContext,
     }
   }
   
-  nsresult rv = nsBlockFrame::Reflow(aPresContext, aDesiredSize,
-                                    aReflowState, aStatus);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsBlockFrame::Reflow(aPresContext, aDesiredSize, aReflowState, aStatus);
 
-  // Check whether we need to suppress scrolbar updates.  We want to do that if
+  // Check whether we need to suppress scrollbar updates.  We want to do that if
   // we're in a possible first pass and our height of a row has changed.
   if (list->MightNeedSecondPass()) {
     nscoord newHeightOfARow = list->CalcHeightOfARow();
@@ -207,12 +190,10 @@ nsSelectsAreaFrame::Reflow(nsPresContext*           aPresContext,
     // comboboxes, we'll also need it if our height changed.  If we're going
     // to do a second pass, suppress scrollbar updates for this pass.
     if (newHeightOfARow != mHeightOfARow ||
-        (isInDropdownMode && (oldHeight != aDesiredSize.height ||
+        (isInDropdownMode && (oldHeight != aDesiredSize.Height() ||
                               oldHeight != GetSize().height))) {
       mHeightOfARow = newHeightOfARow;
       list->SetSuppressScrollbarUpdate(true);
     }
   }
-
-  return rv;
 }

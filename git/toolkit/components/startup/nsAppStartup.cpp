@@ -12,7 +12,6 @@
 #include "nsIObserverService.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
-#include "nsIProfileChangeStatus.h"
 #include "nsIPromptService.h"
 #include "nsIStringBundle.h"
 #include "nsISupportsPrimitives.h"
@@ -24,41 +23,27 @@
 #include "nsNativeCharsetUtils.h"
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
 #include "mozilla/Preferences.h"
+#include "GeckoProfiler.h"
 
 #include "prprf.h"
-#include "nsCRT.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsWidgetsCID.h"
 #include "nsAppShellCID.h"
 #include "nsXPCOMCIDInternal.h"
 #include "mozilla/Services.h"
-#include "mozilla/FunctionTimer.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 #include "prenv.h"
 #include "nsAppDirectoryServiceDefs.h"
-#include "mozilla/mozPoisonWrite.h"
 
 #if defined(XP_WIN)
-#include <windows.h>
-// windows.h can go to hell 
+// Prevent collisions with nsAppStartup::GetStartupInfo()
 #undef GetStartupInfo
-#elif defined(XP_UNIX)
-#include <unistd.h>
-#include <sys/syscall.h>
 #endif
 
-#ifdef XP_MACOSX
-#include <sys/sysctl.h>
-#endif
-
-#ifdef __OpenBSD__
-#include <sys/param.h>
-#include <sys/sysctl.h>
-#endif
-
+#include "mozilla/IOInterposer.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/StartupTimeline.h"
 
@@ -67,6 +52,7 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #define kPrefLastSuccess "toolkit.startup.last_success"
 #define kPrefMaxResumedCrashes "toolkit.startup.max_resumed_crashes"
 #define kPrefRecentCrashes "toolkit.startup.recent_crashes"
+#define kPrefAlwaysUseSafeMode "toolkit.startup.always_use_safe_mode"
 
 #if defined(XP_WIN)
 #include "mozilla/perfprobe.h"
@@ -115,18 +101,33 @@ private:
   nsRefPtr<nsAppStartup> mService;
 
 public:
-  nsAppExitEvent(nsAppStartup *service) : mService(service) {}
+  explicit nsAppExitEvent(nsAppStartup *service) : mService(service) {}
 
   NS_IMETHOD Run() {
     // Tell the appshell to exit
     mService->mAppShell->Exit();
 
-    // We're done "shutting down".
-    mService->mShuttingDown = false;
     mService->mRunning = false;
     return NS_OK;
   }
 };
+
+/**
+ * Computes an approximation of the absolute time represented by @a stamp
+ * which is comparable to those obtained via PR_Now(). If the current absolute
+ * time varies a lot (e.g. DST adjustments) since the first call then the
+ * resulting times may be inconsistent.
+ *
+ * @param stamp The timestamp to be converted
+ * @returns The converted timestamp
+ */
+uint64_t ComputeAbsoluteTimestamp(PRTime prnow, TimeStamp now, TimeStamp stamp)
+{
+  static PRTime sAbsoluteNow = PR_Now();
+  static TimeStamp sMonotonicNow = TimeStamp::Now();
+
+  return sAbsoluteNow - (sMonotonicNow - stamp).ToMicroseconds();
+}
 
 //
 // nsAppStartup
@@ -136,43 +137,42 @@ nsAppStartup::nsAppStartup() :
   mConsiderQuitStopper(0),
   mRunning(false),
   mShuttingDown(false),
+  mStartingUp(true),
   mAttemptingQuit(false),
   mRestart(false),
   mInterrupted(false),
   mIsSafeModeNecessary(false),
   mStartupCrashTrackingEnded(false),
-  mCachedShutdownTime(false),
-  mLastShutdownTime(0)
+  mRestartTouchEnvironment(false),
+  mRestartNotSameProfile(false)
 { }
 
 
 nsresult
 nsAppStartup::Init()
 {
-  NS_TIME_FUNCTION;
   nsresult rv;
 
   // Create widget application shell
   mAppShell = do_GetService(kAppShellCID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  NS_TIME_FUNCTION_MARK("Got AppShell service");
-
   nsCOMPtr<nsIObserverService> os =
     mozilla::services::GetObserverService();
   if (!os)
     return NS_ERROR_FAILURE;
 
-  NS_TIME_FUNCTION_MARK("Got Observer service");
-
+  os->AddObserver(this, "quit-application", true);
   os->AddObserver(this, "quit-application-forced", true);
+  os->AddObserver(this, "sessionstore-init-started", true);
   os->AddObserver(this, "sessionstore-windows-restored", true);
   os->AddObserver(this, "profile-change-teardown", true);
   os->AddObserver(this, "xul-window-registered", true);
   os->AddObserver(this, "xul-window-destroyed", true);
+  os->AddObserver(this, "profile-before-change", true);
+  os->AddObserver(this, "xpcom-shutdown", true);
 
 #if defined(XP_WIN)
-  os->AddObserver(this, "xpcom-shutdown", true);
   os->AddObserver(this, "places-init-complete", true);
   // This last event is only interesting to us for xperf-based measures
 
@@ -220,12 +220,12 @@ nsAppStartup::Init()
 // nsAppStartup->nsISupports
 //
 
-NS_IMPL_THREADSAFE_ISUPPORTS5(nsAppStartup,
-                              nsIAppStartup,
-                              nsIWindowCreator,
-                              nsIWindowCreator2,
-                              nsIObserver,
-                              nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(nsAppStartup,
+                  nsIAppStartup,
+                  nsIWindowCreator,
+                  nsIWindowCreator2,
+                  nsIObserver,
+                  nsISupportsWeakReference)
 
 
 //
@@ -235,22 +235,30 @@ NS_IMPL_THREADSAFE_ISUPPORTS5(nsAppStartup,
 NS_IMETHODIMP
 nsAppStartup::CreateHiddenWindow()
 {
+#ifdef MOZ_WIDGET_GONK
+  return NS_OK;
+#else
   nsCOMPtr<nsIAppShellService> appShellService
     (do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
   NS_ENSURE_TRUE(appShellService, NS_ERROR_FAILURE);
 
   return appShellService->CreateHiddenWindow();
+#endif
 }
 
 
 NS_IMETHODIMP
 nsAppStartup::DestroyHiddenWindow()
 {
+#ifdef MOZ_WIDGET_GONK
+  return NS_OK;
+#else
   nsCOMPtr<nsIAppShellService> appShellService
     (do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
   NS_ENSURE_TRUE(appShellService, NS_ERROR_FAILURE);
 
   return appShellService->DestroyHiddenWindow();
+#endif
 }
 
 NS_IMETHODIMP
@@ -275,86 +283,19 @@ nsAppStartup::Run(void)
       return rv;
   }
 
-  return mRestart ? NS_SUCCESS_RESTART_APP : NS_OK;
-}
-
-static TimeStamp gRecordedShutdownStartTime;
-static bool gAlreadyFreedShutdownTimeFileName = false;
-static char *gRecordedShutdownTimeFileName = NULL;
-
-static char *
-GetShutdownTimeFileName()
-{
-  if (gAlreadyFreedShutdownTimeFileName) {
-    return NULL;
+  nsresult retval = NS_OK;
+  if (mRestartTouchEnvironment) {
+    retval = NS_SUCCESS_RESTART_METRO_APP;
+  } else if (mRestart) {
+    retval = NS_SUCCESS_RESTART_APP;
+  } else if (mRestartNotSameProfile) {
+    retval = NS_SUCCESS_RESTART_APP_NOT_SAME_PROFILE;
   }
 
-  if (!gRecordedShutdownTimeFileName) {
-    nsCOMPtr<nsIFile> mozFile;
-    NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(mozFile));
-    if (!mozFile)
-      return NULL;
-
-    mozFile->AppendNative(NS_LITERAL_CSTRING("Telemetry.ShutdownTime.txt"));
-    nsCAutoString nativePath;
-    nsresult rv = mozFile->GetNativePath(nativePath);
-    if (!NS_SUCCEEDED(rv))
-      return NULL;
-
-    gRecordedShutdownTimeFileName = PL_strdup(nativePath.get());
-  }
-
-  return gRecordedShutdownTimeFileName;
+  return retval;
 }
 
-static void
-RecordShutdownStartTimeStamp() {
-  if (!Telemetry::CanRecord())
-    return;
 
-  gRecordedShutdownStartTime = TimeStamp::Now();
-
-  GetShutdownTimeFileName();
-}
-
-namespace mozilla {
-void
-RecordShutdownEndTimeStamp() {
-  if (!gRecordedShutdownTimeFileName || gAlreadyFreedShutdownTimeFileName)
-    return;
-
-  nsCString name(gRecordedShutdownTimeFileName);
-  PL_strfree(gRecordedShutdownTimeFileName);
-  gRecordedShutdownTimeFileName = NULL;
-  gAlreadyFreedShutdownTimeFileName = true;
-
-  nsCString tmpName = name;
-  tmpName += ".tmp";
-  FILE *f = fopen(tmpName.get(), "w");
-  if (!f)
-    return;
-  // On a normal release build this should be called just before
-  // calling _exit, but on a debug build or when the user forces a full
-  // shutdown this is called as late as possible, so we have to
-  // white list this write as write poisoning will be enabled.
-  int fd = fileno(f);
-  MozillaRegisterDebugFD(fd);
-
-  TimeStamp now = TimeStamp::Now();
-  MOZ_ASSERT(now >= gRecordedShutdownStartTime);
-  TimeDuration diff = now - gRecordedShutdownStartTime;
-  uint32_t diff2 = diff.ToMilliseconds();
-  int written = fprintf(f, "%d\n", diff2);
-  MozillaUnRegisterDebugFILE(f);
-  int rv = fclose(f);
-  if (written < 0 || rv != 0) {
-    PR_Delete(tmpName.get());
-    return;
-  }
-  PR_Delete(name.get());
-  PR_Rename(tmpName.get(), name.get());
-}
-}
 
 NS_IMETHODIMP
 nsAppStartup::Quit(uint32_t aMode)
@@ -370,19 +311,25 @@ nsAppStartup::Quit(uint32_t aMode)
   if (mShuttingDown)
     return NS_OK;
 
-  RecordShutdownStartTimeStamp();
-
   // If we're considering quitting, we will only do so if:
   if (ferocity == eConsiderQuit) {
+#ifdef XP_MACOSX
+    nsCOMPtr<nsIAppShellService> appShell
+      (do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
+    bool hasHiddenPrivateWindow = false;
+    if (appShell) {
+      appShell->GetHasHiddenPrivateWindow(&hasHiddenPrivateWindow);
+    }
+    int32_t suspiciousCount = hasHiddenPrivateWindow ? 2 : 1;
+#endif
+
     if (mConsiderQuitStopper == 0) {
       // there are no windows...
       ferocity = eAttemptQuit;
     }
 #ifdef XP_MACOSX
-    else if (mConsiderQuitStopper == 1) {
+    else if (mConsiderQuitStopper == suspiciousCount) {
       // ... or there is only a hiddenWindow left, and it's useless:
-      nsCOMPtr<nsIAppShellService> appShell
-        (do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
 
       // Failure shouldn't be fatal, but will abort quit attempt:
       if (!appShell)
@@ -392,9 +339,15 @@ nsAppStartup::Quit(uint32_t aMode)
       appShell->GetApplicationProvidedHiddenWindow(&usefulHiddenWindow);
       nsCOMPtr<nsIXULWindow> hiddenWindow;
       appShell->GetHiddenWindow(getter_AddRefs(hiddenWindow));
-      // If the one window is useful, we won't quit:
-      if (!hiddenWindow || usefulHiddenWindow)
+      // If the remaining windows are useful, we won't quit:
+      nsCOMPtr<nsIXULWindow> hiddenPrivateWindow;
+      if (hasHiddenPrivateWindow) {
+        appShell->GetHiddenPrivateWindow(getter_AddRefs(hiddenPrivateWindow));
+        if ((!hiddenWindow && !hiddenPrivateWindow) || usefulHiddenWindow)
+          return NS_OK;
+      } else if (!hiddenWindow || usefulHiddenWindow) {
         return NS_OK;
+      }
 
       ferocity = eAttemptQuit;
     }
@@ -415,6 +368,7 @@ nsAppStartup::Quit(uint32_t aMode)
           windowEnumerator->GetNext(getter_AddRefs(window));
           nsCOMPtr<nsPIDOMWindow> domWindow(do_QueryInterface(window));
           if (domWindow) {
+            MOZ_ASSERT(domWindow->IsOuterWindow());
             if (!domWindow->CanClose())
               return NS_OK;
           }
@@ -422,15 +376,31 @@ nsAppStartup::Quit(uint32_t aMode)
       }
     }
 
+    PROFILER_MARKER("Shutdown start");
+    mozilla::RecordShutdownStartTimeStamp();
     mShuttingDown = true;
     if (!mRestart) {
       mRestart = (aMode & eRestart) != 0;
       gRestartMode = (aMode & 0xF0);
     }
 
-    if (mRestart) {
-      // Firefox-restarts reuse the process. Process start-time isn't a useful indicator of startup time
-      PR_SetEnv(PR_smprintf("MOZ_APP_RESTART=%lld", (int64_t) PR_Now() / PR_USEC_PER_MSEC));
+    if (!mRestartTouchEnvironment) {
+      mRestartTouchEnvironment = (aMode & eRestartTouchEnvironment) != 0;
+      gRestartMode = (aMode & 0xF0);
+    }
+
+    if (!mRestartNotSameProfile) {
+      mRestartNotSameProfile = (aMode & eRestartNotSameProfile) != 0;
+      gRestartMode = (aMode & 0xF0);
+    }
+
+    if (mRestart || mRestartTouchEnvironment || mRestartNotSameProfile) {
+      // Mark the next startup as a restart.
+      PR_SetEnv("MOZ_APP_RESTART=1");
+
+      /* Firefox-restarts reuse the process so regular process start-time isn't
+         a useful indicator of startup time anymore. */
+      TimeStamp::RecordProcessRestart();
     }
 
     obsService = mozilla::services::GetObserverService();
@@ -494,7 +464,8 @@ nsAppStartup::Quit(uint32_t aMode)
       NS_NAMED_LITERAL_STRING(shutdownStr, "shutdown");
       NS_NAMED_LITERAL_STRING(restartStr, "restart");
       obsService->NotifyObservers(nullptr, "quit-application",
-        mRestart ? restartStr.get() : shutdownStr.get());
+        (mRestart || mRestartTouchEnvironment || mRestartNotSameProfile) ?
+         restartStr.get() : shutdownStr.get());
     }
 
     if (!mRunning) {
@@ -544,8 +515,10 @@ nsAppStartup::CloseAllWindows()
 
     nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(isupports);
     NS_ASSERTION(window, "not an nsPIDOMWindow");
-    if (window)
+    if (window) {
+      MOZ_ASSERT(window->IsOuterWindow());
       window->ForceClose();
+    }
   }
 }
 
@@ -569,47 +542,6 @@ nsAppStartup::ExitLastWindowClosingSurvivalArea(void)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsAppStartup::GetLastShutdownDuration(uint32_t *aResult)
-{
-  // We make this check so that GetShutdownTimeFileName() doesn't get
-  // called; calling that function without telemetry enabled violates
-  // assumptions that the write-the-shutdown-timestamp machinery makes.
-  if (!Telemetry::CanRecord()) {
-    *aResult = 0;
-    return NS_OK;
-  }
-
-  if (!mCachedShutdownTime) {
-    const char *filename = GetShutdownTimeFileName();
-
-    if (!filename) {
-      *aResult = 0;
-      return NS_OK;
-    }
-
-    FILE *f = fopen(filename, "r");
-    if (!f) {
-      *aResult = 0;
-      return NS_OK;
-    }
-
-    int shutdownTime;
-    int r = fscanf(f, "%d\n", &shutdownTime);
-    fclose(f);
-    if (r != 1) {
-      *aResult = 0;
-      return NS_OK;
-    }
-
-    mLastShutdownTime = shutdownTime;
-    mCachedShutdownTime = true;
-  }
-
-  *aResult = mLastShutdownTime;
-  return NS_OK;
-}
-
 //
 // nsAppStartup->nsIAppStartup2
 //
@@ -618,6 +550,51 @@ NS_IMETHODIMP
 nsAppStartup::GetShuttingDown(bool *aResult)
 {
   *aResult = mShuttingDown;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAppStartup::GetStartingUp(bool *aResult)
+{
+  *aResult = mStartingUp;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAppStartup::DoneStartingUp()
+{
+  // This must be called once at most
+  MOZ_ASSERT(mStartingUp);
+
+  mStartingUp = false;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAppStartup::GetRestarting(bool *aResult)
+{
+  *aResult = mRestart;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAppStartup::GetWasRestarted(bool *aResult)
+{
+  char *mozAppRestart = PR_GetEnv("MOZ_APP_RESTART");
+
+  /* When calling PR_SetEnv() with an empty value the existing variable may
+   * be unset or set to the empty string depending on the underlying platform
+   * thus we have to check if the variable is present and not empty. */
+  *aResult = mozAppRestart && (strcmp(mozAppRestart, "") != 0);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAppStartup::GetRestartingTouchEnvironment(bool *aResult)
+{
+  NS_ENSURE_ARG_POINTER(aResult);
+  *aResult = mRestartTouchEnvironment;
   return NS_OK;
 }
 
@@ -645,7 +622,7 @@ nsAppStartup::CreateChromeWindow(nsIWebBrowserChrome *aParent,
                                  nsIWebBrowserChrome **_retval)
 {
   bool cancel;
-  return CreateChromeWindow2(aParent, aChromeFlags, 0, 0, &cancel, _retval);
+  return CreateChromeWindow2(aParent, aChromeFlags, 0, 0, nullptr, &cancel, _retval);
 }
 
 
@@ -658,6 +635,7 @@ nsAppStartup::CreateChromeWindow2(nsIWebBrowserChrome *aParent,
                                   uint32_t aChromeFlags,
                                   uint32_t aContextFlags,
                                   nsIURI *aURI,
+                                  nsITabParent *aOpeningTab,
                                   bool *aCancel,
                                   nsIWebBrowserChrome **_retval)
 {
@@ -677,7 +655,7 @@ nsAppStartup::CreateChromeWindow2(nsIWebBrowserChrome *aParent,
     NS_ASSERTION(xulParent, "window created using non-XUL parent. that's unexpected, but may work.");
 
     if (xulParent)
-      xulParent->CreateNewWindow(aChromeFlags, getter_AddRefs(newWindow));
+      xulParent->CreateNewWindow(aChromeFlags, aOpeningTab, getter_AddRefs(newWindow));
     // And if it fails, don't try again without a parent. It could fail
     // intentionally (bug 115969).
   } else { // try using basic methods:
@@ -690,10 +668,11 @@ nsAppStartup::CreateChromeWindow2(nsIWebBrowserChrome *aParent,
     nsCOMPtr<nsIAppShellService> appShell(do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
     if (!appShell)
       return NS_ERROR_FAILURE;
-    
+
     appShell->CreateTopLevelWindow(0, 0, aChromeFlags,
                                    nsIAppShellService::SIZE_TO_CONTENT,
                                    nsIAppShellService::SIZE_TO_CONTENT,
+                                   aOpeningTab,
                                    getter_AddRefs(newWindow));
   }
 
@@ -715,7 +694,7 @@ nsAppStartup::CreateChromeWindow2(nsIWebBrowserChrome *aParent,
 
 NS_IMETHODIMP
 nsAppStartup::Observe(nsISupports *aSubject,
-                      const char *aTopic, const PRUnichar *aData)
+                      const char *aTopic, const char16_t *aData)
 {
   NS_ASSERTION(mAppShell, "appshell service notified before appshell built");
   if (!strcmp(aTopic, "quit-application-forced")) {
@@ -733,6 +712,7 @@ nsAppStartup::Observe(nsISupports *aSubject,
     ExitLastWindowClosingSurvivalArea();
   } else if (!strcmp(aTopic, "sessionstore-windows-restored")) {
     StartupTimeline::Record(StartupTimeline::SESSION_RESTORED);
+    IOInterposer::EnteringNextStage();
 #if defined(XP_WIN)
     if (mSessionWindowRestoredProbe) {
       mSessionWindowRestoredProbe->Trigger();
@@ -741,11 +721,20 @@ nsAppStartup::Observe(nsISupports *aSubject,
     if (mPlacesInitCompleteProbe) {
       mPlacesInitCompleteProbe->Trigger();
     }
+#endif //defined(XP_WIN)
+  } else if (!strcmp(aTopic, "sessionstore-init-started")) {
+    StartupTimeline::Record(StartupTimeline::SESSION_RESTORE_INIT);
   } else if (!strcmp(aTopic, "xpcom-shutdown")) {
+    IOInterposer::EnteringNextStage();
+#if defined(XP_WIN)
     if (mXPCOMShutdownProbe) {
       mXPCOMShutdownProbe->Trigger();
     }
-#endif //defined(XP_WIN)
+#endif // defined(XP_WIN)
+  } else if (!strcmp(aTopic, "quit-application")) {
+    StartupTimeline::Record(StartupTimeline::QUIT_APPLICATION);
+  } else if (!strcmp(aTopic, "profile-before-change")) {
+    StartupTimeline::Record(StartupTimeline::PROFILE_BEFORE_CHANGE);
   } else {
     NS_ERROR("Unexpected observer topic.");
   }
@@ -753,169 +742,53 @@ nsAppStartup::Observe(nsISupports *aSubject,
   return NS_OK;
 }
 
-#if defined(LINUX) || defined(ANDROID)
-static uint64_t 
-JiffiesSinceBoot(const char *file)
-{
-  char stat[512];
-  FILE *f = fopen(file, "r");
-  if (!f)
-    return 0;
-  int n = fread(&stat, 1, sizeof(stat) - 1, f);
-  fclose(f);
-  if (n <= 0)
-    return 0;
-  stat[n] = 0;
-  
-  long long unsigned starttime = 0; // instead of uint64_t to keep GCC quiet
-  
-  char *s = strrchr(stat, ')');
-  if (!s)
-    return 0;
-  int ret = sscanf(s + 2,
-                   "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u "
-                   "%*u %*u %*u %*u %*u %*d %*d %*d %*d %llu",
-                   &starttime);
-  if (ret != 1 || !starttime)
-    return 0;
-  return starttime;
-}
-
-static void
-ThreadedCalculateProcessCreationTimestamp(void *aClosure)
-{
-  PR_SetCurrentThreadName("Startup Timer");
-
-  PRTime now = PR_Now();
-  long hz = sysconf(_SC_CLK_TCK);
-  if (!hz)
-    return;
-
-  char thread_stat[40];
-  sprintf(thread_stat, "/proc/self/task/%d/stat", (pid_t) syscall(__NR_gettid));
-  
-  uint64_t thread_jiffies = JiffiesSinceBoot(thread_stat);
-  uint64_t self_jiffies = JiffiesSinceBoot("/proc/self/stat");
-  
-  if (!thread_jiffies || !self_jiffies)
-    return;
-
-  PRTime interval = (thread_jiffies - self_jiffies) * PR_USEC_PER_SEC / hz;
-  StartupTimeline::Record(StartupTimeline::PROCESS_CREATION, now - interval);
-}
-
-static PRTime
-CalculateProcessCreationTimestamp()
-{
- PRThread *thread = PR_CreateThread(PR_USER_THREAD,
-                                    ThreadedCalculateProcessCreationTimestamp,
-                                    NULL,
-                                    PR_PRIORITY_NORMAL,
-                                    PR_LOCAL_THREAD,
-                                    PR_JOINABLE_THREAD,
-                                    0);
-
-  PR_JoinThread(thread);
-  return StartupTimeline::Get(StartupTimeline::PROCESS_CREATION);
-}
-#elif defined(XP_WIN)
-static PRTime
-CalculateProcessCreationTimestamp()
-{
-  FILETIME start, foo, bar, baz;
-  bool success = GetProcessTimes(GetCurrentProcess(), &start, &foo, &bar, &baz);
-  if (!success)
-    return 0;
-  // copied from NSPR _PR_FileTimeToPRTime
-  uint64_t timestamp = 0;
-  CopyMemory(&timestamp, &start, sizeof(PRTime));
-#ifdef __GNUC__
-  timestamp = (timestamp - 116444736000000000LL) / 10LL;
-#else
-  timestamp = (timestamp - 116444736000000000i64) / 10i64;
-#endif
-  return timestamp;
-}
-#elif defined(XP_MACOSX)
-static PRTime
-CalculateProcessCreationTimestamp()
-{
-  int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid() };
-  size_t buffer_size;
-  if (sysctl(mib, 4, NULL, &buffer_size, NULL, 0))
-    return 0;
-
-  struct kinfo_proc *proc = (kinfo_proc*) malloc(buffer_size);  
-  if (sysctl(mib, 4, proc, &buffer_size, NULL, 0)) {
-    free(proc);
-    return 0;
-  }
-  PRTime starttime = static_cast<PRTime>(proc->kp_proc.p_un.__p_starttime.tv_sec) * PR_USEC_PER_SEC;
-  starttime += proc->kp_proc.p_un.__p_starttime.tv_usec;
-  free(proc);
-  return starttime;
-}
-#elif defined(__OpenBSD__)
-static PRTime
-CalculateProcessCreationTimestamp()
-{
-  int mib[6] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid(), sizeof(struct kinfo_proc), 1 };
-  size_t buffer_size;
-  if (sysctl(mib, 6, NULL, &buffer_size, NULL, 0))
-    return 0;
-
-  struct kinfo_proc *proc = (struct kinfo_proc*) malloc(buffer_size);
-  if (sysctl(mib, 6, proc, &buffer_size, NULL, 0)) {
-    free(proc);
-    return 0;
-  }
-  PRTime starttime = static_cast<PRTime>(proc->p_ustart_sec) * PR_USEC_PER_SEC;
-  starttime += proc->p_ustart_usec;
-  free(proc);
-  return starttime;
-}
-#else
-static PRTime
-CalculateProcessCreationTimestamp()
-{
-  return 0;
-}
-#endif
- 
 NS_IMETHODIMP
-nsAppStartup::GetStartupInfo(JSContext* aCx, JS::Value* aRetval)
+nsAppStartup::GetStartupInfo(JSContext* aCx, JS::MutableHandle<JS::Value> aRetval)
 {
-  JSObject *obj = JS_NewObject(aCx, NULL, NULL, NULL);
-  *aRetval = OBJECT_TO_JSVAL(obj);
+  JS::Rooted<JSObject*> obj(aCx, JS_NewObject(aCx, nullptr, JS::NullPtr(), JS::NullPtr()));
 
-  PRTime ProcessCreationTimestamp = StartupTimeline::Get(StartupTimeline::PROCESS_CREATION);
+  aRetval.setObject(*obj);
 
-  if (!ProcessCreationTimestamp) {
-    char *moz_app_restart = PR_GetEnv("MOZ_APP_RESTART");
-    if (moz_app_restart) {
-      ProcessCreationTimestamp = nsCRT::atoll(moz_app_restart) * PR_USEC_PER_MSEC;
-    } else {
-      ProcessCreationTimestamp = CalculateProcessCreationTimestamp();
+  TimeStamp procTime = StartupTimeline::Get(StartupTimeline::PROCESS_CREATION);
+  TimeStamp now = TimeStamp::Now();
+  PRTime absNow = PR_Now();
+
+  if (procTime.IsNull()) {
+    bool error = false;
+
+    procTime = TimeStamp::ProcessCreation(error);
+
+    if (error) {
+      Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS,
+        StartupTimeline::PROCESS_CREATION);
     }
-    // Bug 670008: Avoid obviously invalid process creation times
-    if (PR_Now() <= ProcessCreationTimestamp) {
-      ProcessCreationTimestamp = -1;
-      Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS, StartupTimeline::PROCESS_CREATION);
-    }
-    StartupTimeline::Record(StartupTimeline::PROCESS_CREATION, ProcessCreationTimestamp);
+
+    StartupTimeline::Record(StartupTimeline::PROCESS_CREATION, procTime);
   }
 
-  for (int i = StartupTimeline::PROCESS_CREATION; i < StartupTimeline::MAX_EVENT_ID; ++i) {
+  for (int i = StartupTimeline::PROCESS_CREATION;
+       i < StartupTimeline::MAX_EVENT_ID;
+       ++i)
+  {
     StartupTimeline::Event ev = static_cast<StartupTimeline::Event>(i);
-    if (StartupTimeline::Get(ev) > 0) {
-      // always define main to aid with bug 689256
-      if ((ev != StartupTimeline::MAIN) &&
-          (StartupTimeline::Get(ev) < StartupTimeline::Get(StartupTimeline::PROCESS_CREATION))) {
-        Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS, i);
-        StartupTimeline::Record(ev, -1);
+    TimeStamp stamp = StartupTimeline::Get(ev);
+
+    if (stamp.IsNull() && (ev == StartupTimeline::MAIN)) {
+      // Always define main to aid with bug 689256.
+      stamp = procTime;
+      MOZ_ASSERT(!stamp.IsNull());
+      Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS,
+        StartupTimeline::MAIN);
+    }
+
+    if (!stamp.IsNull()) {
+      if (stamp >= procTime) {
+        PRTime prStamp = ComputeAbsoluteTimestamp(absNow, now, stamp)
+          / PR_USEC_PER_MSEC;
+        JS::Rooted<JSObject*> date(aCx, JS_NewDateObjectMsec(aCx, prStamp));
+        JS_DefineProperty(aCx, obj, StartupTimeline::Describe(ev), date, JSPROP_ENUMERATE);
       } else {
-        JSObject *date = JS_NewDateObjectMsec(aCx, StartupTimeline::Get(ev) / PR_USEC_PER_MSEC);
-        JS_DefineProperty(aCx, obj, StartupTimeline::Describe(ev), OBJECT_TO_JSVAL(date), NULL, NULL, JSPROP_ENUMERATE);
+        Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS, ev);
       }
     }
   }
@@ -927,6 +800,17 @@ NS_IMETHODIMP
 nsAppStartup::GetAutomaticSafeModeNecessary(bool *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
+
+  bool alwaysSafe = false;
+  Preferences::GetBool(kPrefAlwaysUseSafeMode, &alwaysSafe);
+
+  if (!alwaysSafe) {
+#if DEBUG
+    mIsSafeModeNecessary = false;
+#else
+    mIsSafeModeNecessary &= !PR_GetEnv("MOZ_DISABLE_AUTO_SAFE_MODE");
+#endif
+  }
 
   *_retval = mIsSafeModeNecessary;
   return NS_OK;
@@ -1052,14 +936,21 @@ nsAppStartup::TrackStartupCrashEnd()
 
   // Use the timestamp of XRE_main as an approximation for the lock file timestamp.
   // See MAX_STARTUP_BUFFER for the buffer time period.
+  TimeStamp mainTime = StartupTimeline::Get(StartupTimeline::MAIN);
+  TimeStamp now = TimeStamp::Now();
+  PRTime prNow = PR_Now();
   nsresult rv;
-  PRTime mainTime = StartupTimeline::Get(StartupTimeline::MAIN);
-  if (mainTime <= 0) {
+
+  if (mainTime.IsNull()) {
     NS_WARNING("Could not get StartupTimeline::MAIN time.");
   } else {
-    int32_t lockFileTime = (int32_t)(mainTime / PR_USEC_PER_SEC);
-    rv = Preferences::SetInt(kPrefLastSuccess, lockFileTime);
-    if (NS_FAILED(rv)) NS_WARNING("Could not set startup crash detection pref.");
+    uint64_t lockFileTime = ComputeAbsoluteTimestamp(prNow, now, mainTime);
+
+    rv = Preferences::SetInt(kPrefLastSuccess,
+      (int32_t)(lockFileTime / PR_USEC_PER_SEC));
+
+    if (NS_FAILED(rv))
+      NS_WARNING("Could not set startup crash detection pref.");
   }
 
   if (inSafeMode && mIsSafeModeNecessary) {

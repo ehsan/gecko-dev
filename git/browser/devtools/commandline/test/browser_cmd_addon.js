@@ -4,91 +4,131 @@
 // Tests that the addon commands works as they should
 
 function test() {
-  DeveloperToolbarTest.test("about:blank", [ GAT_test ]);
+  return Task.spawn(spawnTest).then(finish, helpers.handleError);
 }
 
-function GAT_test() {
-  var GAT_ready = DeveloperToolbarTest.checkCalled(function() {
-    Services.obs.removeObserver(GAT_ready, "gcli_addon_commands_ready", false);
+function spawnTest() {
+  let options = yield helpers.openTab("about:blank");
+  yield helpers.openToolbar(options);
 
-    helpers.setInput('addon list dictionary');
-    helpers.check({
-      input:  'addon list dictionary',
-      hints:                       '',
-      markup: 'VVVVVVVVVVVVVVVVVVVVV',
-      status: 'VALID'
-    });
-
-    helpers.setInput('addon list extension');
-    helpers.check({
-      input:  'addon list extension',
-      hints:                      '',
-      markup: 'VVVVVVVVVVVVVVVVVVVV',
-      status: 'VALID'
-    });
-
-    helpers.setInput('addon list locale');
-    helpers.check({
-      input:  'addon list locale',
-      hints:                   '',
-      markup: 'VVVVVVVVVVVVVVVVV',
-      status: 'VALID'
-    });
-
-    helpers.setInput('addon list plugin');
-    helpers.check({
-      input:  'addon list plugin',
-      hints:                   '',
-      markup: 'VVVVVVVVVVVVVVVVV',
-      status: 'VALID'
-    });
-
-    helpers.setInput('addon list theme');
-    helpers.check({
-      input:  'addon list theme',
-      hints:                  '',
-      markup: 'VVVVVVVVVVVVVVVV',
-      status: 'VALID'
-    });
-
-    helpers.setInput('addon list all');
-    helpers.check({
-      input:  'addon list all',
-      hints:                '',
-      markup: 'VVVVVVVVVVVVVV',
-      status: 'VALID'
-    });
-
-    helpers.setInput('addon disable Test_Plug-in_1.0.0.0');
-    helpers.check({
-      input:  'addon disable Test_Plug-in_1.0.0.0',
-      hints:                                    '',
-      markup: 'VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV',
-      status: 'VALID'
-    });
-
-    helpers.setInput('addon disable WRONG');
-    helpers.check({
-      input:  'addon disable WRONG',
-      hints:                     '',
-      markup: 'VVVVVVVVVVVVVVEEEEE',
-      status: 'ERROR'
-    });
-
-    helpers.setInput('addon enable Test_Plug-in_1.0.0.0');
-    helpers.check({
-      input:  'addon enable Test_Plug-in_1.0.0.0',
-      hints:                                   '',
-      markup: 'VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV',
-      status: 'VALID',
-      args: {
-        command: { name: 'addon enable' },
-        name: { value: 'Test Plug-in', status: 'VALID' },
+  yield helpers.audit(options, [
+    {
+      setup: 'addon list dictionary',
+      check: {
+        input:  'addon list dictionary',
+        hints:                       '',
+        markup: 'VVVVVVVVVVVVVVVVVVVVV',
+        status: 'VALID'
+      },
+      exec: {
+        output: 'There are no add-ons of that type installed.'
       }
-    });
+    },
+    {
+      setup: 'addon list extension',
+      check: {
+        input:  'addon list extension',
+        hints:                      '',
+        markup: 'VVVVVVVVVVVVVVVVVVVV',
+        status: 'VALID'
+      },
+      exec: {
+        output: [/The following/, /Mochitest/, /Special Powers/]
+      }
+    },
+    {
+      setup: 'addon list locale',
+      check: {
+        input:  'addon list locale',
+        hints:                   '',
+        markup: 'VVVVVVVVVVVVVVVVV',
+        status: 'VALID'
+      },
+      exec: {
+        output: 'There are no add-ons of that type installed.'
+      }
+    },
+    {
+      setup: 'addon list plugin',
+      check: {
+        input:  'addon list plugin',
+        hints:                   '',
+        markup: 'VVVVVVVVVVVVVVVVV',
+        status: 'VALID'
+      },
+      exec: {
+        output: [/Test Plug-in/, /Second Test Plug-in/]
+      }
+    },
+    {
+      setup: 'addon list theme',
+      check: {
+        input:  'addon list theme',
+        hints:                  '',
+        markup: 'VVVVVVVVVVVVVVVV',
+        status: 'VALID'
+      },
+      exec: {
+        output: [/following themes/, /Default/]
+      }
+    },
+    {
+      setup: 'addon list all',
+      check: {
+        input:  'addon list all',
+        hints:                '',
+        markup: 'VVVVVVVVVVVVVV',
+        status: 'VALID'
+      },
+      exec: {
+        output: [/The following/, /Default/, /Mochitest/, /Test Plug-in/,
+                 /Second Test Plug-in/, /Special Powers/]
+      }
+    },
+    {
+      setup: 'addon disable Test_Plug-in_1.0.0.0',
+      check: {
+        input:  'addon disable Test_Plug-in_1.0.0.0',
+        hints:                                    '',
+        markup: 'VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV',
+        status: 'VALID'
+      },
+      exec: {
+        output: 'Test Plug-in 1.0.0.0 disabled.'
+      }
+    },
+    {
+      setup: 'addon disable WRONG',
+      check: {
+        input:  'addon disable WRONG',
+        hints:                     '',
+        markup: 'VVVVVVVVVVVVVVEEEEE',
+        status: 'ERROR'
+      }
+    },
+    {
+      setup: 'addon enable Test_Plug-in_1.0.0.0',
+      check: {
+        input:  'addon enable Test_Plug-in_1.0.0.0',
+        hints:                                   '',
+        markup: 'VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV',
+        status: 'VALID',
+        args: {
+          command: { name: 'addon enable' },
+          addon: {
+            value: function(addon) {
+              is(addon.name, 'Test Plug-in', 'test plugin name');
+            },
+            status: 'VALID'
+          }
+        }
+      },
+      exec: {
+        output: 'Test Plug-in 1.0.0.0 enabled.'
+      }
+    }
+  ]);
 
-    DeveloperToolbarTest.exec({ completed: false });
-  });
-
-  Services.obs.addObserver(GAT_ready, "gcli_addon_commands_ready", false);
+  yield helpers.closeToolbar(options);
+  yield helpers.closeTab(options);
 }

@@ -2,21 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  
-let EXPORTED_SYMBOLS = ["OfflineAppCacheHelper"];
+this.EXPORTED_SYMBOLS = ["OfflineAppCacheHelper"];
+
+Components.utils.import('resource://gre/modules/LoadContextInfo.jsm');
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-let OfflineAppCacheHelper = {
+this.OfflineAppCacheHelper = {
   clear: function() {
-    var cacheService = Cc["@mozilla.org/network/cache-service;1"].
-                       getService(Ci.nsICacheService);
+    var cacheService = Cc["@mozilla.org/netwerk/cache-storage-service;1"].getService(Ci.nsICacheStorageService);
+    var appCacheStorage = cacheService.appCacheStorage(LoadContextInfo.default, null);
     try {
-      cacheService.evictEntries(Ci.nsICache.STORE_OFFLINE);
+      appCacheStorage.asyncEvictStorage(null);
     } catch(er) {}
-
-    var storageManagerService = Cc["@mozilla.org/dom/storagemanager;1"].
-                                getService(Ci.nsIDOMStorageManager);
-    storageManagerService.clearOfflineApps();
   }
 };

@@ -1,19 +1,18 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsweakmap_h___
-#define jsweakmap_h___
+#ifndef jsweakmap_h
+#define jsweakmap_h
 
-#include "jsapi.h"
+#include "jscompartment.h"
 #include "jsfriendapi.h"
-#include "jscntxt.h"
 #include "jsobj.h"
 
 #include "gc/Marking.h"
+#include "gc/StoreBuffer.h"
 #include "js/HashTable.h"
 
 namespace js {
@@ -35,82 +34,76 @@ namespace js {
 // The value for the next pointer for maps not in the map list.
 static WeakMapBase * const WeakMapNotInList = reinterpret_cast<WeakMapBase *>(1);
 
-typedef Vector<WeakMapBase *, 0, SystemAllocPolicy> WeakMapVector;
+typedef HashSet<WeakMapBase *, DefaultHasher<WeakMapBase *>, SystemAllocPolicy> WeakMapSet;
 
 // Common base class for all WeakMap specializations. The collector uses this to call
 // their markIteratively and sweep methods.
 class WeakMapBase {
   public:
-    WeakMapBase(JSObject *memOf) : memberOf(memOf), next(WeakMapNotInList) { }
-    virtual ~WeakMapBase() { }
+    WeakMapBase(JSObject *memOf, JSCompartment *c);
+    virtual ~WeakMapBase();
 
-    void trace(JSTracer *tracer) {
-        if (IS_GC_MARKING_TRACER(tracer)) {
-            // We don't do anything with a WeakMap at trace time. Rather, we wait until as
-            // many keys as possible have been marked, and add ourselves to the list of
-            // known-live WeakMaps to be scanned in the iterative marking phase, by
-            // markAllIteratively.
-            JS_ASSERT(!tracer->eagerlyTraceWeakMaps);
-
-            // Add ourselves to the list if we are not already in the list. We can already
-            // be in the list if the weak map is marked more than once due delayed marking.
-            if (next == WeakMapNotInList) {
-                JSRuntime *rt = tracer->runtime;
-                next = rt->gcWeakMapList;
-                rt->gcWeakMapList = this;
-            }
-        } else {
-            // If we're not actually doing garbage collection, the keys won't be marked
-            // nicely as needed by the true ephemeral marking algorithm --- custom tracers
-            // such as the cycle collector must use their own means for cycle detection.
-            // So here we do a conservative approximation: pretend all keys are live.
-            if (tracer->eagerlyTraceWeakMaps)
-                nonMarkingTrace(tracer);
-        }
-    }
+    void trace(JSTracer *tracer);
 
     // Garbage collector entry points.
 
-    // Check all weak maps that have been marked as live so far in this garbage
+    // Unmark all weak maps in a compartment.
+    static void unmarkCompartment(JSCompartment *c);
+
+    // Mark all the weakmaps in a compartment.
+    static void markAll(JSCompartment *c, JSTracer *tracer);
+
+    // Check all weak maps in a compartment that have been marked as live in this garbage
     // collection, and mark the values of all entries that have become strong references
     // to them. Return true if we marked any new values, indicating that we need to make
     // another pass. In other words, mark my marked maps' marked members' mid-collection.
-    static bool markAllIteratively(JSTracer *tracer);
+    static bool markCompartmentIteratively(JSCompartment *c, JSTracer *tracer);
 
-    // Remove entries whose keys are dead from all weak maps marked as live in this
-    // garbage collection.
-    static void sweepAll(JSTracer *tracer);
+    // Add zone edges for weakmaps with key delegates in a different zone.
+    static bool findZoneEdgesForCompartment(JSCompartment *c);
+
+    // Sweep the weak maps in a compartment, removing dead weak maps and removing
+    // entries of live weak maps whose keys are dead.
+    static void sweepCompartment(JSCompartment *c);
 
     // Trace all delayed weak map bindings. Used by the cycle collector.
     static void traceAllMappings(WeakMapTracer *tracer);
 
-    void check() { JS_ASSERT(next == WeakMapNotInList); }
+    bool isInList() { return next != WeakMapNotInList; }
 
-    // Remove everything from the live weak map list.
-    static void resetWeakMapList(JSRuntime *rt);
+    // Save information about which weak maps are marked for a compartment.
+    static bool saveCompartmentMarkedWeakMaps(JSCompartment *c, WeakMapSet &markedWeakMaps);
 
-    // Save and restore the live weak map list to a vector.
-    static bool saveWeakMapList(JSRuntime *rt, WeakMapVector &vector);
-    static void restoreWeakMapList(JSRuntime *rt, WeakMapVector &vector);
+    // Restore information about which weak maps are marked for many compartments.
+    static void restoreCompartmentMarkedWeakMaps(WeakMapSet &markedWeakMaps);
+
+    // Remove a weakmap from its compartment's weakmaps list.
+    static void removeWeakMapFromList(WeakMapBase *weakmap);
 
   protected:
     // Instance member functions called by the above. Instantiations of WeakMap override
     // these with definitions appropriate for their Key and Value types.
-    virtual void nonMarkingTrace(JSTracer *tracer) = 0;
+    virtual void nonMarkingTraceKeys(JSTracer *tracer) = 0;
+    virtual void nonMarkingTraceValues(JSTracer *tracer) = 0;
     virtual bool markIteratively(JSTracer *tracer) = 0;
-    virtual void sweep(JSTracer *tracer) = 0;
+    virtual bool findZoneEdges() = 0;
+    virtual void sweep() = 0;
     virtual void traceMappings(WeakMapTracer *tracer) = 0;
+    virtual void finish() = 0;
 
     // Object that this weak map is part of, if any.
-    JSObject *memberOf;
+    HeapPtrObject memberOf;
 
-  private:
-    // Link in a list of WeakMaps to mark iteratively and sweep in this garbage
-    // collection, headed by JSRuntime::gcWeakMapList. The last element of the list
-    // has NULL as its next. Maps not in the list have WeakMapNotInList as their
-    // next.  We must distinguish these cases to avoid creating infinite lists
-    // when a weak map gets traced twice due to delayed marking.
+    // Compartment that this weak map is part of.
+    JSCompartment *compartment;
+
+    // Link in a list of all WeakMaps in a compartment, headed by
+    // JSCompartment::gcWeakMapList. The last element of the list has nullptr as
+    // its next. Maps not in the list have WeakMapNotInList as their next.
     WeakMapBase *next;
+
+    // Whether this object has been traced during garbage collection.
+    bool marked;
 };
 
 template <class Key, class Value,
@@ -120,22 +113,71 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
   public:
     typedef HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy> Base;
     typedef typename Base::Enum Enum;
+    typedef typename Base::Lookup Lookup;
     typedef typename Base::Range Range;
+    typedef typename Base::Ptr Ptr;
+    typedef typename Base::AddPtr AddPtr;
 
-    explicit WeakMap(JSRuntime *rt, JSObject *memOf=NULL) : Base(rt), WeakMapBase(memOf) { }
-    explicit WeakMap(JSContext *cx, JSObject *memOf=NULL) : Base(cx), WeakMapBase(memOf) { }
+    explicit WeakMap(JSContext *cx, JSObject *memOf = nullptr)
+        : Base(cx->runtime()), WeakMapBase(memOf, cx->compartment()) { }
 
-  private:
-    bool markValue(JSTracer *trc, Value *x) {
-        if (gc::IsMarked(x))
+    bool init(uint32_t len = 16) {
+        if (!Base::init(len))
             return false;
-        gc::Mark(trc, x, "WeakMap entry");
+        next = compartment->gcWeakMapList;
+        compartment->gcWeakMapList = this;
+        marked = JS::IsIncrementalGCInProgress(compartment->runtimeFromMainThread());
         return true;
     }
 
-    void nonMarkingTrace(JSTracer *trc) {
+    // Overwritten to add a read barrier to prevent an incorrectly gray value
+    // from escaping the weak map. See the comment before UnmarkGrayChildren in
+    // gc/Marking.cpp
+    Ptr lookup(const Lookup &l) const {
+        Ptr p = Base::lookup(l);
+        if (p)
+            exposeGCThingToActiveJS(p->value());
+        return p;
+    }
+
+    AddPtr lookupForAdd(const Lookup &l) const {
+        AddPtr p = Base::lookupForAdd(l);
+        if (p)
+            exposeGCThingToActiveJS(p->value());
+        return p;
+    }
+
+    Ptr lookupWithDefault(const Key &k, const Value &defaultValue) {
+        Ptr p = Base::lookupWithDefault(k, defaultValue);
+        if (p)
+            exposeGCThingToActiveJS(p->value());
+        return p;
+    }
+
+  private:
+    void exposeGCThingToActiveJS(const JS::Value &v) const { JS::ExposeValueToActiveJS(v); }
+    void exposeGCThingToActiveJS(JSObject *obj) const { JS::ExposeObjectToActiveJS(obj); }
+
+    bool markValue(JSTracer *trc, Value *x) {
+        if (gc::IsMarked(x))
+            return false;
+        gc::Mark(trc, x, "WeakMap entry value");
+        MOZ_ASSERT(gc::IsMarked(x));
+        return true;
+    }
+
+    void nonMarkingTraceKeys(JSTracer *trc) {
+        for (Enum e(*this); !e.empty(); e.popFront()) {
+            Key key(e.front().key());
+            gc::Mark(trc, &key, "WeakMap entry key");
+            if (key != e.front().key())
+                entryMoved(e, key);
+        }
+    }
+
+    void nonMarkingTraceValues(JSTracer *trc) {
         for (Range r = Base::all(); !r.empty(); r.popFront())
-            markValue(trc, &r.front().value);
+            gc::Mark(trc, &r.front().value(), "WeakMap entry value");
     }
 
     bool keyNeedsMark(JSObject *key) {
@@ -159,64 +201,130 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
         bool markedAny = false;
         for (Enum e(*this); !e.empty(); e.popFront()) {
             /* If the entry is live, ensure its key and value are marked. */
-            Key prior(e.front().key);
-            if (gc::IsMarked(const_cast<Key *>(&e.front().key))) {
-                if (markValue(trc, &e.front().value))
+            Key key(e.front().key());
+            if (gc::IsMarked(const_cast<Key *>(&key))) {
+                if (markValue(trc, &e.front().value()))
                     markedAny = true;
-                if (prior != e.front().key)
-                    e.rekeyFront(e.front().key);
-            } else if (keyNeedsMark(e.front().key)) {
-                gc::Mark(trc, const_cast<Key *>(&e.front().key), "proxy-preserved WeakMap key");
-                if (prior != e.front().key)
-                    e.rekeyFront(e.front().key);
-                gc::Mark(trc, &e.front().value, "WeakMap entry");
+                if (e.front().key() != key)
+                    entryMoved(e, key);
+            } else if (keyNeedsMark(key)) {
+                gc::Mark(trc, &e.front().value(), "WeakMap entry value");
+                gc::Mark(trc, &key, "proxy-preserved WeakMap entry key");
+                if (e.front().key() != key)
+                    entryMoved(e, key);
                 markedAny = true;
             }
+            key.unsafeSet(nullptr);
         }
         return markedAny;
     }
 
-    void sweep(JSTracer *trc) {
+    bool findZoneEdges() {
+        // This is overridden by ObjectValueMap.
+        return true;
+    }
+
+    void sweep() {
         /* Remove all entries whose keys remain unmarked. */
         for (Enum e(*this); !e.empty(); e.popFront()) {
-            Key k(e.front().key);
-            if (!gc::IsMarked(&k))
+            Key k(e.front().key());
+            if (gc::IsAboutToBeFinalized(&k))
                 e.removeFront();
+            else if (k != e.front().key())
+                entryMoved(e, k);
         }
-
-#if DEBUG
         /*
          * Once we've swept, all remaining edges should stay within the
          * known-live part of the graph.
          */
-        for (Range r = Base::all(); !r.empty(); r.popFront()) {
-            Key k(r.front().key);
-            Value v(r.front().value);
-            JS_ASSERT(gc::IsMarked(&k));
-            JS_ASSERT(gc::IsMarked(&v));
-            JS_ASSERT(k == r.front().key);
-            JS_ASSERT(v == r.front().value);
-        }
-#endif
+        assertEntriesNotAboutToBeFinalized();
     }
 
-    /* memberOf can be NULL, which means that the map is not part of a JSObject. */
+    void finish() {
+        Base::finish();
+    }
+
+    /* memberOf can be nullptr, which means that the map is not part of a JSObject. */
     void traceMappings(WeakMapTracer *tracer) {
         for (Range r = Base::all(); !r.empty(); r.popFront()) {
-            gc::Cell *key = gc::ToMarkable(r.front().key);
-            gc::Cell *value = gc::ToMarkable(r.front().value);
+            gc::Cell *key = gc::ToMarkable(r.front().key());
+            gc::Cell *value = gc::ToMarkable(r.front().value());
             if (key && value) {
                 tracer->callback(tracer, memberOf,
-                                 key, gc::TraceKind(r.front().key),
-                                 value, gc::TraceKind(r.front().value));
+                                 key, gc::TraceKind(r.front().key()),
+                                 value, gc::TraceKind(r.front().value()));
             }
         }
     }
+
+    /* Rekey an entry when moved, ensuring we do not trigger barriers. */
+    void entryMoved(Enum &eArg, const Key &k) {
+        typedef typename HashMap<typename Unbarriered<Key>::type,
+                                 typename Unbarriered<Value>::type,
+                                 typename Unbarriered<HashPolicy>::type,
+                                 RuntimeAllocPolicy>::Enum UnbarrieredEnum;
+        UnbarrieredEnum &e = reinterpret_cast<UnbarrieredEnum &>(eArg);
+        e.rekeyFront(reinterpret_cast<const typename Unbarriered<Key>::type &>(k));
+    }
+
+protected:
+    void assertEntriesNotAboutToBeFinalized() {
+#if DEBUG
+        for (Range r = Base::all(); !r.empty(); r.popFront()) {
+            Key k(r.front().key());
+            MOZ_ASSERT(!gc::IsAboutToBeFinalized(&k));
+            MOZ_ASSERT(!gc::IsAboutToBeFinalized(&r.front().value()));
+            MOZ_ASSERT(k == r.front().key());
+        }
+#endif
+    }
 };
+
+/*
+ * At times, you will need to ignore barriers when accessing WeakMap entries.
+ * Localize the templatized casting craziness here.
+ */
+template <class Key, class Value>
+static inline gc::HashKeyRef<HashMap<Key, Value, DefaultHasher<Key>, RuntimeAllocPolicy>, Key>
+UnbarrieredRef(WeakMap<PreBarriered<Key>, RelocatablePtr<Value>> *map, Key key)
+{
+    /*
+     * Some compilers complain about instantiating the WeakMap class for
+     * unbarriered type arguments, so we cast to a HashMap instead. Because of
+     * WeakMap's multiple inheritance, we need to do this in two stages, first
+     * to the HashMap base class and then to the unbarriered version.
+     */
+
+    typedef typename WeakMap<PreBarriered<Key>, RelocatablePtr<Value>>::Base BaseMap;
+    auto baseMap = static_cast<BaseMap*>(map);
+    typedef HashMap<Key, Value, DefaultHasher<Key>, RuntimeAllocPolicy> UnbarrieredMap;
+    typedef gc::HashKeyRef<UnbarrieredMap, Key> UnbarrieredKeyRef;
+    return UnbarrieredKeyRef(reinterpret_cast<UnbarrieredMap*>(baseMap), key);
+}
+
+/* WeakMap methods exposed so they can be installed in the self-hosting global. */
+
+extern JSObject *
+InitBareWeakMapCtor(JSContext *cx, js::HandleObject obj);
+
+extern bool
+WeakMap_has(JSContext *cx, unsigned argc, Value *vp);
+
+extern bool
+WeakMap_get(JSContext *cx, unsigned argc, Value *vp);
+
+extern bool
+WeakMap_set(JSContext *cx, unsigned argc, Value *vp);
+
+extern bool
+WeakMap_delete(JSContext *cx, unsigned argc, Value *vp);
+
+extern bool
+WeakMap_clear(JSContext *cx, unsigned argc, Value *vp);
 
 } /* namespace js */
 
 extern JSObject *
-js_InitWeakMapClass(JSContext *cx, JSObject *obj);
+js_InitWeakMapClass(JSContext *cx, js::HandleObject obj);
 
-#endif
+#endif /* jsweakmap_h */

@@ -7,7 +7,6 @@ package org.mozilla.gecko.sync.stage;
 import java.net.URISyntaxException;
 
 import org.mozilla.gecko.sync.CryptoRecord;
-import org.mozilla.gecko.sync.GlobalSession;
 import org.mozilla.gecko.sync.repositories.ConstrainedServer11Repository;
 import org.mozilla.gecko.sync.repositories.RecordFactory;
 import org.mozilla.gecko.sync.repositories.Repository;
@@ -22,15 +21,6 @@ public class FormHistoryServerSyncStage extends ServerSyncStage {
   // and all this hard-coding can go away.
   private static final String FORM_HISTORY_SORT          = "index";
   private static final long   FORM_HISTORY_REQUEST_LIMIT = 5000;         // Sanity limit.
-
-  public FormHistoryServerSyncStage(GlobalSession session) {
-    super(session);
-  }
-
-  @Override
-  public void execute() throws NoSuchStageException {
-    super.execute();
-  }
 
   @Override
   protected String getCollection() {
@@ -49,12 +39,14 @@ public class FormHistoryServerSyncStage extends ServerSyncStage {
 
   @Override
   protected Repository getRemoteRepository() throws URISyntaxException {
-    return new ConstrainedServer11Repository(session.config.getClusterURLString(),
-                                             session.config.username,
-                                             getCollection(),
-                                             session,
-                                             FORM_HISTORY_REQUEST_LIMIT,
-                                             FORM_HISTORY_SORT);
+    String collection = getCollection();
+    return new ConstrainedServer11Repository(
+        collection,
+        session.config.storageURL(),
+        session.getAuthHeaderProvider(),
+        session.config.infoCollections,
+        FORM_HISTORY_REQUEST_LIMIT,
+        FORM_HISTORY_SORT);
   }
 
   @Override

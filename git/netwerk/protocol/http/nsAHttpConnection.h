@@ -8,21 +8,28 @@
 #include "nsISupports.h"
 #include "nsAHttpTransaction.h"
 
-class nsHttpRequestHead;
-class nsHttpResponseHead;
-class nsHttpConnectionInfo;
-class nsHttpConnection;
 class nsISocketTransport;
 class nsIAsyncInputStream;
 class nsIAsyncOutputStream;
+
+namespace mozilla { namespace net {
+
+class nsHttpConnectionInfo;
+class nsHttpConnection;
 
 //-----------------------------------------------------------------------------
 // Abstract base class for a HTTP connection
 //-----------------------------------------------------------------------------
 
+// 5a66aed7-eede-468b-ac2b-e5fb431fcc5c
+#define NS_AHTTPCONNECTION_IID \
+{ 0x5a66aed7, 0xeede, 0x468b, {0xac, 0x2b, 0xe5, 0xfb, 0x43, 0x1f, 0xcc, 0x5c }}
+
 class nsAHttpConnection : public nsISupports
 {
 public:
+    NS_DECLARE_STATIC_IID_ACCESSOR(NS_AHTTPCONNECTION_IID)
+
     //-------------------------------------------------------------------------
     // NOTE: these methods may only be called on the socket thread.
     //-------------------------------------------------------------------------
@@ -46,6 +53,11 @@ public:
     //
     virtual nsresult ResumeSend() = 0;
     virtual nsresult ResumeRecv() = 0;
+
+    // called by a transaction to force a "send/recv from network" iteration
+    // even if not scheduled by socket associated with connection
+    virtual nsresult ForceSend() = 0;
+    virtual nsresult ForceRecv() = 0;
 
     // After a connection has had ResumeSend() called by a transaction,
     // and it is ready to write to the network it may need to know the
@@ -124,7 +136,16 @@ public:
     // The number of transaction bytes written out on this HTTP Connection, does
     // not count CONNECT tunnel setup
     virtual int64_t BytesWritten() = 0;
+
+    // Update the callbacks used to provide security info. May be called on
+    // any thread.
+    virtual void SetSecurityCallbacks(nsIInterfaceRequestor* aCallbacks) = 0;
+
+    // nsHttp.h version
+    virtual uint32_t Version() = 0;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsAHttpConnection, NS_AHTTPCONNECTION_IID)
 
 #define NS_DECL_NSAHTTPCONNECTION(fwdObject)                    \
     nsresult OnHeadersAvailable(nsAHttpTransaction *, nsHttpRequestHead *, nsHttpResponseHead *, bool *reset); \
@@ -171,11 +192,29 @@ public:
             return NS_ERROR_FAILURE;       \
         return (fwdObject)->ResumeRecv();  \
     }                                      \
+    nsresult ForceSend()                   \
+    {                                      \
+        if (!(fwdObject))                  \
+            return NS_ERROR_FAILURE;       \
+        return (fwdObject)->ForceSend();   \
+    }                                      \
+    nsresult ForceRecv()                   \
+    {                                      \
+        if (!(fwdObject))                  \
+            return NS_ERROR_FAILURE;       \
+        return (fwdObject)->ForceRecv();   \
+    }                                      \
     nsISocketTransport *Transport()        \
     {                                      \
         if (!(fwdObject))                  \
             return nullptr;                 \
         return (fwdObject)->Transport();   \
+    }                                      \
+    uint32_t Version()                     \
+    {                                      \
+        return (fwdObject) ?               \
+            (fwdObject)->Version() :       \
+            NS_HTTP_VERSION_UNKNOWN;       \
     }                                      \
     bool IsProxyConnectInProgress()                         \
     {                                                       \
@@ -195,6 +234,13 @@ public:
         return (fwdObject)->Classify(newclass);             \
     }                                                       \
     int64_t BytesWritten()                                  \
-    {     return fwdObject ? (fwdObject)->BytesWritten() : 0; }
+    {     return fwdObject ? (fwdObject)->BytesWritten() : 0; } \
+    void SetSecurityCallbacks(nsIInterfaceRequestor* aCallbacks) \
+    {                                                       \
+        if (fwdObject)                                      \
+            (fwdObject)->SetSecurityCallbacks(aCallbacks);  \
+    }
+
+}} // namespace mozilla::net
 
 #endif // nsAHttpConnection_h__

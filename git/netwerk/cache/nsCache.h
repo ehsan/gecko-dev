@@ -11,12 +11,12 @@
 #ifndef _nsCache_h_
 #define _nsCache_h_
 
+#include "prlog.h"
 #include "nsISupports.h"
 #include "nsIFile.h"
 #include "nsAString.h"
 #include "prtime.h"
 #include "nsError.h"
-#include "prlog.h"
 
 // PR_LOG args = "format string", arg, arg, ...
 #if defined(PR_LOGGING)

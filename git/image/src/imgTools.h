@@ -5,31 +5,23 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "imgITools.h"
-#include "gfxContext.h"
 
 #define NS_IMGTOOLS_CID \
-{ /* fd9a9e8a-a77b-496a-b7bb-263df9715149 */         \
-     0xfd9a9e8a,                                     \
-     0xa77b,                                         \
-     0x496a,                                         \
-    {0xb7, 0xbb, 0x26, 0x3d, 0xf9, 0x71, 0x51, 0x49} \
+{ /* 3d8fa16d-c9e1-4b50-bdef-2c7ae249967a */         \
+     0x3d8fa16d,                                     \
+     0xc9e1,                                         \
+     0x4b50,                                         \
+    {0xbd, 0xef, 0x2c, 0x7a, 0xe2, 0x49, 0x96, 0x7a} \
 }
 
-class imgTools : public imgITools
+class imgTools MOZ_FINAL : public imgITools
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_IMGITOOLS
 
   imgTools();
-  virtual ~imgTools();
 
 private:
-  NS_IMETHODIMP EncodeImageData(gfxImageSurface *aSurface,
-                                const nsACString& aMimeType,
-                                const nsAString& aOutputOptions,
-                                nsIInputStream **aStream);
-
-  NS_IMETHODIMP GetFirstImageFrame(imgIContainer *aContainer,
-                                   gfxImageSurface **aSurface);
+  virtual ~imgTools();
 };

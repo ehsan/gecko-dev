@@ -43,9 +43,11 @@ public:
   nsresult ActiveTables(nsTArray<nsCString>& aTables);
 
   /**
-   * Check a URL against the database.
+   * Check a URL against the specified tables.
    */
-  nsresult Check(const nsACString& aSpec, LookupResultArray& aResults);
+  nsresult Check(const nsACString& aSpec,
+                 const nsACString& tables,
+                 LookupResultArray& aResults);
 
   /**
    * Apply the table updates in the array.  Takes ownership of
@@ -58,17 +60,18 @@ public:
    */
   nsresult MarkSpoiled(nsTArray<nsCString>& aTables);
   nsresult CacheCompletions(const CacheResultArray& aResults);
-  uint32_t GetHashKey(void) { return mHashKey; };
-  void SetFreshTime(uint32_t aTime) { mFreshTime = aTime; };
-  void SetPerClientRandomize(bool aRandomize) { mPerClientRandomize = aRandomize; };
+  uint32_t GetHashKey(void) { return mHashKey; }
+  void SetFreshTime(uint32_t aTime) { mFreshTime = aTime; }
   /*
    * Get a bunch of extra prefixes to query for completion
    * and mask the real entry being requested
    */
   nsresult ReadNoiseEntries(const Prefix& aPrefix,
                             const nsACString& aTableName,
-                            int32_t aCount,
+                            uint32_t aCount,
                             PrefixArray* aNoiseEntries);
+  static void SplitTables(const nsACString& str, nsTArray<nsCString>& tables);
+
 private:
   void DropStores();
   nsresult CreateStoreDirectory();
@@ -84,7 +87,6 @@ private:
                              const nsACString& aTable);
 
   LookupCache *GetLookupCache(const nsACString& aTable);
-  nsresult InitKey();
 
   // Root dir of the Local profile.
   nsCOMPtr<nsIFile> mCacheDirectory;
@@ -101,7 +103,6 @@ private:
   // Stores the last time a given table was updated (seconds).
   nsDataHashtable<nsCStringHashKey, int64_t> mTableFreshness;
   uint32_t mFreshTime;
-  bool mPerClientRandomize;
 };
 
 }

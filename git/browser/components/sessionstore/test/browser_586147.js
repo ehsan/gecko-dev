@@ -4,15 +4,21 @@
 
 function observeOneRestore(callback) {
   let topic = "sessionstore-browser-state-restored";
-  Services.obs.addObserver(function() {
-    Services.obs.removeObserver(arguments.callee, topic, false);
+  Services.obs.addObserver(function onRestore() {
+    Services.obs.removeObserver(onRestore, topic);
     callback();
   }, topic, false);
 };
 
 function test() {
   waitForExplicitFinish();
-  ignoreAllUncaughtExceptions();
+
+  // Disable Panorama, since it conflicts with this test.
+  let tabview = document.getElementById("tab-view");
+  if (tabview) {
+    document.getElementById("tab-view").contentWindow.UI.uninit();
+    TabView.uninit();
+  }
 
   // There should be one tab when we start the test
   let [origTab] = gBrowser.visibleTabs;
@@ -46,6 +52,12 @@ function test() {
     // Restore the original state and clean up now that we're done
     gBrowser.removeTab(hiddenTab);
     gBrowser.removeTab(extraTab);
+
+    // Re-enable Panorama.
+    if (tabview) {
+      TabView.init();
+    }
+
     finish();
   });
   ss.setBrowserState(JSON.stringify(stateObj));

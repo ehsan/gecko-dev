@@ -3,9 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  
- 
-#include "nsITransferable.h"
 #include "nsImageClipboard.h"
+
+#include "gfxUtils.h"
+#include "mozilla/gfx/2D.h"
+#include "mozilla/gfx/DataSurfaceHelpers.h"
+#include "mozilla/RefPtr.h"
+#include "nsITransferable.h"
 #include "nsGfxCIID.h"
 #include "nsMemory.h"
 #include "prmem.h"
@@ -14,6 +18,9 @@
 #include "nsComponentManagerUtils.h"
 
 #define BFH_LENGTH 14
+
+using namespace mozilla;
+using namespace mozilla::gfx;
 
 /* Things To Do 11/8/00
 
@@ -113,13 +120,28 @@ nsImageToClipboard::CalcSpanLength(uint32_t aWidth, uint32_t aBitCount)
 nsresult
 nsImageToClipboard::CreateFromImage ( imgIContainer* inImage, HANDLE* outBitmap )
 {
+    nsresult rv;
     *outBitmap = nullptr;
 
-    nsRefPtr<gfxImageSurface> frame;
-    nsresult rv = inImage->CopyFrame(imgIContainer::FRAME_CURRENT,
-                                     imgIContainer::FLAG_SYNC_DECODE,
-                                     getter_AddRefs(frame));
-    NS_ENSURE_SUCCESS(rv, rv);
+    RefPtr<SourceSurface> surface =
+      inImage->GetFrame(imgIContainer::FRAME_CURRENT,
+                        imgIContainer::FLAG_SYNC_DECODE);
+    NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
+
+    MOZ_ASSERT(surface->GetFormat() == SurfaceFormat::B8G8R8A8 ||
+               surface->GetFormat() == SurfaceFormat::B8G8R8X8);
+
+    RefPtr<DataSourceSurface> dataSurface;
+    if (surface->GetFormat() == SurfaceFormat::B8G8R8A8) {
+      dataSurface = surface->GetDataSurface();
+    } else {
+      // XXXjwatt Bug 995923 - get rid of this copy and handle B8G8R8X8
+      // directly below once bug 995807 is fixed.
+      dataSurface = gfxUtils::
+        CopySurfaceToDataSourceSurfaceWithFormat(surface,
+                                                 SurfaceFormat::B8G8R8A8);
+    }
+    NS_ENSURE_TRUE(dataSurface, NS_ERROR_FAILURE);
 
     nsCOMPtr<imgIEncoder> encoder = do_CreateInstance("@mozilla.org/image/encoder;2?type=image/bmp", &rv);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -127,26 +149,37 @@ nsImageToClipboard::CreateFromImage ( imgIContainer* inImage, HANDLE* outBitmap 
     uint32_t format;
     nsAutoString options;
     if (mWantDIBV5) {
-      options.AppendASCII("version=5;bpp=");
+      options.AppendLiteral("version=5;bpp=");
     } else {
-      options.AppendASCII("version=3;bpp=");
+      options.AppendLiteral("version=3;bpp=");
     }
-    switch (frame->Format()) {
-    case gfxASurface::ImageFormatARGB32:
+    switch (dataSurface->GetFormat()) {
+    case SurfaceFormat::B8G8R8A8:
         format = imgIEncoder::INPUT_FORMAT_HOSTARGB;
         options.AppendInt(32);
         break;
-    case gfxASurface::ImageFormatRGB24:
+#if 0
+    // XXXjwatt Bug 995923 - fix |format| and reenable once bug 995807 is fixed.
+    case SurfaceFormat::B8G8R8X8:
         format = imgIEncoder::INPUT_FORMAT_RGB;
         options.AppendInt(24);
         break;
+#endif
     default:
+        NS_NOTREACHED("Unexpected surface format");
         return NS_ERROR_INVALID_ARG;  
     }
 
-    rv = encoder->InitFromData(frame->Data(), 0, frame->Width(),
-                               frame->Height(), frame->Stride(),
+    DataSourceSurface::MappedSurface map;
+    bool mappedOK = dataSurface->Map(DataSourceSurface::MapType::READ, &map);
+    NS_ENSURE_TRUE(mappedOK, NS_ERROR_FAILURE);
+
+    rv = encoder->InitFromData(map.mData, 0,
+                               dataSurface->GetSize().width,
+                               dataSurface->GetSize().height,
+                               map.mStride,
                                format, options);
+    dataSurface->Unmap();
     NS_ENSURE_SUCCESS(rv, rv);
 
     uint32_t size;
@@ -207,11 +240,11 @@ nsImageFromClipboard ::GetEncodedImageStream (unsigned char * aClipboardData, co
     rv = ConvertColorBitMap((unsigned char *) (pGlobal + header->bmiHeader.biSize), header, rgbData);
     // if that succeeded, encode the bitmap as aMIMEFormat data. Don't return early or we risk leaking rgbData
     if (NS_SUCCEEDED(rv)) {
-      nsCAutoString encoderCID(NS_LITERAL_CSTRING("@mozilla.org/image/encoder;2?type="));
+      nsAutoCString encoderCID(NS_LITERAL_CSTRING("@mozilla.org/image/encoder;2?type="));
 
       // Map image/jpg to image/jpeg (which is how the encoder is registered).
       if (strcmp(aMIMEFormat, kJPGImageMime) == 0)
-        encoderCID.Append("image/jpeg");
+        encoderCID.AppendLiteral("image/jpeg");
       else
         encoderCID.Append(aMIMEFormat);
       nsCOMPtr<imgIEncoder> encoder = do_CreateInstance(encoderCID.get(), &rv);

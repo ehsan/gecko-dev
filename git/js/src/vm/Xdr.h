@@ -1,18 +1,16 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=78:
- *
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef Xdr_h___
-#define Xdr_h___
+#ifndef vm_Xdr_h
+#define vm_Xdr_h
 
-#include "jsapi.h"
-#include "jsprvtd.h"
-#include "jsnum.h"
+#include "mozilla/Endian.h"
+#include "mozilla/TypeTraits.h"
 
-#include "vm/NumericConversions.h"
+#include "jsatom.h"
 
 namespace js {
 
@@ -20,24 +18,42 @@ namespace js {
  * Bytecode version number. Increment the subtrahend whenever JS bytecode
  * changes incompatibly.
  *
- * This version number is XDR'd near the front of xdr bytecode and
- * aborts deserialization if there is a mismatch between the current
- * and saved versions. If deserialization fails, the data should be
- * invalidated if possible.
+ * This version number is XDR'd near the front of xdr bytecode and aborts
+ * deserialization if there is a mismatch between the current and saved
+ * versions.  If deserialization fails, the data should be invalidated if
+ * possible.
+ *
+ * When you change this, run make_opcode_doc.py and copy the new output into
+ * this wiki page:
+ *
+ *  https://developer.mozilla.org/en-US/docs/SpiderMonkey/Internals/Bytecode
+ *
+ * === GREETINGS, FELLOW SUBTRAHEND INCREMENTER! ===
+ * For the time being, please increment the subtrahend by 2 each time it
+ * changes, because we have two flavors of bytecode: with JSOP_SYMBOL (in
+ * Nightly) and without (all others).  FIXME: Bug 1066322 - Enable ES6 symbols
+ * in all builds.
  */
-static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 130);
+static const uint32_t XDR_BYTECODE_VERSION_SUBTRAHEND = 218;
+static_assert(XDR_BYTECODE_VERSION_SUBTRAHEND % 2 == 0, "see the comment above");
+static const uint32_t XDR_BYTECODE_VERSION =
+    uint32_t(0xb973c0de - (XDR_BYTECODE_VERSION_SUBTRAHEND
+#ifdef JS_HAS_SYMBOLS
+                                                           + 1
+#endif
+                                                              ));
 
 class XDRBuffer {
   public:
-    XDRBuffer(JSContext *cx)
-      : context(cx), base(NULL), cursor(NULL), limit(NULL) { }
+    explicit XDRBuffer(JSContext *cx)
+      : context(cx), base(nullptr), cursor(nullptr), limit(nullptr) { }
 
     JSContext *cx() const {
         return context;
     }
 
     void *getData(uint32_t *lengthp) const {
-        JS_ASSERT(size_t(cursor - base) <= size_t(UINT32_MAX));
+        MOZ_ASSERT(size_t(cursor - base) <= size_t(UINT32_MAX));
         *lengthp = uint32_t(cursor - base);
         return base;
     }
@@ -49,7 +65,7 @@ class XDRBuffer {
     }
 
     const uint8_t *read(size_t n) {
-        JS_ASSERT(n <= size_t(limit - cursor));
+        MOZ_ASSERT(n <= size_t(limit - cursor));
         uint8_t *ptr = cursor;
         cursor += n;
         return ptr;
@@ -58,15 +74,15 @@ class XDRBuffer {
     const char *readCString() {
         char *ptr = reinterpret_cast<char *>(cursor);
         cursor = reinterpret_cast<uint8_t *>(strchr(ptr, '\0')) + 1;
-        JS_ASSERT(base < cursor);
-        JS_ASSERT(cursor <= limit);
+        MOZ_ASSERT(base < cursor);
+        MOZ_ASSERT(cursor <= limit);
         return ptr;
     }
 
     uint8_t *write(size_t n) {
         if (n > size_t(limit - cursor)) {
             if (!grow(n))
-                return NULL;
+                return nullptr;
         }
         uint8_t *ptr = cursor;
         cursor += n;
@@ -88,52 +104,17 @@ class XDRBuffer {
     uint8_t     *limit;
 };
 
-/* We use little-endian byteorder for all encoded data */
-
-#if defined IS_LITTLE_ENDIAN
-
-inline uint32_t
-NormalizeByteOrder32(uint32_t x)
-{
-    return x;
-}
-
-inline uint16_t
-NormalizeByteOrder16(uint16_t x)
-{
-    return x;
-}
-
-#elif defined IS_BIG_ENDIAN
-
-inline uint32_t
-NormalizeByteOrder32(uint32_t x)
-{
-    return (x >> 24) | ((x >> 8) & 0xff00) | ((x << 8) & 0xff0000) | (x << 24);
-}
-
-inline uint16_t
-NormalizeByteOrder16(uint16_t x)
-{
-    return (x >> 8) | (x << 8);
-}
-
-#else
-#error "unknown byte order"
-#endif
-
+/*
+ * XDR serialization state.  All data is encoded in little endian.
+ */
 template <XDRMode mode>
 class XDRState {
   public:
     XDRBuffer buf;
 
   protected:
-    JSPrincipals *principals;
-    JSPrincipals *originPrincipals;
-
-    XDRState(JSContext *cx)
-      : buf(cx), principals(NULL), originPrincipals(NULL) {
-    }
+    explicit XDRState(JSContext *cx)
+      : buf(cx) { }
 
   public:
     JSContext *cx() const {
@@ -153,31 +134,27 @@ class XDRState {
     }
 
     bool codeUint16(uint16_t *n) {
-        uint16_t tmp;
         if (mode == XDR_ENCODE) {
-            uint8_t *ptr = buf.write(sizeof tmp);
+            uint8_t *ptr = buf.write(sizeof *n);
             if (!ptr)
                 return false;
-            tmp = NormalizeByteOrder16(*n);
-            memcpy(ptr, &tmp, sizeof tmp);
+            mozilla::LittleEndian::writeUint16(ptr, *n);
         } else {
-            memcpy(&tmp, buf.read(sizeof tmp), sizeof tmp);
-            *n = NormalizeByteOrder16(tmp);
+            const uint8_t *ptr = buf.read(sizeof *n);
+            *n = mozilla::LittleEndian::readUint16(ptr);
         }
         return true;
     }
 
     bool codeUint32(uint32_t *n) {
-        uint32_t tmp;
         if (mode == XDR_ENCODE) {
-            uint8_t *ptr = buf.write(sizeof tmp);
+            uint8_t *ptr = buf.write(sizeof *n);
             if (!ptr)
                 return false;
-            tmp = NormalizeByteOrder32(*n);
-            memcpy(ptr, &tmp, sizeof tmp);
+            mozilla::LittleEndian::writeUint32(ptr, *n);
         } else {
-            memcpy(&tmp, buf.read(sizeof tmp), sizeof tmp);
-            *n = NormalizeByteOrder32(tmp);
+            const uint8_t *ptr = buf.read(sizeof *n);
+            *n = mozilla::LittleEndian::readUint32(ptr);
         }
         return true;
     }
@@ -187,25 +164,29 @@ class XDRState {
             uint8_t *ptr = buf.write(sizeof(*n));
             if (!ptr)
                 return false;
-            ptr[0] = (*n >>  0) & 0xFF;
-            ptr[1] = (*n >>  8) & 0xFF;
-            ptr[2] = (*n >> 16) & 0xFF;
-            ptr[3] = (*n >> 24) & 0xFF;
-            ptr[4] = (*n >> 32) & 0xFF;
-            ptr[5] = (*n >> 40) & 0xFF;
-            ptr[6] = (*n >> 48) & 0xFF;
-            ptr[7] = (*n >> 56) & 0xFF;
+            mozilla::LittleEndian::writeUint64(ptr, *n);
         } else {
             const uint8_t *ptr = buf.read(sizeof(*n));
-            *n = (uint64_t(ptr[0]) <<  0) |
-                 (uint64_t(ptr[1]) <<  8) |
-                 (uint64_t(ptr[2]) << 16) |
-                 (uint64_t(ptr[3]) << 24) |
-                 (uint64_t(ptr[4]) << 32) |
-                 (uint64_t(ptr[5]) << 40) |
-                 (uint64_t(ptr[6]) << 48) |
-                 (uint64_t(ptr[7]) << 56);
+            *n = mozilla::LittleEndian::readUint64(ptr);
         }
+        return true;
+    }
+
+    /*
+     * Use SFINAE to refuse any specialization which is not an enum.  Uses of
+     * this function do not have to specialize the type of the enumerated field
+     * as C++ will extract the parameterized from the argument list.
+     */
+    template <typename T>
+    bool codeEnum32(T *val, typename mozilla::EnableIf<mozilla::IsEnum<T>::value, T>::Type * = NULL)
+    {
+        uint32_t tmp;
+        if (mode == XDR_ENCODE)
+            tmp = *val;
+        if (!codeUint32(&tmp))
+            return false;
+        if (mode == XDR_DECODE)
+            *val = T(tmp);
         return true;
     }
 
@@ -254,32 +235,17 @@ class XDRState {
         return true;
     }
 
-    bool codeChars(jschar *chars, size_t nchars);
+    bool codeChars(const JS::Latin1Char *chars, size_t nchars);
+    bool codeChars(char16_t *chars, size_t nchars);
 
-    bool codeFunction(JSMutableHandleObject objp);
-    bool codeScript(JSScript **scriptp);
-
-    void initScriptPrincipals(JSScript *script) {
-        JS_ASSERT(mode == XDR_DECODE);
-
-        /* The origin principals must be normalized at this point. */
-        JS_ASSERT_IF(principals, originPrincipals);
-        JS_ASSERT(!script->principals);
-        JS_ASSERT(!script->originPrincipals);
-        if (principals) {
-            script->principals = principals;
-            JS_HoldPrincipals(principals);
-        }
-        if (originPrincipals) {
-            script->originPrincipals = originPrincipals;
-            JS_HoldPrincipals(originPrincipals);
-        }
-    }
+    bool codeFunction(JS::MutableHandleFunction objp);
+    bool codeScript(MutableHandleScript scriptp);
+    bool codeConstValue(MutableHandleValue vp);
 };
 
 class XDREncoder : public XDRState<XDR_ENCODE> {
   public:
-    XDREncoder(JSContext *cx)
+    explicit XDREncoder(JSContext *cx)
       : XDRState<XDR_ENCODE>(cx) {
     }
 
@@ -293,18 +259,17 @@ class XDREncoder : public XDRState<XDR_ENCODE> {
 
     void *forgetData(uint32_t *lengthp) {
         void *data = buf.getData(lengthp);
-        buf.setData(NULL, 0);
+        buf.setData(nullptr, 0);
         return data;
     }
 };
 
 class XDRDecoder : public XDRState<XDR_DECODE> {
   public:
-    XDRDecoder(JSContext *cx, const void *data, uint32_t length,
-               JSPrincipals *principals, JSPrincipals *originPrincipals);
+    XDRDecoder(JSContext *cx, const void *data, uint32_t length);
 
 };
 
 } /* namespace js */
 
-#endif /* Xdr_h___ */
+#endif /* vm_Xdr_h */

@@ -9,11 +9,12 @@ var Ci = Components.interfaces;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 var satchelFormListener = {
     QueryInterface : XPCOMUtils.generateQI([Ci.nsIFormSubmitObserver,
                                             Ci.nsIDOMEventListener,
-                                            Ci.nsObserver,
+                                            Ci.nsIObserver,
                                             Ci.nsISupportsWeakReference]),
 
     debug          : true,
@@ -103,6 +104,8 @@ var satchelFormListener = {
             if (!this.enabled)
                 return;
 
+            if (PrivateBrowsingUtils.isContentWindowPrivate(domWin))
+                return;
 
             this.log("Form submit observer notified.");
 

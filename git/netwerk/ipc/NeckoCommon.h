@@ -11,8 +11,13 @@
 #include "nsXULAppAPI.h"
 #include "prenv.h"
 #include "nsPrintfCString.h"
+#include "mozilla/Preferences.h"
 
-#if defined(DEBUG) || defined(ENABLE_TESTS)
+namespace mozilla { namespace dom {
+class TabChild;
+}}
+
+#if defined(DEBUG)
 # define NECKO_ERRORS_ARE_FATAL_DEFAULT true
 #else
 # define NECKO_ERRORS_ARE_FATAL_DEFAULT false
@@ -48,13 +53,31 @@
   } while (0)
 
 #define ENSURE_CALLED_BEFORE_ASYNC_OPEN()                                      \
-  if (mIsPending || mWasOpened) {                                              \
-    nsPrintfCString msg("'%s' called after AsyncOpen: %s +%d",                 \
-                        __FUNCTION__, __FILE__, __LINE__);                     \
-    NECKO_MAYBE_ABORT(msg);                                                    \
-  }                                                                            \
-  NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);                           \
-  NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
+  do {                                                                         \
+    if (mIsPending || mWasOpened) {                                            \
+      nsPrintfCString msg("'%s' called after AsyncOpen: %s +%d",               \
+                          __FUNCTION__, __FILE__, __LINE__);                   \
+      NECKO_MAYBE_ABORT(msg);                                                  \
+    }                                                                          \
+    NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);                         \
+    NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);                      \
+  } while (0)
+
+// Fails call if made after request observers (on-modify-request, etc) have been
+// called
+
+#define ENSURE_CALLED_BEFORE_CONNECT()                                         \
+  do {                                                                         \
+    if (mRequestObserversCalled) {                                             \
+      nsPrintfCString msg("'%s' called too late: %s +%d",                      \
+                          __FUNCTION__, __FILE__, __LINE__);                   \
+      NECKO_MAYBE_ABORT(msg);                                                  \
+      if (mIsPending)                                                          \
+        return NS_ERROR_IN_PROGRESS;                                           \
+      MOZ_ASSERT(mWasOpened);                                                  \
+      return NS_ERROR_ALREADY_OPENED;                                          \
+    }                                                                          \
+  } while (0)
 
 namespace mozilla {
 namespace net {
@@ -75,6 +98,38 @@ IsNeckoChild()
     didCheck = true;
   }
   return amChild;
+}
+
+namespace NeckoCommonInternal {
+  extern bool gSecurityDisabled;
+  extern bool gRegisteredBool;
+}
+
+// This should always return true unless xpcshell tests are being used
+inline bool
+UsingNeckoIPCSecurity()
+{
+
+  if (!NeckoCommonInternal::gRegisteredBool) {
+    Preferences::AddBoolVarCache(&NeckoCommonInternal::gSecurityDisabled,
+                                 "network.disable.ipc.security");
+    NeckoCommonInternal::gRegisteredBool = true;
+  }
+  return !NeckoCommonInternal::gSecurityDisabled;
+}
+
+inline bool
+MissingRequiredTabChild(mozilla::dom::TabChild* tabChild,
+                        const char* context)
+{
+  if (UsingNeckoIPCSecurity()) {
+    if (!tabChild) {
+      printf_stderr("WARNING: child tried to open %s IPDL channel w/o "
+                    "security info\n", context);
+      return true;
+    }
+  }
+  return false;
 }
 
 

@@ -10,11 +10,15 @@
  */
 
 #include "BasicTableLayoutStrategy.h"
+
+#include <algorithm>
+
 #include "nsTableFrame.h"
 #include "nsTableCellFrame.h"
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
 #include "SpanningCellSorter.h"
+#include "nsIContent.h"
 
 using namespace mozilla;
 using namespace mozilla::layout;
@@ -27,7 +31,7 @@ BasicTableLayoutStrategy::BasicTableLayoutStrategy(nsTableFrame *aTableFrame)
   : nsITableLayoutStrategy(nsITableLayoutStrategy::Auto)
   , mTableFrame(aTableFrame)
 {
-    MarkIntrinsicWidthsDirty();
+    MarkIntrinsicISizesDirty();
 }
 
 /* virtual */
@@ -36,16 +40,16 @@ BasicTableLayoutStrategy::~BasicTableLayoutStrategy()
 }
 
 /* virtual */ nscoord
-BasicTableLayoutStrategy::GetMinWidth(nsRenderingContext* aRenderingContext)
+BasicTableLayoutStrategy::GetMinISize(nsRenderingContext* aRenderingContext)
 {
     DISPLAY_MIN_WIDTH(mTableFrame, mMinWidth);
     if (mMinWidth == NS_INTRINSIC_WIDTH_UNKNOWN)
-        ComputeIntrinsicWidths(aRenderingContext);
+        ComputeIntrinsicISizes(aRenderingContext);
     return mMinWidth;
 }
 
 /* virtual */ nscoord
-BasicTableLayoutStrategy::GetPrefWidth(nsRenderingContext* aRenderingContext,
+BasicTableLayoutStrategy::GetPrefISize(nsRenderingContext* aRenderingContext,
                                        bool aComputingSize)
 {
     DISPLAY_PREF_WIDTH(mTableFrame, mPrefWidth);
@@ -53,7 +57,7 @@ BasicTableLayoutStrategy::GetPrefWidth(nsRenderingContext* aRenderingContext,
                  (mPrefWidthPctExpand == NS_INTRINSIC_WIDTH_UNKNOWN),
                  "dirtyness out of sync");
     if (mPrefWidth == NS_INTRINSIC_WIDTH_UNKNOWN)
-        ComputeIntrinsicWidths(aRenderingContext);
+        ComputeIntrinsicISizes(aRenderingContext);
     return aComputingSize ? mPrefWidthPctExpand : mPrefWidth;
 }
 
@@ -80,7 +84,7 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
              nsIFrame *aFrame, bool aIsCell)
 {
     nscoord minCoord, prefCoord;
-    const nsStylePosition *stylePos = aFrame->GetStylePosition();
+    const nsStylePosition *stylePos = aFrame->StylePosition();
     bool isQuirks = aFrame->PresContext()->CompatibilityMode() ==
                     eCompatibility_NavQuirks;
     nscoord boxSizingToBorderEdge = 0;
@@ -89,8 +93,8 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
         // wrapping inside of it should not apply font size inflation.
         AutoMaybeDisableFontInflation an(aFrame);
 
-        minCoord = aFrame->GetMinWidth(aRenderingContext);
-        prefCoord = aFrame->GetPrefWidth(aRenderingContext);
+        minCoord = aFrame->GetMinISize(aRenderingContext);
+        prefCoord = aFrame->GetPrefISize(aRenderingContext);
         // Until almost the end of this function, minCoord and prefCoord
         // represent the box-sizing based width values (which mean they
         // should include horizontal padding and border width when
@@ -99,7 +103,7 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
         // outer edges near the end of this function.
 
         // XXX Should we ignore percentage padding?
-        nsIFrame::IntrinsicWidthOffsetData offsets = aFrame->IntrinsicWidthOffsets(aRenderingContext);
+        nsIFrame::IntrinsicISizeOffsetData offsets = aFrame->IntrinsicISizeOffsets(aRenderingContext);
 
         // In quirks mode, table cell width should be content-box,
         // but height should be border box.
@@ -137,10 +141,11 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
 
     const nsStyleCoord &width = stylePos->mWidth;
     nsStyleUnit unit = width.GetUnit();
-    // NOTE: We're ignoring calc() units here, for lack of a sensible
-    // idea for what to do with them.  This means calc() is basically
-    // handled like 'auto' for table cells and columns.
-    if (unit == eStyleUnit_Coord) {
+    // NOTE: We're ignoring calc() units with percentages here, for lack of a
+    // sensible idea for what to do with them.  This means calc() with
+    // percentages is basically handled like 'auto' for table cells and
+    // columns.
+    if (width.ConvertsToLength()) {
         hasSpecifiedWidth = true;
         // Note: since ComputeWidthValue was designed to return content-box
         // width, it will (in some cases) subtract the box-sizing edges.
@@ -158,7 +163,7 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
                                           nsGkAtoms::nowrap)) {
             minCoord = w;
         }
-        prefCoord = NS_MAX(w, minCoord);
+        prefCoord = std::max(w, minCoord);
     } else if (unit == eStyleUnit_Percent) {
         prefPercent = width.GetPercentValue();
     } else if (unit == eStyleUnit_Enumerated && aIsCell) {
@@ -192,7 +197,7 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
     unit = maxWidth.GetUnit();
     // XXX To really implement 'max-width' well, we'd need to store
     // it separately on the columns.
-    if (unit == eStyleUnit_Coord || unit == eStyleUnit_Enumerated) {
+    if (maxWidth.ConvertsToLength() || unit == eStyleUnit_Enumerated) {
         nscoord w =
             nsLayoutUtils::ComputeWidthValue(aRenderingContext, aFrame,
                                              0, 0, 0, maxWidth);
@@ -205,7 +210,7 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
         if (p < prefPercent)
             prefPercent = p;
     }
-    // treat calc() on max-width just like 'none'.
+    // treat calc() with percentages on max-width just like 'none'.
 
     nsStyleCoord minWidth(stylePos->mMinWidth);
     if (minWidth.GetUnit() == eStyleUnit_Enumerated) {
@@ -218,7 +223,7 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
                                  eStyleUnit_Enumerated);
     }
     unit = minWidth.GetUnit();
-    if (unit == eStyleUnit_Coord || unit == eStyleUnit_Enumerated) {
+    if (minWidth.ConvertsToLength() || unit == eStyleUnit_Enumerated) {
         nscoord w =
             nsLayoutUtils::ComputeWidthValue(aRenderingContext, aFrame,
                                              0, 0, 0, minWidth);
@@ -231,7 +236,7 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
         if (p > prefPercent)
             prefPercent = p;
     }
-    // treat calc() on min-width just like '0'.
+    // treat calc() with percentages on min-width just like '0'.
 
     // XXX Should col frame have border/padding considered?
     if (aIsCell) {
@@ -264,7 +269,7 @@ GetColWidthInfo(nsRenderingContext *aRenderingContext,
  * browsers are).
  */
 void
-BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsRenderingContext* aRenderingContext)
+BasicTableLayoutStrategy::ComputeColumnIntrinsicISizes(nsRenderingContext* aRenderingContext)
 {
     nsTableFrame *tableFrame = mTableFrame;
     nsTableCellMap *cellMap = tableFrame->GetCellMap();
@@ -331,7 +336,7 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsRenderingContext* aRend
 #endif
     }
 #ifdef DEBUG_TABLE_STRATEGY
-    printf("ComputeColumnIntrinsicWidths single\n");
+    printf("ComputeColumnIntrinsicISizes single\n");
     mTableFrame->Dump(false, true, false);
 #endif
 
@@ -419,23 +424,23 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsRenderingContext* aRend
     }
 
 #ifdef DEBUG_TABLE_STRATEGY
-    printf("ComputeColumnIntrinsicWidths spanning\n");
+    printf("ComputeColumnIntrinsicISizes spanning\n");
     mTableFrame->Dump(false, true, false);
 #endif
 }
 
 void
-BasicTableLayoutStrategy::ComputeIntrinsicWidths(nsRenderingContext* aRenderingContext)
+BasicTableLayoutStrategy::ComputeIntrinsicISizes(nsRenderingContext* aRenderingContext)
 {
-    ComputeColumnIntrinsicWidths(aRenderingContext);
+    ComputeColumnIntrinsicISizes(aRenderingContext);
 
     nsTableCellMap *cellMap = mTableFrame->GetCellMap();
     nscoord min = 0, pref = 0, max_small_pct_pref = 0, nonpct_pref_total = 0;
     float pct_total = 0.0f; // always from 0.0f - 1.0f
     int32_t colCount = cellMap->GetColCount();
-    nscoord spacing = mTableFrame->GetCellSpacingX();
-    nscoord add = spacing; // add (colcount + 1) * spacing for columns 
-                           // where a cell originates
+    // add a total of (colcount + 1) lots of cellSpacingX for columns where a
+    // cell originates
+    nscoord add = mTableFrame->GetCellSpacingX(colCount);
 
     for (int32_t col = 0; col < colCount; ++col) {
         nsTableColFrame *colFrame = mTableFrame->GetColFrame(col);
@@ -444,7 +449,7 @@ BasicTableLayoutStrategy::ComputeIntrinsicWidths(nsRenderingContext* aRenderingC
             continue;
         }
         if (mTableFrame->ColumnHasCellSpacingBefore(col)) {
-            add += spacing;
+            add += mTableFrame->GetCellSpacingX(col - 1);
         }
         min += colFrame->GetMinCoord();
         pref = NSCoordSaturatingAdd(pref, colFrame->GetPrefCoord());
@@ -509,7 +514,7 @@ BasicTableLayoutStrategy::ComputeIntrinsicWidths(nsRenderingContext* aRenderingC
 }
 
 /* virtual */ void
-BasicTableLayoutStrategy::MarkIntrinsicWidthsDirty()
+BasicTableLayoutStrategy::MarkIntrinsicISizesDirty()
 {
     mMinWidth = NS_INTRINSIC_WIDTH_UNKNOWN;
     mPrefWidth = NS_INTRINSIC_WIDTH_UNKNOWN;
@@ -534,7 +539,7 @@ BasicTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
                  "dirtyness out of sync");
     // XXX Is this needed?
     if (mMinWidth == NS_INTRINSIC_WIDTH_UNKNOWN)
-        ComputeIntrinsicWidths(aReflowState.rendContext);
+        ComputeIntrinsicISizes(aReflowState.rendContext);
 
     nsTableCellMap *cellMap = mTableFrame->GetCellMap();
     int32_t colCount = cellMap->GetColCount();
@@ -560,6 +565,7 @@ BasicTableLayoutStrategy::DistributePctWidthToColumns(float aSpanPrefPct,
     // and to reduce aSpanPrefPct by columns that already have % width
 
     int32_t scol, scol_end;
+    nsTableCellMap *cellMap = mTableFrame->GetCellMap();
     for (scol = aFirstCol, scol_end = aFirstCol + aColCount;
          scol < scol_end; ++scol) {
         nsTableColFrame *scolFrame = mTableFrame->GetColFrame(scol);
@@ -570,7 +576,9 @@ BasicTableLayoutStrategy::DistributePctWidthToColumns(float aSpanPrefPct,
         float scolPct = scolFrame->GetPrefPercent();
         if (scolPct == 0.0f) {
             nonPctTotalPrefWidth += scolFrame->GetPrefCoord();
-            ++nonPctColCount;
+            if (cellMap->GetNumCellsOriginatingInCol(scol) > 0) {
+                ++nonPctColCount;
+            }
         } else {
             aSpanPrefPct -= scolPct;
         }
@@ -607,18 +615,22 @@ BasicTableLayoutStrategy::DistributePctWidthToColumns(float aSpanPrefPct,
                 allocatedPct = aSpanPrefPct *
                     (float(scolFrame->GetPrefCoord()) /
                      float(nonPctTotalPrefWidth));
-            } else {
+            } else if (cellMap->GetNumCellsOriginatingInCol(scol) > 0) {
                 // distribute equally when all pref widths are 0
                 allocatedPct = aSpanPrefPct / float(nonPctColCount);
+            } else {
+                allocatedPct = 0.0f;
             }
             // Allocate the percent
             scolFrame->AddSpanPrefPercent(allocatedPct);
-            
+
             // To avoid accumulating rounding error from division,
             // subtract this column's values from the totals.
             aSpanPrefPct -= allocatedPct;
             nonPctTotalPrefWidth -= scolFrame->GetPrefCoord();
-            --nonPctColCount;
+            if (cellMap->GetNumCellsOriginatingInCol(scol) > 0) {
+                --nonPctColCount;
+            }
 
             if (!aSpanPrefPct) {
                 // No more span-percent-width to distribute --> we're done.
@@ -645,22 +657,23 @@ BasicTableLayoutStrategy::DistributeWidthToColumns(nscoord aWidth,
                   aColCount == mTableFrame->GetCellMap()->GetColCount()),
             "Computing final column widths, but didn't get full column range");
 
-    // border-spacing isn't part of the basis for percentages.
-    nscoord spacing = mTableFrame->GetCellSpacingX();
-    nscoord subtract = 0;    
+
+    nscoord subtract = 0;
     // aWidth initially includes border-spacing for the boundaries in between
     // each of the columns. We start at aFirstCol + 1 because the first
     // in-between boundary would be at the left edge of column aFirstCol + 1
     for (int32_t col = aFirstCol + 1; col < aFirstCol + aColCount; ++col) {
         if (mTableFrame->ColumnHasCellSpacingBefore(col)) {
-            subtract += spacing;
+            // border-spacing isn't part of the basis for percentages.
+            subtract += mTableFrame->GetCellSpacingX(col - 1);
         }
     }
     if (aWidthType == BTLS_FINAL_WIDTH) {
         // If we're computing final col-width, then aWidth initially includes
         // border spacing on the table's far left + far right edge, too.  Need
         // to subtract those out, too.
-        subtract += spacing * 2;
+        subtract += (mTableFrame->GetCellSpacingX(-1) +
+                     mTableFrame->GetCellSpacingX(aColCount));
     }
     aWidth = NSCoordSaturatingSubtract(aWidth, subtract, nscoord_MAX);
 
@@ -700,10 +713,10 @@ BasicTableLayoutStrategy::DistributeWidthToColumns(nscoord aWidth,
      *   percent width have nonzero pref width, in proportion to pref
      *   width [total_flex_pref]
      *
-     *   b. (NOTE: this case is for BTLS_FINAL_WIDTH only) otherwise, if
-     *   any columns without a specified coordinate width or percent
-     *   width, but with cells originating in them have zero pref width,
-     *   equally between these [numNonSpecZeroWidthCols]
+     *   b. otherwise, if any columns without a specified coordinate
+     *   width or percent width, but with cells originating in them,
+     *   have zero pref width, equally between these
+     *   [numNonSpecZeroWidthCols]
      *
      *   c. otherwise, if any columns without percent width have nonzero
      *   pref width, in proportion to pref width [total_fixed_pref]
@@ -761,8 +774,7 @@ BasicTableLayoutStrategy::DistributeWidthToColumns(nscoord aWidth,
                 total_fixed_pref = NSCoordSaturatingAdd(total_fixed_pref, 
                                                         pref_width);
             } else if (pref_width == 0) {
-                if (aWidthType == BTLS_FINAL_WIDTH &&
-                    cellMap->GetNumCellsOriginatingInCol(col) > 0) {
+                if (cellMap->GetNumCellsOriginatingInCol(col) > 0) {
                     ++numNonSpecZeroWidthCols;
                 }
             } else {
@@ -823,9 +835,6 @@ BasicTableLayoutStrategy::DistributeWidthToColumns(nscoord aWidth,
             l2t = FLEX_FLEX_LARGE;
             basis.c = total_flex_pref;
         } else if (numNonSpecZeroWidthCols > 0) {
-            NS_ASSERTION(aWidthType == BTLS_FINAL_WIDTH,
-                         "numNonSpecZeroWidthCols should only "
-                         "be set when we're setting final width.");
             l2t = FLEX_FLEX_LARGE_ZERO;
             basis.c = numNonSpecZeroWidthCols;
         } else if (total_fixed_pref > 0) {
@@ -955,9 +964,6 @@ BasicTableLayoutStrategy::DistributeWidthToColumns(nscoord aWidth,
                 }
                 break;
             case FLEX_FLEX_LARGE_ZERO:
-                NS_ASSERTION(aWidthType == BTLS_FINAL_WIDTH,
-                             "FLEX_FLEX_LARGE_ZERO only should be hit "
-                             "when we're setting final width.");
                 if (pct == 0.0f &&
                     !colFrame->GetHasSpecifiedCoord() &&
                     cellMap->GetNumCellsOriginatingInCol(col) > 0) {

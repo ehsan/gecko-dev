@@ -12,10 +12,12 @@ namespace mozilla {
 
 MaskLayerImageCache::MaskLayerImageCache()
 {
-  mMaskImageContainers.Init();
+  MOZ_COUNT_CTOR(MaskLayerImageCache);
 }
 MaskLayerImageCache::~MaskLayerImageCache()
-{}
+{
+  MOZ_COUNT_DTOR(MaskLayerImageCache);
+}
 
 
 /* static */ PLDHashOperator
@@ -53,6 +55,33 @@ MaskLayerImageCache::PutImage(const MaskLayerImageKey* aKey, ImageContainer* aCo
 {
   MaskLayerImageEntry* entry = mMaskImageContainers.PutEntry(*aKey);
   entry->mContainer = aContainer;
+}
+
+// This case is particularly 'clever' because it uses AddRef/Release to track the use
+// not to release the object.
+template<>
+struct HasDangerousPublicDestructor<MaskLayerImageCache::MaskLayerImageKey>
+{
+  static const bool value = true;
+};
+
+MaskLayerImageCache::MaskLayerImageKey::MaskLayerImageKey()
+  : mLayerCount(0)
+  , mRoundedClipRects()
+{
+  MOZ_COUNT_CTOR(MaskLayerImageKey);
+}
+
+MaskLayerImageCache::MaskLayerImageKey::MaskLayerImageKey(const MaskLayerImageKey& aKey)
+  : mLayerCount(aKey.mLayerCount)
+  , mRoundedClipRects(aKey.mRoundedClipRects)
+{
+  MOZ_COUNT_CTOR(MaskLayerImageKey);
+}
+
+MaskLayerImageCache::MaskLayerImageKey::~MaskLayerImageKey()
+{
+  MOZ_COUNT_DTOR(MaskLayerImageKey);
 }
 
 }

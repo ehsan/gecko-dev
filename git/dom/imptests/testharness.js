@@ -59,13 +59,13 @@ policies and contribution forms [3].
  * would run test_function with a timeout of 1s.
  *
  * Additionally, test-specific metadata can be passed in the properties. These
- * are used when the individual test has different metadata from that stored 
+ * are used when the individual test has different metadata from that stored
  * in the <head>.
  * The recognized metadata properties are:
  *
  *    help - The url of the part of the specification being tested
  *
- *    assert - A human readable description of what the test is attempting 
+ *    assert - A human readable description of what the test is attempting
  *             to prove
  *
  *    author - Name and contact information for the author of the test in the
@@ -94,6 +94,19 @@ policies and contribution forms [3].
  *
  * t.done();
  *
+ * As a convenience, async_test can also takes a function as first argument.
+ * This function is called with the test object as both its `this` object and
+ * first argument. The above example can be rewritten as:
+ *
+ * async_test(function(t) {
+ *     object.some_event = function() {
+ *         t.step(function (){assert_true(true); t.done();});
+ *     };
+ * }, "Simple async test");
+ *
+ * which avoids cluttering the global scope with references to async
+ * tests instances.
+ *
  * The properties argument is identical to that for test().
  *
  * In many cases it is convenient to run a step in response to an event or a
@@ -120,6 +133,18 @@ policies and contribution forms [3].
  *       asserts outside these places won't be detected correctly by the harness
  *       and may cause a file to stop testing.
  *
+ * == Harness Timeout ==
+ * 
+ * The overall harness admits two timeout values "normal" (the
+ * default) and "long", used for tests which have an unusually long
+ * runtime. After the timeout is reached, the harness will stop
+ * waiting for further async tests to complete. By default the
+ * timeouts are set to 10s and 60s, respectively, but may be changed
+ * when the test is run on hardware with different performance
+ * characteristics to a common desktop computer.  In order to opt-in
+ * to the longer test timeout, the test must specify a meta element:
+ * <meta name="timeout" content="long">
+ *
  * == Setup ==
  *
  * Sometimes tests require non-trivial setup that may fail. For this purpose
@@ -133,9 +158,6 @@ policies and contribution forms [3].
  * any tests have returned results. Properties are global properties of the test
  * harness. Currently recognised properties are:
  *
- * timeout - The time in ms after which the harness should stop waiting for
- *           tests to complete (this is different to the per-test timeout
- *           because async tests do not start their timer until .step is called)
  *
  * explicit_done - Wait for an explicit call to done() before declaring all
  *                 tests complete (see below)
@@ -149,6 +171,12 @@ policies and contribution forms [3].
  *                    when the timeout() function is called (typically for
  *                    use when integrating with some existing test framework
  *                    that has its own timeout mechanism).
+ *
+ * allow_uncaught_exception - don't treat an uncaught exception as an error;
+ *                            needed when e.g. testing the window.onerror
+ *                            handler.
+ *
+ * timeout_multiplier - Multiplier to apply to per-test timeouts.
  *
  * == Determining when all tests are complete ==
  *
@@ -188,7 +216,7 @@ policies and contribution forms [3].
  * Note that the first item in each parameter list corresponds to the name of
  * the test.
  *
- * The properties argument is identical to that for test(). This may be a 
+ * The properties argument is identical to that for test(). This may be a
  * single object (used for all generated tests) or an array.
  *
  * == Callback API ==
@@ -222,7 +250,7 @@ policies and contribution forms [3].
  *
  * In order to collect the results of multiple pages containing tests, the test
  * harness will, when loaded in a nested browsing context, attempt to call
- * certain functions in each ancestor browsing context:
+ * certain functions in each ancestor and opener browsing context:
  *
  * start - start_callback
  * result - result_callback
@@ -230,6 +258,22 @@ policies and contribution forms [3].
  *
  * These are given the same arguments as the corresponding internal callbacks
  * described above.
+ *
+ * == External API through cross-document messaging ==
+ *
+ * Where supported, the test harness will also send messages using
+ * cross-document messaging to each ancestor and opener browsing context. Since
+ * it uses the wildcard keyword (*), cross-origin communication is enabled and
+ * script on different origins can collect the results.
+ *
+ * This API follows similar conventions as those described above only slightly
+ * modified to accommodate message event API. Each message is sent by the harness
+ * is passed a single vanilla object, available as the `data` property of the
+ * event object. These objects are structures as follows:
+ *
+ * start - { type: "start" }
+ * result - { type: "result", test: Test }
+ * complete - { type: "complete", tests: [Test, ...], status: TestsStatus }
  *
  * == List of assertions ==
  *
@@ -258,8 +302,24 @@ policies and contribution forms [3].
  * assert_approx_equals(actual, expected, epsilon, description)
  *   asserts that /actual/ is a number within +/- /epsilon/ of /expected/
  *
+ * assert_less_than(actual, expected, description)
+ *   asserts that /actual/ is a number less than /expected/
+ *
+ * assert_greater_than(actual, expected, description)
+ *   asserts that /actual/ is a number greater than /expected/
+ *
+ * assert_less_than_equal(actual, expected, description)
+ *   asserts that /actual/ is a number less than or equal to /expected/
+ *
+ * assert_greater_than_equal(actual, expected, description)
+ *   asserts that /actual/ is a number greater than or equal to /expected/
+ *
  * assert_regexp_match(actual, expected, description)
  *   asserts that /actual/ matches the regexp /expected/
+ *
+ * assert_class_string(object, class_name, description)
+ *   asserts that the class string of /object/ as returned in
+ *   Object.prototype.toString is equal to /class_name/.
  *
  * assert_own_property(object, property_name, description)
  *   assert that object has own property property_name
@@ -295,7 +355,7 @@ policies and contribution forms [3].
  *   is true for some expected_array_N in expected_array. This only works for assert_func
  *   with signature assert_func(actual, expected, args_1, ..., args_N). Note that tests
  *   with multiple allowed pass conditions are bad practice unless the spec specifically
- *   allows multiple behaviours. Test authors should not use this method simply to hide 
+ *   allows multiple behaviours. Test authors should not use this method simply to hide
  *   UA bugs.
  *
  * assert_exists(object, property_name, description)
@@ -310,11 +370,12 @@ policies and contribution forms [3].
 (function ()
 {
     var debug = false;
-    // default timeout is 5 seconds, test can override if needed
+    // default timeout is 10 seconds, test can override if needed
     var settings = {
       output:true,
-      timeout:5000,
-      test_timeout:2000
+      harness_timeout:{"normal":10000,
+                       "long":60000},
+      test_timeout:null
     };
 
     var xhtml_ns = "http://www.w3.org/1999/xhtml";
@@ -353,9 +414,8 @@ policies and contribution forms [3].
     function next_default_name()
     {
         //Don't use document.title to work around an Opera bug in XHTML documents
-        var prefix = document.getElementsByTagName("title").length > 0 ?
-                         document.getElementsByTagName("title")[0].firstChild.data :
-                         "Untitled";
+        var title = document.getElementsByTagName("title")[0];
+        var prefix = (title && title.firstChild && title.firstChild.data) || "Untitled";
         var suffix = name_counter > 0 ? " " + name_counter : "";
         name_counter++;
         return prefix + suffix;
@@ -367,16 +427,24 @@ policies and contribution forms [3].
         properties = properties ? properties : {};
         var test_obj = new Test(test_name, properties);
         test_obj.step(func);
-        if (test_obj.status === test_obj.NOTRUN) {
+        if (test_obj.phase === test_obj.phases.STARTED) {
             test_obj.done();
         }
     }
 
-    function async_test(name, properties)
+    function async_test(func, name, properties)
     {
+        if (typeof func !== "function") {
+            properties = name;
+            name = func;
+            func = null;
+        }
         var test_name = name ? name : next_default_name();
         properties = properties ? properties : {};
         var test_obj = new Test(test_name, properties);
+        if (func) {
+            test_obj.step(func, test_obj, test_obj);
+        }
         return test_obj;
     }
 
@@ -407,8 +475,8 @@ policies and contribution forms [3].
                     test(function()
                          {
                              func.apply(this, x.slice(1));
-                         }, 
-                         name, 
+                         },
+                         name,
                          Array.isArray(properties) ? properties[i] : properties);
                 });
     }
@@ -438,13 +506,53 @@ policies and contribution forms [3].
     }
 
     /*
+     * Return true if object is probably a Node object.
+     */
+    function is_node(object)
+    {
+        // I use duck-typing instead of instanceof, because
+        // instanceof doesn't work if the node is from another window (like an
+        // iframe's contentWindow):
+        // http://www.w3.org/Bugs/Public/show_bug.cgi?id=12295
+        if ("nodeType" in object
+        && "nodeName" in object
+        && "nodeValue" in object
+        && "childNodes" in object)
+        {
+            try
+            {
+                object.nodeType;
+            }
+            catch (e)
+            {
+                // The object is probably Node.prototype or another prototype
+                // object that inherits from it, and not a Node instance.
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /*
      * Convert a value to a nice, human-readable string
      */
-    function format_value(val)
+    function format_value(val, seen)
     {
+        if (!seen) {
+            seen = [];
+        }
+        if (typeof val === "object" && val !== null)
+        {
+            if (seen.indexOf(val) >= 0)
+            {
+                return "[...]";
+            }
+            seen.push(val);
+        }
         if (Array.isArray(val))
         {
-            return "[" + val.map(format_value).join(", ") + "]";
+            return "[" + val.map(function(x) {return format_value(x, seen)}).join(", ") + "]";
         }
 
         switch (typeof val)
@@ -509,14 +617,8 @@ policies and contribution forms [3].
             }
 
             // Special-case Node objects, since those come up a lot in my tests.  I
-            // ignore namespaces.  I use duck-typing instead of instanceof, because
-            // instanceof doesn't work if the node is from another window (like an
-            // iframe's contentWindow):
-            // http://www.w3.org/Bugs/Public/show_bug.cgi?id=12295
-            if ("nodeType" in val
-            && "nodeName" in val
-            && "nodeValue" in val
-            && "childNodes" in val)
+            // ignore namespaces.
+            if (is_node(val))
             {
                 switch (val.nodeType)
                 {
@@ -629,7 +731,7 @@ policies and contribution forms [3].
     function assert_object_equals(actual, expected, description)
     {
          //This needs to be improved a great deal
-         function check_equal(expected, actual, stack)
+         function check_equal(actual, expected, stack)
          {
              stack.push(actual);
 
@@ -648,7 +750,7 @@ policies and contribution forms [3].
                  }
                  else
                  {
-                     assert(actual[p] === expected[p], "assert_object_equals", description,
+                     assert(same_value(actual[p], expected[p]), "assert_object_equals", description,
                                                        "property ${p} expected ${expected} got ${actual}",
                                                        {p:p, expected:expected, actual:actual});
                  }
@@ -679,7 +781,7 @@ policies and contribution forms [3].
                    "property ${i}, property expected to be $expected but was $actual",
                    {i:i, expected:expected.hasOwnProperty(i) ? "present" : "missing",
                    actual:actual.hasOwnProperty(i) ? "present" : "missing"});
-            assert(expected[i] === actual[i],
+            assert(same_value(expected[i], actual[i]),
                    "assert_array_equals", description,
                    "property ${i}, expected ${expected} but got ${actual}",
                    {i:i, expected:expected[i], actual:actual[i]});
@@ -704,6 +806,74 @@ policies and contribution forms [3].
     };
     expose(assert_approx_equals, "assert_approx_equals");
 
+    function assert_less_than(actual, expected, description)
+    {
+        /*
+         * Test if a primitive number is less than another
+         */
+        assert(typeof actual === "number",
+               "assert_less_than", description,
+               "expected a number but got a ${type_actual}",
+               {type_actual:typeof actual});
+
+        assert(actual < expected,
+               "assert_less_than", description,
+               "expected a number less than ${expected} but got ${actual}",
+               {expected:expected, actual:actual});
+    };
+    expose(assert_less_than, "assert_less_than");
+
+    function assert_greater_than(actual, expected, description)
+    {
+        /*
+         * Test if a primitive number is greater than another
+         */
+        assert(typeof actual === "number",
+               "assert_greater_than", description,
+               "expected a number but got a ${type_actual}",
+               {type_actual:typeof actual});
+
+        assert(actual > expected,
+               "assert_greater_than", description,
+               "expected a number greater than ${expected} but got ${actual}",
+               {expected:expected, actual:actual});
+    };
+    expose(assert_greater_than, "assert_greater_than");
+
+    function assert_less_than_equal(actual, expected, description)
+    {
+        /*
+         * Test if a primitive number is less than or equal to another
+         */
+        assert(typeof actual === "number",
+               "assert_less_than_equal", description,
+               "expected a number but got a ${type_actual}",
+               {type_actual:typeof actual});
+
+        assert(actual <= expected,
+               "assert_less_than", description,
+               "expected a number less than or equal to ${expected} but got ${actual}",
+               {expected:expected, actual:actual});
+    };
+    expose(assert_less_than_equal, "assert_less_than_equal");
+
+    function assert_greater_than_equal(actual, expected, description)
+    {
+        /*
+         * Test if a primitive number is greater than or equal to another
+         */
+        assert(typeof actual === "number",
+               "assert_greater_than_equal", description,
+               "expected a number but got a ${type_actual}",
+               {type_actual:typeof actual});
+
+        assert(actual >= expected,
+               "assert_greater_than_equal", description,
+               "expected a number greater than or equal to ${expected} but got ${actual}",
+               {expected:expected, actual:actual});
+    };
+    expose(assert_greater_than_equal, "assert_greater_than_equal");
+
     function assert_regexp_match(actual, expected, description) {
         /*
          * Test if a string (actual) matches a regexp (expected)
@@ -714,6 +884,12 @@ policies and contribution forms [3].
                {expected:expected, actual:actual});
     }
     expose(assert_regexp_match, "assert_regexp_match");
+
+    function assert_class_string(object, class_string, description) {
+        assert_equals({}.toString.call(object), "[object " + class_string + "]",
+                      description);
+    }
+    expose(assert_class_string, "assert_class_string");
 
 
     function _assert_own_property(name) {
@@ -767,7 +943,7 @@ policies and contribution forms [3].
              //Note that this can have side effects in the case where
              //the property has PutForwards
              object[property_name] = initial_value + "a"; //XXX use some other value here?
-             assert(object[property_name] === initial_value,
+             assert(same_value(object[property_name], initial_value),
                     "assert_readonly", description,
                     "changing property ${p} succeeded",
                     {p:property_name});
@@ -828,7 +1004,7 @@ policies and contribution forms [3].
                 QUOTA_EXCEEDED_ERR: 'QuotaExceededError',
                 TIMEOUT_ERR: 'TimeoutError',
                 INVALID_NODE_TYPE_ERR: 'InvalidNodeTypeError',
-                DATA_CLONE_ERR: 'DataCloneError',
+                DATA_CLONE_ERR: 'DataCloneError'
             };
 
             var name = code in code_name_map ? code_name_map[code] : code;
@@ -861,7 +1037,7 @@ policies and contribution forms [3].
                 DataError: 0,
                 TransactionInactiveError: 0,
                 ReadOnlyError: 0,
-                VersionError: 0,
+                VersionError: 0
             };
 
             if (!(name in name_code_map))
@@ -905,12 +1081,12 @@ policies and contribution forms [3].
     }
     expose(assert_unreached, "assert_unreached");
 
-    function assert_any(assert_func, actual, expected_array) 
+    function assert_any(assert_func, actual, expected_array)
     {
         var args = [].slice.call(arguments, 3)
         var errors = []
         var passed = false;
-        forEach(expected_array, 
+        forEach(expected_array,
                 function(expected)
                 {
                     try {
@@ -929,12 +1105,25 @@ policies and contribution forms [3].
     function Test(name, properties)
     {
         this.name = name;
+
+        this.phases = {
+            INITIAL:0,
+            STARTED:1,
+            HAS_RESULT:2,
+            COMPLETE:3
+        };
+        this.phase = this.phases.INITIAL;
+
         this.status = this.NOTRUN;
         this.timeout_id = null;
-        this.is_done = false;
 
         this.properties = properties;
-        this.timeout_length = properties.timeout ? properties.timeout : settings.test_timeout;
+        var timeout = properties.timeout ? properties.timeout : settings.test_timeout
+        if (timeout != null) {
+            this.timeout_length = timeout * tests.timeout_multiplier;
+        } else {
+            this.timeout_length = null;
+        }
 
         this.message = null;
 
@@ -944,25 +1133,44 @@ policies and contribution forms [3].
         tests.push(this);
     }
 
-    Test.prototype = {
+    Test.statuses = {
         PASS:0,
         FAIL:1,
         TIMEOUT:2,
         NOTRUN:3
     };
 
+    Test.prototype = merge({}, Test.statuses);
+
+    Test.prototype.structured_clone = function()
+    {
+        if(!this._structured_clone)
+        {
+            var msg = this.message;
+            msg = msg ? String(msg) : msg;
+            this._structured_clone = merge({
+                name:String(this.name),
+                status:this.status,
+                message:msg
+            }, Test.statuses);
+        }
+        return this._structured_clone;
+    };
 
     Test.prototype.step = function(func, this_obj)
     {
-        //In case the test has already failed
-        if (this.status !== this.NOTRUN)
+        if (this.phase > this.phases.STARTED)
         {
           return;
         }
+        this.phase = this.phases.STARTED;
+        //If we don't get a result before the harness times out that will be a test timout
+        this.set_status(this.TIMEOUT, "Test timed out");
 
         tests.started = true;
 
-        if (this.timeout_id === null) {
+        if (this.timeout_id === null)
+        {
             this.set_timeout();
         }
 
@@ -975,29 +1183,25 @@ policies and contribution forms [3].
 
         try
         {
-            func.apply(this_obj, Array.prototype.slice.call(arguments, 2));
+            return func.apply(this_obj, Array.prototype.slice.call(arguments, 2));
         }
         catch(e)
         {
-            //This can happen if something called synchronously invoked another
-            //step
-            if (this.status !== this.NOTRUN)
+            if (this.phase >= this.phases.HAS_RESULT)
             {
                 return;
             }
-            this.status = this.FAIL;
-            this.message = (typeof e === "object" && e !== null) ? e.message : e;
+            var message = (typeof e === "object" && e !== null) ? e.message : e;
             if (typeof e.stack != "undefined" && typeof e.message == "string") {
                 //Try to make it more informative for some exceptions, at least
                 //in Gecko and WebKit.  This results in a stack dump instead of
                 //just errors like "Cannot read property 'parentNode' of null"
                 //or "root is null".  Makes it a lot longer, of course.
-                this.message += "(stack: " + e.stack + ")";
+                message += "(stack: " + e.stack + ")";
             }
+            this.set_status(this.FAIL, message);
+            this.phase = this.phases.HAS_RESULT;
             this.done();
-            if (debug && e.constructor !== AssertionError) {
-                throw e;
-            }
         }
     };
 
@@ -1032,36 +1236,51 @@ policies and contribution forms [3].
                 Array.prototype.slice.call(arguments)));
             test_this.done();
         };
-    };
+    }
 
     Test.prototype.set_timeout = function()
     {
-        var this_obj = this;
-        this.timeout_id = setTimeout(function()
-                                     {
-                                         this_obj.timeout();
-                                     }, this.timeout_length);
-    };
+        if (this.timeout_length !== null)
+        {
+            var this_obj = this;
+            this.timeout_id = setTimeout(function()
+                                         {
+                                             this_obj.timeout();
+                                         }, this.timeout_length);
+        }
+    }
+
+    Test.prototype.set_status = function(status, message)
+    {
+        this.status = status;
+        this.message = message;
+    }
 
     Test.prototype.timeout = function()
     {
-        this.status = this.TIMEOUT;
         this.timeout_id = null;
-        this.message = "Test timed out";
+        this.set_status(this.TIMEOUT, "Test timed out")
+        this.phase = this.phases.HAS_RESULT;
         this.done();
     };
 
     Test.prototype.done = function()
     {
-        if (this.is_done) {
+        if (this.phase == this.phases.COMPLETE) {
             return;
-        }
-        clearTimeout(this.timeout_id);
-        if (this.status === this.NOTRUN)
+        } else if (this.phase <= this.phases.STARTED)
         {
-            this.status = this.PASS;
+            this.set_status(this.PASS, null);
         }
-        this.is_done = true;
+
+        if (this.status == this.NOTRUN)
+        {
+            alert(this.phase);
+        }
+
+        this.phase = this.phases.COMPLETE;
+
+        clearTimeout(this.timeout_id);
         tests.result(this);
     };
 
@@ -1075,10 +1294,27 @@ policies and contribution forms [3].
         this.status = null;
         this.message = null;
     }
-    TestsStatus.prototype = {
+
+    TestsStatus.statuses = {
         OK:0,
         ERROR:1,
         TIMEOUT:2
+    };
+
+    TestsStatus.prototype = merge({}, TestsStatus.statuses);
+
+    TestsStatus.prototype.structured_clone = function()
+    {
+        if(!this._structured_clone)
+        {
+            var msg = this.message;
+            msg = msg ? String(msg) : msg;
+            this._structured_clone = merge({
+                status:this.status,
+                message:msg
+            }, TestsStatus.statuses);
+        }
+        return this._structured_clone;
     };
 
     function Tests()
@@ -1102,7 +1338,10 @@ policies and contribution forms [3].
         this.wait_for_finish = false;
         this.processing_callbacks = false;
 
-        this.timeout_length = settings.timeout;
+        this.allow_uncaught_exception = false;
+
+        this.timeout_multiplier = 1;
+        this.timeout_length = this.get_timeout();
         this.timeout_id = null;
 
         this.start_callbacks = [];
@@ -1137,24 +1376,32 @@ policies and contribution forms [3].
             this.phase = this.phases.SETUP;
         }
 
+        this.properties = properties;
+
         for (var p in properties)
         {
             if (properties.hasOwnProperty(p))
             {
-                this.properties[p] = properties[p];
+                var value = properties[p]
+                if (p == "allow_uncaught_exception") {
+                    this.allow_uncaught_exception = value;
+                }
+                else if (p == "explicit_done" && value)
+                {
+                    this.wait_for_finish = true;
+                }
+                else if (p == "explicit_timeout" && value) {
+                    this.timeout_length = null;
+                    if (this.timeout_id)
+                    {
+                        clearTimeout(this.timeout_id);
+                    }
+                }
+                else if (p == "timeout_multiplier")
+                {
+                    this.timeout_multiplier = value;
+                }
             }
-        }
-
-        if (properties.timeout)
-        {
-            this.timeout_length = properties.timeout;
-        }
-        if (properties.explicit_done)
-        {
-            this.wait_for_finish = true;
-        }
-        if (properties.explicit_timeout) {
-            this.timeout_length = null;
         }
 
         if (func)
@@ -1170,6 +1417,23 @@ policies and contribution forms [3].
         }
         this.set_timeout();
     };
+
+    Tests.prototype.get_timeout = function()
+    {
+        var metas = document.getElementsByTagName("meta");
+        for (var i=0; i<metas.length; i++)
+        {
+            if (metas[i].name == "timeout")
+            {
+                if (metas[i].content == "long")
+                {
+                    return settings.harness_timeout.long;
+                }
+                break;
+            }
+        }
+        return settings.harness_timeout.normal;
+    }
 
     Tests.prototype.set_timeout = function()
     {
@@ -1222,10 +1486,10 @@ policies and contribution forms [3].
                  {
                      callback(this_obj.properties);
                  });
-        forEach(ancestor_windows(),
-                function(w)
+        forEach_windows(
+                function(w, is_same_origin)
                 {
-                    if(w.start_callback)
+                    if(is_same_origin && w.start_callback)
                     {
                         try
                         {
@@ -1238,6 +1502,13 @@ policies and contribution forms [3].
                                 throw(e);
                             }
                         }
+                    }
+                    if (supports_post_message(w) && w !== self)
+                    {
+                        w.postMessage({
+                            type: "start",
+                            properties: this_obj.properties
+                        }, "*");
                     }
                 });
     };
@@ -1262,10 +1533,10 @@ policies and contribution forms [3].
                     callback(test, this_obj);
                 });
 
-        forEach(ancestor_windows(),
-                function(w)
+        forEach_windows(
+                function(w, is_same_origin)
                 {
-                    if(w.result_callback)
+                    if(is_same_origin && w.result_callback)
                     {
                         try
                         {
@@ -1277,6 +1548,13 @@ policies and contribution forms [3].
                                 throw e;
                             }
                         }
+                    }
+                    if (supports_post_message(w) && w !== self)
+                    {
+                        w.postMessage({
+                            type: "result",
+                            test: test.structured_clone()
+                        }, "*");
                     }
                 });
         this.processing_callbacks = false;
@@ -1291,6 +1569,16 @@ policies and contribution forms [3].
             return;
         }
         this.phase = this.phases.COMPLETE;
+        var this_obj = this;
+        this.tests.forEach(
+            function(x)
+            {
+                if(x.status === x.NOTRUN)
+                {
+                    this_obj.notify_result(x);
+                }
+            }
+        );
         this.notify_complete();
     };
 
@@ -1298,6 +1586,11 @@ policies and contribution forms [3].
     {
         clearTimeout(this.timeout_id);
         var this_obj = this;
+        var tests = map(this_obj.tests,
+                        function(test)
+                        {
+                            return test.structured_clone();
+                        });
         if (this.status.status === null)
         {
             this.status.status = this.status.OK;
@@ -1309,10 +1602,10 @@ policies and contribution forms [3].
                      callback(this_obj.tests, this_obj.status);
                  });
 
-        forEach(ancestor_windows(),
-                function(w)
+        forEach_windows(
+                function(w, is_same_origin)
                 {
-                    if(w.completion_callback)
+                    if(is_same_origin && w.completion_callback)
                     {
                         try
                         {
@@ -1326,10 +1619,27 @@ policies and contribution forms [3].
                             }
                         }
                     }
+                    if (supports_post_message(w) && w !== self)
+                    {
+                        w.postMessage({
+                            type: "complete",
+                            tests: tests,
+                            status: this_obj.status.structured_clone()
+                        }, "*");
+                    }
                 });
     };
 
     var tests = new Tests();
+
+    window.onerror = function(msg) {
+        if (!tests.allow_uncaught_exception)
+        {
+            tests.status.status = tests.status.ERROR;
+            tests.status.message = msg;
+            tests.complete();
+        }
+    }
 
     function timeout() {
         if (tests.timeout_length === null)
@@ -1362,7 +1672,7 @@ policies and contribution forms [3].
     */
 
     function Output() {
-      this.output_document = null;
+      this.output_document = document;
       this.output_node = null;
       this.done_count = 0;
       this.enabled = settings.output;
@@ -1400,11 +1710,22 @@ policies and contribution forms [3].
 
     Output.prototype.resolve_log = function()
     {
-        if (!this.output_document) {
+        var output_document;
+        if (typeof this.output_document === "function")
+        {
+            output_document = this.output_document.apply(undefined);
+        } else 
+        {
+            output_document = this.output_document;
+        }
+        if (!output_document)
+        {
             return;
         }
-        var node = this.output_document.getElementById("log");
-        if (node) {
+        var node = output_document.getElementById("log");
+        if (node)
+        {
+            this.output_document = output_document;
             this.output_node = node;
         }
     };
@@ -1473,6 +1794,11 @@ policies and contribution forms [3].
             }
         }
 
+        var status_text_harness = {};
+        status_text_harness[harness_status.OK] = "OK";
+        status_text_harness[harness_status.ERROR] = "Error";
+        status_text_harness[harness_status.TIMEOUT] = "Timeout";
+
         var status_text = {};
         status_text[Test.prototype.PASS] = "Pass";
         status_text[Test.prototype.FAIL] = "Fail";
@@ -1497,6 +1823,34 @@ policies and contribution forms [3].
 
         var summary_template = ["section", {"id":"summary"},
                                 ["h2", {}, "Summary"],
+                                function(vars)
+                                {
+                                    if (harness_status.status === harness_status.OK)
+                                    {
+                                        return null;
+                                    }
+                                    else
+                                    {
+                                        var status = status_text_harness[harness_status.status];
+                                        var rv = [["p", {"class":status_class(status)}]];
+
+                                        if (harness_status.status === harness_status.ERROR)
+                                        {
+                                            rv[0].push("Harness encountered an error:");
+                                            rv.push(["pre", {}, harness_status.message]);
+                                        }
+                                        else if (harness_status.status === harness_status.TIMEOUT)
+                                        {
+                                            rv[0].push("Harness timed out.");
+                                        }
+                                        else
+                                        {
+                                            rv[0].push("Harness got an unexpected status.");
+                                        }
+
+                                        return rv;
+                                    }
+                                },
                                 ["p", {}, "Found ${num_tests} tests"],
                                 function(vars) {
                                     var rv = [["div", {}]];
@@ -1533,7 +1887,7 @@ policies and contribution forms [3].
                                  if (!style_element && !input_element.checked) {
                                      style_element = output_document.createElementNS(xhtml_ns, "style");
                                      style_element.id = "hide-" + result_class;
-                                     style_element.innerHTML = "table#results > tbody > tr."+result_class+"{display:none}";
+                                     style_element.textContent = "table#results > tbody > tr."+result_class+"{display:none}";
                                      output_document.body.appendChild(style_element);
                                  } else if (style_element && input_element.checked) {
                                      style_element.parentNode.removeChild(style_element);
@@ -1562,7 +1916,7 @@ policies and contribution forms [3].
             }
             return false;
         }
-        
+
         function get_assertion(test)
         {
             if (test.properties.hasOwnProperty("assert")) {
@@ -1573,7 +1927,7 @@ policies and contribution forms [3].
             }
             return '';
         }
-        
+
         log.appendChild(document.createElementNS(xhtml_ns, "section"));
         var assertions = has_assertions();
         var html = "<h2>Details</h2><table id='results' " + (assertions ? "class='assertions'" : "" ) + ">"
@@ -1593,7 +1947,15 @@ policies and contribution forms [3].
                 + escape_html(tests[i].message ? tests[i].message : " ")
                 + "</td></tr>";
         }
-        log.lastChild.innerHTML = html + "</tbody></table>";
+        html += "</tbody></table>";
+        try {
+            log.lastChild.innerHTML = html;
+        } catch (e) {
+            log.appendChild(document.createElementNS(xhtml_ns, "p"))
+               .textContent = "Setting innerHTML for the log threw an exception.";
+            log.appendChild(document.createElementNS(xhtml_ns, "pre"))
+               .textContent = html;
+        }
     };
 
     var output = new Output();
@@ -1900,22 +2262,107 @@ policies and contribution forms [3].
         target[components[components.length - 1]] = object;
     }
 
- function ancestor_windows() {
-     //Get the windows [self ... top] as an array
-     if ("result_cache" in ancestor_windows)
-     {
-         return ancestor_windows.result_cache;
-     }
-     var rv = [self];
-     var w = self;
-     while (w != w.parent)
-     {
-         w = w.parent;
-         rv.push(w);
-     }
-     ancestor_windows.result_cache = rv;
-     return rv;
- }
+    function forEach_windows(callback) {
+        // Iterate of the the windows [self ... top, opener]. The callback is passed
+        // two objects, the first one is the windows object itself, the second one
+        // is a boolean indicating whether or not its on the same origin as the
+        // current window.
+        var cache = forEach_windows.result_cache;
+        if (!cache) {
+            cache = [[self, true]];
+            var w = self;
+            var i = 0;
+            var so;
+            var origins = location.ancestorOrigins;
+            while (w != w.parent)
+            {
+                w = w.parent;
+                // In WebKit, calls to parent windows' properties that aren't on the same
+                // origin cause an error message to be displayed in the error console but
+                // don't throw an exception. This is a deviation from the current HTML5
+                // spec. See: https://bugs.webkit.org/show_bug.cgi?id=43504
+                // The problem with WebKit's behavior is that it pollutes the error console
+                // with error messages that can't be caught.
+                //
+                // This issue can be mitigated by relying on the (for now) proprietary
+                // `location.ancestorOrigins` property which returns an ordered list of
+                // the origins of enclosing windows. See:
+                // http://trac.webkit.org/changeset/113945.
+                if(origins) {
+                    so = (location.origin == origins[i]);
+                }
+                else
+                {
+                    so = is_same_origin(w);
+                }
+                cache.push([w, so]);
+                i++;
+            }
+            w = window.opener;
+            if(w)
+            {
+                // window.opener isn't included in the `location.ancestorOrigins` prop.
+                // We'll just have to deal with a simple check and an error msg on WebKit
+                // browsers in this case.
+                cache.push([w, is_same_origin(w)]);
+            }
+            forEach_windows.result_cache = cache;
+        }
 
+        forEach(cache,
+                function(a)
+                {
+                    callback.apply(null, a);
+                });
+    }
+
+    function is_same_origin(w) {
+        try {
+            'random_prop' in w;
+            return true;
+        } catch(e) {
+            return false;
+        }
+    }
+
+    function supports_post_message(w)
+    {
+        var supports;
+        var type;
+        // Given IE  implements postMessage across nested iframes but not across
+        // windows or tabs, you can't infer cross-origin communication from the presence
+        // of postMessage on the current window object only.
+        //
+        // Touching the postMessage prop on a window can throw if the window is
+        // not from the same origin AND post message is not supported in that
+        // browser. So just doing an existence test here won't do, you also need
+        // to wrap it in a try..cacth block.
+        try
+        {
+            type = typeof w.postMessage;
+            if (type === "function")
+            {
+                supports = true;
+            }
+            // IE8 supports postMessage, but implements it as a host object which
+            // returns "object" as its `typeof`.
+            else if (type === "object")
+            {
+                supports = true;
+            }
+            // This is the case where postMessage isn't supported AND accessing a
+            // window property across origins does NOT throw (e.g. old Safari browser).
+            else
+            {
+                supports = false;
+            }
+        }
+        catch(e) {
+            // This is the case where postMessage isn't supported AND accessing a
+            // window property across origins throws (e.g. old Firefox browser).
+            supports = false;
+        }
+        return supports;
+    }
 })();
 // vim: set expandtab shiftwidth=4 tabstop=4:

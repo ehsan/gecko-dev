@@ -103,10 +103,33 @@ function handleRequest(req, res) {
     m.checkReady();
     return;
   } else if (u.pathname == "/header") {
+    m = new Multiplex();
     var val = req.headers["x-test-header"];
     if (val) {
       res.setHeader("X-Received-Test-Header", val);
     }
+  } else if (u.pathname == "/push") {
+    res.push('/push.js',
+     { 'content-type': 'application/javascript',
+       'pushed' : 'yes',
+       'content-length' : 11,
+       'X-Connection-Spdy': 'yes'},
+     function(err, stream) {
+       if (err) return;
+         stream.end('// comments');
+       });
+      content = '<head> <script src="push.js"/></head>body text';
+  } else if (u.pathname == "/push2") {
+      res.push('/push2.js',
+       { 'content-type': 'application/javascript',
+	 'pushed' : 'yes',
+	 // no content-length
+	 'X-Connection-Spdy': 'yes'},
+       function(err, stream) {
+        if (err) return;
+         stream.end('// comments');
+       });
+      content = '<head> <script src="push2.js"/></head>body text';
   } else if (u.pathname == "/big") {
     content = getHugeContent(128 * 1024);
     var hash = crypto.createHash('md5');
@@ -137,6 +160,7 @@ var options = {
   key: fs.readFileSync(__dirname + '/spdy-key.pem'),
   cert: fs.readFileSync(__dirname + '/spdy-cert.pem'),
   ca: fs.readFileSync(__dirname + '/spdy-ca.pem'),
+  windowSize: 16000000,
 };
 
 spdy.createServer(options, handleRequest).listen(4443);

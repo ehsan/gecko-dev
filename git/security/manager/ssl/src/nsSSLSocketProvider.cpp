@@ -16,7 +16,7 @@ nsSSLSocketProvider::~nsSSLSocketProvider()
 {
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsSSLSocketProvider, nsISocketProvider)
+NS_IMPL_ISUPPORTS(nsSSLSocketProvider, nsISocketProvider)
 
 NS_IMETHODIMP
 nsSSLSocketProvider::NewSocket(int32_t family,
@@ -36,7 +36,7 @@ nsSSLSocketProvider::NewSocket(int32_t family,
                                       _result,
                                       securityInfo,
                                       false,
-                                      flags & ANONYMOUS_CONNECT);
+                                      flags);
   return (NS_FAILED(rv)) ? NS_ERROR_SOCKET_CREATE_FAILED : NS_OK;
 }
 
@@ -59,7 +59,7 @@ nsSSLSocketProvider::AddToSocket(int32_t family,
                                         aSocket,
                                         securityInfo,
                                         false,
-                                        flags & ANONYMOUS_CONNECT);
+                                        flags);
   
   return (NS_FAILED(rv)) ? NS_ERROR_SOCKET_CREATE_FAILED : NS_OK;
 }

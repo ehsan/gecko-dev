@@ -45,7 +45,7 @@
 #define RETURN_IF_FAILED(rv, step) \
     PR_BEGIN_MACRO \
     if (NS_FAILED(rv)) { \
-        printf(">>> %s failed: rv=%x\n", step, rv); \
+        printf(">>> %s failed: rv=%x\n", step, static_cast<uint32_t>(rv)); \
         return 1;\
     } \
     PR_END_MACRO
@@ -54,9 +54,11 @@
 
 class ConsoleOutputStreamImpl : public nsIOutputStream
 {
+protected:
+    virtual ~ConsoleOutputStreamImpl(void) {}
+
 public:
     ConsoleOutputStreamImpl(void) {}
-    virtual ~ConsoleOutputStreamImpl(void) {}
 
     // nsISupports interface
     NS_DECL_ISUPPORTS
@@ -96,7 +98,7 @@ public:
     }
 };
 
-NS_IMPL_ISUPPORTS1(ConsoleOutputStreamImpl, nsIOutputStream)
+NS_IMPL_ISUPPORTS(ConsoleOutputStreamImpl, nsIOutputStream)
 
 ////////////////////////////////////////////////////////////////////////
 

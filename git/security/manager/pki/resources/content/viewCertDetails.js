@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const nsIX509Cert = Components.interfaces.nsIX509Cert;
-const nsIX509Cert3 = Components.interfaces.nsIX509Cert3;
 const nsX509CertDB = "@mozilla.org/security/x509certdb;1";
 const nsIX509CertDB = Components.interfaces.nsIX509CertDB;
 const nsPK11TokenDB = "@mozilla.org/security/pk11tokendb;1";
@@ -63,10 +62,10 @@ function setWindowName()
   //  Get the cert from the cert database
   var certdb = Components.classes[nsX509CertDB].getService(nsIX509CertDB);
   var myName = self.name;
-  bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
+  bundle = document.getElementById("pippki_bundle");
   var cert;
 
-  var certDetails = bundle.GetStringFromName('certDetails');
+  var certDetails = bundle.getString('certDetails');
   if (myName != "") {
     document.title = certDetails + '"' + myName + '"'; // XXX l10n?
     //  Get the token
@@ -94,14 +93,9 @@ function setWindowName()
   AddCertChain("treesetDump", chain, "dump_");
   DisplayGeneralDataFromCert(cert);
   BuildPrettyPrint(cert);
-  
-  if (cert instanceof nsIX509Cert3)
-  {
-    cert.requestUsagesArrayAsync(new listener());
-  }
+  cert.requestUsagesArrayAsync(new listener());
 }
 
- 
 function addChildrenToTree(parentTree,label,value,addTwistie)
 {
   var treeChild1 = document.createElement("treechildren");
@@ -129,8 +123,8 @@ function addTreeItemToTreeChild(treeChild,label,value,addTwistie)
 }
 
 function displaySelected() {
-  var asn1Tree = document.getElementById('prettyDumpTree').
-                     treeBoxObject.view.QueryInterface(nsIASN1Tree);
+  var asn1Tree = document.getElementById('prettyDumpTree')
+          .view.QueryInterface(nsIASN1Tree);
   var items = asn1Tree.selection;
   var certDumpVal = document.getElementById('certDumpVal');
   if (items.currentIndex != -1) {
@@ -146,17 +140,16 @@ function BuildPrettyPrint(cert)
   var certDumpTree = Components.classes[nsASN1Tree].
                           createInstance(nsIASN1Tree);
   certDumpTree.loadASN1Structure(cert.ASN1Structure);
-  document.getElementById('prettyDumpTree').
-           treeBoxObject.view =  certDumpTree;
+  document.getElementById('prettyDumpTree').view = certDumpTree;
 }
 
 function addAttributeFromCert(nodeName, value)
 {
   var node = document.getElementById(nodeName);
   if (!value) {
-    value = bundle.GetStringFromName('notPresent');  
+    value = bundle.getString('notPresent');
   }
-  node.setAttribute('value',value)
+  node.setAttribute('value', value);
 }
 
 
@@ -203,23 +196,23 @@ function DisplayVerificationData(cert, result)
   var count = o2.value;
   var usageList = o3.value;
   if (verifystate == cert.VERIFIED_OK) {
-    verifystr = bundle.GetStringFromName('certVerified');
+    verifystr = bundle.getString('certVerified');
   } else if (verifystate == cert.CERT_REVOKED) {
-    verifystr = bundle.GetStringFromName('certNotVerified_CertRevoked');
+    verifystr = bundle.getString('certNotVerified_CertRevoked');
   } else if (verifystate == cert.CERT_EXPIRED) {
-    verifystr = bundle.GetStringFromName('certNotVerified_CertExpired');
+    verifystr = bundle.getString('certNotVerified_CertExpired');
   } else if (verifystate == cert.CERT_NOT_TRUSTED) {
-    verifystr = bundle.GetStringFromName('certNotVerified_CertNotTrusted');
+    verifystr = bundle.getString('certNotVerified_CertNotTrusted');
   } else if (verifystate == cert.ISSUER_NOT_TRUSTED) {
-    verifystr = bundle.GetStringFromName('certNotVerified_IssuerNotTrusted');
+    verifystr = bundle.getString('certNotVerified_IssuerNotTrusted');
   } else if (verifystate == cert.ISSUER_UNKNOWN) {
-    verifystr = bundle.GetStringFromName('certNotVerified_IssuerUnknown');
+    verifystr = bundle.getString('certNotVerified_IssuerUnknown');
   } else if (verifystate == cert.INVALID_CA) {
-    verifystr = bundle.GetStringFromName('certNotVerified_CAInvalid');
+    verifystr = bundle.getString('certNotVerified_CAInvalid');
   } else if (verifystate == cert.SIGNATURE_ALGORITHM_DISABLED) {
-    verifystr = bundle.GetStringFromName('certNotVerified_AlgorithmDisabled');
+    verifystr = bundle.getString('certNotVerified_AlgorithmDisabled');
   } else { /* if (verifystate == cert.NOT_VERIFIED_UNKNOWN || == USAGE_NOT_ALLOWED) */
-    verifystr = bundle.GetStringFromName('certNotVerified_Unknown');
+    verifystr = bundle.getString('certNotVerified_Unknown');
   }
   var verified=document.getElementById('verified');
   verified.textContent = verifystr;
@@ -241,15 +234,15 @@ function DisplayGeneralDataFromCert(cert)
   addAttributeFromCert('orgunit', cert.organizationalUnit);
   //  Serial Number
   addAttributeFromCert('serialnumber',cert.serialNumber);
+  // SHA-256 Fingerprint
+  addAttributeFromCert('sha256fingerprint', cert.sha256Fingerprint);
   //  SHA1 Fingerprint
   addAttributeFromCert('sha1fingerprint',cert.sha1Fingerprint);
-  //  MD5 Fingerprint
-  addAttributeFromCert('md5fingerprint',cert.md5Fingerprint);
   // Validity start
   addAttributeFromCert('validitystart', cert.validity.notBeforeLocalDay);
   // Validity end
   addAttributeFromCert('validityend', cert.validity.notAfterLocalDay);
-  
+
   //Now to populate the fields that correspond to the issuer.
   var issuerCommonname, issuerOrg, issuerOrgUnit;
   issuerCommonname = cert.issuerCommonName;
@@ -262,8 +255,8 @@ function DisplayGeneralDataFromCert(cert)
 
 function updateCertDump()
 {
-  var asn1Tree = document.getElementById('prettyDumpTree').
-                     treeBoxObject.view.QueryInterface(nsIASN1Tree);
+  var asn1Tree = document.getElementById('prettyDumpTree')
+          .view.QueryInterface(nsIASN1Tree);
 
   var tree = document.getElementById('treesetDump');
   if (tree.currentIndex < 0) {
@@ -287,7 +280,7 @@ function getCurrentCert()
       && document.getElementById('prettyprint_tab').selected) {
     /* if the user manually selected a cert on the Details tab,
        then take that one  */
-    realIndex = tree.currentIndex;    
+    realIndex = tree.currentIndex;
   } else {
     /* otherwise, take the one at the bottom of the chain
        (i.e. the one of the end-entity, unless we're displaying

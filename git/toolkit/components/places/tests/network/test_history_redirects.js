@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
@@ -14,12 +14,11 @@ const TEMP_REDIR_PATH = "/tempredir";
 const FOUND_PATH = "/found";
 
 const HTTPSVR = new HttpServer();
-const PORT = 4444;
+HTTPSVR.start(-1);
+const PORT = HTTPSVR.identity.primaryPort;
 HTTPSVR.registerPathHandler(PERMA_REDIR_PATH, permaRedirHandler);
 HTTPSVR.registerPathHandler(TEMP_REDIR_PATH, tempRedirHandler);
 HTTPSVR.registerPathHandler(FOUND_PATH, foundHandler);
-
-const EXPECTED_SESSION_ID = 1;
 
 const STATUS = {
   REDIRECT_PERMANENT: [301, "Moved Permanently"],
@@ -63,10 +62,7 @@ function PathHandler(aMeta, aResponse, aChannelEvent, aRedirURL) {
 function run_test() {
   do_test_pending();
 
-  HTTPSVR.start(PORT);
-
-  var chan = NetUtil.ioService
-                    .newChannelFromURI(uri("http://localhost:4444/permaredir"));
+  var chan = NetUtil.ioService.newChannelFromURI(uri(PERMA_REDIR_URL));
   var listener = new ChannelListener();
   chan.notificationCallbacks = listener;
   chan.asyncOpen(listener, null);
@@ -75,7 +71,7 @@ function run_test() {
 
 function continue_test() {
   let stmt = DBConn().createStatement(
-    "SELECT v.id, h.url, v.from_visit, v.visit_date, v.visit_type, v.session " +
+    "SELECT v.id, h.url, v.from_visit, v.visit_date, v.visit_type " +
     "FROM moz_historyvisits v " +
     "JOIN moz_places h on h.id = v.place_id " +
     "ORDER BY v.id ASC");
@@ -83,18 +79,15 @@ function continue_test() {
     { id: 1,
       url: PERMA_REDIR_URL,
       from_visit: 0,
-      visit_type: Ci.nsINavHistoryService.TRANSITION_LINK,
-      session: EXPECTED_SESSION_ID },
+      visit_type: Ci.nsINavHistoryService.TRANSITION_LINK },
     { id: 2,
       url: TEMP_REDIR_URL,
       from_visit: 1,
-      visit_type: Ci.nsINavHistoryService.TRANSITION_REDIRECT_PERMANENT,
-      session: EXPECTED_SESSION_ID },
+      visit_type: Ci.nsINavHistoryService.TRANSITION_REDIRECT_PERMANENT },
     { id: 3,
       url: FOUND_URL,
       from_visit: 2,
-      visit_type: Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY,
-      session: EXPECTED_SESSION_ID },
+      visit_type: Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY },
   ];
   try {
     while(stmt.executeStep()) {
@@ -105,7 +98,6 @@ function continue_test() {
       do_check_eq(stmt.row.url, comparator.url);
       do_check_eq(stmt.row.from_visit, comparator.from_visit);
       do_check_eq(stmt.row.visit_type, comparator.visit_type);
-      do_check_eq(stmt.row.session, comparator.session);
     }
   }
   finally {

@@ -15,6 +15,10 @@ AC_DEFUN([MOZ_SET_FRAMEPTR_FLAGS], [
   if test "$GNU_CC"; then
     MOZ_ENABLE_FRAME_PTR="-fno-omit-frame-pointer $unwind_tables"
     MOZ_DISABLE_FRAME_PTR="-fomit-frame-pointer"
+    if test "$CPU_ARCH" = arm; then
+      # http://gcc.gnu.org/bugzilla/show_bug.cgi?id=54398
+      MOZ_ENABLE_FRAME_PTR="$unwind_tables"
+    fi
   else
     case "$target" in
     *-mingw*)
@@ -24,9 +28,12 @@ AC_DEFUN([MOZ_SET_FRAMEPTR_FLAGS], [
     esac
   fi
 
-  # if we are debugging or profiling, we want a frame pointer.
+  # if we are debugging, profiling or using sanitizers, we want a frame pointer.
   if test -z "$MOZ_OPTIMIZE" -o \
-          -n "$MOZ_PROFILING" -o -n "$MOZ_DEBUG"; then
+          -n "$MOZ_PROFILING" -o \
+          -n "$MOZ_DEBUG" -o \
+          -n "$MOZ_MSAN" -o \
+          -n "$MOZ_ASAN"; then
     MOZ_FRAMEPTR_FLAGS="$MOZ_ENABLE_FRAME_PTR"
   else
     MOZ_FRAMEPTR_FLAGS="$MOZ_DISABLE_FRAME_PTR"

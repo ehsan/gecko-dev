@@ -25,12 +25,14 @@ class nsBrowserStatusFilter : public nsIWebProgress
 {
 public:
     nsBrowserStatusFilter();
-    virtual ~nsBrowserStatusFilter();
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBPROGRESS
     NS_DECL_NSIWEBPROGRESSLISTENER
     NS_DECL_NSIWEBPROGRESSLISTENER2
+
+protected:
+    virtual ~nsBrowserStatusFilter();
 
 private:
     nsresult StartDelayTimer();
@@ -65,8 +67,6 @@ private:
     bool                             mDelayedProgress;
 };
 
-#define NS_BROWSERSTATUSFILTER_CLASSNAME \
-    "nsBrowserStatusFilter"
 #define NS_BROWSERSTATUSFILTER_CONTRACTID \
     "@mozilla.org/appshell/component/browser-status-filter;1"
 #define NS_BROWSERSTATUSFILTER_CID                   \

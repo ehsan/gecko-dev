@@ -16,6 +16,7 @@
    instead, to help catch typos, and make central management of them easier.
  */
 
+#define ANY_WILDCARD                        "*/*"
 #define AUDIO_WILDCARD                      "audio/*"
 #define IMAGE_WILDCARD                      "image/*"
 
@@ -75,13 +76,20 @@
 #define AUDIO_OGG                           "audio/ogg"
 #define AUDIO_WAV                           "audio/x-wav"
 #define AUDIO_WEBM                          "audio/webm"
+#define AUDIO_MP3                           "audio/mpeg"
+#define AUDIO_MP4                           "audio/mp4"
+#define AUDIO_AMR                           "audio/amr"
+#define AUDIO_3GPP                          "audio/3gpp"
+#define AUDIO_MIDI                          "audio/x-midi"
 
 #define BINARY_OCTET_STREAM                 "binary/octet-stream"
 
 #define IMAGE_GIF                           "image/gif"
-#define IMAGE_JPG                           "image/jpeg"
-#define IMAGE_PJPG                          "image/pjpeg"
+#define IMAGE_JPEG                          "image/jpeg"
+#define IMAGE_JPG                           "image/jpg"
+#define IMAGE_PJPEG                         "image/pjpeg"
 #define IMAGE_PNG                           "image/png"
+#define IMAGE_X_PNG                         "image/x-png"
 #define IMAGE_PPM                           "image/x-portable-pixmap"
 #define IMAGE_XBM                           "image/x-xbitmap"
 #define IMAGE_XBM2                          "image/x-xbm"
@@ -89,7 +97,10 @@
 #define IMAGE_ART                           "image/x-jg"
 #define IMAGE_TIFF                          "image/tiff"
 #define IMAGE_BMP                           "image/bmp"
+#define IMAGE_BMP_MS                        "image/x-ms-bmp"
 #define IMAGE_ICO                           "image/x-icon"
+#define IMAGE_ICO_MS                        "image/vnd.microsoft.icon"
+#define IMAGE_ICON_MS                       "image/icon"
 #define IMAGE_MNG                           "video/x-mng"
 #define IMAGE_JNG                           "image/x-jng"
 #define IMAGE_SVG_XML                       "image/svg+xml"
@@ -101,6 +112,7 @@
 #define MULTIPART_ALTERNATIVE               "multipart/alternative"
 #define MULTIPART_APPLEDOUBLE               "multipart/appledouble"
 #define MULTIPART_DIGEST                    "multipart/digest"
+#define MULTIPART_FORM_DATA                 "multipart/form-data"
 #define MULTIPART_HEADER_SET                "multipart/header-set"
 #define MULTIPART_MIXED                     "multipart/mixed"
 #define MULTIPART_PARALLEL                  "multipart/parallel"
@@ -117,7 +129,7 @@
 #define TEXT_MDL                            "text/mdl"
 #define TEXT_PLAIN                          "text/plain"
 #define TEXT_RICHTEXT                       "text/richtext"
-#define TEXT_VCARD                          "text/x-vcard"
+#define TEXT_VCARD                          "text/vcard"
 #define TEXT_CSS                            "text/css"
 #define TEXT_JSSS                           "text/jsss"
 #define TEXT_XML                            "text/xml"
@@ -134,6 +146,8 @@
 #define VIDEO_RAW                           "video/x-raw-yuv"
 #define VIDEO_OGG                           "video/ogg"
 #define VIDEO_WEBM                          "video/webm"
+#define VIDEO_3GPP                          "video/3gpp"
+#define VIDEO_3GPP2                         "video/3gpp2"
 #define APPLICATION_OGG                     "application/ogg"
 
 /* x-uuencode-apple-single. QuickMail made me do this. */

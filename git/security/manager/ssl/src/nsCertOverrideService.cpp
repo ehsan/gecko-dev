@@ -5,30 +5,29 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCertOverrideService.h"
-#include "nsIX509Cert.h"
-#include "nsNSSCertificate.h"
-#include "nsCRT.h"
+
+#include "NSSCertDBTrustDomain.h"
+#include "ScopedNSSTypes.h"
+#include "SharedSSLState.h"
+#include "mozilla/Telemetry.h"
 #include "nsAppDirectoryServiceDefs.h"
-#include "nsStreamUtils.h"
-#include "nsNetUtil.h"
+#include "nsCRT.h"
 #include "nsILineInputStream.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
-#include "nsISupportsPrimitives.h"
+#include "nsIX509Cert.h"
+#include "nsNSSCertHelper.h"
+#include "nsNSSCertificate.h"
+#include "nsNSSComponent.h"
+#include "nsNetUtil.h"
 #include "nsPromiseFlatString.h"
-#include "nsThreadUtils.h"
+#include "nsStreamUtils.h"
 #include "nsStringBuffer.h"
-#include "nsAutoPtr.h"
-#include "nspr.h"
-#include "pk11pub.h"
-#include "certdb.h"
-#include "sechash.h"
+#include "nsThreadUtils.h"
 #include "ssl.h" // For SSL_ClearSessionCache
 
-#include "nsNSSCleaner.h"
-NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
-
 using namespace mozilla;
+using namespace mozilla::psm;
 
 static const char kCertOverrideFileName[] = "cert_override.txt";
 
@@ -80,10 +79,10 @@ nsCertOverride::convertStringToBits(const nsACString &str, OverrideBits &ob)
   }
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(nsCertOverrideService, 
-                              nsICertOverrideService,
-                              nsIObserver,
-                              nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(nsCertOverrideService,
+                  nsICertOverrideService,
+                  nsIObserver,
+                  nsISupportsWeakReference)
 
 nsCertOverrideService::nsCertOverrideService()
   : monitor("nsCertOverrideService.monitor")
@@ -102,20 +101,11 @@ nsCertOverrideService::Init()
     return NS_ERROR_NOT_SAME_THREAD;
   }
 
-  mSettingsTable.Init();
-
+  // Note that the names of these variables would seem to indicate that at one
+  // point another hash algorithm was used and is still supported for backwards
+  // compatibility. This is not the case. It has always been SHA256.
   mOidTagForStoringNewHashes = SEC_OID_SHA256;
-
-  SECOidData *od = SECOID_FindOIDByTag(mOidTagForStoringNewHashes);
-  if (!od)
-    return NS_ERROR_FAILURE;
-
-  char *dotted_oid = CERT_GetOidString(&od->oid);
-  if (!dotted_oid)
-    return NS_ERROR_FAILURE;
-
-  mDottedOidForStoringNewHashes = dotted_oid;
-  PR_smprintf_free(dotted_oid);
+  mDottedOidForStoringNewHashes.Assign("OID.2.16.840.1.101.3.4.2.1");
 
   nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
@@ -130,13 +120,14 @@ nsCertOverrideService::Init()
     Observe(nullptr, "profile-do-change", nullptr);
   }
 
+  SharedSSLState::NoteCertOverrideServiceInstantiated();
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsCertOverrideService::Observe(nsISupports     *,
                                const char      *aTopic,
-                               const PRUnichar *aData)
+                               const char16_t *aData)
 {
   // check the topic
   if (!nsCRT::strcmp(aTopic, "profile-before-change")) {
@@ -145,7 +136,7 @@ nsCertOverrideService::Observe(nsISupports     *,
 
     ReentrantMonitorAutoEnter lock(monitor);
 
-    if (!nsCRT::strcmp(aData, NS_LITERAL_STRING("shutdown-cleanse").get())) {
+    if (!nsCRT::strcmp(aData, MOZ_UTF16("shutdown-cleanse"))) {
       RemoveAllFromMemory();
       // delete the storage file
       if (mSettingsFile) {
@@ -169,7 +160,7 @@ nsCertOverrideService::Observe(nsISupports     *,
       mSettingsFile = nullptr;
     }
     Read();
-
+    CountPermanentOverrideTelemetry();
   }
 
   return NS_OK;
@@ -182,7 +173,7 @@ nsCertOverrideService::RemoveAllFromMemory()
   mSettingsTable.Clear();
 }
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 RemoveTemporariesCallback(nsCertOverrideEntry *aEntry,
                           void *aArg)
 {
@@ -225,7 +216,7 @@ nsCertOverrideService::Read()
     return rv;
   }
 
-  nsCAutoString buffer;
+  nsAutoCString buffer;
   bool isMore = true;
   int32_t hostIndex = 0, algoIndex, fingerprintIndex, overrideBitsIndex, dbKeyIndex;
 
@@ -263,7 +254,7 @@ nsCertOverrideService::Read()
     const nsASingleFragmentCString &bits_string = Substring(buffer, overrideBitsIndex, dbKeyIndex - overrideBitsIndex - 1);
     const nsASingleFragmentCString &db_key = Substring(buffer, dbKeyIndex, buffer.Length() - dbKeyIndex);
 
-    nsCAutoString host(tmp);
+    nsAutoCString host(tmp);
     nsCertOverride::OverrideBits bits;
     nsCertOverride::convertStringToBits(bits_string, bits);
 
@@ -273,7 +264,7 @@ nsCertOverrideService::Read()
       continue; // Ignore broken entries
 
     nsresult portParseError;
-    nsCAutoString portString(Substring(host, portIndex+1));
+    nsAutoCString portString(Substring(host, portIndex+1));
     port = portString.ToInteger(&portParseError);
     if (NS_FAILED(portParseError))
       continue; // Ignore broken entries
@@ -289,7 +280,7 @@ nsCertOverrideService::Read()
   return NS_OK;
 }
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 WriteEntryCallback(nsCertOverrideEntry *aEntry,
                    void *aArg)
 {
@@ -305,7 +296,7 @@ WriteEntryCallback(nsCertOverrideEntry *aEntry,
     if (settings.mIsTemporary)
       return PL_DHASH_NEXT;
 
-    nsCAutoString bits_string;
+    nsAutoCString bits_string;
     nsCertOverride::convertBitsToString(settings.mOverrideBits, 
                                             bits_string);
 
@@ -383,89 +374,23 @@ nsCertOverrideService::Write()
 }
 
 static nsresult
-GetCertFingerprintByOidTag(CERTCertificate* nsscert,
-                           SECOidTag aOidTag, 
-                           nsCString &fp)
-{
-  unsigned int hash_len = HASH_ResultLenByOidTag(aOidTag);
-  nsStringBuffer* fingerprint = nsStringBuffer::Alloc(hash_len);
-  if (!fingerprint)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  PK11_HashBuf(aOidTag, (unsigned char*)fingerprint->Data(), 
-               nsscert->derCert.data, nsscert->derCert.len);
-
-  SECItem fpItem;
-  fpItem.data = (unsigned char*)fingerprint->Data();
-  fpItem.len = hash_len;
-
-  char *tmpstr = CERT_Hexify(&fpItem, 1);
-  fp.Assign(tmpstr);
-  PORT_Free(tmpstr);
-  fingerprint->Release();
-  return NS_OK;
-}
-
-static nsresult
 GetCertFingerprintByOidTag(nsIX509Cert *aCert,
                            SECOidTag aOidTag, 
                            nsCString &fp)
 {
-  nsCOMPtr<nsIX509Cert2> cert2 = do_QueryInterface(aCert);
-  if (!cert2)
+
+  ScopedCERTCertificate nsscert(aCert->GetCert());
+  if (!nsscert) {
     return NS_ERROR_FAILURE;
-
-  CERTCertificate* nsscert = cert2->GetCert();
-  if (!nsscert)
-    return NS_ERROR_FAILURE;
-
-  CERTCertificateCleaner nsscertCleaner(nsscert);
-  return GetCertFingerprintByOidTag(nsscert, aOidTag, fp);
-}
-
-static nsresult
-GetCertFingerprintByDottedOidString(CERTCertificate* nsscert,
-                                    const nsCString &dottedOid, 
-                                    nsCString &fp)
-{
-  SECItem oid;
-  oid.data = nullptr;
-  oid.len = 0;
-  SECStatus srv = SEC_StringToOID(nullptr, &oid, 
-                    dottedOid.get(), dottedOid.Length());
-  if (srv != SECSuccess)
-    return NS_ERROR_FAILURE;
-
-  SECOidTag oid_tag = SECOID_FindOIDTag(&oid);
-  SECITEM_FreeItem(&oid, false);
-
-  if (oid_tag == SEC_OID_UNKNOWN)
-    return NS_ERROR_FAILURE;
-
-  return GetCertFingerprintByOidTag(nsscert, oid_tag, fp);
-}
-
-static nsresult
-GetCertFingerprintByDottedOidString(nsIX509Cert *aCert,
-                                    const nsCString &dottedOid, 
-                                    nsCString &fp)
-{
-  nsCOMPtr<nsIX509Cert2> cert2 = do_QueryInterface(aCert);
-  if (!cert2)
-    return NS_ERROR_FAILURE;
-
-  CERTCertificate* nsscert = cert2->GetCert();
-  if (!nsscert)
-    return NS_ERROR_FAILURE;
-
-  CERTCertificateCleaner nsscertCleaner(nsscert);
-  return GetCertFingerprintByDottedOidString(nsscert, dottedOid, fp);
+  }
+  return GetCertFingerprintByOidTag(nsscert.get(), aOidTag, fp);
 }
 
 NS_IMETHODIMP
-nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, int32_t aPort, 
-                                                nsIX509Cert *aCert,
-                                                uint32_t aOverrideBits, 
+nsCertOverrideService::RememberValidityOverride(const nsACString& aHostName,
+                                                int32_t aPort,
+                                                nsIX509Cert* aCert,
+                                                uint32_t aOverrideBits,
                                                 bool aTemporary)
 {
   NS_ENSURE_ARG_POINTER(aCert);
@@ -474,29 +399,22 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, in
   if (aPort < -1)
     return NS_ERROR_INVALID_ARG;
 
-  nsCOMPtr<nsIX509Cert2> cert2 = do_QueryInterface(aCert);
-  if (!cert2)
+  ScopedCERTCertificate nsscert(aCert->GetCert());
+  if (!nsscert) {
     return NS_ERROR_FAILURE;
+  }
 
-  CERTCertificate* nsscert = cert2->GetCert();
-  if (!nsscert)
-    return NS_ERROR_FAILURE;
-
-  CERTCertificateCleaner nsscertCleaner(nsscert);
-
-  char* nickname = nsNSSCertificate::defaultServerNickname(nsscert);
+  char* nickname = DefaultServerNicknameForCert(nsscert.get());
   if (!aTemporary && nickname && *nickname)
   {
-    PK11SlotInfo *slot = PK11_GetInternalKeySlot();
+    ScopedPK11SlotInfo slot(PK11_GetInternalKeySlot());
     if (!slot) {
       PR_Free(nickname);
       return NS_ERROR_FAILURE;
     }
   
-    SECStatus srv = PK11_ImportCert(slot, nsscert, CK_INVALID_HANDLE, 
+    SECStatus srv = PK11_ImportCert(slot, nsscert.get(), CK_INVALID_HANDLE,
                                     nickname, false);
-    PK11_FreeSlot(slot);
-  
     if (srv != SECSuccess) {
       PR_Free(nickname);
       return NS_ERROR_FAILURE;
@@ -504,13 +422,13 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, in
   }
   PR_FREEIF(nickname);
 
-  nsCAutoString fpStr;
-  nsresult rv = GetCertFingerprintByOidTag(nsscert, 
+  nsAutoCString fpStr;
+  nsresult rv = GetCertFingerprintByOidTag(nsscert.get(),
                   mOidTagForStoringNewHashes, fpStr);
   if (NS_FAILED(rv))
     return rv;
 
-  char *dbkey = NULL;
+  char *dbkey = nullptr;
   rv = aCert->GetDbKey(&dbkey);
   if (NS_FAILED(rv) || !dbkey)
     return rv;
@@ -560,7 +478,7 @@ nsCertOverrideService::HasMatchingOverride(const nsACString & aHostName, int32_t
   *_retval = false;
   *aOverrideBits = nsCertOverride::ob_None;
 
-  nsCAutoString hostPort;
+  nsAutoCString hostPort;
   GetHostWithPort(aHostName, aPort, hostPort);
   nsCertOverride settings;
 
@@ -577,17 +495,20 @@ nsCertOverrideService::HasMatchingOverride(const nsACString & aHostName, int32_t
   *aOverrideBits = settings.mOverrideBits;
   *aIsTemporary = settings.mIsTemporary;
 
-  nsCAutoString fpStr;
+  nsAutoCString fpStr;
   nsresult rv;
 
+  // This code was originally written in a way that suggested that other hash
+  // algorithms are supported for backwards compatibility. However, this was
+  // always unnecessary, because only SHA256 has ever been used here.
   if (settings.mFingerprintAlgOID.Equals(mDottedOidForStoringNewHashes)) {
     rv = GetCertFingerprintByOidTag(aCert, mOidTagForStoringNewHashes, fpStr);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+  } else {
+    return NS_ERROR_UNEXPECTED;
   }
-  else {
-    rv = GetCertFingerprintByDottedOidString(aCert, settings.mFingerprintAlgOID, fpStr);
-  }
-  if (NS_FAILED(rv))
-    return rv;
 
   *_retval = settings.mFingerprint.Equals(fpStr);
   return NS_OK;
@@ -607,7 +528,7 @@ nsCertOverrideService::GetValidityOverride(const nsACString & aHostName, int32_t
   *_found = false;
   *aOverrideBits = nsCertOverride::ob_None;
 
-  nsCAutoString hostPort;
+  nsAutoCString hostPort;
   GetHostWithPort(aHostName, aPort, hostPort);
   nsCertOverride settings;
 
@@ -640,7 +561,7 @@ nsCertOverrideService::AddEntryToList(const nsACString &aHostName, int32_t aPort
                                       nsCertOverride::OverrideBits ob,
                                       const nsACString &dbKey)
 {
-  nsCAutoString hostPort;
+  nsAutoCString hostPort;
   GetHostWithPort(aHostName, aPort, hostPort);
 
   {
@@ -676,28 +597,50 @@ nsCertOverrideService::ClearValidityOverride(const nsACString & aHostName, int32
     RemoveAllTemporaryOverrides();
     return NS_OK;
   }
-  nsCAutoString hostPort;
+  nsAutoCString hostPort;
   GetHostWithPort(aHostName, aPort, hostPort);
   {
     ReentrantMonitorAutoEnter lock(monitor);
     mSettingsTable.RemoveEntry(hostPort.get());
     Write();
   }
-  SSL_ClearSessionCache();
+
+  if (EnsureNSSInitialized(nssEnsure)) {
+    SSL_ClearSessionCache();
+  } else {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsCertOverrideService::GetAllOverrideHostsWithPorts(uint32_t *aCount, 
-                                                        PRUnichar ***aHostsWithPortsArray)
+static PLDHashOperator
+CountPermanentEntriesCallback(nsCertOverrideEntry* aEntry, void* aArg)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  uint32_t* overrideCount = reinterpret_cast<uint32_t*>(aArg);
+  if (aEntry && !aEntry->mSettings.mIsTemporary) {
+    *overrideCount = *overrideCount + 1;
+    return PL_DHASH_NEXT;
+  }
+
+  return PL_DHASH_NEXT;
+}
+
+void
+nsCertOverrideService::CountPermanentOverrideTelemetry()
+{
+  ReentrantMonitorAutoEnter lock(monitor);
+  uint32_t overrideCount = 0;
+  mSettingsTable.EnumerateEntries(CountPermanentEntriesCallback,
+                                  &overrideCount);
+  Telemetry::Accumulate(Telemetry::SSL_PERMANENT_CERT_ERROR_OVERRIDES,
+                        overrideCount);
 }
 
 static bool
 matchesDBKey(nsIX509Cert *cert, const char *match_dbkey)
 {
-  char *dbkey = NULL;
+  char *dbkey = nullptr;
   nsresult rv = cert->GetDbKey(&dbkey);
   if (NS_FAILED(rv) || !dbkey)
     return false;
@@ -753,7 +696,7 @@ struct nsCertAndBoolsAndInt
   nsCString mDottedOidForStoringNewHashes;
 };
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 FindMatchingCertCallback(nsCertOverrideEntry *aEntry,
                          void *aArg)
 {
@@ -771,15 +714,11 @@ FindMatchingCertCallback(nsCertOverrideEntry *aEntry,
     }
 
     if (still_ok && matchesDBKey(cai->cert, settings.mDBKey.get())) {
-      nsCAutoString cert_fingerprint;
-      nsresult rv;
+      nsAutoCString cert_fingerprint;
+      nsresult rv = NS_ERROR_UNEXPECTED;
       if (settings.mFingerprintAlgOID.Equals(cai->mDottedOidForStoringNewHashes)) {
         rv = GetCertFingerprintByOidTag(cai->cert,
                cai->mOidTagForStoringNewHashes, cert_fingerprint);
-      }
-      else {
-        rv = GetCertFingerprintByDottedOidString(cai->cert,
-               settings.mFingerprintAlgOID, cert_fingerprint);
       }
       if (NS_SUCCEEDED(rv) &&
           settings.mFingerprint.Equals(cert_fingerprint)) {
@@ -826,7 +765,7 @@ struct nsCertAndPointerAndCallback
   nsCString mDottedOidForStoringNewHashes;
 };
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 EnumerateCertOverridesCallback(nsCertOverrideEntry *aEntry,
                                void *aArg)
 {
@@ -841,15 +780,11 @@ EnumerateCertOverridesCallback(nsCertOverrideEntry *aEntry,
     }
     else {
       if (matchesDBKey(capac->cert, settings.mDBKey.get())) {
-        nsCAutoString cert_fingerprint;
-        nsresult rv;
+        nsAutoCString cert_fingerprint;
+        nsresult rv = NS_ERROR_UNEXPECTED;
         if (settings.mFingerprintAlgOID.Equals(capac->mDottedOidForStoringNewHashes)) {
           rv = GetCertFingerprintByOidTag(capac->cert,
                  capac->mOidTagForStoringNewHashes, cert_fingerprint);
-        }
-        else {
-          rv = GetCertFingerprintByDottedOidString(capac->cert,
-                 settings.mFingerprintAlgOID, cert_fingerprint);
         }
         if (NS_SUCCEEDED(rv) &&
             settings.mFingerprint.Equals(cert_fingerprint)) {
@@ -884,14 +819,13 @@ nsCertOverrideService::EnumerateCertOverrides(nsIX509Cert *aCert,
 void
 nsCertOverrideService::GetHostWithPort(const nsACString & aHostName, int32_t aPort, nsACString& _retval)
 {
-  nsCAutoString hostPort(aHostName);
+  nsAutoCString hostPort(aHostName);
   if (aPort == -1) {
     aPort = 443;
   }
   if (!hostPort.IsEmpty()) {
-    hostPort.AppendLiteral(":");
+    hostPort.Append(':');
     hostPort.AppendInt(aPort);
   }
   _retval.Assign(hostPort);
 }
-

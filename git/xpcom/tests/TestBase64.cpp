@@ -5,6 +5,7 @@
 
 #include "TestHarness.h"
 
+#include "mozilla/Attributes.h"
 #include "nsIScriptableBase64Encoder.h"
 #include "nsIInputStream.h"
 #include "nsAutoPtr.h"
@@ -142,8 +143,10 @@ static Test kTests[] =
     )
   };
 
-class FakeInputStream : public nsIInputStream
+class FakeInputStream MOZ_FINAL : public nsIInputStream
 {
+  ~FakeInputStream() {}
+
 public:
 
   FakeInputStream()
@@ -167,7 +170,7 @@ private:
   bool mClosed;
 };
 
-NS_IMPL_ISUPPORTS1(FakeInputStream, nsIInputStream)
+NS_IMPL_ISUPPORTS(FakeInputStream, nsIInputStream)
 
 NS_IMETHODIMP
 FakeInputStream::Close()
@@ -257,7 +260,9 @@ FakeInputStream::CheckTest(nsACString& aResult)
 }
 
 #ifdef XP_WIN
-#define NS_tstrcmp wcscmp
+static inline int NS_tstrcmp(char16ptr_t x, char16ptr_t y) {
+    return wcscmp(x, y);
+}
 #else
 #define NS_tstrcmp strcmp
 #endif

@@ -1,11 +1,14 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set sw=2 ts=8 et ft=cpp : */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef mozilla_StaticPtr_h
 #define mozilla_StaticPtr_h
+
+#include "mozilla/Assertions.h"
+#include "mozilla/NullPtr.h"
 
 namespace mozilla {
 
@@ -34,91 +37,26 @@ namespace mozilla {
 template<class T>
 class StaticAutoPtr
 {
-  public:
-    StaticAutoPtr()
-    {
-      // In debug builds, check that mRawPtr is initialized for us as we expect
-      // by the compiler.
-      MOZ_ASSERT(!mRawPtr);
-    }
-
-    ~StaticAutoPtr() {}
-
-    StaticAutoPtr<T>& operator=(T* rhs)
-    {
-      Assign(rhs);
-      return *this;
-    }
-
-    T* get() const
-    {
-      return mRawPtr;
-    }
-
-    operator T*() const
-    {
-      return get();
-    }
-
-    T* operator->() const
-    {
-      MOZ_ASSERT(mRawPtr);
-      return get();
-    }
-
-    T& operator*() const
-    {
-      return *get();
-    }
-
-  private:
-    // Disallow copy constructor.
-    StaticAutoPtr(StaticAutoPtr<T> &other);
-
-    void Assign(T* newPtr)
-    {
-      MOZ_ASSERT(!newPtr || mRawPtr != newPtr);
-      T* oldPtr = mRawPtr;
-      mRawPtr = newPtr;
-      delete oldPtr;
-    }
-
-    T* mRawPtr;
-};
-
-template<class T>
-class StaticRefPtr
-{
 public:
-  StaticRefPtr()
+  // In debug builds, check that mRawPtr is initialized for us as we expect
+  // by the compiler.  In non-debug builds, don't declare a constructor
+  // so that the compiler can see that the constructor is trivial.
+#ifdef DEBUG
+  StaticAutoPtr()
   {
     MOZ_ASSERT(!mRawPtr);
   }
+#endif
 
-  ~StaticRefPtr()
+  StaticAutoPtr<T>& operator=(T* aRhs)
   {
-  }
-
-  StaticRefPtr<T>& operator=(T* rhs)
-  {
-    AssignWithAddref(rhs);
+    Assign(aRhs);
     return *this;
   }
 
-  StaticRefPtr<T>& operator=(const StaticRefPtr<T>& rhs)
-  {
-    return (this = rhs.mRawPtr);
-  }
+  T* get() const { return mRawPtr; }
 
-  T* get() const
-  {
-    return mRawPtr;
-  }
-
-  operator T*() const
-  {
-    return get();
-  }
+  operator T*() const { return get(); }
 
   T* operator->() const
   {
@@ -126,24 +64,78 @@ public:
     return get();
   }
 
-  T& operator*() const
-  {
-    return *get();
-  }
+  T& operator*() const { return *get(); }
 
 private:
-  void AssignWithAddref(T* newPtr)
+  // Disallow copy constructor, but only in debug mode.  We only define
+  // a default constructor in debug mode (see above); if we declared
+  // this constructor always, the compiler wouldn't generate a trivial
+  // default constructor for us in non-debug mode.
+#ifdef DEBUG
+  StaticAutoPtr(StaticAutoPtr<T>& aOther);
+#endif
+
+  void Assign(T* aNewPtr)
   {
-    if (newPtr) {
-      newPtr->AddRef();
-    }
-    AssignAssumingAddRef(newPtr);
+    MOZ_ASSERT(!aNewPtr || mRawPtr != aNewPtr);
+    T* oldPtr = mRawPtr;
+    mRawPtr = aNewPtr;
+    delete oldPtr;
   }
 
-  void AssignAssumingAddRef(T* newPtr)
+  T* mRawPtr;
+};
+
+template<class T>
+class StaticRefPtr
+{
+public:
+  // In debug builds, check that mRawPtr is initialized for us as we expect
+  // by the compiler.  In non-debug builds, don't declare a constructor
+  // so that the compiler can see that the constructor is trivial.
+#ifdef DEBUG
+  StaticRefPtr()
+  {
+    MOZ_ASSERT(!mRawPtr);
+  }
+#endif
+
+  StaticRefPtr<T>& operator=(T* aRhs)
+  {
+    AssignWithAddref(aRhs);
+    return *this;
+  }
+
+  StaticRefPtr<T>& operator=(const StaticRefPtr<T>& aRhs)
+  {
+    return (this = aRhs.mRawPtr);
+  }
+
+  T* get() const { return mRawPtr; }
+
+  operator T*() const { return get(); }
+
+  T* operator->() const
+  {
+    MOZ_ASSERT(mRawPtr);
+    return get();
+  }
+
+  T& operator*() const { return *get(); }
+
+private:
+  void AssignWithAddref(T* aNewPtr)
+  {
+    if (aNewPtr) {
+      aNewPtr->AddRef();
+    }
+    AssignAssumingAddRef(aNewPtr);
+  }
+
+  void AssignAssumingAddRef(T* aNewPtr)
   {
     T* oldPtr = mRawPtr;
-    mRawPtr = newPtr;
+    mRawPtr = aNewPtr;
     if (oldPtr) {
       oldPtr->Release();
     }
@@ -189,16 +181,16 @@ class Zero;
 
 template<class T, class U>
 inline bool
-operator==(const StaticAutoPtr<T>& lhs, const StaticAutoPtr<U>& rhs)
+operator==(const StaticAutoPtr<T>& aLhs, const StaticAutoPtr<U>& aRhs)
 {
-  return lhs.get() == rhs.get();
+  return aLhs.get() == aRhs.get();
 }
 
 template<class T, class U>
 inline bool
-operator!=(const StaticAutoPtr<T>& lhs, const StaticAutoPtr<U>& rhs)
+operator!=(const StaticAutoPtr<T>& aLhs, const StaticAutoPtr<U>& aRhs)
 {
-  return !(lhs == rhs);
+  return !(aLhs == aRhs);
 }
 
 REFLEXIVE_EQUALITY_OPERATORS(const StaticAutoPtr<T>&, const U*,
@@ -209,22 +201,22 @@ REFLEXIVE_EQUALITY_OPERATORS(const StaticAutoPtr<T>&, U*,
 
 // Let us compare StaticAutoPtr to 0.
 REFLEXIVE_EQUALITY_OPERATORS(const StaticAutoPtr<T>&, StaticPtr_internal::Zero*,
-                             lhs.get() == NULL, class T)
+                             lhs.get() == nullptr, class T)
 
 // StaticRefPtr (in)equality operators
 
 template<class T, class U>
 inline bool
-operator==(const StaticRefPtr<T>& lhs, const StaticRefPtr<U>& rhs)
+operator==(const StaticRefPtr<T>& aLhs, const StaticRefPtr<U>& aRhs)
 {
-  return lhs.get() == rhs.get();
+  return aLhs.get() == aRhs.get();
 }
 
 template<class T, class U>
 inline bool
-operator!=(const StaticRefPtr<T>& lhs, const StaticRefPtr<U>& rhs)
+operator!=(const StaticRefPtr<T>& aLhs, const StaticRefPtr<U>& aRhs)
 {
-  return !(lhs == rhs);
+  return !(aLhs == aRhs);
 }
 
 REFLEXIVE_EQUALITY_OPERATORS(const StaticRefPtr<T>&, const U*,
@@ -235,7 +227,7 @@ REFLEXIVE_EQUALITY_OPERATORS(const StaticRefPtr<T>&, U*,
 
 // Let us compare StaticRefPtr to 0.
 REFLEXIVE_EQUALITY_OPERATORS(const StaticRefPtr<T>&, StaticPtr_internal::Zero*,
-                             lhs.get() == NULL, class T)
+                             lhs.get() == nullptr, class T)
 
 #undef REFLEXIVE_EQUALITY_OPERATORS
 

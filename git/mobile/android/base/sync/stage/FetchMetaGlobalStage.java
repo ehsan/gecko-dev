@@ -4,25 +4,21 @@
 
 package org.mozilla.gecko.sync.stage;
 
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.GlobalSession;
 import org.mozilla.gecko.sync.InfoCollections;
-import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.MetaGlobal;
 import org.mozilla.gecko.sync.PersistedMetaGlobal;
 import org.mozilla.gecko.sync.delegates.MetaGlobalDelegate;
 import org.mozilla.gecko.sync.net.SyncStorageResponse;
 
 public class FetchMetaGlobalStage extends AbstractNonRepositorySyncStage {
-  public FetchMetaGlobalStage(GlobalSession session) {
-    super(session);
-  }
-
   private static final String LOG_TAG = "FetchMetaGlobalStage";
   private static final String META_COLLECTION = "meta";
 
   public class StageMetaGlobalDelegate implements MetaGlobalDelegate {
 
-    private GlobalSession session;
+    private final GlobalSession session;
     public StageMetaGlobalDelegate(GlobalSession session) {
       this.session = session;
     }
@@ -66,7 +62,7 @@ public class FetchMetaGlobalStage extends AbstractNonRepositorySyncStage {
     if (!infoCollections.updateNeeded(META_COLLECTION, lastModified)) {
       // Try to use our local collection keys for this session.
       Logger.info(LOG_TAG, "Trying to use persisted meta/global for this session.");
-      MetaGlobal global = session.config.persistedMetaGlobal().metaGlobal();
+      MetaGlobal global = session.config.persistedMetaGlobal().metaGlobal(session.config.metaURL(), session.getAuthHeaderProvider());
       if (global != null) {
         Logger.info(LOG_TAG, "Using persisted meta/global for this session.");
         session.processMetaGlobal(global); // Calls session.advance().
@@ -77,7 +73,7 @@ public class FetchMetaGlobalStage extends AbstractNonRepositorySyncStage {
 
     // We need an update: fetch or upload meta/global as necessary.
     Logger.info(LOG_TAG, "Fetching fresh meta/global for this session.");
-    MetaGlobal global = new MetaGlobal(session.config.metaURL(), session.credentials());
+    MetaGlobal global = new MetaGlobal(session.config.metaURL(), session.getAuthHeaderProvider());
     global.fetch(new StageMetaGlobalDelegate(session));
   }
 }

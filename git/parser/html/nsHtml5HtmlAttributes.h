@@ -26,14 +26,13 @@
  * Please edit HtmlAttributes.java instead and regenerate.
  */
 
-#ifndef nsHtml5HtmlAttributes_h__
-#define nsHtml5HtmlAttributes_h__
+#ifndef nsHtml5HtmlAttributes_h
+#define nsHtml5HtmlAttributes_h
 
-#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"
-#include "nsINameSpaceManager.h"
+#include "nsNameSpaceManager.h"
 #include "nsIContent.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
@@ -43,6 +42,7 @@
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsHtml5Macros.h"
+#include "nsIContentHandle.h"
 
 class nsHtml5StreamParser;
 
@@ -66,16 +66,16 @@ class nsHtml5HtmlAttributes
     autoJArray<nsHtml5AttributeName*,int32_t> names;
     autoJArray<nsString*,int32_t> values;
   public:
-    nsHtml5HtmlAttributes(int32_t mode);
+    explicit nsHtml5HtmlAttributes(int32_t mode);
     ~nsHtml5HtmlAttributes();
     int32_t getIndex(nsHtml5AttributeName* name);
-    int32_t getLength();
-    nsIAtom* getLocalName(int32_t index);
-    nsHtml5AttributeName* getAttributeName(int32_t index);
-    int32_t getURI(int32_t index);
-    nsIAtom* getPrefix(int32_t index);
-    nsString* getValue(int32_t index);
     nsString* getValue(nsHtml5AttributeName* name);
+    int32_t getLength();
+    nsIAtom* getLocalNameNoBoundsCheck(int32_t index);
+    int32_t getURINoBoundsCheck(int32_t index);
+    nsIAtom* getPrefixNoBoundsCheck(int32_t index);
+    nsString* getValueNoBoundsCheck(int32_t index);
+    nsHtml5AttributeName* getAttributeNameNoBoundsCheck(int32_t index);
     void addAttribute(nsHtml5AttributeName* name, nsString* value);
     void clear(int32_t m);
     void releaseValue(int32_t i);

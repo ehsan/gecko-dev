@@ -35,16 +35,15 @@
 #include "nsAutoPtr.h"
 #include "nsTreeSanitizer.h"
 #include "nsHtml5Module.h"
+#include "mozilla/dom/DocumentFragment.h"
 
 #define XHTML_DIV_TAG "div xmlns=\"http://www.w3.org/1999/xhtml\""
 
-NS_IMPL_ISUPPORTS2(nsParserUtils,
-                   nsIScriptableUnescapeHTML,
-                   nsIParserUtils)
+using namespace mozilla::dom;
 
-static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
-
-
+NS_IMPL_ISUPPORTS(nsParserUtils,
+                  nsIScriptableUnescapeHTML,
+                  nsIParserUtils)
 
 NS_IMETHODIMP
 nsParserUtils::ConvertToPlainText(const nsAString& aFromStr,
@@ -79,15 +78,16 @@ nsParserUtils::Sanitize(const nsAString& aFromStr,
   nsCOMPtr<nsIPrincipal> principal =
     do_CreateInstance("@mozilla.org/nullprincipal;1");
   nsCOMPtr<nsIDOMDocument> domDocument;
-  nsresult rv = nsContentUtils::CreateDocument(EmptyString(),
-                                               EmptyString(),
-                                               nullptr,
-                                               uri,
-                                               uri,
-                                               principal,
-                                               nullptr,
-                                               DocumentFlavorHTML,
-                                               getter_AddRefs(domDocument));
+  nsresult rv = NS_NewDOMDocument(getter_AddRefs(domDocument),
+                                  EmptyString(),
+                                  EmptyString(),
+                                  nullptr,
+                                  uri,
+                                  uri,
+                                  principal,
+                                  true,
+                                  nullptr,
+                                  DocumentFlavorHTML);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDocument> document = do_QueryInterface(domDocument);
@@ -161,12 +161,12 @@ nsParserUtils::ParseFragment(const nsAString& aFragment,
   // Wrap things in a div or body for parsing, but it won't show up in
   // the fragment.
   nsAutoTArray<nsString, 2> tagStack;
-  nsCAutoString base, spec;
+  nsAutoCString base, spec;
   if (aIsXML) {
     // XHTML
     if (aBaseURI) {
-      base.Append(NS_LITERAL_CSTRING(XHTML_DIV_TAG));
-      base.Append(NS_LITERAL_CSTRING(" xml:base=\""));
+      base.AppendLiteral(XHTML_DIV_TAG);
+      base.AppendLiteral(" xml:base=\"");
       aBaseURI->GetSpec(spec);
       // nsEscapeHTML is good enough, because we only need to get
       // quotes, ampersands, and angle brackets
@@ -174,7 +174,7 @@ nsParserUtils::ParseFragment(const nsAString& aFragment,
       if (escapedSpec)
         base += escapedSpec;
       NS_Free(escapedSpec);
-      base.Append(NS_LITERAL_CSTRING("\""));
+      base.Append('"');
       tagStack.AppendElement(NS_ConvertUTF8toUTF16(base));
     }  else {
       tagStack.AppendElement(NS_LITERAL_STRING(XHTML_DIV_TAG));
@@ -191,8 +191,7 @@ nsParserUtils::ParseFragment(const nsAString& aFragment,
                                           aReturn);
     fragment = do_QueryInterface(*aReturn);
   } else {
-    NS_NewDocumentFragment(aReturn,
-                           document->NodeInfoManager());
+    NS_ADDREF(*aReturn = new DocumentFragment(document->NodeInfoManager()));
     fragment = do_QueryInterface(*aReturn);
     rv = nsContentUtils::ParseFragmentHTML(aFragment,
                                            fragment,

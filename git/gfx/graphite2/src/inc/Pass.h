@@ -38,6 +38,7 @@ struct Rule;
 struct RuleEntry;
 struct State;
 class FiniteStateMachine;
+class Error;
 
 class Pass
 {   
@@ -45,50 +46,51 @@ public:
     Pass();
     ~Pass();
     
-    bool readPass(const byte * pPass, size_t pass_length, size_t subtable_base, const Face & face);
+    bool readPass(const byte * pPass, size_t pass_length, size_t subtable_base, Face & face, Error &e);
     void runGraphite(vm::Machine & m, FiniteStateMachine & fsm) const;
     void init(Silf *silf) { m_silf = silf; }
+    byte spaceContextuals() const { return (m_flags & 0x0E) >> 1; }
 
     CLASS_NEW_DELETE
 private:
-    void   	findNDoRule(Slot* & iSlot, vm::Machine &, FiniteStateMachine& fsm) const;
-    int   	doAction(const vm::Machine::Code* codeptr, Slot * & slot_out, vm::Machine &) const;
-    bool   	testPassConstraint(vm::Machine & m) const;
-    bool   	testConstraint(const Rule & r, vm::Machine &) const;
-    bool   	readFSM(const byte* p, const byte*const pass_start, const size_t max_offset);
-    bool   	readRules(const byte * rule_map, const size_t num_entries,
+    void    findNDoRule(Slot* & iSlot, vm::Machine &, FiniteStateMachine& fsm) const;
+    int     doAction(const vm::Machine::Code* codeptr, Slot * & slot_out, vm::Machine &) const;
+    bool    testPassConstraint(vm::Machine & m) const;
+    bool    testConstraint(const Rule & r, vm::Machine &) const;
+    bool    readRules(const byte * rule_map, const size_t num_entries,
                      const byte *precontext, const uint16 * sort_key,
                      const uint16 * o_constraint, const byte *constraint_data, 
                      const uint16 * o_action, const byte * action_data,
-                     const Face &);
-    bool   	readStates(const byte * starts, const byte * states, const byte * o_rule_map);
-    bool   	readRanges(const byte * ranges, size_t num_ranges);
-    uint16 	glyphToCol(const uint16 gid) const;
-    bool   	runFSM(FiniteStateMachine & fsm, Slot * slot) const;
-    void	dumpRuleEventConsidered(const FiniteStateMachine & fsm, const RuleEntry & re) const;
-    void	dumpRuleEventOutput(const FiniteStateMachine & fsm, const Rule & r, Slot * os) const;
-    void	adjustSlot(int delta, Slot * & slot_out, SlotMap &) const;
+                     Face &, Error &e);
+    bool    readStates(const byte * starts, const byte * states, const byte * o_rule_map, Face &, Error &e);
+    bool    readRanges(const byte * ranges, size_t num_ranges, Error &e);
+    uint16  glyphToCol(const uint16 gid) const;
+    bool    runFSM(FiniteStateMachine & fsm, Slot * slot) const;
+    void    dumpRuleEventConsidered(const FiniteStateMachine & fsm, const RuleEntry & re) const;
+    void    dumpRuleEventOutput(const FiniteStateMachine & fsm, const Rule & r, Slot * os) const;
+    void    adjustSlot(int delta, Slot * & slot_out, SlotMap &) const;
     const Silf* m_silf;
     uint16    * m_cols;
     Rule      * m_rules; // rules
     RuleEntry * m_ruleMap;
-    State *   * m_startStates; // prectxt length
-    State *   * m_sTable;
+    uint16    * m_startStates; // prectxt length
+    uint16    * m_transitions;
     State     * m_states;
     
-    bool   m_immutable;
+    byte   m_flags;
     byte   m_iMaxLoop;
     uint16 m_numGlyphs;
     uint16 m_numRules;
-    uint16 m_sRows;
-    uint16 m_sTransition;
-    uint16 m_sSuccess;
-    uint16 m_sColumns;
+    uint16 m_numStates;
+    uint16 m_numTransition;
+    uint16 m_numSuccess;
+    uint16 m_successStart;
+    uint16 m_numColumns;
     byte m_minPreCtxt;
     byte m_maxPreCtxt;
     vm::Machine::Code m_cPConstraint;
     
-private:		//defensive
+private:        //defensive
     Pass(const Pass&);
     Pass& operator=(const Pass&);
 };

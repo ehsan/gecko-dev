@@ -1,4 +1,4 @@
-// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -8,6 +8,11 @@
 
 var kSignonBundle;
 var showingPasswords = false;
+var dateFormatter = new Intl.DateTimeFormat(undefined,
+                      { day: "numeric", month: "short", year: "numeric" });
+var dateAndTimeFormatter = new Intl.DateTimeFormat(undefined,
+                             { day: "numeric", month: "short", year: "numeric",
+                               hour: "numeric", minute: "numeric" });
 
 function SignonsStartup() {
   kSignonBundle = document.getElementById("signonBundle");
@@ -41,6 +46,7 @@ var signonsTreeView = {
   getProgressMode : function(row,column) {},
   getCellValue : function(row,column) {},
   getCellText : function(row,column) {
+    var time;
     var signon = this._filterSet.length ? this._filterSet[row] : signons[row];
     switch (column.id) {
       case "siteCol":
@@ -51,6 +57,17 @@ var signonsTreeView = {
         return signon.username || "";
       case "passwordCol":
         return signon.password || "";
+      case "timeCreatedCol":
+        time = new Date(signon.timeCreated);
+        return dateFormatter.format(time);
+      case "timeLastUsedCol":
+        time = new Date(signon.timeLastUsed);
+        return dateAndTimeFormatter.format(time);
+      case "timePasswordChangedCol":
+        time = new Date(signon.timePasswordChanged);
+        return dateFormatter.format(time);
+      case "timesUsedCol":
+        return signon.timesUsed;
       default:
         return "";
     }
@@ -59,13 +76,15 @@ var signonsTreeView = {
   isSorted : function() { return false; },
   isContainer : function(index) { return false; },
   cycleHeader : function(column) {},
-  getRowProperties : function(row,prop) {},
-  getColumnProperties : function(column,prop) {},
-  getCellProperties : function(row,column,prop) {
+  getRowProperties : function(row) { return ""; },
+  getColumnProperties : function(column) { return ""; },
+  getCellProperties : function(row,column) {
     if (column.element.getAttribute("id") == "siteCol")
-      prop.AppendElement(kLTRAtom);
+      return "ltr";
+
+    return "";
   }
- };
+};
 
 
 function LoadSignons() {
@@ -75,10 +94,11 @@ function LoadSignons() {
   } catch (e) {
     signons = [];
   }
+  signons.forEach(login => login.QueryInterface(Components.interfaces.nsILoginMetaInfo));
   signonsTreeView.rowCount = signons.length;
 
   // sort and display the table
-  signonsTree.treeBoxObject.view = signonsTreeView;
+  signonsTree.view = signonsTreeView;
   // The sort column didn't change. SortTree (called by
   // SignonColumnSort) assumes we want to toggle the sort
   // direction but here we don't so we have to trick it
@@ -88,7 +108,7 @@ function LoadSignons() {
   // disable "remove all signons" button if there are no signons
   var element = document.getElementById("removeAllSignons");
   var toggle = document.getElementById("togglePasswords");
-  if (signons.length == 0 || gSelectUserInUse) {
+  if (signons.length == 0) {
     element.setAttribute("disabled","true");
     toggle.setAttribute("disabled","true");
   } else {
@@ -101,7 +121,7 @@ function LoadSignons() {
 
 function SignonSelected() {
   var selections = GetTreeSelections(signonsTree);
-  if (selections.length && !gSelectUserInUse) {
+  if (selections.length) {
     document.getElementById("removeSignon").removeAttribute("disabled");
   }
 }
@@ -178,7 +198,11 @@ function FinalizeSignonDeletions(syncNeeded) {
 }
 
 function HandleSignonKeyPress(e) {
-  if (e.keyCode == 46) {
+  if (e.keyCode == KeyEvent.DOM_VK_DELETE
+#ifdef XP_MACOSX
+      || e.keyCode == KeyEvent.DOM_VK_BACK_SPACE
+#endif
+     ) {
     DeleteSignon();
   }
 }
@@ -191,6 +215,14 @@ function getColumnByName(column) {
       return document.getElementById("userCol");
     case "password":
       return document.getElementById("passwordCol");
+    case "timeCreated":
+      return document.getElementById("timeCreatedCol");
+    case "timeLastUsed":
+      return document.getElementById("timeLastUsedCol");
+    case "timePasswordChanged":
+      return document.getElementById("timePasswordChangedCol");
+    case "timesUsed":
+      return document.getElementById("timesUsedCol");
   }
 }
 

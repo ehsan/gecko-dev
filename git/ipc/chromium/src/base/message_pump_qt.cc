@@ -15,7 +15,6 @@
 #include <math.h>
 
 #include "base/eintr_wrapper.h"
-#include "base/lazy_instance.h"
 #include "base/logging.h"
 #include "base/platform_thread.h"
 
@@ -39,11 +38,7 @@ MessagePumpQt::MessagePumpQt(MessagePumpForUI &aPump)
   : pump(aPump), mTimer(new QTimer(this))
 {
   // Register our custom event type, to use in qApp event loop
-#if (QT_VERSION >= QT_VERSION_CHECK(4, 4, 0))
   sPokeEvent = QEvent::registerEventType();
-#else
-  sPokeEvent = QEvent::User+5000;
-#endif
   connect(mTimer, SIGNAL(timeout()), this, SLOT(dispatchDelayed()));
   mTimer->setSingleShot(true);
 }
@@ -65,7 +60,7 @@ MessagePumpQt::event(QEvent *e)
 }
 
 void
-MessagePumpQt::scheduleDelayedIfNeeded(const Time& delayed_work_time)
+MessagePumpQt::scheduleDelayedIfNeeded(const TimeTicks& delayed_work_time)
 {
   if (delayed_work_time.is_null()) {
     return;
@@ -75,8 +70,8 @@ MessagePumpQt::scheduleDelayedIfNeeded(const Time& delayed_work_time)
     mTimer->stop();
   }
 
-  TimeDelta later = delayed_work_time - Time::Now();
-  // later.InMilliseconds() returns an int64, QTimer only accepts int's for start(),
+  TimeDelta later = delayed_work_time - TimeTicks::Now();
+  // later.InMilliseconds() returns an int64_t, QTimer only accepts int's for start(),
   // std::min only works on exact same types.
   int laterMsecs = later.InMilliseconds() > std::numeric_limits<int>::max() ?
     std::numeric_limits<int>::max() : later.InMilliseconds();
@@ -183,7 +178,7 @@ void MessagePumpForUI::ScheduleWork() {
                               new QEvent((QEvent::Type) sPokeEvent));
 }
 
-void MessagePumpForUI::ScheduleDelayedWork(const Time& delayed_work_time) {
+void MessagePumpForUI::ScheduleDelayedWork(const TimeTicks& delayed_work_time) {
   // On GLib implementation, a work source is defined which explicitly checks the
   // time that has passed. Here, on Qt we can use a QTimer that enqueues our
   // event signal in an event queue.

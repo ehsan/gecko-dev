@@ -9,12 +9,40 @@ var gContentPane = {
    */
   init: function ()
   {
+    function setEventListener(aId, aEventType, aCallback)
+    {
+      document.getElementById(aId)
+              .addEventListener(aEventType, aCallback.bind(gContentPane));
+    }
+
     this._rebuildFonts();
     var menulist = document.getElementById("defaultFont");
     if (menulist.selectedIndex == -1) {
       menulist.insertItemAt(0, "", "", "");
       menulist.selectedIndex = 0;
     }
+
+    // Show translation preferences if we may:
+    const prefName = "browser.translation.ui.show";
+    if (Services.prefs.getBoolPref(prefName)) {
+      let row = document.getElementById("translationBox");
+      row.removeAttribute("hidden");
+    }
+
+    setEventListener("font.language.group", "change",
+      gContentPane._rebuildFonts);
+    setEventListener("popupPolicyButton", "command",
+      gContentPane.showPopupExceptions);
+    setEventListener("advancedFonts", "command",
+      gContentPane.configureFonts);
+    setEventListener("colors", "command",
+      gContentPane.configureColors);
+    setEventListener("chooseLanguage", "command",
+      gContentPane.showLanguages);
+    setEventListener("translationAttributionImage", "click",
+      gContentPane.openTranslationProviderAttribution);
+    setEventListener("translateButton", "command",
+      gContentPane.showTranslationExceptions);
   },
 
   // UTILITY FUNCTIONS
@@ -31,31 +59,6 @@ var gContentPane = {
     return undefined;
   },
 
-  /**
-   * The exceptions types which may be passed to this._showExceptions().
-   */
-  _exceptionsParams: {
-    popup:   { blockVisible: false, sessionVisible: false, allowVisible: true, 
-               prefilledHost: "", permissionType: "popup" },
-    image:   { blockVisible: true,  sessionVisible: false, allowVisible: true, 
-               prefilledHost: "", permissionType: "image" }
-  },
-
-  /**
-   * Displays the exceptions dialog of the given type, where types map onto the
-   * the fields in this._exceptionsParams.
-   */  
-  _showExceptions: function (aPermissionType)
-  {
-    var bundlePreferences = document.getElementById("bundlePreferences");
-    var params = this._exceptionsParams[aPermissionType];
-    params.windowTitle = bundlePreferences.getString(aPermissionType + "permissionstitle");
-    params.introText = bundlePreferences.getString(aPermissionType + "permissionstext");
-
-    openDialog("chrome://browser/content/preferences/permissions.xul", 
-               "Browser:Permissions", "resizable=yes", params);
-  },
-
   // BEGIN UI CODE
 
   /*
@@ -63,15 +66,6 @@ var gContentPane = {
    *
    * dom.disable_open_during_load
    * - true if popups are blocked by default, false otherwise
-   * permissions.default.image
-   * - an integer:
-   *     1   all images should be loaded,
-   *     2   no images should be loaded,
-   *     3   load only images from the site on which the current page resides
-   *         (i.e., if viewing foo.example.com, foo.example.com/foo.jpg and
-   *         bar.foo.example.com/bar.jpg load but example.com/quux.jpg does not)
-   * javascript.enabled
-   * - true if JavaScript is enabled, false otherwise
    */
 
   // POP-UPS
@@ -82,50 +76,14 @@ var gContentPane = {
    */
   showPopupExceptions: function ()
   {
-    this._showExceptions("popup");
-  },
+    var bundlePreferences = document.getElementById("bundlePreferences");
+    var params = { blockVisible: false, sessionVisible: false, allowVisible: true,
+                   prefilledHost: "", permissionType: "popup" }
+    params.windowTitle = bundlePreferences.getString("popuppermissionstitle");
+    params.introText = bundlePreferences.getString("popuppermissionstext");
 
-  // IMAGES
-
-  /**
-   * Converts the value of the permissions.default.image preference into a
-   * Boolean value for use in determining the state of the "load images"
-   * checkbox, returning true if images should be loaded and false otherwise.
-   */
-  readLoadImages: function ()
-  {
-    var pref = document.getElementById("permissions.default.image");
-    return (pref.value == 1 || pref.value == 3);
-  },
-
-  /**
-   * Returns the "load images" preference value which maps to the state of the
-   * preferences UI.
-   */
-  writeLoadImages: function ()
-  { 
-    return (document.getElementById("loadImages").checked) ? 1 : 2;
-  },
-
-  /**
-   * Displays image exception preferences for which websites can and cannot
-   * load images.
-   */
-  showImageExceptions: function ()
-  {
-    this._showExceptions("image");
-  },
-
-  // JAVASCRIPT
-
-  /**
-   * Displays the advanced JavaScript preferences for enabling or disabling
-   * various annoying behaviors.
-   */
-  showAdvancedJS: function ()
-  {
-    openDialog("chrome://browser/content/preferences/advanced-scripts.xul", 
-               "Browser:AdvancedScripts", null);  
+    gSubDialog.open("chrome://browser/content/preferences/permissions.xul",
+                    "resizable=yes", params);
   },
 
   // FONTS
@@ -216,8 +174,7 @@ var gContentPane = {
    */  
   configureFonts: function ()
   {
-    openDialog("chrome://browser/content/preferences/fonts.xul", 
-               "Browser:FontPreferences", null);
+    gSubDialog.open("chrome://browser/content/preferences/fonts.xul");
   },
 
   /**
@@ -226,8 +183,7 @@ var gContentPane = {
    */
   configureColors: function ()
   {
-    openDialog("chrome://browser/content/preferences/colors.xul", 
-               "Browser:ColorPreferences", null);  
+    gSubDialog.open("chrome://browser/content/preferences/colors.xul");
   },
 
   // LANGUAGES
@@ -237,7 +193,21 @@ var gContentPane = {
    */
   showLanguages: function ()
   {
-    openDialog("chrome://browser/content/preferences/languages.xul", 
-               "Browser:LanguagePreferences", null);
+    gSubDialog.open("chrome://browser/content/preferences/languages.xul");
+  },
+
+  /**
+   * Displays the translation exceptions dialog where specific site and language
+   * translation preferences can be set.
+   */
+  showTranslationExceptions: function ()
+  {
+    gSubDialog.open("chrome://browser/content/preferences/translation.xul");
+  },
+
+  openTranslationProviderAttribution: function ()
+  {
+    Components.utils.import("resource:///modules/translation/Translation.jsm");
+    Translation.openProviderAttribution();
   }
 };

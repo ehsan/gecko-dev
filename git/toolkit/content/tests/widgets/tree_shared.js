@@ -21,8 +21,6 @@ var columns_hiertree =
 // column 1 must not be editable.
 function testtag_tree(treeid, treerowinfoid, seltype, columnstype, testid)
 {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
   // Stop keystrokes that aren't handled by the tree from leaking out and
   // scrolling the main Mochitests window!
   function preventDefault(event) {
@@ -183,10 +181,7 @@ function testtag_tree_columns(tree, expectedColumns, testid)
     is(column.getNext(), c < columns.length - 1 ? columns[c + 1] : null, adjtestid + "getNext");
 
     // check the view's getColumnProperties method
-    var properties = Components.classes["@mozilla.org/supports-array;1"].
-                       createInstance(Components.interfaces.nsISupportsArray);
-    tree.view.getColumnProperties(column, properties);
-    properties = convertProperties(properties);
+    var properties = tree.view.getColumnProperties(column);
     var expectedProperties = expectedColumn.properties;
     is(properties,  expectedProperties ? expectedProperties : "", adjtestid + "getColumnProperties");
   }
@@ -334,9 +329,14 @@ function testtag_tree_TreeSelection_UI(tree, testid, multiple)
   selection.currentIndex = 0;
   tree.focus();
 
-  var keyPressDefaultPrevented = 0;
-  function keyPressListener(event) {
-    keyPressDefaultPrevented++;
+  var keydownFired = 0;
+  var keypressFired = 0;
+  function keydownListener(event)
+  {
+    keydownFired++;
+  }
+  function keypressListener(event) {
+    keypressFired++;
   }
 
   // check that cursor up and down keys navigate up and down
@@ -344,7 +344,8 @@ function testtag_tree_TreeSelection_UI(tree, testid, multiple)
   // is so that cursor navigation allows quicking skimming over a set of items without
   // actually firing events in-between, improving performance. The select event will only
   // be fired on the row where the cursor stops.
-  window.addEventListener("keypress", keyPressListener, false);
+  window.addEventListener("keydown", keydownListener, false);
+  window.addEventListener("keypress", keypressListener, false);
 
   synthesizeKeyExpectEvent("VK_DOWN", {}, tree, "!select", "key down");
   testtag_tree_TreeSelection_State(tree, testid + "key down", 1, [1], 0);
@@ -605,10 +606,12 @@ function testtag_tree_TreeSelection_UI(tree, testid, multiple)
   }
 
   // restore the scroll position to the start of the page
-  synthesizeKey("VK_HOME", {});
+  sendKey("HOME");
 
-  window.removeEventListener("keypress", keyPressListener, false);
-  is(keyPressDefaultPrevented, multiple ? 63 : 40, "key press default prevented");
+  window.removeEventListener("keydown", keydownListener, false);
+  window.removeEventListener("keypress", keypressListener, false);
+  is(keydownFired, multiple ? 63 : 40, "keydown event wasn't fired properly");
+  is(keypressFired, multiple ? 2 : 1, "keypress event wasn't fired properly");
 }
 
 function testtag_tree_UI_editing(tree, testid, rowInfo)
@@ -640,10 +643,10 @@ function testtag_tree_UI_editing(tree, testid, rowInfo)
     tree.currentIndex = rowIndex;
 
     const isMac = (navigator.platform.indexOf("Mac") >= 0);
-    const StartEditingKey = isMac ? "VK_ENTER" : "VK_F2";
-    synthesizeKey(StartEditingKey, {});
+    const StartEditingKey = isMac ? "RETURN" : "F2";
+    sendKey(StartEditingKey);
     is(tree.editingColumn, ecolumn, "Should be editing tree cell now");
-    synthesizeKey("VK_ESCAPE", {});
+    sendKey("ESCAPE");
     ok(!tree.editingColumn, "Should not be editing tree cell now");
     is(tree.currentIndex, rowIndex, "Current index should not have changed");
     is(tree.view.selection.currentColumn, ecolumn, "Current column should not have changed");
@@ -860,7 +863,7 @@ function testtag_tree_TreeSelection_UI_cell(tree, testid, rowInfo)
   }
 
   // restore the scroll position to the start of the page
-  synthesizeKey("VK_HOME", {});
+  sendKey("HOME");
 }
 
 function testtag_tree_TreeView(tree, testid, rowInfo)
@@ -926,15 +929,7 @@ function testtag_tree_TreeView_rows(tree, testid, rowInfo, startRow)
 
       for (checkMethod in checkCellMethods) {
         expected = checkCellMethods[checkMethod](row, cell);
-        if (checkMethod == "getCellProperties") {
-          var properties = Components.classes["@mozilla.org/supports-array;1"].
-                             createInstance(Components.interfaces.nsISupportsArray);
-          view.getCellProperties(r, columns[c], properties);
-          actual = convertProperties(properties);
-        }
-        else {
-          actual = view[checkMethod](r, columns[c]);
-        }
+        actual = view[checkMethod](r, columns[c]);
         if (actual !== expected) {
           failedMethods[checkMethod] = true;
           is(actual, expected, testid + "row " + r + " column " + c + " " + checkMethod + " is incorrect");
@@ -945,13 +940,7 @@ function testtag_tree_TreeView_rows(tree, testid, rowInfo, startRow)
     // compare row properties
     for (checkMethod in checkRowMethods) {
       expected = checkRowMethods[checkMethod](row, r);
-      if (checkMethod == "getRowProperties") {
-        var properties = Components.classes["@mozilla.org/supports-array;1"].
-                           createInstance(Components.interfaces.nsISupportsArray);
-        view.getRowProperties(r, properties);
-        actual = convertProperties(properties);
-      }
-      else if (checkMethod == "hasNextSibling") {
+      if (checkMethod == "hasNextSibling") {
         actual = view[checkMethod](r, r);
       }
       else {
@@ -1303,10 +1292,9 @@ function checkColumns(aTree, aReference, aMessage)
 
 function mouseOnCell(tree, row, column, testname)
 {
-  var x = {}, y = {}, width = {}, height = {};
-  tree.boxObject.getCoordsForCellItem(row, column, "text", x, y, width, height);
+  var rect = tree.boxObject.getCoordsForCellItem(row, column, "text");
 
-  synthesizeMouseExpectEvent(tree.body, x.value, y.value, {}, tree, "select", testname);
+  synthesizeMouseExpectEvent(tree.body, rect.x, rect.y, {}, tree, "select", testname);
 }
 
 function mouseClickOnColumnHeader(aColumns, aColumnIndex, aButton, aClickCount)
@@ -1332,10 +1320,9 @@ function mouseDblClickOnCell(tree, row, column, testname)
   tree.treeBoxObject.ensureRowIsVisible(row);
 
   // get cell coordinates
-  var x = {}, y = {}, width = {}, height = {};
-  tree.treeBoxObject.getCoordsForCellItem(row, column, "text", x, y, width, height);
+  var rect = tree.treeBoxObject.getCoordsForCellItem(row, column, "text");
 
-  synthesizeMouse(tree.body, x.value, y.value, { clickCount: 2 }, null);
+  synthesizeMouse(tree.body, rect.x, rect.y, { clickCount: 2 }, null);
 }
 
 function compareArrays(arr1, arr2)

@@ -10,6 +10,9 @@
  * liability, trademark and document use rules apply.
  */
 
+interface Principal;
+interface URI;
+
 interface Node : EventTarget {
   const unsigned short ELEMENT_NODE = 1;
   const unsigned short ATTRIBUTE_NODE = 2; // historical
@@ -23,20 +26,51 @@ interface Node : EventTarget {
   const unsigned short DOCUMENT_TYPE_NODE = 10;
   const unsigned short DOCUMENT_FRAGMENT_NODE = 11;
   const unsigned short NOTATION_NODE = 12; // historical
+  [Constant]
   readonly attribute unsigned short nodeType;
+  [Pure]
   readonly attribute DOMString nodeName;
 
+  [Pure]
   readonly attribute DOMString? baseURI;
 
+  [Pure]
   readonly attribute Document? ownerDocument;
+  [Pure]
   readonly attribute Node? parentNode;
+  [Pure]
   readonly attribute Element? parentElement;
+  [Pure]
   boolean hasChildNodes();
+  [SameObject]
   readonly attribute NodeList childNodes;
+  [Pure]
   readonly attribute Node? firstChild;
+  [Pure]
   readonly attribute Node? lastChild;
+  [Pure]
   readonly attribute Node? previousSibling;
+  [Pure]
   readonly attribute Node? nextSibling;
+
+  [SetterThrows, Pure]
+           attribute DOMString? nodeValue;
+  [Throws, Pure]
+           attribute DOMString? textContent;
+  [Throws]
+  Node insertBefore(Node node, Node? child);
+  [Throws]
+  Node appendChild(Node node);
+  [Throws]
+  Node replaceChild(Node node, Node child);
+  [Throws]
+  Node removeChild(Node child);
+  void normalize();
+
+  [Throws]
+  Node cloneNode(optional boolean deep = false);
+  [Pure]
+  boolean isEqualNode(Node? node);
 
   const unsigned short DOCUMENT_POSITION_DISCONNECTED = 0x01;
   const unsigned short DOCUMENT_POSITION_PRECEDING = 0x02;
@@ -44,21 +78,37 @@ interface Node : EventTarget {
   const unsigned short DOCUMENT_POSITION_CONTAINS = 0x08;
   const unsigned short DOCUMENT_POSITION_CONTAINED_BY = 0x10;
   const unsigned short DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC = 0x20; // historical
+  [Pure]
   unsigned short compareDocumentPosition(Node other);
+  [Pure]
   boolean contains(Node? other);
 
-           attribute DOMString? nodeValue;
-           attribute DOMString? textContent;
-  Node insertBefore(Node node, Node? child);
-  Node appendChild(Node node);
-  Node replaceChild(Node node, Node child);
-  Node removeChild(Node child);
-  void normalize();
-
-  Node cloneNode(optional boolean deep);
-  boolean isEqualNode(Node? node);
-
-  DOMString lookupPrefix(DOMString? namespace);
-  DOMString lookupNamespaceURI(DOMString? prefix);
+  [Pure]
+  DOMString? lookupPrefix(DOMString? namespace);
+  [Pure]
+  DOMString? lookupNamespaceURI(DOMString? prefix);
+  [Pure]
   boolean isDefaultNamespace(DOMString? namespace);
-;}
+
+  // Mozilla-specific stuff
+  // These have been moved to Element in the spec.
+  // If we move namespaceURI, prefix and localName to Element they should return
+  // a non-nullable type.
+  [Constant]
+  readonly attribute DOMString? namespaceURI;
+  [Constant]
+  readonly attribute DOMString? prefix;
+  [Constant]
+  readonly attribute DOMString? localName;
+
+  [Throws, Func="IsChromeOrXBL"]
+  any setUserData(DOMString key, any data);
+  [Throws, Func="IsChromeOrXBL"]
+  any getUserData(DOMString key);
+  [ChromeOnly]
+  readonly attribute Principal nodePrincipal;
+  [ChromeOnly]
+  readonly attribute URI? baseURIObject;
+  [ChromeOnly]
+  sequence<MutationObserver> getBoundMutationObservers();
+};

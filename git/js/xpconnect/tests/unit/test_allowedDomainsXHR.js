@@ -10,7 +10,7 @@ var httpbody = "<?xml version='1.0' ?><root>0123456789</root>";
 
 var sb = cu.Sandbox(["http://www.example.com",
                      "http://localhost:4444/simple"],
-                     {wantXHRConstructor: true});
+                     { wantGlobalProperties: ["XMLHttpRequest"] });
 
 function createXHR(loc, async)
 {
@@ -32,8 +32,17 @@ function checkResults(xhr)
   return true;
 }
 
+var httpServersClosed = 0;
+function finishIfDone()
+{
+  if (++httpServersClosed == 2)
+    do_test_finished();
+}
+
 function run_test()
 {
+  do_test_pending();
+
   httpserver.registerPathHandler(testpath, serverHandler);
   httpserver.start(4444);
 
@@ -43,15 +52,7 @@ function run_test()
   // Test sync XHR sending
   cu.evalInSandbox('var createXHR = ' + createXHR.toString(), sb);
   var res = cu.evalInSandbox('var sync = createXHR("4444/simple"); sync.send(null); sync', sb);
-  checkResults(res);
-
-  // Test async XHR sending
-  var async = cu.evalInSandbox('var async = createXHR("4444/simple", true); async', sb);
-  async.addEventListener("readystatechange", function(event) {
-    if (checkResults(async))
-      httpserver.stop(do_test_finished);
-  }, false);
-  async.send(null);
+  do_check_true(checkResults(res));
 
   // negative test sync XHR sending (to ensure that the xhr do not have chrome caps, see bug 779821)
   try {
@@ -61,8 +62,32 @@ function run_test()
   } catch (e) {
     do_check_true(true);
   }
-  
-  do_test_pending();
+
+  httpserver2.stop(finishIfDone);
+
+  // Test async XHR sending
+  sb.finish = function(){
+    httpserver.stop(finishIfDone);
+  }
+
+  // We want to execute checkResults from the scope of the sandbox as well to
+  // make sure that there are no permission errors related to nsEP. For that
+  // we need to clone the function into the sandbox and make a few things
+  // available for it.
+  cu.evalInSandbox('var checkResults = ' + checkResults.toSource(), sb);
+  sb.do_check_eq = do_check_eq;
+  sb.httpbody = httpbody;
+
+  function changeListener(event) {
+    if (checkResults(async))
+      finish();
+  }
+
+  var async = cu.evalInSandbox('var async = createXHR("4444/simple", true);' +
+                               'async.addEventListener("readystatechange", ' +
+                                                       changeListener.toString() + ', false);' +
+                               'async', sb);
+  async.send(null);
 }
 
 function serverHandler(metadata, response)

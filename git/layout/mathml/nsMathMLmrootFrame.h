@@ -6,8 +6,9 @@
 #ifndef nsMathMLmrootFrame_h___
 #define nsMathMLmrootFrame_h___
 
-#include "nsCOMPtr.h"
+#include "mozilla/Attributes.h"
 #include "nsMathMLContainerFrame.h"
+#include "nsMathMLChar.h"
 
 //
 // <msqrt> and <mroot> -- form a radical
@@ -21,37 +22,48 @@ public:
 
   virtual void
   SetAdditionalStyleContext(int32_t          aIndex, 
-                            nsStyleContext*  aStyleContext);
+                            nsStyleContext*  aStyleContext) MOZ_OVERRIDE;
   virtual nsStyleContext*
-  GetAdditionalStyleContext(int32_t aIndex) const;
+  GetAdditionalStyleContext(int32_t aIndex) const MOZ_OVERRIDE;
+
+  virtual void
+  Init(nsIContent*       aContent,
+       nsContainerFrame* aParent,
+       nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
 
   NS_IMETHOD
-  Init(nsIContent*      aContent,
-       nsIFrame*        aParent,
-       nsIFrame*        aPrevInFlow);
+  TransmitAutomaticData() MOZ_OVERRIDE;
 
-  NS_IMETHOD
-  TransmitAutomaticData();
-
-  NS_IMETHOD
+  virtual void
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus);
+         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
-  virtual nscoord
-  GetIntrinsicWidth(nsRenderingContext* aRenderingContext);
+  void
+  GetRadicalXOffsets(nscoord aIndexWidth, nscoord aSqrWidth,
+                     nsFontMetrics* aFontMetrics,
+                     nscoord* aIndexOffset,
+                     nscoord* aSqrOffset);
 
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
+  virtual void
+  GetIntrinsicISizeMetrics(nsRenderingContext* aRenderingContext,
+                           nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+
+  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+
+  uint8_t
+  ScriptIncrement(nsIFrame* aFrame) MOZ_OVERRIDE
+  {
+    return (aFrame && aFrame == mFrames.LastChild()) ? 2 : 0;
+  }
 
 protected:
-  nsMathMLmrootFrame(nsStyleContext* aContext);
+  explicit nsMathMLmrootFrame(nsStyleContext* aContext);
   virtual ~nsMathMLmrootFrame();
   
-  virtual int GetSkipSides() const { return 0; }
-
   nsMathMLChar mSqrChar;
   nsRect       mBarRect;
 };

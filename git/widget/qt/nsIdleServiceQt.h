@@ -10,7 +10,7 @@
 
 #include "nsIdleService.h"
 
-#if !defined(MOZ_PLATFORM_MAEMO) && defined(MOZ_X11)
+#if defined(MOZ_X11)
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
@@ -33,18 +33,17 @@ public:
 
     static already_AddRefed<nsIdleServiceQt> GetInstance()
     {
-        nsIdleServiceQt* idleService =
-            static_cast<nsIdleServiceQt*>(nsIdleService::GetInstance().get());
+        nsRefPtr<nsIdleServiceQt> idleService =
+            nsIdleService::GetInstance().downcast<nsIdleServiceQt>();
         if (!idleService) {
             idleService = new nsIdleServiceQt();
-            NS_ADDREF(idleService);
         }
         
-        return idleService;
+        return idleService.forget();
     }
 
 private:
-#if !defined(MOZ_PLATFORM_MAEMO) && defined(MOZ_X11)
+#if defined(MOZ_X11)
     XScreenSaverInfo* mXssInfo;
 #endif
 

@@ -10,11 +10,10 @@
 #include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "base/non_thread_safe.h"
-#include "base/stats_counters.h"
 #include "base/win_util.h"
-#include "chrome/common/chrome_counters.h"
 #include "chrome/common/ipc_logging.h"
 #include "chrome/common/ipc_message_utils.h"
+#include "mozilla/ipc/ProtocolUtils.h"
 
 namespace IPC {
 //------------------------------------------------------------------------------
@@ -40,8 +39,8 @@ Channel::ChannelImpl::ChannelImpl(const std::wstring& channel_id, Mode mode,
 
   if (!CreatePipe(channel_id, mode)) {
     // The pipe may have been closed already.
-    LOG(WARNING) << "Unable to create pipe named \"" << channel_id <<
-                    "\" in " << (mode == 0 ? "server" : "client") << " mode.";
+    CHROMIUM_LOG(WARNING) << "Unable to create pipe named \"" << channel_id <<
+                             "\" in " << (mode == 0 ? "server" : "client") << " mode.";
   }
 }
 
@@ -68,6 +67,20 @@ void Channel::ChannelImpl::Init(Mode mode, Listener* listener) {
   listener_ = listener;
   waiting_connect_ = (mode == MODE_SERVER);
   processing_incoming_ = false;
+  closed_ = false;
+  output_queue_length_ = 0;
+}
+
+void Channel::ChannelImpl::OutputQueuePush(Message* msg)
+{
+  output_queue_.push(msg);
+  output_queue_length_++;
+}
+
+void Channel::ChannelImpl::OutputQueuePop()
+{
+  output_queue_.pop();
+  output_queue_length_--;
 }
 
 HANDLE Channel::ChannelImpl::GetServerPipeHandle() const {
@@ -98,17 +111,20 @@ void Channel::ChannelImpl::Close() {
 
   while (!output_queue_.empty()) {
     Message* m = output_queue_.front();
-    output_queue_.pop();
+    OutputQueuePop();
     delete m;
   }
 
   if (thread_check_.get())
     thread_check_.reset();
+
+  closed_ = true;
 }
 
 bool Channel::ChannelImpl::Send(Message* message) {
-  DCHECK(thread_check_->CalledOnValidThread());
-  chrome::Counters::ipc_send_counter().Increment();
+  if (thread_check_.get()) {
+    DCHECK(thread_check_->CalledOnValidThread());
+  }
 #ifdef IPC_MESSAGE_DEBUG_EXTRA
   DLOG(INFO) << "sending message @" << message << " on channel @" << this
              << " with type " << message->type()
@@ -119,7 +135,16 @@ bool Channel::ChannelImpl::Send(Message* message) {
   Logging::current()->OnSendMessage(message, L"");
 #endif
 
-  output_queue_.push(message);
+  if (closed_) {
+    if (mozilla::ipc::LoggingEnabled()) {
+      fprintf(stderr, "Can't send message %s, because this channel is closed.\n",
+              message->name());
+    }
+    delete message;
+    return false;
+  }
+
+  OutputQueuePush(message);
   // ensure waiting to write
   if (!waiting_connect_) {
     if (!output_state_.is_pending) {
@@ -144,15 +169,6 @@ bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
   DCHECK(pipe_ == INVALID_HANDLE_VALUE);
   const std::wstring pipe_name = PipeName(channel_id);
   if (mode == MODE_SERVER) {
-    SECURITY_ATTRIBUTES security_attributes = {0};
-    security_attributes.bInheritHandle = FALSE;
-    security_attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
-    if (!win_util::GetLogonSessionOnlyDACL(
-        reinterpret_cast<SECURITY_DESCRIPTOR**>(
-            &security_attributes.lpSecurityDescriptor))) {
-      NOTREACHED();
-    }
-
     pipe_ = CreateNamedPipeW(pipe_name.c_str(),
                              PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED |
                                 FILE_FLAG_FIRST_PIPE_INSTANCE,
@@ -163,8 +179,7 @@ bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
                              // input buffer size (XXX tune)
                              Channel::kReadBufferSize,
                              5000,      // timeout in milliseconds (XXX tune)
-                             &security_attributes);
-    LocalFree(security_attributes.lpSecurityDescriptor);
+                             NULL);
   } else {
     pipe_ = CreateFileW(pipe_name.c_str(),
                         GENERIC_READ | GENERIC_WRITE,
@@ -177,7 +192,7 @@ bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
   }
   if (pipe_ == INVALID_HANDLE_VALUE) {
     // If this process is being closed, the pipe may be gone already.
-    LOG(WARNING) << "failed to create pipe: " << GetLastError();
+    CHROMIUM_LOG(WARNING) << "failed to create pipe: " << GetLastError();
     return false;
   }
 
@@ -186,16 +201,16 @@ bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
 }
 
 bool Channel::ChannelImpl::EnqueueHelloMessage() {
-  scoped_ptr<Message> m(new Message(MSG_ROUTING_NONE,
-                                    HELLO_MESSAGE_TYPE,
-                                    IPC::Message::PRIORITY_NORMAL));
+  mozilla::UniquePtr<Message> m = mozilla::MakeUnique<Message>(MSG_ROUTING_NONE,
+                                                               HELLO_MESSAGE_TYPE,
+                                                               IPC::Message::PRIORITY_NORMAL);
   if (!m->WriteInt(GetCurrentProcessId())) {
     CloseHandle(pipe_);
     pipe_ = INVALID_HANDLE_VALUE;
     return false;
   }
 
-  output_queue_.push(m.release());
+  OutputQueuePush(m.release());
   return true;
 }
 
@@ -291,7 +306,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages(
           input_state_.is_pending = true;
           return true;
         }
-        LOG(ERROR) << "pipe error: " << err;
+        CHROMIUM_LOG(ERROR) << "pipe error: " << err;
         return false;
       }
       input_state_.is_pending = true;
@@ -308,7 +323,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages(
     } else {
       if (input_overflow_buf_.size() > (kMaximumMessageSize - bytes_read)) {
         input_overflow_buf_.clear();
-        LOG(ERROR) << "IPC message is too big";
+        CHROMIUM_LOG(ERROR) << "IPC message is too big";
         return false;
       }
       input_overflow_buf_.append(input_buf_, bytes_read);
@@ -358,13 +373,13 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages(
     output_state_.is_pending = false;
     if (!context || bytes_written == 0) {
       DWORD err = GetLastError();
-      LOG(ERROR) << "pipe error: " << err;
+      CHROMIUM_LOG(ERROR) << "pipe error: " << err;
       return false;
     }
     // Message was sent.
     DCHECK(!output_queue_.empty());
     Message* m = output_queue_.front();
-    output_queue_.pop();
+    OutputQueuePop();
     delete m;
   }
 
@@ -393,7 +408,7 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages(
 
       return true;
     }
-    LOG(ERROR) << "pipe error: " << err;
+    CHROMIUM_LOG(ERROR) << "pipe error: " << err;
     return false;
   }
 
@@ -437,6 +452,16 @@ void Channel::ChannelImpl::OnIOCompleted(MessageLoopForIO::IOContext* context,
   }
 }
 
+bool Channel::ChannelImpl::Unsound_IsClosed() const
+{
+  return closed_;
+}
+
+uint32_t Channel::ChannelImpl::Unsound_NumQueuedMessages() const
+{
+  return output_queue_length_;
+}
+
 //------------------------------------------------------------------------------
 // Channel's methods simply call through to ChannelImpl.
 Channel::Channel(const std::wstring& channel_id, Mode mode,
@@ -471,6 +496,14 @@ Channel::Listener* Channel::set_listener(Listener* listener) {
 
 bool Channel::Send(Message* message) {
   return channel_impl_->Send(message);
+}
+
+bool Channel::Unsound_IsClosed() const {
+  return channel_impl_->Unsound_IsClosed();
+}
+
+uint32_t Channel::Unsound_NumQueuedMessages() const {
+  return channel_impl_->Unsound_NumQueuedMessages();
 }
 
 }  // namespace IPC

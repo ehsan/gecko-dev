@@ -9,23 +9,12 @@
 #include "mozilla/X11Util.h"
 #endif
 
-#include "GLContext.h"
 #include "GLLibraryLoader.h"
-
+#include "mozilla/ThreadLocal.h"
 #include "nsIFile.h"
+#include "GeckoProfiler.h"
 
-typedef int EGLint;
-typedef unsigned int EGLBoolean;
-typedef unsigned int EGLenum;
-typedef void *EGLConfig;
-typedef void *EGLContext;
-typedef void *EGLDisplay;
-typedef void *EGLSurface;
-typedef void *EGLClientBuffer;
-typedef void *EGLCastToRelevantPtr;
-typedef void *EGLImage;
-typedef void *EGLSync;
-typedef uint64_t EGLTime;
+#include <bitset>
 
 #if defined(XP_WIN)
 
@@ -55,7 +44,11 @@ typedef void *EGLNativeWindowType;
 // This should really go in GLLibraryEGL.cpp but we currently reference
 // APITRACE_LIB in GLContextProviderEGL.cpp. Further refactoring
 // will come in subsequent patches on Bug 732865
-#define APITRACE_LIB "/data/local/egltrace.so"
+#define APITRACE_LIB "/data/local/tmp/egltrace.so"
+
+#ifdef MOZ_WIDGET_ANDROID
+
+#endif // MOZ_WIDGET_ANDROID
 #endif // ANDROID
 #endif
 
@@ -64,50 +57,54 @@ typedef void *EGLNativeWindowType;
 #else
 #define EGL_DEFAULT_DISPLAY  ((EGLNativeDisplayType)0)
 #endif
-#define EGL_NO_CONTEXT       ((EGLContext)0)
-#define EGL_NO_DISPLAY       ((EGLDisplay)0)
-#define EGL_NO_SURFACE       ((EGLSurface)0)
-#define EGL_NO_SYNC          ((EGLSync)0)
-
-#define EGL_DISPLAY()        sEGLLibrary.Display()
 
 namespace mozilla {
 namespace gl {
 
-#ifdef DEBUG
 #undef BEFORE_GL_CALL
 #undef AFTER_GL_CALL
 
+#ifdef DEBUG
+
+#ifndef MOZ_FUNCTION_NAME
+# ifdef __GNUC__
+#  define MOZ_FUNCTION_NAME __PRETTY_FUNCTION__
+# elif defined(_MSC_VER)
+#  define MOZ_FUNCTION_NAME __FUNCTION__
+# else
+#  define MOZ_FUNCTION_NAME __func__  // defined in C99, supported in various C++ compilers. Just raw function name.
+# endif
+#endif
+
+#ifdef MOZ_WIDGET_ANDROID
+// Record the name of the GL call for better hang stacks on Android.
+#define BEFORE_GL_CALL                      \
+    PROFILER_LABEL_FUNC(                    \
+      js::ProfileEntry::Category::GRAPHICS);\
+    BeforeGLCall(MOZ_FUNCTION_NAME)
+#else
 #define BEFORE_GL_CALL do {          \
     BeforeGLCall(MOZ_FUNCTION_NAME); \
 } while (0)
+#endif
 
 #define AFTER_GL_CALL do {           \
     AfterGLCall(MOZ_FUNCTION_NAME);  \
 } while (0)
-// We rely on the fact that GLLibraryEGL.h #defines BEFORE_GL_CALL and
-// AFTER_GL_CALL to nothing if !defined(DEBUG).
+#else
+#ifdef MOZ_WIDGET_ANDROID
+// Record the name of the GL call for better hang stacks on Android.
+#define BEFORE_GL_CALL PROFILER_LABEL_FUNC(js::ProfileEntry::Category::GRAPHICS)
+#else
+#define BEFORE_GL_CALL
 #endif
-
-static inline void BeforeGLCall(const char* glFunction)
-{
-    if (GLContext::DebugMode()) {
-        if (GLContext::DebugMode() & GLContext::DebugTrace)
-            printf_stderr("[egl] > %s\n", glFunction);
-    }
-}
-
-static inline void AfterGLCall(const char* glFunction)
-{
-    if (GLContext::DebugMode() & GLContext::DebugTrace) {
-        printf_stderr("[egl] < %s\n", glFunction);
-    }
-}
+#define AFTER_GL_CALL
+#endif
 
 class GLLibraryEGL
 {
 public:
-    GLLibraryEGL() 
+    GLLibraryEGL()
         : mInitialized(false),
           mEGLLibrary(nullptr),
           mIsANGLE(false)
@@ -132,19 +129,20 @@ public:
         EXT_create_context_robustness,
         KHR_image,
         KHR_fence_sync,
+        ANDROID_native_fence_sync,
         Extensions_Max
     };
 
-    bool IsExtensionSupported(EGLExtensions aKnownExtension) {
+    bool IsExtensionSupported(EGLExtensions aKnownExtension) const {
         return mAvailableExtensions[aKnownExtension];
     }
 
     void MarkExtensionUnsupported(EGLExtensions aKnownExtension) {
-        mAvailableExtensions[aKnownExtension] = 0;
+        mAvailableExtensions[aKnownExtension] = false;
     }
 
 protected:
-    GLContext::ExtensionBitset<Extensions_Max> mAvailableExtensions;
+    std::bitset<Extensions_Max> mAvailableExtensions;
 
 public:
 
@@ -154,6 +152,14 @@ public:
         EGLDisplay disp = mSymbols.fGetDisplay(display_id);
         AFTER_GL_CALL;
         return disp;
+    }
+
+    EGLBoolean fTerminate(EGLDisplay display)
+    {
+        BEFORE_GL_CALL;
+        EGLBoolean ret = mSymbols.fTerminate(display);
+        AFTER_GL_CALL;
+        return ret;
     }
 
     EGLSurface fGetCurrentSurface(EGLint id)
@@ -311,7 +317,12 @@ public:
     const GLubyte* fQueryString(EGLDisplay dpy, EGLint name)
     {
         BEFORE_GL_CALL;
-        const GLubyte* b = mSymbols.fQueryString(dpy, name);
+        const GLubyte* b;
+        if (mSymbols.fQueryStringImplementationANDROID) {
+          b = mSymbols.fQueryStringImplementationANDROID(dpy, name);
+        } else {
+          b = mSymbols.fQueryString(dpy, name);
+        }
         AFTER_GL_CALL;
         return b;
     }
@@ -421,12 +432,20 @@ public:
         return b;
     }
 
+    EGLint fDupNativeFenceFDANDROID(EGLDisplay dpy, EGLSync sync)
+    {
+        MOZ_ASSERT(mSymbols.fDupNativeFenceFDANDROID);
+        BEFORE_GL_CALL;
+        EGLint ret = mSymbols.fDupNativeFenceFDANDROID(dpy, sync);
+        AFTER_GL_CALL;
+        return ret;
+    }
 
     EGLDisplay Display() {
         return mEGLDisplay;
     }
 
-    bool IsANGLE() {
+    bool IsANGLE() const {
         return mIsANGLE;
     }
 
@@ -442,20 +461,15 @@ public:
         return IsExtensionSupported(KHR_gl_texture_2D_image);
     }
 
-    bool HasKHRLockSurface() {
-        return IsExtensionSupported(KHR_lock_surface);
-    }
-
     bool HasANGLESurfaceD3DTexture2DShareHandle() {
         return IsExtensionSupported(ANGLE_surface_d3d_texture_2d_share_handle);
     }
 
-    bool HasRobustness() {
+    bool HasRobustness() const {
         return IsExtensionSupported(EXT_create_context_robustness);
     }
 
     bool EnsureInitialized();
-    void LoadConfigSensitiveSymbols();
 
     void DumpEGLConfig(EGLConfig cfg);
     void DumpEGLConfigs();
@@ -463,6 +477,8 @@ public:
     struct {
         typedef EGLDisplay (GLAPIENTRY * pfnGetDisplay)(void *display_id);
         pfnGetDisplay fGetDisplay;
+        typedef EGLBoolean (GLAPIENTRY * pfnTerminate)(EGLDisplay dpy);
+        pfnTerminate fTerminate;
         typedef EGLSurface (GLAPIENTRY * pfnGetCurrentSurface)(EGLint);
         pfnGetCurrentSurface fGetCurrentSurface;
         typedef EGLContext (GLAPIENTRY * pfnGetCurrentContext)(void);
@@ -504,6 +520,7 @@ public:
         pfnCopyBuffers fCopyBuffers;
         typedef const GLubyte* (GLAPIENTRY * pfnQueryString)(EGLDisplay, EGLint name);
         pfnQueryString fQueryString;
+        pfnQueryString fQueryStringImplementationANDROID;
         typedef EGLBoolean (GLAPIENTRY * pfnQueryContext)(EGLDisplay dpy, EGLContext ctx,
                                                           EGLint attribute, EGLint *value);
         pfnQueryContext fQueryContext;
@@ -535,7 +552,41 @@ public:
         pfnClientWaitSync fClientWaitSync;
         typedef EGLBoolean (GLAPIENTRY * pfnGetSyncAttrib)(EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLint *value);
         pfnGetSyncAttrib fGetSyncAttrib;
+        typedef EGLint (GLAPIENTRY * pfnDupNativeFenceFDANDROID)(EGLDisplay dpy, EGLSync sync);
+        pfnDupNativeFenceFDANDROID fDupNativeFenceFDANDROID;
     } mSymbols;
+
+#ifdef DEBUG
+    static void BeforeGLCall(const char* glFunction);
+    static void AfterGLCall(const char* glFunction);
+#endif
+
+#ifdef MOZ_B2G
+    EGLContext CachedCurrentContext() {
+        return sCurrentContext.get();
+    }
+    void UnsetCachedCurrentContext() {
+        sCurrentContext.set(nullptr);
+    }
+    void SetCachedCurrentContext(EGLContext aCtx) {
+        sCurrentContext.set(aCtx);
+    }
+    bool CachedCurrentContextMatches() {
+        return sCurrentContext.get() == fGetCurrentContext();
+    }
+
+private:
+    static ThreadLocal<EGLContext> sCurrentContext;
+public:
+
+#else
+    EGLContext CachedCurrentContext() {
+        return nullptr;
+    }
+    void UnsetCachedCurrentContext() {}
+    void SetCachedCurrentContext(EGLContext aCtx) { }
+    bool CachedCurrentContextMatches() { return true; }
+#endif
 
 private:
     bool mInitialized;
@@ -544,6 +595,9 @@ private:
 
     bool mIsANGLE;
 };
+
+extern GLLibraryEGL sEGLLibrary;
+#define EGL_DISPLAY()        sEGLLibrary.Display()
 
 } /* namespace gl */
 } /* namespace mozilla */

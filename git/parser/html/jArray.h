@@ -20,9 +20,12 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef jArray_h_
-#define jArray_h_
+#ifndef jArray_h
+#define jArray_h
 
+#include "mozilla/Attributes.h"
+#include "mozilla/BinarySearch.h"
+#include "mozilla/NullPtr.h"
 #include "nsDebug.h"
 
 template<class T, class L>
@@ -32,19 +35,9 @@ struct staticJArray {
   operator T*() { return arr; }
   T& operator[] (L const index) { return ((T*)arr)[index]; }
   L binarySearch(T const elem) {
-    L lo = 0;
-    L hi = length - 1;
-    while (lo <= hi) {
-      L mid = (lo + hi) / 2;
-      if (arr[mid] > elem) {
-        hi = mid - 1;
-      } else if (arr[mid] < elem) {
-        lo = mid + 1;
-      } else {
-        return mid;
-      }
-    }
-    return -1;
+    size_t idx;
+    bool found = mozilla::BinarySearch(arr, 0, length, elem, &idx);
+    return found ? idx : -1;
   }
 };
 
@@ -76,7 +69,7 @@ class autoJArray {
      , length(0)
     {
     }
-    autoJArray(const jArray<T,L>& other)
+    MOZ_IMPLICIT autoJArray(const jArray<T,L>& other)
      : arr(other.arr)
      , length(other.length)
     {
@@ -99,13 +92,13 @@ class autoJArray {
       arr = other.arr;
       length = other.length;
     }
-    void operator=(L zero) {
+    void operator=(mozilla::NullptrT n) {
       // Make assigning null to an array in Java delete the buffer in C++
-      NS_ASSERTION(!zero, "Non-zero integer assigned to jArray.");
+      MOZ_ASSERT(n == nullptr);
       delete[] arr;
-      arr = 0;
+      arr = nullptr;
       length = 0;
     }
 };
 
-#endif // jArray_h_
+#endif // jArray_h

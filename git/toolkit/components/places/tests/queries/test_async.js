@@ -1,10 +1,10 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let gTests = [
+let tests = [
   {
     desc: "nsNavHistoryFolderResultNode: Basic test, asynchronously open and " +
           "close container with a single child",
@@ -104,6 +104,8 @@ let gTests = [
 function Test() {
   // This maps a state name to the number of times it's been observed.
   this.stateCounts = {};
+  // Promise object resolved when the next test can be run.
+  this.deferNextTest = Promise.defer();
 }
 
 Test.prototype = {
@@ -217,10 +219,11 @@ Test.prototype = {
   },
 
   /**
-   * Override this if need be.
+   * Starts the test and returns a promise resolved when the test completes.
    */
   run: function () {
     this.openContainer();
+    return this.deferNextTest.promise;
   },
 
   /**
@@ -235,7 +238,7 @@ Test.prototype = {
       { type: "folder" },
       { type: "bookmark", uri: "place:terms=foo" }
     ]);
-    populateDB(this.data);
+    yield task_populateDB(this.data);
 
     // Make a query.
     this.query = PlacesUtils.history.getNewQuery();
@@ -251,7 +254,9 @@ Test.prototype = {
    */
   success: function () {
     this.result.removeObserver(this.observer);
-    doNextTest();
+
+    // Resolve the promise object that indicates that the next test can be run.
+    this.deferNextTest.resolve();
   }
 };
 
@@ -278,7 +283,7 @@ let DataHelper = {
 
   /**
    * Converts an array of simple bookmark item descriptions to the more verbose
-   * format required by populateDB() in head_queries.js.
+   * format required by task_populateDB() in head_queries.js.
    *
    * @param  aData
    *         An array of objects, each of which describes a bookmark item.
@@ -308,7 +313,6 @@ let DataHelper = {
       case "folder":
         return {
           isFolder: true,
-          readOnly: false,
           parentFolder: dat.parent,
           index: PlacesUtils.bookmarks.DEFAULT_INDEX,
           title: dat.title,
@@ -339,22 +343,23 @@ let DataHelper = {
   }
 };
 
-function doNextTest() {
-  remove_all_bookmarks();
-  if (gTests.length === 0) {
-    print("All tests done, exiting");
-    do_test_finished();
-  }
-  else {
-    let test = gTests.shift();
-    test.__proto__ = new Test();
-    test.setup();
-    print("------ Running test: " + test.desc);
-    test.run();
-  }
+function run_test()
+{
+  run_next_test();
 }
 
-function run_test() {
-  do_test_pending();
-  doNextTest();
-}
+add_task(function test_async()
+{
+  for (let [, test] in Iterator(tests)) {
+    remove_all_bookmarks();
+
+    test.__proto__ = new Test();
+    yield test.setup();
+
+    print("------ Running test: " + test.desc);
+    yield test.run();
+  }
+
+  remove_all_bookmarks();
+  print("All tests done, exiting");
+});

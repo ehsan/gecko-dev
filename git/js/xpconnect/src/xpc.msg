@@ -62,6 +62,7 @@ XPC_MSG_DEF(NS_ERROR_XPC_BAD_INITIALIZER_NAME           , "Bad initializer name 
 XPC_MSG_DEF(NS_ERROR_XPC_HAS_BEEN_SHUTDOWN              , "Operation failed because the XPConnect subsystem has been shutdown")
 XPC_MSG_DEF(NS_ERROR_XPC_CANT_MODIFY_PROP_ON_WN         , "Cannot modify properties of a WrappedNative")
 XPC_MSG_DEF(NS_ERROR_XPC_BAD_CONVERT_JS_ZERO_ISNOT_NULL , "Could not convert JavaScript argument - 0 was passed, expected object. Did you mean null?")
+XPC_MSG_DEF(NS_ERROR_XPC_CANT_PASS_CPOW_TO_NATIVE       , "It's illegal to pass a CPOW to native code")
 
 
 /* common global codes (from nsError.h) */
@@ -72,13 +73,13 @@ XPC_MSG_DEF(NS_ERROR_ALREADY_INITIALIZED           , "Component already initiali
 XPC_MSG_DEF(NS_ERROR_NOT_IMPLEMENTED               , "Method not implemented")
 XPC_MSG_DEF(NS_NOINTERFACE                         , "Component does not have requested interface")
 XPC_MSG_DEF(NS_ERROR_NO_INTERFACE                  , "Component does not have requested interface")
+XPC_MSG_DEF(NS_ERROR_ILLEGAL_VALUE                 , "Illegal value")
 XPC_MSG_DEF(NS_ERROR_INVALID_POINTER               , "Invalid pointer")
 XPC_MSG_DEF(NS_ERROR_NULL_POINTER                  , "Null pointer")
 XPC_MSG_DEF(NS_ERROR_ABORT                         , "Abort")
 XPC_MSG_DEF(NS_ERROR_FAILURE                       , "Failure")
 XPC_MSG_DEF(NS_ERROR_UNEXPECTED                    , "Unexpected error")
 XPC_MSG_DEF(NS_ERROR_OUT_OF_MEMORY                 , "Out of Memory")
-XPC_MSG_DEF(NS_ERROR_ILLEGAL_VALUE                 , "Illegal value")
 XPC_MSG_DEF(NS_ERROR_INVALID_ARG                   , "Invalid argument")
 XPC_MSG_DEF(NS_ERROR_NO_AGGREGATION                , "Component does not support aggregation")
 XPC_MSG_DEF(NS_ERROR_NOT_AVAILABLE                 , "Component is not available")
@@ -149,6 +150,7 @@ XPC_MSG_DEF(NS_ERROR_OFFLINE                        , "The requested action coul
 XPC_MSG_DEF(NS_ERROR_PORT_ACCESS_NOT_ALLOWED        , "Establishing a connection to an unsafe or otherwise banned port was prohibited")
 XPC_MSG_DEF(NS_ERROR_NET_RESET                      , "The connection was established, but no data was ever received")
 XPC_MSG_DEF(NS_ERROR_NET_INTERRUPT                  , "The connection was established, but the data transfer was interrupted")
+XPC_MSG_DEF(NS_ERROR_NET_PARTIAL_TRANSFER           , "A transfer was only partially done when it completed")
 XPC_MSG_DEF(NS_ERROR_NOT_RESUMABLE                  , "This request is not resumable, but it was tried to resume it, or to request resume-specific data")
 XPC_MSG_DEF(NS_ERROR_ENTITY_CHANGED                 , "It was attempted to resume the request, but the entity has changed in the meantime")
 XPC_MSG_DEF(NS_ERROR_REDIRECT_LOOP                  , "The request failed as a result of a detected redirection loop")
@@ -165,6 +167,8 @@ XPC_MSG_DEF(NS_ERROR_DNS_LOOKUP_QUEUE_FULL          , "The DNS lookup queue is f
 XPC_MSG_DEF(NS_ERROR_UNKNOWN_PROXY_HOST             , "The lookup of the proxy hostname failed")
 XPC_MSG_DEF(NS_ERROR_UNKNOWN_SOCKET_TYPE            , "The specified socket type does not exist")
 XPC_MSG_DEF(NS_ERROR_SOCKET_CREATE_FAILED           , "The specified socket type could not be created")
+XPC_MSG_DEF(NS_ERROR_SOCKET_ADDRESS_NOT_SUPPORTED   , "The specified socket address type is not supported")
+XPC_MSG_DEF(NS_ERROR_SOCKET_ADDRESS_IN_USE          , "Some other socket is already using the specified address.")
 XPC_MSG_DEF(NS_ERROR_CACHE_KEY_NOT_FOUND            , "Cache key could not be found")
 XPC_MSG_DEF(NS_ERROR_CACHE_DATA_IS_STREAM           , "Cache data is a stream")
 XPC_MSG_DEF(NS_ERROR_CACHE_DATA_IS_NOT_STREAM       , "Cache data is not a stream")
@@ -188,3 +192,28 @@ XPC_MSG_DEF(NS_ERROR_PLUGIN_TIME_RANGE_NOT_SUPPORTED, "Clearing site data by tim
 
 /* character converter related codes (from nsIUnicodeDecoder.h) */
 XPC_MSG_DEF(NS_ERROR_ILLEGAL_INPUT                  , "The input characters have illegal sequences")
+
+/* Codes related to signd jars */
+XPC_MSG_DEF(NS_ERROR_SIGNED_JAR_NOT_SIGNED          , "The JAR is not signed.")
+XPC_MSG_DEF(NS_ERROR_SIGNED_JAR_MODIFIED_ENTRY      , "An entry in the JAR has been modified after the JAR was signed.")
+XPC_MSG_DEF(NS_ERROR_SIGNED_JAR_UNSIGNED_ENTRY      , "An entry in the JAR has not been signed.")
+XPC_MSG_DEF(NS_ERROR_SIGNED_JAR_ENTRY_MISSING       , "An entry is missing from the JAR file.")
+XPC_MSG_DEF(NS_ERROR_SIGNED_JAR_WRONG_SIGNATURE     , "The JAR's signature is wrong.")
+XPC_MSG_DEF(NS_ERROR_SIGNED_JAR_ENTRY_TOO_LARGE     , "An entry in the JAR is too large.")
+XPC_MSG_DEF(NS_ERROR_SIGNED_JAR_ENTRY_INVALID       , "An entry in the JAR is invalid.")
+XPC_MSG_DEF(NS_ERROR_SIGNED_JAR_MANIFEST_INVALID    , "The JAR's manifest or signature file is invalid.")
+
+/* Codes related to signed manifests */
+XPC_MSG_DEF(NS_ERROR_SIGNED_APP_MANIFEST_INVALID   , "The signed app manifest or signature file is invalid.")
+
+/* Codes for printing-related errors. */
+XPC_MSG_DEF(NS_ERROR_GFX_PRINTER_NO_PRINTER_AVAILABLE , "No printers available.")
+XPC_MSG_DEF(NS_ERROR_GFX_PRINTER_NAME_NOT_FOUND       , "The selected printer could not be found.")
+XPC_MSG_DEF(NS_ERROR_GFX_PRINTER_COULD_NOT_OPEN_FILE  , "Failed to open output file for print to file.")
+XPC_MSG_DEF(NS_ERROR_GFX_PRINTER_STARTDOC             , "Printing failed while starting the print job.")
+XPC_MSG_DEF(NS_ERROR_GFX_PRINTER_ENDDOC               , "Printing failed while completing the print job.")
+XPC_MSG_DEF(NS_ERROR_GFX_PRINTER_STARTPAGE            , "Printing failed while starting a new page.")
+XPC_MSG_DEF(NS_ERROR_GFX_PRINTER_DOC_IS_BUSY          , "Cannot print this document yet, it is still being loaded.")
+
+/* Codes related to content */
+XPC_MSG_DEF(NS_ERROR_CONTENT_CRASHED                  , "The process that hosted this content has crashed.")

@@ -34,6 +34,16 @@
                   name="browser.startup.homepage"
                   type="wstring"/>
 
+#ifdef HAVE_SHELL_SERVICE
+      <preference id="browser.shell.checkDefaultBrowser"
+                  name="browser.shell.checkDefaultBrowser"
+                  type="bool"/>
+
+      <preference id="pref.general.disable_button.default_browser"
+                  name="pref.general.disable_button.default_browser"
+                  type="bool"/>
+#endif
+
       <preference id="pref.browser.homepage.disable_button.current_page"
                   name="pref.browser.homepage.disable_button.current_page"
                   type="bool"/>
@@ -50,13 +60,6 @@
                   onchange="gMainPane.updateBrowserStartupLastSession();"/>
 
       <!-- Downloads -->
-      <preference id="browser.download.manager.showWhenStarting"
-                  name="browser.download.manager.showWhenStarting"
-                  type="bool"
-                  onchange="gMainPane.showDownloadsWhenStartingPrefChanged();"/>
-      <preference id="browser.download.manager.closeWhenDone"
-                  name="browser.download.manager.closeWhenDone"
-                  type="bool"/>
       <preference id="browser.download.useDownloadDir"
                   name="browser.download.useDownloadDir"
                   type="bool"/>
@@ -74,6 +77,38 @@
     <groupbox id="startupGroup">
       <caption label="&startup.label;"/>
 
+#ifdef MOZ_DEV_EDITION
+      <vbox id="separateProfileBox">
+        <checkbox id="separateProfileMode"
+                  label="&separateProfileMode.label;"/>
+        <hbox align="center" class="indent">
+          <label id="useFirefoxSync">&useFirefoxSync.label;</label>
+          <label id="getStarted" class="text-link">&getStarted.label;</label>
+        </hbox>
+      </vbox>
+#endif
+
+#ifdef HAVE_SHELL_SERVICE
+      <vbox id="defaultBrowserBox">
+        <hbox align="center">
+          <checkbox id="alwaysCheckDefault" preference="browser.shell.checkDefaultBrowser"
+                    label="&alwaysCheckDefault2.label;" accesskey="&alwaysCheckDefault2.accesskey;"/>
+        </hbox>
+        <deck id="setDefaultPane">
+          <hbox align="center" class="indent">
+            <label id="isNotDefaultLabel" flex="1">&isNotDefault.label;</label>
+            <button id="setDefaultButton"
+                    label="&setAsMyDefaultBrowser2.label;" accesskey="&setAsMyDefaultBrowser2.accesskey;"
+                    oncommand="gMainPane.setDefaultBrowser();"
+                    preference="pref.general.disable_button.default_browser"/>
+          </hbox>
+          <hbox align="center" class="indent">
+            <label id="isDefaultLabel" flex="1">&isDefault.label;</label>
+          </hbox>
+        </deck>
+        <separator class="thin"/>
+      </vbox>
+#endif
       <hbox align="center">
         <label value="&startupPage.label;" accesskey="&startupPage.accesskey;"
                control="browserStartupPage"/>
@@ -117,16 +152,6 @@
     <groupbox id="downloadsGroup">
       <caption label="&downloads.label;"/>
 
-      <checkbox id="showWhenDownloading" label="&showWhenDownloading.label;"
-                accesskey="&showWhenDownloading.accesskey;"
-                preference="browser.download.manager.showWhenStarting"
-                onsyncfrompreference="return gMainPane.readShowDownloadsWhenStarting();"/>
-      <checkbox id="closeWhenDone" label="&closeWhenDone.label;"
-                accesskey="&closeWhenDone.accesskey;" class="indent"
-                preference="browser.download.manager.closeWhenDone"/>
-
-      <separator class="thin"/>
-
       <radiogroup id="saveWhere"
                   preference="browser.download.useDownloadDir"
                   onsyncfrompreference="return gMainPane.readUseDownloadDir();">
@@ -157,22 +182,6 @@
                accesskey="&alwaysAsk.accesskey;"/>
       </radiogroup>
     </groupbox>
-
-    <hbox class="bottomBox">
-      <groupbox id="addonsMgrGroup" orient="horizontal" flex="1">
-        <caption label="&addonsMgr.label;"/>
-
-        <description control="manageAddons"
-#ifdef XP_WIN
-                     flex="1">&manageAddonsDescWin.label;</description>
-#else
-                     flex="1">&manageAddonsDescUnix2.label;</description>
-#endif
-        <button id="manageAddons" label="&manageAddons.label;"
-                accesskey="&manageAddons.accesskey;"
-                oncommand="gMainPane.showAddonsMgr();"/>
-      </groupbox>
-    </hbox>
 
   </prefpane>
 

@@ -6,15 +6,14 @@
 
 #include "nsISupports.idl"
 
-interface imgIDecoderObserver;
-
 %{C++
-#include "gfxImageSurface.h"
 #include "gfxContext.h"
 #include "gfxMatrix.h"
 #include "gfxRect.h"
-#include "gfxPattern.h"
-#include "gfxASurface.h"
+#include "GraphicsFilter.h"
+#include "mozilla/gfx/2D.h"
+#include "mozilla/Maybe.h"
+#include "mozilla/RefPtr.h"
 #include "nsRect.h"
 #include "nsSize.h"
 #include "limits.h"
@@ -30,34 +29,47 @@ class nsIFrame;
 
 namespace mozilla {
 class TimeStamp;
+class SVGImageContext;
+}
+
+namespace mozilla {
+namespace image {
+class ImageRegion;
+struct Orientation;
+}
 }
 
 %}
 
-[ptr] native gfxImageSurface(gfxImageSurface);
-[ptr] native gfxASurface(gfxASurface);
-native gfxImageFormat(gfxASurface::gfxImageFormat);
 [ptr] native gfxContext(gfxContext);
 [ref] native gfxMatrix(gfxMatrix);
 [ref] native gfxRect(gfxRect);
-native gfxGraphicsFilter(gfxPattern::GraphicsFilter);
+[ref] native gfxSize(gfxSize);
+native gfxGraphicsFilter(GraphicsFilter);
 [ref] native nsIntRect(nsIntRect);
+native nsIntRectByVal(nsIntRect);
 [ref] native nsIntSize(nsIntSize);
+native nsSize(nsSize);
 [ptr] native nsIFrame(nsIFrame);
 [ptr] native ImageContainer(mozilla::layers::ImageContainer);
+[ref] native ImageRegion(mozilla::image::ImageRegion);
 [ptr] native LayerManager(mozilla::layers::LayerManager);
+native Orientation(mozilla::image::Orientation);
 [ref] native TimeStamp(mozilla::TimeStamp);
+[ref] native MaybeSVGImageContext(mozilla::Maybe<mozilla::SVGImageContext>);
+native TempRefSourceSurface(mozilla::TemporaryRef<mozilla::gfx::SourceSurface>);
+native TempRefImgIContainer(already_AddRefed<imgIContainer>);
+native nsIntSizeByVal(nsIntSize);
 
 
 /**
  * imgIContainer is the interface that represents an image. It allows
- * access to frames as Thebes surfaces, and permits users to extract subregions
- * as other imgIContainers. It also allows drawing of images on to Thebes
- * contexts.
+ * access to frames as Thebes surfaces. It also allows drawing of images
+ * onto Thebes contexts.
  *
  * Internally, imgIContainer also manages animation of images.
  */
-[scriptable, uuid(ead94080-cfd6-4a3e-8353-bd45333061d2)]
+[scriptable, builtinclass, uuid(14ea6fa5-183e-4409-ac88-110bd2e05292)]
 interface imgIContainer : nsISupports
 {
   /**
@@ -71,6 +83,40 @@ interface imgIContainer : nsISupports
    * zero is returned, and an exception will be thrown.
    */
   readonly attribute int32_t height;
+
+  /**
+   * The intrinsic size of this image in appunits. If the image has no intrinsic
+   * size in a dimension, -1 will be returned for that dimension. In the case of
+   * any error, an exception will be thrown.
+   */
+  [noscript] readonly attribute nsSize intrinsicSize;
+
+  /**
+   * The (dimensionless) intrinsic ratio of this image. In the case of any error,
+   * an exception will be thrown.
+   */
+  [noscript] readonly attribute nsSize intrinsicRatio;
+
+  /**
+   * Given a size at which this image will be displayed, and the drawing
+   * parameters affecting how it will be drawn, returns the image size which
+   * should be used to draw to produce the highest quality result. This is the
+   * appropriate size, for example, to use as an input to the pixel snapping
+   * algorithm.
+   *
+   * For best results the size returned by this method should not be cached. It
+   * can change over time due to changes in the internal state of the image.
+   *
+   * @param aDest The size of the destination rect into which this image will be
+   *              drawn, in device pixels.
+   * @param aWhichFrame Frame specifier of the FRAME_* variety.
+   * @param aFilter The filter to be used if we're scaling the image.
+   * @param aFlags Flags of the FLAG_* variety
+   */
+  [notxpcom, nostdcall] nsIntSizeByVal optimalImageSizeForDest([const] in gfxSize aDest,
+                                                               in uint32_t aWhichFrame,
+                                                               in gfxGraphicsFilter aFilter,
+                                                               in uint32_t aFlags);
 
   /**
     * Enumerated values for the 'type' attribute (below).
@@ -97,12 +143,6 @@ interface imgIContainer : nsISupports
   readonly attribute boolean animated;
 
   /**
-   * Whether the current frame is opaque; that is, needs the background painted
-   * behind it.
-   */
-  readonly attribute boolean currentFrameIsOpaque;
-
-  /**
    * Flags for imgIContainer operations.
    *
    * Meanings:
@@ -123,6 +163,10 @@ interface imgIContainer : nsISupports
    *
    * FLAG_CLAMP: Extend the image to the fill area by clamping image sample
    * coordinates instead of by tiling. This only affects 'draw'.
+   *
+   * FLAG_HIGH_QUALITY_SCALING: A hint as to whether this image should be
+   * scaled using the high quality scaler. Do not set this if not drawing to
+   * a window or not listening to invalidations.
    */
 
   const long FLAG_NONE            = 0x0;
@@ -130,6 +174,21 @@ interface imgIContainer : nsISupports
   const long FLAG_DECODE_NO_PREMULTIPLY_ALPHA = 0x2;
   const long FLAG_DECODE_NO_COLORSPACE_CONVERSION = 0x4;
   const long FLAG_CLAMP           = 0x8;
+  const long FLAG_HIGH_QUALITY_SCALING = 0x10;
+  /**
+   * Can be passed to GetFrame when the caller wants a DataSourceSurface
+   * instead of a hardware accelerated surface. This can be important for
+   * performance (by avoiding an upload to/readback from the GPU) when the
+   * caller knows they want a SourceSurface of type DATA.
+   */
+  const long FLAG_WANT_DATA_SURFACE = 0x20;
+  /**
+   * Forces drawing to happen rather than taking cached rendering from the
+   * surface cache. This is used when we are printing, for example, where we
+   * want the vector commands from VectorImages to end up in the PDF output
+   * rather than a cached rendering at screen resolution.
+   */
+  const long FLAG_BYPASS_SURFACE_CACHE = 0x40;
 
   /**
     * Constants for specifying various "special" frames.
@@ -146,92 +205,157 @@ interface imgIContainer : nsISupports
 
   /**
    * Get a surface for the given frame. This may be a platform-native,
-   * optimized surface, so you cannot inspect its pixel data.
+   * optimized surface, so you cannot inspect its pixel data. If you
+   * need that, use SourceSurface::GetDataSurface.
    *
    * @param aWhichFrame Frame specifier of the FRAME_* variety.
    * @param aFlags Flags of the FLAG_* variety
    */
-  [noscript] gfxASurface getFrame(in uint32_t aWhichFrame,
-                                  in uint32_t aFlags);
+  [noscript, notxpcom] TempRefSourceSurface getFrame(in uint32_t aWhichFrame,
+                                                     in uint32_t aFlags);
+
+  /**
+   * Whether this image is opaque (i.e., needs a background painted behind it).
+   */
+  [notxpcom] boolean isOpaque();
 
   /**
    * Attempts to create an ImageContainer (and Image) containing the current
    * frame. Only valid for RASTER type images.
    */
-  [noscript] ImageContainer getImageContainer();
+  [noscript] ImageContainer getImageContainer(in LayerManager aManager);
 
   /**
-   * Create and return a new copy of the given frame that you can write to
-   * and otherwise inspect the pixels of.
+   * Draw the requested frame of this image onto the context specified.
    *
-   * @param aWhichFrame Frame specifier of the FRAME_* variety.
-   * @param aFlags Flags of the FLAG_* variety
-   */
-  [noscript] gfxImageSurface copyFrame(in uint32_t aWhichFrame,
-                                       in uint32_t aFlags);
-
-  /**
-   * Create a new imgContainer that contains only a single frame, which itself
-   * contains a subregion of the given frame.
+   * Drawing an image involves scaling it to a certain size (which may be
+   * implemented as a "smart" scale by substituting an HQ-scaled frame or
+   * rendering at a high DPI), and then selecting a region of that image to
+   * draw. That region is drawn onto the graphics context and in the process
+   * transformed by the context matrix, which determines the final area that is
+   * filled. The basic process looks like this:
    *
-   * @param aWhichFrame Frame specifier of the FRAME_* variety.
-   * @param aRect the area of the current frame to be duplicated in the
-   *              returned imgContainer's frame.
-   * @param aFlags Flags of the FLAG_* variety
-   */
-  [noscript] imgIContainer extractFrame(in uint32_t aWhichFrame,
-                                        [const] in nsIntRect aRect,
-                                        in uint32_t aFlags);
-
-  /**
-   * Draw the current frame on to the context specified.
+   *                           +------------------+
+   *                           |      Image       |
+   *                           |                  |
+   *                           | intrinsic width  |
+   *                           |        X         |
+   *                           | intrinsic height |
+   *                           +------------------+
+   *                          /                    \
+   *                         /                      \
+   *                        /    (scale to aSize)    \
+   *                       /                          \
+   *                      +----------------------------+
+   *                      |                            |
+   *                      |        Scaled Image        |
+   *                      | aSize.width X aSize.height |
+   *                      |                            |
+   *                      |       +---------+          |
+   *                      |       | aRegion |          |
+   *                      |       +---------+          |
+   *                      +-------(---------(----------+
+   *                              |         |
+   *                             /           \
+   *                            |  (transform |
+   *                           /  by aContext  \
+   *                          |     matrix)     |
+   *                         /                   \
+   *                        +---------------------+
+   *                        |                     |
+   *                        |      Fill Rect      |
+   *                        |                     |
+   *                        +---------------------+
+   *
+   * The region may extend outside of the scaled image's boundaries. It's
+   * actually a region in tiled image space, which is formed by tiling the
+   * scaled image infinitely in every direction. Drawing with a region larger
+   * than the scaled image thus causes the filled area to contain multiple tiled
+   * copies of the image, which looks like this:
+   *
+   *           ....................................................
+   *           :                :                :                :
+   *           :      Tile      :      Tile      :      Tile      :
+   *           :        +------------[aRegion]------------+       :
+   *           :........|.......:................:........|.......:
+   *           :        |       :                :        |       :
+   *           :      Ti|le     :  Scaled Image  :      Ti|le     :
+   *           :        |       :                :        |       :
+   *           :........|.......:................:........|.......:
+   *           :        +---------------------------------+       :
+   *           :      Ti|le     :      Tile      :      Ti|le     :
+   *           :       /        :                :         \      :
+   *           :......(.........:................:..........).....:
+   *                  |                                     |
+   *                 /                                       \
+   *                |      (transform by aContext matrix)     |
+   *               /                                           \
+   *              +---------------------------------------------+
+   *              |     :                                 :     |
+   *              |.....:.................................:.....|
+   *              |     :                                 :     |
+   *              |     :           Tiled Fill            :     |
+   *              |     :                                 :     |
+   *              |.....:.................................:.....|
+   *              |     :                                 :     |
+   *              +---------------------------------------------+
+   *
    *
    * @param aContext The Thebes context to draw the image to.
+   * @param aSize The size to which the image should be scaled before drawing.
+   *              This requirement may be satisfied using HQ scaled frames,
+   *              selecting from different resolution layers, drawing at a
+   *              higher DPI, or just performing additional scaling on the
+   *              graphics context. Callers can use optimalImageSizeForDest()
+   *              to determine the best choice for this parameter if they have
+   *              no special size requirements.
+   * @param aRegion The region in tiled image space which will be drawn onto the
+   *                graphics context. aRegion is in the coordinate space of the
+   *                image after it has been scaled to aSize - that is, the image
+   *                is scaled first, and then aRegion is applied. When aFlags
+   *                includes FLAG_CLAMP, the image will be extended to this area
+   *                by clamping image sample coordinates. Otherwise, the image
+   *                will be automatically tiled as necessary. aRegion can also
+   *                optionally contain a second region which restricts the set of
+   *                pixels we're allowed to sample from when drawing; this is
+   *                only of use to callers which need to draw with pixel snapping.
+   * @param aWhichFrame Frame specifier of the FRAME_* variety.
    * @param aFilter The filter to be used if we're scaling the image.
-   * @param aUserSpaceToImageSpace The transformation from user space (e.g.,
-   *                               appunits) to image space.
-   * @param aFill The area in the context to draw pixels to. When aFlags includes
-   *              FLAG_CLAMP, the image will be extended to this area by clampling
-   *              image sample coordinates. Otherwise, the image will be
-   *              automatically tiled as necessary.
-   * @param aSubimage The area of the image, in pixels, that we are allowed to
-   *                  sample from.
-   * @param aViewportSize
-   *          The size (in CSS pixels) of the viewport that would be available
-   *          for the full image to occupy, if we were drawing the full image.
-   *          (Note that we might not actually be drawing the full image -- we
-   *          might be restricted by aSubimage -- but we still need the full
-   *          image's viewport-size in order for SVG images with the "viewBox"
-   *          attribute to position their content correctly.)
+   * @param aSVGContext If specified, SVG-related rendering context, such as
+   *                    overridden attributes on the image document's root <svg>
+   *                    node, and the size of the viewport that the full image
+   *                    would occupy. Ignored for raster images.
    * @param aFlags Flags of the FLAG_* variety
    */
   [noscript] void draw(in gfxContext aContext,
+                       [const] in nsIntSize aSize,
+                       [const] in ImageRegion aRegion,
+                       in uint32_t aWhichFrame,
                        in gfxGraphicsFilter aFilter,
-                       [const] in gfxMatrix aUserSpaceToImageSpace,
-                       [const] in gfxRect aFill,
-                       [const] in nsIntRect aSubimage,
-                       [const] in nsIntSize aViewportSize,
+                       [const] in MaybeSVGImageContext aSVGContext,
                        in uint32_t aFlags);
-
-  /**
-   * If this image is TYPE_VECTOR, i.e. is really an embedded SVG document,
-   * this method returns a pointer to the root nsIFrame of that document. If
-   * not (or if the root nsIFrame isn't available for some reason), this method
-   * returns nullptr.
-   *
-   * "notxpcom" for convenience, since we have no need for nsresult return-val.
-   */
-  [notxpcom] nsIFrame GetRootLayoutFrame();
 
   /*
    * Ensures that an image is decoding. Calling this function guarantees that
-   * the image will at some point fire off decode notifications. Calling draw(),
-   * getFrame(), copyFrame(), or extractCurrentFrame() triggers the same
-   * mechanism internally. Thus, if you want to be sure that the image will be
-   * decoded but don't want to access it until then, you must call
-   * requestDecode().
+   * the image will at some point fire off decode notifications. Calling draw()
+   * or getFrame() triggers the same mechanism internally. Thus, if you want to
+   * be sure that the image will be decoded but don't want to access it until
+   * then, you must call requestDecode().
    */
   void requestDecode();
+
+  /*
+   * This is equivalent to requestDecode() but it also decodes some of the image.
+   */
+  [noscript] void startDecoding();
+
+  /*
+   * Returns true if no more decoding can be performed on this image. Images
+   * with errors return true since they cannot be decoded any further. Note that
+   * because decoded images may be discarded, isDecoded() may return false even
+   * if it has returned true in the past.
+   */
+  [noscript, notxpcom, nostdcall] bool isDecoded();
 
   /**
     * Increments the lock count on the image. An image will not be discarded
@@ -280,4 +404,62 @@ interface imgIContainer : nsISupports
 
   /* Methods to control animation */
   void resetAnimation();
+
+  /*
+   * Returns an index for the requested animation frame (either FRAME_FIRST or
+   * FRAME_CURRENT).
+   *
+   * The units of the index aren't specified, and may vary between different
+   * types of images. What you can rely on is that on all occasions when
+   * getFrameIndex(FRAME_CURRENT) returns a certain value,
+   * draw(..FRAME_CURRENT..) will draw the same frame. The same holds for
+   * FRAME_FIRST as well.
+   *
+   * @param aWhichFrame Frame specifier of the FRAME_* variety.
+   */
+  [notxpcom] float getFrameIndex(in uint32_t aWhichFrame);
+
+  /*
+   * Returns the inherent orientation of the image, as described in the image's
+   * metadata (e.g. EXIF).
+   */
+  [notxpcom] Orientation getOrientation();
+
+  /*
+   * Returns the delay, in ms, between the first and second frame. If this
+   * returns 0, there is no delay between first and second frame (i.e., this
+   * image could render differently whenever it draws).
+   *
+   * If this image is not animated, or not known to be animated (see attribute
+   * animated), returns -1.
+   */
+  [notxpcom] int32_t getFirstFrameDelay();
+
+  /*
+   * If this is an animated image that hasn't started animating already, this
+   * sets the animation's start time to the indicated time.
+   *
+   * This has no effect if the image isn't animated or it has started animating
+   * already; it also has no effect if the image format doesn't care about
+   * animation start time.
+   *
+   * In all cases, animation does not actually begin until startAnimation(),
+   * resetAnimation(), or requestRefresh() is called for the first time.
+   */
+  [notxpcom] void setAnimationStartTime([const] in TimeStamp aTime);
+
+  /*
+   * Given an invalidation rect in the coordinate system used by the decoder,
+   * returns an invalidation rect in image space.
+   *
+   * This is the identity transformation in most cases, but the result can
+   * differ if the image is wrapped by an ImageWrapper that changes its size
+   * or orientation.
+   */
+  [notxpcom] nsIntRectByVal getImageSpaceInvalidationRect([const] in nsIntRect aRect);
+
+  /*
+   * Removes any ImageWrappers and returns the unwrapped base image.
+   */
+  [notxpcom, nostdcall] TempRefImgIContainer unwrap();
 };

@@ -2,146 +2,72 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsDOMClassInfoID.h"
-#include "DOMCameraManager.h"
-#include "CameraControl.h"
+#include "CameraControlImpl.h"
 
 using namespace mozilla;
+using namespace mozilla::dom;
+
+namespace mozilla {
+  class RecorderProfileManager;
+
+  namespace layers {
+    class GraphicBufferLocked;
+  }
+}
 
 /**
- * Fallback camera control subclass.  Can be used as a template for the
+ * Fallback camera control subclass. Can be used as a template for the
  * definition of new camera support classes.
  */
-class nsFallbackCameraControl : public nsCameraControl
+class FallbackCameraControl : public CameraControlImpl
 {
 public:
-  nsFallbackCameraControl(uint32_t aCameraId, nsIThread* aCameraThread);
+  explicit FallbackCameraControl(uint32_t aCameraId) : CameraControlImpl(aCameraId) { }
 
-  const char* GetParameter(const char* aKey);
-  const char* GetParameterConstChar(uint32_t aKey);
-  double GetParameterDouble(uint32_t aKey);
-  void GetParameter(uint32_t aKey, nsTArray<dom::CameraRegion>& aRegions);
-  void SetParameter(const char* aKey, const char* aValue);
-  void SetParameter(uint32_t aKey, const char* aValue);
-  void SetParameter(uint32_t aKey, double aValue);
-  void SetParameter(uint32_t aKey, const nsTArray<dom::CameraRegion>& aRegions);
-  void PushParameters();
+  virtual nsresult Set(uint32_t aKey, const nsAString& aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Get(uint32_t aKey, nsAString& aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Set(uint32_t aKey, double aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Get(uint32_t aKey, double& aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Set(uint32_t aKey, int32_t aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Get(uint32_t aKey, int32_t& aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Set(uint32_t aKey, int64_t aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Get(uint32_t aKey, int64_t& aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Set(uint32_t aKey, bool aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Get(uint32_t aKey, bool& aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Set(uint32_t aKey, const Size& aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Get(uint32_t aKey, Size& aValue) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Set(uint32_t aKey, const nsTArray<Region>& aRegions) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Get(uint32_t aKey, nsTArray<Region>& aRegions) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+
+  virtual nsresult SetLocation(const Position& aLocation) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+
+  virtual nsresult Get(uint32_t aKey, nsTArray<Size>& aSizes) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Get(uint32_t aKey, nsTArray<nsString>& aValues) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult Get(uint32_t aKey, nsTArray<double>& aValues) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+
+  virtual nsresult GetRecorderProfiles(nsTArray<nsString>& aProfiles) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual RecorderProfile* GetProfileInfo(const nsAString& aProfile) MOZ_OVERRIDE { return nullptr; }
+
+  nsresult PushParameters() { return NS_ERROR_NOT_INITIALIZED; }
+  nsresult PullParameters() { return NS_ERROR_NOT_INITIALIZED; }
 
 protected:
-  ~nsFallbackCameraControl();
+  ~FallbackCameraControl();
 
-  nsresult GetPreviewStreamImpl(GetPreviewStreamTask* aGetPreviewStream);
-  nsresult AutoFocusImpl(AutoFocusTask* aAutoFocus);
-  nsresult TakePictureImpl(TakePictureTask* aTakePicture);
-  nsresult StartRecordingImpl(StartRecordingTask* aStartRecording);
-  nsresult StopRecordingImpl(StopRecordingTask* aStopRecording);
-  nsresult PushParametersImpl(PushParametersTask* aPushParameters);
-  nsresult PullParametersImpl(PullParametersTask* aPullParameters);
+  virtual nsresult StartPreviewImpl() { return NS_ERROR_NOT_INITIALIZED; }
+  virtual nsresult StopPreviewImpl() { return NS_ERROR_NOT_INITIALIZED; }
+  virtual nsresult AutoFocusImpl() { return NS_ERROR_NOT_INITIALIZED; }
+  virtual nsresult StartFaceDetectionImpl() { return NS_ERROR_NOT_INITIALIZED; }
+  virtual nsresult StopFaceDetectionImpl() { return NS_ERROR_NOT_INITIALIZED; }
+  virtual nsresult TakePictureImpl() { return NS_ERROR_NOT_INITIALIZED; }
+  virtual nsresult StartRecordingImpl(DeviceStorageFileDescriptor* aFileDescriptor,
+                                      const StartRecordingOptions* aOptions = nullptr) MOZ_OVERRIDE
+                                        { return NS_ERROR_NOT_INITIALIZED; }
+  virtual nsresult StopRecordingImpl() { return NS_ERROR_NOT_INITIALIZED; }
+  virtual nsresult PushParametersImpl() { return NS_ERROR_NOT_INITIALIZED; }
+  virtual nsresult PullParametersImpl() { return NS_ERROR_NOT_INITIALIZED; }
 
 private:
-  nsFallbackCameraControl(const nsFallbackCameraControl&) MOZ_DELETE;
-  nsFallbackCameraControl& operator=(const nsFallbackCameraControl&) MOZ_DELETE;
+  FallbackCameraControl(const FallbackCameraControl&) MOZ_DELETE;
+  FallbackCameraControl& operator=(const FallbackCameraControl&) MOZ_DELETE;
 };
-
-/**
- * Stub implemetations of the fallback camera control.
- *
- * None of these should ever get called--they exist to keep the linker happy,
- * and may be used as templates for new camera support classes.
- */
-nsFallbackCameraControl::nsFallbackCameraControl(uint32_t aCameraId, nsIThread* aCameraThread)
-  : nsCameraControl(aCameraId, aCameraThread)
-{ }
-
-nsFallbackCameraControl::~nsFallbackCameraControl()
-{ }
-
-const char*
-nsFallbackCameraControl::GetParameter(const char* aKey)
-{
-  return nullptr;
-}
-
-const char*
-nsFallbackCameraControl::GetParameterConstChar(uint32_t aKey)
-{
-  return nullptr;
-}
-
-double
-nsFallbackCameraControl::GetParameterDouble(uint32_t aKey)
-{
-  return NAN;
-}
-
-void
-nsFallbackCameraControl::GetParameter(uint32_t aKey, nsTArray<dom::CameraRegion>& aRegions)
-{
-}
-
-void
-nsFallbackCameraControl::SetParameter(const char* aKey, const char* aValue)
-{
-}
-
-void
-nsFallbackCameraControl::SetParameter(uint32_t aKey, const char* aValue)
-{
-}
-
-void
-nsFallbackCameraControl::SetParameter(uint32_t aKey, double aValue)
-{
-}
-
-void
-nsFallbackCameraControl::SetParameter(uint32_t aKey, const nsTArray<dom::CameraRegion>& aRegions)
-{
-}
-
-void
-nsFallbackCameraControl::PushParameters()
-{
-}
-
-nsresult
-nsFallbackCameraControl::GetPreviewStreamImpl(GetPreviewStreamTask* aGetPreviewStream)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-nsFallbackCameraControl::AutoFocusImpl(AutoFocusTask* aAutoFocus)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-nsFallbackCameraControl::TakePictureImpl(TakePictureTask* aTakePicture)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-nsFallbackCameraControl::StartRecordingImpl(StartRecordingTask* aStartRecording)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-nsFallbackCameraControl::StopRecordingImpl(StopRecordingTask* aStopRecording)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-nsFallbackCameraControl::PushParametersImpl(PushParametersTask* aPushParameters)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-nsFallbackCameraControl::PullParametersImpl(PullParametersTask* aPullParameters)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}

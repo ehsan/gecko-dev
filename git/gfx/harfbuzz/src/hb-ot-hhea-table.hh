@@ -30,6 +30,8 @@
 #include "hb-open-type-private.hh"
 
 
+namespace OT {
+
 
 /*
  * hhea -- The Horizontal Header Table
@@ -40,15 +42,15 @@
 
 struct hhea
 {
-  static const hb_tag_t Tag	= HB_OT_TAG_hhea;
+  static const hb_tag_t tableTag	= HB_OT_TAG_hhea;
 
   inline bool sanitize (hb_sanitize_context_t *c) {
-    TRACE_SANITIZE ();
+    TRACE_SANITIZE (this);
     return TRACE_RETURN (c->check_struct (this) && likely (version.major == 1));
   }
 
-  protected:
-  FixedVersion	version;		/* 0x00010000 for version 1.0. */
+  public:
+  FixedVersion	version;		/* 0x00010000u for version 1.0. */
   FWORD		ascender;		/* Typographic ascent. <a
 					 * href="http://developer.apple.com/fonts/TTRefMan/RM06/Chap6hhea.html">
 					 * (Distance from baseline of highest
@@ -87,6 +89,9 @@ struct hhea
   public:
   DEFINE_SIZE_STATIC (36);
 };
+
+
+} /* namespace OT */
 
 
 #endif /* HB_OT_HHEA_TABLE_HH */

@@ -42,14 +42,15 @@ CalculateMD5(const char *data, DWORD dataSize,
   HCRYPTPROV hProv = 0;
   HCRYPTHASH hHash = 0;
 
-  if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, 0)) {
+  if (!CryptAcquireContext(&hProv, nullptr, nullptr, PROV_RSA_FULL,
+                           CRYPT_VERIFYCONTEXT)) {
     if (NTE_BAD_KEYSET != GetLastError()) {
       return FALSE;
     }
  
     // Maybe it doesn't exist, try to create it.
-    if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, 
-                            CRYPT_NEWKEYSET)) {
+    if (!CryptAcquireContext(&hProv, nullptr, nullptr, PROV_RSA_FULL, 
+                             CRYPT_VERIFYCONTEXT | CRYPT_NEWKEYSET)) {
       return FALSE;
     }
   }
@@ -114,7 +115,8 @@ CalculateRegistryPathFromFilePath(const LPCWSTR filePath,
   // based on the filePathLen which excludes the slash.
   // +2 to account for the possibly trailing slash and the null terminator.
   WCHAR *lowercasePath = new WCHAR[filePathLen + 2];
-  wcscpy(lowercasePath, filePath);
+  memset(lowercasePath, 0, (filePathLen + 2) * sizeof(WCHAR));
+  wcsncpy(lowercasePath, filePath, filePathLen + 1);
   _wcslwr(lowercasePath);
 
   BYTE *hash;

@@ -8,11 +8,10 @@
 
 #include "nsIResProtocolHandler.h"
 #include "nsInterfaceHashtable.h"
-#include "nsISupportsArray.h"
-#include "nsIIOService.h"
 #include "nsWeakReference.h"
 #include "nsStandardURL.h"
 
+class nsIIOService;
 struct ResourceMapping;
 
 // nsResURL : overrides nsStandardURL::GetFile to provide nsIFile resolution
@@ -25,21 +24,22 @@ public:
     NS_IMETHOD GetClassIDNoAlloc(nsCID *aCID);
 };
 
-class nsResProtocolHandler : public nsIResProtocolHandler, public nsSupportsWeakReference
+class nsResProtocolHandler MOZ_FINAL : public nsIResProtocolHandler, public nsSupportsWeakReference
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
     NS_DECL_NSIRESPROTOCOLHANDLER
 
     nsResProtocolHandler();
-    virtual ~nsResProtocolHandler();
 
     nsresult Init();
 
     void CollectSubstitutions(InfallibleTArray<ResourceMapping>& aResources);
 
 private:
+    virtual ~nsResProtocolHandler();
+
     nsresult Init(nsIFile *aOmniJar);
     nsresult AddSpecialDir(const char* aSpecialDir, const nsACString& aSubstitution);
     nsInterfaceHashtable<nsCStringHashKey,nsIURI> mSubstitutions;

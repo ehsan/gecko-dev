@@ -2,88 +2,58 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+///////////////////
+//
+// Whitelisting this test.
+// As part of bug 1077403, the leaking uncaught rejection should be fixed.
+//
+thisTestLeaksUncaughtRejectionsAndShouldBeFixed("TypeError: summary is undefined");
+
 const TESTCASE_URI = TEST_BASE + "simple.html";
 
+let gUI;
 
 function test()
 {
   waitForExplicitFinish();
 
-  addTabAndLaunchStyleEditorChromeWhenLoaded(function (aChrome) {
-    aChrome.addChromeListener({
-      onContentAttach: run,
-      onEditorAdded: testEditorAdded
-    });
-    if (aChrome.isContentAttached) {
-      run(aChrome);
-    }
-  });
+  addTabAndCheckOnStyleEditorAdded(panel => gUI = panel.UI, testEditorAdded);
 
   content.location = TESTCASE_URI;
 }
 
-let gContentAttachHandled = false;
-function run(aChrome)
-{
-  gContentAttachHandled = true;
-  is(aChrome.contentWindow.document.readyState, "complete",
-     "content document is complete");
-
-  let SEC = gChromeWindow.styleEditorChrome;
-  is(SEC, aChrome, "StyleEditorChrome object exists as new window property");
-
-  ok(gChromeWindow.document.title.indexOf("simple testcase") >= 0,
-     "the Style Editor window title contains the document's title");
-
-  // check editors are instantiated
-  is(SEC.editors.length, 2,
-     "there is two StyleEditor instances managed");
-  ok(SEC.editors[0].styleSheetIndex < SEC.editors[1].styleSheetIndex,
-     "editors are ordered by styleSheetIndex");
-
-  // check StyleEditorChrome is a singleton wrt to the same DOMWindow
-  let chromeWindow = StyleEditor.openChrome();
-  is(chromeWindow, gChromeWindow,
-     "attempt to edit the same document returns the same Style Editor window");
-}
-
 let gEditorAddedCount = 0;
-function testEditorAdded(aChrome, aEditor)
+function testEditorAdded(aEditor)
 {
-  if (!gEditorAddedCount) {
-    is(gContentAttachHandled, true,
-       "ContentAttach event triggered before EditorAdded");
-  }
-
-  if (aEditor.styleSheetIndex == 0) {
+  if (aEditor.styleSheet.styleSheetIndex == 0) {
     gEditorAddedCount++;
-    testFirstStyleSheetEditor(aChrome, aEditor);
+    gUI.editors[0].getSourceEditor().then(testFirstStyleSheetEditor);
   }
-  if (aEditor.styleSheetIndex == 1) {
+  if (aEditor.styleSheet.styleSheetIndex == 1) {
     gEditorAddedCount++;
-    testSecondStyleSheetEditor(aChrome, aEditor);
+    testSecondStyleSheetEditor(aEditor);
   }
 
   if (gEditorAddedCount == 2) {
+    gUI = null;
     finish();
   }
 }
 
-function testFirstStyleSheetEditor(aChrome, aEditor)
+function testFirstStyleSheetEditor(aEditor)
 {
+  // Note: the html <link> contains charset="UTF-8".
+  ok(aEditor._state.text.indexOf("\u263a") >= 0,
+     "stylesheet is unicode-aware.");
+
   //testing TESTCASE's simple.css stylesheet
-  is(aEditor.styleSheetIndex, 0,
+  is(aEditor.styleSheet.styleSheetIndex, 0,
      "first stylesheet is at index 0");
 
-  is(aEditor, aChrome.editors[0],
+  is(aEditor, gUI.editors[0],
      "first stylesheet corresponds to StyleEditorChrome.editors[0]");
 
-  ok(!aEditor.hasFlag("inline"),
-     "first stylesheet does not have INLINE flag");
-
-  let summary = aChrome.getSummaryElementForEditor(aEditor);
-  ok(!summary.classList.contains("inline"),
-     "first stylesheet UI does not have INLINE class");
+  let summary = aEditor.summary;
 
   let name = summary.querySelector(".stylesheet-name > label").getAttribute("value");
   is(name, "simple.css",
@@ -97,21 +67,16 @@ function testFirstStyleSheetEditor(aChrome, aEditor)
      "first stylesheet UI is focused/active");
 }
 
-function testSecondStyleSheetEditor(aChrome, aEditor)
+function testSecondStyleSheetEditor(aEditor)
 {
   //testing TESTCASE's inline stylesheet
-  is(aEditor.styleSheetIndex, 1,
+  is(aEditor.styleSheet.styleSheetIndex, 1,
      "second stylesheet is at index 1");
 
-  is(aEditor, aChrome.editors[1],
+  is(aEditor, gUI.editors[1],
      "second stylesheet corresponds to StyleEditorChrome.editors[1]");
 
-  ok(aEditor.hasFlag("inline"),
-     "second stylesheet has INLINE flag");
-
-  let summary = aChrome.getSummaryElementForEditor(aEditor);
-  ok(summary.classList.contains("inline"),
-     "second stylesheet UI has INLINE class");
+  let summary = aEditor.summary;
 
   let name = summary.querySelector(".stylesheet-name > label").getAttribute("value");
   ok(/^<.*>$/.test(name),

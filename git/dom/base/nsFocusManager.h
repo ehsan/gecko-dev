@@ -6,11 +6,12 @@
 #ifndef nsFocusManager_h___
 #define nsFocusManager_h___
 
+#include "nsCycleCollectionParticipant.h"
+#include "nsIDocument.h"
 #include "nsIFocusManager.h"
-#include "nsWeakReference.h"
 #include "nsIObserver.h"
-#include "nsIContent.h"
 #include "nsIWidget.h"
+#include "nsWeakReference.h"
 #include "mozilla/Attributes.h"
 
 #define FOCUSMETHOD_MASK 0xF000
@@ -18,10 +19,18 @@
 
 #define FOCUSMANAGER_CONTRACTID "@mozilla.org/focus-manager;1"
 
+class nsIContent;
 class nsIDocShellTreeItem;
 class nsPIDOMWindow;
+class nsIMessageBroadcaster;
 
 struct nsDelayedBlurOrFocusEvent;
+
+enum ParentFocusType {
+  ParentFocusType_Ignore, // Parent or single process window or unknown
+  ParentFocusType_Active, // Child process window in active parent
+  ParentFocusType_Inactive, // Child process window in inactive parent
+};
 
 /**
  * The focus manager keeps track of where the focus is, that is, the node
@@ -73,13 +82,24 @@ public:
   nsresult ContentRemoved(nsIDocument* aDocument, nsIContent* aContent);
 
   /**
-   * Called when mouse button down event handling is started and finished.
+   * Called when mouse button event handling is started and finished.
    */
-  void SetMouseButtonDownHandlingDocument(nsIDocument* aDocument)
+  already_AddRefed<nsIDocument>
+    SetMouseButtonHandlingDocument(nsIDocument* aDocument)
   {
-    NS_ASSERTION(!aDocument || !mMouseDownEventHandlingDocument,
-                 "Some mouse button down events are nested?");
-    mMouseDownEventHandlingDocument = aDocument;
+    nsCOMPtr<nsIDocument> handlingDocument = mMouseButtonEventHandlingDocument;
+    mMouseButtonEventHandlingDocument = aDocument;
+    return handlingDocument.forget();
+  }
+
+  /**
+   * Update the caret with current mode (whether in caret browsing mode or not).
+   */
+  void UpdateCaretForCaretBrowsingMode();
+
+  bool IsParentActivated()
+  {
+    return mParentFocusType == ParentFocusType_Active;
   }
 
   /**
@@ -114,6 +134,7 @@ public:
 
   static bool sMouseFocusesFormControl;
 
+  static void MarkUncollectableForCCGeneration(uint32_t aGeneration);
 protected:
 
   nsFocusManager();
@@ -124,6 +145,17 @@ protected:
    * focused at the widget level.
    */
   void EnsureCurrentWidgetFocused();
+
+  /**
+   * Iterate over the children of the message broadcaster and notify them
+   * of the activation change.
+   */
+  void ActivateOrDeactivateChildren(nsIMessageBroadcaster* aManager, bool aActive);
+
+  /**
+   * Activate or deactivate the window and send the activate/deactivate events.
+   */
+  void ActivateOrDeactivate(nsPIDOMWindow* aWindow, bool aActive);
 
   /**
    * Blur whatever is currently focused and focus aNewContent. aFlags is a
@@ -479,11 +511,14 @@ private:
                                      bool aWindowShouldShowFocusRing,
                                      bool aGettingFocus);
 
+  void SetFocusedWindowInternal(nsPIDOMWindow* aWindow);
+
   // the currently active and front-most top-most window
   nsCOMPtr<nsPIDOMWindow> mActiveWindow;
 
   // the child or top-level window that is currently focused. This window will
   // either be the same window as mActiveWindow or a descendant of it.
+  // Except during shutdown use SetFocusedWindowInternal to set mFocusedWindow!
   nsCOMPtr<nsPIDOMWindow> mFocusedWindow;
 
   // the currently focused content, which is always inside mFocusedWindow. This
@@ -504,13 +539,18 @@ private:
   // and fire them later.
   nsTArray<nsDelayedBlurOrFocusEvent> mDelayedBlurFocusEvents;
 
-  // A document which is handling a mouse button down event.
+  // A document which is handling a mouse button event.
   // When a mouse down event process is finished, ESM sets focus to the target
-  // content.  Therefore, while DOM event handlers are handling mouse down
-  // events, the handlers should be able to steal focus from any elements even
-  // if focus is in chrome content.  So, if this isn't NULL and the caller
-  // can access the document node, the caller should succeed in moving focus.
-  nsCOMPtr<nsIDocument> mMouseDownEventHandlingDocument;
+  // content if it's not consumed.  Therefore, while DOM event handlers are
+  // handling mouse down events or preceding mosue down event is consumed but
+  // handling mouse up events, they should be able to steal focus from any
+  // elements even if focus is in chrome content.  So, if this isn't nullptr
+  // and the caller can access the document node, the caller should succeed in
+  // moving focus.
+  nsCOMPtr<nsIDocument> mMouseButtonEventHandlingDocument;
+
+  // Indicates a child process that is in an active window.
+  ParentFocusType mParentFocusType;
 
   static bool sTestMode;
 

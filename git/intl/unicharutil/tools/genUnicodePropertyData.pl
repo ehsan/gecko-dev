@@ -26,18 +26,23 @@
 #     though this may change if we find a need for additional properties.
 #
 #     The Unicode data files listed above should be together in one directory.
+#
 #     We also require the file 
 #        http://www.unicode.org/Public/security/latest/xidmodifications.txt
 #     This file should be in a sub-directory "security" immediately below the
 #        directory containing the other Unicode data files.
 #
+#     We also require the latest data file for UTR50, currently revision-13:
+#        http://www.unicode.org/Public/vertical/revision-13/VerticalOrientation-13.txt
+#     This file should be in a sub-directory "vertical" immediately below the
+#        directory containing the other Unicode data files.
+#
+#
 # (2) Run this tool using a command line of the form
 #
 #         perl genUnicodePropertyData.pl \
-#                 /path/to/hb-common.h   \
+#                 /path/to/harfbuzz/src  \
 #                 /path/to/UCD-directory
-#
-#     (where hb-common.h is found in the gfx/harfbuzz/src directory).
 #
 #     This will generate (or overwrite!) the files
 #
@@ -53,14 +58,15 @@ if ($#ARGV != 1) {
     print <<__EOT;
 # Run this tool using a command line of the form
 #
-#     perl genUnicodePropertyData.pl \
-#             /path/to/hb-common.h   \
+#     perl genUnicodePropertyData.pl \\
+#             /path/to/harfbuzz/src  \\
 #             /path/to/UCD-directory
 #
-# where hb-common.h is currently found in the gfx/harfbuzz/src directory,
+# where harfbuzz/src is the directory containing harfbuzz .cc and .hh files,
 # and UCD-directory is a directory containing the current Unicode Character
 # Database files (UnicodeData.txt, etc), available from
-# http://www.unicode.org/Public/UNIDATA/
+# http://www.unicode.org/Public/UNIDATA/, with additional resources as
+# detailed in the source comments.
 #
 # This will generate (or overwrite!) the files
 #
@@ -198,7 +204,34 @@ my %scriptCode = (
   MIAO => 99,
   SHARADA => 100,
   SORA_SOMPENG => 101,
-  TAKRI => 102
+  TAKRI => 102,
+# unicode 7.0 additions
+  BASSA_VAH => 103,
+  CAUCASIAN_ALBANIAN => 104,
+  DUPLOYAN => 105,
+  ELBASAN => 106,
+  GRANTHA => 107,
+  KHOJKI => 108,
+  KHUDAWADI => 109,
+  LINEAR_A => 110,
+  MAHAJANI => 111,
+  MANICHAEAN => 112,
+  MENDE_KIKAKUI => 113,
+  MODI => 114,
+  MRO => 115,
+  NABATAEAN => 116,
+  OLD_NORTH_ARABIAN => 117,
+  OLD_PERMIC => 118,
+  PAHAWH_HMONG => 119,
+  PALMYRENE => 120,
+  PAU_CIN_HAU => 121,
+  PSALTER_PAHLAVI => 122,
+  SIDDHAM => 123,
+  TIRHUTA => 124,
+  WARANG_CITI => 125,
+
+# additional "script" code, not from Unicode (but matches ISO 15924's Zmth tag)
+  MATHEMATICAL_NOTATION => 126,
 );
 
 my $sc = -1;
@@ -207,23 +240,39 @@ my %catCode;
 my @scriptCodeToTag;
 my @scriptCodeToName;
 
-open FH, "< $ARGV[0]" or die "can't open $ARGV[0] (should be header file hb-common.h)\n";
-while (<FH>) {
-    if (m/HB_SCRIPT_([A-Z_]+)\s*=\s*HB_TAG\s*\(('.','.','.','.')\)\s*,/) {
-        unless (exists $scriptCode{$1}) {
-            warn "unknown script name $1 found in hb-common.h\n";
-            next;
+sub readHarfBuzzHeader
+{
+    my $file = shift;
+    open FH, "< $ARGV[0]/$file" or die "can't open harfbuzz header $ARGV[0]/$file\n";
+    while (<FH>) {
+        s/CANADIAN_SYLLABICS/CANADIAN_ABORIGINAL/; # harfbuzz and unicode disagree on this name :(
+        if (m/HB_SCRIPT_([A-Z_]+)\s*=\s*HB_TAG\s*\(('.','.','.','.')\)\s*,/) {
+            unless (exists $scriptCode{$1}) {
+                warn "unknown script name $1 found in $file\n";
+                next;
+            }
+            $sc = $scriptCode{$1};
+            $scriptCodeToTag[$sc] = $2;
+            $scriptCodeToName[$sc] = $1;
         }
-        $sc = $scriptCode{$1};
-        $scriptCodeToTag[$sc] = $2;
-        $scriptCodeToName[$sc] = $1;
+        if (m/HB_UNICODE_GENERAL_CATEGORY_([A-Z_]+)/) {
+            $cc++;
+            $catCode{$1} = $cc;
+        }
     }
-    if (m/HB_UNICODE_GENERAL_CATEGORY_([A-Z_]+)/) {
-        $cc++;
-        $catCode{$1} = $cc;
-    }
+    close FH;
 }
-close FH;
+
+&readHarfBuzzHeader("hb-common.h");
+&readHarfBuzzHeader("hb-unicode.h");
+
+die "didn't find HarfBuzz script codes\n" if $sc == -1;
+die "didn't find HarfBuzz category codes\n" if $cc == -1;
+
+# Additional code not present in HarfBuzz headers:
+$sc = $scriptCode{"MATHEMATICAL_NOTATION"};
+$scriptCodeToTag[$sc] = "'Z','m','t','h'";
+$scriptCodeToName[$sc] = "MATHEMATICAL_NOTATION";
 
 my %xidmodCode = (
 'inclusion'         => 0,
@@ -260,6 +309,13 @@ my %bidicategoryCode = (
   "BN"  => "18"  # Boundary Neutral
 );
 
+my %verticalOrientationCode = (
+  'U' => 0,  #   U - Upright, the same orientation as in the code charts
+  'R' => 1,  #   R - Rotated 90 degrees clockwise compared to the code charts
+  'Tu' => 2, #   Tu - Transformed typographically, with fallback to Upright
+  'Tr' => 3  #   Tr - Transformed typographically, with fallback to Rotated
+);
+
 # initialize default properties
 my @script;
 my @category;
@@ -272,6 +328,8 @@ my @xidmod;
 my @numericvalue;
 my @hanVariant;
 my @bidicategory;
+my @fullWidth;
+my @verticalOrientation;
 for (my $i = 0; $i < 0x110000; ++$i) {
     $script[$i] = $scriptCode{"UNKNOWN"};
     $category[$i] = $catCode{"UNASSIGNED"};
@@ -281,6 +339,8 @@ for (my $i = 0; $i < 0x110000; ++$i) {
     $numericvalue[$i] = -1;
     $hanVariant[$i] = 0;
     $bidicategory[$i] = $bidicategoryCode{"L"};
+    $fullWidth[$i] = 0;
+    $verticalOrientation[$i] = 1; # default for unlisted codepoints is 'R'
 }
 
 # blocks where the default for bidi category is not L
@@ -289,6 +349,9 @@ for my $i (0x0600..0x07BF, 0x08A0..0x08FF, 0xFB50..0xFDCF, 0xFDF0..0xFDFF, 0xFE7
 }
 for my $i (0x0590..0x05FF, 0x07C0..0x089F, 0xFB1D..0xFB4F, 0x00010800..0x00010FFF, 0x0001E800..0x0001EDFF, 0x0001EF00..0x0001EFFF) {
   $bidicategory[$i] = $bidicategoryCode{"R"};
+}
+for my $i (0x20A0..0x20CF) {
+  $bidicategory[$i] = $bidicategoryCode{"ET"};
 }
 
 my %ucd2hb = (
@@ -396,6 +459,16 @@ while (<FH>) {
         }
         if ($fields[1] =~ /CJK/) {
           @hanVariant[$usv] = 3;
+        }
+        if ($fields[5] =~ /^<narrow>/) {
+          my $wideChar = hex(substr($fields[5], 9));
+          die "didn't expect supplementary-plane values here" if $usv > 0xffff || $wideChar > 0xffff;
+          $fullWidth[$usv] = $wideChar;
+        }
+        elsif ($fields[5] =~ /^<wide>/) {
+          my $narrowChar = hex(substr($fields[5], 7));
+          die "didn't expect supplementary-plane values here" if $usv > 0xffff || $narrowChar > 0xffff;
+          $fullWidth[$narrowChar] = $usv;
         }
     }
 }
@@ -533,6 +606,8 @@ while (<FH>) {
   }
 }
 close FH;
+# special case U+30FB KATAKANA MIDDLE DOT -- see bug 857490
+$xidmod[0x30FB] = 1;
 
 open FH, "< $ARGV[1]/Unihan_Variants.txt" or die "can't open UCD file Unihan_Variants.txt (from Unihan.zip)\n";
 push @versionInfo, "";
@@ -570,6 +645,31 @@ while (<FH>) {
 }
 close FH;
 
+# read VerticalOrientation-13.txt
+open FH, "< $ARGV[1]/vertical/VerticalOrientation-13.txt" or die "can't open UTR50 data file VerticalOrientation-13.txt\n";
+push @versionInfo, "";
+while (<FH>) {
+    chomp;
+    push @versionInfo, $_;
+    last if /Date:/;
+}
+while (<FH>) {
+    chomp;
+    s/#.*//;
+    if (m/([0-9A-F]{4,6})(?:\.\.([0-9A-F]{4,6}))*\s*;\s*([^ ]+)/) {
+        my $vo = $3;
+        warn "unknown Vertical_Orientation code $vo"
+            unless exists $verticalOrientationCode{$vo};
+        $vo = $verticalOrientationCode{$vo};
+        my $start = hex "0x$1";
+        my $end = (defined $2) ? hex "0x$2" : $start;
+        for (my $i = $start; $i <= $end; ++$i) {
+            $verticalOrientation[$i] = $vo;
+        }
+    }
+}
+close FH;
+
 my $timestamp = gmtime();
 
 open DATA_TABLES, "> nsUnicodePropertyData.cpp" or die "unable to open nsUnicodePropertyData.cpp for output";
@@ -601,7 +701,7 @@ $versionInfo
  * * * * * This file contains MACHINE-GENERATED DATA, do not edit! * * * * *
  */
 
-#include "mozilla/StandardInteger.h"
+#include <stdint.h>
 #include "harfbuzz/hb.h"
 
 __END
@@ -648,18 +748,35 @@ sub sprintCharProps1
   my $usv = shift;
   return sprintf("{%d,%d,%d}, ", $mirror[$usv], $hangul[$usv], $combining[$usv]);
 }
-&genTables("CharProp1", "struct nsCharProps1 {\n  unsigned char mMirrorOffsetIndex:5;\n  unsigned char mHangulType:3;\n  unsigned char mCombiningClass:8;\n};",
-           "nsCharProps1", 11, 5, \&sprintCharProps1, 1, 2, 1);
+my $type = q/
+struct nsCharProps1 {
+  unsigned char mMirrorOffsetIndex:5;
+  unsigned char mHangulType:3;
+  unsigned char mCombiningClass:8;
+};
+/;
+&genTables("CharProp1", $type, "nsCharProps1", 11, 5, \&sprintCharProps1, 1, 2, 1);
 
 sub sprintCharProps2
 {
   my $usv = shift;
-  return sprintf("{%d,%d,%d,%d,%d,%d},",
+  return sprintf("{%d,%d,%d,%d,%d,%d,%d},",
                  $script[$usv], $eaw[$usv], $category[$usv],
-                 $bidicategory[$usv], $xidmod[$usv], $numericvalue[$usv]);
+                 $bidicategory[$usv], $xidmod[$usv], $numericvalue[$usv],
+                 $verticalOrientation[$usv]);
 }
-&genTables("CharProp2", "struct nsCharProps2 {\n  unsigned char mScriptCode:8;\n  unsigned char mEAW:3;\n  unsigned char mCategory:5;\n  unsigned char mBidiCategory:5;\n  unsigned char mXidmod:4;\n  signed char mNumericValue:5;\n  unsigned char mHanVariant:2;\n};",
-           "nsCharProps2", 11, 5, \&sprintCharProps2, 16, 4, 1);
+$type = q/
+struct nsCharProps2 {
+  unsigned char mScriptCode:8;
+  unsigned char mEAW:3;
+  unsigned char mCategory:5;
+  unsigned char mBidiCategory:5;
+  unsigned char mXidmod:4;
+  signed char   mNumericValue:5;
+  unsigned char mVertOrient:2;
+};
+/;
+&genTables("CharProp2", $type, "nsCharProps2", 11, 5, \&sprintCharProps2, 16, 4, 1);
 
 print HEADER "#pragma pack()\n\n";
 
@@ -675,6 +792,13 @@ sub sprintHanVariants
   return sprintf("0x%02x,", $val);
 }
 &genTables("HanVariant", "", "uint8_t", 9, 7, \&sprintHanVariants, 2, 1, 4);
+
+sub sprintFullWidth
+{
+  my $usv = shift;
+  return sprintf("0x%04x,", $fullWidth[$usv]);
+}
+&genTables("FullWidth", "", "uint16_t", 10, 6, \&sprintFullWidth, 0, 2, 1);
 
 sub sprintCasemap
 {
@@ -742,11 +866,16 @@ sub genTables
   my $chCount = scalar @char;
   my $pmBits = $chCount > 255 ? 16 : 8;
   my $pmCount = scalar @pageMap;
-  print DATA_TABLES "static const uint${pmBits}_t s${prefix}Pages[$pmCount][$indexLen] = {\n";
+  if ($maxPlane == 0) {
+    die "there should only be one pageMap entry!" if $pmCount > 1;
+    print DATA_TABLES "static const uint${pmBits}_t s${prefix}Pages[$indexLen] = {\n";
+  } else {
+    print DATA_TABLES "static const uint${pmBits}_t s${prefix}Pages[$pmCount][$indexLen] = {\n";
+  }
   for (my $i = 0; $i < scalar @pageMap; ++$i) {
-    print DATA_TABLES "  {";
+    print DATA_TABLES $maxPlane > 0 ? "  {" : "  ";
     print DATA_TABLES join(',', map { sprintf("%d", $_) } unpack('S*', $pageMap[$i]));
-    print DATA_TABLES $i < $#pageMap ? "},\n" : "}\n";
+    print DATA_TABLES $maxPlane > 0 ? ($i < $#pageMap ? "},\n" : "}\n") : "\n";
   }
   print DATA_TABLES "};\n\n";
 
@@ -781,7 +910,8 @@ print HEADER "enum {\n";
 for (my $i = 0; $i < scalar @scriptCodeToName; ++$i) {
   print HEADER "  MOZ_SCRIPT_", $scriptCodeToName[$i], " = ", $i, ",\n";
 }
-print HEADER "  MOZ_SCRIPT_INVALID = -1\n";
+print HEADER "\n  MOZ_NUM_SCRIPT_CODES = ", scalar @scriptCodeToName, ",\n";
+print HEADER "\n  MOZ_SCRIPT_INVALID = -1\n";
 print HEADER "};\n\n";
 
 print HEADER <<__END;

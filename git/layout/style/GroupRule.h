@@ -11,6 +11,8 @@
 #ifndef mozilla_css_GroupRule_h__
 #define mozilla_css_GroupRule_h__
 
+#include "mozilla/Attributes.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/Rule.h"
 #include "nsCOMArray.h"
 #include "nsAutoPtr.h"
@@ -20,6 +22,9 @@ class nsPresContext;
 class nsMediaQueryResultCacheKey;
 
 namespace mozilla {
+
+class CSSStyleSheet;
+
 namespace css {
 
 class GroupRuleRuleList;
@@ -29,7 +34,7 @@ class GroupRuleRuleList;
 class GroupRule : public Rule
 {
 protected:
-  GroupRule();
+  GroupRule(uint32_t aLineNumber, uint32_t aColumnNumber);
   GroupRule(const GroupRule& aCopy);
   virtual ~GroupRule();
 public:
@@ -39,11 +44,11 @@ public:
 
   // implement part of nsIStyleRule and Rule
   DECL_STYLE_RULE_INHERIT_NO_DOMRULE
-  virtual void SetStyleSheet(nsCSSStyleSheet* aSheet);
+  virtual void SetStyleSheet(CSSStyleSheet* aSheet);
 
   // to help implement nsIStyleRule
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
 #endif
 
 public:
@@ -61,21 +66,27 @@ public:
    * called, DidDirty() needs to be called on the sheet.
    */
   nsresult DeleteStyleRuleAt(uint32_t aIndex);
-  nsresult InsertStyleRulesAt(uint32_t aIndex,
-                              nsCOMArray<Rule>& aRules);
+  nsresult InsertStyleRuleAt(uint32_t aIndex, Rule* aRule);
   nsresult ReplaceStyleRule(Rule *aOld, Rule *aNew);
 
   virtual bool UseForPresentation(nsPresContext* aPresContext,
                                     nsMediaQueryResultCacheKey& aKey) = 0;
 
-  NS_MUST_OVERRIDE size_t   // non-virtual -- it is only called by subclasses
-    SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-  virtual size_t
-    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const = 0;
+  // non-virtual -- it is only called by subclasses
+  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const = 0;
+
+  static bool
+  CloneRuleInto(Rule* aRule, void* aArray)
+  {
+    nsRefPtr<Rule> clone = aRule->Clone();
+    static_cast<nsCOMArray<Rule>*>(aArray)->AppendObject(clone);
+    return true;
+  }
 
 protected:
   // to help implement nsIDOMCSSRule
-  nsresult AppendRulesToCssText(nsAString& aCssText);
+  void AppendRulesToCssText(nsAString& aCssText);
 
   // to implement common methods on nsIDOMCSSMediaRule and
   // nsIDOMCSSMozDocumentRule

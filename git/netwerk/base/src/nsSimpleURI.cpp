@@ -3,15 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/DebugOnly.h"
+
+#undef LOG
 #include "IPCMessageUtils.h"
 
 #include "nsSimpleURI.h"
 #include "nscore.h"
-#include "nsCRT.h"
 #include "nsString.h"
-#include "nsReadableUtils.h"
-#include "prmem.h"
-#include "prprf.h"
+#include "plstr.h"
 #include "nsURLHelper.h"
 #include "nsNetCID.h"
 #include "nsIObjectInputStream.h"
@@ -19,8 +19,8 @@
 #include "nsEscape.h"
 #include "nsError.h"
 #include "nsIProgrammingLanguage.h"
-#include "mozilla/Util.h" // for DebugOnly
 #include "nsIIPCSerializableURI.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/ipc/URIUtils.h"
 
 using namespace mozilla::ipc;
@@ -45,7 +45,7 @@ nsSimpleURI::~nsSimpleURI()
 NS_IMPL_ADDREF(nsSimpleURI)
 NS_IMPL_RELEASE(nsSimpleURI)
 NS_INTERFACE_TABLE_HEAD(nsSimpleURI)
-NS_INTERFACE_TABLE5(nsSimpleURI, nsIURI, nsISerializable, nsIClassInfo,
+NS_INTERFACE_TABLE(nsSimpleURI, nsIURI, nsISerializable, nsIClassInfo,
                     nsIMutable, nsIIPCSerializableURI)
 NS_INTERFACE_TABLE_TO_MAP_SEGUE
   if (aIID.Equals(kThisSimpleURIImplementationCID))
@@ -62,13 +62,9 @@ nsSimpleURI::Read(nsIObjectInputStream* aStream)
 {
     nsresult rv;
 
-    bool isMutable; // (because ReadBoolean doesn't support bool*)
+    bool isMutable;
     rv = aStream->ReadBoolean(&isMutable);
     if (NS_FAILED(rv)) return rv;
-    if (isMutable != true && isMutable != false) {
-        NS_WARNING("Unexpected boolean value");
-        return NS_ERROR_UNEXPECTED;
-    }
     mMutable = isMutable;
 
     rv = aStream->ReadCString(mScheme);
@@ -80,10 +76,6 @@ nsSimpleURI::Read(nsIObjectInputStream* aStream)
     bool isRefValid;
     rv = aStream->ReadBoolean(&isRefValid);
     if (NS_FAILED(rv)) return rv;
-    if (isRefValid != true && isRefValid != false) {
-        NS_WARNING("Unexpected boolean value");
-        return NS_ERROR_UNEXPECTED;
-    }
     mIsRefValid = isRefValid;
 
     if (isRefValid) {
@@ -206,7 +198,7 @@ nsSimpleURI::SetSpec(const nsACString &aSpec)
     const char* specPtr = flat.get();
 
     // filter out unexpected chars "\r\n\t" if necessary
-    nsCAutoString filteredSpec;
+    nsAutoCString filteredSpec;
     int32_t specLen;
     if (net_FilterURIString(specPtr, filteredSpec)) {
         specPtr = filteredSpec.get();
@@ -215,7 +207,7 @@ nsSimpleURI::SetSpec(const nsACString &aSpec)
         specLen = flat.Length();
 
     // nsSimpleURI currently restricts the charset to US-ASCII
-    nsCAutoString spec;
+    nsAutoCString spec;
     NS_EscapeURL(specPtr, specLen, esc_OnlyNonASCII|esc_AlwaysCopy, spec);
 
     int32_t colonPos = spec.FindChar(':');
@@ -531,7 +523,7 @@ nsSimpleURI::Resolve(const nsACString &relativePath, nsACString &result)
 NS_IMETHODIMP
 nsSimpleURI::GetAsciiSpec(nsACString &result)
 {
-    nsCAutoString buf;
+    nsAutoCString buf;
     nsresult rv = GetSpec(buf);
     if (NS_FAILED(rv)) return rv;
     NS_EscapeURL(buf, esc_OnlyNonASCII|esc_AlwaysCopy, result);
@@ -643,7 +635,7 @@ nsSimpleURI::SetMutable(bool value)
 //----------------------------------------------------------------------------
 
 size_t 
-nsSimpleURI::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+nsSimpleURI::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 {
   return mScheme.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
          mPath.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
@@ -651,7 +643,7 @@ nsSimpleURI::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 }
 
 size_t
-nsSimpleURI::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
+nsSimpleURI::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
 

@@ -1,7 +1,7 @@
 /**
  * Test accessible name for the given accessible identifier.
  */
-function testName(aAccOrElmOrID, aName, aMsg)
+function testName(aAccOrElmOrID, aName, aMsg, aTodo)
 {
   var msg = aMsg ? aMsg : "";
 
@@ -9,11 +9,25 @@ function testName(aAccOrElmOrID, aName, aMsg)
   if (!acc)
     return;
 
+  var func = aTodo ? todo_is : is;
   var txtID = prettyName(aAccOrElmOrID);
   try {
-    is(acc.name, aName, msg + "Wrong name of the accessible for " + txtID);
+    func(acc.name, aName, msg + "Wrong name of the accessible for " + txtID);
   } catch (e) {
     ok(false, msg + "Can't get name of the accessible for " + txtID);
   }
   return acc;
+}
+
+/**
+ * Test accessible description for the given accessible.
+ */
+function testDescr(aAccOrElmOrID, aDescr)
+{
+  var acc = getAccessible(aAccOrElmOrID);
+  if (!acc)
+   return;
+
+  is(acc.description, aDescr,
+     "Wrong description for " + prettyName(aAccOrElmOrID));
 }

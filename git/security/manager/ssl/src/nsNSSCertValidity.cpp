@@ -3,16 +3,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsNSSCertValidity.h"
-#include "nsNSSCertHeader.h"
 #include "nsCOMPtr.h"
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"
 #include "nsComponentManagerUtils.h"
 #include "nsReadableUtils.h"
 #include "nsNSSShutDown.h"
+#include "cert.h"
 
 /* Implementation file */
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsX509CertValidity, nsIX509CertValidity)
+NS_IMPL_ISUPPORTS(nsX509CertValidity, nsIX509CertValidity)
 
 nsX509CertValidity::nsX509CertValidity() : mTimesInitialized(false)
 {

@@ -13,10 +13,11 @@
 #include "prprf.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
-#include "prlong.h"
 #include "plstr.h"
 #include "nsCOMArray.h"
 #include "nsIComponentRegistrar.h"
+#include <algorithm>
+#include "nsIScriptSecurityManager.h"
 
 namespace TestPageLoad {
 
@@ -25,11 +26,11 @@ nsresult auxLoad(char *uriBuf);
 //----------------------------------------------------------------------
 
 
-#define RETURN_IF_FAILED(rv, step) \
+#define RETURN_IF_FAILED(rv, ret, step) \
     PR_BEGIN_MACRO \
     if (NS_FAILED(rv)) { \
-        printf(">>> %s failed: rv=%x\n", step, rv); \
-        return rv;\
+        printf(">>> %s failed: rv=%x\n", step, static_cast<uint32_t>(rv)); \
+        return ret;\
     } \
     PR_END_MACRO
 
@@ -74,10 +75,10 @@ static NS_METHOD streamParse (nsIInputStream* in,
       return NS_OK;
     }
     parseBuf[0]='\0';
-    if((loc_t=PL_strcasestr(lineBuf, "img"))!= NULL 
-       || (loc_t=PL_strcasestr(lineBuf, "script"))!=NULL) {
+    if((loc_t=PL_strcasestr(lineBuf, "img"))!= nullptr 
+       || (loc_t=PL_strcasestr(lineBuf, "script"))!=nullptr) {
       loc_t2=PL_strcasestr(loc_t, "src");
-      if(loc_t2!=NULL) {
+      if(loc_t2!=nullptr) {
         loc_t2+=3;
         strcpy(loc, loc_t2);
         sscanf(loc, "=\"%[^\"]", parseBuf);
@@ -91,9 +92,9 @@ static NS_METHOD streamParse (nsIInputStream* in,
     }
 
     /***NEED BETTER CHECK FOR STYLESHEETS
-    if((loc_t=PL_strcasestr(lineBuf, "link"))!= NULL) { 
+    if((loc_t=PL_strcasestr(lineBuf, "link"))!= nullptr) { 
        loc_t2=PL_strcasestr(loc_t, "href");
-      if(loc_t2!=NULL) {
+      if(loc_t2!=nullptr) {
         loc_t2+=4;
         strcpy(loc, loc_t2);
         //printf("%s\n", loc);
@@ -106,7 +107,7 @@ static NS_METHOD streamParse (nsIInputStream* in,
       }
     }
     */
-    if((loc_t=PL_strcasestr(lineBuf, "background"))!=NULL) {
+    if((loc_t=PL_strcasestr(lineBuf, "background"))!=nullptr) {
       loc_t+=10;
       strcpy(loc, loc_t);
       sscanf(loc, "=\"%[^\"]", parseBuf);
@@ -128,18 +129,19 @@ static NS_METHOD streamParse (nsIInputStream* in,
 
 class MyListener : public nsIStreamListener
 {
+    virtual ~MyListener() {}
+
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIREQUESTOBSERVER
     NS_DECL_NSISTREAMLISTENER
 
     MyListener() { }
-    virtual ~MyListener() {}
 };
 
-NS_IMPL_ISUPPORTS2(MyListener,
-                   nsIRequestObserver,
-                   nsIStreamListener)
+NS_IMPL_ISUPPORTS(MyListener,
+                  nsIRequestObserver,
+                  nsIStreamListener)
 
 NS_IMETHODIMP
 MyListener::OnStartRequest(nsIRequest *req, nsISupports *ctxt)
@@ -161,7 +163,7 @@ MyListener::OnStopRequest(nsIRequest *req, nsISupports *ctxt, nsresult status)
 NS_IMETHODIMP
 MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctxt,
                             nsIInputStream *stream,
-                            uint32_t offset, uint32_t count)
+                            uint64_t offset, uint32_t count)
 {
     //printf(">>> OnDataAvailable [count=%u]\n", count);
     nsresult rv = NS_ERROR_FAILURE;
@@ -170,17 +172,18 @@ MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctxt,
 
     if(ctxt == nullptr) {
       bytesRead=0;
-      rv = stream->ReadSegments(streamParse, &offset, count, &bytesRead);
+      rv = stream->ReadSegments(streamParse, nullptr, count, &bytesRead);
     } else {
       while (count) {
-        uint32_t amount = NS_MIN<uint32_t>(count, sizeof(buf));
+        uint32_t amount = std::min<uint32_t>(count, sizeof(buf));
         rv = stream->Read(buf, amount, &bytesRead);  
         count -= bytesRead;
       }
     }
 
     if (NS_FAILED(rv)) {
-      printf(">>> stream->Read failed with rv=%x\n", rv);
+      printf(">>> stream->Read failed with rv=%x\n",
+             static_cast<uint32_t>(rv));
       return rv;
     }
 
@@ -194,18 +197,19 @@ MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctxt,
 class MyNotifications : public nsIInterfaceRequestor
                       , public nsIProgressEventSink
 {
+    virtual ~MyNotifications() {}
+
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSIPROGRESSEVENTSINK
 
     MyNotifications() { }
-    virtual ~MyNotifications() {}
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(MyNotifications,
-                              nsIInterfaceRequestor,
-                              nsIProgressEventSink)
+NS_IMPL_ISUPPORTS(MyNotifications,
+                  nsIInterfaceRequestor,
+                  nsIProgressEventSink)
 
 NS_IMETHODIMP
 MyNotifications::GetInterface(const nsIID &iid, void **result)
@@ -215,7 +219,7 @@ MyNotifications::GetInterface(const nsIID &iid, void **result)
 
 NS_IMETHODIMP
 MyNotifications::OnStatus(nsIRequest *req, nsISupports *ctx,
-                          nsresult status, const PRUnichar *statusText)
+                          nsresult status, const char16_t *statusText)
 {
     //printf("status: %x\n", status);
     return NS_OK;
@@ -295,12 +299,27 @@ nsresult auxLoad(char *uriBuf)
     }
     printf("\n");
     uriList.AppendObject(uri);
-    rv = NS_NewChannel(getter_AddRefs(chan), uri, nullptr, nullptr, callbacks);
-    RETURN_IF_FAILED(rv, "NS_NewChannel");
+
+    nsCOMPtr<nsIScriptSecurityManager> secman =
+      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
+    RETURN_IF_FAILED(rv, rv, "Couldn't get script security manager!");
+       nsCOMPtr<nsIPrincipal> systemPrincipal;
+    rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
+    RETURN_IF_FAILED(rv, rv, "Couldn't get system principal!");
+
+    rv = NS_NewChannel(getter_AddRefs(chan),
+                       uri,
+                       systemPrincipal,
+                       nsILoadInfo::SEC_NORMAL,
+                       nsIContentPolicy::TYPE_OTHER,
+                       nullptr,   // loadGroup
+                       callbacks);
+
+    RETURN_IF_FAILED(rv, rv, "NS_NewChannel");
 
     gKeepRunning++;
     rv = chan->AsyncOpen(listener, myBool);
-    RETURN_IF_FAILED(rv, "AsyncOpen");
+    RETURN_IF_FAILED(rv, rv, "AsyncOpen");
 
     return NS_OK;
 
@@ -337,25 +356,36 @@ int main(int argc, char **argv)
         nsCOMPtr<nsIInterfaceRequestor> callbacks = new MyNotifications();
 
         rv = NS_NewURI(getter_AddRefs(baseURI), argv[1]);
-        RETURN_IF_FAILED(rv, "NS_NewURI");
+        RETURN_IF_FAILED(rv, -1, "NS_NewURI");
 
-        rv = NS_NewChannel(getter_AddRefs(chan), baseURI, nullptr, nullptr, callbacks);
-        RETURN_IF_FAILED(rv, "NS_OpenURI");
+        nsCOMPtr<nsIScriptSecurityManager> secman =
+          do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
+        RETURN_IF_FAILED(rv, -1, "Couldn't get script security manager!");
+           nsCOMPtr<nsIPrincipal> systemPrincipal;
+        rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
+        RETURN_IF_FAILED(rv, -1, "Couldn't get system principal!");
+
+        rv = NS_NewChannel(getter_AddRefs(chan),
+                           baseURI,
+                           systemPrincipal,
+                           nsILoadInfo::SEC_NORMAL,
+                           nsIContentPolicy::TYPE_OTHER,
+                           nullptr,   // loadGroup
+                           callbacks);
+
+        RETURN_IF_FAILED(rv, -1, "NS_OpenURI");
         gKeepRunning++;
 
         //TIMER STARTED-----------------------
         printf("Starting clock ... \n");
         start = PR_Now();
         rv = chan->AsyncOpen(listener, nullptr);
-        RETURN_IF_FAILED(rv, "AsyncOpen");
+        RETURN_IF_FAILED(rv, -1, "AsyncOpen");
 
         PumpEvents();
 
         finish = PR_Now();
-        uint32_t totalTime32;
-        uint64_t totalTime64;
-        LL_SUB(totalTime64, finish, start);
-        LL_L2UI(totalTime32, totalTime64);
+        uint32_t totalTime32 = uint32_t(finish - start);
 
         printf("\n\n--------------------\nAll done:\nnum found:%d\nnum start:%d\n", numFound, numStart);
 

@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -31,13 +31,13 @@ function search_has_result(aTerms)
 
 function run_test()
 {
+  run_next_test();
+}
+
+add_task(function test_execute()
+{
   const SEARCH_TERM = "ユニコード";
   const TEST_URL = "http://example.com/" + SEARCH_TERM + "/";
-  var ios = Cc["@mozilla.org/network/io-service;1"].
-            getService(Ci.nsIIOService);
-  var testURI = ios.newURI(TEST_URL, null, null);
-
-  hs.addVisit(testURI, Date.now() * 1000, null,
-              Ci.nsINavHistoryService.TRANSITION_TYPED, false, 0);
+  yield promiseAddVisits(uri(TEST_URL));
   do_check_true(search_has_result(SEARCH_TERM));
-}
+});

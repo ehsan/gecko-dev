@@ -5,13 +5,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/LoadContext.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsServiceManagerUtils.h"
-#include "nsContentUtils.h"
 
 namespace mozilla {
 
-NS_IMPL_ISUPPORTS1(LoadContext, nsILoadContext);
+NS_IMPL_ISUPPORTS(LoadContext, nsILoadContext, nsIInterfaceRequestor)
 
 //-----------------------------------------------------------------------------
 // LoadContext::nsILoadContext
@@ -33,6 +30,22 @@ LoadContext::GetTopWindow(nsIDOMWindow**)
 
   // can't support this in the parent process
   return NS_ERROR_UNEXPECTED;
+}
+
+NS_IMETHODIMP
+LoadContext::GetTopFrameElement(nsIDOMElement** aElement)
+{
+  nsCOMPtr<nsIDOMElement> element = do_QueryReferent(mTopFrameElement);
+  element.forget(aElement);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+LoadContext::GetNestedFrameId(uint64_t* aId)
+{
+  NS_ENSURE_ARG(aId);
+  *aId = mNestedFrameId;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -76,6 +89,35 @@ LoadContext::SetUsePrivateBrowsing(bool aUsePrivateBrowsing)
 }
 
 NS_IMETHODIMP
+LoadContext::SetPrivateBrowsing(bool aUsePrivateBrowsing)
+{
+  MOZ_ASSERT(mIsNotNull);
+
+  // We shouldn't need this on parent...
+  return NS_ERROR_UNEXPECTED;
+}
+
+NS_IMETHODIMP
+LoadContext::GetUseRemoteTabs(bool* aUseRemoteTabs)
+{
+  MOZ_ASSERT(mIsNotNull);
+
+  NS_ENSURE_ARG_POINTER(aUseRemoteTabs);
+
+  *aUseRemoteTabs = mUseRemoteTabs;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+LoadContext::SetRemoteTabs(bool aUseRemoteTabs)
+{
+  MOZ_ASSERT(mIsNotNull);
+
+  // We shouldn't need this on parent...
+  return NS_ERROR_UNEXPECTED;
+}
+
+NS_IMETHODIMP
 LoadContext::GetIsInBrowserElement(bool* aIsInBrowserElement)
 {
   MOZ_ASSERT(mIsNotNull);
@@ -95,6 +137,24 @@ LoadContext::GetAppId(uint32_t* aAppId)
 
   *aAppId = mAppId;
   return NS_OK;
+}
+
+//-----------------------------------------------------------------------------
+// LoadContext::nsIInterfaceRequestor
+//-----------------------------------------------------------------------------
+NS_IMETHODIMP
+LoadContext::GetInterface(const nsIID &aIID, void **aResult)
+{
+  NS_ENSURE_ARG_POINTER(aResult);
+  *aResult = nullptr;
+
+  if (aIID.Equals(NS_GET_IID(nsILoadContext))) {
+    *aResult = static_cast<nsILoadContext*>(this);
+    NS_ADDREF_THIS();
+    return NS_OK;
+  }
+
+  return NS_NOINTERFACE;
 }
 
 } // namespace mozilla

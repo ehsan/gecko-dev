@@ -16,7 +16,7 @@
 <div id="content" style="display: none">
 
 <div id="testnode"></div>
-  
+
 </div>
 <pre id="test">
 <script class="testbody" type="text/javascript">
@@ -55,6 +55,16 @@ var gSystemFont = {
   "message-box": true,
   "small-caption": true,
   "status-bar": true,
+  "-moz-window": true,
+  "-moz-document": true,
+  "-moz-desktop": true,
+  "-moz-info": true,
+  "-moz-dialog": true,
+  "-moz-button": true,
+  "-moz-pull-down-menu": true,
+  "-moz-list": true,
+  "-moz-field": true,
+  "-moz-workspace": true,
 };
 
 var gBadCompute = {
@@ -71,20 +81,8 @@ function xfail_compute(property, value)
   return false;
 }
 
-var gBadSerialize = {
-  // Font-families which include quotes don't get those escaped when
-  //serializing: see bug 660397
-  "font-family": ["\\\"Times New Roman", "Times, \\\"Times New Roman"],
-};
-
-function xfail_serialize(property, value)
-{
-  if (property in gBadSerialize &&
-      gBadSerialize[property].indexOf(value) != -1)
-    return true;
-
-  return false;
-}
+// constructed to map longhands ==> list of containing shorthands
+var gPropertyShorthands = {};
 
 var gElement = document.getElementById("testnode");
 var gDeclaration = gElement.style;
@@ -95,11 +93,35 @@ var gPrereqDeclaration =
 
 function test_property(property)
 {
+  ok(SpecialPowers.getBoolPref("layout.css.variables.enabled"), "pref not set #2");
   var info = gCSSProperties[property];
 
   var test_computed = !("backend_only" in info);
 
-  function test_value(value) {
+  // can all properties be removed from the style?
+  function test_remove_all_properties(property, value) {
+    var i, p = [];
+    for (i = 0; i < gDeclaration.length; i++) p.push(gDeclaration[i]);
+    for (i = 0; i < p.length; i++) gDeclaration.removeProperty(p[i]);
+    var errstr = "when setting property " + property + " to " + value;
+    is(gDeclaration.length, 0, "unremovable properties " + errstr);
+    is(gDeclaration.cssText, "", "non-empty serialization after removing all properties " + errstr);
+  }
+
+  function test_other_shorthands_empty(value, subprop) {
+    if (!(subprop in gPropertyShorthands)) return;
+    var shorthands = gPropertyShorthands[subprop];
+    for (idx in shorthands) {
+      var sh = shorthands[idx];
+      if (sh.replace("-moz-","") == property.replace("-moz-","")) continue;
+      is(gDeclaration.getPropertyValue(sh), "",
+         "setting '" + value + "' on '" + property + "' (for shorthand '" + sh + "')");
+    }
+  }
+
+  function test_value(value, resolved_value) {
+    var value_has_variable_reference = resolved_value != null;
+
     gDeclaration.setProperty(property, value, "");
 
     var idx;
@@ -122,8 +144,15 @@ function test_property(property)
     if ("subproperties" in info)
       for (idx in info.subproperties) {
         var subprop = info.subproperties[idx];
-        isnot(gDeclaration.getPropertyValue(subprop), "",
-              "setting '" + value + "' on '" + property + "'");
+        if (value_has_variable_reference &&
+            (!info.alias_for || info.type == CSS_TYPE_TRUE_SHORTHAND)) {
+          is(gDeclaration.getPropertyValue(subprop), "",
+             "setting '" + value + "' on '" + property + "' (for '" + subprop + "')");
+          test_other_shorthands_empty(value, subprop);
+        } else {
+          isnot(gDeclaration.getPropertyValue(subprop), "",
+                "setting '" + value + "' on '" + property + "' (for '" + subprop + "')");
+        }
       }
 
     // We don't care particularly about the whitespace or the placement of
@@ -142,13 +171,11 @@ function test_property(property)
     gDeclaration.removeProperty(property);
     gDeclaration.setProperty(property, step1val, "");
 
-    var serialize_func = xfail_serialize(property, value) ? todo_is : is;
-
-    serialize_func(gDeclaration.getPropertyValue(property), step1val,
+    is(gDeclaration.getPropertyValue(property), step1val,
        "parse+serialize should be idempotent for '" +
          property + ": " + value + "'");
     if (test_computed && info.type != CSS_TYPE_TRUE_SHORTHAND) {
-      serialize_func(gComputedStyle.getPropertyValue(property), step1comp,
+      is(gComputedStyle.getPropertyValue(property), step1comp,
          "serialize+parse should be identity transform for '" +
          property + ": " + value + "'");
     }
@@ -158,7 +185,8 @@ function test_property(property)
         // system fonts, since the shorthand does more than its parts.
         (property != "font" || !(value in gSystemFont)) &&
         // Likewise for special compatibility values of transform
-        (property != "-moz-transform" || !value.match(/^matrix.*(px|em|%)/))) {
+        (property != "-moz-transform" || !value.match(/^matrix.*(px|em|%)/)) &&
+        !value_has_variable_reference) {
       gDeclaration.removeProperty(property);
       for (idx in info.subproperties) {
         var subprop = info.subproperties[idx];
@@ -184,8 +212,7 @@ function test_property(property)
     if (test_computed && info.type != CSS_TYPE_TRUE_SHORTHAND) {
       gDeclaration.removeProperty(property);
       gDeclaration.setProperty(property, step1comp, "");
-      var func = (xfail_compute(property, value) ||
-        xfail_serialize(property, value)) ? todo_is : is;
+      var func = xfail_compute(property, value) ? todo_is : is;
       func(gComputedStyle.getPropertyValue(property), step1comp,
            "parse+compute+serialize should be idempotent for '" +
            property + ": " + value + "'");
@@ -212,7 +239,23 @@ function test_property(property)
       }
     }
 
+    // sanity check shorthands to make sure disabled props aren't exposed
+    if (info.type != CSS_TYPE_LONGHAND) {
+      gDeclaration.setProperty(property, value, "");
+      test_remove_all_properties(property, value);
+    }
+
     gDeclaration.removeProperty(property);
+  }
+
+  function test_value_without_variable(value) {
+    test_value(value, null);
+  }
+
+  function test_value_with_variable(value) {
+    gPrereqDeclaration.setProperty("--a", value, "");
+    test_value("var(--a)", value);
+    gPrereqDeclaration.removeProperty("--a");
   }
 
   if ("prerequisites" in info) {
@@ -223,10 +266,14 @@ function test_property(property)
   }
 
   var idx;
-  for (idx in info.initial_values)
-    test_value(info.initial_values[idx]);
-  for (idx in info.other_values)
-    test_value(info.other_values[idx]);
+  for (idx in info.initial_values) {
+    test_value_without_variable(info.initial_values[idx]);
+    test_value_with_variable(info.initial_values[idx]);
+  }
+  for (idx in info.other_values) {
+    test_value_without_variable(info.other_values[idx]);
+    test_value_with_variable(info.other_values[idx]);
+  }
 
   if ("prerequisites" in info) {
     for (var prereq in info.prerequisites) {
@@ -236,23 +283,41 @@ function test_property(property)
 
 }
 
-// To avoid triggering the slow script dialog, we have to test one
-// property at a time.
-SimpleTest.waitForExplicitFinish();
-var props = [];
-for (var prop in gCSSProperties)
-  props.push(prop);
-props = props.reverse();
-function do_one() {
-  if (props.length == 0) {
-    SimpleTest.finish();
-    return;
+function runTest() {
+  // To avoid triggering the slow script dialog, we have to test one
+  // property at a time.
+  ok(SpecialPowers.getBoolPref("layout.css.variables.enabled"), "pref not set #1");
+  var props = [];
+  for (var prop in gCSSProperties) {
+    var info = gCSSProperties[prop];
+    if ("subproperties" in info) {
+      for (var idx in info.subproperties) {
+        var subprop = info.subproperties[idx];
+        if (!(subprop in gPropertyShorthands)) {
+          gPropertyShorthands[subprop] = [];
+        }
+        gPropertyShorthands[subprop].push(prop);
+      }
+    }
+    props.push(prop);
   }
-  test_property(props.pop());
+  props = props.reverse();
+  function do_one() {
+    if (props.length == 0) {
+      SimpleTest.finish();
+      return;
+    }
+    test_property(props.pop());
+    SimpleTest.executeSoon(do_one);
+  }
   SimpleTest.executeSoon(do_one);
 }
-SimpleTest.executeSoon(do_one);
 
+SimpleTest.waitForExplicitFinish();
+SimpleTest.requestLongerTimeout(4);
+
+SpecialPowers.pushPrefEnv({ set: [["layout.css.variables.enabled", true]] },
+                          runTest);
 </script>
 </pre>
 </body>

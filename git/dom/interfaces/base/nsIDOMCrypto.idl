@@ -3,22 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "domstubs.idl"
+#include "nsISupports.idl"
 
-[scriptable, uuid(12b6d899-2aed-4ea9-8c02-2223ab7ab592)]
+interface nsIDOMWindow;
+
+[uuid(729cfcad-11b4-4338-b97e-5c023ae295fa)]
 interface nsIDOMCrypto : nsISupports
 {
-  readonly attribute DOMString        version;
-  attribute boolean         enableSmartCardEvents;
-
-  nsIDOMCRMFObject          generateCRMFRequest(/* ... */);
-  DOMString                 importUserCertificates(in DOMString nickname,
-                                                   in DOMString cmmfResponse,
-                                                   in boolean doForcedBackup);
-  DOMString                 popChallengeResponse(in DOMString challenge);
-  DOMString                 random(in long numBytes);
-  DOMString                 signText(in DOMString stringToSign,
-                                     in DOMString caOption /* ... */);
-  void                      logout();
-  void                      disableRightClick();
+  [notxpcom] void init(in nsIDOMWindow window);
 };

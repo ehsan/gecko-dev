@@ -5,13 +5,18 @@
 
 #include "nsIDOMElement.idl"
 
-interface nsIDOMSVGSVGElement;
+interface nsIDOMCSSStyleDeclaration;
+interface nsIDOMCSSValue;
 
-[scriptable, uuid(9B16734D-DBFD-4465-8EAF-354694934A1D)]
-interface nsIDOMSVGElement : nsIDOMElement 
-{ 
-  attribute DOMString id;
+
+[uuid(c63517c5-8bab-4cd1-8694-bccafc32a195)]
+interface nsIDOMSVGElement : nsIDOMElement
+{
             // raises DOMException on setting
-  readonly attribute nsIDOMSVGSVGElement ownerSVGElement;
+  readonly attribute nsIDOMSVGElement    ownerSVGElement;
   readonly attribute nsIDOMSVGElement    viewportElement;
+
+  [binaryname(SVGClassName)]
+  readonly attribute nsISupports   className;
+  readonly attribute nsIDOMCSSStyleDeclaration style;
 };

@@ -9,6 +9,9 @@
 #include "nsMemory.h"
 #include "nsString.h"
 #include "nsNativeCharsetUtils.h"
+#include "mozilla/Preferences.h"
+#include "mozJSComponentLoader.h"
+#include "nsZipArchive.h"
 
 #define JSCTYPES_CONTRACTID \
   "@mozilla.org/jsctypes;1"
@@ -21,19 +24,19 @@ namespace mozilla {
 namespace ctypes {
 
 static char*
-UnicodeToNative(JSContext *cx, const jschar *source, size_t slen)
+UnicodeToNative(JSContext *cx, const char16_t *source, size_t slen)
 {
-  nsCAutoString native;
-  nsDependentString unicode(reinterpret_cast<const PRUnichar*>(source), slen);
+  nsAutoCString native;
+  nsDependentString unicode(reinterpret_cast<const char16_t*>(source), slen);
   nsresult rv = NS_CopyUnicodeToNative(unicode, native);
   if (NS_FAILED(rv)) {
     JS_ReportError(cx, "could not convert string to native charset");
-    return NULL;
+    return nullptr;
   }
 
   char* result = static_cast<char*>(JS_malloc(cx, native.Length() + 1));
   if (!result)
-    return NULL;
+    return nullptr;
 
   memcpy(result, native.get(), native.Length() + 1);
   return result;
@@ -45,7 +48,7 @@ static JSCTypesCallbacks sCallbacks = {
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(Module)
 
-NS_IMPL_ISUPPORTS1(Module, nsIXPCScriptable)
+NS_IMPL_ISUPPORTS(Module, nsIXPCScriptable)
 
 Module::Module()
 {
@@ -61,34 +64,39 @@ Module::~Module()
 #define XPC_MAP_FLAGS nsIXPCScriptable::WANT_CALL
 #include "xpc_map_end.h"
 
-static JSBool
-SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
+static bool
+SealObjectAndPrototype(JSContext* cx, JS::Handle<JSObject *> parent, const char* name)
 {
-  jsval prop;
+  JS::Rooted<JS::Value> prop(cx);
   if (!JS_GetProperty(cx, parent, name, &prop))
     return false;
 
-  JSObject* obj = JSVAL_TO_OBJECT(prop);
+  if (prop.isUndefined()) {
+    // Pretend we sealed the object.
+    return true;
+  }
+
+  JS::Rooted<JSObject*> obj(cx, prop.toObjectOrNull());
   if (!JS_GetProperty(cx, obj, "prototype", &prop))
     return false;
 
-  JSObject* prototype = JSVAL_TO_OBJECT(prop);
+  JS::Rooted<JSObject*> prototype(cx, prop.toObjectOrNull());
   return JS_FreezeObject(cx, obj) && JS_FreezeObject(cx, prototype);
 }
 
-static JSBool
-InitAndSealCTypesClass(JSContext* cx, JSObject* global)
+static bool
+InitAndSealCTypesClass(JSContext* cx, JS::Handle<JSObject*> global)
 {
   // Init the ctypes object.
   if (!JS_InitCTypesClass(cx, global))
     return false;
 
   // Set callbacks for charset conversion and such.
-  jsval ctypes;
+  JS::Rooted<JS::Value> ctypes(cx);
   if (!JS_GetProperty(cx, global, "ctypes", &ctypes))
     return false;
 
-  JS_SetCTypesCallbacks(JSVAL_TO_OBJECT(ctypes), &sCallbacks);
+  JS_SetCTypesCallbacks(ctypes.toObjectOrNull(), &sCallbacks);
 
   // Seal up Object, Function, Array and Error and their prototypes.  (This
   // single object instance is shared amongst everyone who imports the ctypes
@@ -108,16 +116,15 @@ NS_IMETHODIMP
 Module::Call(nsIXPConnectWrappedNative* wrapper,
              JSContext* cx,
              JSObject* obj,
-             uint32_t argc,
-             jsval* argv,
-             jsval* vp,
+             const JS::CallArgs& args,
              bool* _retval)
 {
-  JSObject* global = JS_GetGlobalForScopeChain(cx);
-  if (!global)
-    return NS_ERROR_NOT_AVAILABLE;
+  mozJSComponentLoader* loader = mozJSComponentLoader::Get();
+  JS::Rooted<JSObject*> targetObj(cx);
+  nsresult rv = loader->FindTargetObject(cx, &targetObj);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  *_retval = InitAndSealCTypesClass(cx, global);
+  *_retval = InitAndSealCTypesClass(cx, targetObj);
   return NS_OK;
 }
 
@@ -127,13 +134,13 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
 NS_DEFINE_NAMED_CID(JSCTYPES_CID);
 
 static const mozilla::Module::CIDEntry kCTypesCIDs[] = {
-  { &kJSCTYPES_CID, false, NULL, mozilla::ctypes::ModuleConstructor },
-  { NULL }
+  { &kJSCTYPES_CID, false, nullptr, mozilla::ctypes::ModuleConstructor },
+  { nullptr }
 };
 
 static const mozilla::Module::ContractIDEntry kCTypesContracts[] = {
   { JSCTYPES_CONTRACTID, &kJSCTYPES_CID },
-  { NULL }
+  { nullptr }
 };
 
 static const mozilla::Module kCTypesModule = {

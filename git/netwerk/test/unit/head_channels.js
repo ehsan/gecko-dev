@@ -29,6 +29,7 @@ const CL_ALLOW_UNKNOWN_CL = 0x10;
 const CL_EXPECT_LATE_FAILURE = 0x20;
 const CL_FROM_CACHE = 0x40; // Response must be from the cache
 const CL_NOT_FROM_CACHE = 0x80; // Response must NOT be from the cache
+const CL_IGNORE_CL = 0x100; // don't bother to verify the content-length
 
 const SUSPEND_DELAY = 3000;
 
@@ -84,6 +85,8 @@ ChannelListener.prototype = {
         if (!(this._flags & (CL_EXPECT_FAILURE | CL_ALLOW_UNKNOWN_CL)))
           do_throw("Could not get contentLength");
       }
+      if (!request.isPending())
+        do_throw("request reports itself as not pending from onStartRequest!");
       if (this._contentLen == -1 && !(this._flags & (CL_EXPECT_FAILURE | CL_ALLOW_UNKNOWN_CL)))
         do_throw("Content length is unknown in onStartRequest!");
 
@@ -156,7 +159,7 @@ ChannelListener.prototype = {
         do_throw("request.status does not match status arg to onStopRequest!");
       if (request.isPending())
         do_throw("request reports itself as pending from onStopRequest!");
-      if (!(this._flags & (CL_EXPECT_FAILURE | CL_EXPECT_LATE_FAILURE)) &&
+      if (!(this._flags & (CL_EXPECT_FAILURE | CL_EXPECT_LATE_FAILURE | CL_IGNORE_CL)) &&
           !(this._flags & CL_EXPECT_GZIP) &&
           this._contentLen != -1)
           do_check_eq(this._buffer.length, this._contentLen)
@@ -199,3 +202,37 @@ ChannelEventSink.prototype = {
     callback.onRedirectVerifyCallback(Cr.NS_OK);
   }
 };
+
+
+/**
+ * Class that implements nsILoadContext.  Use it as callbacks for channel when
+ * test needs it.
+ */
+function LoadContextCallback(appId, inBrowserElement, isPrivate, isContent) {
+  this.appId = appId;
+  this.isInBrowserElement = inBrowserElement;
+  this.usePrivateBrowsing = isPrivate;
+  this.isContent = isContent;
+}
+
+LoadContextCallback.prototype = {
+  associatedWindow: null,
+  topWindow : null,
+  isAppOfType: function(appType) {
+    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+  },
+  QueryInterface: function(iid) {
+    if (iid.equals(Ci.nsILoadContext) ||
+        iid.equals(Ci.nsIInterfaceRequestor) ||
+        iid.equals(Ci.nsISupports)) {
+        return this;
+    }
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
+  getInterface: function(iid) {
+    if (iid.equals(Ci.nsILoadContext))
+      return this;
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
+}
+

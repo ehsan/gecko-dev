@@ -19,10 +19,7 @@ nsBaseContentStream::DispatchCallback(bool async)
 
   nsCOMPtr<nsIInputStreamCallback> callback;
   if (async) {
-    NS_NewInputStreamReadyEvent(getter_AddRefs(callback), mCallback,
-                                mCallbackTarget);
-    if (!callback)
-      return;  // out of memory!
+    callback = NS_NewInputStreamReadyEvent(mCallback, mCallbackTarget);
     mCallback = nullptr;
   } else {
     callback.swap(mCallback);
@@ -35,8 +32,8 @@ nsBaseContentStream::DispatchCallback(bool async)
 //-----------------------------------------------------------------------------
 // nsBaseContentStream::nsISupports
 
-NS_IMPL_THREADSAFE_ADDREF(nsBaseContentStream)
-NS_IMPL_THREADSAFE_RELEASE(nsBaseContentStream)
+NS_IMPL_ADDREF(nsBaseContentStream)
+NS_IMPL_RELEASE(nsBaseContentStream)
 
 // We only support nsIAsyncInputStream when we are in non-blocking mode.
 NS_INTERFACE_MAP_BEGIN(nsBaseContentStream)

@@ -6,13 +6,12 @@
 
 "use strict";
 SimpleTest.waitForExplicitFinish();
+browserElementTestHelpers.setEnabledPref(true);
+browserElementTestHelpers.addPermission();
 
 function runTest() {
-  browserElementTestHelpers.setEnabledPref(true);
-  browserElementTestHelpers.addPermission();
-
   var iframe = document.createElement('iframe');
-  iframe.mozbrowser = true;
+  iframe.setAttribute('mozbrowser', 'true');
 
   iframe.addEventListener('mozbrowseropenwindow', function(e) {
     ok(e.detail.url.indexOf('does_not_exist.html') != -1,
@@ -22,6 +21,7 @@ function runTest() {
 
     // Don't add e.detail.frameElement to the DOM, so the window.open is
     // effectively blocked.
+    e.preventDefault();
   });
 
   iframe.addEventListener('mozbrowsershowmodalprompt', function(e) {
@@ -41,4 +41,4 @@ function runTest() {
   document.body.appendChild(iframe);
 }
 
-runTest();
+addEventListener('testready', runTest);

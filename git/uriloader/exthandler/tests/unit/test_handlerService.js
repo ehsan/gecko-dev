@@ -26,15 +26,22 @@ function run_test() {
 
   const rootPrefBranch = prefSvc.getBranch("");
   
-  let isWin7OrHigher = false;
+  let noMailto = false;
   let isWindows = ("@mozilla.org/windows-registry-key;1" in Components.classes);
   if (isWindows) {
+    // Check mailto handler from registry.
+    // If registry entry is nothing, no mailto handler
+    let regSvc = Cc["@mozilla.org/windows-registry-key;1"].
+                 createInstance(Ci.nsIWindowsRegKey);
     try {
-      let version = Cc["@mozilla.org/system-info;1"]
-                      .getService(Ci.nsIPropertyBag2)
-                      .getProperty("version");
-      isWin7OrHigher = (parseFloat(version) >= 6.1);
-    } catch (ex) { }
+      regSvc.open(regSvc.ROOT_KEY_CLASSES_ROOT,
+                  "mailto",
+                  regSvc.ACCESS_READ);
+      noMailto = false;
+    } catch (ex) {
+      noMailto = true;
+    }
+    regSvc.close();
   }
 
   //**************************************************************************//
@@ -150,8 +157,8 @@ function run_test() {
   else
     do_check_eq(0, protoInfo.possibleApplicationHandlers.length);
 
-  // Win7 doesn't have a default mailto: handler
-  if (isWin7OrHigher)
+  // Win7+ might not have a default mailto: handler
+  if (noMailto)
     do_check_true(protoInfo.alwaysAskBeforeHandling);
   else
     do_check_false(protoInfo.alwaysAskBeforeHandling);
@@ -161,12 +168,12 @@ function run_test() {
   protoInfo = protoSvc.getProtocolHandlerInfo("mailto");
   if (haveDefaultHandlersVersion) {
     do_check_eq(2, protoInfo.possibleApplicationHandlers.length);
-    // Win7 doesn't have a default mailto: handler, but on other platforms
+    // Win7+ might not have a default mailto: handler, but on other platforms
     // alwaysAskBeforeHandling is expected to be false here, because although
     // the pref is true, the value in RDF is false. The injected mailto handler
     // carried over the default pref value, and so when we set the pref above
     // to true it's ignored.
-    if (isWin7OrHigher)
+    if (noMailto)
       do_check_true(protoInfo.alwaysAskBeforeHandling);
     else
       do_check_false(protoInfo.alwaysAskBeforeHandling);
@@ -441,7 +448,9 @@ function run_test() {
   lolType = handlerSvc.getTypeFromExtension("lolcat");
   do_check_eq(lolType, "application/lolcat");
 
-  if (env.get("PERSONAL_MAILCAP")) {
+  // test mailcap entries with needsterminal are ignored on non-Windows non-Mac.
+  if (!("@mozilla.org/windows-registry-key;1" in Cc) && !("nsILocalFileMac" in Ci)) {
+    env.set('PERSONAL_MAILCAP', do_get_file('mailcap').path);
     handlerInfo = mimeSvc.getFromTypeAndExtension("text/plain", null);
     do_check_eq(handlerInfo.preferredAction, Ci.nsIHandlerInfo.useSystemDefault);
     do_check_eq(handlerInfo.defaultDescription, "sed");

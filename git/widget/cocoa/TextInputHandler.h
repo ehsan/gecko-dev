@@ -17,10 +17,9 @@
 #include "nsITimer.h"
 #include "npapi.h"
 #include "nsTArray.h"
-#include "nsEvent.h"
+#include "mozilla/EventForwards.h"
 
 class nsChildView;
-struct nsTextRange;
 
 namespace mozilla {
 namespace widget {
@@ -38,6 +37,8 @@ enum
   kVK_PC_Backspace       = kVK_Delete,
   kVK_PC_Delete          = kVK_ForwardDelete,
 
+  kVK_PC_ContextMenu     = 0x6E,
+
   kVK_Powerbook_KeypadEnter = 0x34  // Enter on Powerbook's keyboard is different
 };
 
@@ -52,7 +53,7 @@ enum
 class TISInputSourceWrapper
 {
 public:
-  static TISInputSourceWrapper& CurrentKeyboardLayout();
+  static TISInputSourceWrapper& CurrentInputSource();
 
   TISInputSourceWrapper()
   {
@@ -60,19 +61,19 @@ public:
     Clear();
   }
 
-  TISInputSourceWrapper(const char* aID)
+  explicit TISInputSourceWrapper(const char* aID)
   {
     mInputSourceList = nullptr;
     InitByInputSourceID(aID);
   }
 
-  TISInputSourceWrapper(SInt32 aLayoutID)
+  explicit TISInputSourceWrapper(SInt32 aLayoutID)
   {
     mInputSourceList = nullptr;
     InitByLayoutID(aLayoutID);
   }
 
-  TISInputSourceWrapper(TISInputSourceRef aInputSource)
+  explicit TISInputSourceWrapper(TISInputSourceRef aInputSource)
   {
     mInputSourceList = nullptr;
     InitByTISInputSourceRef(aInputSource);
@@ -93,6 +94,12 @@ public:
    *                                3: Swedish-Pro
    *                                4: Dvorak-Qwerty Cmd
    *                                5: Thai
+   *                                6: Arabic
+   *                                7: French
+   *                                8: Hebrew
+   *                                9: Lithuanian
+   *                               10: Norwegian
+   *                               11: Spanish
    * @param aOverrideKeyboard     When testing set to TRUE, otherwise, set to
    *                              FALSE.  When TRUE, we use an ANSI keyboard
    *                              instead of the actual keyboard.
@@ -102,13 +109,27 @@ public:
   void InitByCurrentKeyboardLayout();
   void InitByCurrentASCIICapableInputSource();
   void InitByCurrentASCIICapableKeyboardLayout();
+  void InitByCurrentInputMethodKeyboardLayoutOverride();
   void InitByTISInputSourceRef(TISInputSourceRef aInputSource);
   void InitByLanguage(CFStringRef aLanguage);
 
+  /**
+   * If the instance is initialized with a keyboard layout input source,
+   * returns it.
+   * If the instance is initialized with an IME mode input source, the result
+   * references the keyboard layout for the IME mode.  However, this can be
+   * initialized only when the IME mode is actually selected.  I.e, if IME mode
+   * input source is initialized with LayoutID or SourceID, this returns null.
+   */
+  TISInputSourceRef GetKeyboardLayoutInputSource() const
+  {
+    return mKeyboardLayout;
+  }
   const UCKeyboardLayout* GetUCKeyboardLayout();
 
   bool IsOpenedIMEMode();
   bool IsIMEMode();
+  bool IsKeyboardLayout();
 
   bool IsASCIICapable()
   {
@@ -175,7 +196,7 @@ public:
   }
 
   bool IsForRTLLanguage();
-  bool IsInitializedByCurrentKeyboardLayout();
+  bool IsInitializedByCurrentInputSource();
 
   enum {
     // 40 is an actual result of the ::LMGetKbdType() when we connect an
@@ -201,7 +222,7 @@ public:
    *                              compute the character to be input from
    *                              characters of aNativeKeyEvent.
    */
-  void InitKeyEvent(NSEvent *aNativeKeyEvent, nsKeyEvent& aKeyEvent,
+  void InitKeyEvent(NSEvent *aNativeKeyEvent, WidgetKeyboardEvent& aKeyEvent,
                     const nsAString *aInsertString = nullptr);
 
   /**
@@ -216,6 +237,20 @@ public:
    */
   uint32_t ComputeGeckoKeyCode(UInt32 aNativeKeyCode, UInt32 aKbType,
                                bool aCmdIsPressed);
+
+  /**
+   * ComputeGeckoKeyNameIndex() returns Gecko key name index for the key.
+   *
+   * @param aNativeKeyCode        A native keycode.
+   */
+  static KeyNameIndex ComputeGeckoKeyNameIndex(UInt32 aNativeKeyCode);
+
+  /**
+   * ComputeGeckoCodeNameIndex() returns Gecko code name index for the key.
+   *
+   * @param aNativeKeyCode        A native keycode.
+   */
+  static CodeNameIndex ComputeGeckoCodeNameIndex(UInt32 aNativeKeyCode);
 
 protected:
   /**
@@ -264,8 +299,8 @@ protected:
    *                              this is a result of ::LMGetKbdType().
    */
   void InitKeyPressEvent(NSEvent *aNativeKeyEvent,
-                         PRUnichar aInsertChar,
-                         nsKeyEvent& aKeyEvent,
+                         char16_t aInsertChar,
+                         WidgetKeyboardEvent& aKeyEvent,
                          UInt32 aKbType);
 
   bool GetBoolProperty(const CFStringRef aKey);
@@ -273,6 +308,7 @@ protected:
   bool GetStringProperty(const CFStringRef aKey, nsAString &aStr);
 
   TISInputSourceRef mInputSource;
+  TISInputSourceRef mKeyboardLayout;
   CFArrayRef mInputSourceList;
   const UCKeyboardLayout* mUCKeyboardLayout;
   int8_t mIsRTL;
@@ -316,7 +352,17 @@ public:
    * @return                      TRUE if the event is consumed by web contents
    *                              or chrome contents.  Otherwise, FALSE.
    */
-  bool DispatchEvent(nsGUIEvent& aEvent);
+  bool DispatchEvent(WidgetGUIEvent& aEvent);
+
+  /**
+   * SetSelection() dispatches NS_SELECTION_SET event for the aRange.
+   *
+   * @param aRange                The range which will be selected.
+   * @return                      TRUE if setting selection is succeeded and
+   *                              the widget hasn't been destroyed.
+   *                              Otherwise, FALSE.
+   */
+  bool SetSelection(NSRange& aRange);
 
   /**
    * InitKeyEvent() initializes aKeyEvent for aNativeKeyEvent.
@@ -332,7 +378,7 @@ public:
    *                              compute the character to be input from
    *                              characters of aNativeKeyEvent.
    */
-  void InitKeyEvent(NSEvent *aNativeKeyEvent, nsKeyEvent& aKeyEvent,
+  void InitKeyEvent(NSEvent *aNativeKeyEvent, WidgetKeyboardEvent& aKeyEvent,
                     const nsAString *aInsertString = nullptr);
 
   /**
@@ -347,6 +393,22 @@ public:
                                     const nsAString& aUnmodifiedCharacters);
 
   /**
+   * Utility method intended for testing. Attempts to construct a native key
+   * event that would have been generated during an actual key press. This
+   * *does not dispatch* the native event. Instead, it is attached to the
+   * |mNativeKeyEvent| field of the Gecko event that is passed in.
+   * @param aKeyEvent  Gecko key event to attach the native event to
+   */
+  NS_IMETHOD AttachNativeKeyEvent(WidgetKeyboardEvent& aKeyEvent);
+
+  /**
+   * GetWindowLevel() returns the window level of current focused (in Gecko)
+   * window.  E.g., if an <input> element in XUL panel has focus, this returns
+   * the XUL panel's window level.
+   */
+  NSInteger GetWindowLevel();
+
+  /**
    * IsSpecialGeckoKey() checks whether aNativeKeyCode is mapped to a special
    * Gecko keyCode.  A key is "special" if it isn't used for text input.
    *
@@ -355,6 +417,30 @@ public:
    *                              TRUE.  Otherwise, FALSE.
    */
   static bool IsSpecialGeckoKey(UInt32 aNativeKeyCode);
+
+
+  /**
+   * EnableSecureEventInput() and DisableSecureEventInput() wrap the Carbon
+   * Event Manager APIs with the same names.  In addition they keep track of
+   * how many times we've called them (in the same process) -- unlike the
+   * Carbon Event Manager APIs, which only keep track of how many times they've
+   * been called from any and all processes.
+   *
+   * The Carbon Event Manager's IsSecureEventInputEnabled() returns whether
+   * secure event input mode is enabled (in any process).  This class's
+   * IsSecureEventInputEnabled() returns whether we've made any calls to
+   * EnableSecureEventInput() that are not (yet) offset by the calls we've
+   * made to DisableSecureEventInput().
+   */
+  static void EnableSecureEventInput();
+  static void DisableSecureEventInput();
+  static bool IsSecureEventInputEnabled();
+
+  /**
+   * EnsureSecureEventInputDisabled() calls DisableSecureEventInput() until
+   * our call count becomes 0.
+   */
+  static void EnsureSecureEventInputDisabled();
 
 protected:
   nsAutoRefCnt mRefCnt;
@@ -410,7 +496,7 @@ protected:
       Clear();
     }    
 
-    KeyEventState(NSEvent* aNativeKeyEvent) : mKeyEvent(nullptr)
+    explicit KeyEventState(NSEvent* aNativeKeyEvent) : mKeyEvent(nullptr)
     {
       Clear();
       Set(aNativeKeyEvent);
@@ -452,9 +538,14 @@ protected:
       mCausedOtherKeyEvents = false;
     }
 
-    bool KeyDownOrPressHandled()
+    bool IsDefaultPrevented() const
     {
-      return mKeyDownHandled || mKeyPressHandled;
+      return mKeyDownHandled || mKeyPressHandled || mCausedOtherKeyEvents;
+    }
+
+    bool CanDispatchKeyPressEvent() const
+    {
+      return !mKeyPressDispatched && !IsDefaultPrevented();
     }
   };
 
@@ -464,7 +555,7 @@ protected:
   class AutoKeyEventStateCleaner
   {
   public:
-    AutoKeyEventStateCleaner(TextInputHandlerBase* aHandler) :
+    explicit AutoKeyEventStateCleaner(TextInputHandlerBase* aHandler) :
       mHandler(aHandler)
     {
     }
@@ -551,7 +642,7 @@ protected:
    *                              if aChar is a non-printable ASCII character,
    *                              FALSE.
    */
-  static bool IsPrintableChar(PRUnichar aChar);
+  static bool IsPrintableChar(char16_t aChar);
 
   /**
    * IsNormalCharInputtingEvent() checks whether aKeyEvent causes text input.
@@ -560,7 +651,7 @@ protected:
    * @return                      TRUE if the key event causes text input.
    *                              Otherwise, FALSE.
    */
-  static bool IsNormalCharInputtingEvent(const nsKeyEvent& aKeyEvent);
+  static bool IsNormalCharInputtingEvent(const WidgetKeyboardEvent& aKeyEvent);
 
   /**
    * IsModifierKey() checks whether the native keyCode is for a modifier key.
@@ -583,6 +674,8 @@ private:
   };
 
   KeyboardLayoutOverride mKeyboardOverride;
+
+  static int32_t sSecureEventInputCount;
 };
 
 /**
@@ -627,7 +720,7 @@ public:
   static void ConvertCocoaKeyEventToNPCocoaEvent(NSEvent* aCocoaEvent,
                                                  NPCocoaEvent& aPluginEvent);
 
-#ifndef NP_NO_CARBON
+#ifndef __LP64__
 
   /**
    * InstallPluginKeyEventsHandler() is called when initializing process.
@@ -652,7 +745,7 @@ public:
     mPluginTSMInComposition = aInComposition;
   }
 
-#endif // #ifndef NP_NO_CARBON
+#endif // #ifndef __LP64__
 
 protected:
   bool mIgnoreNextKeyUpEvent;
@@ -660,35 +753,13 @@ protected:
   PluginTextInputHandler(nsChildView* aWidget, NSView<mozView> *aNativeView);
   ~PluginTextInputHandler();
 
-#ifndef NP_NO_CARBON
-
-  /**
-   * ConvertCocoaKeyEventToCarbonEvent() converts aCocoaKeyEvent to
-   * aCarbonKeyEvent.
-   *
-   * @param aCocoaKeyEvent        A Cocoa key event.
-   * @param aCarbonKeyEvent       Converted Carbon event from aCocoaEvent.
-   * @param aMakeKeyDownEventIfNSFlagsChanged
-   *                              If aCocoaKeyEvent isn't NSFlagsChanged event,
-   *                              this is ignored.  Otherwise, i.e., if
-   *                              aCocoaKeyEvent is NSFlagsChanged event,
-   *                              set TRUE if you need a keydown event.
-   *                              Otherwise, Set FALSE for a keyup event.
-   */
-  static void ConvertCocoaKeyEventToCarbonEvent(
-                NSEvent* aCocoaKeyEvent,
-                EventRecord& aCarbonKeyEvent,
-                bool aMakeKeyDownEventIfNSFlagsChanged = false);
-
-#endif // #ifndef NP_NO_CARBON
-
 private:
 
-#ifndef NP_NO_CARBON
+#ifndef __LP64__
   TSMDocumentID mPluginTSMDoc;
 
   bool mPluginTSMInComposition;
-#endif // #ifndef NP_NO_CARBON
+#endif // #ifndef __LP64__
 
   bool mPluginComplexTextInputRequested;
 
@@ -711,7 +782,7 @@ private:
    */
   bool IsInPluginComposition();
 
-#ifndef NP_NO_CARBON
+#ifndef __LP64__
 
   /**
    * Create a TSM document for use with plugins, so that we can support IME in
@@ -735,17 +806,6 @@ private:
   void HandleCarbonPluginKeyEvent(EventRef aKeyEvent);
 
   /**
-   * ConvertUnicodeToCharCode() converts aUnichar to native encoded string.
-   *
-   * @param aUniChar              A unicode character.
-   * @param aOutChar              Native encoded string for aUniChar.
-   * @return                      TRUE if the converting succeeded.
-   *                              Otherwise, FALSE.
-   */
-  static bool ConvertUnicodeToCharCode(PRUnichar aUniChar,
-                                         unsigned char* aOutChar);
-
-  /**
    * Target for text services events sent as the result of calls made to
    * TSMProcessRawKeyEvent() in HandleKeyDownEventForPlugin() when a plugin has
    * the focus.  The calls to TSMProcessRawKeyEvent() short-circuit Cocoa-based
@@ -760,7 +820,7 @@ private:
 
   static EventHandlerRef sPluginKeyEventsHandler;
 
-#endif // #ifndef NP_NO_CARBON
+#endif // #ifndef __LP64__
 };
 
 /**
@@ -783,20 +843,29 @@ public:
 
   virtual void OnFocusChangeInGecko(bool aFocus);
 
+  void OnSelectionChange() { mSelectedRange.location = NSNotFound; }
+
   /**
-   * DispatchTextEvent() dispatches a text event on mWidget.
+   * DispatchCompositionChangeEvent() dispatches a compositionchange event on
+   * mWidget.
    *
    * @param aText                 User text input.
    * @param aAttrString           An NSAttributedString instance which indicates
    *                              current composition string.
    * @param aSelectedRange        Current selected range (or caret position).
-   * @param aDoCommit             TRUE if the composition string should be
-   *                              committed.  Otherwise, FALSE.
    */
-  bool DispatchTextEvent(const nsString& aText,
-                           NSAttributedString* aAttrString,
-                           NSRange& aSelectedRange,
-                           bool aDoCommit);
+  bool DispatchCompositionChangeEvent(const nsString& aText,
+                                      NSAttributedString* aAttrString,
+                                      NSRange& aSelectedRange);
+
+  /**
+   * DispatchCompositionCommitEvent() dispatches a compositioncommit event or
+   * compositioncommitasis event.  If aCommitString is null, dispatches
+   * compositioncommitasis event.  I.e., if aCommitString is null, this
+   * commits the composition with the last data.  Otherwise, commits the
+   * composition with aCommitString value.
+   */
+  bool DispatchCompositionCommitEvent(const nsAString* aCommitString = nullptr);
 
   /**
    * SetMarkedText() is a handler of setMarkedText of NSTextInput.
@@ -808,9 +877,12 @@ public:
    *                              create an NSAttributedString from it and pass
    *                              that instead.
    * @param aSelectedRange        Current selected range (or caret position).
+   * @param aReplacementRange     The range which will be replaced with the
+   *                              aAttrString instead of current marked range.
    */
   void SetMarkedText(NSAttributedString* aAttrString,
-                     NSRange& aSelectedRange);
+                     NSRange& aSelectedRange,
+                     NSRange* aReplacementRange = nullptr);
 
   /**
    * ConversationIdentifier() returns an ID for the current editor.  The ID is
@@ -826,12 +898,15 @@ public:
    * which is allocated as autorelease for aRange.
    *
    * @param aRange                The range of string which you want.
+   * @param aActualRange          The actual range of the result.
    * @return                      The string in aRange.  If the string is empty,
    *                              this returns nil.  If succeeded, this returns
    *                              an instance which is allocated as autorelease.
    *                              If this has some troubles, returns nil.
    */
-  NSAttributedString* GetAttributedSubstringFromRange(NSRange& aRange);
+  NSAttributedString* GetAttributedSubstringFromRange(
+                        NSRange& aRange,
+                        NSRange* aActualRange = nullptr);
 
   /**
    * SelectedRange() returns current selected range.
@@ -850,12 +925,15 @@ public:
    * @param aRange                A range of text to examine.  Its position is
    *                              an offset from the beginning of the focused
    *                              editor or document.
+   * @param aActualRange          If this is not null, this returns the actual
+   *                              range used for computing the result.
    * @return                      An NSRect containing the first character in
    *                              aRange, in screen coordinates.
    *                              If the length of aRange is 0, the width will
    *                              be 0.
    */
-  NSRect FirstRectForCharacterRange(NSRange& aRange);
+  NSRect FirstRectForCharacterRange(NSRange& aRange,
+                                    NSRange* aActualRange = nullptr);
 
   /**
    * CharacterIndexForPoint() returns an offset of a character at aPoint.
@@ -899,6 +977,8 @@ public:
   void SetIMEOpenState(bool aOpen);
   void SetASCIICapableOnly(bool aASCIICapableOnly);
 
+  bool IsFocused();
+
   static CFArrayRef CreateAllIMEModeList();
   static void DebugPrintAllIMEModes();
 
@@ -912,16 +992,15 @@ protected:
   // See the comment in nsCocoaTextInputHandler.mm.
   nsCOMPtr<nsITimer> mTimer;
   enum {
-    kResetIMEWindowLevel     = 1,
-    kDiscardIMEComposition   = 2,
-    kSyncASCIICapableOnly    = 4
+    kNotifyIMEOfFocusChangeInGecko = 1,
+    kDiscardIMEComposition         = 2,
+    kSyncASCIICapableOnly          = 4
   };
   uint32_t mPendingMethods;
 
   IMEInputHandler(nsChildView* aWidget, NSView<mozView> *aNativeView);
   virtual ~IMEInputHandler();
 
-  bool IsFocused();
   void ResetTimer();
 
   virtual void ExecutePendingMethods();
@@ -931,8 +1010,11 @@ protected:
    * is no composition, this starts a composition and commits it immediately.
    *
    * @param aAttrString           A string which is committed.
+   * @param aReplacementRange     The range which will be replaced with the
+   *                              aAttrString instead of current selection.
    */
-  void InsertTextAsCommittingComposition(NSAttributedString* aAttrString);
+  void InsertTextAsCommittingComposition(NSAttributedString* aAttrString,
+                                         NSRange* aReplacementRange);
 
 private:
   // If mIsIMEComposing is true, the composition string is stored here.
@@ -942,6 +1024,7 @@ private:
   nsString mLastDispatchedCompositionString;
 
   NSRange mMarkedRange;
+  NSRange mSelectedRange;
 
   bool mIsIMEComposing;
   bool mIsIMEEnabled;
@@ -950,15 +1033,16 @@ private:
   // This flag is enabled by OnFocusChangeInGecko, and will be cleared by
   // ExecutePendingMethods.  When this is true, IsFocus() returns TRUE.  At
   // that time, the focus processing in Gecko might not be finished yet.  So,
-  // you cannot use nsQueryContentEvent or something.
+  // you cannot use WidgetQueryContentEvent or something.
   bool mIsInFocusProcessing;
+  bool mIMEHasFocus;
 
   void KillIMEComposition();
   void SendCommittedText(NSString *aString);
   void OpenSystemPreferredLanguageIME();
 
   // Pending methods
-  void ResetIMEWindowLevel();
+  void NotifyIMEOfFocusChangeInGecko();
   void DiscardIMEComposition();
   void SyncASCIICapableOnly();
 
@@ -997,21 +1081,18 @@ private:
   uint32_t GetRangeCount(NSAttributedString *aString);
 
   /**
-   * SetTextRangeList() appends text ranges to aTextRangeList.
+   * CreateTextRangeArray() returns text ranges for clauses and/or caret.
    *
-   * @param aTextRangeList        When SetTextRangeList() returns, this will
-   *                              be set to the NSUnderlineStyleAttributeName
-   *                              ranges in aAttrString.  Note that if you pass
-   *                              in a large enough auto-range instance for most
-   *                              cases (e.g., nsAutoTArray<nsTextRange, 4>),
-   *                              it prevents memory fragmentation.
    * @param aAttrString           An NSAttributedString instance which indicates
    *                              current composition string.
    * @param aSelectedRange        Current selected range (or caret position).
+   * @return                      The result is set to the
+   *                              NSUnderlineStyleAttributeName ranges in
+   *                              aAttrString.
    */
-  void SetTextRangeList(nsTArray<nsTextRange>& aTextRangeList,
-                        NSAttributedString *aAttrString,
-                        NSRange& aSelectedRange);
+  already_AddRefed<mozilla::TextRangeArray>
+    CreateTextRangeArray(NSAttributedString *aAttrString,
+                         NSRange& aSelectedRange);
 
   /**
    * InitCompositionEvent() initializes aCompositionEvent.
@@ -1019,7 +1100,7 @@ private:
    * @param aCompositionEvent     A composition event which you want to
    *                              initialize.
    */
-  void InitCompositionEvent(nsCompositionEvent& aCompositionEvent);
+  void InitCompositionEvent(WidgetCompositionEvent& aCompositionEvent);
 
   /**
    * When a composition starts, OnStartIMEComposition() is called.
@@ -1088,8 +1169,11 @@ public:
    * the composition by the aAttrString.
    *
    * @param aAttrString           An inserted string.
+   * @param aReplacementRange     The range which will be replaced with the
+   *                              aAttrString instead of current selection.
    */
-  void InsertText(NSAttributedString *aAttrString);
+  void InsertText(NSAttributedString *aAttrString,
+                  NSRange* aReplacementRange = nullptr);
 
   /**
    * doCommandBySelector event handler.
@@ -1115,6 +1199,46 @@ public:
   }
 
 protected:
+  // Stores the association of device dependent modifier flags with a modifier
+  // keyCode.  Being device dependent, this association may differ from one kind
+  // of hardware to the next.
+  struct ModifierKey
+  {
+    NSUInteger flags;
+    unsigned short keyCode;
+
+    ModifierKey(NSUInteger aFlags, unsigned short aKeyCode) :
+      flags(aFlags), keyCode(aKeyCode)
+    {
+    }
+
+    NSUInteger GetDeviceDependentFlags() const
+    {
+      return (flags & ~NSDeviceIndependentModifierFlagsMask);
+    }
+
+    NSUInteger GetDeviceIndependentFlags() const
+    {
+      return (flags & NSDeviceIndependentModifierFlagsMask);
+    }
+  };
+  typedef nsTArray<ModifierKey> ModifierKeyArray;
+  ModifierKeyArray mModifierKeys;
+
+  /**
+   * GetModifierKeyForNativeKeyCode() returns the stored ModifierKey for
+   * the key.
+   */
+  const ModifierKey*
+    GetModifierKeyForNativeKeyCode(unsigned short aKeyCode) const;
+
+  /**
+   * GetModifierKeyForDeviceDependentFlags() returns the stored ModifierKey for
+   * the device dependent flags.
+   */
+  const ModifierKey*
+    GetModifierKeyForDeviceDependentFlags(NSUInteger aFlags) const;
+
   /**
    * DispatchKeyEventForFlagsChanged() dispatches keydown event or keyup event
    * for the aNativeEvent.

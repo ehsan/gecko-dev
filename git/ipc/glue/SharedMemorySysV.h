@@ -8,7 +8,7 @@
 #ifndef mozilla_ipc_SharedMemorySysV_h
 #define mozilla_ipc_SharedMemorySysV_h
 
-#if defined(OS_LINUX) && !defined(ANDROID)
+#if (defined(OS_LINUX) && !defined(ANDROID)) || defined(OS_BSD)
 
 // SysV shared memory isn't available on Windows, but we define the
 // following macro so that #ifdefs are clearer (compared to #ifdef
@@ -46,7 +46,7 @@ public:
   {
   }
 
-  SharedMemorySysV(Handle aHandle) :
+  explicit SharedMemorySysV(Handle aHandle) :
     mHandle(aHandle),
     mData(nullptr)
   {
@@ -84,8 +84,8 @@ public:
     void* mem = shmat(mHandle, nullptr, 0);
     if (mem == (void*) -1) {
       char warning[256];
-      snprintf(warning, sizeof(warning)-1,
-               "shmat(): %s (%d)\n", strerror(errno), errno);
+      ::snprintf(warning, sizeof(warning)-1,
+                 "shmat(): %s (%d)\n", strerror(errno), errno);
 
       NS_WARNING(warning);
 

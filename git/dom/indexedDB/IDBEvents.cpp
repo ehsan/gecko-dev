@@ -6,122 +6,101 @@
 
 #include "IDBEvents.h"
 
-#include "nsDOMClassInfoID.h"
-#include "nsDOMException.h"
-#include "nsJSON.h"
-#include "nsThreadUtils.h"
+#include "mozilla/ErrorResult.h"
+#include "mozilla/dom/EventTarget.h"
+#include "mozilla/dom/IDBVersionChangeEventBinding.h"
+#include "nsString.h"
 
-#include "IDBRequest.h"
-#include "IDBTransaction.h"
+using namespace mozilla;
+using namespace mozilla::dom;
+using namespace mozilla::dom::indexedDB;
 
-USING_INDEXEDDB_NAMESPACE
+namespace mozilla {
+namespace dom {
+namespace indexedDB {
 
-namespace {
+const char16_t* kAbortEventType = MOZ_UTF16("abort");
+const char16_t* kBlockedEventType = MOZ_UTF16("blocked");
+const char16_t* kCompleteEventType = MOZ_UTF16("complete");
+const char16_t* kErrorEventType = MOZ_UTF16("error");
+const char16_t* kSuccessEventType = MOZ_UTF16("success");
+const char16_t* kUpgradeNeededEventType = MOZ_UTF16("upgradeneeded");
+const char16_t* kVersionChangeEventType = MOZ_UTF16("versionchange");
 
-class EventFiringRunnable : public nsRunnable
+already_AddRefed<nsIDOMEvent>
+CreateGenericEvent(EventTarget* aOwner,
+                   const nsDependentString& aType,
+                   Bubbles aBubbles,
+                   Cancelable aCancelable)
 {
-public:
-  EventFiringRunnable(nsIDOMEventTarget* aTarget,
-                      nsIDOMEvent* aEvent)
-  : mTarget(aTarget), mEvent(aEvent)
-  { }
-
-  NS_IMETHOD Run() {
-    bool dummy;
-    return mTarget->DispatchEvent(mEvent, &dummy);
+  nsCOMPtr<nsIDOMEvent> event;
+  nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), aOwner, nullptr, nullptr);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return nullptr;
   }
 
-private:
-  nsCOMPtr<nsIDOMEventTarget> mTarget;
-  nsCOMPtr<nsIDOMEvent> mEvent;
-};
+  rv = event->InitEvent(aType,
+                        aBubbles == eDoesBubble ? true : false,
+                        aCancelable == eCancelable ? true : false);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return nullptr;
+  }
 
-} // anonymous namespace
-
-already_AddRefed<nsDOMEvent>
-mozilla::dom::indexedDB::CreateGenericEvent(const nsAString& aType,
-                                            Bubbles aBubbles,
-                                            Cancelable aCancelable)
-{
-  nsRefPtr<nsDOMEvent> event(new nsDOMEvent(nullptr, nullptr));
-  nsresult rv = event->InitEvent(aType,
-                                 aBubbles == eDoesBubble ? true : false,
-                                 aCancelable == eCancelable ? true : false);
-  NS_ENSURE_SUCCESS(rv, nullptr);
-
-  rv = event->SetTrusted(true);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  event->SetTrusted(true);
 
   return event.forget();
 }
 
 // static
-already_AddRefed<nsDOMEvent>
-IDBVersionChangeEvent::CreateInternal(const nsAString& aType,
+already_AddRefed<IDBVersionChangeEvent>
+IDBVersionChangeEvent::CreateInternal(EventTarget* aOwner,
+                                      const nsAString& aType,
                                       uint64_t aOldVersion,
-                                      uint64_t aNewVersion)
+                                      Nullable<uint64_t> aNewVersion)
 {
-  nsRefPtr<IDBVersionChangeEvent> event(new IDBVersionChangeEvent());
+  nsRefPtr<IDBVersionChangeEvent> event =
+    new IDBVersionChangeEvent(aOwner, aOldVersion);
+  if (!aNewVersion.IsNull()) {
+    event->mNewVersion.SetValue(aNewVersion.Value());
+  }
 
   nsresult rv = event->InitEvent(aType, false, false);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return nullptr;
+  }
 
-  rv = event->SetTrusted(true);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  event->SetTrusted(true);
 
-  event->mOldVersion = aOldVersion;
-  event->mNewVersion = aNewVersion;
-
-  nsDOMEvent* result;
-  event.forget(&result);
-  return result;
+  return event.forget();
 }
 
-// static
-already_AddRefed<nsIRunnable>
-IDBVersionChangeEvent::CreateRunnableInternal(const nsAString& aType,
-                                              uint64_t aOldVersion,
-                                              uint64_t aNewVersion,
-                                              nsIDOMEventTarget* aTarget)
+already_AddRefed<IDBVersionChangeEvent>
+IDBVersionChangeEvent::Constructor(const GlobalObject& aGlobal,
+                                   const nsAString& aType,
+                                   const IDBVersionChangeEventInit& aOptions,
+                                   ErrorResult& aRv)
 {
-  nsRefPtr<nsDOMEvent> event =
-    CreateInternal(aType, aOldVersion, aNewVersion);
-  NS_ENSURE_TRUE(event, nullptr);
+  nsCOMPtr<EventTarget> target = do_QueryInterface(aGlobal.GetAsSupports());
 
-  nsCOMPtr<nsIRunnable> runnable(new EventFiringRunnable(aTarget, event));
-  return runnable.forget();
+  return CreateInternal(target,
+                        aType,
+                        aOptions.mOldVersion,
+                        aOptions.mNewVersion);
 }
 
-NS_IMPL_ADDREF_INHERITED(IDBVersionChangeEvent, nsDOMEvent)
-NS_IMPL_RELEASE_INHERITED(IDBVersionChangeEvent, nsDOMEvent)
+NS_IMPL_ADDREF_INHERITED(IDBVersionChangeEvent, Event)
+NS_IMPL_RELEASE_INHERITED(IDBVersionChangeEvent, Event)
 
 NS_INTERFACE_MAP_BEGIN(IDBVersionChangeEvent)
-  NS_INTERFACE_MAP_ENTRY(nsIIDBVersionChangeEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBVersionChangeEvent)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
+  NS_INTERFACE_MAP_ENTRY(IDBVersionChangeEvent)
+NS_INTERFACE_MAP_END_INHERITING(Event)
 
-DOMCI_DATA(IDBVersionChangeEvent, IDBVersionChangeEvent)
-
-NS_IMETHODIMP
-IDBVersionChangeEvent::GetOldVersion(uint64_t* aOldVersion)
+JSObject*
+IDBVersionChangeEvent::WrapObjectInternal(JSContext* aCx)
 {
-  NS_ENSURE_ARG_POINTER(aOldVersion);
-  *aOldVersion = mOldVersion;
-  return NS_OK;
+  return IDBVersionChangeEventBinding::Wrap(aCx, this);
 }
 
-NS_IMETHODIMP
-IDBVersionChangeEvent::GetNewVersion(JSContext* aCx,
-                                     JS::Value* aNewVersion)
-{
-  NS_ENSURE_ARG_POINTER(aNewVersion);
-
-  if (!mNewVersion) {
-    *aNewVersion = JSVAL_NULL;
-  }
-  else {
-    *aNewVersion = JS_NumberValue(double(mNewVersion));
-  }
-
-  return NS_OK;
-}
+} // namespace indexedDB
+} // namespace dom
+} // namespace mozilla

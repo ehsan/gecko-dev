@@ -1,17 +1,13 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef Unicode_h__
-#define Unicode_h__
-
-#include "mozilla/StandardInteger.h"
+#ifndef vm_Unicode_h
+#define vm_Unicode_h
 
 #include "jspubtd.h"
-
-#ifdef DEBUG
-#include <stdio.h> /* For EOF */
-#endif
 
 extern const bool js_isidstart[];
 extern const bool js_isident[];
@@ -58,11 +54,6 @@ namespace unicode {
  *   if GetFlag(char) & (FLAG_IDENTIFIER_PART | FLAG_LETTER):
  *      return True
  *
- * NO_DELTA
- *   See comment in CharacterInfo
- *
- * ENCLOSING_MARK / COMBINING_SPACING_MARK
- *   Something for E4X....
  */
 
 struct CharFlag {
@@ -70,18 +61,15 @@ struct CharFlag {
         SPACE  = 1 << 0,
         LETTER = 1 << 1,
         IDENTIFIER_PART = 1 << 2,
-        NO_DELTA = 1 << 3,
-        ENCLOSING_MARK = 1 << 4,
-        COMBINING_SPACING_MARK = 1 << 5
     };
 };
 
-const jschar BYTE_ORDER_MARK2 = 0xFFFE;
-const jschar NO_BREAK_SPACE  = 0x00A0;
+const char16_t BYTE_ORDER_MARK2 = 0xFFFE;
+const char16_t NO_BREAK_SPACE  = 0x00A0;
 
 class CharacterInfo {
     /*
-     * upperCase and loweCase normally store the delta between two
+     * upperCase and lowerCase normally store the delta between two
      * letters. For example the lower case alpha (a) has the char code
      * 97, and the upper case alpha (A) has 65. So for "a" we would
      * store -32 in upperCase (97 + (-32) = 65) and 0 in lowerCase,
@@ -90,10 +78,6 @@ class CharacterInfo {
      * unsigned overflow with identical mathematical behavior.
      * For upper case alpha, we would store 0 in upperCase and 32 in
      * lowerCase (65 + 32 = 97).
-     *
-     * If the delta between the chars wouldn't fit in a T, the flag
-     * FLAG_NO_DELTA is set, and you can just use upperCase and lowerCase
-     * without adding them the base char. See CharInfo.toUpperCase().
      *
      * We use deltas to reuse information for multiple characters. For
      * example the whole lower case latin alphabet fits into one entry,
@@ -116,14 +100,6 @@ class CharacterInfo {
     inline bool isIdentifierPart() const {
         return flags & (CharFlag::IDENTIFIER_PART | CharFlag::LETTER);
     }
-
-    inline bool isEnclosingMark() const {
-        return flags & CharFlag::ENCLOSING_MARK;
-    }
-
-    inline bool isCombiningSpacingMark() const {
-        return flags & CharFlag::COMBINING_SPACING_MARK;
-    }
 };
 
 extern const uint8_t index1[];
@@ -131,16 +107,17 @@ extern const uint8_t index2[];
 extern const CharacterInfo js_charinfo[];
 
 inline const CharacterInfo&
-CharInfo(jschar code)
+CharInfo(char16_t code)
 {
-    size_t index = index1[code >> 6];
-    index = index2[(index << 6) + (code & 0x3f)];
+    const size_t shift = 5;
+    size_t index = index1[code >> shift];
+    index = index2[(index << shift) + (code & ((1 << shift) - 1))];
 
     return js_charinfo[index];
 }
 
 inline bool
-IsIdentifierStart(jschar ch)
+IsIdentifierStart(char16_t ch)
 {
     /*
      * ES5 7.6 IdentifierStart
@@ -158,7 +135,7 @@ IsIdentifierStart(jschar ch)
 }
 
 inline bool
-IsIdentifierPart(jschar ch)
+IsIdentifierPart(char16_t ch)
 {
     /* Matches ES5 7.6 IdentifierPart. */
 
@@ -169,13 +146,13 @@ IsIdentifierPart(jschar ch)
 }
 
 inline bool
-IsLetter(jschar ch)
+IsLetter(char16_t ch)
 {
     return CharInfo(ch).isLetter();
 }
 
 inline bool
-IsSpace(jschar ch)
+IsSpace(char16_t ch)
 {
     /*
      * IsSpace checks if some character is included in the merged set
@@ -199,7 +176,7 @@ IsSpace(jschar ch)
 }
 
 inline bool
-IsSpaceOrBOM2(jschar ch)
+IsSpaceOrBOM2(char16_t ch)
 {
     if (ch < 128)
         return js_isspace[ch];
@@ -211,78 +188,23 @@ IsSpaceOrBOM2(jschar ch)
     return CharInfo(ch).isSpace();
 }
 
-inline jschar
-ToUpperCase(jschar ch)
+inline char16_t
+ToUpperCase(char16_t ch)
 {
     const CharacterInfo &info = CharInfo(ch);
-
-    /*
-     * The delta didn't fit into T, so we had to store the
-     * actual char code.
-     */
-    if (info.flags & CharFlag::NO_DELTA)
-        return info.upperCase;
 
     return uint16_t(ch) + info.upperCase;
 }
 
-inline jschar
-ToLowerCase(jschar ch)
+inline char16_t
+ToLowerCase(char16_t ch)
 {
     const CharacterInfo &info = CharInfo(ch);
-
-    if (info.flags & CharFlag::NO_DELTA)
-        return info.lowerCase;
 
     return uint16_t(ch) + info.lowerCase;
 }
 
-/* XML support functions */
-
-inline bool
-IsXMLSpace(jschar ch)
-{
-    return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n';
-}
-
-inline bool
-IsXMLNamespaceStart(jschar ch)
-{
-    if (ch == '_')
-        return true;
-
-    return CharInfo(ch).isCombiningSpacingMark() || IsIdentifierStart(ch);
-}
-
-inline bool
-IsXMLNamespacePart(jschar ch)
-{
-    if (ch == '.' || ch == '-' || ch == '_')
-        return true;
-
-    return CharInfo(ch).isEnclosingMark() || IsIdentifierPart(ch);
-}
-
-inline bool
-IsXMLNameStart(jschar ch)
-{
-    if (ch == '_' || ch == ':')
-        return true;
-
-    return CharInfo(ch).isCombiningSpacingMark() || IsIdentifierStart(ch);
-}
-
-inline bool
-IsXMLNamePart(jschar ch)
-{
-    if (ch == '.' || ch == '-' || ch == '_' || ch == ':')
-        return true;
-
-    return CharInfo(ch).isEnclosingMark() || IsIdentifierPart(ch);
-}
-
-
 } /* namespace unicode */
 } /* namespace js */
 
-#endif /* Unicode_h__ */
+#endif /* vm_Unicode_h */

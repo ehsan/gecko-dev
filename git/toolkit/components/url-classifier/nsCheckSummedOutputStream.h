@@ -24,15 +24,16 @@ public:
   static const uint32_t CHECKSUM_SIZE = 16;
 
   nsCheckSummedOutputStream() {}
-  virtual ~nsCheckSummedOutputStream() { nsSafeFileOutputStream::Close(); }
 
   NS_IMETHOD Finish();
   NS_IMETHOD Write(const char *buf, uint32_t count, uint32_t *result);
   NS_IMETHOD Init(nsIFile* file, int32_t ioFlags, int32_t perm, int32_t behaviorFlags);
 
 protected:
+  virtual ~nsCheckSummedOutputStream() { nsSafeFileOutputStream::Close(); }
+
   nsCOMPtr<nsICryptoHash> mHash;
-  nsCAutoString mCheckSum;
+  nsAutoCString mCheckSum;
 };
 
 // returns a file output stream which can be QI'ed to nsIFileOutputStream.

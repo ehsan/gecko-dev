@@ -6,8 +6,8 @@
 #ifndef nsSimpleURI_h__
 #define nsSimpleURI_h__
 
-#include "nsIURL.h"
-#include "nsAgg.h"
+#include "mozilla/MemoryReporting.h"
+#include "nsIURI.h"
 #include "nsISerializable.h"
 #include "nsString.h"
 #include "nsIClassInfo.h"
@@ -30,6 +30,9 @@ class nsSimpleURI : public nsIURI,
                     public nsISizeOf,
                     public nsIIPCSerializableURI
 {
+protected:
+    virtual ~nsSimpleURI();
+
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIURI
@@ -41,7 +44,6 @@ public:
     // nsSimpleURI methods:
 
     nsSimpleURI();
-    virtual ~nsSimpleURI();
 
     // nsISizeOf
     // Among the sub-classes that inherit (directly or indirectly) from
@@ -50,8 +52,8 @@ public:
     // - nsJSURI: mBaseURI
     // - nsSimpleNestedURI: mInnerURI
     // - nsBlobURI: mPrincipal
-    virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-    virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+    virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+    virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 protected:
     // enum used in a few places to specify how .ref attribute should be handled

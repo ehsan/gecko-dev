@@ -18,11 +18,7 @@
 
 #include "nsIMIMEService.h"
 #include "nsMimeTypes.h"
-
-
-// sadly I couldn't find char defintions for CR LF elsehwere in the code (they are defined as strings in nsCRT.h)
-#define CR  '\015'
-#define LF '\012'
+#include <algorithm>
 
 nsBinHexDecoder::nsBinHexDecoder() :
   mState(0), mCRC(0), mFileCRC(0), mOctetin(26),
@@ -61,7 +57,7 @@ NS_INTERFACE_MAP_END
 
 // The binhex 4.0 decoder table....
 
-static signed char binhex_decode[256] =
+static const signed char binhex_decode[256] =
 {
   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -120,7 +116,7 @@ NS_IMETHODIMP
 nsBinHexDecoder::OnDataAvailable(nsIRequest* request,
                                  nsISupports *aCtxt,
                                  nsIInputStream *aStream,
-                                 uint32_t aSourceOffset,
+                                 uint64_t aSourceOffset,
                                  uint32_t aCount)
 {
   nsresult rv = NS_OK;
@@ -130,7 +126,7 @@ nsBinHexDecoder::OnDataAvailable(nsIRequest* request,
     uint32_t numBytesRead = 0;
     while (aCount > 0) // while we still have bytes to copy...
     {
-      aStream->Read(mDataBuffer, NS_MIN(aCount, nsIOService::gDefaultSegmentSize - 1), &numBytesRead);
+      aStream->Read(mDataBuffer, std::min(aCount, nsIOService::gDefaultSegmentSize - 1), &numBytesRead);
       if (aCount >= numBytesRead)
         aCount -= numBytesRead; // subtract off the number of bytes we just read
       else
@@ -320,7 +316,7 @@ nsresult nsBinHexDecoder::ProcessNextChunk(nsIRequest * aRequest, nsISupports * 
     while (mPosInDataBuffer < numBytesInBuffer)
     {
       c = mDataBuffer[mPosInDataBuffer++];
-      while (c == CR || c == LF)
+      while (c == nsCRT::CR || c == nsCRT::LF)
       {
         if (mPosInDataBuffer >= numBytesInBuffer)
           break;
@@ -429,10 +425,10 @@ int16_t nsBinHexDecoder::GetNextChar(uint32_t numBytesInBuffer)
   while (mPosInDataBuffer < numBytesInBuffer)
   {
     c = mDataBuffer[mPosInDataBuffer++];
-    if (c != LF && c != CR)
+    if (c != nsCRT::LF && c != nsCRT::CR)
       break;
   }
-  return (c == LF || c == CR) ? 0 : (int) c;
+  return (c == nsCRT::LF || c == nsCRT::CR) ? 0 : (int) c;
 }
 
 //////////////////////////////////////////////////////
@@ -446,8 +442,8 @@ nsBinHexDecoder::OnStartRequest(nsIRequest* request, nsISupports *aCtxt)
 
   NS_ENSURE_TRUE(mNextListener, NS_ERROR_FAILURE);
 
-  mDataBuffer = (char *) nsMemory::Alloc((sizeof(char) * nsIOService::gDefaultSegmentSize));
-  mOutgoingBuffer = (char *) nsMemory::Alloc((sizeof(char) * nsIOService::gDefaultSegmentSize));
+  mDataBuffer = (char *) moz_malloc((sizeof(char) * nsIOService::gDefaultSegmentSize));
+  mOutgoingBuffer = (char *) moz_malloc((sizeof(char) * nsIOService::gDefaultSegmentSize));
   if (!mDataBuffer || !mOutgoingBuffer) return NS_ERROR_FAILURE; // out of memory;
 
   // now we want to create a pipe which we'll use to write our converted data...
@@ -479,7 +475,7 @@ nsresult nsBinHexDecoder::DetectContentType(nsIRequest* aRequest,
   nsCOMPtr<nsIMIMEService> mimeService(do_GetService("@mozilla.org/mime;1", &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCAutoString contentType;
+  nsAutoCString contentType;
 
   // extract the extension from aFilename and look it up.
   const char * fileExt = strrchr(aFilename.get(), '.');

@@ -8,12 +8,14 @@
 #define mozilla_net_WebSocketChannelParent_h
 
 #include "mozilla/net/PWebSocketParent.h"
+#include "mozilla/net/NeckoParent.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIWebSocketListener.h"
 #include "nsIWebSocketChannel.h"
 #include "nsILoadContext.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
+#include "OfflineObserver.h"
 
 class nsIAuthPromptProvider;
 
@@ -22,29 +24,40 @@ namespace net {
 
 class WebSocketChannelParent : public PWebSocketParent,
                                public nsIWebSocketListener,
+                               public DisconnectableParent,
                                public nsIInterfaceRequestor
 {
+  ~WebSocketChannelParent();
  public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIWEBSOCKETLISTENER
   NS_DECL_NSIINTERFACEREQUESTOR
 
-  WebSocketChannelParent(nsIAuthPromptProvider* aAuthProvider);
+  WebSocketChannelParent(nsIAuthPromptProvider* aAuthProvider,
+                         nsILoadContext* aLoadContext,
+                         PBOverrideStatus aOverrideStatus);
 
  private:
   bool RecvAsyncOpen(const URIParams& aURI,
                      const nsCString& aOrigin,
                      const nsCString& aProtocol,
                      const bool& aSecure,
-                     const IPC::SerializedLoadContext& loadContext);
-  bool RecvClose(const uint16_t & code, const nsCString & reason);
-  bool RecvSendMsg(const nsCString& aMsg);
-  bool RecvSendBinaryMsg(const nsCString& aMsg);
+                     const uint32_t& aPingInterval,
+                     const bool& aClientSetPingInterval,
+                     const uint32_t& aPingTimeout,
+                     const bool& aClientSetPingTimeout) MOZ_OVERRIDE;
+  bool RecvClose(const uint16_t & code, const nsCString & reason) MOZ_OVERRIDE;
+  bool RecvSendMsg(const nsCString& aMsg) MOZ_OVERRIDE;
+  bool RecvSendBinaryMsg(const nsCString& aMsg) MOZ_OVERRIDE;
   bool RecvSendBinaryStream(const InputStreamParams& aStream,
-                            const uint32_t& aLength);
-  bool RecvDeleteSelf();
+                            const uint32_t& aLength) MOZ_OVERRIDE;
+  bool RecvDeleteSelf() MOZ_OVERRIDE;
 
-  void ActorDestroy(ActorDestroyReason why);
+  void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+
+  void OfflineDisconnect() MOZ_OVERRIDE;
+  uint32_t GetAppId() MOZ_OVERRIDE;
+  nsRefPtr<OfflineObserver> mObserver;
 
   nsCOMPtr<nsIAuthPromptProvider> mAuthProvider;
   nsCOMPtr<nsIWebSocketChannel> mChannel;

@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -108,6 +108,10 @@ if (this["nsHttpServer"]) {
 }
 
 var serverBasePath;
+var displayResults = true;
+
+var gServerAddress;
+var SERVER_PORT;
 
 //
 // SERVER SETUP
@@ -147,6 +151,11 @@ function runServer()
     throw "please define _SERVER_PORT (as a port number) before running server.js";
   }
 
+  // If DISPLAY_RESULTS is not specified, it defaults to true
+  if (typeof(_DISPLAY_RESULTS) != "undefined") {
+    displayResults = _DISPLAY_RESULTS;
+  }
+
   server._start(SERVER_PORT, gServerAddress);
 
   // touch a file in the profile directory to indicate we're alive
@@ -168,7 +177,7 @@ function runServer()
     serverAlive.append("server_alive.txt");
     foStream.init(serverAlive,
                   0x02 | 0x08 | 0x20, 436, 0); // write, create, truncate
-    data = "It's alive!";
+    var data = "It's alive!";
     foStream.write(data, data.length);
     foStream.close();
   }
@@ -412,7 +421,7 @@ function list(requestPath, directory, recurse)
       count += childCount;
     } else {
       if (file.leafName.charAt(0) != '.') {
-        links[key] = true;
+        links[key] = {'test': {'url': key, 'expected': 'pass'}};
       }
     }
   }
@@ -435,7 +444,7 @@ function isTest(filename, pattern)
   var testPrefix = typeof(_TEST_PREFIX) == "string" ? _TEST_PREFIX : "test_";
   var testPattern = new RegExp("^" + testPrefix);
 
-  pathPieces = filename.split('/');
+  var pathPieces = filename.split('/');
     
   return testPattern.test(pathPieces[pathPieces.length - 1]) &&
          filename.indexOf(".js") == -1 &&
@@ -484,13 +493,13 @@ function linksToTableRows(links, recursionLevel)
 {
   var response = "";
   for (var [link, value] in links) {
-    var classVal = (!isTest(link) && !(value instanceof Object))
+    var classVal = (!isTest(link) && ((value instanceof Object) && ('test' in value)))
       ? "non-test invisible"
       : "";
 
-    spacer = "padding-left: " + (10 * recursionLevel) + "px";
+    var spacer = "padding-left: " + (10 * recursionLevel) + "px";
 
-    if (value instanceof Object) {
+    if ((value instanceof Object) && !('test' in value)) {
       response += TR({class: "dir", id: "tr-" + link },
                      TD({colspan: "3"}, "&#160;"),
                      TD({style: spacer},
@@ -526,10 +535,10 @@ function linksToTableRows(links, recursionLevel)
 
 function arrayOfTestFiles(linkArray, fileArray, testPattern) {
   for (var [link, value] in Iterator(linkArray)) {
-    if (value instanceof Object) {
+    if ((value instanceof Object) && !('test' in value)) {
       arrayOfTestFiles(value, fileArray, testPattern);
-    } else if (isTest(link, testPattern)) {
-      fileArray.push(link)
+    } else if (isTest(link, testPattern) && (value instanceof Object)) {
+      fileArray.push(value['test'])
     }
   }
 }
@@ -540,7 +549,7 @@ function jsonArrayOfTestFiles(links)
 {
   var testFiles = [];
   arrayOfTestFiles(links, testFiles);
-  testFiles = ['"' + file + '"' for each(file in testFiles)];
+  testFiles = ['"' + file['url'] + '"' for each(file in testFiles)];
   return "[" + testFiles.join(",\n") + "]";
 }
 
@@ -567,18 +576,57 @@ function regularListing(metadata, response)
 }
 
 /**
+ * Read a manifestFile located at the root of the server's directory and turn
+ * it into an object for creating a table of clickable links for each test.
+ */
+function convertManifestToTestLinks(root, manifest)
+{
+  Cu.import("resource://gre/modules/NetUtil.jsm");
+
+  var manifestFile = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+  manifestFile.initWithFile(serverBasePath);
+  manifestFile.append(manifest);
+
+  var manifestStream = Cc["@mozilla.org/network/file-input-stream;1"].createInstance(Ci.nsIFileInputStream);
+  manifestStream.init(manifestFile, -1, 0, 0);
+
+  var manifestObj = JSON.parse(NetUtil.readInputStreamToString(manifestStream,
+                                                               manifestStream.available()));
+  var paths = manifestObj.tests;
+  var pathPrefix = '/' + root + '/'
+  return [paths.reduce(function(t, p) { t[pathPrefix + p.path] = true; return t; }, {}),
+          paths.length];
+}
+
+/**
  * Produce a test harness page containing all the test cases
  * below it, recursively.
  */
 function testListing(metadata, response)
 {
-  var [links, count] = list(metadata.path,
-                            metadata.getProperty("directory"),
-                            true);
+  var links = {};
+  var count = 0;
+  if (metadata.queryString.indexOf('manifestFile') == -1) {
+    [links, count] = list(metadata.path,
+                          metadata.getProperty("directory"),
+                          true);
+  } else if (typeof(Components) != undefined) {
+    var manifest = metadata.queryString.match(/manifestFile=([^&]+)/)[1];
+
+    [links, count] = convertManifestToTestLinks(metadata.path.split('/')[1],
+                                                manifest);
+  }
+
   var table_class = metadata.queryString.indexOf("hideResultsTable=1") > -1 ? "invisible": "";
 
+  let testname = (metadata.queryString.indexOf("testname=") > -1)
+                 ? metadata.queryString.match(/testname=([^&]+)/)[1]
+                 : "";
+
   dumpn("count: " + count);
-  var tests = jsonArrayOfTestFiles(links);
+  var tests = testname
+              ? "['/" + testname + "']"
+              : jsonArrayOfTestFiles(links);
   response.write(
     HTML(
       HEAD(
@@ -589,9 +637,15 @@ function testListing(metadata, response)
         SCRIPT({type: "text/javascript",
                  src: "/tests/SimpleTest/LogController.js"}),
         SCRIPT({type: "text/javascript",
+                 src: "/tests/SimpleTest/MemoryStats.js"}),
+        SCRIPT({type: "text/javascript",
                  src: "/tests/SimpleTest/TestRunner.js"}),
         SCRIPT({type: "text/javascript",
                  src: "/tests/SimpleTest/MozillaLogger.js"}),
+        SCRIPT({type: "text/javascript",
+                 src: "/chunkifyTests.js"}),
+        SCRIPT({type: "text/javascript",
+                 src: "/manifestLibrary.js"}),
         SCRIPT({type: "text/javascript",
                  src: "/tests/SimpleTest/setup.js"}),
         SCRIPT({type: "text/javascript"},
@@ -622,17 +676,20 @@ function testListing(metadata, response)
           ),
           DIV({class: "clear"}),
           DIV({class: "frameholder"},
-            IFRAME({scrolling: "no", id: "testframe", width: "500", height: "300"})
+            IFRAME({scrolling: "no", id: "testframe"})
           ),
           DIV({class: "clear"}),
           DIV({class: "toggle"},
             A({href: "#", id: "toggleNonTests"}, "Show Non-Tests"),
             BR()
           ),
-    
-          TABLE({cellpadding: 0, cellspacing: 0, class: table_class, id: "test-table"},
-            TR(TD("Passed"), TD("Failed"), TD("Todo"), TD("Test Files")),
-            linksToTableRows(links, 0)
+
+          (
+           displayResults ?
+            TABLE({cellpadding: 0, cellspacing: 0, class: table_class, id: "test-table"},
+              TR(TD("Passed"), TD("Failed"), TD("Todo"), TD("Test Files")),
+              linksToTableRows(links, 0)
+            ) : ""
           ),
 
           BR(),
@@ -653,7 +710,7 @@ function testListing(metadata, response)
 function defaultDirHandler(metadata, response)
 {
   response.setStatusLine("1.1", 200, "OK");
-  response.setHeader("Content-type", "text/html", false);
+  response.setHeader("Content-type", "text/html;charset=utf-8", false);
   try {
     if (metadata.path.indexOf("/tests") != 0) {
       regularListing(metadata, response);

@@ -79,11 +79,11 @@ Logging::Logging()
 
   std::wstring event_name = GetEventName(browser_pid, true);
   logging_event_on_.reset(new base::WaitableEvent(
-      CreateEvent(NULL, TRUE, FALSE, event_name.c_str())));
+      CreateEventW(NULL, TRUE, FALSE, event_name.c_str())));
 
   event_name = GetEventName(browser_pid, false);
   logging_event_off_.reset(new base::WaitableEvent(
-      CreateEvent(NULL, TRUE, FALSE, event_name.c_str())));
+      CreateEventW(NULL, TRUE, FALSE, event_name.c_str())));
 
   RegisterWaitForEvent(true);
 #endif
@@ -219,7 +219,7 @@ void Logging::OnPostDispatchMessage(const Message& message,
   }
 }
 
-void Logging::GetMessageText(uint16 type, std::wstring* name,
+void Logging::GetMessageText(uint16_t type, std::wstring* name,
                              const Message* message,
                              std::wstring* params) {
   if (!log_function_mapping_)

@@ -4,157 +4,376 @@
 
 "use strict";
 
-let EXPORTED_SYMBOLS = ["BrowserNewTabPreloader"];
+this.EXPORTED_SYMBOLS = ["BrowserNewTabPreloader"];
 
 const Cu = Components.utils;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Promise.jsm");
+
+const HTML_NS = "http://www.w3.org/1999/xhtml";
+const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+const XUL_PAGE = "data:application/vnd.mozilla.xul+xml;charset=utf-8,<window%20id='win'/>";
+const NEWTAB_URL = "about:newtab";
 
 const PREF_NEWTAB_URL = "browser.newtab.url";
 const PREF_NEWTAB_PRELOAD = "browser.newtab.preload";
 
-function BrowserNewTabPreloader() {
+// The interval between swapping in a preload docShell and kicking off the
+// next preload in the background.
+const PRELOADER_INTERVAL_MS = 600;
+// The number of miliseconds we'll wait after we received a notification that
+// causes us to update our list of browsers and tabbrowser sizes. This acts as
+// kind of a damper when too many events are occuring in quick succession.
+const PRELOADER_UPDATE_DELAY_MS = 3000;
+
+const TOPIC_TIMER_CALLBACK = "timer-callback";
+const TOPIC_DELAYED_STARTUP = "browser-delayed-startup-finished";
+const TOPIC_XUL_WINDOW_CLOSED = "xul-window-destroyed";
+
+const BROWSER_CONTENT_SCRIPT = "chrome://browser/content/content.js";
+
+function isPreloadingEnabled() {
+  return Services.prefs.getBoolPref(PREF_NEWTAB_PRELOAD) &&
+         !Services.prefs.prefHasUserValue(PREF_NEWTAB_URL);
 }
 
-BrowserNewTabPreloader.prototype = {
-  _url: null,
-  _window: null,
-  _browser: null,
-  _enabled: null,
+function createTimer(obj, delay) {
+  let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+  timer.init(obj, delay, Ci.nsITimer.TYPE_ONE_SHOT);
+  return timer;
+}
 
-  init: function Preloader_init(aWindow) {
-    if (this._window) {
-      return;
-    }
+function clearTimer(timer) {
+  if (timer) {
+    timer.cancel();
+  }
+  return null;
+}
 
-    this._window = aWindow;
-    this._enabled = Preferences.enabled;
-    this._url = Preferences.url;
-    Preferences.addObserver(this);
-
-    if (this._enabled) {
-      this._createBrowser();
-    }
-  },
-
+this.BrowserNewTabPreloader = {
   uninit: function Preloader_uninit() {
-    if (!this._window) {
-      return;
-    }
-
-    if (this._browser) {
-      this._browser.parentNode.removeChild(this._browser);
-      this._browser = null;
-    }
-
-    this._window = null;
-    Preferences.removeObserver(this);
+    HostFrame.destroy();
+    HiddenBrowsers.uninit();
   },
 
   newTab: function Preloader_newTab(aTab) {
-    if (!this._window || !this._enabled) {
-      return;
+    if (!isPreloadingEnabled()) {
+      return false;
     }
 
-    let tabbrowser = this._window.gBrowser;
-    if (tabbrowser && this._isPreloaded()) {
-      tabbrowser.swapNewTabWithBrowser(aTab, this._browser);
-    }
-  },
+    let win = aTab.ownerDocument.defaultView;
+    if (win.gBrowser) {
+      let utils = win.QueryInterface(Ci.nsIInterfaceRequestor)
+                     .getInterface(Ci.nsIDOMWindowUtils);
 
-  observe: function Preloader_observe(aEnabled, aURL) {
-    if (this._url != aURL) {
-      this._url = aURL;
-
-      if (this._enabled && aEnabled) {
-        // We're still enabled but the newtab URL has changed.
-        this._browser.setAttribute("src", aURL);
-        return;
+      let {width, height} = utils.getBoundsWithoutFlushing(win.gBrowser);
+      let hiddenBrowser = HiddenBrowsers.get(width, height)
+      if (hiddenBrowser) {
+        return hiddenBrowser.swapWithNewTab(aTab);
       }
     }
 
-    if (this._enabled && !aEnabled) {
-      // We got disabled. Remove the browser.
-      this._browser.parentNode.removeChild(this._browser);
-      this._browser = null;
-      this._enabled = false;
-    } else if (!this._enabled && aEnabled) {
-      // We got enabled. Create a browser and start preloading.
-      this._createBrowser();
-      this._enabled = true;
-    }
-  },
-
-  _createBrowser: function Preloader_createBrowser() {
-    let document = this._window.document;
-    this._browser = document.createElement("browser");
-    this._browser.setAttribute("type", "content");
-    this._browser.setAttribute("src", this._url);
-    this._browser.collapsed = true;
-
-    let panel = document.getElementById("browser-panel");
-    panel.appendChild(this._browser);
-  },
-
-  _isPreloaded: function Preloader_isPreloaded()  {
-    return this._browser &&
-           this._browser.contentDocument &&
-           this._browser.contentDocument.readyState == "complete" &&
-           this._browser.currentURI.spec == this._url;
+    return false;
   }
 };
 
-let Preferences = {
-  _observers: [],
+Object.freeze(BrowserNewTabPreloader);
 
-  get _branch() {
-    delete this._branch;
-    return this._branch = Services.prefs.getBranch("browser.newtab.");
+let HiddenBrowsers = {
+  _browsers: null,
+  _updateTimer: null,
+
+  _topics: [
+    TOPIC_DELAYED_STARTUP,
+    TOPIC_XUL_WINDOW_CLOSED
+  ],
+
+  _init: function () {
+    this._browsers = new Map();
+    this._updateBrowserSizes();
+    this._topics.forEach(t => Services.obs.addObserver(this, t, false));
   },
 
-  get enabled() {
-    if (!this._branch.getBoolPref("preload")) {
+  uninit: function () {
+    if (this._browsers) {
+      this._topics.forEach(t => Services.obs.removeObserver(this, t, false));
+      this._updateTimer = clearTimer(this._updateTimer);
+
+      for (let [key, browser] of this._browsers) {
+        browser.destroy();
+      }
+      this._browsers = null;
+    }
+  },
+
+  get: function (width, height) {
+    // Initialize if this is the first call.
+    if (!this._browsers) {
+      this._init();
+    }
+
+    let key = width + "x" + height;
+    if (!this._browsers.has(key)) {
+      // Update all browsers' sizes if we can't find a matching one.
+      this._updateBrowserSizes();
+    }
+
+    // We should now have a matching browser.
+    if (this._browsers.has(key)) {
+      return this._browsers.get(key);
+    }
+
+    // We should never be here. Return the first browser we find.
+    Cu.reportError("NewTabPreloader: no matching browser found after updating");
+    for (let [size, browser] of this._browsers) {
+      return browser;
+    }
+
+    // We should really never be here.
+    Cu.reportError("NewTabPreloader: not even a single browser was found?");
+    return null;
+  },
+
+  observe: function (subject, topic, data) {
+    if (topic === TOPIC_TIMER_CALLBACK) {
+      this._updateTimer = null;
+      this._updateBrowserSizes();
+    } else {
+      this._updateTimer = clearTimer(this._updateTimer);
+      this._updateTimer = createTimer(this, PRELOADER_UPDATE_DELAY_MS);
+    }
+  },
+
+  _updateBrowserSizes: function () {
+    let sizes = this._collectTabBrowserSizes();
+    let toRemove = [];
+
+    // Iterate all browsers and check that they
+    // each can be assigned to one of the sizes.
+    for (let [key, browser] of this._browsers) {
+      if (sizes.has(key)) {
+        // We already have a browser for that size, great!
+        sizes.delete(key);
+      } else {
+        // This browser is superfluous or needs to be resized.
+        toRemove.push(browser);
+        this._browsers.delete(key);
+      }
+    }
+
+    // Iterate all sizes that we couldn't find a browser for.
+    for (let [key, {width, height}] of sizes) {
+      let browser;
+      if (toRemove.length) {
+        // Let's just resize one of the superfluous
+        // browsers and put it back into the map.
+        browser = toRemove.shift();
+        browser.resize(width, height);
+      } else {
+        // No more browsers to reuse, create a new one.
+        browser = new HiddenBrowser(width, height);
+      }
+
+      this._browsers.set(key, browser);
+    }
+
+    // Finally, remove all browsers we don't need anymore.
+    toRemove.forEach(b => b.destroy());
+  },
+
+  _collectTabBrowserSizes: function () {
+    let sizes = new Map();
+
+    function tabBrowserBounds() {
+      let wins = Services.ww.getWindowEnumerator("navigator:browser");
+      while (wins.hasMoreElements()) {
+        let win = wins.getNext();
+        if (win.gBrowser) {
+          let utils = win.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIDOMWindowUtils);
+          yield utils.getBoundsWithoutFlushing(win.gBrowser);
+        }
+      }
+    }
+
+    // Collect the sizes of all <tabbrowser>s out there.
+    for (let {width, height} of tabBrowserBounds()) {
+      if (width > 0 && height > 0) {
+        let key = width + "x" + height;
+        if (!sizes.has(key)) {
+          sizes.set(key, {width: width, height: height});
+        }
+      }
+    }
+
+    return sizes;
+  }
+};
+
+function HiddenBrowser(width, height) {
+  this.resize(width, height);
+  this._createBrowser();
+}
+
+HiddenBrowser.prototype = {
+  _width: null,
+  _height: null,
+  _timer: null,
+
+  get isPreloaded() {
+    return this._browser &&
+           this._browser.contentDocument &&
+           this._browser.contentDocument.readyState === "complete" &&
+           this._browser.currentURI.spec === NEWTAB_URL;
+  },
+
+  swapWithNewTab: function (aTab) {
+    if (!this.isPreloaded || this._timer) {
       return false;
     }
 
-    if (this._branch.prefHasUserValue("url")) {
+    let win = aTab.ownerDocument.defaultView;
+    let tabbrowser = win.gBrowser;
+
+    if (!tabbrowser) {
       return false;
     }
 
-    let url = this.url;
-    return url && url != "about:blank";
-  },
+    // Swap docShells.
+    tabbrowser.swapNewTabWithBrowser(aTab, this._browser);
 
-  get url() {
-    return this._branch.getCharPref("url");
-  },
-
-  addObserver: function Preferences_addObserver(aObserver) {
-    let index = this._observers.indexOf(aObserver);
-    if (index == -1) {
-      if (this._observers.length == 0) {
-        this._branch.addObserver("", this, false);
+    // Load all delayed frame scripts attached to the "browers" message manager.
+    // The browser content script was already loaded, so don't load it again.
+    let mm = aTab.linkedBrowser.messageManager;
+    let scripts = win.getGroupMessageManager("browsers").getDelayedFrameScripts();
+    Array.forEach(scripts, ([script, runGlobal]) => {
+      if (script != BROWSER_CONTENT_SCRIPT) {
+        mm.loadFrameScript(script, true, runGlobal);
       }
-      this._observers.push(aObserver);
+    });
+
+    // Remove the browser, it will be recreated by a timer.
+    this._removeBrowser();
+
+    // Start a timer that will kick off preloading the next newtab page.
+    this._timer = createTimer(this, PRELOADER_INTERVAL_MS);
+
+    // Signal that we swapped docShells.
+    return true;
+  },
+
+  observe: function () {
+    this._timer = null;
+
+    // Start pre-loading the new tab page.
+    this._createBrowser();
+  },
+
+  resize: function (width, height) {
+    this._width = width;
+    this._height = height;
+    this._applySize();
+  },
+
+  destroy: function () {
+    this._removeBrowser();
+    this._timer = clearTimer(this._timer);
+  },
+
+  _applySize: function () {
+    if (this._browser) {
+      this._browser.style.width = this._width + "px";
+      this._browser.style.height = this._height + "px";
     }
   },
 
-  removeObserver: function Preferences_removeObserver(aObserver) {
-    let index = this._observers.indexOf(aObserver);
-    if (index > -1) {
-      if (this._observers.length == 1) {
-        this._branch.removeObserver("", this);
+  _createBrowser: function () {
+    HostFrame.get().then(aFrame => {
+      let doc = aFrame.document;
+      this._browser = doc.createElementNS(XUL_NS, "browser");
+      this._browser.setAttribute("type", "content");
+      this._browser.setAttribute("src", NEWTAB_URL);
+      this._applySize();
+      doc.getElementById("win").appendChild(this._browser);
+
+      // The browser might not have a docShell here if the HostFrame was
+      // destroyed while the promise was resolved. Simply bail out.
+      if (!this._browser.docShell) {
+        return;
       }
-      this._observers.splice(index, 1);
+
+      // Let the docShell be inactive so that document.hidden=true.
+      this._browser.docShell.isActive = false;
+
+      this._browser.messageManager.loadFrameScript(BROWSER_CONTENT_SCRIPT,
+                                                   true);
+    });
+  },
+
+  _removeBrowser: function () {
+    if (this._browser) {
+      this._browser.remove();
+      this._browser = null;
+    }
+  }
+};
+
+let HostFrame = {
+  _frame: null,
+  _deferred: null,
+
+  get hiddenDOMDocument() {
+    return Services.appShell.hiddenDOMWindow.document;
+  },
+
+  get isReady() {
+    return this.hiddenDOMDocument.readyState === "complete";
+  },
+
+  get: function () {
+    if (!this._deferred) {
+      this._deferred = Promise.defer();
+      this._create();
+    }
+
+    return this._deferred.promise;
+  },
+
+  destroy: function () {
+    if (this._frame) {
+      if (!Cu.isDeadWrapper(this._frame)) {
+        this._frame.removeEventListener("load", this, true);
+        this._frame.remove();
+      }
+
+      this._frame = null;
+      this._deferred = null;
     }
   },
 
-  observe: function Preferences_observe(aSubject, aTopic, aData) {
-    let url = this.url;
-    let enabled = this.enabled;
+  handleEvent: function () {
+    let contentWindow = this._frame.contentWindow;
+    if (contentWindow.location.href === XUL_PAGE) {
+      this._frame.removeEventListener("load", this, true);
+      this._deferred.resolve(contentWindow);
+    } else {
+      contentWindow.location = XUL_PAGE;
+    }
+  },
 
-    for (let obs of this._observers) {
-      obs.observe(enabled, url);
+  _create: function () {
+    if (this.isReady) {
+      let doc = this.hiddenDOMDocument;
+      this._frame = doc.createElementNS(HTML_NS, "iframe");
+      this._frame.addEventListener("load", this, true);
+      doc.documentElement.appendChild(this._frame);
+    } else {
+      let flags = Ci.nsIThread.DISPATCH_NORMAL;
+      Services.tm.currentThread.dispatch(() => this._create(), flags);
     }
   }
 };

@@ -1,7 +1,16 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+///////////////////
+//
+// Whitelisting this test.
+// As part of bug 1077403, the leaking uncaught rejection should be fixed. 
+//
+thisTestLeaksUncaughtRejectionsAndShouldBeFixed("Error: Connection closed");
+
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-bug-632275-getters.html";
+
+let getterValue = null;
 
 function test() {
   addTab(TEST_URI);
@@ -11,46 +20,29 @@ function test() {
   }, true);
 }
 
-function consoleOpened(HUD) {
-  let jsterm = HUD.jsterm;
+function consoleOpened(hud) {
+  let doc = content.wrappedJSObject.document;
+  getterValue = doc.foobar._val;
+  hud.jsterm.execute("console.dir(document)");
 
+  let onOpen = onViewOpened.bind(null, hud);
+  hud.jsterm.once("variablesview-fetched", onOpen);
+}
+
+function onViewOpened(hud, event, view)
+{
   let doc = content.wrappedJSObject.document;
 
-  let panel = jsterm.openPropertyPanel({ data: { object: doc }});
+  findVariableViewProperties(view, [
+    { name: /^(width|height)$/, dontMatch: 1 },
+    { name: "foobar._val", value: getterValue },
+    { name: "foobar.val", isGetter: true },
+  ], { webconsole: hud }).then(function() {
+    is(doc.foobar._val, getterValue, "getter did not execute");
+    is(doc.foobar.val, getterValue+1, "getter executed");
+    is(doc.foobar._val, getterValue+1, "getter executed (recheck)");
 
-  let view = panel.treeView;
-  let find = function(regex) {
-    for (let i = 0; i < view.rowCount; i++) {
-      if (regex.test(view.getCellText(i))) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  ok(!find(/^(width|height):/), "no document.width/height");
-
-  panel.destroy();
-
-  let getterValue = doc.foobar._val;
-
-  panel = jsterm.openPropertyPanel({ data: { object: doc.foobar }});
-  view = panel.treeView;
-
-  is(getterValue, doc.foobar._val, "getter did not execute");
-  is(getterValue+1, doc.foobar.val, "getter executed");
-  is(getterValue+1, doc.foobar._val, "getter executed (recheck)");
-
-  ok(find(/^val: Getter$/),
-     "getter is properly displayed");
-
-  ok(find(new RegExp("^_val: " + getterValue + "$")),
-     "getter _val is properly displayed");
-
-  panel.destroy();
-
-  executeSoon(function() {
-    let textContent = HUD.outputNode.textContent;
+    let textContent = hud.outputNode.textContent;
     is(textContent.indexOf("document.body.client"), -1,
        "no document.width/height warning displayed");
 

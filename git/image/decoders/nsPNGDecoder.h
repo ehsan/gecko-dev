@@ -4,13 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsPNGDecoder_h__
-#define nsPNGDecoder_h__
+#ifndef nsPNGDecoder_h
+#define nsPNGDecoder_h
 
 #include "Decoder.h"
 
-#include "imgIDecoderObserver.h"
-#include "gfxASurface.h"
+#include "gfxTypes.h"
 
 #include "nsCOMPtr.h"
 
@@ -25,18 +24,17 @@ class RasterImage;
 class nsPNGDecoder : public Decoder
 {
 public:
-  nsPNGDecoder(RasterImage &aImage, imgIDecoderObserver* aObserver);
+  explicit nsPNGDecoder(RasterImage& aImage);
   virtual ~nsPNGDecoder();
 
   virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount);
+  virtual void WriteInternal(const char* aBuffer, uint32_t aCount,
+                             DecodeStrategy aStrategy) MOZ_OVERRIDE;
   virtual Telemetry::ID SpeedHistogram();
 
   void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
                    int32_t width, int32_t height,
-                   gfxASurface::gfxImageFormat format);
-  void SetAnimFrameInfo();
-
+                   gfx::SurfaceFormat format);
   void EndImageFrame();
 
   // Check if PNG is valid ICO (32bpp RGBA)
@@ -60,9 +58,10 @@ public:
         png_color_type;
 
     if (png_get_IHDR(mPNG, mInfo, &png_width, &png_height, &png_bit_depth,
-                     &png_color_type, NULL, NULL, NULL)) {
+                     &png_color_type, nullptr, nullptr, nullptr)) {
 
-      return (png_color_type == PNG_COLOR_TYPE_RGB_ALPHA &&
+      return ((png_color_type == PNG_COLOR_TYPE_RGB_ALPHA ||
+               png_color_type == PNG_COLOR_TYPE_RGB) &&
               png_bit_depth == 8);
     } else {
       return false;
@@ -73,31 +72,44 @@ public:
   png_structp mPNG;
   png_infop mInfo;
   nsIntRect mFrameRect;
-  uint8_t *mCMSLine;
-  uint8_t *interlacebuf;
-  uint8_t *mImageData;
-  qcms_profile *mInProfile;
-  qcms_transform *mTransform;
+  uint8_t* mCMSLine;
+  uint8_t* interlacebuf;
+  qcms_profile* mInProfile;
+  qcms_transform* mTransform;
 
-  gfxASurface::gfxImageFormat format;
+  gfx::SurfaceFormat format;
 
   // For size decodes
-  uint8_t *mHeaderBuf;
+  uint8_t mSizeBytes[8]; // Space for width and height, both 4 bytes
   uint32_t mHeaderBytesRead;
+
+  // whether CMS or premultiplied alpha are forced off
+  uint32_t mCMSMode;
 
   uint8_t mChannels;
   bool mFrameHasNoAlpha;
   bool mFrameIsHidden;
-
-  // whether CMS or premultiplied alpha are forced off
-  uint32_t mCMSMode;
   bool mDisablePremultipliedAlpha;
-  
-  /*
-   * libpng callbacks
-   *
-   * We put these in the class so that they can access protected members.
-   */
+
+  struct AnimFrameInfo
+  {
+    AnimFrameInfo();
+#ifdef PNG_APNG_SUPPORTED
+    AnimFrameInfo(png_structp aPNG, png_infop aInfo);
+#endif
+
+    FrameBlender::FrameDisposalMethod mDispose;
+    FrameBlender::FrameBlendMethod mBlend;
+    int32_t mTimeout;
+  };
+
+  AnimFrameInfo mAnimInfo;
+
+  // The number of frames we've finished.
+  uint32_t mNumFrames;
+
+  // libpng callbacks
+  // We put these in the class so that they can access protected members.
   static void PNGAPI info_callback(png_structp png_ptr, png_infop info_ptr);
   static void PNGAPI row_callback(png_structp png_ptr, png_bytep new_row,
                                   png_uint_32 row_num, int pass);
@@ -119,4 +131,4 @@ public:
 } // namespace image
 } // namespace mozilla
 
-#endif // nsPNGDecoder_h__
+#endif // nsPNGDecoder_h

@@ -4,409 +4,413 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/ipc/Ril.h"
+
 #include <fcntl.h>
-#include <unistd.h>
-
-#include <queue>
-
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <sys/select.h>
-#include <sys/types.h>
+#include <netdb.h> // For gethostbyname.
 
-#include "base/eintr_wrapper.h"
-#include "base/message_loop.h"
-#include "mozilla/FileUtils.h"
-#include "mozilla/Monitor.h"
-#include "mozilla/Util.h"
-#include "nsAutoPtr.h"
-#include "nsIThread.h"
-#include "nsXULAppAPI.h"
-#include "Ril.h"
-
-#undef LOG
+#undef CHROMIUM_LOG
 #if defined(MOZ_WIDGET_GONK)
 #include <android/log.h>
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk", args)
+#define CHROMIUM_LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk", args)
 #else
-#define LOG(args...)  printf(args);
+#define CHROMIUM_LOG(args...)  printf(args);
 #endif
 
-#define RIL_SOCKET_NAME "/dev/socket/rilproxy"
+#include "jsfriendapi.h"
+#include "mozilla/ArrayUtils.h"
+#include "nsTArray.h"
+#include "nsThreadUtils.h" // For NS_IsMainThread.
 
-using namespace base;
-using namespace std;
+USING_WORKERS_NAMESPACE
+using namespace mozilla::ipc;
+
+namespace {
+
+const char* RIL_SOCKET_NAME = "/dev/socket/rilproxy";
 
 // Network port to connect to for adb forwarded sockets when doing
 // desktop development.
 const uint32_t RIL_TEST_PORT = 6200;
 
-namespace mozilla {
-namespace ipc {
+nsTArray<nsRefPtr<mozilla::ipc::RilConsumer> > sRilConsumers;
 
-struct RilClient : public RefCounted<RilClient>,
-                   public MessageLoopForIO::Watcher
-
+class ConnectWorkerToRIL : public WorkerTask
 {
-    typedef queue<RilRawData*> RilRawDataQueue;
-
-    RilClient() : mSocket(-1)
-                , mMutex("RilClient.mMutex")
-                , mBlockedOnWrite(false)
-                , mIOLoop(MessageLoopForIO::current())
-                , mCurrentRilRawData(NULL)
+public:
+    ConnectWorkerToRIL()
     { }
-    virtual ~RilClient() { }
 
-    bool OpenSocket();
-
-    virtual void OnFileCanReadWithoutBlocking(int fd);
-    virtual void OnFileCanWriteWithoutBlocking(int fd);
-
-    ScopedClose mSocket;
-    MessageLoopForIO::FileDescriptorWatcher mReadWatcher;
-    MessageLoopForIO::FileDescriptorWatcher mWriteWatcher;
-    nsAutoPtr<RilRawData> mIncoming;
-    Mutex mMutex;
-    RilRawDataQueue mOutgoingQ;
-    bool mBlockedOnWrite;
-    MessageLoopForIO* mIOLoop;
-    nsAutoPtr<RilRawData> mCurrentRilRawData;
-    size_t mCurrentWriteOffset;
+    virtual bool RunTask(JSContext *aCx);
 };
 
-static RefPtr<RilClient> sClient;
-static RefPtr<RilConsumer> sConsumer;
-
-//-----------------------------------------------------------------------------
-// This code runs on the IO thread.
-//
-
-class RilReconnectTask : public CancelableTask {
-    RilReconnectTask() : mCanceled(false) { }
-
-    virtual void Run();
-    virtual void Cancel() { mCanceled = true; }
-
-    bool mCanceled;
-
+class SendRilSocketDataTask : public nsRunnable
+{
 public:
-    static void Enqueue(int aDelayMs = 0) {
-        MessageLoopForIO* ioLoop = MessageLoopForIO::current();
-        MOZ_ASSERT(ioLoop && sClient->mIOLoop == ioLoop);
-        if (sTask) {
-            return;
-        }
-        sTask = new RilReconnectTask();
-        if (aDelayMs) {
-            ioLoop->PostDelayedTask(FROM_HERE, sTask, aDelayMs);
-        } else {
-            ioLoop->PostTask(FROM_HERE, sTask);
-        }
-    }
+    SendRilSocketDataTask(unsigned long aClientId,
+                          UnixSocketRawData *aRawData)
+        : mRawData(aRawData)
+        , mClientId(aClientId)
+    { }
 
-    static void CancelIt() {
-        if (!sTask) {
-            return;
+    NS_IMETHOD Run()
+    {
+        MOZ_ASSERT(NS_IsMainThread());
+
+        if (sRilConsumers.Length() <= mClientId ||
+            !sRilConsumers[mClientId] ||
+            sRilConsumers[mClientId]->GetConnectionStatus() != SOCKET_CONNECTED) {
+            // Probably shuting down.
+            delete mRawData;
+            return NS_OK;
         }
-        sTask->Cancel();
-        sTask = nullptr;
+
+        sRilConsumers[mClientId]->SendSocketData(mRawData);
+        return NS_OK;
     }
 
 private:
-    // Can *ONLY* be touched by the IO thread.  The event queue owns
-    // this memory when pointer is nonnull; do *NOT* free it manually.
-    static CancelableTask* sTask;
-};
-CancelableTask* RilReconnectTask::sTask;
-
-void RilReconnectTask::Run() {
-    // NB: the order of these two statements is important!  sTask must
-    // always run, whether we've been canceled or not, to avoid
-    // leading a dangling pointer in sTask.
-    sTask = nullptr;
-    if (mCanceled) {
-        return;
-    }
-
-    if (sClient->OpenSocket()) {
-        return;
-    }
-    Enqueue(1000);
-}
-
-class RilWriteTask : public Task {
-    virtual void Run();
+    UnixSocketRawData *mRawData;
+    unsigned long mClientId;
 };
 
-void RilWriteTask::Run() {
-    sClient->OnFileCanWriteWithoutBlocking(sClient->mSocket.rwget());
-}
-
-static void
-ConnectToRil(Monitor* aMonitor, bool* aSuccess)
+bool
+PostToRIL(JSContext *aCx,
+          unsigned aArgc,
+          JS::Value *aVp)
 {
-    MOZ_ASSERT(!sClient);
+    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
+    NS_ASSERTION(!NS_IsMainThread(), "Expecting to be on the worker thread");
 
-    sClient = new RilClient();
-    RilReconnectTask::Enqueue();
-    *aSuccess = true;
-    {
-        MonitorAutoLock lock(*aMonitor);
-        lock.Notify();
+    if (args.length() != 2) {
+        JS_ReportError(aCx, "Expecting two arguments with the RIL message");
+        return false;
     }
-    // aMonitor may have gone out of scope by now, don't touch it
+
+    int clientId = args[0].toInt32();
+    JS::Value v = args[1];
+
+    UnixSocketRawData* raw = nullptr;
+
+    if (v.isString()) {
+        JSAutoByteString abs;
+        JS::Rooted<JSString*> str(aCx, v.toString());
+        if (!abs.encodeUtf8(aCx, str)) {
+            return false;
+        }
+
+        raw = new UnixSocketRawData(abs.ptr(), abs.length());
+    } else if (!v.isPrimitive()) {
+        JSObject *obj = v.toObjectOrNull();
+        if (!JS_IsTypedArrayObject(obj)) {
+            JS_ReportError(aCx, "Object passed in wasn't a typed array");
+            return false;
+        }
+
+        uint32_t type = JS_GetArrayBufferViewType(obj);
+        if (type != js::Scalar::Int8 &&
+            type != js::Scalar::Uint8 &&
+            type != js::Scalar::Uint8Clamped) {
+            JS_ReportError(aCx, "Typed array data is not octets");
+            return false;
+        }
+
+        JS::AutoCheckCannotGC nogc;
+        size_t size = JS_GetTypedArrayByteLength(obj);
+        void *data = JS_GetArrayBufferViewData(obj, nogc);
+        raw = new UnixSocketRawData(data, size);
+    } else {
+        JS_ReportError(aCx,
+                       "Incorrect argument. Expecting a string or a typed array");
+        return false;
+    }
+
+    if (!raw) {
+        JS_ReportError(aCx, "Unable to post to RIL");
+        return false;
+    }
+
+    nsRefPtr<SendRilSocketDataTask> task =
+        new SendRilSocketDataTask(clientId, raw);
+    NS_DispatchToMainThread(task);
+    return true;
 }
 
 bool
-RilClient::OpenSocket()
+ConnectWorkerToRIL::RunTask(JSContext *aCx)
 {
+    // Set up the postRILMessage on the function for worker -> RIL thread
+    // communication.
+    NS_ASSERTION(!NS_IsMainThread(), "Expecting to be on the worker thread");
+    NS_ASSERTION(!JS_IsRunning(aCx), "Are we being called somehow?");
+    JS::Rooted<JSObject*> workerGlobal(aCx, JS::CurrentGlobalOrNull(aCx));
+
+    // Check whether |postRILMessage| has been defined.  No one but this class
+    // should ever define |postRILMessage| in a RIL worker, so we call to
+    // |JS_LookupProperty| instead of |JS_GetProperty| here.
+    JS::Rooted<JS::Value> val(aCx);
+    if (!JS_LookupProperty(aCx, workerGlobal, "postRILMessage", &val)) {
+        JS_ReportPendingException(aCx);
+        return false;
+    }
+
+    // |JS_LookupProperty| could still return JS_TRUE with an "undefined"
+    // |postRILMessage|, so we have to make sure that with an additional call
+    // to |JS_TypeOfValue|.
+    if (JSTYPE_FUNCTION == JS_TypeOfValue(aCx, val)) {
+        return true;
+    }
+
+    return !!JS_DefineFunction(aCx, workerGlobal,
+                               "postRILMessage", PostToRIL, 2, 0);
+}
+
+class DispatchRILEvent : public WorkerTask
+{
+public:
+        DispatchRILEvent(unsigned long aClient,
+                         UnixSocketRawData* aMessage)
+            : mClientId(aClient)
+            , mMessage(aMessage)
+        { }
+
+        virtual bool RunTask(JSContext *aCx);
+
+private:
+        unsigned long mClientId;
+        nsAutoPtr<UnixSocketRawData> mMessage;
+};
+
+bool
+DispatchRILEvent::RunTask(JSContext *aCx)
+{
+    JS::Rooted<JSObject*> obj(aCx, JS::CurrentGlobalOrNull(aCx));
+
+    JS::Rooted<JSObject*> array(aCx,
+                                JS_NewUint8Array(aCx, mMessage->GetSize()));
+    if (!array) {
+        return false;
+    }
+    {
+        JS::AutoCheckCannotGC nogc;
+        memcpy(JS_GetArrayBufferViewData(array, nogc),
+               mMessage->GetData(), mMessage->GetSize());
+    }
+
+    JS::AutoValueArray<2> args(aCx);
+    args[0].setNumber((uint32_t)mClientId);
+    args[1].setObject(*array);
+
+    JS::Rooted<JS::Value> rval(aCx);
+    return JS_CallFunctionName(aCx, obj, "onRILMessage", args, &rval);
+}
+
+class RilConnector : public mozilla::ipc::UnixSocketConnector
+{
+public:
+  RilConnector(unsigned long aClientId) : mClientId(aClientId)
+  {}
+
+  virtual ~RilConnector()
+  {}
+
+  virtual int Create();
+  virtual bool CreateAddr(bool aIsServer,
+                          socklen_t& aAddrSize,
+                          sockaddr_any& aAddr,
+                          const char* aAddress);
+  virtual bool SetUp(int aFd);
+  virtual bool SetUpListenSocket(int aFd);
+  virtual void GetSocketAddr(const sockaddr_any& aAddr,
+                             nsAString& aAddrStr);
+
+private:
+  unsigned long mClientId;
+};
+
+int
+RilConnector::Create()
+{
+    MOZ_ASSERT(!NS_IsMainThread());
+
+    int fd = -1;
+
 #if defined(MOZ_WIDGET_GONK)
-    // Using a network socket to test basic functionality
-    // before we see how this works on the phone.
-    struct sockaddr_un addr;
-    socklen_t alen;
-    size_t namelen;
-    int err;
-    memset(&addr, 0, sizeof(addr));
-    strcpy(addr.sun_path, RIL_SOCKET_NAME);
-    addr.sun_family = AF_LOCAL;
-    mSocket.reset(socket(AF_LOCAL, SOCK_STREAM, 0));
-    alen = strlen(RIL_SOCKET_NAME) + offsetof(struct sockaddr_un, sun_path) + 1;
+    fd = socket(AF_LOCAL, SOCK_STREAM, 0);
 #else
-    struct hostent *hp;
-    struct sockaddr_in addr;
-    socklen_t alen;
-
-    hp = gethostbyname("localhost");
-    if (hp == 0) return false;
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = hp->h_addrtype;
-    addr.sin_port = htons(RIL_TEST_PORT);
-    memcpy(&addr.sin_addr, hp->h_addr, hp->h_length);
-    mSocket.reset(socket(hp->h_addrtype, SOCK_STREAM, 0));
-    alen = sizeof(addr);
+    // If we can't hit a local loopback, fail later in connect.
+    fd = socket(AF_INET, SOCK_STREAM, 0);
 #endif
 
-    if (mSocket.get() < 0) {
-        LOG("Cannot create socket for RIL!\n");
-        return false;
+    if (fd < 0) {
+        NS_WARNING("Could not open ril socket!");
+        return -1;
     }
 
-    if (connect(mSocket.get(), (struct sockaddr *) &addr, alen) < 0) {
+    if (!SetUp(fd)) {
+        NS_WARNING("Could not set up socket!");
+    }
+    return fd;
+}
+
+bool
+RilConnector::CreateAddr(bool aIsServer,
+                         socklen_t& aAddrSize,
+                         sockaddr_any& aAddr,
+                         const char* aAddress)
+{
+    // We never open ril socket as server.
+    MOZ_ASSERT(!aIsServer);
+    uint32_t af;
 #if defined(MOZ_WIDGET_GONK)
-        LOG("Cannot open socket for RIL!\n");
+    af = AF_LOCAL;
+#else
+    af = AF_INET;
 #endif
-        mSocket.dispose();
+    switch (af) {
+    case AF_LOCAL:
+        aAddr.un.sun_family = af;
+        if(strlen(aAddress) > sizeof(aAddr.un.sun_path)) {
+            NS_WARNING("Address too long for socket struct!");
+            return false;
+        }
+        strcpy((char*)&aAddr.un.sun_path, aAddress);
+        aAddrSize = strlen(aAddress) + offsetof(struct sockaddr_un, sun_path) + 1;
+        break;
+    case AF_INET:
+        aAddr.in.sin_family = af;
+        aAddr.in.sin_port = htons(RIL_TEST_PORT + mClientId);
+        aAddr.in.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        aAddrSize = sizeof(sockaddr_in);
+        break;
+    default:
+        NS_WARNING("Socket type not handled by connector!");
         return false;
     }
+    return true;
+}
 
-    // Set close-on-exec bit.
-    int flags = fcntl(mSocket.get(), F_GETFD);
-    if (-1 == flags) {
-        return false;
-    }
+bool
+RilConnector::SetUp(int aFd)
+{
+    // Nothing to do here.
+    return true;
+}
 
-    flags |= FD_CLOEXEC;
-    if (-1 == fcntl(mSocket.get(), F_SETFD, flags)) {
-        return false;
-    }
-
-    // Select non-blocking IO.
-    if (-1 == fcntl(mSocket.get(), F_SETFL, O_NONBLOCK)) {
-        return false;
-    }
-    if (!mIOLoop->WatchFileDescriptor(mSocket.get(),
-                                      true,
-                                      MessageLoopForIO::WATCH_READ,
-                                      &mReadWatcher,
-                                      this)) {
-        return false;
-    }
-    LOG("Socket open for RIL\n");
+bool
+RilConnector::SetUpListenSocket(int aFd)
+{
+    // Nothing to do here.
     return true;
 }
 
 void
-RilClient::OnFileCanReadWithoutBlocking(int fd)
+RilConnector::GetSocketAddr(const sockaddr_any& aAddr,
+                            nsAString& aAddrStr)
 {
-    // Keep reading data until either
-    //
-    //   - mIncoming is completely read
-    //     If so, sConsumer->MessageReceived(mIncoming.forget())
-    //
-    //   - mIncoming isn't completely read, but there's no more
-    //     data available on the socket
-    //     If so, break;
+    MOZ_CRASH("This should never be called!");
+}
 
-    MOZ_ASSERT(fd == mSocket.get());
-    while (true) {
-        if (!mIncoming) {
-            mIncoming = new RilRawData();
-            ssize_t ret = read(fd, mIncoming->mData, RilRawData::MAX_DATA_SIZE);
-            if (ret <= 0) {
-                if (ret == -1) {
-                    if (errno == EINTR) {
-                        continue; // retry system call when interrupted
-                    }
-                    else if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        return; // no data available: return and re-poll
-                    }
-                    // else fall through to error handling on other errno's
-                }
-                LOG("Cannot read from network, error %d\n", ret);
-                // At this point, assume that we can't actually access
-                // the socket anymore, and start a reconnect loop.
-                mIncoming.forget();
-                mReadWatcher.StopWatchingFileDescriptor();
-                mWriteWatcher.StopWatchingFileDescriptor();
-                close(mSocket.get());
-                RilReconnectTask::Enqueue();
-                return;
-            }
-            mIncoming->mSize = ret;
-            sConsumer->MessageReceived(mIncoming.forget());
-            if (ret < ssize_t(RilRawData::MAX_DATA_SIZE)) {
-                return;
-            }
+} // anonymous namespace
+
+namespace mozilla {
+namespace ipc {
+
+RilConsumer::RilConsumer(unsigned long aClientId,
+                         WorkerCrossThreadDispatcher* aDispatcher)
+    : mDispatcher(aDispatcher)
+    , mClientId(aClientId)
+    , mShutdown(false)
+{
+    // Only append client id after RIL_SOCKET_NAME when it's not connected to
+    // the first(0) rilproxy for compatibility.
+    if (!aClientId) {
+        mAddress = RIL_SOCKET_NAME;
+    } else {
+        struct sockaddr_un addr_un;
+        snprintf(addr_un.sun_path, sizeof addr_un.sun_path, "%s%lu",
+                 RIL_SOCKET_NAME, aClientId);
+        mAddress = addr_un.sun_path;
+    }
+
+    ConnectSocket(new RilConnector(mClientId), mAddress.get());
+}
+
+nsresult
+RilConsumer::Register(unsigned int aClientId,
+                      WorkerCrossThreadDispatcher* aDispatcher)
+{
+    MOZ_ASSERT(NS_IsMainThread());
+
+    sRilConsumers.EnsureLengthAtLeast(aClientId + 1);
+
+    if (sRilConsumers[aClientId]) {
+        NS_WARNING("RilConsumer already registered");
+        return NS_ERROR_FAILURE;
+    }
+
+    nsRefPtr<ConnectWorkerToRIL> connection = new ConnectWorkerToRIL();
+    if (!aDispatcher->PostTask(connection)) {
+        NS_WARNING("Failed to connect worker to ril");
+        return NS_ERROR_UNEXPECTED;
+    }
+
+    // Now that we're set up, connect ourselves to the RIL thread.
+    sRilConsumers[aClientId] = new RilConsumer(aClientId, aDispatcher);
+    return NS_OK;
+}
+
+void
+RilConsumer::Shutdown()
+{
+    MOZ_ASSERT(NS_IsMainThread());
+
+    for (unsigned long i = 0; i < sRilConsumers.Length(); i++) {
+        nsRefPtr<RilConsumer>& instance = sRilConsumers[i];
+        if (!instance) {
+            continue;
         }
+
+        instance->mShutdown = true;
+        instance->CloseSocket();
+        instance = nullptr;
     }
 }
 
 void
-RilClient::OnFileCanWriteWithoutBlocking(int fd)
+RilConsumer::ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aMessage)
 {
-    // Try to write the bytes of mCurrentRilRawData.  If all were written, continue.
-    //
-    // Otherwise, save the byte position of the next byte to write
-    // within mCurrentRilRawData, and request another write when the
-    // system won't block.
-    //
+    MOZ_ASSERT(NS_IsMainThread());
 
-    MOZ_ASSERT(fd == mSocket.get());
-
-    while (true) {
-        {
-            MutexAutoLock lock(mMutex);
-
-            if (mOutgoingQ.empty() && !mCurrentRilRawData) {
-                return;
-            }
-
-            if(!mCurrentRilRawData) {
-                mCurrentRilRawData = mOutgoingQ.front();
-                mOutgoingQ.pop();
-                mCurrentWriteOffset = 0;
-            }
-        }
-        const uint8_t *toWrite;
-
-        toWrite = mCurrentRilRawData->mData;
- 
-        while (mCurrentWriteOffset < mCurrentRilRawData->mSize) {
-            ssize_t write_amount = mCurrentRilRawData->mSize - mCurrentWriteOffset;
-            ssize_t written;
-            written = write (fd, toWrite + mCurrentWriteOffset,
-                             write_amount);
-            if(written > 0) {
-                mCurrentWriteOffset += written;
-            }
-            if (written != write_amount) {
-                break;
-            }
-        }
-
-        if(mCurrentWriteOffset != mCurrentRilRawData->mSize) {
-            MessageLoopForIO::current()->WatchFileDescriptor(
-                fd,
-                false,
-                MessageLoopForIO::WATCH_WRITE,
-                &mWriteWatcher,
-                this);
-            return;
-        }
-        mCurrentRilRawData = NULL;
-    }
-}
-
-
-static void
-DisconnectFromRil(Monitor* aMonitor)
-{
-    // Prevent stale reconnect tasks from being run after we've shut
-    // down.
-    RilReconnectTask::CancelIt();
-    // XXX This might "strand" messages in the outgoing queue.  We'll
-    // assume that's OK for now.
-    sClient = nullptr;
-    {
-        MonitorAutoLock lock(*aMonitor);
-        lock.Notify();
-    }
-}
-
-//-----------------------------------------------------------------------------
-// This code runs on any thread.
-//
-
-bool
-StartRil(RilConsumer* aConsumer)
-{
-    MOZ_ASSERT(aConsumer);
-    sConsumer = aConsumer;
-
-    Monitor monitor("StartRil.monitor");
-    bool success;
-    {
-        MonitorAutoLock lock(monitor);
-
-        XRE_GetIOMessageLoop()->PostTask(
-            FROM_HERE,
-            NewRunnableFunction(ConnectToRil, &monitor, &success));
-
-        lock.Wait();
-    }
-
-    return success;
-}
-
-bool
-SendRilRawData(RilRawData** aMessage)
-{
-    if (!sClient) {
-        return false;
-    }
-
-    RilRawData *msg = *aMessage;
-    *aMessage = nullptr;
-
-    {
-        MutexAutoLock lock(sClient->mMutex);
-        sClient->mOutgoingQ.push(msg);
-    }
-    sClient->mIOLoop->PostTask(FROM_HERE, new RilWriteTask());
-
-    return true;
+    nsRefPtr<DispatchRILEvent> dre(new DispatchRILEvent(mClientId, aMessage.forget()));
+    mDispatcher->PostTask(dre);
 }
 
 void
-StopRil()
+RilConsumer::OnConnectSuccess()
 {
-    Monitor monitor("StopRil.monitor");
-    {
-        MonitorAutoLock lock(monitor);
-
-        XRE_GetIOMessageLoop()->PostTask(
-            FROM_HERE,
-            NewRunnableFunction(DisconnectFromRil, &monitor));
-
-        lock.Wait();
-    }
-
-    sConsumer = nullptr;
+    // Nothing to do here.
+    CHROMIUM_LOG("RIL[%lu]: %s\n", mClientId, __FUNCTION__);
 }
 
+void
+RilConsumer::OnConnectError()
+{
+    CHROMIUM_LOG("RIL[%lu]: %s\n", mClientId, __FUNCTION__);
+    CloseSocket();
+}
+
+void
+RilConsumer::OnDisconnect()
+{
+    CHROMIUM_LOG("RIL[%lu]: %s\n", mClientId, __FUNCTION__);
+    if (!mShutdown) {
+        ConnectSocket(new RilConnector(mClientId), mAddress.get(),
+                      GetSuggestedConnectDelayMs());
+    }
+}
 
 } // namespace ipc
 } // namespace mozilla

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2013 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -11,15 +11,19 @@
 
 #include "libGLESv2/Buffer.h"
 #include "libGLESv2/Program.h"
-#include "libGLESv2/RenderBuffer.h"
+#include "libGLESv2/Renderbuffer.h"
 #include "libGLESv2/Shader.h"
 #include "libGLESv2/Texture.h"
+#include "libGLESv2/Sampler.h"
+#include "libGLESv2/Fence.h"
+#include "libGLESv2/renderer/Renderer.h"
 
 namespace gl
 {
-ResourceManager::ResourceManager()
+ResourceManager::ResourceManager(rx::Renderer *renderer)
 {
     mRefCount = 1;
+    mRenderer = renderer;
 }
 
 ResourceManager::~ResourceManager()
@@ -47,6 +51,16 @@ ResourceManager::~ResourceManager()
     while (!mTextureMap.empty())
     {
         deleteTexture(mTextureMap.begin()->first);
+    }
+
+    while (!mSamplerMap.empty())
+    {
+        deleteSampler(mSamplerMap.begin()->first);
+    }
+
+    while (!mFenceSyncMap.empty())
+    {
+        deleteFenceSync(mFenceSyncMap.begin()->first);
     }
 }
 
@@ -78,13 +92,9 @@ GLuint ResourceManager::createShader(GLenum type)
 {
     GLuint handle = mProgramShaderHandleAllocator.allocate();
 
-    if (type == GL_VERTEX_SHADER)
+    if (type == GL_VERTEX_SHADER || type == GL_FRAGMENT_SHADER)
     {
-        mShaderMap[handle] = new VertexShader(this, handle);
-    }
-    else if (type == GL_FRAGMENT_SHADER)
-    {
-        mShaderMap[handle] = new FragmentShader(this, handle);
+        mShaderMap[handle] = new Shader(this, mRenderer->createShader(type), type, handle);
     }
     else UNREACHABLE();
 
@@ -96,7 +106,7 @@ GLuint ResourceManager::createProgram()
 {
     GLuint handle = mProgramShaderHandleAllocator.allocate();
 
-    mProgramMap[handle] = new Program(this, handle);
+    mProgramMap[handle] = new Program(mRenderer, this, handle);
 
     return handle;
 }
@@ -117,6 +127,28 @@ GLuint ResourceManager::createRenderbuffer()
     GLuint handle = mRenderbufferHandleAllocator.allocate();
 
     mRenderbufferMap[handle] = NULL;
+
+    return handle;
+}
+
+// Returns an unused sampler name
+GLuint ResourceManager::createSampler()
+{
+    GLuint handle = mSamplerHandleAllocator.allocate();
+
+    mSamplerMap[handle] = NULL;
+
+    return handle;
+}
+
+// Returns the next unused fence name, and allocates the fence
+GLuint ResourceManager::createFenceSync()
+{
+    GLuint handle = mFenceSyncHandleAllocator.allocate();
+
+    FenceSync *fenceSync = new FenceSync(mRenderer, handle);
+    fenceSync->addRef();
+    mFenceSyncMap[handle] = fenceSync;
 
     return handle;
 }
@@ -195,6 +227,30 @@ void ResourceManager::deleteRenderbuffer(GLuint renderbuffer)
     }
 }
 
+void ResourceManager::deleteSampler(GLuint sampler)
+{
+    auto samplerObject = mSamplerMap.find(sampler);
+
+    if (samplerObject != mSamplerMap.end())
+    {
+        mSamplerHandleAllocator.release(samplerObject->first);
+        if (samplerObject->second) samplerObject->second->release();
+        mSamplerMap.erase(samplerObject);
+    }
+}
+
+void ResourceManager::deleteFenceSync(GLuint fenceSync)
+{
+    auto fenceObjectIt = mFenceSyncMap.find(fenceSync);
+
+    if (fenceObjectIt != mFenceSyncMap.end())
+    {
+        mFenceSyncHandleAllocator.release(fenceObjectIt->first);
+        if (fenceObjectIt->second) fenceObjectIt->second->release();
+        mFenceSyncMap.erase(fenceObjectIt);
+    }
+}
+
 Buffer *ResourceManager::getBuffer(unsigned int handle)
 {
     BufferMap::iterator buffer = mBufferMap.find(handle);
@@ -267,6 +323,34 @@ Renderbuffer *ResourceManager::getRenderbuffer(unsigned int handle)
     }
 }
 
+Sampler *ResourceManager::getSampler(unsigned int handle)
+{
+    auto sampler = mSamplerMap.find(handle);
+
+    if (sampler == mSamplerMap.end())
+    {
+        return NULL;
+    }
+    else
+    {
+        return sampler->second;
+    }
+}
+
+FenceSync *ResourceManager::getFenceSync(unsigned int handle)
+{
+    auto fenceObjectIt = mFenceSyncMap.find(handle);
+
+    if (fenceObjectIt == mFenceSyncMap.end())
+    {
+        return NULL;
+    }
+    else
+    {
+        return fenceObjectIt->second;
+    }
+}
+
 void ResourceManager::setRenderbuffer(GLuint handle, Renderbuffer *buffer)
 {
     mRenderbufferMap[handle] = buffer;
@@ -276,25 +360,33 @@ void ResourceManager::checkBufferAllocation(unsigned int buffer)
 {
     if (buffer != 0 && !getBuffer(buffer))
     {
-        Buffer *bufferObject = new Buffer(buffer);
+        Buffer *bufferObject = new Buffer(mRenderer->createBuffer(), buffer);
         mBufferMap[buffer] = bufferObject;
         bufferObject->addRef();
     }
 }
 
-void ResourceManager::checkTextureAllocation(GLuint texture, TextureType type)
+void ResourceManager::checkTextureAllocation(GLuint texture, GLenum type)
 {
     if (!getTexture(texture) && texture != 0)
     {
         Texture *textureObject;
 
-        if (type == TEXTURE_2D)
+        if (type == GL_TEXTURE_2D)
         {
-            textureObject = new Texture2D(texture);
+            textureObject = new Texture2D(mRenderer->createTexture(GL_TEXTURE_2D), texture);
         }
-        else if (type == TEXTURE_CUBE)
+        else if (type == GL_TEXTURE_CUBE_MAP)
         {
-            textureObject = new TextureCubeMap(texture);
+            textureObject = new TextureCubeMap(mRenderer->createTexture(GL_TEXTURE_CUBE_MAP), texture);
+        }
+        else if (type == GL_TEXTURE_3D)
+        {
+            textureObject = new Texture3D(mRenderer->createTexture(GL_TEXTURE_3D), texture);
+        }
+        else if (type == GL_TEXTURE_2D_ARRAY)
+        {
+            textureObject = new Texture2DArray(mRenderer->createTexture(GL_TEXTURE_2D_ARRAY), texture);
         }
         else
         {
@@ -311,10 +403,25 @@ void ResourceManager::checkRenderbufferAllocation(GLuint renderbuffer)
 {
     if (renderbuffer != 0 && !getRenderbuffer(renderbuffer))
     {
-        Renderbuffer *renderbufferObject = new Renderbuffer(renderbuffer, new Colorbuffer(0, 0, GL_RGBA4, 0));
+        Renderbuffer *renderbufferObject = new Renderbuffer(renderbuffer, new Colorbuffer(mRenderer, 0, 0, GL_RGBA4, 0));
         mRenderbufferMap[renderbuffer] = renderbufferObject;
         renderbufferObject->addRef();
     }
+}
+
+void ResourceManager::checkSamplerAllocation(GLuint sampler)
+{
+    if (sampler != 0 && !getSampler(sampler))
+    {
+        Sampler *samplerObject = new Sampler(sampler);
+        mSamplerMap[sampler] = samplerObject;
+        samplerObject->addRef();
+    }
+}
+
+bool ResourceManager::isSampler(GLuint sampler)
+{
+    return mSamplerMap.find(sampler) != mSamplerMap.end();
 }
 
 }

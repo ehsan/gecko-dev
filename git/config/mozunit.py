@@ -36,7 +36,7 @@ class _MozTestResult(_TestResult):
         _TestResult.addSuccess(self, test)
         filename = inspect.getfile(test.__class__)
         testname = test._testMethodName
-        self.stream.writeln("TEST-PASS | %s | %s" % (filename, testname))
+        self.stream.writeln("TEST-PASS | {0} | {1}".format(filename, testname))
 
     def addError(self, test, err):
         _TestResult.addError(self, test, err)
@@ -54,13 +54,13 @@ class _MozTestResult(_TestResult):
         if not tb:
             self.stream.writeln("TEST-UNEXPECTED-FAIL | NO TRACEBACK |")
         _f, _ln, _t = inspect.getframeinfo(tb)[:3]
-        self.stream.writeln("TEST-UNEXPECTED-FAIL | %s | line %d, %s: %s" % 
-                            (_f, _ln, _t, value.message))
+        self.stream.writeln("TEST-UNEXPECTED-FAIL | {0} | line {1}, {2}: {3}" 
+                            .format(_f, _ln, _t, value.message))
 
     def printErrorList(self):
         for test, err in self.errors:
-            self.stream.writeln("ERROR: %s" % self.getDescription(test))
-            self.stream.writeln("%s" % err)
+            self.stream.writeln("ERROR: {0}".format(self.getDescription(test)))
+            self.stream.writeln("{0}".format(err))
 
 
 class MozTestRunner(_TestRunner):
@@ -129,11 +129,24 @@ class MockedOpen(object):
     def __enter__(self):
         import __builtin__
         self.open = __builtin__.open
+        self._orig_path_exists = os.path.exists
         __builtin__.open = self
+        os.path.exists = self._wrapped_exists
 
     def __exit__(self, type, value, traceback):
         import __builtin__
         __builtin__.open = self.open
+        os.path.exists = self._orig_path_exists
+
+    def _wrapped_exists(self, p):
+        if p in self.files:
+            return True
+
+        abspath = os.path.abspath(p)
+        if abspath in self.files:
+            return True
+
+        return self._orig_path_exists(p)
 
 def main(*args):
     unittest.main(testRunner=MozTestRunner(),*args)

@@ -26,7 +26,7 @@ extern GThread* gSendThreadID;
 
 extern bool gInitialized;
 extern bool gDidTrySend;
-extern std::string gDumpFile;
+extern StringTable gFiles;
 extern StringTable gQueryParameters;
 extern std::string gHttpProxy;
 extern std::string gAuth;
@@ -39,6 +39,7 @@ gpointer SendThread(gpointer args);
 gboolean WindowDeleted(GtkWidget* window,
                        GdkEvent* event,
                        gpointer userData);
+gboolean check_escape(GtkWidget* window, GdkEventKey* event, gpointer data);
 void SubmitReportChecked(GtkButton* sender, gpointer userData);
 void IncludeURLClicked(GtkButton* sender, gpointer userData);
 void CloseClicked(GtkButton* button,

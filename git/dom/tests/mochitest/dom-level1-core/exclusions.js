@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -61,6 +61,26 @@ var createEntityRef = ["documentinvalidcharacterexceptioncreateentref",
                        "hc_attrgetvalue2", "hc_nodevalue03"];
 var createProcessingInstructionHTML = ["documentinvalidcharacterexceptioncreatepi",
                                        "documentinvalidcharacterexceptioncreatepi1"];
+// These tests expect Node.attributes to exist.
+var attributesOnNode = [
+  "hc_commentgetcomment",
+  "hc_documentgetdoctype",
+  "hc_nodeattributenodeattribute",
+  "hc_nodecommentnodeattributes",
+  "hc_nodecommentnodeattributes",
+  "hc_nodedocumentfragmentnodevalue",
+  "hc_nodedocumentnodeattribute",
+  "hc_nodetextnodeattribute",
+  "nodeattributenodeattribute",
+  "nodecommentnodeattributes",
+  "nodecommentnodeattributes",
+  "nodedocumentfragmentnodevalue",
+  "nodedocumentnodeattribute",
+  "nodeprocessinginstructionnodeattributes",
+  "nodetextnodeattribute",
+  "nodecdatasectionnodeattribute",
+  "nodedocumenttypenodevalue"
+]
 
 var todoTests = {};
 function concat(lst/*...*/) {
@@ -73,5 +93,5 @@ function concat(lst/*...*/) {
   }
   return f;
 }
-var exclusions = concat(dtdTests, indexErrTests, attributeModTests, modTests, createEntityRef, createProcessingInstructionHTML);
+var exclusions = concat(dtdTests, indexErrTests, attributeModTests, modTests, createEntityRef, createProcessingInstructionHTML, attributesOnNode);
 for (var excludedTestName in exclusions) { todoTests[exclusions[excludedTestName]] = true; }

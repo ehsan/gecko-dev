@@ -5,7 +5,7 @@
 // Tests bug 567127 - Add install button to the add-ons manager
 
 var MockFilePicker = SpecialPowers.MockFilePicker;
-MockFilePicker.init();
+MockFilePicker.init(window);
 
 var gManagerWindow;
 var gSawInstallNotification = false;
@@ -73,7 +73,10 @@ WindowOpenListener.prototype = {
 var gInstallNotificationObserver = {
   observe: function(aSubject, aTopic, aData) {
     var installInfo = aSubject.QueryInterface(Ci.amIWebInstallInfo);
-    isnot(installInfo.originatingWindow, null, "Notification should have non-null originatingWindow");
+    if (gTestInWindow)
+      is(installInfo.browser, null, "Notification should have a null browser");
+    else
+      isnot(installInfo.browser, null, "Notification should have non-null browser");
     gSawInstallNotification = true;
     Services.obs.removeObserver(this, "addon-install-started");
   }
@@ -84,42 +87,23 @@ function test_confirmation(aWindow, aExpectedURLs) {
   var list = aWindow.document.getElementById("itemList");
   is(list.childNodes.length, aExpectedURLs.length, "Should be the right number of installs");
 
-  aExpectedURLs.forEach(function(aURL) {
-    var node = list.firstChild;
-    while (node) {
-      if (node.url == aURL) {
-        ok(true, "Should have seen " + aURL + " in the list");
-        return;
+  for (let url of aExpectedURLs) {
+    let found = false;
+    for (let node of list.children) {
+      if (node.url == url) {
+        found = true;
+        break;
       }
-      node = node.nextSibling;
     }
-    ok(false, "Should have seen " + aURL + " in the list");
-  });
+    ok(found, "Should have seen " + url + " in the list");
+  }
 
   aWindow.document.documentElement.cancelDialog();
 }
 
+add_task(function* test_install_from_file() {
+  gManagerWindow = yield open_manager("addons://list/extension");
 
-function test() {
-  waitForExplicitFinish();
-  
-  open_manager("addons://list/extension", function(aWindow) {
-    gManagerWindow = aWindow;
-    run_next_test();
-  });
-}
-
-function end_test() {
-  is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
-
-  MockFilePicker.cleanup();
-  close_manager(gManagerWindow, function() {
-    finish();
-  });
-}
-
-
-add_test(function() {
   var filePaths = [
                    get_addon_file_url("browser_bug567127_1.xpi"),
                    get_addon_file_url("browser_bug567127_2.xpi")
@@ -129,9 +113,24 @@ add_test(function() {
   Services.obs.addObserver(gInstallNotificationObserver,
                            "addon-install-started", false);
 
-  new WindowOpenListener(INSTALL_URI, function(aWindow) {
-    test_confirmation(aWindow, filePaths.map(function(aPath) aPath.spec));
-  }, run_next_test);
+  // Set handler that executes the core test after the window opens,
+  // and resolves the promise when the window closes
+  let pInstallURIClosed = new Promise((resolve, reject) => {
+    new WindowOpenListener(INSTALL_URI, function(aWindow) {
+      try {
+        test_confirmation(aWindow, filePaths.map(function(aPath) aPath.spec));
+      } catch(e) {
+        reject(e);
+      }
+    }, resolve);
+  });
 
   gManagerWindow.gViewController.doCommand("cmd_installFromFile");
+
+  yield pInstallURIClosed;
+
+  is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
+
+  MockFilePicker.cleanup();
+  yield close_manager(gManagerWindow);
 });

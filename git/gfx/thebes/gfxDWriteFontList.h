@@ -6,6 +6,7 @@
 #ifndef GFX_DWRITEFONTLIST_H
 #define GFX_DWRITEFONTLIST_H
 
+#include "mozilla/MemoryReporting.h"
 #include "gfxDWriteCommon.h"
 
 #include "gfxFont.h"
@@ -14,6 +15,7 @@
 
 #include "gfxPlatformFontList.h"
 #include "gfxPlatform.h"
+#include <algorithm>
 
 
 /**
@@ -41,16 +43,19 @@ public:
       : gfxFontFamily(aName), mDWFamily(aFamily), mForceGDIClassic(false) {}
     virtual ~gfxDWriteFontFamily();
     
-    virtual void FindStyleVariations();
+    virtual void FindStyleVariations(FontInfoData *aFontInfoData = nullptr);
 
     virtual void LocalizedName(nsAString& aLocalizedName);
 
+    virtual void ReadFaceNames(gfxPlatformFontList *aPlatformFontList,
+                               bool aNeedFullnamePostscriptNames);
+
     void SetForceGDIClassic(bool aForce) { mForceGDIClassic = aForce; }
 
-    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontListSizes*    aSizes) const;
+    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                        FontListSizes* aSizes) const;
+    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                        FontListSizes* aSizes) const;
 
 protected:
     /** This font family's directwrite fontfamily object */
@@ -80,8 +85,8 @@ public:
         mStretch = FontStretchFromDWriteStretch(aFont->GetStretch());
         uint16_t weight = NS_ROUNDUP(aFont->GetWeight() - 50, 100);
 
-        weight = NS_MAX<uint16_t>(100, weight);
-        weight = NS_MIN<uint16_t>(900, weight);
+        weight = std::max<uint16_t>(100, weight);
+        weight = std::min<uint16_t>(900, weight);
         mWeight = weight;
 
         mIsCJK = UNINITIALIZED_VALUE;
@@ -109,7 +114,6 @@ public:
         mWeight = aWeight;
         mStretch = aStretch;
         mItalic = aItalic;
-        mIsUserFont = true;
         mIsLocalUserFont = true;
         mIsCJK = UNINITIALIZED_VALUE;
     }
@@ -134,7 +138,7 @@ public:
         mWeight = aWeight;
         mStretch = aStretch;
         mItalic = aItalic;
-        mIsUserFont = true;
+        mIsDataUserFont = true;
         mIsCJK = UNINITIALIZED_VALUE;
     }
 
@@ -142,24 +146,26 @@ public:
 
     virtual bool IsSymbolFont();
 
-    virtual nsresult GetFontTable(uint32_t aTableTag,
-                                  FallibleTArray<uint8_t>& aBuffer);
+    virtual hb_blob_t* GetFontTable(uint32_t aTableTag) MOZ_OVERRIDE;
 
-    nsresult ReadCMAP();
+    nsresult ReadCMAP(FontInfoData *aFontInfoData = nullptr);
 
     bool IsCJKFont();
 
     void SetForceGDIClassic(bool aForce) { mForceGDIClassic = aForce; }
     bool GetForceGDIClassic() { return mForceGDIClassic; }
 
-    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontListSizes*    aSizes) const;
+    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                        FontListSizes* aSizes) const;
+    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                        FontListSizes* aSizes) const;
 
 protected:
     friend class gfxDWriteFont;
     friend class gfxDWriteFontList;
+
+    virtual nsresult CopyFontTable(uint32_t aTableTag,
+                                   FallibleTArray<uint8_t>& aBuffer) MOZ_OVERRIDE;
 
     virtual gfxFont *CreateFontInstance(const gfxFontStyle *aFontStyle,
                                         bool aNeedsBold);
@@ -176,6 +182,11 @@ protected:
      */
     nsRefPtr<IDWriteFont> mFont;
     nsRefPtr<IDWriteFontFile> mFontFile;
+
+    // font face corresponding to the mFont/mFontFile *without* any DWrite
+    // style simulations applied
+    nsRefPtr<IDWriteFontFace> mFontFace;
+
     DWRITE_FONT_FACE_TYPE mFaceType;
 
     int8_t mIsCJK;
@@ -183,7 +194,7 @@ protected:
 };
 
 // custom text renderer used to determine the fallback font for a given char
-class FontFallbackRenderer : public IDWriteTextRenderer
+class FontFallbackRenderer MOZ_FINAL : public IDWriteTextRenderer
 {
 public:
     FontFallbackRenderer(IDWriteFactory *aFactory)
@@ -304,7 +315,7 @@ public:
         } else if (__uuidof(IUnknown) == riid) {
             *ppvObject = this;
         } else {
-            *ppvObject = NULL;
+            *ppvObject = nullptr;
             return E_FAIL;
         }
 
@@ -333,35 +344,37 @@ public:
     // initialize font lists
     virtual nsresult InitFontList();
 
-    virtual gfxFontEntry* GetDefaultFont(const gfxFontStyle* aStyle,
-                                         bool& aNeedsBold);
+    virtual gfxFontFamily* GetDefaultFont(const gfxFontStyle* aStyle);
 
-    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                          const nsAString& aFontName);
+    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName,
+                                          uint16_t aWeight,
+                                          int16_t aStretch,
+                                          bool aItalic);
 
-    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                           const uint8_t *aFontData,
+    virtual gfxFontEntry* MakePlatformFont(const nsAString& aFontName,
+                                           uint16_t aWeight,
+                                           int16_t aStretch,
+                                           bool aItalic,
+                                           const uint8_t* aFontData,
                                            uint32_t aLength);
     
-    virtual bool ResolveFontName(const nsAString& aFontName,
-                                   nsAString& aResolvedFontName);
-
     bool GetStandardFamilyName(const nsAString& aFontName,
                                  nsAString& aFamilyName);
 
     IDWriteGdiInterop *GetGDIInterop() { return mGDIInterop; }
     bool UseGDIFontTableAccess() { return mGDIFontTableAccess; }
 
-    virtual gfxFontFamily* FindFamily(const nsAString& aFamily);
+    virtual gfxFontFamily* FindFamily(const nsAString& aFamily,
+                                      bool aUseSystemFonts = false);
 
     virtual void GetFontFamilyList(nsTArray<nsRefPtr<gfxFontFamily> >& aFamilyArray);
 
     gfxFloat GetForceGDIClassicMaxFontSize() { return mForceGDIClassicMaxFontSize; }
 
-    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontListSizes*    aSizes) const;
+    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                        FontListSizes* aSizes) const;
+    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                        FontListSizes* aSizes) const;
 
 private:
     friend class gfxDWriteFontFamily;
@@ -374,9 +387,17 @@ private:
     virtual gfxFontEntry* GlobalFontFallback(const uint32_t aCh,
                                              int32_t aRunScript,
                                              const gfxFontStyle* aMatchStyle,
-                                             uint32_t& aCmapCount);
+                                             uint32_t& aCmapCount,
+                                             gfxFontFamily** aMatchedFamily);
 
     virtual bool UsesSystemFallback() { return true; }
+
+    void GetFontsFromCollection(IDWriteFontCollection* aCollection);
+
+#ifdef MOZ_BUNDLED_FONTS
+    already_AddRefed<IDWriteFontCollection>
+    CreateBundledFontsCollection(IDWriteFactory* aFactory);
+#endif
 
     /**
      * Fonts listed in the registry as substitutes but for which no actual
@@ -395,6 +416,8 @@ private:
     bool mInitialized;
     virtual nsresult DelayedInitFontList();
 
+    virtual already_AddRefed<FontInfoData> CreateFontInfoData();
+
     gfxFloat mForceGDIClassicMaxFontSize;
 
     // whether to use GDI font table access routines
@@ -403,6 +426,11 @@ private:
 
     nsRefPtr<FontFallbackRenderer> mFallbackRenderer;
     nsRefPtr<IDWriteTextFormat>    mFallbackFormat;
+
+    nsRefPtr<IDWriteFontCollection> mSystemFonts;
+#ifdef MOZ_BUNDLED_FONTS
+    nsRefPtr<IDWriteFontCollection> mBundledFonts;
+#endif
 };
 
 

@@ -25,26 +25,41 @@
 #include "nsISimpleEnumerator.h"
 #include "nsCOMArray.h"
 #include "nsAutoPtr.h"
-#include "nsICharsetConverterManager.h"
 #include "nsBaseFilePicker.h"
 #include "nsString.h"
 #include "nsdefs.h"
 #include <commdlg.h>
 #include <shobjidl.h>
+#undef LogSeverity // SetupAPI.h #defines this as DWORD
 
 class nsILoadContext;
+
+class nsBaseWinFilePicker :
+  public nsBaseFilePicker
+{
+public:
+  NS_IMETHOD GetDefaultString(nsAString& aDefaultString);
+  NS_IMETHOD SetDefaultString(const nsAString& aDefaultString);
+  NS_IMETHOD GetDefaultExtension(nsAString& aDefaultExtension);
+  NS_IMETHOD SetDefaultExtension(const nsAString& aDefaultExtension);
+
+protected:
+  nsString mDefaultFilePath;
+  nsString mDefaultFilename;
+  nsString mDefaultExtension;
+};
 
 /**
  * Native Windows FileSelector wrapper
  */
 
 class nsFilePicker :
-  public nsBaseFilePicker,
-  public IFileDialogEvents
+  public IFileDialogEvents,
+  public nsBaseWinFilePicker
 {
+  virtual ~nsFilePicker();
 public:
   nsFilePicker(); 
-  virtual ~nsFilePicker();
 
   NS_IMETHOD Init(nsIDOMWindow *aParent, const nsAString& aTitle, int16_t aMode);
                   
@@ -53,11 +68,7 @@ public:
   // IUnknown's QueryInterface
   STDMETHODIMP QueryInterface(REFIID refiid, void** ppvResult);
 
-  // nsIFilePicker (less what's in nsBaseFilePicker)
-  NS_IMETHOD GetDefaultString(nsAString& aDefaultString);
-  NS_IMETHOD SetDefaultString(const nsAString& aDefaultString);
-  NS_IMETHOD GetDefaultExtension(nsAString& aDefaultExtension);
-  NS_IMETHOD SetDefaultExtension(const nsAString& aDefaultExtension);
+  // nsIFilePicker (less what's in nsBaseFilePicker and nsBaseWinFilePicker)
   NS_IMETHOD GetFilterIndex(int32_t *aFilterIndex);
   NS_IMETHOD SetFilterIndex(int32_t aFilterIndex);
   NS_IMETHOD GetFile(nsIFile * *aFile);
@@ -84,9 +95,8 @@ protected:
 
   /* method from nsBaseFilePicker */
   virtual void InitNative(nsIWidget *aParent,
-                          const nsAString& aTitle,
-                          int16_t aMode);
-  static void GetQualifiedPath(const PRUnichar *aInPath, nsString &aOutPath);
+                          const nsAString& aTitle);
+  static void GetQualifiedPath(const wchar_t *aInPath, nsString &aOutPath);
   void GetFilterListArray(nsString& aFilterList);
   bool FilePickerWrapper(OPENFILENAMEW* ofn, PickerType aType);
   bool ShowXPFolderPicker(const nsString& aInitialDir);
@@ -107,17 +117,13 @@ protected:
   nsCOMPtr<nsILoadContext> mLoadContext;
   nsCOMPtr<nsIWidget>    mParentWidget;
   nsString               mTitle;
-  int16_t                mMode;
   nsCString              mFile;
-  nsString               mDefaultFilePath;
-  nsString               mDefaultFilename;
-  nsString               mDefaultExtension;
   nsString               mFilterList;
   int16_t                mSelectedType;
   nsCOMArray<nsIFile>    mFiles;
   static char            mLastUsedDirectory[];
   nsString               mUnicodeFile;
-  static PRUnichar      *mLastUsedUnicodeDirectory;
+  static char16_t      *mLastUsedUnicodeDirectory;
   HWND                   mDlgWnd;
 
   class ComDlgFilterSpec

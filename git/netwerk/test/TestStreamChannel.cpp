@@ -21,6 +21,7 @@
 #include "nsNetUtil.h"
 #include "nsAutoLock.h"
 #include "prlog.h"
+#include <algorithm>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +65,7 @@ public:
         nsresult rv;
 
         while (count) {
-            uint32_t n, amt = NS_MIN<uint32_t>(count, sizeof(buf));
+            uint32_t n, amt = std::min<uint32_t>(count, sizeof(buf));
 
             rv = stream->Read(buf, amt, &n);
             if (NS_FAILED(rv)) {
@@ -87,9 +88,9 @@ public:
     }
 };
 
-NS_IMPL_ISUPPORTS2(MyListener,
-                   nsIRequestObserver,
-                   nsIStreamListener)
+NS_IMPL_ISUPPORTS(MyListener,
+                  nsIRequestObserver,
+                  nsIStreamListener)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +109,7 @@ public:
     }
 
     NS_IMETHOD OnStatus(nsIRequest *req, nsISupports *ctx, nsresult status,
-                        const PRUnichar *statusArg)
+                        const char16_t *statusArg)
     {
         LOG(("MyCallbacks::OnStatus [status=%x]\n", status));
         return NS_OK;
@@ -122,9 +123,9 @@ public:
     }
 };
 
-NS_IMPL_ISUPPORTS2(MyCallbacks,
-                   nsIInterfaceRequestor,
-                   nsIProgressEventSink)
+NS_IMPL_ISUPPORTS(MyCallbacks,
+                  nsIInterfaceRequestor,
+                  nsIProgressEventSink)
 
 ////////////////////////////////////////////////////////////////////////////////
 

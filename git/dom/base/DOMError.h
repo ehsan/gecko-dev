@@ -7,40 +7,76 @@
 #ifndef mozilla_dom_domerror_h__
 #define mozilla_dom_domerror_h__
 
-#include "nsIDOMDOMError.h"
-
+#include "mozilla/Attributes.h"
+#include "nsWrapperCache.h"
 #include "nsCOMPtr.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
+#include "nsPIDOMWindow.h"
+
+#define DOMERROR_IID \
+{ 0x220cb63f, 0xa37d, 0x4ba4, \
+ { 0x8e, 0x31, 0xfc, 0xde, 0xec, 0x48, 0xe1, 0x66 } }
 
 namespace mozilla {
+
+class ErrorResult;
+
 namespace dom {
 
-class DOMError : public nsIDOMDOMError
+class GlobalObject;
+
+class DOMError : public nsISupports,
+                 public nsWrapperCache
 {
+  nsCOMPtr<nsPIDOMWindow> mWindow;
   nsString mName;
-
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMDOMERROR
-
-  static already_AddRefed<nsIDOMDOMError>
-  CreateForNSResult(nsresult rv);
-
-  static already_AddRefed<nsIDOMDOMError>
-  CreateWithName(const nsAString& aName)
-  {
-    nsCOMPtr<nsIDOMDOMError> error = new DOMError(aName);
-    return error.forget();
-  }
+  nsString mMessage;
 
 protected:
-  DOMError(const nsAString& aName)
-  : mName(aName)
-  { }
+  virtual ~DOMError();
 
-  virtual ~DOMError()
-  { }
+public:
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMError)
+
+  NS_DECLARE_STATIC_IID_ACCESSOR(DOMERROR_IID)
+
+  // aWindow can be null if this DOMError is not associated with a particular
+  // window.
+
+  explicit DOMError(nsPIDOMWindow* aWindow);
+
+  DOMError(nsPIDOMWindow* aWindow, nsresult aValue);
+
+  DOMError(nsPIDOMWindow* aWindow, const nsAString& aName);
+
+  DOMError(nsPIDOMWindow* aWindow, const nsAString& aName,
+           const nsAString& aMessage);
+
+  nsPIDOMWindow* GetParentObject() const
+  {
+    return mWindow;
+  }
+
+  virtual JSObject*
+  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
+
+  static already_AddRefed<DOMError>
+  Constructor(const GlobalObject& global, const nsAString& name,
+              const nsAString& message, ErrorResult& aRv);
+
+  void GetName(nsString& aRetval) const
+  {
+    aRetval = mName;
+  }
+
+  void GetMessage(nsString& aRetval) const
+  {
+    aRetval = mMessage;
+  }
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(DOMError, DOMERROR_IID)
 
 } // namespace dom
 } // namespace mozilla

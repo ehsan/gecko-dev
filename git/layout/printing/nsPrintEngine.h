@@ -13,16 +13,20 @@
 #include "nsPrintData.h"
 #include "nsFrameList.h"
 #include "mozilla/Attributes.h"
+#include "nsIWebProgress.h"
+#include "mozilla/dom/HTMLCanvasElement.h"
+#include "nsIWebProgressListener.h"
+#include "nsWeakReference.h"
 
 // Interfaces
-#include "nsIDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsIObserver.h"
 
 // Classes
 class nsPagePrintTimer;
-class nsIDocShellTreeNode;
+class nsIDocShell;
 class nsDeviceContext;
+class nsIDocument;
 class nsIDocumentViewerPrint;
 class nsPrintObject;
 class nsIDocShell;
@@ -33,7 +37,9 @@ class nsIWeakReference;
 // nsPrintEngine Class
 //
 //------------------------------------------------------------------------
-class nsPrintEngine MOZ_FINAL : public nsIObserver
+class nsPrintEngine MOZ_FINAL : public nsIObserver,
+                                public nsIWebProgressListener,
+                                public nsSupportsWeakReference
 {
 public:
   // nsISupports interface...
@@ -41,6 +47,8 @@ public:
 
   // nsIObserver
   NS_DECL_NSIOBSERVER
+
+  NS_DECL_NSIWEBPROGRESSLISTENER
 
   // Old nsIWebBrowserPrint methods; not cleaned up yet
   NS_IMETHOD Print(nsIPrintSettings*       aPrintSettings,
@@ -53,7 +61,7 @@ public:
   NS_IMETHOD GetIsRangeSelection(bool *aIsRangeSelection);
   NS_IMETHOD GetIsFramesetFrameSelected(bool *aIsFramesetFrameSelected);
   NS_IMETHOD GetPrintPreviewNumPages(int32_t *aPrintPreviewNumPages);
-  NS_IMETHOD EnumerateDocumentNames(uint32_t* aCount, PRUnichar*** aResult);
+  NS_IMETHOD EnumerateDocumentNames(uint32_t* aCount, char16_t*** aResult);
   static nsresult GetGlobalPrintSettings(nsIPrintSettings** aPrintSettings);
   NS_IMETHOD GetDoingPrint(bool *aDoingPrint);
   NS_IMETHOD GetDoingPrintPreview(bool *aDoingPrintPreview);
@@ -63,19 +71,17 @@ public:
   // This enum tells indicates what the default should be for the title
   // if the title from the document is null
   enum eDocTitleDefault {
-    eDocTitleDefNone,
     eDocTitleDefBlank,
     eDocTitleDefURLDoc
   };
 
   nsPrintEngine();
-  ~nsPrintEngine();
 
   void Destroy();
   void DestroyPrintingData();
 
   nsresult Initialize(nsIDocumentViewerPrint* aDocViewerPrint, 
-                      nsIWeakReference*       aContainer,
+                      nsIDocShell*            aContainer,
                       nsIDocument*            aDocument,
                       float                   aScreenDPI,
                       FILE*                   aDebugFile);
@@ -103,11 +109,13 @@ public:
   void InstallPrintPreviewListener();
 
   // nsIDocumentViewerPrint Printing Methods
+  bool     HasPrintCallbackCanvas();
+  bool     PrePrintPage();
   bool     PrintPage(nsPrintObject* aPOect, bool& aInRange);
   bool     DonePrintingPages(nsPrintObject* aPO, nsresult aResult);
 
   //---------------------------------------------------------------------
-  void BuildDocTree(nsIDocShellTreeNode *      aParentNode,
+  void BuildDocTree(nsIDocShell *      aParentNode,
                     nsTArray<nsPrintObject*> * aDocList,
                     nsPrintObject *            aPO);
   nsresult ReflowDocList(nsPrintObject * aPO, bool aSetPixelScale);
@@ -125,9 +133,9 @@ public:
   static void CloseProgressDialog(nsIWebProgressListener* aWebProgressListener);
   void SetDocAndURLIntoProgress(nsPrintObject* aPO,
                                 nsIPrintProgressParams* aParams);
-  void ElipseLongString(PRUnichar *& aStr, const uint32_t aLen, bool aDoFront);
+  void EllipseLongString(nsAString& aStr, const uint32_t aLen, bool aDoFront);
   nsresult CheckForPrinters(nsIPrintSettings* aPrintSettings);
-  void CleanupDocTitleArray(PRUnichar**& aArray, int32_t& aCount);
+  void CleanupDocTitleArray(char16_t**& aArray, int32_t& aCount);
 
   bool IsThereARangeSelection(nsIDOMWindow * aDOMWin);
 
@@ -153,12 +161,12 @@ public:
   // Static Methods
   //---------------------------------------------------------------------
   static void GetDocumentTitleAndURL(nsIDocument* aDoc,
-                                     PRUnichar** aTitle,
-                                     PRUnichar** aURLStr);
-  void GetDisplayTitleAndURL(nsPrintObject*    aPO,
-                             PRUnichar**       aTitle,
-                             PRUnichar**       aURLStr,
-                             eDocTitleDefault  aDefType);
+                                     nsAString&   aTitle,
+                                     nsAString&   aURLStr);
+  void GetDisplayTitleAndURL(nsPrintObject*   aPO,
+                             nsAString&       aTitle,
+                             nsAString&       aURLStr,
+                             eDocTitleDefault aDefType);
   static void ShowPrintErrorDialog(nsresult printerror,
                                    bool aIsPrinting = true);
 
@@ -194,7 +202,17 @@ public:
     return mIsCreatingPrintPreview;
   }
 
+  void SetDisallowSelectionPrint(bool aDisallowSelectionPrint)
+  {
+    mDisallowSelectionPrint = aDisallowSelectionPrint;
+  }
+
+  void SetNoMarginBoxes(bool aNoMarginBoxes) {
+    mNoMarginBoxes = aNoMarginBoxes;
+  }
+
 protected:
+  ~nsPrintEngine();
 
   nsresult CommonPrint(bool aIsPrintPreview, nsIPrintSettings* aPrintSettings,
                        nsIWebProgressListener* aWebProgressListener,
@@ -268,6 +286,26 @@ protected:
 
   FILE* mDebugFile;
 
+  int32_t mLoadCounter;
+  bool mDidLoadDataForPrinting;
+  bool mIsDestroying;
+  bool mDisallowSelectionPrint;
+  bool mNoMarginBoxes;
+
+  nsresult AfterNetworkPrint(bool aHandleError);
+
+  nsresult SetRootView(nsPrintObject* aPO,
+                       bool& aDoReturn,
+                       bool& aDocumentIsTopLevel,
+                       nsSize& aAdjSize);
+  nsView* GetParentViewForRoot();
+  bool DoSetPixelScale();
+  void UpdateZoomRatio(nsPrintObject* aPO, bool aSetPixelScale);
+  nsresult ReconstructAndReflow(bool aDoSetPixelScale);
+  nsresult UpdateSelectionAndShrinkPrintObject(nsPrintObject* aPO,
+                                               bool aDocumentIsTopLevel);
+  nsresult InitPrintDocConstruction(bool aHandleError);
+  void FirePrintPreviewUpdateEvent();
 private:
   nsPrintEngine& operator=(const nsPrintEngine& aOther) MOZ_DELETE;
 };

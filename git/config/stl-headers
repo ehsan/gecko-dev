@@ -18,13 +18,17 @@ new
 # unsafely in Gecko, so we might as well prevent them from
 # throwing exceptions
 algorithm
+atomic
 deque
+ios
+iosfwd
 iostream
 iterator
 limits
 list
 map
 memory
+ostream
 set
 stack
 string
@@ -38,3 +42,4 @@ cstdlib
 cstring
 cwchar
 tuple
+xutility

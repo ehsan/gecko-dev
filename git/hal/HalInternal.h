@@ -14,7 +14,7 @@
  *
  * The difference between Hal.h and HalInternal.h is that methods declared in
  * HalInternal.h don't appear in the hal namespace. That also means this file
- * should not be included except by HalInternal.h and HalSandbox.h.
+ * should not be included except by HalImpl.h and HalSandbox.h.
  */
 
 #ifndef MOZ_HAL_NAMESPACE
@@ -74,6 +74,31 @@ bool EnableAlarm();
  */
 void DisableAlarm();
 
+/**
+ * Enable system clock change notifications from the backend.
+ */
+void EnableSystemClockChangeNotifications();
+
+/**
+ * Disable system clock change notifications from the backend.
+ */
+void DisableSystemClockChangeNotifications();
+
+/**
+ * Enable system timezone change notifications from the backend.
+ */
+void EnableSystemTimezoneChangeNotifications();
+
+/**
+ * Disable system timezone change notifications from the backend.
+ */
+void DisableSystemTimezoneChangeNotifications();
+
+/**
+ * Has the child-side HAL IPC object been destroyed?  If so, you shouldn't send
+ * messages to hal_sandbox.
+ */
+bool HalChildDestroyed();
 } // namespace MOZ_HAL_NAMESPACE
 } // namespace mozilla
 

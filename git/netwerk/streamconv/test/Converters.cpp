@@ -9,10 +9,20 @@
 // TestConverter
 //////////////////////////////////////////////////
 
-NS_IMPL_ISUPPORTS3(TestConverter,
-                   nsIStreamConverter,
-                   nsIStreamListener,
-                   nsIRequestObserver)
+#define NS_TESTCONVERTER_CID                         \
+{ /* B8A067B0-4450-11d3-A16E-0050041CAF44 */         \
+    0xb8a067b0,                                      \
+    0x4450,                                          \
+    0x11d3,                                          \
+    {0xa1, 0x6e, 0x00, 0x50, 0x04, 0x1c, 0xaf, 0x44} \
+}
+
+NS_DEFINE_CID(kTestConverterCID, NS_TESTCONVERTER_CID);
+
+NS_IMPL_ISUPPORTS(TestConverter,
+                  nsIStreamConverter,
+                  nsIStreamListener,
+                  nsIRequestObserver)
 
 TestConverter::TestConverter() {
 }
@@ -78,19 +88,13 @@ TestConverter::AsyncConvertData(const char *aFromType,
     return NS_OK; 
 }
 
-static inline uint32_t
-saturated(uint64_t aValue)
-{
-    return (uint32_t) NS_MIN(aValue, (uint64_t) PR_UINT32_MAX);
-}
-
 // nsIStreamListener method
 /* This method handles asyncronous conversion of data. */
 NS_IMETHODIMP
 TestConverter::OnDataAvailable(nsIRequest* request,
                                nsISupports *ctxt, 
                                nsIInputStream *inStr, 
-                               uint32_t sourceOffset, 
+                               uint64_t sourceOffset, 
                                uint32_t count) {
     nsresult rv;
     nsCOMPtr<nsIInputStream> convertedStream;
@@ -106,7 +110,7 @@ TestConverter::OnDataAvailable(nsIRequest* request,
     uint64_t offset = sourceOffset;
     while (len > 0) {
         uint32_t count = saturated(len);
-        rv = mListener->OnDataAvailable(request, ctxt, convertedStream, saturated(offset), count);
+        rv = mListener->OnDataAvailable(request, ctxt, convertedStream, offset, count);
         if (NS_FAILED(rv)) return rv;
 
         offset += count;

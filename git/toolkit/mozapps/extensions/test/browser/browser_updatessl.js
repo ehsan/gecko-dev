@@ -3,7 +3,7 @@
  */
 
 let tempScope = {};
-Components.utils.import("resource://gre/modules/AddonUpdateChecker.jsm", tempScope);
+Components.utils.import("resource://gre/modules/addons/AddonUpdateChecker.jsm", tempScope);
 let AddonUpdateChecker = tempScope.AddonUpdateChecker;
 
 const updaterdf = RELATIVE_DIR + "browser_updatessl.rdf";
@@ -88,7 +88,7 @@ function run_update_tests(callback) {
                 mainURL;
     }
 
-    AddonUpdateChecker.checkForUpdates("addon1@tests.mozilla.org", "extension",
+    AddonUpdateChecker.checkForUpdates("addon1@tests.mozilla.org",
                                        null, url, {
       onUpdateCheckComplete: function(updates) {
         is(updates.length, 1, "Should be the right number of results");

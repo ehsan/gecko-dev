@@ -6,7 +6,9 @@
 
 #include "nsPrintPreviewListener.h"
 
+#include "mozilla/TextEvents.h"
 #include "mozilla/dom/Element.h"
+#include "mozilla/dom/Event.h" // for nsIDOMEvent::InternalDOMEvent()
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMElement.h"
@@ -19,19 +21,23 @@
 #include "nsLiteralString.h"
 
 using namespace mozilla;
+using namespace mozilla::dom;
 
-NS_IMPL_ISUPPORTS1(nsPrintPreviewListener, nsIDOMEventListener)
+NS_IMPL_ISUPPORTS(nsPrintPreviewListener, nsIDOMEventListener)
 
 
 //
 // nsPrintPreviewListener ctor
 //
-nsPrintPreviewListener::nsPrintPreviewListener (nsIDOMEventTarget* aTarget)
+nsPrintPreviewListener::nsPrintPreviewListener(EventTarget* aTarget)
   : mEventTarget(aTarget)
 {
   NS_ADDREF_THIS();
 } // ctor
 
+nsPrintPreviewListener::~nsPrintPreviewListener()
+{
+}
 
 //-------------------------------------------------------
 //
@@ -53,6 +59,9 @@ nsPrintPreviewListener::AddListeners()
     mEventTarget->AddEventListener(NS_LITERAL_STRING("mouseout"), this, true);
     mEventTarget->AddEventListener(NS_LITERAL_STRING("mouseover"), this, true);
     mEventTarget->AddEventListener(NS_LITERAL_STRING("mouseup"), this, true);
+
+    mEventTarget->AddSystemEventListener(NS_LITERAL_STRING("keydown"),
+                                         this, true);
   }
 
   return NS_OK;
@@ -79,6 +88,9 @@ nsPrintPreviewListener::RemoveListeners()
     mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mouseout"), this, true);
     mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mouseover"), this, true);
     mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mouseup"), this, true);
+
+    mEventTarget->RemoveSystemEventListener(NS_LITERAL_STRING("keydown"),
+                                            this, true);
   }
 
   return NS_OK;
@@ -92,56 +104,64 @@ nsPrintPreviewListener::RemoveListeners()
 //
 enum eEventAction {
   eEventAction_Tab,       eEventAction_ShiftTab,
-  eEventAction_Propagate, eEventAction_Suppress
+  eEventAction_Propagate, eEventAction_Suppress,
+  eEventAction_StopPropagation
 };
 
 static eEventAction
 GetActionForEvent(nsIDOMEvent* aEvent)
 {
+  WidgetKeyboardEvent* keyEvent =
+    aEvent->GetInternalNSEvent()->AsKeyboardEvent();
+  if (!keyEvent) {
+    return eEventAction_Suppress;
+  }
+
+  if (keyEvent->mFlags.mInSystemGroup) {
+    NS_ASSERTION(keyEvent->message == NS_KEY_DOWN,
+      "Assuming we're listening only keydown event in system group");
+    return eEventAction_StopPropagation;
+  }
+
+  if (keyEvent->IsAlt() || keyEvent->IsControl() || keyEvent->IsMeta()) {
+    // Don't consume keydown event because following keypress event may be
+    // handled as access key or shortcut key.
+    return (keyEvent->message == NS_KEY_DOWN) ? eEventAction_StopPropagation :
+                                                eEventAction_Suppress;
+  }
+
   static const uint32_t kOKKeyCodes[] = {
     nsIDOMKeyEvent::DOM_VK_PAGE_UP, nsIDOMKeyEvent::DOM_VK_PAGE_DOWN,
     nsIDOMKeyEvent::DOM_VK_UP,      nsIDOMKeyEvent::DOM_VK_DOWN, 
     nsIDOMKeyEvent::DOM_VK_HOME,    nsIDOMKeyEvent::DOM_VK_END 
   };
 
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
-  if (keyEvent) {
-    bool b;
-    keyEvent->GetAltKey(&b);
-    if (b) return eEventAction_Suppress;
-    keyEvent->GetCtrlKey(&b);
-    if (b) return eEventAction_Suppress;
+  if (keyEvent->keyCode == nsIDOMKeyEvent::DOM_VK_TAB) {
+    return keyEvent->IsShift() ? eEventAction_ShiftTab : eEventAction_Tab;
+  }
 
-    keyEvent->GetShiftKey(&b);
+  if (keyEvent->charCode == ' ' || keyEvent->keyCode == NS_VK_SPACE) {
+    return eEventAction_Propagate;
+  }
 
-    uint32_t keyCode;
-    keyEvent->GetKeyCode(&keyCode);
-    if (keyCode == nsIDOMKeyEvent::DOM_VK_TAB)
-      return b ? eEventAction_ShiftTab : eEventAction_Tab;
+  if (keyEvent->IsShift()) {
+    return eEventAction_Suppress;
+  }
 
-    uint32_t charCode;
-    keyEvent->GetCharCode(&charCode);
-    if (charCode == ' ' || keyCode == nsIDOMKeyEvent::DOM_VK_SPACE)
+  for (uint32_t i = 0; i < ArrayLength(kOKKeyCodes); ++i) {
+    if (keyEvent->keyCode == kOKKeyCodes[i]) {
       return eEventAction_Propagate;
-
-    if (b) return eEventAction_Suppress;
-
-    for (uint32_t i = 0; i < sizeof(kOKKeyCodes)/sizeof(kOKKeyCodes[0]); ++i) {
-      if (keyCode == kOKKeyCodes[i]) {
-        return eEventAction_Propagate;
-      }
     }
   }
+
   return eEventAction_Suppress;
 }
 
 NS_IMETHODIMP
 nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
 {
-  nsCOMPtr<nsIDOMEventTarget> target;
-  if (aEvent)
-    aEvent->GetOriginalTarget(getter_AddRefs(target));
-  nsCOMPtr<nsIContent> content(do_QueryInterface(target));
+  nsCOMPtr<nsIContent> content = do_QueryInterface(
+    aEvent ? aEvent->InternalDOMEvent()->GetOriginalTarget() : nullptr);
   if (content && !content->IsXUL()) {
     eEventAction action = ::GetActionForEvent(aEvent);
     switch (action) {
@@ -150,7 +170,7 @@ nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
       {
         nsAutoString eventString;
         aEvent->GetType(eventString);
-        if (eventString == NS_LITERAL_STRING("keydown")) {
+        if (eventString.EqualsLiteral("keydown")) {
           // Handle tabbing explicitly here since we don't want focus ending up
           // inside the content document, bug 244128.
           nsIDocument* doc = content->GetCurrentDoc();
@@ -180,10 +200,13 @@ nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
         aEvent->StopPropagation();
         aEvent->PreventDefault();
         break;
+      case eEventAction_StopPropagation:
+        aEvent->StopPropagation();
+        break;
       case eEventAction_Propagate:
         // intentionally empty
         break;
     }
   }
-  return NS_OK; 
+  return NS_OK;
 }

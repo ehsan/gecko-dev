@@ -19,7 +19,6 @@ class nsDeviceContextSpecQt : public nsIDeviceContextSpec
 {
 public:
     nsDeviceContextSpecQt();
-    virtual ~nsDeviceContextSpecQt();
 
     NS_DECL_ISUPPORTS
 
@@ -28,8 +27,8 @@ public:
     NS_IMETHOD Init(nsIWidget* aWidget,
                     nsIPrintSettings* aPS,
                     bool aIsPrintPreview);
-    NS_IMETHOD BeginDocument(PRUnichar* aTitle,
-                             PRUnichar* aPrintToFileName,
+    NS_IMETHOD BeginDocument(const nsAString& aTitle,
+                             char16_t* aPrintToFileName,
                              int32_t aStartPage,
                              int32_t aEndPage);
     NS_IMETHOD EndDocument();
@@ -39,6 +38,8 @@ public:
     NS_IMETHOD GetPath (const char** aPath);
 
 protected:
+    virtual ~nsDeviceContextSpecQt();
+
     nsCOMPtr<nsIPrintSettings> mPrintSettings;
     bool mToPrinter : 1;      /* If true, print to printer */
     bool mIsPPreview : 1;     /* If true, is print preview */
@@ -54,6 +55,10 @@ public:
     nsPrinterEnumeratorQt();
     NS_DECL_ISUPPORTS
     NS_DECL_NSIPRINTERENUMERATOR
+
+protected:
+    virtual ~nsPrinterEnumeratorQt();
+
 };
 
 #endif /* !nsDeviceContextSpecQt_h___ */

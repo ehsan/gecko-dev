@@ -49,7 +49,8 @@
         deleteRequest.onerror = errorHandler;
         deleteRequest.onsuccess = function () {
           // It is imperative that we open a different database this time.
-          let request = indexedDB.open("take2", 1);
+          let request = indexedDB.open("take2", { version: 1,
+                                                  storage: "persistent" });
           request.onerror = errorHandler;
           request.onupgradeneeded = function(event) {
             db = event.target.result;
@@ -67,10 +68,11 @@
         window.addEventListener("indexedDB-reset", onReset, true);
         window.addEventListener("indexedDB-done", onDone, true);
 
-        let request = indexedDB.open(name, 1);
+        let request = indexedDB.open(name, { version: 1,
+                                             storage: "persistent" });
         request.onerror = errorHandler;
         request.onupgradeneeded = grabEventAndContinueHandler;
-        let event = yield;
+        let event = yield undefined;
 
         db = event.target.result;
 
@@ -79,10 +81,10 @@
         db.createObjectStore("foo", { autoIncrement: true });
 
         request.onsuccess = grabEventAndContinueHandler;
-        yield;
+        yield undefined;
 
         setTimeout(testFinishedCallback, 0, "ready");
-        yield;
+        yield undefined;
       }
     </script>
 

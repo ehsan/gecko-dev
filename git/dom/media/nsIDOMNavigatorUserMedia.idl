@@ -3,37 +3,36 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
-#include "nsIDOMMediaStream.idl"
+#include "nsIVariant.idl"
+
+[scriptable, builtinclass, uuid(0766ab99-70a1-4e0a-a37e-e9f086e88c42)]
+interface nsIMediaDevice : nsISupports
+{
+  readonly attribute DOMString type;
+  readonly attribute DOMString name;
+  readonly attribute DOMString id;
+  readonly attribute DOMString facingMode;
+  readonly attribute DOMString mediaSource;
+};
+
+[scriptable, function, uuid(24544878-d35e-4962-8c5f-fb84e97bdfee)]
+interface nsIGetUserMediaDevicesSuccessCallback : nsISupports
+{
+  void onSuccess(in nsIVariant devices);
+};
 
 [scriptable, function, uuid(f2a144fc-3534-4761-8c5d-989ae720f89a)]
 interface nsIDOMGetUserMediaSuccessCallback : nsISupports
 {
   /*
    * value must be a nsIDOMBlob if picture is true and a
-   * nsIDOMMediaStream if either audio or video are true.
+   * DOMLocalMediaStream if either audio or video are true.
    */
   void onSuccess(in nsISupports value);
 };
 
-[scriptable, function, uuid(2614bbcf-85cc-43e5-8740-964f52bdc7ca)]
+[scriptable, function, uuid(088c74f5-0fbf-42d6-87f5-f248e759c6b7)]
 interface nsIDOMGetUserMediaErrorCallback : nsISupports
 {
-  void onError(in DOMString error);
-};
-
-[scriptable, uuid(8a26205e-e8f7-4372-bd15-97ff982b4c1c)]
-interface nsIMediaStreamOptions : nsISupports
-{
-  readonly attribute boolean audio;
-  readonly attribute boolean video;
-  readonly attribute boolean picture;
-  readonly attribute DOMString camera;
-};
-
-[scriptable, uuid(381e0071-0be5-4f6b-ae21-8e3407a37faa)]
-interface nsIDOMNavigatorUserMedia : nsISupports
-{
-  void mozGetUserMedia(in nsIMediaStreamOptions params,
-    in nsIDOMGetUserMediaSuccessCallback onsuccess,
-    in nsIDOMGetUserMediaErrorCallback onerror);
+  void onError(in nsISupports error);
 };

@@ -5,14 +5,13 @@
 /* DOM object representing lists of values in DOM computed style */
 
 #include "nsDOMCSSValueList.h"
-#include "nsCOMPtr.h"
-#include "nsError.h"
-#include "prtypes.h"
-#include "nsContentUtils.h"
-#include "nsDOMClassInfoID.h"
+#include "mozilla/dom/CSSValueListBinding.h"
+#include "nsAutoPtr.h"
+
+using namespace mozilla;
 
 nsDOMCSSValueList::nsDOMCSSValueList(bool aCommaDelimited, bool aReadonly)
-  : mCommaDelimited(aCommaDelimited), mReadonly(aReadonly)
+  : CSSValue(), mCommaDelimited(aCommaDelimited), mReadonly(aReadonly)
 {
 }
 
@@ -20,43 +19,29 @@ nsDOMCSSValueList::~nsDOMCSSValueList()
 {
 }
 
-NS_IMPL_ADDREF(nsDOMCSSValueList)
-NS_IMPL_RELEASE(nsDOMCSSValueList)
-
-DOMCI_DATA(CSSValueList, nsDOMCSSValueList)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMCSSValueList)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMCSSValueList)
 
 // QueryInterface implementation for nsDOMCSSValueList
-NS_INTERFACE_MAP_BEGIN(nsDOMCSSValueList)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSValueList)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMCSSValueList)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSValue)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSValueList)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSValueList)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, CSSValue)
 NS_INTERFACE_MAP_END
 
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(nsDOMCSSValueList, mCSSValues)
+
+JSObject*
+nsDOMCSSValueList::WrapObject(JSContext *cx)
+{
+  return dom::CSSValueListBinding::Wrap(cx, this);
+}
+
 void
-nsDOMCSSValueList::AppendCSSValue(nsIDOMCSSValue* aValue)
+nsDOMCSSValueList::AppendCSSValue(CSSValue* aValue)
 {
   mCSSValues.AppendElement(aValue);
-}
-
-// nsIDOMCSSValueList
-
-NS_IMETHODIMP
-nsDOMCSSValueList::GetLength(uint32_t* aLength)
-{
-  *aLength = mCSSValues.Length();
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMCSSValueList::Item(uint32_t aIndex, nsIDOMCSSValue **aReturn)
-{
-  NS_ENSURE_ARG_POINTER(aReturn);
-
-  NS_IF_ADDREF(*aReturn = GetItemAt(aIndex));
-
-  return NS_OK;
 }
 
 // nsIDOMCSSValue
@@ -73,16 +58,16 @@ nsDOMCSSValueList::GetCssText(nsAString& aCssText)
     separator.AssignLiteral(", ");
   }
   else {
-    separator.Assign(PRUnichar(' '));
+    separator.Assign(char16_t(' '));
   }
 
-  nsCOMPtr<nsIDOMCSSValue> cssValue;
   nsAutoString tmpStr;
   for (uint32_t i = 0; i < count; ++i) {
-    cssValue = mCSSValues[i];
+    CSSValue *cssValue = mCSSValues[i];
     NS_ASSERTION(cssValue, "Eek!  Someone filled the value list with null CSSValues!");
+    ErrorResult dummy;
     if (cssValue) {
-      cssValue->GetCssText(tmpStr);
+      cssValue->GetCssText(tmpStr, dummy);
 
       if (tmpStr.IsEmpty()) {
 
@@ -105,6 +90,12 @@ nsDOMCSSValueList::GetCssText(nsAString& aCssText)
   return NS_OK;
 }
 
+void
+nsDOMCSSValueList::GetCssText(nsString& aText, ErrorResult& aRv)
+{
+  aRv = GetCssText(aText);
+}
+
 NS_IMETHODIMP
 nsDOMCSSValueList::SetCssText(const nsAString& aCssText)
 {
@@ -116,6 +107,11 @@ nsDOMCSSValueList::SetCssText(const nsAString& aCssText)
   return NS_OK;
 }
 
+void
+nsDOMCSSValueList::SetCssText(const nsAString& aText, ErrorResult& aRv)
+{
+  aRv = SetCssText(aText);
+}
 
 NS_IMETHODIMP
 nsDOMCSSValueList::GetCssValueType(uint16_t* aValueType)
@@ -125,3 +121,8 @@ nsDOMCSSValueList::GetCssValueType(uint16_t* aValueType)
   return NS_OK;
 }
 
+uint16_t
+nsDOMCSSValueList::CssValueType() const
+{
+  return nsIDOMCSSValue::CSS_VALUE_LIST;
+}

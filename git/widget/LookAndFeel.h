@@ -39,6 +39,7 @@ public:
     eColorID_TextForeground,
     eColorID_TextSelectBackground,
     eColorID_TextSelectForeground,
+    eColorID_TextSelectForegroundCustom,
     eColorID_TextSelectBackgroundDisabled,
     eColorID_TextSelectBackgroundAttention,
     eColorID_TextHighlightBackground,
@@ -125,10 +126,14 @@ public:
 
     // colors needed by the Mac OS X theme
 
+    // foreground color of :hover:active buttons
+    eColorID__moz_mac_buttonactivetext,
     // background color of chrome toolbars in active windows
     eColorID__moz_mac_chrome_active,
     // background color of chrome toolbars in inactive windows
     eColorID__moz_mac_chrome_inactive,
+    // foreground color of default buttons
+    eColorID__moz_mac_defaultbuttontext,
     //ring around text fields and lists
     eColorID__moz_mac_focusring,
     //colour used when mouse is over a menu item
@@ -141,11 +146,6 @@ public:
     eColorID__moz_mac_menutextselect,
     // text color of disabled text on toolbars
     eColorID__moz_mac_disabledtoolbartext,
-
-    //new in 10.2
-
-    //active list highlight
-    eColorID__moz_mac_alternateprimaryhighlight,
     //inactive light hightlight
     eColorID__moz_mac_secondaryhighlight,
 
@@ -186,6 +186,10 @@ public:
     eIntID_SubmenuDelay,
     // can popups overlap menu/task bar?
     eIntID_MenusCanOverlapOSBar,
+    // should overlay scrollbars be used?
+    eIntID_UseOverlayScrollbars,
+    // allow H and V overlay scrollbars to overlap?
+    eIntID_AllowOverlayScrollbarsOverlap,
     // show/hide scrollbars based on activity
     eIntID_ShowHideScrollbars,
     // skip navigating to disabled menu item?
@@ -251,6 +255,15 @@ public:
     eIntID_WindowsClassic,
 
     /*
+     * A Boolean value to determine whether the current Windows desktop theme
+     * supports Aero Glass.
+     *
+     * This is Windows-specific and is not implemented on other platforms
+     * (will return the default of NS_ERROR_FAILURE).
+     */
+    eIntID_WindowsGlass,
+
+    /*
      * A Boolean value to determine whether the device is a touch enabled
      * device. Currently this is only supported by the Windows 7 Touch API.
      *
@@ -278,14 +291,15 @@ public:
      */
     eIntID_MacLionTheme,
 
-    /*
-     * A Boolean value to determine whether Mameo is using the new Fremantle
-     * theme.
-     *
-     * The value of this metric is not used on other platforms. These platforms
-     * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
-     */
-    eIntID_MaemoClassic,
+   /*
+    * A Boolean value to determine whether the Mac OS X Yosemite-specific theming
+    * should be used.
+    *
+    * The value of this metric is not used on non-Mac platforms. These
+    * platforms should return NS_ERROR_NOT_IMPLEMENTED when queried for this
+    * metric.
+    */
+   eIntID_MacYosemiteTheme,
 
     /*
      * eIntID_AlertNotificationOrigin indicates from which corner of the
@@ -339,14 +353,51 @@ public:
      */
     eIntID_WindowsThemeIdentifier,
     /**
+     * Return an appropriate os version identifier.
+     */
+    eIntID_OperatingSystemVersionIdentifier,
+    /**
      * 0: scrollbar button repeats to scroll only when cursor is on the button.
      * 1: scrollbar button repeats to scroll even if cursor is outside of it.
      */
     eIntID_ScrollbarButtonAutoRepeatBehavior,
     /**
-     * Dealy before showing a tooltip.
+     * Delay before showing a tooltip.
      */
-    eIntID_TooltipDelay
+    eIntID_TooltipDelay,
+    /*
+     * A Boolean value to determine whether Mac OS X Lion style swipe animations
+     * should be used.
+     */
+    eIntID_SwipeAnimationEnabled,
+
+    /*
+     * A Boolean value to determine whether we have a color picker available
+     * for <input type="color"> to hook into.
+     *
+     * This lets us selectively enable the style for <input type="color">
+     * based on whether it's functional or not.
+     */
+    eIntID_ColorPickerAvailable,
+
+    /*
+     * A boolean value indicating whether or not the device has a hardware
+     * home button. Used on gaia to determine whether a home button
+     * is shown.
+     */
+     eIntID_PhysicalHomeButton,
+ 
+     /*
+      * Controls whether overlay scrollbars display when the user moves
+      * the mouse in a scrollable frame.
+      */
+     eIntID_ScrollbarDisplayOnMouseMove,
+ 
+     /*
+      * Overlay scrollbar animation constants.
+      */
+     eIntID_ScrollbarFadeBeginDelay,
+     eIntID_ScrollbarFadeDuration
   };
 
   /**
@@ -360,7 +411,19 @@ public:
     eWindowsTheme_LunaOlive,
     eWindowsTheme_LunaSilver,
     eWindowsTheme_Royale,
-    eWindowsTheme_Zune
+    eWindowsTheme_Zune,
+    eWindowsTheme_AeroLite
+  };
+
+  /**
+   * Operating system versions.
+   */
+  enum OperatingSystemVersion {
+    eOperatingSystemVersion_WindowsXP = 0,
+    eOperatingSystemVersion_WindowsVista,
+    eOperatingSystemVersion_Windows7,
+    eOperatingSystemVersion_Windows8,
+    eOperatingSystemVersion_Unknown
   };
 
   enum {
@@ -491,14 +554,16 @@ public:
    * @param aID    Which system-theme font is wanted.
    * @param aName  The name of the font to use.
    * @param aStyle Styling to apply to the font.
+   * @param aDevPixPerCSSPixel  Ratio of device pixels to CSS pixels
    */
-  static bool GetFont(FontID aID, nsString& aName, gfxFontStyle& aStyle);
+  static bool GetFont(FontID aID, nsString& aName, gfxFontStyle& aStyle,
+                      float aDevPixPerCSSPixel);
 
   /**
    * GetPasswordCharacter() returns a unicode character which should be used
    * for a masked character in password editor.  E.g., '*'.
    */
-  static PRUnichar GetPasswordCharacter();
+  static char16_t GetPasswordCharacter();
 
   /**
    * If the latest character in password field shouldn't be hidden by the
@@ -527,6 +592,12 @@ public:
 // (ie. a colored text keeps its colors  when selected).
 // Of course if other plaforms work like the Mac, they can use it too.
 #define NS_DONT_CHANGE_COLOR 	NS_RGB(0x01, 0x01, 0x01)
+
+// Similar with NS_DONT_CHANGE_COLOR, except NS_DONT_CHANGE_COLOR would returns
+// complementary color if fg color is same as bg color.
+// NS_CHANGE_COLOR_IF_SAME_AS_BG would returns eColorID_TextSelectForegroundCustom if
+// fg and bg color are the same.
+#define NS_CHANGE_COLOR_IF_SAME_AS_BG NS_RGB(0x02, 0x02, 0x02)
 
 // ---------------------------------------------------------------------
 //  Special colors for eColorID_IME* and eColorID_SpellCheckerUnderline

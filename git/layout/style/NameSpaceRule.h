@@ -9,6 +9,7 @@
 #define mozilla_css_NameSpaceRule_h__
 
 #include "mozilla/Attributes.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/Rule.h"
 
 #include "nsIDOMCSSRule.h"
@@ -27,7 +28,8 @@ class NameSpaceRule MOZ_FINAL : public Rule,
                                 public nsIDOMCSSRule
 {
 public:
-  NameSpaceRule(nsIAtom* aPrefix, const nsString& aURLSpec);
+  NameSpaceRule(nsIAtom* aPrefix, const nsString& aURLSpec,
+                uint32_t aLineNumber, uint32_t aColumnNumber);
 private:
   // for |Clone|
   NameSpaceRule(const NameSpaceRule& aCopy);
@@ -41,7 +43,7 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
 #endif
 
   // Rule methods
@@ -52,8 +54,8 @@ public:
 
   void GetURLSpec(nsString& aURLSpec) const { aURLSpec = mURLSpec; }
 
-  virtual NS_MUST_OVERRIDE size_t
-    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+    MOZ_MUST_OVERRIDE;
 
   // nsIDOMCSSRule interface
   NS_DECL_NSIDOMCSSRULE
@@ -63,9 +65,9 @@ private:
   nsString          mURLSpec;
 };
 
+NS_DEFINE_STATIC_IID_ACCESSOR(NameSpaceRule, NS_CSS_NAMESPACE_RULE_IMPL_CID)
+
 } // namespace css
 } // namespace mozilla
-
-NS_DEFINE_STATIC_IID_ACCESSOR(mozilla::css::NameSpaceRule, NS_CSS_NAMESPACE_RULE_IMPL_CID)
 
 #endif /* mozilla_css_NameSpaceRule_h__ */

@@ -7,8 +7,6 @@
 #include "nsLayoutDebuggingTools.h"
 
 #include "nsIDocShell.h"
-#include "nsIDocShellTreeNode.h"
-#include "nsIDocShellTreeItem.h"
 #include "nsPIDOMWindow.h"
 #include "nsIContentViewer.h"
 
@@ -21,7 +19,7 @@
 #include "nsIDOMDocument.h"
 
 #include "nsIPresShell.h"
-#include "nsIViewManager.h"
+#include "nsViewManager.h"
 #include "nsIFrame.h"
 
 #include "nsILayoutDebugger.h"
@@ -39,9 +37,9 @@ doc_viewer(nsIDocShell *aDocShell)
 {
     if (!aDocShell)
         return nullptr;
-    nsIContentViewer *result = nullptr;
-    aDocShell->GetContentViewer(&result);
-    return result;
+    nsCOMPtr<nsIContentViewer> result;
+    aDocShell->GetContentViewer(getter_AddRefs(result));
+    return result.forget();
 }
 
 static already_AddRefed<nsIPresShell>
@@ -55,7 +53,7 @@ pres_shell(nsIDocShell *aDocShell)
     return result.forget();
 }
 
-static nsIViewManager*
+static nsViewManager*
 view_manager(nsIDocShell *aDocShell)
 {
     nsCOMPtr<nsIPresShell> shell(pres_shell(aDocShell));
@@ -75,9 +73,8 @@ document(nsIDocShell *aDocShell)
     cv->GetDOMDocument(getter_AddRefs(domDoc));
     if (!domDoc)
         return nullptr;
-    nsIDocument *result = nullptr;
-    CallQueryInterface(domDoc, &result);
-    return result;
+    nsCOMPtr<nsIDocument> result = do_QueryInterface(domDoc);
+    return result.forget();
 }
 #endif
 
@@ -97,7 +94,7 @@ nsLayoutDebuggingTools::~nsLayoutDebuggingTools()
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsLayoutDebuggingTools, nsILayoutDebuggingTools)
+NS_IMPL_ISUPPORTS(nsLayoutDebuggingTools, nsILayoutDebuggingTools)
 
 NS_IMETHODIMP
 nsLayoutDebuggingTools::Init(nsIDOMWindow *aWin)
@@ -309,7 +306,7 @@ nsLayoutDebuggingTools::SetReflowCounts(bool aShow)
 
 static void DumpAWebShell(nsIDocShellTreeItem* aShellItem, FILE* out, int32_t aIndent)
 {
-    nsXPIDLString name;
+    nsString name;
     nsCOMPtr<nsIDocShellTreeItem> parent;
     int32_t i, n;
 
@@ -317,17 +314,16 @@ static void DumpAWebShell(nsIDocShellTreeItem* aShellItem, FILE* out, int32_t aI
         fprintf(out, "  ");
 
     fprintf(out, "%p '", static_cast<void*>(aShellItem));
-    aShellItem->GetName(getter_Copies(name));
+    aShellItem->GetName(name);
     aShellItem->GetSameTypeParent(getter_AddRefs(parent));
     fputs(NS_LossyConvertUTF16toASCII(name).get(), out);
     fprintf(out, "' parent=%p <\n", static_cast<void*>(parent));
 
     ++aIndent;
-    nsCOMPtr<nsIDocShellTreeNode> shellAsNode(do_QueryInterface(aShellItem));
-    shellAsNode->GetChildCount(&n);
+    aShellItem->GetChildCount(&n);
     for (i = 0; i < n; ++i) {
         nsCOMPtr<nsIDocShellTreeItem> child;
-        shellAsNode->GetChildAt(i, getter_AddRefs(child));
+        aShellItem->GetChildAt(i, getter_AddRefs(child));
         if (child) {
             DumpAWebShell(child, out, aIndent);
         }
@@ -342,8 +338,7 @@ NS_IMETHODIMP
 nsLayoutDebuggingTools::DumpWebShells()
 {
     NS_ENSURE_TRUE(mDocShell, NS_ERROR_NOT_INITIALIZED);
-    nsCOMPtr<nsIDocShellTreeItem> shellAsItem(do_QueryInterface(mDocShell));
-    DumpAWebShell(shellAsItem, stdout, 0);
+    DumpAWebShell(mDocShell, stdout, 0);
     return NS_OK;
 }
 
@@ -366,11 +361,10 @@ DumpContentRecur(nsIDocShell* aDocShell, FILE* out)
         }
         // dump the frames of the sub documents
         int32_t i, n;
-        nsCOMPtr<nsIDocShellTreeNode> docShellAsNode(do_QueryInterface(aDocShell));
-        docShellAsNode->GetChildCount(&n);
+        aDocShell->GetChildCount(&n);
         for (i = 0; i < n; ++i) {
             nsCOMPtr<nsIDocShellTreeItem> child;
-            docShellAsNode->GetChildAt(i, getter_AddRefs(child));
+            aDocShell->GetChildAt(i, getter_AddRefs(child));
             nsCOMPtr<nsIDocShell> childAsShell(do_QueryInterface(child));
             if (child) {
                 DumpContentRecur(childAsShell, out);
@@ -397,7 +391,7 @@ DumpFramesRecur(nsIDocShell* aDocShell, FILE* out)
     if (shell) {
         nsIFrame* root = shell->GetRootFrame();
         if (root) {
-            root->List(out, 0);
+            root->List(out);
         }
     }
     else {
@@ -406,11 +400,10 @@ DumpFramesRecur(nsIDocShell* aDocShell, FILE* out)
 
     // dump the frames of the sub documents
     int32_t i, n;
-    nsCOMPtr<nsIDocShellTreeNode> docShellAsNode(do_QueryInterface(aDocShell));
-    docShellAsNode->GetChildCount(&n);
+    aDocShell->GetChildCount(&n);
     for (i = 0; i < n; ++i) {
         nsCOMPtr<nsIDocShellTreeItem> child;
-        docShellAsNode->GetChildAt(i, getter_AddRefs(child));
+        aDocShell->GetChildAt(i, getter_AddRefs(child));
         nsCOMPtr<nsIDocShell> childAsShell(do_QueryInterface(child));
         if (childAsShell) {
             DumpFramesRecur(childAsShell, out);
@@ -433,9 +426,9 @@ DumpViewsRecur(nsIDocShell* aDocShell, FILE* out)
 {
 #ifdef DEBUG
     fprintf(out, "docshell=%p \n", static_cast<void*>(aDocShell));
-    nsCOMPtr<nsIViewManager> vm(view_manager(aDocShell));
+    nsRefPtr<nsViewManager> vm(view_manager(aDocShell));
     if (vm) {
-        nsIView* root = vm->GetRootView();
+        nsView* root = vm->GetRootView();
         if (root) {
             root->List(out);
         }
@@ -446,11 +439,10 @@ DumpViewsRecur(nsIDocShell* aDocShell, FILE* out)
 
     // dump the views of the sub documents
     int32_t i, n;
-    nsCOMPtr<nsIDocShellTreeNode> docShellAsNode(do_QueryInterface(aDocShell));
-    docShellAsNode->GetChildCount(&n);
+    aDocShell->GetChildCount(&n);
     for (i = 0; i < n; i++) {
         nsCOMPtr<nsIDocShellTreeItem> child;
-        docShellAsNode->GetChildAt(i, getter_AddRefs(child));
+        aDocShell->GetChildAt(i, getter_AddRefs(child));
         nsCOMPtr<nsIDocShell> childAsShell(do_QueryInterface(child));
         if (childAsShell) {
             DumpViewsRecur(childAsShell, out);
@@ -524,10 +516,10 @@ nsLayoutDebuggingTools::DumpReflowStats()
 
 void nsLayoutDebuggingTools::ForceRefresh()
 {
-    nsCOMPtr<nsIViewManager> vm(view_manager(mDocShell));
+    nsRefPtr<nsViewManager> vm(view_manager(mDocShell));
     if (!vm)
         return;
-    nsIView* root = vm->GetRootView();
+    nsView* root = vm->GetRootView();
     if (root) {
         vm->InvalidateView(root);
     }

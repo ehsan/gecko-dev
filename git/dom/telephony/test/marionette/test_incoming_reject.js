@@ -1,29 +1,12 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_TIMEOUT = 10000;
+MARIONETTE_TIMEOUT = 60000;
+MARIONETTE_HEAD_JS = 'head.js';
 
-SpecialPowers.addPermission("telephony", true, document);
-
-let telephony = window.navigator.mozTelephony;
 let number = "5555552368";
 let incoming;
 let calls;
-
-function verifyInitialState() {
-  log("Verifying initial state.");
-  ok(telephony);
-  is(telephony.active, null);
-  ok(telephony.calls);
-  is(telephony.calls.length, 0);
-  calls = telephony.calls;
-
-  runEmulatorCmd("gsm list", function(result) {
-    log("Initial call list: " + result);
-    is(result[0], "OK");
-    simulateIncoming();
-  });
-}
 
 function simulateIncoming() {
   log("Simulating an incoming call.");
@@ -32,21 +15,20 @@ function simulateIncoming() {
     log("Received 'incoming' call event.");
     incoming = event.call;
     ok(incoming);
-    is(incoming.number, number);
+    is(incoming.id.number, number);
     is(incoming.state, "incoming");
 
     //ok(telephony.calls === calls); // bug 717414
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incoming);
 
-    runEmulatorCmd("gsm list", function(result) {
+    emulator.runCmdWithCallback("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + number + " : incoming");
-      is(result[1], "OK");
       reject();
     });
   };
-  runEmulatorCmd("gsm call " + number);
+  emulator.runCmdWithCallback("gsm call " + number);
 }
 
 function reject() {
@@ -69,9 +51,8 @@ function reject() {
     is(telephony.active, null);
     is(telephony.calls.length, 0);
 
-    runEmulatorCmd("gsm list", function(result) {
+    emulator.runCmdWithCallback("gsm list", function(result) {
       log("Call list is now: " + result);
-      is(result[0], "OK");
       cleanUp();
     });
   };
@@ -79,8 +60,10 @@ function reject() {
 }
 
 function cleanUp() {
-  SpecialPowers.removePermission("telephony", document);
+  telephony.onincoming = null;
   finish();
 }
 
-verifyInitialState();
+startTest(function() {
+  simulateIncoming();
+});

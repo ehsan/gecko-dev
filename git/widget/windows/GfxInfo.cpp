@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Util.h"
+#include "mozilla/ArrayUtils.h"
 
 #include <windows.h>
 #include <setupapi.h>
@@ -11,7 +11,6 @@
 #include "GfxInfo.h"
 #include "GfxInfoWebGL.h"
 #include "nsUnicharUtils.h"
-#include "mozilla/FunctionTimer.h"
 #include "prenv.h"
 #include "prprf.h"
 #include "GfxDriverInfo.h"
@@ -28,7 +27,7 @@ using namespace mozilla;
 using namespace mozilla::widget;
 
 #ifdef DEBUG
-NS_IMPL_ISUPPORTS_INHERITED1(GfxInfo, GfxInfoBase, nsIGfxInfoDebug)
+NS_IMPL_ISUPPORTS_INHERITED(GfxInfo, GfxInfoBase, nsIGfxInfoDebug)
 #endif
 
 static const uint32_t allWindowsVersions = 0xffffffff;
@@ -78,22 +77,17 @@ GfxInfo::GetCleartypeParameters(nsAString & aCleartypeParams)
   bool displayNames = (numDisplays > 1);
   bool foundData = false;
   nsString outStr;
-  WCHAR valStr[256];
 
   for (d = 0; d < numDisplays; d++) {
     ClearTypeParameterInfo& params = clearTypeParams[d];
 
     if (displayNames) {
-      swprintf_s(valStr, ArrayLength(valStr),
-                 L"%s [ ", params.displayName.get());
-      outStr.Append(valStr);
+      outStr.AppendPrintf("%s [ ", params.displayName.get());
     }
 
     if (params.gamma >= 0) {
       foundData = true;
-      swprintf_s(valStr, ArrayLength(valStr),
-                 L"Gamma: %d ", params.gamma);
-      outStr.Append(valStr);
+      outStr.AppendPrintf("Gamma: %d ", params.gamma);
     }
 
     if (params.pixelStructure >= 0) {
@@ -101,33 +95,26 @@ GfxInfo::GetCleartypeParameters(nsAString & aCleartypeParams)
       if (params.pixelStructure == PIXEL_STRUCT_RGB ||
           params.pixelStructure == PIXEL_STRUCT_BGR)
       {
-        swprintf_s(valStr, ArrayLength(valStr),
-                   L"Pixel Structure: %s ",
+        outStr.AppendPrintf("Pixel Structure: %s ",
                    (params.pixelStructure == PIXEL_STRUCT_RGB ?
                       L"RGB" : L"BGR"));
       } else {
-        swprintf_s(valStr, ArrayLength(valStr),
-                   L"Pixel Structure: %d ", params.pixelStructure);
+        outStr.AppendPrintf("Pixel Structure: %d ", params.pixelStructure);
       }
-      outStr.Append(valStr);
     }
 
     if (params.clearTypeLevel >= 0) {
       foundData = true;
-      swprintf_s(valStr, ArrayLength(valStr),
-                 L"ClearType Level: %d ", params.clearTypeLevel);
-      outStr.Append(valStr);
+      outStr.AppendPrintf("ClearType Level: %d ", params.clearTypeLevel);
     }
 
     if (params.enhancedContrast >= 0) {
       foundData = true;
-      swprintf_s(valStr, ArrayLength(valStr),
-                 L"Enhanced Contrast: %d ", params.enhancedContrast);
-      outStr.Append(valStr);
+      outStr.AppendPrintf("Enhanced Contrast: %d ", params.enhancedContrast);
     }
 
     if (displayNames) {
-      outStr.Append(L"] ");
+      outStr.Append(MOZ_UTF16("] "));
     }
   }
 
@@ -156,7 +143,8 @@ static nsresult GetKeyValue(const WCHAR* keyLocation, const WCHAR* keyName, nsAS
     case REG_DWORD: {
       // We only use this for vram size
       dwcbData = sizeof(dValue);
-      result = RegQueryValueExW(key, keyName, NULL, &resultType, (LPBYTE)&dValue, &dwcbData);
+      result = RegQueryValueExW(key, keyName, nullptr, &resultType,
+                                (LPBYTE)&dValue, &dwcbData);
       if (result == ERROR_SUCCESS && resultType == REG_DWORD) {
         dValue = dValue / 1024 / 1024;
         destString.AppendInt(int32_t(dValue));
@@ -170,7 +158,8 @@ static nsresult GetKeyValue(const WCHAR* keyLocation, const WCHAR* keyName, nsAS
       WCHAR wCharValue[1024];
       dwcbData = sizeof(wCharValue);
 
-      result = RegQueryValueExW(key, keyName, NULL, &resultType, (LPBYTE)wCharValue, &dwcbData);
+      result = RegQueryValueExW(key, keyName, nullptr, &resultType,
+                                (LPBYTE)wCharValue, &dwcbData);
       if (result == ERROR_SUCCESS && resultType == REG_MULTI_SZ) {
         // This bit here could probably be cleaner.
         bool isValid = false;
@@ -205,17 +194,6 @@ static nsresult GetKeyValue(const WCHAR* keyLocation, const WCHAR* keyName, nsAS
   return retval;
 }
 
-// The driver ID is a string like PCI\VEN_15AD&DEV_0405&SUBSYS_040515AD, possibly
-// followed by &REV_XXXX.  We uppercase the string, and strip the &REV_ part
-// from it, if found.
-static void normalizeDriverId(nsString& driverid) {
-  ToUpperCase(driverid);
-  int32_t rev = driverid.Find(NS_LITERAL_CSTRING("&REV_"));
-  if (rev != -1) {
-    driverid.Cut(rev, driverid.Length());
-  }
-}
-
 // The device ID is a string like PCI\VEN_15AD&DEV_0405&SUBSYS_040515AD
 // this function is used to extract the id's out of it
 uint32_t
@@ -232,6 +210,41 @@ ParseIDFromDeviceID(const nsAString &key, const char *prefix, int length)
   return id.ToInteger(&err, 16);
 }
 
+// OS version in 16.16 major/minor form
+// based on http://msdn.microsoft.com/en-us/library/ms724834(VS.85).aspx
+enum {
+  kWindowsUnknown = 0,
+  kWindowsXP = 0x50001,
+  kWindowsServer2003 = 0x50002,
+  kWindowsVista = 0x60000,
+  kWindows7 = 0x60001,
+  kWindows8 = 0x60002,
+  kWindows8_1 = 0x60003,
+  kWindows10 = 0x60004
+};
+
+static int32_t
+WindowsOSVersion()
+{
+  static int32_t winVersion = UNINITIALIZED_VALUE;
+
+  OSVERSIONINFO vinfo;
+
+  if (winVersion == UNINITIALIZED_VALUE) {
+    vinfo.dwOSVersionInfoSize = sizeof (vinfo);
+#pragma warning(push)
+#pragma warning(disable:4996)
+    if (!GetVersionEx(&vinfo)) {
+#pragma warning(pop)
+      winVersion = kWindowsUnknown;
+    } else {
+      winVersion = int32_t(vinfo.dwMajorVersion << 16) + vinfo.dwMinorVersion;
+    }
+  }
+
+  return winVersion;
+}
+
 /* Other interesting places for info:
  *   IDXGIAdapter::GetDesc()
  *   IDirectDraw7::GetAvailableVidMem()
@@ -242,17 +255,22 @@ ParseIDFromDeviceID(const nsAString &key, const char *prefix, int length)
 nsresult
 GfxInfo::Init()
 {
-  NS_TIME_FUNCTION;
-
   nsresult rv = GfxInfoBase::Init();
 
   DISPLAY_DEVICEW displayDevice;
   displayDevice.cb = sizeof(displayDevice);
   int deviceIndex = 0;
 
+  const char *spoofedWindowsVersion = PR_GetEnv("MOZ_GFX_SPOOF_WINDOWS_VERSION");
+  if (spoofedWindowsVersion) {
+    PR_sscanf(spoofedWindowsVersion, "%x", &mWindowsVersion);
+  } else {
+    mWindowsVersion = WindowsOSVersion();
+  }
+
   mDeviceKeyDebug = NS_LITERAL_STRING("PrimarySearch");
 
-  while (EnumDisplayDevicesW(NULL, deviceIndex, &displayDevice, 0)) {
+  while (EnumDisplayDevicesW(nullptr, deviceIndex, &displayDevice, 0)) {
     if (displayDevice.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) {
       mDeviceKeyDebug = NS_LITERAL_STRING("NullSearch");
       break;
@@ -260,10 +278,10 @@ GfxInfo::Init()
     deviceIndex++;
   }
 
-  // make sure the string is NULL terminated
+  // make sure the string is nullptr terminated
   if (wcsnlen(displayDevice.DeviceKey, ArrayLength(displayDevice.DeviceKey))
       == ArrayLength(displayDevice.DeviceKey)) {
-    // we did not find a NULL
+    // we did not find a nullptr
     return rv;
   }
 
@@ -281,8 +299,33 @@ GfxInfo::Init()
   mDeviceID = displayDevice.DeviceID;
   mDeviceString = displayDevice.DeviceString;
 
+  // On Windows 8 and Server 2012 hosts, we want to not block RDP
+  // sessions from attempting hardware acceleration.  RemoteFX
+  // provides features and functionaltiy that can give a good D3D10 +
+  // D2D + DirectWrite experience emulated via a software GPU.
+  //
+  // Unfortunately, the Device ID is nullptr, and we can't enumerate
+  // it using the setup infrastructure (SetupDiGetClassDevsW below
+  // will return INVALID_HANDLE_VALUE).
+  if (mWindowsVersion == kWindows8 &&
+      mDeviceID.Length() == 0 &&
+      mDeviceString.EqualsLiteral("RDPUDD Chained DD"))
+  {
+    WCHAR sysdir[255];
+    UINT len = GetSystemDirectory(sysdir, sizeof(sysdir));
+    if (len < sizeof(sysdir)) {
+      nsString rdpudd(sysdir);
+      rdpudd.AppendLiteral("\\rdpudd.dll");
+      gfxWindowsPlatform::GetDLLVersion(rdpudd.BeginReading(), mDriverVersion);
+      mDriverDate.AssignLiteral("01-01-1970");
+
+      // 0x1414 is Microsoft; 0xfefe is an invented (and unused) code
+      mDeviceID.AssignLiteral("PCI\\VEN_1414&DEV_FEFE&SUBSYS_00000000");
+    }
+  }
+
   /* create a device information set composed of the current display device */
-  HDEVINFO devinfo = SetupDiGetClassDevsW(NULL, mDeviceID.get(), NULL,
+  HDEVINFO devinfo = SetupDiGetClassDevsW(nullptr, mDeviceID.get(), nullptr,
                                           DIGCF_PRESENT | DIGCF_PROFILE | DIGCF_ALLCLASSES);
 
   if (devinfo != INVALID_HANDLE_VALUE) {
@@ -301,17 +344,18 @@ GfxInfo::Init()
       if (SetupDiGetDeviceRegistryPropertyW(devinfo,
                                             &devinfoData,
                                             SPDRP_DRIVER,
-                                            NULL,
+                                            nullptr,
                                             (PBYTE)value,
                                             sizeof(value),
-                                            NULL)) {
+                                            nullptr)) {
         nsAutoString driverKey(driverKeyPre);
         driverKey += value;
-        result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, driverKey.BeginReading(), 0, KEY_QUERY_VALUE, &key);
+        result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, driverKey.get(), 0, KEY_QUERY_VALUE, &key);
         if (result == ERROR_SUCCESS) {
           /* we've found the driver we're looking for */
           dwcbData = sizeof(value);
-          result = RegQueryValueExW(key, L"DriverVersion", NULL, NULL, (LPBYTE)value, &dwcbData);
+          result = RegQueryValueExW(key, L"DriverVersion", nullptr, nullptr,
+                                    (LPBYTE)value, &dwcbData);
           if (result == ERROR_SUCCESS) {
             mDriverVersion = value;
           } else {
@@ -319,7 +363,8 @@ GfxInfo::Init()
             mDriverVersion.AssignLiteral("0.0.0.0");
           }
           dwcbData = sizeof(value);
-          result = RegQueryValueExW(key, L"DriverDate", NULL, NULL, (LPBYTE)value, &dwcbData);
+          result = RegQueryValueExW(key, L"DriverDate", nullptr, nullptr,
+                                    (LPBYTE)value, &dwcbData);
           if (result == ERROR_SUCCESS) {
             mDriverDate = value;
           } else {
@@ -337,7 +382,7 @@ GfxInfo::Init()
 
   mAdapterVendorID.AppendPrintf("0x%04x", ParseIDFromDeviceID(mDeviceID, "VEN_", 4));
   mAdapterDeviceID.AppendPrintf("0x%04x", ParseIDFromDeviceID(mDeviceID, "&DEV_", 4));
-  mAdapterSubsysID  = ParseIDFromDeviceID(mDeviceID,  "&SUBSYS_", 8);
+  mAdapterSubsysID.AppendPrintf("%08x", ParseIDFromDeviceID(mDeviceID,  "&SUBSYS_", 8));
 
   // We now check for second display adapter.
 
@@ -346,7 +391,8 @@ GfxInfo::Init()
   HRESULT hresult = CLSIDFromString(L"{1CA05180-A699-450A-9A0C-DE4FBE3DDD89}",
                                &GUID_DISPLAY_DEVICE_ARRIVAL);
   if (hresult == NOERROR) {
-    devinfo = SetupDiGetClassDevsW(&GUID_DISPLAY_DEVICE_ARRIVAL, NULL, NULL,
+    devinfo = SetupDiGetClassDevsW(&GUID_DISPLAY_DEVICE_ARRIVAL,
+                                   nullptr, nullptr,
                                    DIGCF_PRESENT | DIGCF_INTERFACEDEVICE);
 
     if (devinfo != INVALID_HANDLE_VALUE) {
@@ -372,16 +418,17 @@ GfxInfo::Init()
         if (SetupDiGetDeviceRegistryPropertyW(devinfo,
                                               &devinfoData,
                                               SPDRP_DRIVER,
-                                              NULL,
+                                              nullptr,
                                               (PBYTE)value,
                                               sizeof(value),
-                                              NULL)) {
+                                              nullptr)) {
           nsAutoString driverKey2(driverKeyPre);
           driverKey2 += value;
-          result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, driverKey2.BeginReading(), 0, KEY_QUERY_VALUE, &key);
+          result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, driverKey2.get(), 0, KEY_QUERY_VALUE, &key);
           if (result == ERROR_SUCCESS) {
             dwcbData = sizeof(value);
-            result = RegQueryValueExW(key, L"MatchingDeviceId", NULL, NULL, (LPBYTE)value, &dwcbData);
+            result = RegQueryValueExW(key, L"MatchingDeviceId", nullptr,
+                                      nullptr, (LPBYTE)value, &dwcbData);
             if (result != ERROR_SUCCESS) {
               continue;
             }
@@ -400,30 +447,34 @@ GfxInfo::Init()
 
             // If this device is missing driver information, it is unlikely to
             // be a real display adapter.
-            if (NS_FAILED(GetKeyValue(driverKey2.BeginReading(), L"InstalledDisplayDrivers",
+            if (NS_FAILED(GetKeyValue(driverKey2.get(), L"InstalledDisplayDrivers",
                            adapterDriver2, REG_MULTI_SZ))) {
               RegCloseKey(key);
               continue;
             }
             dwcbData = sizeof(value);
-            result = RegQueryValueExW(key, L"DriverVersion", NULL, NULL, (LPBYTE)value, &dwcbData);
+            result = RegQueryValueExW(key, L"DriverVersion", nullptr, nullptr,
+                                      (LPBYTE)value, &dwcbData);
             if (result != ERROR_SUCCESS) {
               RegCloseKey(key);
               continue;
             }
             driverVersion2 = value;
             dwcbData = sizeof(value);
-            result = RegQueryValueExW(key, L"DriverDate", NULL, NULL, (LPBYTE)value, &dwcbData);
+            result = RegQueryValueExW(key, L"DriverDate", nullptr, nullptr,
+                                      (LPBYTE)value, &dwcbData);
             if (result != ERROR_SUCCESS) {
               RegCloseKey(key);
               continue;
             }
             driverDate2 = value;
             dwcbData = sizeof(value);
-            result = RegQueryValueExW(key, L"Device Description", NULL, NULL, (LPBYTE)value, &dwcbData);
+            result = RegQueryValueExW(key, L"Device Description", nullptr,
+                                      nullptr, (LPBYTE)value, &dwcbData);
             if (result != ERROR_SUCCESS) {
               dwcbData = sizeof(value);
-              result = RegQueryValueExW(key, L"DriverDesc", NULL, NULL, (LPBYTE)value, &dwcbData);
+              result = RegQueryValueExW(key, L"DriverDesc", nullptr, nullptr,
+                                        (LPBYTE)value, &dwcbData);
             }
             RegCloseKey(key);
             if (result == ERROR_SUCCESS) {
@@ -435,7 +486,7 @@ GfxInfo::Init()
               mDriverDate2 = driverDate2;
               mAdapterVendorID2.AppendPrintf("0x%04x", adapterVendorID2);
               mAdapterDeviceID2.AppendPrintf("0x%04x", adapterDeviceID2);
-              mAdapterSubsysID2 = ParseIDFromDeviceID(mDeviceID2, "&SUBSYS_", 8);
+              mAdapterSubsysID2.AppendPrintf("%08x", ParseIDFromDeviceID(mDeviceID2, "&SUBSYS_", 8));
               break;
             }
           }
@@ -443,6 +494,41 @@ GfxInfo::Init()
       }
 
       SetupDiDestroyDeviceInfoList(devinfo);
+    }
+  }
+
+  mHasDriverVersionMismatch = false;
+  if (mAdapterVendorID == GfxDriverInfo::GetDeviceVendor(VendorIntel)) {
+    // we've had big crashers (bugs 590373 and 595364) apparently correlated
+    // with bad Intel driver installations where the DriverVersion reported
+    // by the registry was not the version of the DLL.
+    bool is64bitApp = sizeof(void*) == 8;
+    const char16_t *dllFileName = is64bitApp
+                                 ? MOZ_UTF16("igd10umd64.dll")
+                                 : MOZ_UTF16("igd10umd32.dll"),
+                    *dllFileName2 = is64bitApp
+                                 ? MOZ_UTF16("igd10iumd64.dll")
+                                 : MOZ_UTF16("igd10iumd32.dll");
+    nsString dllVersion, dllVersion2;
+    gfxWindowsPlatform::GetDLLVersion((char16_t*)dllFileName, dllVersion);
+    gfxWindowsPlatform::GetDLLVersion((char16_t*)dllFileName2, dllVersion2);
+
+    uint64_t dllNumericVersion = 0, dllNumericVersion2 = 0,
+             driverNumericVersion = 0, knownSafeMismatchVersion = 0;
+    ParseDriverVersion(dllVersion, &dllNumericVersion);
+    ParseDriverVersion(dllVersion2, &dllNumericVersion2);
+    ParseDriverVersion(mDriverVersion, &driverNumericVersion);
+    ParseDriverVersion(NS_LITERAL_STRING("9.17.10.0"), &knownSafeMismatchVersion);
+
+    // If there's a driver version mismatch, consider this harmful only when
+    // the driver version is less than knownSafeMismatchVersion.  See the
+    // above comment about crashes with old mismatches. If the GetDllVersion
+    // call fails, then they return 0, so that will be considered a mismatch.
+    if (dllNumericVersion != driverNumericVersion &&
+        dllNumericVersion2 != driverNumericVersion &&
+        (driverNumericVersion < knownSafeMismatchVersion ||
+         std::max(dllNumericVersion, dllNumericVersion2) < knownSafeMismatchVersion)) {
+      mHasDriverVersionMismatch = true;
     }
   }
 
@@ -456,39 +542,9 @@ GfxInfo::Init()
     mAdapterVendorID.AssignASCII(spoofedVendor);
   }
 
-  mHasDriverVersionMismatch = false;
-  if (mAdapterVendorID == GfxDriverInfo::GetDeviceVendor(VendorIntel)) {
-    // we've had big crashers (bugs 590373 and 595364) apparently correlated
-    // with bad Intel driver installations where the DriverVersion reported
-    // by the registry was not the version of the DLL.
-    bool is64bitApp = sizeof(void*) == 8;
-    const PRUnichar *dllFileName = is64bitApp
-                                 ? L"igd10umd64.dll"
-                                 : L"igd10umd32.dll";
-    nsString dllVersion;
-    gfxWindowsPlatform::GetDLLVersion((PRUnichar*)dllFileName, dllVersion);
-
-    uint64_t dllNumericVersion = 0, driverNumericVersion = 0;
-    ParseDriverVersion(dllVersion, &dllNumericVersion);
-    ParseDriverVersion(mDriverVersion, &driverNumericVersion);
-
-    // if GetDLLVersion fails, it gives "0.0.0.0"
-    // so if GetDLLVersion failed, we get dllNumericVersion = 0
-    // so this test implicitly handles the case where GetDLLVersion failed
-    if (dllNumericVersion != driverNumericVersion)
-      mHasDriverVersionMismatch = true;
-  }
-
   const char *spoofedDevice = PR_GetEnv("MOZ_GFX_SPOOF_DEVICE_ID");
   if (spoofedDevice) {
     mAdapterDeviceID.AssignASCII(spoofedDevice);
-  }
-
-  const char *spoofedWindowsVersion = PR_GetEnv("MOZ_GFX_SPOOF_WINDOWS_VERSION");
-  if (spoofedWindowsVersion) {
-    PR_sscanf(spoofedWindowsVersion, "%x", &mWindowsVersion);
-  } else {
-    mWindowsVersion = gfxWindowsPlatform::WindowsOSVersion();
   }
 
   AddCrashReportAnnotations();
@@ -516,7 +572,7 @@ GfxInfo::GetAdapterDescription2(nsAString & aAdapterDescription)
 NS_IMETHODIMP
 GfxInfo::GetAdapterRAM(nsAString & aAdapterRAM)
 {
-  if (NS_FAILED(GetKeyValue(mDeviceKey.BeginReading(), L"HardwareInformation.MemorySize", aAdapterRAM, REG_DWORD)))
+  if (NS_FAILED(GetKeyValue(mDeviceKey.get(), L"HardwareInformation.MemorySize", aAdapterRAM, REG_DWORD)))
     aAdapterRAM = L"Unknown";
   return NS_OK;
 }
@@ -526,8 +582,8 @@ NS_IMETHODIMP
 GfxInfo::GetAdapterRAM2(nsAString & aAdapterRAM)
 {
   if (!mHasDualGPU) {
-    aAdapterRAM.AssignLiteral("");
-  } else if (NS_FAILED(GetKeyValue(mDeviceKey2.BeginReading(), L"HardwareInformation.MemorySize", aAdapterRAM, REG_DWORD))) {
+    aAdapterRAM.Truncate();
+  } else if (NS_FAILED(GetKeyValue(mDeviceKey2.get(), L"HardwareInformation.MemorySize", aAdapterRAM, REG_DWORD))) {
     aAdapterRAM = L"Unknown";
   }
   return NS_OK;
@@ -537,7 +593,7 @@ GfxInfo::GetAdapterRAM2(nsAString & aAdapterRAM)
 NS_IMETHODIMP
 GfxInfo::GetAdapterDriver(nsAString & aAdapterDriver)
 {
-  if (NS_FAILED(GetKeyValue(mDeviceKey.BeginReading(), L"InstalledDisplayDrivers", aAdapterDriver, REG_MULTI_SZ)))
+  if (NS_FAILED(GetKeyValue(mDeviceKey.get(), L"InstalledDisplayDrivers", aAdapterDriver, REG_MULTI_SZ)))
     aAdapterDriver = L"Unknown";
   return NS_OK;
 }
@@ -547,8 +603,8 @@ NS_IMETHODIMP
 GfxInfo::GetAdapterDriver2(nsAString & aAdapterDriver)
 {
   if (!mHasDualGPU) {
-    aAdapterDriver.AssignLiteral("");
-  } else if (NS_FAILED(GetKeyValue(mDeviceKey2.BeginReading(), L"InstalledDisplayDrivers", aAdapterDriver, REG_MULTI_SZ))) {
+    aAdapterDriver.Truncate();
+  } else if (NS_FAILED(GetKeyValue(mDeviceKey2.get(), L"InstalledDisplayDrivers", aAdapterDriver, REG_MULTI_SZ))) {
     aAdapterDriver = L"Unknown";
   }
   return NS_OK;
@@ -618,6 +674,22 @@ GfxInfo::GetAdapterDeviceID2(nsAString & aAdapterDeviceID)
   return NS_OK;
 }
 
+/* readonly attribute DOMString adapterSubsysID; */
+NS_IMETHODIMP
+GfxInfo::GetAdapterSubsysID(nsAString & aAdapterSubsysID)
+{
+  aAdapterSubsysID = mAdapterSubsysID;
+  return NS_OK;
+}
+
+/* readonly attribute DOMString adapterSubsysID2; */
+NS_IMETHODIMP
+GfxInfo::GetAdapterSubsysID2(nsAString & aAdapterSubsysID)
+{
+  aAdapterSubsysID = mAdapterSubsysID2;
+  return NS_OK;
+}
+
 /* readonly attribute boolean isGPU2Active; */
 NS_IMETHODIMP
 GfxInfo::GetIsGPU2Active(bool* aIsGPU2Active)
@@ -649,47 +721,58 @@ GfxInfo::AddCrashReportAnnotations()
 #if defined(MOZ_CRASHREPORTER)
   CheckForCiscoVPN();
 
-  nsString deviceID, vendorID;
-  nsCString narrowDeviceID, narrowVendorID;
-  nsAutoString adapterDriverVersionString;
+  if (mHasDriverVersionMismatch) {
+    CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("DriverVersionMismatch\n"));
+  }
+
+  nsString deviceID, vendorID, driverVersion, subsysID;
+  nsCString narrowDeviceID, narrowVendorID, narrowDriverVersion, narrowSubsysID;
 
   GetAdapterDeviceID(deviceID);
   CopyUTF16toUTF8(deviceID, narrowDeviceID);
   GetAdapterVendorID(vendorID);
   CopyUTF16toUTF8(vendorID, narrowVendorID);
-  GetAdapterDriverVersion(adapterDriverVersionString);
+  GetAdapterDriverVersion(driverVersion);
+  CopyUTF16toUTF8(driverVersion, narrowDriverVersion);
+  GetAdapterSubsysID(subsysID);
+  CopyUTF16toUTF8(subsysID, narrowSubsysID);
 
   CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterVendorID"),
                                      narrowVendorID);
   CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterDeviceID"),
                                      narrowDeviceID);
-  
+  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterDriverVersion"),
+                                     narrowDriverVersion);
+  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterSubsysID"),
+                                     narrowSubsysID);
+
   /* Add an App Note for now so that we get the data immediately. These
    * can go away after we store the above in the socorro db */
-  nsCAutoString note;
+  nsAutoCString note;
   /* AppendPrintf only supports 32 character strings, mrghh. */
-  note.Append("AdapterVendorID: ");
+  note.AppendLiteral("AdapterVendorID: ");
   note.Append(narrowVendorID);
-  note.Append(", AdapterDeviceID: ");
+  note.AppendLiteral(", AdapterDeviceID: ");
   note.Append(narrowDeviceID);
-  note.AppendPrintf(", AdapterSubsysID: %08x, ", mAdapterSubsysID);
-  note.Append("AdapterDriverVersion: ");
-  note.Append(NS_LossyConvertUTF16toASCII(adapterDriverVersionString));
+  note.AppendLiteral(", AdapterSubsysID: ");
+  note.Append(narrowSubsysID);
+  note.AppendLiteral(", AdapterDriverVersion: ");
+  note.Append(NS_LossyConvertUTF16toASCII(driverVersion));
 
   if (vendorID == GfxDriverInfo::GetDeviceVendor(VendorAll)) {
     /* if we didn't find a valid vendorID lets append the mDeviceID string to try to find out why */
-    note.Append(", ");
+    note.AppendLiteral(", ");
     LossyAppendUTF16toASCII(mDeviceID, note);
-    note.Append(", ");
+    note.AppendLiteral(", ");
     LossyAppendUTF16toASCII(mDeviceKeyDebug, note);
     LossyAppendUTF16toASCII(mDeviceKeyDebug, note);
   }
   note.Append("\n");
 
   if (mHasDualGPU) {
-    nsString deviceID2, vendorID2;
+    nsString deviceID2, vendorID2, subsysID2;
     nsAutoString adapterDriverVersionString2;
-    nsCString narrowDeviceID2, narrowVendorID2;
+    nsCString narrowDeviceID2, narrowVendorID2, narrowSubsysID2;
 
     note.AppendLiteral("Has dual GPUs. GPU #2: ");
     GetAdapterDeviceID2(deviceID2);
@@ -697,12 +780,15 @@ GfxInfo::AddCrashReportAnnotations()
     GetAdapterVendorID2(vendorID2);
     CopyUTF16toUTF8(vendorID2, narrowVendorID2);
     GetAdapterDriverVersion2(adapterDriverVersionString2);
-    note.Append("AdapterVendorID2: ");
+    GetAdapterSubsysID(subsysID2);
+    CopyUTF16toUTF8(subsysID2, narrowSubsysID2);
+    note.AppendLiteral("AdapterVendorID2: ");
     note.Append(narrowVendorID2);
-    note.Append(", AdapterDeviceID2: ");
+    note.AppendLiteral(", AdapterDeviceID2: ");
     note.Append(narrowDeviceID2);
-    note.AppendPrintf(", AdapterSubsysID2: %08x, ", mAdapterSubsysID2);
-    note.AppendPrintf("AdapterDriverVersion2: ");
+    note.AppendLiteral(", AdapterSubsysID2: ");
+    note.Append(narrowSubsysID2);
+    note.AppendLiteral(", AdapterDriverVersion2: ");
     note.Append(NS_LossyConvertUTF16toASCII(adapterDriverVersionString2));
   }
   CrashReporter::AppendAppNotesToCrashReport(note);
@@ -714,17 +800,19 @@ static OperatingSystem
 WindowsVersionToOperatingSystem(int32_t aWindowsVersion)
 {
   switch(aWindowsVersion) {
-    case gfxWindowsPlatform::kWindowsXP:
+    case kWindowsXP:
       return DRIVER_OS_WINDOWS_XP;
-    case gfxWindowsPlatform::kWindowsServer2003:
+    case kWindowsServer2003:
       return DRIVER_OS_WINDOWS_SERVER_2003;
-    case gfxWindowsPlatform::kWindowsVista:
+    case kWindowsVista:
       return DRIVER_OS_WINDOWS_VISTA;
-    case gfxWindowsPlatform::kWindows7:
+    case kWindows7:
       return DRIVER_OS_WINDOWS_7;
-    case gfxWindowsPlatform::kWindows8:
+    case kWindows8:
       return DRIVER_OS_WINDOWS_8;
-    case gfxWindowsPlatform::kWindowsUnknown:
+    case kWindows8_1:
+      return DRIVER_OS_WINDOWS_8_1;
+    case kWindowsUnknown:
     default:
       return DRIVER_OS_UNKNOWN;
     };
@@ -735,20 +823,27 @@ GfxInfo::GetGfxDriverInfo()
 {
   if (!mDriverInfo->Length()) {
     /*
+     * It should be noted here that more specialized rules on certain features
+     * should be inserted -before- more generalized restriction. As the first
+     * match for feature/OS/device found in the list will be used for the final
+     * blacklisting call.
+     */
+    
+    /*
      * NVIDIA entries
      */
     APPEND_TO_DRIVER_BLOCKLIST( DRIVER_OS_WINDOWS_XP,
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorNVIDIA), GfxDriverInfo::allDevices,
       GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
-      DRIVER_LESS_THAN, V(6,14,12,5721), "257.21" );
+      DRIVER_LESS_THAN, V(6,14,11,8265), "182.65" );
     APPEND_TO_DRIVER_BLOCKLIST( DRIVER_OS_WINDOWS_VISTA,
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorNVIDIA), GfxDriverInfo::allDevices,
       GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
-      DRIVER_LESS_THAN, V(8,17,12,5721), "257.21" );
+      DRIVER_LESS_THAN, V(8,17,11,8265), "182.65" );
     APPEND_TO_DRIVER_BLOCKLIST( DRIVER_OS_WINDOWS_7,
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorNVIDIA), GfxDriverInfo::allDevices,
       GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
-      DRIVER_LESS_THAN, V(8,17,12,5721), "257.21" );
+      DRIVER_LESS_THAN, V(8,17,11,8265), "182.65" );
 
     /*
      * AMD/ATI entries
@@ -756,23 +851,23 @@ GfxInfo::GetGfxDriverInfo()
     APPEND_TO_DRIVER_BLOCKLIST( DRIVER_OS_ALL,
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorATI), GfxDriverInfo::allDevices,
       GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
-      DRIVER_LESS_THAN, V(8,741,0,0), "10.6" );
+      DRIVER_LESS_THAN, V(8,62,0,0), "9.6" );
     APPEND_TO_DRIVER_BLOCKLIST( DRIVER_OS_ALL,
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorAMD), GfxDriverInfo::allDevices,
       GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
-      DRIVER_LESS_THAN, V(8,741,0,0), "10.6" );
+      DRIVER_LESS_THAN, V(8,62,0,0), "9.6" );
 
     /*
      * Bug 783517 - crashes in AMD driver on Windows 8
      */
-    APPEND_TO_DRIVER_BLOCKLIST( DRIVER_OS_WINDOWS_8,
+    APPEND_TO_DRIVER_BLOCKLIST_RANGE( DRIVER_OS_WINDOWS_8,
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorATI), GfxDriverInfo::allDevices,
       GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
-      DRIVER_LESS_THAN_OR_EQUAL, V(8,982,0,0), "> 12.8" );
-    APPEND_TO_DRIVER_BLOCKLIST( DRIVER_OS_WINDOWS_8,
+      DRIVER_BETWEEN_INCLUSIVE_START, V(8,982,0,0), V(8,983,0,0), "!= 8.982.*.*" );
+    APPEND_TO_DRIVER_BLOCKLIST_RANGE( DRIVER_OS_WINDOWS_8,
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorAMD), GfxDriverInfo::allDevices,
       GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
-      DRIVER_LESS_THAN_OR_EQUAL, V(8,982,0,0), "> 12.8" );
+      DRIVER_BETWEEN_INCLUSIVE_START, V(8,982,0,0), V(8,983,0,0), "!= 8.982.*.*" );
 
     /* OpenGL on any ATI/AMD hardware is discouraged
      * See:
@@ -801,9 +896,8 @@ GfxInfo::GetGfxDriverInfo()
      * Intel entries
      */
 
-    /* implement the blocklist from bug 594877
-     * Block all features on any drivers before this, as there's a crash when a MS Hotfix is installed.
-     * The crash itself is Direct2D-related, but for safety we block all features.
+    /* The driver versions used here come from bug 594877. They might not
+     * be particularly relevant anymore.
      */
     #define IMPLEMENT_INTEL_DRIVER_BLOCKLIST(winVer, devFamily, driverVer)                                                      \
       APPEND_TO_DRIVER_BLOCKLIST2( winVer,                                                                                      \
@@ -811,26 +905,62 @@ GfxInfo::GetGfxDriverInfo()
         GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,                                                 \
         DRIVER_LESS_THAN, driverVer )
 
-    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_XP, IntelGMA500,   V(6,14,11,1018));
+    #define IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(winVer, devFamily, driverVer)                                                  \
+      APPEND_TO_DRIVER_BLOCKLIST2( winVer,                                                                                      \
+        (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorIntel), (GfxDeviceFamily*) GfxDriverInfo::GetDeviceFamily(devFamily), \
+        nsIGfxInfo::FEATURE_DIRECT2D, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,                                               \
+        DRIVER_LESS_THAN, driverVer )
+
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_VISTA, IntelGMA500,   V(7,14,10,1006));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_VISTA, IntelGMA900,   GfxDriverInfo::allDriverVersions);
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_VISTA, IntelGMA950,   V(7,14,10,1504));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_VISTA, IntelGMA3150,  V(7,14,10,2124));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_VISTA, IntelGMAX3000, V(7,15,10,1666));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_VISTA, IntelGMAX4500HD, V(8,15,10,2202));
+
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_7, IntelGMA500,   V(5,0,0,2026));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_7, IntelGMA900,   GfxDriverInfo::allDriverVersions);
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_7, IntelGMA950,   V(8,15,10,1930));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_7, IntelGMA3150,  V(8,14,10,2117));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_7, IntelGMAX3000, V(8,15,10,1930));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST_D2D(DRIVER_OS_WINDOWS_7, IntelGMAX4500HD, V(8,15,10,2202));
+
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_XP, IntelGMA500,   V(3,0,20,3200));
     IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_XP, IntelGMA900,   V(6,14,10,4764));
     IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_XP, IntelGMA950,   V(6,14,10,4926));
-    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_XP, IntelGMA3150,  V(6,14,10,5260));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_XP, IntelGMA3150,  V(6,14,10,5134));
     IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_XP, IntelGMAX3000, V(6,14,10,5218));
-    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_XP, IntelGMAX4500HD, V(6,14,10,5284));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_XP, IntelGMAX4500HD, V(6,14,10,4969));
 
-    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_VISTA, IntelGMA500,   V(7,14,10,1006));
+    // StrechRect seems to suffer from precision issues which leads to artifacting
+    // during content drawing starting with at least version 6.14.10.5082
+    // and going until 6.14.10.5218. See bug 919454 and bug 949275 for more info.
+    APPEND_TO_DRIVER_BLOCKLIST_RANGE(DRIVER_OS_WINDOWS_XP,
+      const_cast<nsAString&>(GfxDriverInfo::GetDeviceVendor(VendorIntel)),
+      const_cast<GfxDeviceFamily*>(GfxDriverInfo::GetDeviceFamily(IntelGMAX4500HD)),
+      GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
+      DRIVER_BETWEEN_EXCLUSIVE, V(6,14,10,5076), V(6,14,10,5218), "6.14.10.5218");
+
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_VISTA, IntelGMA500,   V(3,0,20,3200));
     IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_VISTA, IntelGMA900,   GfxDriverInfo::allDriverVersions);
     IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_VISTA, IntelGMA950,   V(7,14,10,1504));
-    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_VISTA, IntelGMA3150,  V(7,14,10,2124));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_VISTA, IntelGMA3150,  V(7,14,10,1910));
     IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_VISTA, IntelGMAX3000, V(7,15,10,1666));
-    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_VISTA, IntelGMAX4500HD, V(8,15,10,2202));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_VISTA, IntelGMAX4500HD, V(7,15,10,1666));
 
     IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_7, IntelGMA500,   V(5,0,0,2026));
     IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_7, IntelGMA900,   GfxDriverInfo::allDriverVersions);
     IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_7, IntelGMA950,   V(8,15,10,1930));
-    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_7, IntelGMA3150,  V(8,14,10,2117));
-    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_7, IntelGMAX3000, V(8,15,10,1930));
-    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_7, IntelGMAX4500HD, V(8,15,10,2202));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_7, IntelGMA3150,  V(8,14,10,1972));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_7, IntelGMAX3000, V(7,15,10,1666));
+    IMPLEMENT_INTEL_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_7, IntelGMAX4500HD, V(7,15,10,1666));
+
+    // Bug 1074378
+    APPEND_TO_DRIVER_BLOCKLIST(DRIVER_OS_WINDOWS_7,
+      (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorIntel),
+      (GfxDeviceFamily*) GfxDriverInfo::GetDeviceFamily(IntelGMAX4500HD),
+      GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
+      DRIVER_EQUAL, V(8,15,10,1749), "8.15.10.2342");
 
     /* OpenGL on any Intel hardware is discouraged */
     APPEND_TO_DRIVER_BLOCKLIST2( DRIVER_OS_ALL,
@@ -842,6 +972,43 @@ GfxInfo::GetGfxDriverInfo()
       nsIGfxInfo::FEATURE_WEBGL_OPENGL, nsIGfxInfo::FEATURE_DISCOURAGED,
       DRIVER_LESS_THAN, GfxDriverInfo::allDriverVersions );
 
+    /**
+     * Disable acceleration on Intel HD 3000 for graphics drivers <= 8.15.10.2321.
+     * See bug 1018278 and bug 1060736.
+     */
+    APPEND_TO_DRIVER_BLOCKLIST( DRIVER_OS_ALL,
+        (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorIntel), (GfxDeviceFamily*) GfxDriverInfo::GetDeviceFamily(IntelHD3000),
+      GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
+      DRIVER_LESS_THAN_OR_EQUAL, V(8,15,10,2321), "8.15.10.2342" );
+
+    /* Disable D2D on Win7 on Intel HD Graphics on driver <= 8.15.10.2302
+     * See bug 806786
+     */
+    APPEND_TO_DRIVER_BLOCKLIST2( DRIVER_OS_WINDOWS_7,
+        (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorIntel), (GfxDeviceFamily*) GfxDriverInfo::GetDeviceFamily(IntelMobileHDGraphics),
+      nsIGfxInfo::FEATURE_DIRECT2D, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
+      DRIVER_LESS_THAN_OR_EQUAL, V(8,15,10,2302) );
+
+    /* Disable D2D on Win8 on Intel HD Graphics on driver <= 8.15.10.2302
+     * See bug 804144 and 863683
+     */
+    APPEND_TO_DRIVER_BLOCKLIST2( DRIVER_OS_WINDOWS_8,
+        (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorIntel), (GfxDeviceFamily*) GfxDriverInfo::GetDeviceFamily(IntelMobileHDGraphics),
+      nsIGfxInfo::FEATURE_DIRECT2D, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
+      DRIVER_LESS_THAN_OR_EQUAL, V(8,15,10,2302) );
+
+    /* Disable D2D on AMD Catalyst 14.4 until 14.6
+     * See bug 984488
+     */
+    APPEND_TO_DRIVER_BLOCKLIST_RANGE( DRIVER_OS_ALL,
+        (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorATI), GfxDriverInfo::allDevices,
+      nsIGfxInfo::FEATURE_DIRECT2D, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
+      DRIVER_BETWEEN_INCLUSIVE_START, V(14,1,0,0), V(14,2,0,0), "ATI Catalyst 14.6+");
+    APPEND_TO_DRIVER_BLOCKLIST_RANGE( DRIVER_OS_ALL,
+        (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorAMD), GfxDriverInfo::allDevices,
+      nsIGfxInfo::FEATURE_DIRECT2D, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
+      DRIVER_BETWEEN_INCLUSIVE_START, V(14,1,0,0), V(14,2,0,0), "ATI Catalyst 14.6+");
+
     /* Disable D3D9 layers on NVIDIA 6100/6150/6200 series due to glitches
      * whilst scrolling. See bugs: 612007, 644787 & 645872.
      */
@@ -849,6 +1016,18 @@ GfxInfo::GetGfxDriverInfo()
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorNVIDIA), (GfxDeviceFamily*) GfxDriverInfo::GetDeviceFamily(NvidiaBlockD3D9Layers),
       nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS, nsIGfxInfo::FEATURE_BLOCKED_DEVICE,
       DRIVER_LESS_THAN, GfxDriverInfo::allDriverVersions );
+
+    /* Microsoft RemoteFX; blocked less than 6.2.0.0 */
+    APPEND_TO_DRIVER_BLOCKLIST( DRIVER_OS_ALL,
+      (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorMicrosoft), GfxDriverInfo::allDevices,
+      GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
+      DRIVER_LESS_THAN, V(6,2,0,0), "< 6.2.0.0" );
+
+    /* Bug 1008759: Optimus (NVidia) crash.  Disable D2D on NV 310M. */
+    APPEND_TO_DRIVER_BLOCKLIST2(DRIVER_OS_ALL,
+      (nsAString&)GfxDriverInfo::GetDeviceVendor(VendorNVIDIA), (GfxDeviceFamily*)GfxDriverInfo::GetDeviceFamily(Nvidia310M),
+      nsIGfxInfo::FEATURE_DIRECT2D, nsIGfxInfo::FEATURE_BLOCKED_DEVICE,
+      DRIVER_LESS_THAN, GfxDriverInfo::allDriverVersions);
   }
   return *mDriverInfo;
 }
@@ -883,6 +1062,7 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
         !adapterVendorID.Equals(GfxDriverInfo::GetDeviceVendor(VendorNVIDIA), nsCaseInsensitiveStringComparator()) &&
         !adapterVendorID.Equals(GfxDriverInfo::GetDeviceVendor(VendorAMD), nsCaseInsensitiveStringComparator()) &&
         !adapterVendorID.Equals(GfxDriverInfo::GetDeviceVendor(VendorATI), nsCaseInsensitiveStringComparator()) &&
+        !adapterVendorID.Equals(GfxDriverInfo::GetDeviceVendor(VendorMicrosoft), nsCaseInsensitiveStringComparator()) &&
         // FIXME - these special hex values are currently used in xpcshell tests introduced by
         // bug 625160 patch 8/8. Maybe these tests need to be adjusted now that we're only whitelisting
         // intel/ati/nvidia.
@@ -903,21 +1083,12 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
     // special-case the WinXP test slaves: they have out-of-date drivers, but we still want to
     // whitelist them, actually we do know that this combination of device and driver version
     // works well.
-    if (mWindowsVersion == gfxWindowsPlatform::kWindowsXP &&
+    if (mWindowsVersion == kWindowsXP &&
         adapterVendorID.Equals(GfxDriverInfo::GetDeviceVendor(VendorNVIDIA), nsCaseInsensitiveStringComparator()) &&
         adapterDeviceID.LowerCaseEqualsLiteral("0x0861") && // GeForce 9400
         driverVersion == V(6,14,11,7756))
     {
-      *aStatus = FEATURE_NO_INFO;
-      return NS_OK;
-    }
-
-    // ANGLE currently uses D3D10 <-> D3D9 interop, which crashes on Optimus
-    // machines.
-    if (aFeature == FEATURE_WEBGL_ANGLE &&
-        gfxWindowsPlatform::IsOptimus())
-    {
-      *aStatus = FEATURE_BLOCKED_DEVICE;
+      *aStatus = FEATURE_STATUS_OK;
       return NS_OK;
     }
 
@@ -927,13 +1098,8 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
       os = DRIVER_OS_WINDOWS_XP;
 
     if (mHasDriverVersionMismatch) {
-      if (aFeature == nsIGfxInfo::FEATURE_DIRECT3D_10_LAYERS ||
-          aFeature == nsIGfxInfo::FEATURE_DIRECT3D_10_1_LAYERS ||
-          aFeature == nsIGfxInfo::FEATURE_DIRECT2D)
-      {
-        *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
-        return NS_OK;
-      }
+      *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
+      return NS_OK;
     }
   }
 

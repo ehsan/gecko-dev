@@ -6,6 +6,7 @@ package org.mozilla.gecko.sync.net;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.lang.ref.WeakReference;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -16,14 +17,15 @@ import java.security.SecureRandom;
 
 import javax.net.ssl.SSLContext;
 
-import org.mozilla.gecko.sync.Logger;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.mozilla.gecko.background.common.log.Logger;
+import org.mozilla.gecko.sync.ExtendedJSONObject;
 
 import ch.boye.httpclientandroidlib.Header;
 import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.HttpVersion;
-import ch.boye.httpclientandroidlib.auth.Credentials;
-import ch.boye.httpclientandroidlib.auth.UsernamePasswordCredentials;
 import ch.boye.httpclientandroidlib.client.AuthCache;
 import ch.boye.httpclientandroidlib.client.ClientProtocolException;
 import ch.boye.httpclientandroidlib.client.methods.HttpDelete;
@@ -38,7 +40,7 @@ import ch.boye.httpclientandroidlib.conn.scheme.PlainSocketFactory;
 import ch.boye.httpclientandroidlib.conn.scheme.Scheme;
 import ch.boye.httpclientandroidlib.conn.scheme.SchemeRegistry;
 import ch.boye.httpclientandroidlib.conn.ssl.SSLSocketFactory;
-import ch.boye.httpclientandroidlib.impl.auth.BasicScheme;
+import ch.boye.httpclientandroidlib.entity.StringEntity;
 import ch.boye.httpclientandroidlib.impl.client.BasicAuthCache;
 import ch.boye.httpclientandroidlib.impl.client.DefaultHttpClient;
 import ch.boye.httpclientandroidlib.impl.conn.tsccm.ThreadSafeClientConnManager;
@@ -67,12 +69,12 @@ public class BaseResource implements Resource {
 
   private static final String LOG_TAG = "BaseResource";
 
-  protected URI uri;
+  protected final URI uri;
   protected BasicHttpContext context;
   protected DefaultHttpClient client;
   public    ResourceDelegate delegate;
   protected HttpRequestBase request;
-  public String charset = "utf-8";
+  public final String charset = "utf-8";
 
   protected static WeakReference<HttpResponseObserver> httpResponseObserver = null;
 
@@ -89,13 +91,17 @@ public class BaseResource implements Resource {
   }
 
   public BaseResource(URI uri, boolean rewrite) {
-    if (rewrite && uri.getHost().equals("localhost")) {
+    if (uri == null) {
+      throw new IllegalArgumentException("uri must not be null");
+    }
+    if (rewrite && "localhost".equals(uri.getHost())) {
       // Rewrite localhost URIs to refer to the special Android emulator loopback passthrough interface.
       Logger.debug(LOG_TAG, "Rewriting " + uri + " to point to " + ANDROID_LOOPBACK_IP + ".");
       try {
         this.uri = new URI(uri.getScheme(), uri.getUserInfo(), ANDROID_LOOPBACK_IP, uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment());
       } catch (URISyntaxException e) {
         Logger.error(LOG_TAG, "Got error rewriting URI for Android emulator.", e);
+        throw new IllegalArgumentException("Invalid URI", e);
       }
     } else {
       this.uri = uri;
@@ -116,8 +122,19 @@ public class BaseResource implements Resource {
     httpResponseObserver = new WeakReference<HttpResponseObserver>(newHttpResponseObserver);
   }
 
+  @Override
   public URI getURI() {
     return this.uri;
+  }
+
+  @Override
+  public String getURIString() {
+    return this.uri.toString();
+  }
+
+  @Override
+  public String getHostname() {
+    return this.getURI().getHost();
   }
 
   /**
@@ -130,30 +147,11 @@ public class BaseResource implements Resource {
   }
 
   /**
-   * Return a Header object representing an Authentication header for HTTP Basic.
-   */
-  public static Header getBasicAuthHeader(final String credentials) {
-    Credentials creds = new UsernamePasswordCredentials(credentials);
-
-    // This must be UTF-8 to generate the same Basic Auth headers as desktop for non-ASCII passwords.
-    return BasicScheme.authenticate(creds, "UTF-8", false);
-  }
-
-  /**
-   * Apply the provided credentials string to the provided request.
-   * @param credentials a string, "user:pass".
-   */
-  private static void applyCredentials(String credentials, HttpUriRequest request, HttpContext context) {
-    request.addHeader(getBasicAuthHeader(credentials));
-    Logger.trace(LOG_TAG, "Adding Basic Auth header.");
-  }
-
-  /**
    * Invoke this after delegate and request have been set.
    * @throws NoSuchAlgorithmException
    * @throws KeyManagementException
    */
-  private void prepareClient() throws KeyManagementException, NoSuchAlgorithmException {
+  protected void prepareClient() throws KeyManagementException, NoSuchAlgorithmException, GeneralSecurityException {
     context = new BasicHttpContext();
 
     // We could reuse these client instances, except that we mess around
@@ -162,9 +160,13 @@ public class BaseResource implements Resource {
 
     // TODO: Eventually we should use Apache HttpAsyncClient. It's not out of alpha yet.
     // Until then, we synchronously make the request, then invoke our delegate's callback.
-    String credentials = delegate.getCredentials();
-    if (credentials != null) {
-      BaseResource.applyCredentials(credentials, request, context);
+    AuthHeaderProvider authHeaderProvider = delegate.getAuthHeaderProvider();
+    if (authHeaderProvider != null) {
+      Header authHeader = authHeaderProvider.getAuthHeader(request, context, client);
+      if (authHeader != null) {
+        request.addHeader(authHeader);
+        Logger.debug(LOG_TAG, "Added auth header.");
+      }
     }
 
     addAuthCacheToContext(request, context);
@@ -175,22 +177,15 @@ public class BaseResource implements Resource {
     HttpConnectionParams.setStaleCheckingEnabled(params, false);
     HttpProtocolParams.setContentCharset(params, charset);
     HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
+    final String userAgent = delegate.getUserAgent();
+    if (userAgent != null) {
+      HttpProtocolParams.setUserAgent(params, userAgent);
+    }
     delegate.addHeaders(request, client);
   }
 
-  private static Object connManagerMonitor = new Object();
+  private static final Object connManagerMonitor = new Object();
   private static ClientConnectionManager connManager;
-
-  /**
-   * This method exists for test code.
-   */
-  public static ClientConnectionManager enablePlainHTTPConnectionManager() {
-    synchronized (connManagerMonitor) {
-      ThreadSafeClientConnManager cm = new ThreadSafeClientConnManager();
-      connManager = cm;
-      return cm;
-    }
-  }
 
   // Call within a synchronized block on connManagerMonitor.
   private static ClientConnectionManager enableTLSConnectionManager() throws KeyManagementException, NoSuchAlgorithmException  {
@@ -303,7 +298,7 @@ public class BaseResource implements Resource {
       Logger.error(LOG_TAG, "Couldn't prepare client.", e);
       delegate.handleTransportException(e);
       return;
-    } catch (NoSuchAlgorithmException e) {
+    } catch (GeneralSecurityException e) {
       Logger.error(LOG_TAG, "Couldn't prepare client.", e);
       delegate.handleTransportException(e);
       return;
@@ -320,6 +315,16 @@ public class BaseResource implements Resource {
   public void get() {
     Logger.debug(LOG_TAG, "HTTP GET " + this.uri.toASCIIString());
     this.go(new HttpGet(this.uri));
+  }
+
+  /**
+   * Perform an HTTP GET as with {@link BaseResource#get()}, returning only
+   * after callbacks have been invoked.
+   */
+  public void getBlocking() {
+    // Until we use the asynchronous Apache HttpClient, we can simply call
+    // through.
+    this.get();
   }
 
   @Override
@@ -342,6 +347,36 @@ public class BaseResource implements Resource {
     HttpPut request = new HttpPut(this.uri);
     request.setEntity(body);
     this.go(request);
+  }
+
+  protected static StringEntity stringEntityWithContentTypeApplicationJSON(String s) throws UnsupportedEncodingException {
+    StringEntity e = new StringEntity(s, "UTF-8");
+    e.setContentType("application/json");
+    return e;
+  }
+
+  /**
+   * Helper for turning a JSON object into a payload.
+   * @throws UnsupportedEncodingException
+   */
+  protected static StringEntity jsonEntity(JSONObject body) throws UnsupportedEncodingException {
+    return stringEntityWithContentTypeApplicationJSON(body.toJSONString());
+  }
+
+  /**
+   * Helper for turning an extended JSON object into a payload.
+   * @throws UnsupportedEncodingException
+   */
+  protected static StringEntity jsonEntity(ExtendedJSONObject body) throws UnsupportedEncodingException {
+    return stringEntityWithContentTypeApplicationJSON(body.toJSONString());
+  }
+
+  /**
+   * Helper for turning a JSON array into a payload.
+   * @throws UnsupportedEncodingException
+   */
+  protected static HttpEntity jsonEntity(JSONArray toPOST) throws UnsupportedEncodingException {
+    return stringEntityWithContentTypeApplicationJSON(toPOST.toJSONString());
   }
 
   /**
@@ -411,5 +446,21 @@ public class BaseResource implements Resource {
     } catch (IOException e) {
       // Do nothing.
     }
+  }
+
+  public void post(JSONArray jsonArray) throws UnsupportedEncodingException {
+    post(jsonEntity(jsonArray));
+  }
+
+  public void put(JSONObject jsonObject) throws UnsupportedEncodingException {
+    put(jsonEntity(jsonObject));
+  }
+
+  public void post(ExtendedJSONObject o) throws UnsupportedEncodingException {
+    post(jsonEntity(o));
+  }
+
+  public void post(JSONObject jsonObject) throws UnsupportedEncodingException {
+    post(jsonEntity(jsonObject));
   }
 }

@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=8 et :
- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,41 +9,51 @@
 #include "nsString.h"
 #include "nsIMemoryReporter.h"
 #include "mozilla/ipc/SharedMemory.h"
+#include "mozilla/Atomics.h"
 
 namespace mozilla {
 namespace ipc {
 
-static int64_t gShmemAllocated;
-static int64_t gShmemMapped;
-static int64_t GetShmemAllocated() { return gShmemAllocated; }
-static int64_t GetShmemMapped() { return gShmemMapped; }
+static Atomic<size_t> gShmemAllocated;
+static Atomic<size_t> gShmemMapped;
 
-NS_MEMORY_REPORTER_IMPLEMENT(ShmemAllocated,
-  "shmem-allocated",
-  KIND_OTHER,
-  UNITS_BYTES,
-  GetShmemAllocated,
-  "Memory shared with other processes that is accessible (but not "
-  "necessarily mapped).")
+class ShmemReporter MOZ_FINAL : public nsIMemoryReporter
+{
+  ~ShmemReporter() {}
 
-NS_MEMORY_REPORTER_IMPLEMENT(ShmemMapped,
-  "shmem-mapped",
-  KIND_OTHER,
-  UNITS_BYTES,
-  GetShmemMapped,
-  "Memory shared with other processes that is mapped into the address space.")
+public:
+  NS_DECL_THREADSAFE_ISUPPORTS
+
+  NS_IMETHOD
+  CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData,
+                 bool aAnonymize)
+  {
+    nsresult rv;
+    rv = MOZ_COLLECT_REPORT(
+      "shmem-allocated", KIND_OTHER, UNITS_BYTES, gShmemAllocated,
+      "Memory shared with other processes that is accessible (but not "
+      "necessarily mapped).");
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = MOZ_COLLECT_REPORT(
+      "shmem-mapped", KIND_OTHER, UNITS_BYTES, gShmemMapped,
+      "Memory shared with other processes that is mapped into the address "
+      "space.");
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return NS_OK;
+  }
+};
+
+NS_IMPL_ISUPPORTS(ShmemReporter, nsIMemoryReporter)
 
 SharedMemory::SharedMemory()
   : mAllocSize(0)
   , mMappedSize(0)
 {
-  // NB: SharedMemory is main-thread-only at the moment, but that may
-  // change soon
-  static bool registered;
-  if (!registered) {
-    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(ShmemAllocated));
-    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(ShmemMapped));
-    registered = true;
+  static Atomic<bool> registered;
+  if (registered.compareExchange(false, true)) {
+    RegisterStrongMemoryReporter(new ShmemReporter());
   }
 }
 
@@ -73,7 +82,7 @@ SharedMemory::Mapped(size_t aNBytes)
 void
 SharedMemory::Unmapped()
 {
-  NS_ABORT_IF_FALSE(gShmemMapped >= int64_t(mMappedSize),
+  NS_ABORT_IF_FALSE(gShmemMapped >= mMappedSize,
                     "Can't unmap more than mapped");
   gShmemMapped -= mMappedSize;
   mMappedSize = 0;
@@ -82,7 +91,7 @@ SharedMemory::Unmapped()
 /*static*/ void
 SharedMemory::Destroyed()
 {
-  NS_ABORT_IF_FALSE(gShmemAllocated >= int64_t(mAllocSize),
+  NS_ABORT_IF_FALSE(gShmemAllocated >= mAllocSize,
                     "Can't destroy more than allocated");
   gShmemAllocated -= mAllocSize;
   mAllocSize = 0;

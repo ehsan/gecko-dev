@@ -15,7 +15,6 @@
 #include "nsIOutputStream.h"
 #include "nsIPluginInstanceOwner.h"
 #include "nsString.h"
-#include "nsNPAPIPluginInstance.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/PluginLibrary.h"
 
@@ -23,6 +22,8 @@
 
 class nsPluginStreamListenerPeer;
 class nsNPAPIPluginStreamListener;
+class nsNPAPIPluginInstance;
+class nsIChannel;
 
 class nsNPAPIStreamWrapper
 {
@@ -47,11 +48,11 @@ class nsPluginStreamToFile : public nsIOutputStream
 {
 public:
   nsPluginStreamToFile(const char* target, nsIPluginInstanceOwner* owner);
-  virtual ~nsPluginStreamToFile();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOUTPUTSTREAM
 protected:
+  virtual ~nsPluginStreamToFile();
   char* mTarget;
   nsCString mFileURL;
   nsCOMPtr<nsIFile> mTempFile;
@@ -72,7 +73,6 @@ public:
 
   nsNPAPIPluginStreamListener(nsNPAPIPluginInstance* inst, void* notifyData,
                               const char* aURL);
-  virtual ~nsNPAPIPluginStreamListener();
 
   nsresult OnStartBinding(nsPluginStreamListenerPeer* streamPeer);
   nsresult OnDataAvailable(nsPluginStreamListenerPeer* streamPeer,
@@ -104,6 +104,7 @@ public:
   void URLRedirectResponse(NPBool allow);
 
 protected:
+  virtual ~nsNPAPIPluginStreamListener();
   char* mStreamBuffer;
   char* mNotifyURL;
   nsRefPtr<nsNPAPIPluginInstance> mInst;

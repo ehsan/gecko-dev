@@ -11,42 +11,49 @@
  */
 
 /*
- * Created on Mon Jun 11 21:04:54 2012 from UCD data files with version info:
+ * Created on Tue Sep 23 08:31:06 2014 from UCD data files with version info:
  *
 
-# Date: 2012-01-26, 22:03:00 GMT [KW]
+# Date: 2014-06-12, 20:18:00 GMT [KW]
 #
 # Unicode Character Database
-# Copyright (c) 1991-2012 Unicode, Inc.
+# Copyright (c) 1991-2014 Unicode, Inc.
 # For terms of use, see http://www.unicode.org/terms_of_use.html
 #
-# For documentation, see NamesList.html,
-# UAX #38, "Unicode Han Database (Unihan)," and
+# For documentation, see the following:
+# NamesList.html
+# UAX #38, "Unicode Han Database (Unihan)"
 # UAX #44, "Unicode Character Database."
 #
+# The UAXes can be accessed at http://www.unicode.org/versions/Unicode7.0.0/
 
-This directory contains final data files
-for the Unicode Character Database (UCD) for Unicode 6.1.0.
+This directory contains the final data files
+for the Unicode Character Database, for Version 7.0.0 of the Unicode
+Standard.
 
-# Scripts-6.1.0.txt
-# Date: 2011-11-27, 05:10:50 GMT [MD]
 
-# EastAsianWidth-6.1.0.txt
-# Date: 2011-09-19, 18:46:00 GMT [KW]
+# Scripts-7.0.0.txt
+# Date: 2014-05-15, 00:11:35 GMT [MD]
 
-# BidiMirroring-6.1.0.txt
-# Date: 2011-12-20, 19:31:00 GMT [KW, LI]
+# EastAsianWidth-7.0.0.txt
+# Date: 2014-02-28, 23:15:00 GMT [KW, LI]
 
-# HangulSyllableType-6.1.0.txt
-# Date: 2011-08-25, 00:02:18 GMT [MD]
+# BidiMirroring-7.0.0.txt
+# Date: 2013-12-17, 00:00:00 GMT [KW, LI]
+
+# HangulSyllableType-7.0.0.txt
+# Date: 2013-11-27, 09:54:39 GMT [MD]
 
 # File: xidmodifications.txt
-# Version: 2.1
-# Generated: 2010-04-13, 01:33:09 GMT
+# Version: 7.0.0
+# Generated: 2014-07-23, 12:42:33 GMT
 
 #
 # Unihan_Variants.txt
-# Date: 2011-08-08 22:10:53 GMT [JHJ]
+# Date: 2014-05-09 18:17:02 GMT [JHJ]
+
+# VerticalOrientation-13.txt
+# Date: 2014-09-03, 17:30:00 GMT [EM, KI, LI]
 
  *
  * * * * * This file contains MACHINE-GENERATED DATA, do not edit! * * * * *
@@ -57,11 +64,14 @@ for the Unicode Character Database (UCD) for Unicode 6.1.0.
 
 #pragma pack(1)
 
+
 struct nsCharProps1 {
   unsigned char mMirrorOffsetIndex:5;
   unsigned char mHangulType:3;
   unsigned char mCombiningClass:8;
 };
+
+
 
 struct nsCharProps2 {
   unsigned char mScriptCode:8;
@@ -69,9 +79,10 @@ struct nsCharProps2 {
   unsigned char mCategory:5;
   unsigned char mBidiCategory:5;
   unsigned char mXidmod:4;
-  signed char mNumericValue:5;
-  unsigned char mHanVariant:2;
+  signed char   mNumericValue:5;
+  unsigned char mVertOrient:2;
 };
+
 
 #pragma pack()
 
@@ -179,6 +190,33 @@ enum {
   MOZ_SCRIPT_SHARADA = 100,
   MOZ_SCRIPT_SORA_SOMPENG = 101,
   MOZ_SCRIPT_TAKRI = 102,
+  MOZ_SCRIPT_BASSA_VAH = 103,
+  MOZ_SCRIPT_CAUCASIAN_ALBANIAN = 104,
+  MOZ_SCRIPT_DUPLOYAN = 105,
+  MOZ_SCRIPT_ELBASAN = 106,
+  MOZ_SCRIPT_GRANTHA = 107,
+  MOZ_SCRIPT_KHOJKI = 108,
+  MOZ_SCRIPT_KHUDAWADI = 109,
+  MOZ_SCRIPT_LINEAR_A = 110,
+  MOZ_SCRIPT_MAHAJANI = 111,
+  MOZ_SCRIPT_MANICHAEAN = 112,
+  MOZ_SCRIPT_MENDE_KIKAKUI = 113,
+  MOZ_SCRIPT_MODI = 114,
+  MOZ_SCRIPT_MRO = 115,
+  MOZ_SCRIPT_NABATAEAN = 116,
+  MOZ_SCRIPT_OLD_NORTH_ARABIAN = 117,
+  MOZ_SCRIPT_OLD_PERMIC = 118,
+  MOZ_SCRIPT_PAHAWH_HMONG = 119,
+  MOZ_SCRIPT_PALMYRENE = 120,
+  MOZ_SCRIPT_PAU_CIN_HAU = 121,
+  MOZ_SCRIPT_PSALTER_PAHLAVI = 122,
+  MOZ_SCRIPT_SIDDHAM = 123,
+  MOZ_SCRIPT_TIRHUTA = 124,
+  MOZ_SCRIPT_WARANG_CITI = 125,
+  MOZ_SCRIPT_MATHEMATICAL_NOTATION = 126,
+
+  MOZ_NUM_SCRIPT_CODES = 127,
+
   MOZ_SCRIPT_INVALID = -1
 };
 

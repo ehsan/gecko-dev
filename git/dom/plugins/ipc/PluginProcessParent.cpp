@@ -11,6 +11,7 @@
 
 #include "mozilla/ipc/BrowserProcessSubThread.h"
 #include "mozilla/plugins/PluginMessageUtils.h"
+#include "mozilla/Telemetry.h"
 
 using std::vector;
 using std::string;
@@ -38,12 +39,22 @@ PluginProcessParent::~PluginProcessParent()
 }
 
 bool
-PluginProcessParent::Launch(int32_t timeoutMs)
+PluginProcessParent::Launch(int32_t timeoutMs,
+                            bool aEnableSandbox)
 {
-    ProcessArchitecture currentArchitecture = base::GetCurrentProcessArchitecture();
-    uint32 containerArchitectures = GetSupportedArchitecturesForProcessType(GeckoProcessType_Plugin);
+#if defined(XP_WIN) && defined(MOZ_SANDBOX)
+    mEnableNPAPISandbox = aEnableSandbox;
+#else
+    if (aEnableSandbox) {
+        MOZ_ASSERT(false,
+                   "Can't enable an NPAPI process sandbox for platform/build.");
+    }
+#endif
 
-    uint32 pluginLibArchitectures = currentArchitecture;
+    ProcessArchitecture currentArchitecture = base::GetCurrentProcessArchitecture();
+    uint32_t containerArchitectures = GetSupportedArchitecturesForProcessType(GeckoProcessType_Plugin);
+
+    uint32_t pluginLibArchitectures = currentArchitecture;
 #ifdef XP_MACOSX
     nsresult rv = GetArchitecturesForBinary(mPluginFilePath.c_str(), &pluginLibArchitectures);
     if (NS_FAILED(rv)) {
@@ -75,6 +86,7 @@ PluginProcessParent::Launch(int32_t timeoutMs)
 
     vector<string> args;
     args.push_back(MungePluginDsoPath(mPluginFilePath));
+    Telemetry::AutoTimer<Telemetry::PLUGIN_STARTUP_MS> timer;
     return SyncLaunch(args, timeoutMs, selectedArchitecture);
 }
 

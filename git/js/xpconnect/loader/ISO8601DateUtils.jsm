@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,11 +9,11 @@ const SECONDS_TO_MILLISECONDS = 1000;
 const MINUTES_TO_MILLISECONDS = MINUTES_TO_SECONDS * SECONDS_TO_MILLISECONDS;
 const HOURS_TO_MILLISECONDS = HOURS_TO_MINUTES * MINUTES_TO_MILLISECONDS;
 
-var EXPORTED_SYMBOLS = ["ISO8601DateUtils"];
+this.EXPORTED_SYMBOLS = ["ISO8601DateUtils"];
 
 debug("*** loading ISO8601DateUtils\n");
 
-var ISO8601DateUtils = {
+this.ISO8601DateUtils = {
 
   /**
   * XXX Thunderbird's W3C-DTF function

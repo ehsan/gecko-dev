@@ -36,11 +36,12 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsITestService, NS_ITESTSERVICE_IID)
 class nsTestService MOZ_FINAL : public nsITestService,
                                 public nsSupportsWeakReference
 {
+    ~nsTestService() {}
   public:
     NS_DECL_ISUPPORTS
 };
 
-NS_IMPL_ISUPPORTS2(nsTestService, nsITestService, nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(nsTestService, nsITestService, nsISupportsWeakReference)
 
 #define NS_TEST_SERVICE_CONTRACTID "@mozilla.org/test/testservice;1"
 #define NS_TEST_SERVICE_CID \

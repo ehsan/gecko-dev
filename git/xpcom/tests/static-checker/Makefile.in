@@ -2,32 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DEPTH = @DEPTH@
-topsrcdir = @top_srcdir@
-srcdir = @srcdir@
-VPATH = @srcdir@
-
-# We will do compilations that create dependency files.
-NEED_MDDEPDIR = 1
-
-include $(DEPTH)/config/autoconf.mk
-
-STACK_FAILURE_TESTCASES = \
-  TestStack.cpp \
-  TestStackTemplate.cpp \
-  StackNoConstructor.cpp \
-  StackVector.cpp \
-  StackConditional.cpp \
-  StackAggrInit.cpp \
-  StackCondBad.cpp \
-  StackFalsePositive.cpp \
-  $(NULL)
-
-STACK_PASS_TESTCASES = \
-  StackPlacementNewOK.cpp \
-  StackCond.cpp \
-  $(NULL)
-
 OUTPARAMS_WARNING_TESTCASES = \
   e1.cpp \
   e4.cpp \
@@ -118,14 +92,12 @@ STATIC_FAILURE_TESTCASES = \
 
 STATIC_WARNING_TESTCASES = \
   $(OUTPARAMS_WARNING_TESTCASES) \
-  $(STACK_FAILURE_TESTCASES) \
   $(STATIC_INIT_WARNING_TESTCASES) \
   $(NULL)
 
 STATIC_PASS_TESTCASES = \
   $(OUTPARAMS_NS_FAILED_TESTCASES) \
   $(OUTPARAMS_PASS_TESTCASES) \
-  $(STACK_PASS_TESTCASES) \
   $(FLOW_PASS_TESTCASES) \
   $(MUST_OVERRIDE_PASS_TESTCASES) \
   $(OVERRIDE_PASS_TESTCASES) \
@@ -142,33 +114,33 @@ check:: \
   $(STATIC_WARNING_TESTCASES:.cpp=.s-warn) \
   $(STATIC_PASS_TESTCASES:.cpp=.s-pass)
 
-%.s-fail: %.cpp $(GLOBAL_DEPS) $(DEHYDRA_SCRIPTS)
-	@printf "Compiling $(<F) to check that the static-analysis script is checking properly..."
+%.s-fail: %.cpp $(GLOBAL_DEPS) $(DEHYDRA_SCRIPTS) $(call mkdir_deps,$(MDDEPDIR))
+	@printf 'Compiling $(<F) to check that the static-analysis script is checking properly...'
 	@if $(CCC) $(OUTOPTION)/dev/null -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) >$(*F).errlog 2>&1; then \
-	  printf "fail:\nerror: compilation of $(<F) succeeded. It shouldn't have!\n"; \
+	  printf 'fail:\nerror: compilation of $(<F) succeeded. It shouldn't have!\n'; \
 	  exit 1; \
 	else \
-	  printf "ok.\n"; \
+	  printf 'ok.\n'; \
 	fi
 
-%.s-warn: %.cpp $(GLOBAL_DEPS) $(DEHYDRA_SCRIPTS)
-	@printf "Compiling $(<F) to check that the static-analysis script is checking properly..."
+%.s-warn: %.cpp $(GLOBAL_DEPS) $(DEHYDRA_SCRIPTS) $(call mkdir_deps,$(MDDEPDIR))
+	@printf 'Compiling $(<F) to check that the static-analysis script is checking properly...'
 	@if $(CCC) -Werror $(OUTOPTION)/dev/null -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) >$(*F).errlog 2>&1; then \
-	  printf "fail:\nerror: compilation of $(<F) succeeded with -Werror. It shouldn't have!\n"; \
+	  printf 'fail:\nerror: compilation of $(<F) succeeded with -Werror. It shouldn't have!\n'; \
 	  exit 1; \
 	fi
 	@if $(CCC) $(OUTOPTION)/dev/null -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) >$(*F).werrlog 2>&1; then \
-	  printf "ok.\n"; \
+	  printf 'ok.\n'; \
 	else \
-	  printf "fail:\nerror: compilation of $(<F) without -Werror failed. A warning should have been issued.\n"; \
+	  printf 'fail:\nerror: compilation of $(<F) without -Werror failed. A warning should have been issued.\n'; \
 	  exit 1; \
 	fi
 
-%.s-pass: %.cpp $(GLOBAL_DEPS) $(DEHYDRA_SCRIPTS)
-	@printf "Compiling $(<F) to check that the static-analysis script is checking properly..."
+%.s-pass: %.cpp $(GLOBAL_DEPS) $(DEHYDRA_SCRIPTS) $(call mkdir_deps,$(MDDEPDIR))
+	@printf 'Compiling $(<F) to check that the static-analysis script is checking properly...'
 	@if $(CCC) -Werror $(OUTOPTION)/dev/null -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) >$(*F).errlog 2>&1; then \
-	  printf "ok.\n"; \
+	  printf 'ok.\n'; \
 	else \
-	  printf "fail:\nerror: compilation of $(<F) failed. It shouldn't have!\n"; \
+	  printf 'fail:\nerror: compilation of $(<F) failed. It shouldn't have!\n'; \
 	  exit 1; \
 	fi

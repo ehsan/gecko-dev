@@ -6,20 +6,46 @@
 
 /**
  * nsISessionStore keeps track of the current browsing state - i.e.
- * tab history, cookies, scroll state, form data, POSTDATA and window features
+ * tab history, cookies, scroll state, form data, and window features
  * - and allows to restore everything into one window.
  */
 
-[scriptable, uuid(170c6857-7f71-46ce-bc9b-185723b1c3a8)]
+[scriptable, uuid(934697e4-3807-47f8-b6c9-6caa8d83ccd1)]
 interface nsISessionStartup: nsISupports
 {
+  /**
+   * Return a promise that is resolved once initialization
+   * is complete.
+   */
+  readonly attribute jsval onceInitialized;
+
   // Get session state
   readonly attribute jsval state;
 
   /**
-   * Determine if session should be restored
+   * Determines whether there is a pending session restore. Should only be
+   * called after initialization has completed.
    */
   boolean doRestore();
+
+  /**
+   * Determines whether automatic session restoration is enabled for this
+   * launch of the browser. This does not include crash restoration, and will
+   * return false if restoration will only be caused by a crash.
+   */
+  boolean isAutomaticRestoreEnabled();
+
+  /**
+   * Returns whether we will restore a session that ends up replacing the
+   * homepage. The browser uses this to not start loading the homepage if
+   * we're going to stop its load anyway shortly after.
+   *
+   * This is meant to be an optimization for the average case that loading the
+   * session file finishes before we may want to start loading the default
+   * homepage. Should this be called before the session file has been read it
+   * will just return false.
+   */
+  readonly attribute bool willOverrideHomepage;
 
   /**
    * What type of session we're restoring.
@@ -36,4 +62,5 @@ interface nsISessionStartup: nsISupports
   const unsigned long DEFER_SESSION = 3;
 
   readonly attribute unsigned long sessionType;
+  readonly attribute bool previousSessionCrashed;
 };

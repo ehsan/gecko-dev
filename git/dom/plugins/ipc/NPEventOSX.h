@@ -16,6 +16,7 @@ namespace plugins {
 
 struct NPRemoteEvent {
     NPCocoaEvent event;
+    double contentsScaleFactor;
 };
 
 } // namespace plugins
@@ -64,8 +65,8 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
                 aMsg->WriteUnsignedChar(aParam.event.data.focus.hasFocus);
                 break;
             case NPCocoaEventDrawRect:
-                // We don't write out the context pointer, it would always be NULL
-                // and is just filled in as such on the read.
+                // We don't write out the context pointer, it would always be
+                // nullptr and is just filled in as such on the read.
                 aMsg->WriteDouble(aParam.event.data.draw.x);
                 aMsg->WriteDouble(aParam.event.data.draw.y);
                 aMsg->WriteDouble(aParam.event.data.draw.width);
@@ -78,6 +79,7 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
                 NS_NOTREACHED("Attempted to serialize unknown event type.");
                 return;
         }
+        aMsg->WriteDouble(aParam.contentsScaleFactor);
     }
 
     static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
@@ -151,7 +153,7 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
                 }
                 break;
             case NPCocoaEventDrawRect:
-                aResult->event.data.draw.context = NULL;
+                aResult->event.data.draw.context = nullptr;
                 if (!aMsg->ReadDouble(aIter, &aResult->event.data.draw.x)) {
                     return false;
                 }
@@ -173,6 +175,9 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
             default:
                 NS_NOTREACHED("Attempted to de-serialize unknown event type.");
                 return false;
+        }
+        if (!aMsg->ReadDouble(aIter, &aResult->contentsScaleFactor)) {
+            return false;
         }
 
         return true;

@@ -6,8 +6,11 @@
 #ifndef GFX_IMAGESURFACE_H
 #define GFX_IMAGESURFACE_H
 
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/RefPtr.h"
 #include "gfxASurface.h"
-#include "gfxPoint.h"
+#include "nsAutoPtr.h"
+#include "nsSize.h"
 
 // ARGB -- raw buffer.. wont be changed.. good for storing data.
 
@@ -15,6 +18,7 @@ class gfxSubimageSurface;
 
 namespace mozilla {
 namespace gfx {
+class DataSourceSurface;
 class SourceSurface;
 }
 }
@@ -24,7 +28,7 @@ class SourceSurface;
  * purpose is for storing read-only images and using it as a source surface,
  * but it can also be drawn to.
  */
-class THEBES_API gfxImageSurface : public gfxASurface {
+class gfxImageSurface : public gfxASurface {
 public:
     /**
      * Construct an image surface around an existing buffer of image data.
@@ -46,7 +50,26 @@ public:
      * @see gfxImageFormat
      */
     gfxImageSurface(const gfxIntSize& size, gfxImageFormat format, bool aClear = true);
-    gfxImageSurface(cairo_surface_t *csurf);
+
+    /**
+     * Construct an image surface, with a specified stride and allowing the
+     * allocation of more memory than required for the storage of the surface
+     * itself.  When aStride and aMinimalAllocation are <=0, this constructor
+     * is the equivalent of the preceeding one.
+     *
+     * @param format Format of the data
+     * @param aSize The size of the buffer
+     * @param aStride The stride of the buffer - if <=0, use ComputeStride()
+     * @param aMinimalAllocation Allocate at least this many bytes.  If smaller
+     *        than width * stride, or width*stride <=0, this value is ignored.
+     * @param aClear 
+     *
+     * @see gfxImageFormat
+     */
+    gfxImageSurface(const gfxIntSize& aSize, gfxImageFormat aFormat,
+                    long aStride, int32_t aMinimalAllocation, bool aClear);
+
+    explicit gfxImageSurface(cairo_surface_t *csurf);
 
     virtual ~gfxImageSurface();
 
@@ -81,6 +104,18 @@ public:
      */
     bool CopyFrom (mozilla::gfx::SourceSurface *aSurface);
 
+    /**
+     * Fast copy to a source surface; returns TRUE if successful, FALSE otherwise
+     * Assumes that the format of this surface is compatible with aSurface
+     */
+    bool CopyTo (mozilla::gfx::SourceSurface *aSurface);
+
+    /**
+     * Copy to a Moz2D DataSourceSurface.
+     * Marked as virtual so that browsercomps can access this method.
+     */
+    virtual mozilla::TemporaryRef<mozilla::gfx::DataSourceSurface> CopyToB8G8R8A8DataSourceSurface();
+
     /* return new Subimage with pointing to original image starting from aRect.pos
      * and size of aRect.size. New subimage keeping current image reference
      */
@@ -89,17 +124,28 @@ public:
     virtual already_AddRefed<gfxImageSurface> GetAsImageSurface();
 
     /** See gfxASurface.h. */
-    virtual void MovePixels(const nsIntRect& aSourceRect,
-                            const nsIntPoint& aDestTopLeft) MOZ_OVERRIDE;
+    static long ComputeStride(const gfxIntSize&, gfxImageFormat);
+
+    virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+        MOZ_OVERRIDE;
+    virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+        MOZ_OVERRIDE;
+    virtual bool SizeOfIsMeasured() const MOZ_OVERRIDE;
 
 protected:
     gfxImageSurface();
     void InitWithData(unsigned char *aData, const gfxIntSize& aSize,
                       long aStride, gfxImageFormat aFormat);
+    /**
+     * See the parameters to the matching constructor.  This should only
+     * be called once, in the constructor, which has already set mSize
+     * and mFormat.
+     */
+    void AllocateAndInit(long aStride, int32_t aMinimalAllocation, bool aClear);
     void InitFromSurface(cairo_surface_t *csurf);
+
     long ComputeStride() const { return ComputeStride(mSize, mFormat); }
 
-    static long ComputeStride(const gfxIntSize&, gfxImageFormat);
 
     void MakeInvalid();
 
@@ -110,12 +156,13 @@ protected:
     long mStride;
 };
 
-class THEBES_API gfxSubimageSurface : public gfxImageSurface {
+class gfxSubimageSurface : public gfxImageSurface {
 protected:
     friend class gfxImageSurface;
     gfxSubimageSurface(gfxImageSurface* aParent,
                        unsigned char* aData,
-                       const gfxIntSize& aSize);
+                       const gfxIntSize& aSize,
+                       gfxImageFormat aFormat);
 private:
     nsRefPtr<gfxImageSurface> mParent;
 };

@@ -10,14 +10,13 @@
 #include "nsError.h"
 #include "nsNetCID.h"
 
-#include "nsIServiceManager.h"
 #include "nsIAsyncInputStream.h"
 #include "nsIAsyncOutputStream.h"
 #include "nsISeekableStream.h"
 #include "nsIPipe.h"
 #include "nsITransport.h"
-#include "nsIRunnable.h"
 #include "nsIObserverService.h"
+#include "nsIThreadPool.h"
 #include "mozilla/Services.h"
 
 //-----------------------------------------------------------------------------
@@ -32,7 +31,7 @@ class nsInputStreamTransport : public nsITransport
                              , public nsIInputStream
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSITRANSPORT
     NS_DECL_NSIINPUTSTREAM
 
@@ -49,11 +48,11 @@ public:
     {
     }
 
+private:
     virtual ~nsInputStreamTransport()
     {
     }
 
-private:
     nsCOMPtr<nsIAsyncInputStream>   mPipeIn;
 
     // while the copy is active, these members may only be accessed from the
@@ -70,9 +69,9 @@ private:
     bool                            mInProgress;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsInputStreamTransport,
-                              nsITransport,
-                              nsIInputStream)
+NS_IMPL_ISUPPORTS(nsInputStreamTransport,
+                  nsITransport,
+                  nsIInputStream)
 
 /** nsITransport **/
 
@@ -175,7 +174,7 @@ nsInputStreamTransport::Read(char *buf, uint32_t count, uint32_t *result)
         mFirstTime = false;
         if (mOffset != 0) {
             // read from current position if offset equal to max
-            if (mOffset != LL_MAXUINT) {
+            if (mOffset != UINT64_MAX) {
                 nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mSource);
                 if (seekable)
                     seekable->Seek(nsISeekableStream::NS_SEEK_SET, mOffset);
@@ -186,14 +185,14 @@ nsInputStreamTransport::Read(char *buf, uint32_t count, uint32_t *result)
     }
 
     // limit amount read
-    uint32_t max = mLimit - mOffset;
+    uint64_t max = mLimit - mOffset;
     if (max == 0) {
         *result = 0;
         return NS_OK;
     }
-        
+
     if (count > max)
-        count = max;
+        count = static_cast<uint32_t>(max);
 
     nsresult rv = mSource->Read(buf, count, result);
 
@@ -232,7 +231,7 @@ class nsOutputStreamTransport : public nsITransport
                               , public nsIOutputStream
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSITRANSPORT
     NS_DECL_NSIOUTPUTSTREAM
 
@@ -249,11 +248,11 @@ public:
     {
     }
 
+private:
     virtual ~nsOutputStreamTransport()
     {
     }
 
-private:
     nsCOMPtr<nsIAsyncOutputStream>  mPipeOut;
  
     // while the copy is active, these members may only be accessed from the
@@ -270,9 +269,9 @@ private:
     bool                            mInProgress;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsOutputStreamTransport,
-                              nsITransport,
-                              nsIOutputStream)
+NS_IMPL_ISUPPORTS(nsOutputStreamTransport,
+                  nsITransport,
+                  nsIOutputStream)
 
 /** nsITransport **/
 
@@ -375,7 +374,7 @@ nsOutputStreamTransport::Write(const char *buf, uint32_t count, uint32_t *result
         mFirstTime = false;
         if (mOffset != 0) {
             // write to current position if offset equal to max
-            if (mOffset != LL_MAXUINT) {
+            if (mOffset != UINT64_MAX) {
                 nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mSink);
                 if (seekable)
                     seekable->Seek(nsISeekableStream::NS_SEEK_SET, mOffset);
@@ -386,14 +385,14 @@ nsOutputStreamTransport::Write(const char *buf, uint32_t count, uint32_t *result
     }
 
     // limit amount written
-    uint32_t max = mLimit - mOffset;
+    uint64_t max = mLimit - mOffset;
     if (max == 0) {
         *result = 0;
         return NS_OK;
     }
-        
+
     if (count > max)
-        count = max;
+        count = static_cast<uint32_t>(max);
 
     nsresult rv = mSink->Write(buf, count, result);
 
@@ -426,6 +425,38 @@ nsOutputStreamTransport::IsNonBlocking(bool *result)
     return NS_OK;
 }
 
+#ifdef MOZ_NUWA_PROCESS
+#include "ipc/Nuwa.h"
+
+class STSThreadPoolListener MOZ_FINAL : public nsIThreadPoolListener
+{
+public:
+    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_NSITHREADPOOLLISTENER
+
+    STSThreadPoolListener() {}
+    ~STSThreadPoolListener() {}
+};
+
+NS_IMPL_ISUPPORTS(STSThreadPoolListener, nsIThreadPoolListener)
+
+NS_IMETHODIMP
+STSThreadPoolListener::OnThreadCreated()
+{
+    if (IsNuwaProcess()) {
+        NuwaMarkCurrentThread(nullptr, nullptr);
+    }
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+STSThreadPoolListener::OnThreadShuttingDown()
+{
+    return NS_OK;
+}
+
+#endif	// MOZ_NUWA_PROCESS
+
 //-----------------------------------------------------------------------------
 // nsStreamTransportService
 //-----------------------------------------------------------------------------
@@ -442,10 +473,15 @@ nsStreamTransportService::Init()
     NS_ENSURE_STATE(mPool);
 
     // Configure the pool
-    mPool->SetThreadLimit(4);
-    mPool->SetIdleThreadLimit(1);
-    mPool->SetIdleThreadTimeout(PR_SecondsToInterval(60));
     mPool->SetName(NS_LITERAL_CSTRING("StreamTrans"));
+    mPool->SetThreadLimit(25);
+    mPool->SetIdleThreadLimit(1);
+    mPool->SetIdleThreadTimeout(PR_SecondsToInterval(30));
+#ifdef MOZ_NUWA_PROCESS
+    if (IsNuwaProcess()) {
+	mPool->SetListener(new STSThreadPoolListener());
+    }
+#endif
 
     nsCOMPtr<nsIObserverService> obsSvc =
         mozilla::services::GetObserverService();
@@ -454,23 +490,39 @@ nsStreamTransportService::Init()
     return NS_OK;
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(nsStreamTransportService,
-                              nsIStreamTransportService,
-                              nsIEventTarget,
-                              nsIObserver)
+NS_IMPL_ISUPPORTS(nsStreamTransportService,
+                  nsIStreamTransportService,
+                  nsIEventTarget,
+                  nsIObserver)
 
 NS_IMETHODIMP
 nsStreamTransportService::Dispatch(nsIRunnable *task, uint32_t flags)
 {
-    NS_ENSURE_TRUE(mPool, NS_ERROR_NOT_INITIALIZED);
-    return mPool->Dispatch(task, flags);
+    nsCOMPtr<nsIThreadPool> pool;
+    {
+        mozilla::MutexAutoLock lock(mShutdownLock);
+        if (mIsShutdown) {
+            return NS_ERROR_NOT_INITIALIZED;
+        }
+        pool = mPool;
+    }
+    NS_ENSURE_TRUE(pool, NS_ERROR_NOT_INITIALIZED);
+    return pool->Dispatch(task, flags);
 }
 
 NS_IMETHODIMP
 nsStreamTransportService::IsOnCurrentThread(bool *result)
 {
-    NS_ENSURE_TRUE(mPool, NS_ERROR_NOT_INITIALIZED);
-    return mPool->IsOnCurrentThread(result);
+    nsCOMPtr<nsIThreadPool> pool;
+    {
+        mozilla::MutexAutoLock lock(mShutdownLock);
+        if (mIsShutdown) {
+            return NS_ERROR_NOT_INITIALIZED;
+        }
+        pool = mPool;
+    }
+    NS_ENSURE_TRUE(pool, NS_ERROR_NOT_INITIALIZED);
+    return pool->IsOnCurrentThread(result);
 }
 
 NS_IMETHODIMP
@@ -504,39 +556,15 @@ nsStreamTransportService::CreateOutputTransport(nsIOutputStream *stream,
 }
 
 NS_IMETHODIMP
-nsStreamTransportService::RaiseThreadLimit()
-{
-    NS_ENSURE_TRUE(mPool, NS_ERROR_NOT_INITIALIZED);
-
-    uint32_t threadLimit;
-    nsresult rv = mPool->GetThreadLimit(&threadLimit);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return mPool->SetThreadLimit(threadLimit + 1);
-}
-
-NS_IMETHODIMP
-nsStreamTransportService::LowerThreadLimit()
-{
-    NS_ENSURE_TRUE(mPool, NS_ERROR_NOT_INITIALIZED);
-
-    uint32_t threadLimit;
-    nsresult rv = mPool->GetThreadLimit(&threadLimit);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (threadLimit == 4) {
-      NS_WARNING("Badly nested raise/lower thread limit!");
-      return NS_ERROR_UNEXPECTED;
-    }
-
-    return mPool->SetThreadLimit(threadLimit - 1);
-}
-
-NS_IMETHODIMP
 nsStreamTransportService::Observe(nsISupports *subject, const char *topic,
-                                  const PRUnichar *data)
+                                  const char16_t *data)
 {
   NS_ASSERTION(strcmp(topic, "xpcom-shutdown-threads") == 0, "oops");
+
+  {
+    mozilla::MutexAutoLock lock(mShutdownLock);
+    mIsShutdown = true;
+  }
 
   if (mPool) {
     mPool->Shutdown();

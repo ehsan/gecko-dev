@@ -14,47 +14,43 @@ Components.utils.import("resource://gre/modules/NetUtil.jsm", tempScope);
 let FileUtils = tempScope.FileUtils;
 let NetUtil = tempScope.NetUtil;
 
-
 function test()
 {
   waitForExplicitFinish();
 
   copy(TESTCASE_URI_HTML, "simple.html", function(htmlFile) {
     copy(TESTCASE_URI_CSS, "simple.css", function(cssFile) {
-
-      addTabAndLaunchStyleEditorChromeWhenLoaded(function (aChrome) {
-        aChrome.addChromeListener({
-          onEditorAdded: function (aChrome, aEditor) {
-            if (aEditor.styleSheetIndex != 0) {
-              return; // we want to test against the first stylesheet
-            }
-
-            if (aEditor.sourceEditor) {
-              run(aEditor); // already attached to input element
-            } else {
-              aEditor.addActionListener({
-                onAttach: run
-              });
-            }
-          }
-        });
+      addTabAndOpenStyleEditors(1, function(panel) {
+        let UI = panel.UI;
+        let editor = UI.editors[0];
+        editor.getSourceEditor().then(runTests.bind(this, editor));
       });
 
       let uri = Services.io.newFileURI(htmlFile);
       let filePath = uri.resolve("");
-
       content.location = filePath;
     });
   });
 }
 
-function run(aEditor)
+function runTests(editor)
 {
-  aEditor.saveToFile(null, function (aFile) {
-    ok(aFile, "file should get saved directly when using a file:// URI");
+  editor.sourceEditor.once("dirty-change", () => {
+    is(editor.sourceEditor.isClean(), false, "Editor is dirty.");
+    ok(editor.summary.classList.contains("unsaved"),
+       "Star icon is present in the corresponding summary.");
+  });
+  let beginCursor = {line: 0, ch: 0};
+  editor.sourceEditor.replaceText("DIRTY TEXT", beginCursor, beginCursor);
 
-    gChromeWindow.close();
+  editor.sourceEditor.once("dirty-change", () => {
+    is(editor.sourceEditor.isClean(), true, "Editor is clean.");
+    ok(!editor.summary.classList.contains("unsaved"),
+       "Star icon is not present in the corresponding summary.");
     finish();
+  });
+  editor.saveToFile(null, function (file) {
+    ok(file, "file should get saved directly when using a file:// URI");
   });
 }
 
@@ -73,7 +69,10 @@ function read(aSrcChromeURL)
   let input = channel.open();
   scriptableStream.init(input);
 
-  let data = scriptableStream.read(input.available());
+  let data = "";
+  while (input.available()) {
+    data = data.concat(scriptableStream.read(input.available()));
+  }
   scriptableStream.close();
   input.close();
 

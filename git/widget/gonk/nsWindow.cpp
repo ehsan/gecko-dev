@@ -13,31 +13,43 @@
  * limitations under the License.
  */
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
+#include "mozilla/DebugOnly.h"
+
 #include <fcntl.h>
 
 #include "android/log.h"
-#include "ui/FramebufferNativeWindow.h"
 
+#include "mozilla/dom/TabParent.h"
 #include "mozilla/Hal.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/Services.h"
 #include "mozilla/FileUtils.h"
-#include "Framebuffer.h"
+#include "mozilla/ClearOnShutdown.h"
 #include "gfxContext.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "GLContextProvider.h"
-#include "LayerManagerOGL.h"
+#include "GLContext.h"
 #include "nsAutoPtr.h"
 #include "nsAppShell.h"
 #include "nsIdleService.h"
+#include "nsIObserverService.h"
 #include "nsScreenManagerGonk.h"
 #include "nsTArray.h"
 #include "nsWindow.h"
 #include "nsIWidgetListener.h"
 #include "cutils/properties.h"
+#include "ClientLayerManager.h"
 #include "BasicLayers.h"
+#include "libdisplay/GonkDisplay.h"
+#include "pixelflinger/format.h"
+#include "mozilla/BasicEvents.h"
+#include "mozilla/gfx/2D.h"
+#include "mozilla/layers/APZCTreeManager.h"
+#include "mozilla/layers/CompositorParent.h"
+#include "ParentProcessController.h"
+#include "nsThreadUtils.h"
+#include "HwcComposer2D.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
 #define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "Gonk", ## args)
@@ -48,6 +60,7 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::hal;
+using namespace mozilla::gfx;
 using namespace mozilla::gl;
 using namespace mozilla::layers;
 using namespace mozilla::widget;
@@ -56,43 +69,13 @@ nsIntRect gScreenBounds;
 static uint32_t sScreenRotation;
 static uint32_t sPhysicalScreenRotation;
 static nsIntRect sVirtualBounds;
-static gfxMatrix sRotationMatrix;
 
-static nsRefPtr<GLContext> sGLContext;
 static nsTArray<nsWindow *> sTopWindows;
-static nsWindow *gWindowToRedraw = nullptr;
 static nsWindow *gFocusedWindow = nullptr;
-static android::FramebufferNativeWindow *gNativeWindow = nullptr;
-static bool sFramebufferOpen;
-static bool sUsingOMTC;
+static bool sUsingHwc;
 static bool sScreenInitialized;
-static nsRefPtr<gfxASurface> sOMTCSurface;
-static pthread_t sFramebufferWatchThread;
 
 namespace {
-
-static int
-CancelBufferNoop(ANativeWindow* aWindow, android_native_buffer_t* aBuffer)
-{
-    return 0;
-}
-
-android::FramebufferNativeWindow*
-NativeWindow()
-{
-    if (!gNativeWindow) {
-        // We (apparently) don't have a way to tell if allocating the
-        // fbs succeeded or failed.
-        gNativeWindow = new android::FramebufferNativeWindow();
-
-        // Bug 776742: FrambufferNativeWindow doesn't set the cancelBuffer
-        // function pointer, causing EGL to segfault when the window surface
-        // is destroyed (i.e. on process exit). This workaround stops us
-        // from hard crashing in that situation.
-        gNativeWindow->cancelBuffer = CancelBufferNoop;
-    }
-    return gNativeWindow;
-}
 
 static uint32_t
 EffectiveScreenRotation()
@@ -115,6 +98,15 @@ public:
             }
         }
 
+        // Notify observers that the screen state has just changed.
+        nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
+        if (observerService) {
+          observerService->NotifyObservers(
+            nullptr, "screen-state-changed",
+            mIsOn ? MOZ_UTF16("on") : MOZ_UTF16("off")
+          );
+        }
+
         return NS_OK;
     }
 
@@ -122,103 +114,68 @@ private:
     bool mIsOn;
 };
 
-static const char* kSleepFile = "/sys/power/wait_for_fb_sleep";
-static const char* kWakeFile = "/sys/power/wait_for_fb_wake";
+static StaticRefPtr<ScreenOnOffEvent> sScreenOnEvent;
+static StaticRefPtr<ScreenOnOffEvent> sScreenOffEvent;
 
-static void *frameBufferWatcher(void *) {
-
-    int len = 0;
-    char buf;
-
-    nsRefPtr<ScreenOnOffEvent> mScreenOnEvent = new ScreenOnOffEvent(true);
-    nsRefPtr<ScreenOnOffEvent> mScreenOffEvent = new ScreenOnOffEvent(false);
-
-    while (true) {
-        // Cannot use epoll here because kSleepFile and kWakeFile are
-        // always ready to read and blocking.
-        {
-            ScopedClose fd(open(kSleepFile, O_RDONLY, 0));
-            do {
-                len = read(fd.get(), &buf, 1);
-            } while (len < 0 && errno == EINTR);
-            NS_WARN_IF_FALSE(len >= 0, "WAIT_FOR_FB_SLEEP failed");
-            NS_DispatchToMainThread(mScreenOffEvent);
-        }
-
-        {
-            ScopedClose fd(open(kWakeFile, O_RDONLY, 0));
-            do {
-                len = read(fd.get(), &buf, 1);
-            } while (len < 0 && errno == EINTR);
-            NS_WARN_IF_FALSE(len >= 0, "WAIT_FOR_FB_WAKE failed");
-            NS_DispatchToMainThread(mScreenOnEvent);
-        }
-    }
-
-    return NULL;
+static void
+displayEnabledCallback(bool enabled)
+{
+    HwcComposer2D::GetInstance()->EnableVsync(enabled);
+    NS_DispatchToMainThread(enabled ? sScreenOnEvent : sScreenOffEvent);
 }
 
 } // anonymous namespace
 
 nsWindow::nsWindow()
 {
-    if (!sScreenInitialized) {
-        // workaround Bug 725143
-        hal::SetScreenEnabled(true);
+    mFramebuffer = nullptr;
 
-        // Watching screen on/off state by using a pthread
-        // which implicitly calls exit() when the main thread ends
-        if (pthread_create(&sFramebufferWatchThread, NULL, frameBufferWatcher, NULL)) {
-            NS_RUNTIMEABORT("Failed to create framebufferWatcherThread, aborting...");
-        }
+    if (sScreenInitialized)
+        return;
 
-        nsIntSize screenSize;
-        mozilla::DebugOnly<bool> gotFB = Framebuffer::GetSize(&screenSize);
-        MOZ_ASSERT(gotFB);
-        gScreenBounds = nsIntRect(nsIntPoint(0, 0), screenSize);
+    sScreenOnEvent = new ScreenOnOffEvent(true);
+    ClearOnShutdown(&sScreenOnEvent);
+    sScreenOffEvent = new ScreenOnOffEvent(false);
+    ClearOnShutdown(&sScreenOffEvent);
+    GetGonkDisplay()->OnEnabled(displayEnabledCallback);
 
-        char propValue[PROPERTY_VALUE_MAX];
-        property_get("ro.sf.hwrotation", propValue, "0");
-        sPhysicalScreenRotation = atoi(propValue) / 90;
+    nsIntSize screenSize;
 
-        // Unlike nsScreenGonk::SetRotation(), only support 0 and 180 as there
-        // are no known screens that are mounted at 90 or 270 at the moment.
-        switch (sPhysicalScreenRotation) {
-        case nsIScreen::ROTATION_0_DEG:
-            break;
-        case nsIScreen::ROTATION_180_DEG:
-            sRotationMatrix.Translate(gfxPoint(gScreenBounds.width,
-                                               gScreenBounds.height));
-            sRotationMatrix.Rotate(M_PI);
-            break;
-        default:
-            MOZ_NOT_REACHED("Unknown rotation");
-            break;
-        }
-        sVirtualBounds = gScreenBounds;
+    ANativeWindow *win = GetGonkDisplay()->GetNativeWindow();
 
-        sScreenInitialized = true;
-
-        nsAppShell::NotifyScreenInitialized();
-
-        // This is a hack to force initialization of the compositor
-        // resources, if we're going to use omtc.
-        //
-        // NB: GetPlatform() will create the gfxPlatform, which wants
-        // to know the color depth, which asks our native window.
-        // This has to happen after other init has finished.
-        gfxPlatform::GetPlatform();
-        sUsingOMTC = UseOffMainThreadCompositing();
-
-        if (sUsingOMTC) {
-          sOMTCSurface = new gfxImageSurface(gfxIntSize(1, 1),
-                                             gfxASurface::ImageFormatRGB24);
-        }
+    if (win->query(win, NATIVE_WINDOW_WIDTH, &screenSize.width) ||
+        win->query(win, NATIVE_WINDOW_HEIGHT, &screenSize.height)) {
+        NS_RUNTIMEABORT("Failed to get native window size, aborting...");
     }
+    gScreenBounds = nsIntRect(nsIntPoint(0, 0), screenSize);
+
+    char propValue[PROPERTY_VALUE_MAX];
+    property_get("ro.sf.hwrotation", propValue, "0");
+    sPhysicalScreenRotation = atoi(propValue) / 90;
+
+    sVirtualBounds = gScreenBounds;
+
+    sScreenInitialized = true;
+
+    nsAppShell::NotifyScreenInitialized();
+
+    // This is a hack to force initialization of the compositor
+    // resources, if we're going to use omtc.
+    //
+    // NB: GetPlatform() will create the gfxPlatform, which wants
+    // to know the color depth, which asks our native window.
+    // This has to happen after other init has finished.
+    gfxPlatform::GetPlatform();
+    if (!ShouldUseOffMainThreadCompositing()) {
+        MOZ_CRASH("How can we render apps, then?");
+    }
+    // Update sUsingHwc whenever layers.composer2d.enabled changes
+    Preferences::AddBoolVarCache(&sUsingHwc, "layers.composer2d.enabled");
 }
 
 nsWindow::~nsWindow()
 {
+    HwcComposer2D::GetInstance()->SetCompositorParent(nullptr);
 }
 
 void
@@ -229,64 +186,58 @@ nsWindow::DoDraw(void)
         return;
     }
 
-    if (!gWindowToRedraw) {
+    if (sTopWindows.IsEmpty()) {
         LOG("  no window to draw, bailing");
         return;
     }
 
-    nsIntRegion region = gWindowToRedraw->mDirtyRegion;
-    gWindowToRedraw->mDirtyRegion.SetEmpty();
+    nsWindow *targetWindow = (nsWindow *)sTopWindows[0];
+    while (targetWindow->GetLastChild())
+        targetWindow = (nsWindow *)targetWindow->GetLastChild();
 
-    LayerManager* lm = gWindowToRedraw->GetLayerManager();
-    if (mozilla::layers::LAYERS_OPENGL == lm->GetBackendType()) {
-        LayerManagerOGL* oglm = static_cast<LayerManagerOGL*>(lm);
-        oglm->SetClippingRegion(region);
-        oglm->SetWorldTransform(sRotationMatrix);
+    nsIWidgetListener* listener = targetWindow->GetWidgetListener();
+    if (listener) {
+        listener->WillPaintWindow(targetWindow);
+    }
 
-        if (nsIWidgetListener* listener = gWindowToRedraw->GetWidgetListener())
-          listener->PaintWindow(gWindowToRedraw, region, false, false);
-    } else if (mozilla::layers::LAYERS_BASIC == lm->GetBackendType()) {
-        MOZ_ASSERT(sFramebufferOpen || sUsingOMTC);
-        nsRefPtr<gfxASurface> targetSurface;
-
-        if(sUsingOMTC)
-            targetSurface = sOMTCSurface;
-        else
-            targetSurface = Framebuffer::BackBuffer();
-
-        {
-            nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
-            gfxUtils::PathFromRegion(ctx, region);
-            ctx->Clip();
-
-            // No double-buffering needed.
-            AutoLayerManagerSetup setupLayerManager(
-                gWindowToRedraw, ctx, mozilla::layers::BUFFER_NONE,
-                ScreenRotation(EffectiveScreenRotation()));
-
-            if (nsIWidgetListener* listener = gWindowToRedraw->GetWidgetListener())
-              listener->PaintWindow(gWindowToRedraw, region, false, false);
-        }
-
-        if (!sUsingOMTC) {
-            targetSurface->Flush();
-            Framebuffer::Present(region);
-        }
+    LayerManager* lm = targetWindow->GetLayerManager();
+    if (mozilla::layers::LayersBackend::LAYERS_CLIENT == lm->GetBackendType()) {
+      // No need to do anything, the compositor will handle drawing
     } else {
         NS_RUNTIMEABORT("Unexpected layer manager type");
+    }
+
+    listener = targetWindow->GetWidgetListener();
+    if (listener) {
+        listener->DidPaintWindow();
     }
 }
 
 nsEventStatus
-nsWindow::DispatchInputEvent(nsGUIEvent &aEvent)
+nsWindow::DispatchInputEvent(WidgetGUIEvent& aEvent, bool* aWasCaptured)
 {
-    if (!gFocusedWindow)
+    if (aWasCaptured) {
+        *aWasCaptured = false;
+    }
+    if (!gFocusedWindow) {
         return nsEventStatus_eIgnore;
+    }
 
     gFocusedWindow->UserActivity();
 
-    nsEventStatus status;
     aEvent.widget = gFocusedWindow;
+
+    if (TabParent* capturer = TabParent::GetEventCapturer()) {
+        bool captured = capturer->TryCapture(aEvent);
+        if (aWasCaptured) {
+            *aWasCaptured = captured;
+        }
+        if (captured) {
+            return nsEventStatus_eConsumeNoDefault;
+        }
+    }
+
+    nsEventStatus status;
     gFocusedWindow->DispatchEvent(&aEvent, status);
     return status;
 }
@@ -303,11 +254,10 @@ nsWindow::Create(nsIWidget *aParent,
 
     mBounds = aRect;
 
-    nsWindow *parent = (nsWindow *)aNativeParent;
-    mParent = parent;
+    mParent = (nsWindow *)aParent;
     mVisible = false;
 
-    if (!aNativeParent) {
+    if (!aParent) {
         mBounds = sVirtualBounds;
     }
 
@@ -323,11 +273,11 @@ nsWindow::Create(nsIWidget *aParent,
 NS_IMETHODIMP
 nsWindow::Destroy(void)
 {
+    mOnDestroyCalled = true;
     sTopWindows.RemoveElement(this);
-    if (this == gWindowToRedraw)
-        gWindowToRedraw = nullptr;
     if (this == gFocusedWindow)
         gFocusedWindow = nullptr;
+    nsBaseWidget::OnDestroy();
     return NS_OK;
 }
 
@@ -375,33 +325,34 @@ nsWindow::ConstrainPosition(bool aAllowSlop,
 }
 
 NS_IMETHODIMP
-nsWindow::Move(int32_t aX,
-               int32_t aY)
+nsWindow::Move(double aX,
+               double aY)
 {
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWindow::Resize(int32_t aWidth,
-                 int32_t aHeight,
-                 bool    aRepaint)
+nsWindow::Resize(double aWidth,
+                 double aHeight,
+                 bool   aRepaint)
 {
     return Resize(0, 0, aWidth, aHeight, aRepaint);
 }
 
 NS_IMETHODIMP
-nsWindow::Resize(int32_t aX,
-                 int32_t aY,
-                 int32_t aWidth,
-                 int32_t aHeight,
-                 bool    aRepaint)
+nsWindow::Resize(double aX,
+                 double aY,
+                 double aWidth,
+                 double aHeight,
+                 bool   aRepaint)
 {
-    mBounds = nsIntRect(aX, aY, aWidth, aHeight);
+    mBounds = nsIntRect(NSToIntRound(aX), NSToIntRound(aY),
+                        NSToIntRound(aWidth), NSToIntRound(aHeight));
     if (mWidgetListener)
-        mWidgetListener->WindowResized(this, aWidth, aHeight);
+        mWidgetListener->WindowResized(this, mBounds.width, mBounds.height);
 
-    if (aRepaint && gWindowToRedraw)
-        gWindowToRedraw->Invalidate(sVirtualBounds);
+    if (aRepaint)
+        Invalidate(sVirtualBounds);
 
     return NS_OK;
 }
@@ -437,14 +388,12 @@ nsWindow::ConfigureChildren(const nsTArray<nsIWidget::Configuration>&)
 NS_IMETHODIMP
 nsWindow::Invalidate(const nsIntRect &aRect)
 {
-    nsWindow *parent = mParent;
-    while (parent && parent != sTopWindows[0])
-        parent = parent->mParent;
-    if (parent != sTopWindows[0])
+    nsWindow *top = mParent;
+    while (top && top->mParent)
+        top = top->mParent;
+    if (top != sTopWindows[0] && this != sTopWindows[0])
         return NS_OK;
 
-    mDirtyRegion.Or(mDirtyRegion, aRect);
-    gWindowToRedraw = this;
     gDrawRequest = true;
     mozilla::NotifyEvent();
     return NS_OK;
@@ -471,15 +420,13 @@ nsWindow::GetNativeData(uint32_t aDataType)
 {
     switch (aDataType) {
     case NS_NATIVE_WINDOW:
-        return NativeWindow();
-    case NS_NATIVE_WIDGET:
-        return this;
+        return GetGonkDisplay()->GetNativeWindow();
     }
     return nullptr;
 }
 
 NS_IMETHODIMP
-nsWindow::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus)
+nsWindow::DispatchEvent(WidgetGUIEvent* aEvent, nsEventStatus& aStatus)
 {
     if (mWidgetListener)
       aStatus = mWidgetListener->HandleEvent(aEvent, mUseAttachedEvents);
@@ -496,6 +443,8 @@ nsWindow::SetInputContext(const InputContext& aContext,
 NS_IMETHODIMP_(InputContext)
 nsWindow::GetInputContext()
 {
+    // There is only one IME context on Gonk.
+    mInputContext.mNativeIMEContext = nullptr;
     return mInputContext;
 }
 
@@ -506,7 +455,7 @@ nsWindow::ReparentNativeWidget(nsIWidget* aNewParent)
 }
 
 NS_IMETHODIMP
-nsWindow::MakeFullScreen(bool aFullScreen)
+nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen*)
 {
     if (mWindowType != eWindowType_toplevel) {
         // Ignore fullscreen request for non-toplevel windows.
@@ -527,14 +476,110 @@ nsWindow::MakeFullScreen(bool aFullScreen)
     return NS_OK;
 }
 
+static gralloc_module_t const*
+gralloc_module()
+{
+    hw_module_t const *module;
+    if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module)) {
+        return nullptr;
+    }
+    return reinterpret_cast<gralloc_module_t const*>(module);
+}
+
+static SurfaceFormat
+HalFormatToSurfaceFormat(int aHalFormat, int* bytepp)
+{
+    switch (aHalFormat) {
+    case HAL_PIXEL_FORMAT_RGBA_8888:
+        *bytepp = 4;
+        return SurfaceFormat::R8G8B8A8;
+    case HAL_PIXEL_FORMAT_RGBX_8888:
+        *bytepp = 4;
+        return SurfaceFormat::R8G8B8X8;
+    case HAL_PIXEL_FORMAT_BGRA_8888:
+        *bytepp = 4;
+        return SurfaceFormat::B8G8R8A8;
+    case HAL_PIXEL_FORMAT_RGB_565:
+        *bytepp = 2;
+        return SurfaceFormat::R5G6B5;
+    default:
+        MOZ_CRASH("Unhandled HAL pixel format");
+        return SurfaceFormat::UNKNOWN; // not reached
+    }
+}
+
+TemporaryRef<DrawTarget>
+nsWindow::StartRemoteDrawing()
+{
+    GonkDisplay* display = GetGonkDisplay();
+    mFramebuffer = display->DequeueBuffer();
+    int width = mFramebuffer->width, height = mFramebuffer->height;
+    void *vaddr;
+    if (gralloc_module()->lock(gralloc_module(), mFramebuffer->handle,
+                               GRALLOC_USAGE_SW_READ_NEVER |
+                               GRALLOC_USAGE_SW_WRITE_OFTEN |
+                               GRALLOC_USAGE_HW_FB,
+                               0, 0, width, height, &vaddr)) {
+        EndRemoteDrawing();
+        return nullptr;
+    }
+    int bytepp;
+    SurfaceFormat format = HalFormatToSurfaceFormat(display->surfaceformat,
+                                                    &bytepp);
+    mFramebufferTarget = Factory::CreateDrawTargetForData(
+         BackendType::CAIRO, (uint8_t*)vaddr,
+         IntSize(width, height), mFramebuffer->stride * bytepp, format);
+    if (!mBackBuffer ||
+        mBackBuffer->GetSize() != mFramebufferTarget->GetSize() ||
+        mBackBuffer->GetFormat() != mFramebufferTarget->GetFormat()) {
+        mBackBuffer = mFramebufferTarget->CreateSimilarDrawTarget(
+            mFramebufferTarget->GetSize(), mFramebufferTarget->GetFormat());
+    }
+    return mBackBuffer;
+}
+
+void
+nsWindow::EndRemoteDrawing()
+{
+    if (mFramebufferTarget) {
+        IntSize size = mFramebufferTarget->GetSize();
+        Rect rect(0, 0, size.width, size.height);
+        RefPtr<SourceSurface> source = mBackBuffer->Snapshot();
+        mFramebufferTarget->DrawSurface(source, rect, rect);
+        gralloc_module()->unlock(gralloc_module(), mFramebuffer->handle);
+    }
+    if (mFramebuffer) {
+        GetGonkDisplay()->QueueBuffer(mFramebuffer);
+    }
+    mFramebuffer = nullptr;
+    mFramebufferTarget = nullptr;
+}
+
 float
 nsWindow::GetDPI()
 {
-    return NativeWindow()->xdpi;
+    return GetGonkDisplay()->xdpi;
+}
+
+double
+nsWindow::GetDefaultScaleInternal()
+{
+    float dpi = GetDPI();
+    // The mean pixel density for mdpi devices is 160dpi, 240dpi for hdpi,
+    // and 320dpi for xhdpi, respectively.
+    // We'll take the mid-value between these three numbers as the boundary.
+    if (dpi < 200.0) {
+        return 1.0; // mdpi devices.
+    }
+    if (dpi < 300.0) {
+        return 1.5; // hdpi devices.
+    }
+    // xhdpi devices and beyond.
+    return floor(dpi / 150.0 + 0.5);
 }
 
 LayerManager *
-nsWindow::GetLayerManager(PLayersChild* aShadowManager,
+nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
                           LayersBackend aBackendHint,
                           LayerManagerPersistence aPersistence,
                           bool* aAllowRetaining)
@@ -544,18 +589,18 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
     if (mLayerManager) {
         // This layer manager might be used for painting outside of DoDraw(), so we need
         // to set the correct rotation on it.
-        if (mLayerManager->GetBackendType() == LAYERS_BASIC) {
-            BasicLayerManager* manager =
-                static_cast<BasicLayerManager*>(mLayerManager.get());
-            manager->SetDefaultTargetConfiguration(mozilla::layers::BUFFER_NONE, 
+        if (mLayerManager->GetBackendType() == LayersBackend::LAYERS_CLIENT) {
+            ClientLayerManager* manager =
+                static_cast<ClientLayerManager*>(mLayerManager.get());
+            manager->SetDefaultTargetConfiguration(mozilla::layers::BufferMode::BUFFER_NONE,
                                                    ScreenRotation(EffectiveScreenRotation()));
         }
         return mLayerManager;
     }
 
-    // Set mUseAcceleratedRendering here to make it consistent with
+    // Set mUseLayersAcceleration here to make it consistent with
     // nsBaseWidget::GetLayerManager
-    mUseAcceleratedRendering = GetShouldAccelerate();
+    mUseLayersAcceleration = ComputeShouldAccelerate(mUseLayersAcceleration);
     nsWindow *topWindow = sTopWindows[0];
 
     if (!topWindow) {
@@ -563,58 +608,15 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
         return nullptr;
     }
 
-    if (sUsingOMTC) {
-        CreateCompositor();
-        if (mLayerManager)
-            return mLayerManager;
+    CreateCompositor();
+    if (mCompositorParent) {
+        uint64_t rootLayerTreeId = mCompositorParent->RootLayerTreeId();
+        CompositorParent::SetControllerForLayerTree(rootLayerTreeId, new ParentProcessController());
+        CompositorParent::GetAPZCTreeManager(rootLayerTreeId)->SetDPI(GetDPI());
+        HwcComposer2D::GetInstance()->SetCompositorParent(mCompositorParent);
     }
-
-    if (mUseAcceleratedRendering) {
-        DebugOnly<nsIntRect> fbBounds = gScreenBounds;
-        if (!sGLContext) {
-            sGLContext = GLContextProvider::CreateForWindow(this);
-        }
-
-        MOZ_ASSERT(fbBounds.value == gScreenBounds);
-        if (sGLContext) {
-            nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(this);
-
-            if (layerManager->Initialize(sGLContext)) {
-                mLayerManager = layerManager;
-                return mLayerManager;
-            } else {
-                LOGW("Could not create OGL LayerManager");
-            }
-        } else {
-            LOGW("GL context was not created");
-        }
-    }
-
-    // Fall back to software rendering.
-    sFramebufferOpen = Framebuffer::Open();
-    if (sFramebufferOpen) {
-        LOG("Falling back to framebuffer software rendering");
-    } else {
-        LOGE("Failed to mmap fb(?!?), aborting ...");
-        NS_RUNTIMEABORT("Can't open GL context and can't fall back on /dev/graphics/fb0 ...");
-    }
-
-    mLayerManager = new BasicShadowLayerManager(this);
-    mUseAcceleratedRendering = false;
-
+    MOZ_ASSERT(mLayerManager);
     return mLayerManager;
-}
-
-gfxASurface *
-nsWindow::GetThebesSurface()
-{
-    /* This is really a dummy surface; this is only used when doing reflow, because
-     * we need a RenderingContext to measure text against.
-     */
-
-    // XXX this really wants to return already_AddRefed, but this only really gets used
-    // on direct assignment to a gfxASurface
-    return new gfxImageSurface(gfxIntSize(5,5), gfxImageSurface::ImageFormatRGB24);
 }
 
 void
@@ -649,7 +651,7 @@ uint32_t
 nsWindow::GetGLFrameBufferFormat()
 {
     if (mLayerManager &&
-        mLayerManager->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
+        mLayerManager->GetBackendType() == mozilla::layers::LayersBackend::LAYERS_OPENGL) {
         // We directly map the hardware fb on Gonk.  The hardware fb
         // has RGB format.
         return LOCAL_GL_RGB;
@@ -672,6 +674,20 @@ nsWindow::NeedsPaint()
   return nsIWidget::NeedsPaint();
 }
 
+Composer2D*
+nsWindow::GetComposer2D()
+{
+    if (!sUsingHwc) {
+        return nullptr;
+    }
+
+    if (HwcComposer2D* hwc = HwcComposer2D::GetInstance()) {
+        return hwc->Initialized() ? hwc : nullptr;
+    }
+
+    return nullptr;
+}
+
 // nsScreenGonk.cpp
 
 nsScreenGonk::nsScreenGonk(void *nativeScreen)
@@ -680,6 +696,13 @@ nsScreenGonk::nsScreenGonk(void *nativeScreen)
 
 nsScreenGonk::~nsScreenGonk()
 {
+}
+
+NS_IMETHODIMP
+nsScreenGonk::GetId(uint32_t *outId)
+{
+    *outId = 1;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -705,7 +728,7 @@ nsScreenGonk::GetAvailRect(int32_t *outLeft,  int32_t *outTop,
 static uint32_t
 ColorDepth()
 {
-    switch (NativeWindow()->getDevice()->format) {
+    switch (GetGonkDisplay()->surfaceformat) {
     case GGL_PIXEL_FORMAT_RGB_565:
         return 16;
     case GGL_PIXEL_FORMAT_RGBA_8888:
@@ -746,9 +769,6 @@ nsScreenGonk::SetRotation(uint32_t aRotation)
         return NS_OK;
 
     sScreenRotation = aRotation;
-    sRotationMatrix =
-        ComputeGLTransformForRotation(gScreenBounds,
-                                      ScreenRotation(EffectiveScreenRotation()));
     uint32_t rotation = EffectiveScreenRotation();
     if (rotation == nsIScreen::ROTATION_90_DEG ||
         rotation == nsIScreen::ROTATION_270_DEG) {
@@ -758,12 +778,12 @@ nsScreenGonk::SetRotation(uint32_t aRotation)
         sVirtualBounds = gScreenBounds;
     }
 
+    nsAppShell::NotifyScreenRotation();
+
     for (unsigned int i = 0; i < sTopWindows.Length(); i++)
         sTopWindows[i]->Resize(sVirtualBounds.width,
                                sVirtualBounds.height,
-                               !i);
-
-    nsAppShell::NotifyScreenRotation();
+                               true);
 
     return NS_OK;
 }
@@ -790,8 +810,7 @@ ComputeOrientation(uint32_t aRotation, const nsIntSize& aScreenSize)
         return (naturallyPortrait ? eScreenOrientation_LandscapeSecondary : 
                 eScreenOrientation_PortraitSecondary);
     default:
-        MOZ_NOT_REACHED("Gonk screen must always have a known rotation");
-        return eScreenOrientation_None;
+        MOZ_CRASH("Gonk screen must always have a known rotation");
     }
 }
 
@@ -813,7 +832,7 @@ nsScreenGonk::GetConfiguration()
                                colorDepth, colorDepth);
 }
 
-NS_IMPL_ISUPPORTS1(nsScreenManagerGonk, nsIScreenManager)
+NS_IMPL_ISUPPORTS(nsScreenManagerGonk, nsIScreenManager)
 
 nsScreenManagerGonk::nsScreenManagerGonk()
 {
@@ -829,6 +848,13 @@ nsScreenManagerGonk::GetPrimaryScreen(nsIScreen **outScreen)
 {
     NS_IF_ADDREF(*outScreen = mOneScreen.get());
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsScreenManagerGonk::ScreenForId(uint32_t aId,
+                                 nsIScreen **outScreen)
+{
+    return GetPrimaryScreen(outScreen);
 }
 
 NS_IMETHODIMP
@@ -851,5 +877,12 @@ NS_IMETHODIMP
 nsScreenManagerGonk::GetNumberOfScreens(uint32_t *aNumberOfScreens)
 {
     *aNumberOfScreens = 1;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsScreenManagerGonk::GetSystemDefaultScale(float *aDefaultScale)
+{
+    *aDefaultScale = 1.0f;
     return NS_OK;
 }

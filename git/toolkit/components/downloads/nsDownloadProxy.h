@@ -16,12 +16,20 @@
 #define PREF_BDM_SHOWWHENSTARTING "browser.download.manager.showWhenStarting"
 #define PREF_BDM_FOCUSWHENSTARTING "browser.download.manager.focusWhenStarting"
 
+// This class only exists because nsDownload cannot inherit from nsITransfer
+// directly. The reason for this is that nsDownloadManager (incorrectly) keeps
+// an nsCOMArray of nsDownloads, and nsCOMArray is only intended for use with
+// abstract classes. Using a concrete class that multiply inherits from classes
+// deriving from nsISupports will throw ambiguous base class errors.
 class nsDownloadProxy : public nsITransfer
 {
+protected:
+
+  virtual ~nsDownloadProxy() { }
+
 public:
 
   nsDownloadProxy() { }
-  virtual ~nsDownloadProxy() { }
 
   NS_DECL_ISUPPORTS
 
@@ -31,14 +39,16 @@ public:
                      nsIMIMEInfo *aMIMEInfo,
                      PRTime aStartTime,
                      nsIFile* aTempFile,
-                     nsICancelable* aCancelable) {
+                     nsICancelable* aCancelable,
+                     bool aIsPrivate) {
     nsresult rv;
     nsCOMPtr<nsIDownloadManager> dm = do_GetService("@mozilla.org/download-manager;1", &rv);
     NS_ENSURE_SUCCESS(rv, rv);
     
     rv = dm->AddDownload(nsIDownloadManager::DOWNLOAD_TYPE_DOWNLOAD, aSource,
                          aTarget, aDisplayName, aMIMEInfo, aStartTime,
-                         aTempFile, aCancelable, getter_AddRefs(mInner));
+                         aTempFile, aCancelable, aIsPrivate,
+                         getter_AddRefs(mInner));
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIPrefService> prefs = do_GetService("@mozilla.org/preferences-service;1", &rv);
@@ -50,9 +60,6 @@ public:
       branch->GetBoolPref(PREF_BDM_SHOWWHENSTARTING, &showDM);
 
     if (showDM) {
-      uint32_t id;
-      mInner->GetId(&id);
-
       nsCOMPtr<nsIDownloadManagerUI> dmui =
         do_GetService("@mozilla.org/download-manager-ui;1", &rv);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -68,7 +75,7 @@ public:
       if (visible && !focusWhenStarting)
         return NS_OK;
 
-      return dmui->Show(nullptr, id, nsIDownloadManagerUI::REASON_NEW_DOWNLOAD);
+      return dmui->Show(nullptr, mInner, nsIDownloadManagerUI::REASON_NEW_DOWNLOAD, aIsPrivate);
     }
     return rv;
   }
@@ -83,7 +90,7 @@ public:
   
   NS_IMETHODIMP OnStatusChange(nsIWebProgress *aWebProgress,
                                nsIRequest *aRequest, nsresult aStatus,
-                               const PRUnichar *aMessage)
+                               const char16_t *aMessage)
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnStatusChange(aWebProgress, aRequest, aStatus, aMessage);
@@ -144,11 +151,29 @@ public:
     return mInner->OnSecurityChange(aWebProgress, aRequest, aState);
   }
 
+  NS_IMETHODIMP SetSha256Hash(const nsACString& aHash)
+  {
+    NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
+    return mInner->SetSha256Hash(aHash);
+  }
+
+  NS_IMETHODIMP SetSignatureInfo(nsIArray* aSignatureInfo)
+  {
+    NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
+    return mInner->SetSignatureInfo(aSignatureInfo);
+  }
+
+  NS_IMETHODIMP SetRedirects(nsIArray* aRedirects)
+  {
+    NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
+    return mInner->SetRedirects(aRedirects);
+  }
+
 private:
   nsCOMPtr<nsIDownload> mInner;
 };
 
-NS_IMPL_ISUPPORTS3(nsDownloadProxy, nsITransfer,
-                   nsIWebProgressListener, nsIWebProgressListener2)
+NS_IMPL_ISUPPORTS(nsDownloadProxy, nsITransfer,
+                  nsIWebProgressListener, nsIWebProgressListener2)
 
 #endif

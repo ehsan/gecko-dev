@@ -35,6 +35,7 @@ load 385226-1.xhtml
 load 393760-1.xhtml
 load 397518-1.xhtml
 load 398038-1.html
+load 400157.xhtml
 load 400475-1.xhtml
 load 402400-1.xhtml
 load 403156-1.xhtml
@@ -55,4 +56,11 @@ load 541620-1.xhtml
 load 557474-1.html
 load 654928-1.html
 load 655451-1.xhtml
+load 713606-1.html
 load 716349-1.html
+load 947557-1.html
+test-pref(layout.css.sticky.enabled,true) load 973322-1.xhtml
+load 848725-1.html
+load 848725-2.html
+load 1028521-1.xhtml
+load 1061027.html

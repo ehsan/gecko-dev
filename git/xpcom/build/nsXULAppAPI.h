@@ -6,15 +6,17 @@
 #ifndef _nsXULAppAPI_h__
 #define _nsXULAppAPI_h__
 
-#include "prtypes.h"
 #include "nsID.h"
 #include "xrecore.h"
 #include "nsXPCOM.h"
 #include "nsISupports.h"
 #include "prlog.h"
 #include "nsXREAppData.h"
+#include "js/TypeDecls.h"
 
+#include "mozilla/ArrayUtils.h"
 #include "mozilla/Assertions.h"
+#include "mozilla/Vector.h"
 
 /**
  * A directory service key which provides the platform-correct "application
@@ -125,6 +127,21 @@
 #define XRE_UPDATE_ROOT_DIR "UpdRootD"
 
 /**
+ * A directory service key which provides an alternate location
+ * to UpdRootD to  to store large files. This key is currently
+ * only implemented in the Gonk directory service provider.
+ */
+
+#define XRE_UPDATE_ARCHIVE_DIR "UpdArchD"
+
+/**
+ * A directory service key which provides the directory where an OS update is
+*  applied.
+ * At present this is supported only in Gonk.
+ */
+#define XRE_OS_UPDATE_APPLY_TO_DIR "OSUpdApplyToD"
+
+/**
  * Platform flag values for XRE_main.
  *
  * XRE_MAIN_FLAG_USE_METRO - On Windows, use the winrt backend. Defaults
@@ -160,16 +177,16 @@ XRE_API(int,
  * @note Pass UTF8 strings on Windows... native charset on other platforms.
  */
 XRE_API(nsresult,
-        XRE_GetFileFromPath, (const char *aPath, nsIFile* *aResult))
+        XRE_GetFileFromPath, (const char* aPath, nsIFile** aResult))
 
 /**
  * Get the path of the running application binary and store it in aResult.
- * @param argv0   The value passed as argv[0] of main(). This value is only
+ * @param aArgv0  The value passed as argv[0] of main(). This value is only
  *                used on *nix, and only when other methods of determining
  *                the binary path have failed.
  */
 XRE_API(nsresult,
-        XRE_GetBinaryPath, (const char *argv0, nsIFile* *aResult))
+        XRE_GetBinaryPath, (const char* aArgv0, nsIFile** aResult))
 
 /**
  * Get the static module built in to libxul.
@@ -186,7 +203,7 @@ XRE_API(const mozilla::Module*,
  */
 XRE_API(nsresult,
         XRE_LockProfileDirectory, (nsIFile* aDirectory,
-                                   nsISupports* *aLockObject))
+                                   nsISupports** aLockObject))
 
 /**
  * Initialize libXUL for embedding purposes.
@@ -209,9 +226,9 @@ XRE_API(nsresult,
  */
 
 XRE_API(nsresult,
-        XRE_InitEmbedding2, (nsIFile *aLibXULDirectory,
-                             nsIFile *aAppDirectory,
-                             nsIDirectoryServiceProvider *aAppDirProvider))
+        XRE_InitEmbedding2, (nsIFile* aLibXULDirectory,
+                             nsIFile* aAppDirectory,
+                             nsIDirectoryServiceProvider* aAppDirProvider))
 
 /**
  * Register static XPCOM component information.
@@ -313,7 +330,7 @@ XRE_API(void,
  */
 XRE_API(nsresult,
         XRE_CreateAppData, (nsIFile* aINIFile,
-                            nsXREAppData **aAppData))
+                            nsXREAppData** aAppData))
 
 /**
  * Parse an INI file (application.ini or override.ini) into an existing
@@ -324,21 +341,24 @@ XRE_API(nsresult,
  */
 XRE_API(nsresult,
         XRE_ParseAppData, (nsIFile* aINIFile,
-                           nsXREAppData *aAppData))
+                           nsXREAppData* aAppData))
 
 /**
  * Free a nsXREAppData structure that was allocated with XRE_CreateAppData.
  */
 XRE_API(void,
-        XRE_FreeAppData, (nsXREAppData *aAppData))
+        XRE_FreeAppData, (nsXREAppData* aAppData))
 
-enum GeckoProcessType {
+enum GeckoProcessType
+{
   GeckoProcessType_Default = 0,
 
   GeckoProcessType_Plugin,
   GeckoProcessType_Content,
 
   GeckoProcessType_IPDLUnitTest,
+
+  GeckoProcessType_GMPlugin, // Gecko Media Plugin
 
   GeckoProcessType_End,
   GeckoProcessType_Invalid = GeckoProcessType_End
@@ -348,21 +368,19 @@ static const char* const kGeckoProcessTypeString[] = {
   "default",
   "plugin",
   "tab",
-  "ipdlunittest"
+  "ipdlunittest",
+  "geckomediaplugin"
 };
 
-// Oddly, NS_ARRAY_LENGTH causes an internal compiler error with MSVC10, so
-// compute the length manually.
-MOZ_STATIC_ASSERT(sizeof(kGeckoProcessTypeString) /
-                  sizeof(kGeckoProcessTypeString[0]) ==
-                  GeckoProcessType_End,
-                  "Array length mismatch");
+static_assert(MOZ_ARRAY_LENGTH(kGeckoProcessTypeString) ==
+              GeckoProcessType_End,
+              "Array length mismatch");
 
 XRE_API(const char*,
         XRE_ChildProcessTypeToString, (GeckoProcessType aProcessType))
 
-XRE_API(GeckoProcessType,
-        XRE_StringToChildProcessType, (const char* aProcessTypeString))
+XRE_API(void,
+        XRE_SetProcessType, (const char* aProcessTypeString))
 
 #if defined(MOZ_CRASHREPORTER)
 // Used in the "master" parent process hosting the crash server
@@ -375,10 +393,16 @@ XRE_API(bool,
         XRE_SetRemoteExceptionHandler, (const char* aPipe))
 #endif
 
+namespace mozilla {
+namespace gmp {
+class GMPLoader;
+} // namespace gmp
+} // namepsace mozilla
+
 XRE_API(nsresult,
         XRE_InitChildProcess, (int aArgc,
                                char* aArgv[],
-                               GeckoProcessType aProcess))
+                               mozilla::gmp::GMPLoader* aGMPLoader))
 
 XRE_API(GeckoProcessType,
         XRE_GetProcessType, ())
@@ -412,30 +436,15 @@ XRE_API(void,
 XRE_API(MessageLoop*,
         XRE_GetIOMessageLoop, ())
 
-struct JSContext;
-class JSString;
-
 XRE_API(bool,
         XRE_SendTestShellCommand, (JSContext* aCx,
                                    JSString* aCommand,
                                    void* aCallback))
-struct JSObject;
-
-XRE_API(bool,
-        XRE_GetChildGlobalObject, (JSContext* aCx,
-                                   JSObject** globalp))
-
 XRE_API(bool,
         XRE_ShutdownTestShell, ())
 
 XRE_API(void,
         XRE_InstallX11ErrorHandler, ())
-
-#if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
-#define XRE_HAS_DLL_BLOCKLIST
-XRE_API(void,
-        XRE_SetupDllBlocklist, ())
-#endif
 
 XRE_API(void,
         XRE_TelemetryAccumulate, (int aID, uint32_t aSample))
@@ -444,14 +453,17 @@ XRE_API(void,
         XRE_StartupTimelineRecord, (int aEvent, PRTime aWhen))
 
 XRE_API(void,
-        XRE_InitOmnijar, (nsIFile* greOmni,
-                          nsIFile* appOmni))
+        XRE_InitOmnijar, (nsIFile* aGreOmni,
+                          nsIFile* aAppOmni))
+XRE_API(void,
+        XRE_StopLateWriteChecks, (void))
 
 #ifdef XP_WIN
 /**
  * Valid environment types for XRE_GetWindowsEnvironment.
  */
-enum WindowsEnvironmentType {
+enum WindowsEnvironmentType
+{
   WindowsEnvironmentType_Desktop = 0,
   WindowsEnvironmentType_Metro = 1
 };
@@ -463,5 +475,20 @@ enum WindowsEnvironmentType {
 XRE_API(WindowsEnvironmentType,
         XRE_GetWindowsEnvironment, ())
 #endif // XP_WIN
+
+#ifdef MOZ_B2G_LOADER
+XRE_API(int,
+        XRE_ProcLoaderServiceRun, (pid_t, int, int argc, const char* argv[],
+                                   mozilla::Vector<int>& aReservedFds));
+XRE_API(void,
+        XRE_ProcLoaderClientInit, (pid_t, int,
+                                   mozilla::Vector<int>& aReservedFds));
+XRE_API(void,
+        XRE_ProcLoaderPreload, (const char* aProgramDir,
+                                const nsXREAppData* aAppData));
+#endif // MOZ_B2G_LOADER
+
+XRE_API(int,
+        XRE_XPCShellMain, (int argc, char** argv, char** envp))
 
 #endif // _nsXULAppAPI_h__

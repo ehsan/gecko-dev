@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -34,9 +34,6 @@ let observer = {
   _itemAddedIndex: null,
   _itemAddedType: null,
 
-  onBeforeItemRemoved: function(id) {
-  },
-
   onItemRemoved: function(id, folder, index, itemType) {
     this._itemRemovedId = id;
     this._itemRemovedFolder = folder;
@@ -48,6 +45,10 @@ let observer = {
 
   onItemChanged: function(id, property, isAnnotationProperty, newValue,
                           lastModified, itemType) {
+    // The transaction manager is being rewritten in bug 891303, so just
+    // skip checking this for now.
+    if (property == "tags")
+      return;
     this._itemChangedId = id;
     this._itemChangedProperty = property;
     this._itemChanged_isAnnotationProperty = isAnnotationProperty;
@@ -119,8 +120,8 @@ add_test(function test_create_folder_with_description() {
 
   // This checks that calling undoTransaction on an "empty batch" doesn't
   // undo the previous transaction (getItemTitle will fail)
-  txnManager.beginBatch();
-  txnManager.endBatch();
+  txnManager.beginBatch(null);
+  txnManager.endBatch(false);
   txnManager.undoTransaction();
 
   let folderId = observer._itemAddedId;
@@ -476,31 +477,41 @@ add_test(function test_editing_item_title() {
 });
 
 add_test(function test_editing_item_uri() {
-  const OLD_TEST_URL = "http://old.test_editing_item_uri.com/";
-  const NEW_TEST_URL = "http://new.test_editing_item_uri.com/";
-  let testBkmId = bmsvc.insertBookmark(root, NetUtil.newURI(OLD_TEST_URL), bmsvc.DEFAULT_INDEX, "Test editing item title");
+  const OLD_TEST_URI = NetUtil.newURI("http://old.test_editing_item_uri.com/");
+  const NEW_TEST_URI = NetUtil.newURI("http://new.test_editing_item_uri.com/");
+  let testBkmId = bmsvc.insertBookmark(root, OLD_TEST_URI, bmsvc.DEFAULT_INDEX,
+                                       "Test editing item title");
+  tagssvc.tagURI(OLD_TEST_URI, ["tag"]);
 
-  let txn = new PlacesEditBookmarkURITransaction(testBkmId, NetUtil.newURI(NEW_TEST_URL));
+  let txn = new PlacesEditBookmarkURITransaction(testBkmId, NEW_TEST_URI);
 
   txn.doTransaction();
   do_check_eq(observer._itemChangedId, testBkmId);
   do_check_eq(observer._itemChangedProperty, "uri");
-  do_check_eq(observer._itemChangedValue, NEW_TEST_URL);
+  do_check_eq(observer._itemChangedValue, NEW_TEST_URI.spec);
+  do_check_eq(JSON.stringify(tagssvc.getTagsForURI(NEW_TEST_URI)), JSON.stringify(["tag"]));
+  do_check_eq(JSON.stringify(tagssvc.getTagsForURI(OLD_TEST_URI)), JSON.stringify([]));
 
   txn.undoTransaction();
   do_check_eq(observer._itemChangedId, testBkmId);
   do_check_eq(observer._itemChangedProperty, "uri");
-  do_check_eq(observer._itemChangedValue, OLD_TEST_URL);
+  do_check_eq(observer._itemChangedValue, OLD_TEST_URI.spec);
+  do_check_eq(JSON.stringify(tagssvc.getTagsForURI(OLD_TEST_URI)), JSON.stringify(["tag"]));
+  do_check_eq(JSON.stringify(tagssvc.getTagsForURI(NEW_TEST_URI)), JSON.stringify([]));
 
   txn.redoTransaction();
   do_check_eq(observer._itemChangedId, testBkmId);
   do_check_eq(observer._itemChangedProperty, "uri");
-  do_check_eq(observer._itemChangedValue, NEW_TEST_URL);
+  do_check_eq(observer._itemChangedValue, NEW_TEST_URI.spec);
+  do_check_eq(JSON.stringify(tagssvc.getTagsForURI(NEW_TEST_URI)), JSON.stringify(["tag"]));
+  do_check_eq(JSON.stringify(tagssvc.getTagsForURI(OLD_TEST_URI)), JSON.stringify([]));
 
   txn.undoTransaction();
   do_check_eq(observer._itemChangedId, testBkmId);
   do_check_eq(observer._itemChangedProperty, "uri");
-  do_check_eq(observer._itemChangedValue, OLD_TEST_URL);
+  do_check_eq(observer._itemChangedValue, OLD_TEST_URI.spec);
+  do_check_eq(JSON.stringify(tagssvc.getTagsForURI(OLD_TEST_URI)), JSON.stringify(["tag"]));
+  do_check_eq(JSON.stringify(tagssvc.getTagsForURI(NEW_TEST_URI)), JSON.stringify([]));
 
   run_next_test();
 });
@@ -639,26 +650,25 @@ add_test(function test_edit_item_last_modified() {
 add_test(function test_generic_page_annotation() {
   const TEST_ANNO = "testAnno/testInt";
   let testURI = NetUtil.newURI("http://www.mozilla.org/");
-  let history = PlacesUtils.history;
-  history.addVisit(testURI, Date.now() * 1000, null, history.TRANSITION_TYPED, false, 0);
+  promiseAddVisits(testURI).then(function () {
+    let pageAnnoObj = { name: TEST_ANNO,
+                        type: Ci.nsIAnnotationService.TYPE_INT32,
+                        flags: 0,
+                        value: 123,
+                        expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
+    let txn = new PlacesSetPageAnnotationTransaction(testURI, pageAnnoObj);
 
-  let pageAnnoObj = { name: TEST_ANNO,
-                      type: Ci.nsIAnnotationService.TYPE_INT32,
-                      flags: 0,
-                      value: 123,
-                      expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
-  let txn = new PlacesSetPageAnnotationTransaction(testURI, pageAnnoObj);
+    txn.doTransaction();
+    do_check_true(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
 
-  txn.doTransaction();
-  do_check_true(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
+    txn.undoTransaction();
+    do_check_false(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
 
-  txn.undoTransaction();
-  do_check_false(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
+    txn.redoTransaction();
+    do_check_true(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
 
-  txn.redoTransaction();
-  do_check_true(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
-
-  run_next_test();
+    run_next_test();
+  });
 });
 
 add_test(function test_sort_folder_by_name() {

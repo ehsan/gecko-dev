@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -20,13 +20,12 @@ function onLoad()
  
   var isupports = pkiParams.getISupportAtIndex(1);
   cert = isupports.QueryInterface(nsIX509Cert); 
-  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
+  var bundle = document.getElementById("pippki_bundle");
   var dispName = cert.commonName;
   if (dispName == null)
     dispName = cert.windowTitle;
 
-  var msg = bundle.formatStringFromName("escrowFinalMessage",
-                                        [dispName], 1);
+  var msg = bundle.getFormattedString("escrowFinalMessage", [dispName]);
   setText("message1",msg);
 }
 

@@ -16,15 +16,16 @@
 #include "mozilla/IHistory.h"
 #include "mozIStorageConnection.h"
 #include "mozIStorageStatement.h"
+#include "mozIStorageAsyncStatement.h"
+#include "mozIStorageStatementCallback.h"
+#include "mozIStoragePendingStatement.h"
 #include "nsPIPlacesDatabase.h"
 #include "nsIObserver.h"
 #include "prinrval.h"
 #include "mozilla/Attributes.h"
 
-#define TOPIC_FRECENCY_UPDATED "places-frecency-updated"
 #define WAITFORTOPIC_TIMEOUT_SECONDS 5
 
-using namespace mozilla;
 
 static size_t gTotalTests = 0;
 static size_t gPassedTests = 0;
@@ -101,7 +102,7 @@ class WaitForTopicSpinner MOZ_FINAL : public nsIObserver
 public:
   NS_DECL_ISUPPORTS
 
-  WaitForTopicSpinner(const char* const aTopic)
+  explicit WaitForTopicSpinner(const char* const aTopic)
   : mTopicReceived(false)
   , mStartTime(PR_IntervalNow())
   {
@@ -124,7 +125,7 @@ public:
 
   NS_IMETHOD Observe(nsISupports* aSubject,
                      const char* aTopic,
-                     const PRUnichar* aData)
+                     const char16_t* aData)
   {
     mTopicReceived = true;
     nsCOMPtr<nsIObserverService> observerService =
@@ -135,36 +136,72 @@ public:
   }
 
 private:
+  ~WaitForTopicSpinner() {}
+
   bool mTopicReceived;
   PRIntervalTime mStartTime;
 };
-NS_IMPL_ISUPPORTS1(
+NS_IMPL_ISUPPORTS(
   WaitForTopicSpinner,
   nsIObserver
 )
 
 /**
- * Adds a URI to the database.
- *
- * @param aURI
- *        The URI to add to the database.
+ * Spins current thread until an async statement is executed.
  */
-void
-addURI(nsIURI* aURI)
+class AsyncStatementSpinner MOZ_FINAL : public mozIStorageStatementCallback
 {
-  nsRefPtr<WaitForTopicSpinner> spinner =
-    new WaitForTopicSpinner(TOPIC_FRECENCY_UPDATED);
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_MOZISTORAGESTATEMENTCALLBACK
 
-  nsCOMPtr<nsINavHistoryService> hist =
-    do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID);
-  int64_t id;
-  nsresult rv = hist->AddVisit(aURI, PR_Now(), nullptr,
-                               nsINavHistoryService::TRANSITION_LINK, false,
-                               0, &id);
-  do_check_success(rv);
+  AsyncStatementSpinner();
+  void SpinUntilCompleted();
+  uint16_t completionReason;
 
-  // Wait for frecency update.
-  spinner->Spin();
+protected:
+  ~AsyncStatementSpinner() {}
+
+  volatile bool mCompleted;
+};
+
+NS_IMPL_ISUPPORTS(AsyncStatementSpinner,
+                  mozIStorageStatementCallback)
+
+AsyncStatementSpinner::AsyncStatementSpinner()
+: completionReason(0)
+, mCompleted(false)
+{
+}
+
+NS_IMETHODIMP
+AsyncStatementSpinner::HandleResult(mozIStorageResultSet *aResultSet)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+AsyncStatementSpinner::HandleError(mozIStorageError *aError)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+AsyncStatementSpinner::HandleCompletion(uint16_t aReason)
+{
+  completionReason = aReason;
+  mCompleted = true;
+  return NS_OK;
+}
+
+void AsyncStatementSpinner::SpinUntilCompleted()
+{
+  nsCOMPtr<nsIThread> thread(::do_GetCurrentThread());
+  nsresult rv = NS_OK;
+  bool processed = true;
+  while (!mCompleted && NS_SUCCEEDED(rv)) {
+    rv = thread->ProcessNextEvent(true, &processed);
+  }
 }
 
 struct PlaceRecord
@@ -183,10 +220,10 @@ struct VisitRecord
   int32_t transitionType;
 };
 
-already_AddRefed<IHistory>
+already_AddRefed<mozilla::IHistory>
 do_get_IHistory()
 {
-  nsCOMPtr<IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
+  nsCOMPtr<mozilla::IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
   do_check_true(history);
   return history.forget();
 }
@@ -207,10 +244,10 @@ do_get_db()
   nsCOMPtr<nsPIPlacesDatabase> database = do_QueryInterface(history);
   do_check_true(database);
 
-  mozIStorageConnection* dbConn;
-  nsresult rv = database->GetDBConnection(&dbConn);
+  nsCOMPtr<mozIStorageConnection> dbConn;
+  nsresult rv = database->GetDBConnection(getter_AddRefs(dbConn));
   do_check_success(rv);
-  return dbConn;
+  return dbConn.forget();
 }
 
 /**
@@ -297,12 +334,50 @@ do_get_lastVisit(int64_t placeId, VisitRecord& result)
   do_check_success(rv);
 }
 
+void
+do_wait_async_updates() {
+  nsCOMPtr<mozIStorageConnection> db = do_get_db();
+  nsCOMPtr<mozIStorageAsyncStatement> stmt;
+
+  db->CreateAsyncStatement(NS_LITERAL_CSTRING("BEGIN EXCLUSIVE"),
+                           getter_AddRefs(stmt));
+  nsCOMPtr<mozIStoragePendingStatement> pending;
+  (void)stmt->ExecuteAsync(nullptr, getter_AddRefs(pending));
+
+  db->CreateAsyncStatement(NS_LITERAL_CSTRING("COMMIT"),
+                           getter_AddRefs(stmt));
+  nsRefPtr<AsyncStatementSpinner> spinner = new AsyncStatementSpinner();
+  (void)stmt->ExecuteAsync(spinner, getter_AddRefs(pending));
+
+  spinner->SpinUntilCompleted();
+}
+
+/**
+ * Adds a URI to the database.
+ *
+ * @param aURI
+ *        The URI to add to the database.
+ */
+void
+addURI(nsIURI* aURI)
+{
+  nsCOMPtr<mozilla::IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
+  do_check_true(history);
+  nsresult rv = history->VisitURI(aURI, nullptr, mozilla::IHistory::TOP_LEVEL);
+  do_check_success(rv);
+
+  do_wait_async_updates();
+}
+
 static const char TOPIC_PROFILE_CHANGE[] = "profile-before-change";
 static const char TOPIC_PLACES_CONNECTION_CLOSED[] = "places-connection-closed";
 
 class WaitForConnectionClosed MOZ_FINAL : public nsIObserver
 {
   nsRefPtr<WaitForTopicSpinner> mSpinner;
+
+  ~WaitForConnectionClosed() {}
+
 public:
   NS_DECL_ISUPPORTS
 
@@ -319,7 +394,7 @@ public:
 
   NS_IMETHOD Observe(nsISupports* aSubject,
                      const char* aTopic,
-                     const PRUnichar* aData)
+                     const char16_t* aData)
   {
     nsCOMPtr<nsIObserverService> os =
       do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
@@ -334,4 +409,4 @@ public:
   }
 };
 
-NS_IMPL_ISUPPORTS1(WaitForConnectionClosed, nsIObserver)
+NS_IMPL_ISUPPORTS(WaitForConnectionClosed, nsIObserver)

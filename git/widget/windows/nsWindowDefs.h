@@ -33,13 +33,21 @@
 #define MOZ_WM_HSCROLL                    (WM_APP+0x0313)
 #define MOZ_WM_MOUSEWHEEL_FIRST           MOZ_WM_MOUSEVWHEEL
 #define MOZ_WM_MOUSEWHEEL_LAST            MOZ_WM_HSCROLL
+// If a popup window is being activated, we try to reactivate the previous
+// window with this message.
+#define MOZ_WM_REACTIVATE                 (WM_APP+0x0314)
 
 // Internal message for ensuring the file picker is visible on multi monitor
 // systems, and when the screen resolution changes.
-#define MOZ_WM_ENSUREVISIBLE              (WM_APP + 14159)
+#define MOZ_WM_ENSUREVISIBLE              (WM_APP+0x374F)
 
 #ifndef SM_CXPADDEDBORDER
 #define SM_CXPADDEDBORDER                 92
+#endif
+
+// require WINVER >= 0x601
+#ifndef SM_MAXIMUMTOUCHES
+#define SM_MAXIMUMTOUCHES                 95
 #endif
 
 #ifndef WM_THEMECHANGED
@@ -56,6 +64,10 @@
 
 #ifndef WM_MOUSEHWHEEL
 #define WM_MOUSEHWHEEL                    0x020E
+#endif
+
+#ifndef MOUSEEVENTF_HWHEEL
+#define MOUSEEVENTF_HWHEEL                0x01000
 #endif
 
 #ifndef WM_MOUSELEAVE
@@ -76,6 +88,19 @@
 #define MAPVK_VK_TO_CHAR                  2
 #define MAPVK_VSC_TO_VK_EX                3
 #define MAPVK_VK_TO_VSC_EX                4
+#endif
+
+#ifndef WM_DWMCOMPOSITIONCHANGED
+#define WM_DWMCOMPOSITIONCHANGED          0x031E
+#endif
+#ifndef WM_DWMNCRENDERINGCHANGED
+#define WM_DWMNCRENDERINGCHANGED          0x031F
+#endif
+#ifndef WM_DWMCOLORIZATIONCOLORCHANGED
+#define WM_DWMCOLORIZATIONCOLORCHANGED    0x0320
+#endif
+#ifndef WM_DWMWINDOWMAXIMIZEDCHANGE
+#define WM_DWMWINDOWMAXIMIZEDCHANGE       0x0321
 #endif
 
 // ConstrainPosition window positioning slop value
@@ -117,16 +142,17 @@
   #define APPCOMMAND_BROWSER_FAVORITES      6
   #define APPCOMMAND_BROWSER_HOME           7
 
+  #define APPCOMMAND_MEDIA_NEXTTRACK        11
+  #define APPCOMMAND_MEDIA_PREVIOUSTRACK    12
+  #define APPCOMMAND_MEDIA_STOP             13
+  #define APPCOMMAND_MEDIA_PLAY_PAUSE       14
+
   /* 
    * Additional commands currently not in use.
    *
    *#define APPCOMMAND_VOLUME_MUTE            8
    *#define APPCOMMAND_VOLUME_DOWN            9
    *#define APPCOMMAND_VOLUME_UP              10
-   *#define APPCOMMAND_MEDIA_NEXTTRACK        11
-   *#define APPCOMMAND_MEDIA_PREVIOUSTRACK    12
-   *#define APPCOMMAND_MEDIA_STOP             13
-   *#define APPCOMMAND_MEDIA_PLAY_PAUSE       14
    *#define APPCOMMAND_LAUNCH_MAIL            15
    *#define APPCOMMAND_LAUNCH_MEDIA_SELECT    16
    *#define APPCOMMAND_LAUNCH_APP1            17
@@ -193,42 +219,11 @@ const char kClassNameDialog[]        = "MozillaDialogClass";
 const char kClassNameDropShadow[]    = "MozillaDropShadowWindowClass";
 const char kClassNameTemp[]          = "MozillaTempWindowClass";
 
-static const uint32_t sModifierKeyMap[][3] = {
-  { nsIWidget::CAPS_LOCK, VK_CAPITAL, 0 },
-  { nsIWidget::NUM_LOCK,  VK_NUMLOCK, 0 },
-  { nsIWidget::SHIFT_L,   VK_SHIFT,   VK_LSHIFT },
-  { nsIWidget::SHIFT_R,   VK_SHIFT,   VK_RSHIFT },
-  { nsIWidget::CTRL_L,    VK_CONTROL, VK_LCONTROL },
-  { nsIWidget::CTRL_R,    VK_CONTROL, VK_RCONTROL },
-  { nsIWidget::ALT_L,     VK_MENU,    VK_LMENU },
-  { nsIWidget::ALT_R,     VK_MENU,    VK_RMENU }
-};
-
 /**************************************************************
  *
  * SECTION: structs
  * 
  **************************************************************/
-
-// Used in OnKeyDown
-struct nsAlternativeCharCode; // defined in nsGUIEvent.h
-struct nsFakeCharMessage {
-  UINT mCharCode;
-  UINT mScanCode;
-  bool mIsDeadKey;
-
-  MSG GetCharMessage(HWND aWnd)
-  {
-    MSG msg;
-    msg.hwnd = aWnd;
-    msg.message = mIsDeadKey ? WM_DEADCHAR : WM_CHAR;
-    msg.wParam = static_cast<WPARAM>(mCharCode);
-    msg.lParam = static_cast<LPARAM>(mScanCode);
-    msg.time = 0;
-    msg.pt.x = msg.pt.y = 0;
-    return msg;
-  }
-};
 
 // Used for synthesizing events
 struct KeyPair {
@@ -247,6 +242,28 @@ struct TITLEBARINFOEX
     RECT rgrect[CCHILDREN_TITLEBAR + 1];
 };
 #endif
+
+namespace mozilla {
+namespace widget {
+
+struct MSGResult
+{
+  // Result for the message.
+  LRESULT& mResult;
+  // If mConsumed is true, the caller shouldn't call next wndproc.
+  bool mConsumed;
+
+  MSGResult(LRESULT* aResult = nullptr) :
+    mResult(aResult ? *aResult : mDefaultResult), mConsumed(false)
+  {
+  }
+
+private:
+  LRESULT mDefaultResult;
+};
+
+} // namespace widget
+} // namespace mozilla
 
 /**************************************************************
  *

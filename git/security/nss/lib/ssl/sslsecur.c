@@ -1,43 +1,9 @@
 /*
  * Various SSL functions.
  *
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
-/* $Id: sslsecur.c,v 1.58 2012/03/01 18:36:35 kaie%kuix.de Exp $ */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "cert.h"
 #include "secitem.h"
 #include "keyhi.h"
@@ -131,23 +97,13 @@ ssl_Do1stHandshake(sslSocket *ss)
 	    ss->securityHandshake = 0;
 	}
 	if (ss->handshake == 0) {
-	    ssl_GetRecvBufLock(ss);
-	    ss->gs.recordLen = 0;
-	    ssl_ReleaseRecvBufLock(ss);
-
-	    SSL_TRC(3, ("%d: SSL[%d]: handshake is completed",
-			SSL_GETPID(), ss->fd));
-            /* call handshake callback for ssl v2 */
-	    /* for v3 this is done in ssl3_HandleFinished() */
-	    if ((ss->handshakeCallback != NULL) && /* has callback */
-		(!ss->firstHsDone) &&              /* only first time */
-		(ss->version < SSL_LIBRARY_VERSION_3_0)) {  /* not ssl3 */
-		ss->firstHsDone     = PR_TRUE;
-		(ss->handshakeCallback)(ss->fd, ss->handshakeCallbackData);
+	    /* for v3 this is done in ssl3_FinishHandshake */
+	    if (!ss->firstHsDone && ss->version < SSL_LIBRARY_VERSION_3_0) {
+		ssl_GetRecvBufLock(ss);
+		ss->gs.recordLen = 0;
+		ssl_FinishHandshake(ss);
+		ssl_ReleaseRecvBufLock(ss);
 	    }
-	    ss->firstHsDone         = PR_TRUE;
-	    ss->gs.writeOffset = 0;
-	    ss->gs.readOffset  = 0;
 	    break;
 	}
 	rv = (*ss->handshake)(ss);
@@ -166,6 +122,24 @@ ssl_Do1stHandshake(sslSocket *ss)
 	rv = SECFailure;
     }
     return rv;
+}
+
+void
+ssl_FinishHandshake(sslSocket *ss)
+{
+    PORT_Assert( ss->opt.noLocks || ssl_Have1stHandshakeLock(ss) );
+    PORT_Assert( ss->opt.noLocks || ssl_HaveRecvBufLock(ss) );
+
+    SSL_TRC(3, ("%d: SSL[%d]: handshake is completed", SSL_GETPID(), ss->fd));
+
+    ss->firstHsDone = PR_TRUE;
+    ss->enoughFirstHsDone = PR_TRUE;
+    ss->gs.writeOffset = 0;
+    ss->gs.readOffset  = 0;
+
+    if (ss->handshakeCallback) {
+	(ss->handshakeCallback)(ss->fd, ss->handshakeCallbackData);
+    }
 }
 
 /*
@@ -240,6 +214,7 @@ SSL_ResetHandshake(PRFileDesc *s, PRBool asServer)
     ssl_Get1stHandshakeLock(ss);
 
     ss->firstHsDone = PR_FALSE;
+    ss->enoughFirstHsDone = PR_FALSE;
     if ( asServer ) {
 	ss->handshake = ssl2_BeginServerHandshake;
 	ss->handshaking = sslHandshakingAsServer;
@@ -255,6 +230,8 @@ SSL_ResetHandshake(PRFileDesc *s, PRBool asServer)
     ssl_ReleaseRecvBufLock(ss);
 
     ssl_GetSSL3HandshakeLock(ss);
+    ss->ssl3.hs.canFalseStart = PR_FALSE;
+    ss->ssl3.hs.restartTarget = NULL;
 
     /*
     ** Blow away old security state and get a fresh setup.
@@ -300,7 +277,7 @@ SSL_ReHandshake(PRFileDesc *fd, PRBool flushCache)
 
     /* SSL v2 protocol does not support subsequent handshakes. */
     if (ss->version < SSL_LIBRARY_VERSION_3_0) {
-	PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	PORT_SetError(SSL_ERROR_FEATURE_NOT_SUPPORTED_FOR_SSL2);
 	rv = SECFailure;
     } else {
 	ssl_GetSSL3HandshakeLock(ss);
@@ -361,6 +338,71 @@ SSL_HandshakeCallback(PRFileDesc *fd, SSLHandshakeCallback cb,
 
     ssl_ReleaseSSL3HandshakeLock(ss);
     ssl_Release1stHandshakeLock(ss);
+
+    return SECSuccess;
+}
+
+/* Register an application callback to be called when false start may happen.
+** Acquires and releases HandshakeLock.
+*/
+SECStatus
+SSL_SetCanFalseStartCallback(PRFileDesc *fd, SSLCanFalseStartCallback cb,
+			     void *arg)
+{
+    sslSocket *ss;
+
+    ss = ssl_FindSocket(fd);
+    if (!ss) {
+	SSL_DBG(("%d: SSL[%d]: bad socket in SSL_SetCanFalseStartCallback",
+		 SSL_GETPID(), fd));
+	return SECFailure;
+    }
+
+    if (!ss->opt.useSecurity) {
+	PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	return SECFailure;
+    }
+
+    ssl_Get1stHandshakeLock(ss);
+    ssl_GetSSL3HandshakeLock(ss);
+
+    ss->canFalseStartCallback     = cb;
+    ss->canFalseStartCallbackData = arg;
+
+    ssl_ReleaseSSL3HandshakeLock(ss);
+    ssl_Release1stHandshakeLock(ss);
+
+    return SECSuccess;
+}
+
+SECStatus
+SSL_RecommendedCanFalseStart(PRFileDesc *fd, PRBool *canFalseStart)
+{
+    sslSocket *ss;
+
+    *canFalseStart = PR_FALSE;
+    ss = ssl_FindSocket(fd);
+    if (!ss) {
+	SSL_DBG(("%d: SSL[%d]: bad socket in SSL_RecommendedCanFalseStart",
+		 SSL_GETPID(), fd));
+	return SECFailure;
+    }
+
+    if (!ss->ssl3.initialized) {
+	PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	return SECFailure;
+    }
+
+    if (ss->version < SSL_LIBRARY_VERSION_3_0) {
+	PORT_SetError(SSL_ERROR_FEATURE_NOT_SUPPORTED_FOR_SSL2);
+	return SECFailure;
+    }
+
+    /* Require a forward-secret key exchange. */
+    *canFalseStart = ss->ssl3.hs.kea_def->kea == kea_dhe_dss ||
+		     ss->ssl3.hs.kea_def->kea == kea_dhe_rsa ||
+		     ss->ssl3.hs.kea_def->kea == kea_ecdhe_ecdsa ||
+		     ss->ssl3.hs.kea_def->kea == kea_ecdhe_rsa;
 
     return SECSuccess;
 }
@@ -558,6 +600,9 @@ DoRecv(sslSocket *ss, unsigned char *out, int len, int flags)
     int              amount;
     int              available;
 
+    /* ssl3_GatherAppDataRecord may call ssl_FinishHandshake, which needs the
+     * 1stHandshakeLock. */
+    ssl_Get1stHandshakeLock(ss);
     ssl_GetRecvBufLock(ss);
 
     available = ss->gs.writeOffset - ss->gs.readOffset;
@@ -615,6 +660,7 @@ DoRecv(sslSocket *ss, unsigned char *out, int len, int flags)
     if (!(flags & PR_MSG_PEEK)) {
 	ss->gs.readOffset += amount;
     }
+    PORT_Assert(ss->gs.readOffset <= ss->gs.writeOffset);
     rv = amount;
 
     SSL_TRC(30, ("%d: SSL[%d]: amount=%d available=%d",
@@ -623,13 +669,17 @@ DoRecv(sslSocket *ss, unsigned char *out, int len, int flags)
 
 done:
     ssl_ReleaseRecvBufLock(ss);
+    ssl_Release1stHandshakeLock(ss);
     return rv;
 }
 
 /************************************************************************/
 
+/*
+** Return SSLKEAType derived from cert's Public Key algorithm info.
+*/
 SSLKEAType
-ssl_FindCertKEAType(CERTCertificate * cert)
+NSS_FindCertKEAType(CERTCertificate * cert)
 {
   SSLKEAType keaType = kt_null; 
   int tag;
@@ -643,15 +693,14 @@ ssl_FindCertKEAType(CERTCertificate * cert)
   case SEC_OID_PKCS1_RSA_ENCRYPTION:
     keaType = kt_rsa;
     break;
-
   case SEC_OID_X942_DIFFIE_HELMAN_KEY:
     keaType = kt_dh;
     break;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
   case SEC_OID_ANSIX962_EC_PUBLIC_KEY:
     keaType = kt_ecdh;
     break;
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
   default:
     keaType = kt_null;
   }
@@ -659,7 +708,6 @@ ssl_FindCertKEAType(CERTCertificate * cert)
  loser:
   
   return keaType;
-
 }
 
 static const PRCallOnceType pristineCallOnce;
@@ -801,7 +849,7 @@ SSL_ConfigSecureServerWithCertChain(PRFileDesc *fd, CERTCertificate *cert,
 	return SECFailure;
     }
 
-    if (kea != ssl_FindCertKEAType(cert)) {
+    if (kea != NSS_FindCertKEAType(cert)) {
     	PORT_SetError(SSL_ERROR_CERT_KEA_MISMATCH);
 	return SECFailure;
     }
@@ -920,11 +968,9 @@ ssl_CopySecurityInfo(sslSocket *ss, sslSocket *os)
 	ss->sec.hashcx 		= NULL;
     }
 
-    SECITEM_CopyItem(0, &ss->sec.sendSecret, &os->sec.sendSecret);
-    if (os->sec.sendSecret.data && !ss->sec.sendSecret.data)
+    if (SECITEM_CopyItem(0, &ss->sec.sendSecret, &os->sec.sendSecret))
     	goto loser;
-    SECITEM_CopyItem(0, &ss->sec.rcvSecret,  &os->sec.rcvSecret);
-    if (os->sec.rcvSecret.data && !ss->sec.rcvSecret.data)
+    if (SECITEM_CopyItem(0, &ss->sec.rcvSecret,  &os->sec.rcvSecret))
     	goto loser;
 
     /* XXX following code is wrong if either cx != 0 */
@@ -1188,7 +1234,7 @@ ssl_SecureRead(sslSocket *ss, unsigned char *buf, int len)
 int
 ssl_SecureSend(sslSocket *ss, const unsigned char *buf, int len, int flags)
 {
-    int              rv		= 0;
+    int rv = 0;
 
     SSL_TRC(2, ("%d: SSL[%d]: SecureSend: sending %d bytes",
 		SSL_GETPID(), ss->fd, len));
@@ -1223,19 +1269,15 @@ ssl_SecureSend(sslSocket *ss, const unsigned char *buf, int len, int flags)
     	ss->writerThread = PR_GetCurrentThread();
     /* If any of these is non-zero, the initial handshake is not done. */
     if (!ss->firstHsDone) {
-	PRBool canFalseStart = PR_FALSE;
+	PRBool falseStart = PR_FALSE;
 	ssl_Get1stHandshakeLock(ss);
-	if (ss->version >= SSL_LIBRARY_VERSION_3_0) {
+	if (ss->opt.enableFalseStart &&
+	    ss->version >= SSL_LIBRARY_VERSION_3_0) {
 	    ssl_GetSSL3HandshakeLock(ss);
-	    if ((ss->ssl3.hs.ws == wait_change_cipher ||
-		ss->ssl3.hs.ws == wait_finished ||
-		ss->ssl3.hs.ws == wait_new_session_ticket) &&
-		ssl3_CanFalseStart(ss)) {
-		canFalseStart = PR_TRUE;
-	    }
+	    falseStart = ss->ssl3.hs.canFalseStart;
 	    ssl_ReleaseSSL3HandshakeLock(ss);
 	}
-	if (!canFalseStart &&
+	if (!falseStart &&
 	    (ss->handshake || ss->nextHandshake || ss->securityHandshake)) {
 	    rv = ssl_Do1stHandshake(ss);
 	}
@@ -1258,6 +1300,17 @@ ssl_SecureSend(sslSocket *ss, const unsigned char *buf, int len, int flags)
 	PORT_SetError(PR_INVALID_ARGUMENT_ERROR);
     	rv = PR_FAILURE;
 	goto done;
+    }
+
+    if (!ss->firstHsDone) {
+	PORT_Assert(ss->version >= SSL_LIBRARY_VERSION_3_0);
+#ifdef DEBUG
+	ssl_GetSSL3HandshakeLock(ss);
+	PORT_Assert(ss->ssl3.hs.canFalseStart);
+	ssl_ReleaseSSL3HandshakeLock(ss);
+#endif
+	SSL_TRC(3, ("%d: SSL[%d]: SecureSend: sending data due to false start",
+		    SSL_GETPID(), ss->fd));
     }
 
     /* Send out the data using one of these functions:

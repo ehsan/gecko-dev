@@ -4,107 +4,238 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "DeviceStorageRequestParent.h"
-#include "nsDOMFile.h"
 #include "nsIMIMEService.h"
 #include "nsCExternalHandlerService.h"
 #include "mozilla/unused.h"
-#include "mozilla/dom/ipc/Blob.h"
+#include "mozilla/dom/File.h"
+#include "mozilla/dom/ipc/BlobParent.h"
 #include "ContentParent.h"
 #include "nsProxyRelease.h"
+#include "AppProcessChecker.h"
+#include "mozilla/Preferences.h"
+#include "nsNetCID.h"
 
 namespace mozilla {
 namespace dom {
 namespace devicestorage {
 
-DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams& aParams)
+DeviceStorageRequestParent::DeviceStorageRequestParent(
+  const DeviceStorageParams& aParams)
+  : mParams(aParams)
+  , mMutex("DeviceStorageRequestParent::mMutex")
+  , mActorDestoryed(false)
 {
   MOZ_COUNT_CTOR(DeviceStorageRequestParent);
 
-  switch (aParams.type()) {
+  DebugOnly<DeviceStorageUsedSpaceCache*> usedSpaceCache
+    = DeviceStorageUsedSpaceCache::CreateOrGet();
+  MOZ_ASSERT(usedSpaceCache);
+}
+
+void
+DeviceStorageRequestParent::Dispatch()
+{
+  switch (mParams.type()) {
     case DeviceStorageParams::TDeviceStorageAddParams:
     {
-      DeviceStorageAddParams p = aParams;
+      DeviceStorageAddParams p = mParams;
 
-      nsCOMPtr<nsIFile> f;
-      NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
-
-      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName(), p.relpath());
 
       BlobParent* bp = static_cast<BlobParent*>(p.blobParent());
-      nsCOMPtr<nsIDOMBlob> blob = bp->GetBlob();
+      nsRefPtr<FileImpl> blobImpl = bp->GetBlobImpl();
 
       nsCOMPtr<nsIInputStream> stream;
-      blob->GetInternalStream(getter_AddRefs(stream));
+      blobImpl->GetInternalStream(getter_AddRefs(stream));
 
-      nsRefPtr<CancelableRunnable> r = new WriteFileEvent(this, dsf, stream);
+      nsRefPtr<CancelableRunnable> r = new WriteFileEvent(this, dsf, stream,
+                                                          DEVICE_STORAGE_REQUEST_CREATE);
 
-      nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
-      NS_ASSERTION(target, "Must have stream transport service");
+      nsCOMPtr<nsIEventTarget> target
+        = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
+      MOZ_ASSERT(target);
+      target->Dispatch(r, NS_DISPATCH_NORMAL);
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageAppendParams:
+    {
+      DeviceStorageAppendParams p = mParams;
+
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName(), p.relpath());
+
+      BlobParent* bp = static_cast<BlobParent*>(p.blobParent());
+      nsRefPtr<FileImpl> blobImpl = bp->GetBlobImpl();
+
+      nsCOMPtr<nsIInputStream> stream;
+      blobImpl->GetInternalStream(getter_AddRefs(stream));
+
+      nsRefPtr<CancelableRunnable> r = new WriteFileEvent(this, dsf, stream,
+                                                          DEVICE_STORAGE_REQUEST_APPEND);
+
+      nsCOMPtr<nsIEventTarget> target
+        = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
+      MOZ_ASSERT(target);
+      target->Dispatch(r, NS_DISPATCH_NORMAL);
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageCreateFdParams:
+    {
+      DeviceStorageCreateFdParams p = mParams;
+
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName(), p.relpath());
+
+      nsRefPtr<CancelableRunnable> r = new CreateFdEvent(this, dsf);
+
+      nsCOMPtr<nsIEventTarget> target
+        = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
+      MOZ_ASSERT(target);
       target->Dispatch(r, NS_DISPATCH_NORMAL);
       break;
     }
 
     case DeviceStorageParams::TDeviceStorageGetParams:
     {
-      DeviceStorageGetParams p = aParams;
-
-      nsCOMPtr<nsIFile> f;
-      NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
-
-      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
-      dsf->SetPath(p.name());
+      DeviceStorageGetParams p = mParams;
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName(),
+                              p.rootDir(), p.relpath());
       nsRefPtr<CancelableRunnable> r = new ReadFileEvent(this, dsf);
 
-      nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
-      NS_ASSERTION(target, "Must have stream transport service");
+      nsCOMPtr<nsIEventTarget> target
+        = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
+      MOZ_ASSERT(target);
       target->Dispatch(r, NS_DISPATCH_NORMAL);
       break;
     }
 
     case DeviceStorageParams::TDeviceStorageDeleteParams:
     {
-      DeviceStorageDeleteParams p = aParams;
+      DeviceStorageDeleteParams p = mParams;
 
-      nsCOMPtr<nsIFile> f;
-      NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
-
-      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName(), p.relpath());
       nsRefPtr<CancelableRunnable> r = new DeleteFileEvent(this, dsf);
 
-      nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
-      NS_ASSERTION(target, "Must have stream transport service");
+      nsCOMPtr<nsIEventTarget> target
+        = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
+      MOZ_ASSERT(target);
       target->Dispatch(r, NS_DISPATCH_NORMAL);
       break;
     }
 
-    case DeviceStorageParams::TDeviceStorageStatParams:
+    case DeviceStorageParams::TDeviceStorageFreeSpaceParams:
     {
-      DeviceStorageStatParams p = aParams;
+      DeviceStorageFreeSpaceParams p = mParams;
 
-      nsCOMPtr<nsIFile> f;
-      NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName());
+      nsRefPtr<FreeSpaceFileEvent> r = new FreeSpaceFileEvent(this, dsf);
 
-      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
-      nsRefPtr<StatFileEvent> r = new StatFileEvent(this, dsf);
-
-      nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
-      NS_ASSERTION(target, "Must have stream transport service");
+      nsCOMPtr<nsIEventTarget> target
+        = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
+      MOZ_ASSERT(target);
       target->Dispatch(r, NS_DISPATCH_NORMAL);
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageUsedSpaceParams:
+    {
+      DeviceStorageUsedSpaceCache* usedSpaceCache
+        = DeviceStorageUsedSpaceCache::CreateOrGet();
+      MOZ_ASSERT(usedSpaceCache);
+
+      DeviceStorageUsedSpaceParams p = mParams;
+
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName());
+      nsRefPtr<UsedSpaceFileEvent> r = new UsedSpaceFileEvent(this, dsf);
+
+      usedSpaceCache->Dispatch(r);
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageAvailableParams:
+    {
+      DeviceStorageAvailableParams p = mParams;
+
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName());
+      nsRefPtr<PostAvailableResultEvent> r
+        = new PostAvailableResultEvent(this, dsf);
+      DebugOnly<nsresult> rv = NS_DispatchToMainThread(r);
+      MOZ_ASSERT(NS_SUCCEEDED(rv));
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageStatusParams:
+    {
+      DeviceStorageStatusParams p = mParams;
+
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName());
+      nsRefPtr<PostStatusResultEvent> r
+        = new PostStatusResultEvent(this, dsf);
+      DebugOnly<nsresult> rv = NS_DispatchToMainThread(r);
+      MOZ_ASSERT(NS_SUCCEEDED(rv));
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageFormatParams:
+    {
+      DeviceStorageFormatParams p = mParams;
+
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName());
+      nsRefPtr<PostFormatResultEvent> r
+        = new PostFormatResultEvent(this, dsf);
+      DebugOnly<nsresult> rv = NS_DispatchToMainThread(r);
+      MOZ_ASSERT(NS_SUCCEEDED(rv));
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageMountParams:
+    {
+      DeviceStorageMountParams p = mParams;
+
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName());
+      nsRefPtr<PostMountResultEvent> r
+        = new PostMountResultEvent(this, dsf);
+      DebugOnly<nsresult> rv = NS_DispatchToMainThread(r);
+      MOZ_ASSERT(NS_SUCCEEDED(rv));
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageUnmountParams:
+    {
+      DeviceStorageUnmountParams p = mParams;
+
+      nsRefPtr<DeviceStorageFile> dsf =
+        new DeviceStorageFile(p.type(), p.storageName());
+      nsRefPtr<PostUnmountResultEvent> r
+        = new PostUnmountResultEvent(this, dsf);
+      DebugOnly<nsresult> rv = NS_DispatchToMainThread(r);
+      MOZ_ASSERT(NS_SUCCEEDED(rv));
       break;
     }
 
     case DeviceStorageParams::TDeviceStorageEnumerationParams:
     {
-      DeviceStorageEnumerationParams p = aParams;
+      DeviceStorageEnumerationParams p = mParams;
+      nsRefPtr<DeviceStorageFile> dsf
+        = new DeviceStorageFile(p.type(), p.storageName(),
+                                p.rootdir(), NS_LITERAL_STRING(""));
+      nsRefPtr<CancelableRunnable> r
+        = new EnumerateFileEvent(this, dsf, p.since());
 
-      nsCOMPtr<nsIFile> f;
-      NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
-
-      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
-      nsRefPtr<CancelableRunnable> r = new EnumerateFileEvent(this, dsf, p.since());
-
-      nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
-      NS_ASSERTION(target, "Must have stream transport service");
+      nsCOMPtr<nsIEventTarget> target
+        = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
+      MOZ_ASSERT(target);
       target->Dispatch(r, NS_DISPATCH_NORMAL);
       break;
     }
@@ -116,25 +247,223 @@ DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams
   }
 }
 
+bool
+DeviceStorageRequestParent::EnsureRequiredPermissions(
+  mozilla::dom::ContentParent* aParent)
+{
+  if (mozilla::Preferences::GetBool("device.storage.testing", false)) {
+    return true;
+  }
+
+  nsString type;
+  DeviceStorageRequestType requestType;
+
+  switch (mParams.type())
+  {
+    case DeviceStorageParams::TDeviceStorageAddParams:
+    {
+      DeviceStorageAddParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_CREATE;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageAppendParams:
+    {
+      DeviceStorageAppendParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_APPEND;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageCreateFdParams:
+    {
+      DeviceStorageCreateFdParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_CREATEFD;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageGetParams:
+    {
+      DeviceStorageGetParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_READ;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageDeleteParams:
+    {
+      DeviceStorageDeleteParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_DELETE;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageFreeSpaceParams:
+    {
+      DeviceStorageFreeSpaceParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_FREE_SPACE;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageUsedSpaceParams:
+    {
+      DeviceStorageUsedSpaceParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_FREE_SPACE;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageAvailableParams:
+    {
+      DeviceStorageAvailableParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_AVAILABLE;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageStatusParams:
+    {
+      DeviceStorageStatusParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_STATUS;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageFormatParams:
+    {
+      DeviceStorageFormatParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_FORMAT;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageMountParams:
+    {
+      DeviceStorageMountParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_MOUNT;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageUnmountParams:
+    {
+      DeviceStorageUnmountParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_UNMOUNT;
+      break;
+    }
+
+    case DeviceStorageParams::TDeviceStorageEnumerationParams:
+    {
+      DeviceStorageEnumerationParams p = mParams;
+      type = p.type();
+      requestType = DEVICE_STORAGE_REQUEST_READ;
+      break;
+    }
+
+    default:
+    {
+      return false;
+    }
+  }
+
+  // The 'apps' type is special.  We only want this exposed
+  // if the caller has the "webapps-manage" permission.
+  if (type.EqualsLiteral("apps")) {
+    if (!AssertAppProcessPermission(aParent, "webapps-manage")) {
+      return false;
+    }
+  }
+
+  nsAutoCString permissionName;
+  nsresult rv = DeviceStorageTypeChecker::GetPermissionForType(type,
+                                                               permissionName);
+  if (NS_FAILED(rv)) {
+    return false;
+  }
+
+  nsCString access;
+  rv = DeviceStorageTypeChecker::GetAccessForRequest(requestType, access);
+  if (NS_FAILED(rv)) {
+    return false;
+  }
+
+  permissionName.Append('-');
+  permissionName.Append(access);
+
+  if (!AssertAppProcessPermission(aParent, permissionName.get())) {
+    return false;
+  }
+
+  return true;
+}
+
 DeviceStorageRequestParent::~DeviceStorageRequestParent()
 {
   MOZ_COUNT_DTOR(DeviceStorageRequestParent);
 }
 
-NS_IMPL_THREADSAFE_ADDREF(DeviceStorageRequestParent);
-NS_IMPL_THREADSAFE_RELEASE(DeviceStorageRequestParent);
+NS_IMPL_ADDREF(DeviceStorageRequestParent)
+NS_IMPL_RELEASE(DeviceStorageRequestParent)
 
 void
 DeviceStorageRequestParent::ActorDestroy(ActorDestroyReason)
 {
+  MutexAutoLock lock(mMutex);
+  mActorDestoryed = true;
   int32_t count = mRunnables.Length();
   for (int32_t index = 0; index < count; index++) {
     mRunnables[index]->Cancel();
   }
 }
 
-DeviceStorageRequestParent::PostErrorEvent::PostErrorEvent(DeviceStorageRequestParent* aParent,
-                                                           const char* aError)
+DeviceStorageRequestParent::PostFreeSpaceResultEvent::PostFreeSpaceResultEvent(
+  DeviceStorageRequestParent* aParent,
+  uint64_t aFreeSpace)
+  : CancelableRunnable(aParent)
+  , mFreeSpace(aFreeSpace)
+{
+}
+
+DeviceStorageRequestParent::PostFreeSpaceResultEvent::
+  ~PostFreeSpaceResultEvent() {}
+
+nsresult
+DeviceStorageRequestParent::PostFreeSpaceResultEvent::CancelableRun() {
+  MOZ_ASSERT(NS_IsMainThread());
+
+  FreeSpaceStorageResponse response(mFreeSpace);
+  unused << mParent->Send__delete__(mParent, response);
+  return NS_OK;
+}
+
+DeviceStorageRequestParent::PostUsedSpaceResultEvent::
+  PostUsedSpaceResultEvent(DeviceStorageRequestParent* aParent,
+                             const nsAString& aType,
+                             uint64_t aUsedSpace)
+  : CancelableRunnable(aParent)
+  , mType(aType)
+  , mUsedSpace(aUsedSpace)
+{
+}
+
+DeviceStorageRequestParent::PostUsedSpaceResultEvent::
+  ~PostUsedSpaceResultEvent() {}
+
+nsresult
+DeviceStorageRequestParent::PostUsedSpaceResultEvent::CancelableRun() {
+  MOZ_ASSERT(NS_IsMainThread());
+
+  UsedSpaceStorageResponse response(mUsedSpace);
+  unused << mParent->Send__delete__(mParent, response);
+  return NS_OK;
+}
+
+DeviceStorageRequestParent::PostErrorEvent::
+  PostErrorEvent(DeviceStorageRequestParent* aParent, const char* aError)
   : CancelableRunnable(aParent)
 {
   CopyASCIItoUTF16(aError, mError);
@@ -144,15 +473,15 @@ DeviceStorageRequestParent::PostErrorEvent::~PostErrorEvent() {}
 
 nsresult
 DeviceStorageRequestParent::PostErrorEvent::CancelableRun() {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(NS_IsMainThread());
 
   ErrorResponse response(mError);
   unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
-
-DeviceStorageRequestParent::PostSuccessEvent::PostSuccessEvent(DeviceStorageRequestParent* aParent)
+DeviceStorageRequestParent::PostSuccessEvent::
+  PostSuccessEvent(DeviceStorageRequestParent* aParent)
   : CancelableRunnable(aParent)
 {
 }
@@ -161,19 +490,22 @@ DeviceStorageRequestParent::PostSuccessEvent::~PostSuccessEvent() {}
 
 nsresult
 DeviceStorageRequestParent::PostSuccessEvent::CancelableRun() {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(NS_IsMainThread());
 
   SuccessResponse response;
-  unused <<  mParent->Send__delete__(mParent, response);
+  unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
-DeviceStorageRequestParent::PostBlobSuccessEvent::PostBlobSuccessEvent(DeviceStorageRequestParent* aParent,
-                                                                       DeviceStorageFile* aFile,
-                                                                       uint32_t aLength,
-                                                                       nsACString& aMimeType)
+DeviceStorageRequestParent::PostBlobSuccessEvent::
+  PostBlobSuccessEvent(DeviceStorageRequestParent* aParent,
+                       DeviceStorageFile* aFile,
+                       uint32_t aLength,
+                       nsACString& aMimeType,
+                       uint64_t aLastModifiedDate)
   : CancelableRunnable(aParent)
   , mLength(aLength)
+  , mLastModificationDate(aLastModifiedDate)
   , mFile(aFile)
   , mMimeType(aMimeType)
 {
@@ -183,47 +515,109 @@ DeviceStorageRequestParent::PostBlobSuccessEvent::~PostBlobSuccessEvent() {}
 
 nsresult
 DeviceStorageRequestParent::PostBlobSuccessEvent::CancelableRun() {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(NS_IsMainThread());
 
   nsString mime;
   CopyASCIItoUTF16(mMimeType, mime);
 
-  nsCOMPtr<nsIDOMBlob> blob = new nsDOMFileFile(mFile->mPath, mime, mLength, mFile->mFile);
+  nsString fullPath;
+  mFile->GetFullPath(fullPath);
+  nsRefPtr<File> blob = new File(nullptr,
+    new FileImplFile(fullPath, mime, mLength, mFile->mFile,
+                     mLastModificationDate));
 
   ContentParent* cp = static_cast<ContentParent*>(mParent->Manager());
   BlobParent* actor = cp->GetOrCreateActorForBlob(blob);
+  if (!actor) {
+    ErrorResponse response(NS_LITERAL_STRING(POST_ERROR_EVENT_UNKNOWN));
+    unused << mParent->Send__delete__(mParent, response);
+    return NS_OK;
+  }
 
   BlobResponse response;
   response.blobParent() = actor;
 
-  unused <<  mParent->Send__delete__(mParent, response);
+  unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
-DeviceStorageRequestParent::PostEnumerationSuccessEvent::PostEnumerationSuccessEvent(DeviceStorageRequestParent* aParent,
-                                                                                     InfallibleTArray<DeviceStorageFileValue>& aPaths)
+DeviceStorageRequestParent::PostEnumerationSuccessEvent::
+  PostEnumerationSuccessEvent(DeviceStorageRequestParent* aParent,
+                              const nsAString& aStorageType,
+                              const nsAString& aRelPath,
+                              InfallibleTArray<DeviceStorageFileValue>& aPaths)
   : CancelableRunnable(aParent)
+  , mStorageType(aStorageType)
+  , mRelPath(aRelPath)
   , mPaths(aPaths)
 {
 }
 
-DeviceStorageRequestParent::PostEnumerationSuccessEvent::~PostEnumerationSuccessEvent() {}
+DeviceStorageRequestParent::PostEnumerationSuccessEvent::
+  ~PostEnumerationSuccessEvent() {}
 
 nsresult
 DeviceStorageRequestParent::PostEnumerationSuccessEvent::CancelableRun() {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(NS_IsMainThread());
 
-  EnumerationResponse response(mPaths);
-  unused <<  mParent->Send__delete__(mParent, response);
+  EnumerationResponse response(mStorageType, mRelPath, mPaths);
+  unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
-DeviceStorageRequestParent::WriteFileEvent::WriteFileEvent(DeviceStorageRequestParent* aParent,
-                                                           DeviceStorageFile* aFile,
-                                                           nsIInputStream* aInputStream)
+DeviceStorageRequestParent::CreateFdEvent::
+  CreateFdEvent(DeviceStorageRequestParent* aParent,
+                 DeviceStorageFile* aFile)
+  : CancelableRunnable(aParent)
+  , mFile(aFile)
+{
+}
+
+DeviceStorageRequestParent::CreateFdEvent::~CreateFdEvent()
+{
+}
+
+nsresult
+DeviceStorageRequestParent::CreateFdEvent::CancelableRun()
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+
+  nsCOMPtr<nsIRunnable> r;
+
+  if (!mFile->mFile) {
+    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
+    return NS_DispatchToMainThread(r);
+  }
+  bool check = false;
+  mFile->mFile->Exists(&check);
+  if (check) {
+    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_EXISTS);
+    return NS_DispatchToMainThread(r);
+  }
+
+  FileDescriptor fileDescriptor;
+  nsresult rv = mFile->CreateFileDescriptor(fileDescriptor);
+  if (NS_FAILED(rv)) {
+    NS_WARNING("CreateFileDescriptor failed");
+    mFile->Dump("CreateFileDescriptor failed");
+    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
+  }
+  else {
+    r = new PostFileDescriptorResultEvent(mParent, fileDescriptor);
+  }
+
+  return NS_DispatchToMainThread(r);
+}
+
+DeviceStorageRequestParent::WriteFileEvent::
+  WriteFileEvent(DeviceStorageRequestParent* aParent,
+                 DeviceStorageFile* aFile,
+                 nsIInputStream* aInputStream,
+                 int32_t aRequestType)
   : CancelableRunnable(aParent)
   , mFile(aFile)
   , mInputStream(aInputStream)
+  , mRequestType(aRequestType)
 {
 }
 
@@ -234,17 +628,35 @@ DeviceStorageRequestParent::WriteFileEvent::~WriteFileEvent()
 nsresult
 DeviceStorageRequestParent::WriteFileEvent::CancelableRun()
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(!NS_IsMainThread());
 
-  nsRefPtr<nsRunnable> r;
+  nsCOMPtr<nsIRunnable> r;
 
-  if (!mInputStream) {
+  if (!mInputStream || !mFile->mFile) {
     r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
-    NS_DispatchToMainThread(r);
-    return NS_OK;
+    return NS_DispatchToMainThread(r);
   }
 
-  nsresult rv = mFile->Write(mInputStream);
+  bool check = false;
+  nsresult rv;
+  mFile->mFile->Exists(&check);
+
+  if (mRequestType == DEVICE_STORAGE_REQUEST_CREATE) {
+    if (check) {
+      r = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_EXISTS);
+      return NS_DispatchToMainThread(r);
+    }
+    rv = mFile->Write(mInputStream);
+  } else if (mRequestType == DEVICE_STORAGE_REQUEST_APPEND) {
+    if (!check) {
+      r = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_DOES_NOT_EXIST);
+      return NS_DispatchToMainThread(r);
+    }
+    rv = mFile->Append(mInputStream);
+  } else {
+    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
+    return NS_DispatchToMainThread(r);
+  }
 
   if (NS_FAILED(rv)) {
     r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
@@ -253,13 +665,11 @@ DeviceStorageRequestParent::WriteFileEvent::CancelableRun()
     r = new PostPathResultEvent(mParent, mFile->mPath);
   }
 
-  NS_DispatchToMainThread(r);
-  return NS_OK;
+  return NS_DispatchToMainThread(r);
 }
 
-
-DeviceStorageRequestParent::DeleteFileEvent::DeleteFileEvent(DeviceStorageRequestParent* aParent,
-                                                             DeviceStorageFile* aFile)
+DeviceStorageRequestParent::DeleteFileEvent::
+  DeleteFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile)
   : CancelableRunnable(aParent)
   , mFile(aFile)
 {
@@ -272,12 +682,16 @@ DeviceStorageRequestParent::DeleteFileEvent::~DeleteFileEvent()
 nsresult
 DeviceStorageRequestParent::DeleteFileEvent::CancelableRun()
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(!NS_IsMainThread());
 
   mFile->Remove();
 
-  nsRefPtr<nsRunnable> r;
+  nsCOMPtr<nsIRunnable> r;
 
+  if (!mFile->mFile) {
+    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
+    return NS_DispatchToMainThread(r);
+  }
   bool check = false;
   mFile->mFile->Exists(&check);
   if (check) {
@@ -287,45 +701,79 @@ DeviceStorageRequestParent::DeleteFileEvent::CancelableRun()
     r = new PostPathResultEvent(mParent, mFile->mPath);
   }
 
-  NS_DispatchToMainThread(r);
-  return NS_OK;
+  return NS_DispatchToMainThread(r);
 }
 
-DeviceStorageRequestParent::StatFileEvent::StatFileEvent(DeviceStorageRequestParent* aParent,
-                                                         DeviceStorageFile* aFile)
+DeviceStorageRequestParent::FreeSpaceFileEvent::
+  FreeSpaceFileEvent(DeviceStorageRequestParent* aParent,
+                     DeviceStorageFile* aFile)
   : CancelableRunnable(aParent)
   , mFile(aFile)
 {
 }
 
-DeviceStorageRequestParent::StatFileEvent::~StatFileEvent()
+DeviceStorageRequestParent::FreeSpaceFileEvent::~FreeSpaceFileEvent()
 {
 }
 
 nsresult
-DeviceStorageRequestParent::StatFileEvent::CancelableRun()
+DeviceStorageRequestParent::FreeSpaceFileEvent::CancelableRun()
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(!NS_IsMainThread());
+
+  int64_t freeSpace = 0;
+  if (mFile) {
+    mFile->GetDiskFreeSpace(&freeSpace);
+  }
 
   nsCOMPtr<nsIRunnable> r;
-  uint64_t diskUsage = DeviceStorageFile::DirectoryDiskUsage(mFile->mFile);
-  int64_t freeSpace;
-  nsresult rv = mFile->mFile->GetDiskSpaceAvailable(&freeSpace);
-  if (NS_FAILED(rv)) {
-    freeSpace = 0;
-  }
-  
-  r = new PostStatResultEvent(mParent, diskUsage, freeSpace);
-  NS_DispatchToMainThread(r);
-  return NS_OK;
+  r = new PostFreeSpaceResultEvent(mParent, static_cast<uint64_t>(freeSpace));
+  return NS_DispatchToMainThread(r);
 }
 
-DeviceStorageRequestParent::ReadFileEvent::ReadFileEvent(DeviceStorageRequestParent* aParent,
-                                                         DeviceStorageFile* aFile)
+DeviceStorageRequestParent::UsedSpaceFileEvent::
+  UsedSpaceFileEvent(DeviceStorageRequestParent* aParent,
+                     DeviceStorageFile* aFile)
   : CancelableRunnable(aParent)
   , mFile(aFile)
 {
-  nsCOMPtr<nsIMIMEService> mimeService = do_GetService(NS_MIMESERVICE_CONTRACTID);
+}
+
+DeviceStorageRequestParent::UsedSpaceFileEvent::~UsedSpaceFileEvent()
+{
+}
+
+nsresult
+DeviceStorageRequestParent::UsedSpaceFileEvent::CancelableRun()
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+
+  uint64_t picturesUsage = 0, videosUsage = 0, musicUsage = 0, totalUsage = 0;
+  mFile->AccumDiskUsage(&picturesUsage, &videosUsage,
+                        &musicUsage, &totalUsage);
+  nsCOMPtr<nsIRunnable> r;
+  if (mFile->mStorageType.EqualsLiteral(DEVICESTORAGE_PICTURES)) {
+    r = new PostUsedSpaceResultEvent(mParent, mFile->mStorageType,
+                                     picturesUsage);
+  }
+  else if (mFile->mStorageType.EqualsLiteral(DEVICESTORAGE_VIDEOS)) {
+    r = new PostUsedSpaceResultEvent(mParent, mFile->mStorageType, videosUsage);
+  }
+  else if (mFile->mStorageType.EqualsLiteral(DEVICESTORAGE_MUSIC)) {
+    r = new PostUsedSpaceResultEvent(mParent, mFile->mStorageType, musicUsage);
+  } else {
+    r = new PostUsedSpaceResultEvent(mParent, mFile->mStorageType, totalUsage);
+  }
+  return NS_DispatchToMainThread(r);
+}
+
+DeviceStorageRequestParent::ReadFileEvent::
+  ReadFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile)
+  : CancelableRunnable(aParent)
+  , mFile(aFile)
+{
+  nsCOMPtr<nsIMIMEService> mimeService
+    = do_GetService(NS_MIMESERVICE_CONTRACTID);
   if (mimeService) {
     nsresult rv = mimeService->GetTypeFromFile(mFile->mFile, mMimeType);
     if (NS_FAILED(rv)) {
@@ -341,34 +789,45 @@ DeviceStorageRequestParent::ReadFileEvent::~ReadFileEvent()
 nsresult
 DeviceStorageRequestParent::ReadFileEvent::CancelableRun()
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(!NS_IsMainThread());
 
   nsCOMPtr<nsIRunnable> r;
+
+  if (!mFile->mFile) {
+    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
+    return NS_DispatchToMainThread(r);
+  }
   bool check = false;
   mFile->mFile->Exists(&check);
 
   if (!check) {
     r = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_DOES_NOT_EXIST);
-    NS_DispatchToMainThread(r);
-    return NS_OK;
+    return NS_DispatchToMainThread(r);
   }
 
   int64_t fileSize;
   nsresult rv = mFile->mFile->GetFileSize(&fileSize);
   if (NS_FAILED(rv)) {
     r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
-    NS_DispatchToMainThread(r);
-    return NS_OK;
+    return NS_DispatchToMainThread(r);
   }
 
-  r = new PostBlobSuccessEvent(mParent, mFile, fileSize, mMimeType);
-  NS_DispatchToMainThread(r);
-  return NS_OK;
+  PRTime modDate;
+  rv = mFile->mFile->GetLastModifiedTime(&modDate);
+  if (NS_FAILED(rv)) {
+    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
+    return NS_DispatchToMainThread(r);
+  }
+
+  r = new PostBlobSuccessEvent(mParent, mFile, static_cast<uint64_t>(fileSize),
+                               mMimeType, modDate);
+  return NS_DispatchToMainThread(r);
 }
 
-DeviceStorageRequestParent::EnumerateFileEvent::EnumerateFileEvent(DeviceStorageRequestParent* aParent,
-                                                                   DeviceStorageFile* aFile,
-                                                                   uint64_t aSince)
+DeviceStorageRequestParent::EnumerateFileEvent::
+  EnumerateFileEvent(DeviceStorageRequestParent* aParent,
+                     DeviceStorageFile* aFile,
+                     uint64_t aSince)
   : CancelableRunnable(aParent)
   , mFile(aFile)
   , mSince(aSince)
@@ -382,15 +841,16 @@ DeviceStorageRequestParent::EnumerateFileEvent::~EnumerateFileEvent()
 nsresult
 DeviceStorageRequestParent::EnumerateFileEvent::CancelableRun()
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(!NS_IsMainThread());
 
   nsCOMPtr<nsIRunnable> r;
-  bool check = false;
-  mFile->mFile->Exists(&check);
-  if (!check) {
-    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_DOES_NOT_EXIST);
-    NS_DispatchToMainThread(r);
-    return NS_OK;
+  if (mFile->mFile) {
+    bool check = false;
+    mFile->mFile->Exists(&check);
+    if (!check) {
+      r = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_DOES_NOT_EXIST);
+      return NS_DispatchToMainThread(r);
+    }
   }
 
   nsTArray<nsRefPtr<DeviceStorageFile> > files;
@@ -400,20 +860,19 @@ DeviceStorageRequestParent::EnumerateFileEvent::CancelableRun()
 
   uint32_t count = files.Length();
   for (uint32_t i = 0; i < count; i++) {
-    nsString fullpath;
-    files[i]->mFile->GetPath(fullpath);
-    DeviceStorageFileValue dsvf(files[i]->mPath, fullpath);
+    DeviceStorageFileValue dsvf(files[i]->mStorageName, files[i]->mPath);
     values.AppendElement(dsvf);
   }
 
-  r = new PostEnumerationSuccessEvent(mParent, values);
-  NS_DispatchToMainThread(r);
-  return NS_OK;
+  r = new PostEnumerationSuccessEvent(mParent, mFile->mStorageType,
+                                      mFile->mRootDir, values);
+  return NS_DispatchToMainThread(r);
 }
 
 
-DeviceStorageRequestParent::PostPathResultEvent::PostPathResultEvent(DeviceStorageRequestParent* aParent,
-                                                                     const nsAString& aPath)
+DeviceStorageRequestParent::PostPathResultEvent::
+  PostPathResultEvent(DeviceStorageRequestParent* aParent,
+                      const nsAString& aPath)
   : CancelableRunnable(aParent)
   , mPath(aPath)
 {
@@ -426,45 +885,175 @@ DeviceStorageRequestParent::PostPathResultEvent::~PostPathResultEvent()
 nsresult
 DeviceStorageRequestParent::PostPathResultEvent::CancelableRun()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(NS_IsMainThread());
 
   SuccessResponse response;
-  unused <<  mParent->Send__delete__(mParent, response);
+  unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
-DeviceStorageRequestParent::PostStatResultEvent::PostStatResultEvent(DeviceStorageRequestParent* aParent,
-                                                                     int64_t aFreeBytes,
-                                                                     int64_t aTotalBytes)
+DeviceStorageRequestParent::PostFileDescriptorResultEvent::
+  PostFileDescriptorResultEvent(DeviceStorageRequestParent* aParent,
+                                const FileDescriptor& aFileDescriptor)
   : CancelableRunnable(aParent)
-  , mFreeBytes(aFreeBytes)
-  , mTotalBytes(aTotalBytes)
+  , mFileDescriptor(aFileDescriptor)
 {
 }
 
-DeviceStorageRequestParent::PostStatResultEvent::~PostStatResultEvent()
+DeviceStorageRequestParent::PostFileDescriptorResultEvent::
+  ~PostFileDescriptorResultEvent()
 {
 }
 
 nsresult
-DeviceStorageRequestParent::PostStatResultEvent::CancelableRun()
+DeviceStorageRequestParent::PostFileDescriptorResultEvent::CancelableRun()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(NS_IsMainThread());
 
-  nsString state;
-  state.Assign(NS_LITERAL_STRING("available"));
-#ifdef MOZ_WIDGET_GONK
-  nsresult rv = GetSDCardStatus(state);
-  if (NS_FAILED(rv)) {
-    state.Assign(NS_LITERAL_STRING("unavailable"));
-  }
-#endif
-
-  StatStorageResponse response(mFreeBytes, mTotalBytes, state);
-  unused <<  mParent->Send__delete__(mParent, response);
+  FileDescriptorResponse response(mFileDescriptor);
+  unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
+DeviceStorageRequestParent::PostAvailableResultEvent::
+  PostAvailableResultEvent(DeviceStorageRequestParent* aParent,
+                           DeviceStorageFile* aFile)
+  : CancelableRunnable(aParent)
+  , mFile(aFile)
+{
+}
+
+DeviceStorageRequestParent::PostAvailableResultEvent::
+  ~PostAvailableResultEvent()
+{
+}
+
+nsresult
+DeviceStorageRequestParent::PostAvailableResultEvent::CancelableRun()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsString state = NS_LITERAL_STRING("unavailable");
+  if (mFile) {
+    mFile->GetStatus(state);
+  }
+
+  AvailableStorageResponse response(state);
+  unused << mParent->Send__delete__(mParent, response);
+  return NS_OK;
+}
+
+DeviceStorageRequestParent::PostStatusResultEvent::
+  PostStatusResultEvent(DeviceStorageRequestParent* aParent,
+                           DeviceStorageFile* aFile)
+  : CancelableRunnable(aParent)
+  , mFile(aFile)
+{
+}
+
+DeviceStorageRequestParent::PostStatusResultEvent::
+  ~PostStatusResultEvent()
+{
+}
+
+nsresult
+DeviceStorageRequestParent::PostStatusResultEvent::CancelableRun()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsString state = NS_LITERAL_STRING("undefined");
+  if (mFile) {
+    mFile->GetStorageStatus(state);
+  }
+
+  StorageStatusResponse response(state);
+  unused << mParent->Send__delete__(mParent, response);
+  return NS_OK;
+}
+
+DeviceStorageRequestParent::PostFormatResultEvent::
+  PostFormatResultEvent(DeviceStorageRequestParent* aParent,
+                           DeviceStorageFile* aFile)
+  : CancelableRunnable(aParent)
+  , mFile(aFile)
+{
+}
+
+DeviceStorageRequestParent::PostFormatResultEvent::
+  ~PostFormatResultEvent()
+{
+}
+
+nsresult
+DeviceStorageRequestParent::PostFormatResultEvent::CancelableRun()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsString state = NS_LITERAL_STRING("unavailable");
+  if (mFile) {
+    mFile->DoFormat(state);
+  }
+
+  FormatStorageResponse response(state);
+  unused << mParent->Send__delete__(mParent, response);
+  return NS_OK;
+}
+
+DeviceStorageRequestParent::PostMountResultEvent::
+  PostMountResultEvent(DeviceStorageRequestParent* aParent,
+                           DeviceStorageFile* aFile)
+  : CancelableRunnable(aParent)
+  , mFile(aFile)
+{
+}
+
+DeviceStorageRequestParent::PostMountResultEvent::
+  ~PostMountResultEvent()
+{
+}
+
+nsresult
+DeviceStorageRequestParent::PostMountResultEvent::CancelableRun()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsString state = NS_LITERAL_STRING("unavailable");
+  if (mFile) {
+    mFile->DoMount(state);
+  }
+
+  MountStorageResponse response(state);
+  unused << mParent->Send__delete__(mParent, response);
+  return NS_OK;
+}
+
+DeviceStorageRequestParent::PostUnmountResultEvent::
+  PostUnmountResultEvent(DeviceStorageRequestParent* aParent,
+                           DeviceStorageFile* aFile)
+  : CancelableRunnable(aParent)
+  , mFile(aFile)
+{
+}
+
+DeviceStorageRequestParent::PostUnmountResultEvent::
+  ~PostUnmountResultEvent()
+{
+}
+
+nsresult
+DeviceStorageRequestParent::PostUnmountResultEvent::CancelableRun()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsString state = NS_LITERAL_STRING("unavailable");
+  if (mFile) {
+    mFile->DoUnmount(state);
+  }
+
+  UnmountStorageResponse response(state);
+  unused << mParent->Send__delete__(mParent, response);
+  return NS_OK;
+}
 
 } // namespace devicestorage
 } // namespace dom

@@ -11,11 +11,18 @@ function test() {
   // Add a history entry.
   let TEST_URIs = ["http://www.mozilla.org/test1", "http://www.mozilla.org/test2"];
   ok(PlacesUtils, "checking PlacesUtils, running in chrome context?");
-  let history = PlacesUtils.history;
+  let places = [];
   TEST_URIs.forEach(function(TEST_URI) {
-    let visitId = history.addVisit(PlacesUtils._uri(TEST_URI), Date.now() * 1000,
-                                   null, PlacesUtils.history.TRANSITION_TYPED, false, 0);
-    ok(visitId > 0, TEST_URI + " successfully marked visited");
+    places.push({uri: PlacesUtils._uri(TEST_URI),
+                 transition: PlacesUtils.history.TRANSITION_TYPED});
+  });
+  addVisits(places, window, function() {
+    testForgetThisSiteVisibility(1, function() {
+      testForgetThisSiteVisibility(2, function() {
+        // Cleanup
+        waitForClearHistory(finish);
+      });
+    });
   });
 
   function testForgetThisSiteVisibility(selectionCount, funcNext) {
@@ -55,18 +62,9 @@ function test() {
             organizer.close();
           }, true);
           // Get cell coordinates
-          var x = {}, y = {}, width = {}, height = {};
-          tree.treeBoxObject.getCoordsForCellItem(0, tree.columns[0], "text",
-                                                  x, y, width, height);
+          var rect = tree.treeBoxObject.getCoordsForCellItem(0, tree.columns[0], "text");
           // Initiate a context menu for the selected cell
-          EventUtils.synthesizeMouse(tree.body, x.value + width.value / 2, y.value + height.value / 2, {type: "contextmenu"}, organizer);
+          EventUtils.synthesizeMouse(tree.body, rect.x + rect.width / 2, rect.y + rect.height / 2, {type: "contextmenu"}, organizer);
     });
   }
-
-  testForgetThisSiteVisibility(1, function() {
-    testForgetThisSiteVisibility(2, function() {
-      // Cleanup
-      waitForClearHistory(finish);
-    });
-  });
 }

@@ -13,7 +13,7 @@
 #if defined(MOZALLOC_EXPORT)
 // do nothing: it's been defined to __declspec(dllexport) by
 // mozalloc*.cpp on platforms where that's required
-#elif defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
+#elif defined(XP_WIN)
 #  define MOZALLOC_EXPORT __declspec(dllimport)
 #elif defined(HAVE_VISIBILITY_ATTRIBUTE)
 /* Make sure symbols are still exported even if we're wrapped in a
@@ -26,8 +26,15 @@
 /**
  * Terminate this process in such a way that breakpad is triggered, if
  * at all possible.
+ *
+ * Note: MOZ_NORETURN seems to break crash stacks on ARM, so we don't
+ * use that annotation there.
  */
-MOZ_NORETURN MOZALLOC_EXPORT void mozalloc_abort(const char* const msg);
+MOZALLOC_EXPORT
+#if !defined(__arm__)
+  MOZ_NORETURN
+#endif
+  void mozalloc_abort(const char* const msg);
 
 
 #endif  /* ifndef mozilla_mozalloc_abort_h */

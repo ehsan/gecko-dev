@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -7,62 +7,72 @@
 // main.cpp: DLL entry point and management of thread-local data.
 
 #include "libGLESv2/main.h"
-#include "libGLESv2/utilities.h"
+#include "libGLESv2/Context.h"
 
-#include "common/debug.h"
-#include "libEGL/Surface.h"
+#include "common/tls.h"
 
-#include "libGLESv2/Framebuffer.h"
+static TLSIndex currentTLS = TLS_OUT_OF_INDEXES;
 
-static DWORD currentTLS = TLS_OUT_OF_INDEXES;
+namespace gl
+{
 
-BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
+Current *AllocateCurrent()
+{
+    ASSERT(currentTLS != TLS_OUT_OF_INDEXES);
+    if (currentTLS == TLS_OUT_OF_INDEXES)
+    {
+        return NULL;
+    }
+
+    Current *current = new Current();
+    current->context = NULL;
+    current->display = NULL;
+
+    if (!SetTLSValue(currentTLS, current))
+    {
+        ERR("Could not set thread local storage.");
+        return NULL;
+    }
+
+    return current;
+}
+
+void DeallocateCurrent()
+{
+    Current *current = reinterpret_cast<Current*>(GetTLSValue(currentTLS));
+    SafeDelete(current);
+    SetTLSValue(currentTLS, NULL);
+}
+
+}
+
+extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 {
     switch (reason)
     {
       case DLL_PROCESS_ATTACH:
         {
-            currentTLS = TlsAlloc();
-
+            currentTLS = CreateTLSIndex();
             if (currentTLS == TLS_OUT_OF_INDEXES)
             {
                 return FALSE;
             }
         }
-        // Fall throught to initialize index
+        // Fall through to initialize index
       case DLL_THREAD_ATTACH:
         {
-            gl::Current *current = (gl::Current*)LocalAlloc(LPTR, sizeof(gl::Current));
-
-            if (current)
-            {
-                TlsSetValue(currentTLS, current);
-
-                current->context = NULL;
-                current->display = NULL;
-            }
+            gl::AllocateCurrent();
         }
         break;
       case DLL_THREAD_DETACH:
         {
-            void *current = TlsGetValue(currentTLS);
-
-            if (current)
-            {
-                LocalFree((HLOCAL)current);
-            }
+            gl::DeallocateCurrent();
         }
         break;
       case DLL_PROCESS_DETACH:
         {
-            void *current = TlsGetValue(currentTLS);
-
-            if (current)
-            {
-                LocalFree((HLOCAL)current);
-            }
-
-            TlsFree(currentTLS);
+            gl::DeallocateCurrent();
+            DestroyTLSIndex(currentTLS);
         }
         break;
       default:
@@ -74,22 +84,32 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 
 namespace gl
 {
+
+Current *GetCurrentData()
+{
+    Current *current = reinterpret_cast<Current*>(GetTLSValue(currentTLS));
+
+    // ANGLE issue 488: when the dll is loaded after thread initialization,
+    // thread local storage (current) might not exist yet.
+    return (current ? current : AllocateCurrent());
+}
+
 void makeCurrent(Context *context, egl::Display *display, egl::Surface *surface)
 {
-    Current *current = (Current*)TlsGetValue(currentTLS);
+    Current *current = GetCurrentData();
 
     current->context = context;
     current->display = display;
 
     if (context && display && surface)
     {
-        context->makeCurrent(display, surface);
+        context->makeCurrent(surface);
     }
 }
 
 Context *getContext()
 {
-    Current *current = (Current*)TlsGetValue(currentTLS);
+    Current *current = GetCurrentData();
 
     return current->context;
 }
@@ -97,12 +117,12 @@ Context *getContext()
 Context *getNonLostContext()
 {
     Context *context = getContext();
-    
+
     if (context)
     {
         if (context->isContextLost())
         {
-            error(GL_OUT_OF_MEMORY);
+            gl::error(GL_OUT_OF_MEMORY);
             return NULL;
         }
         else
@@ -115,62 +135,37 @@ Context *getNonLostContext()
 
 egl::Display *getDisplay()
 {
-    Current *current = (Current*)TlsGetValue(currentTLS);
+    Current *current = GetCurrentData();
 
     return current->display;
-}
-
-IDirect3DDevice9 *getDevice()
-{
-    egl::Display *display = getDisplay();
-
-    return display->getDevice();
-}
-
-bool checkDeviceLost(HRESULT errorCode)
-{
-    egl::Display *display = NULL;
-
-    if (isDeviceLostError(errorCode))
-    {
-        display = gl::getDisplay();
-        display->notifyDeviceLost();
-        return true;
-    }
-    return false;
-}
 }
 
 // Records an error code
 void error(GLenum errorCode)
 {
     gl::Context *context = glGetCurrentContext();
+    context->recordError(Error(errorCode));
 
-    if (context)
+    switch (errorCode)
     {
-        switch (errorCode)
-        {
-          case GL_INVALID_ENUM:
-            context->recordInvalidEnum();
-            TRACE("\t! Error generated: invalid enum\n");
-            break;
-          case GL_INVALID_VALUE:
-            context->recordInvalidValue();
-            TRACE("\t! Error generated: invalid value\n");
-            break;
-          case GL_INVALID_OPERATION:
-            context->recordInvalidOperation();
-            TRACE("\t! Error generated: invalid operation\n");
-            break;
-          case GL_OUT_OF_MEMORY:
-            context->recordOutOfMemory();
-            TRACE("\t! Error generated: out of memory\n");
-            break;
-          case GL_INVALID_FRAMEBUFFER_OPERATION:
-            context->recordInvalidFramebufferOperation();
-            TRACE("\t! Error generated: invalid framebuffer operation\n");
-            break;
-          default: UNREACHABLE();
-        }
+      case GL_INVALID_ENUM:
+        TRACE("\t! Error generated: invalid enum\n");
+        break;
+      case GL_INVALID_VALUE:
+        TRACE("\t! Error generated: invalid value\n");
+        break;
+      case GL_INVALID_OPERATION:
+        TRACE("\t! Error generated: invalid operation\n");
+        break;
+      case GL_OUT_OF_MEMORY:
+        TRACE("\t! Error generated: out of memory\n");
+        break;
+      case GL_INVALID_FRAMEBUFFER_OPERATION:
+        TRACE("\t! Error generated: invalid framebuffer operation\n");
+        break;
+      default: UNREACHABLE();
     }
 }
+
+}
+

@@ -4,8 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIServiceManager.h"
-#include "nsIComponentManager.h"
-#include "nsIComponentRegistrar.h"
 #include "nsIStreamConverterService.h"
 #include "nsIStreamConverter.h"
 #include "nsICategoryManager.h"
@@ -13,11 +11,13 @@
 #include "nsXULAppAPI.h"
 #include "nsIStringStream.h"
 #include "nsCOMPtr.h"
-#include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Attributes.h"
-
-#include "nspr.h"
+#include "nsMemory.h"
+#include "nsServiceManagerUtils.h"
+#include "nsComponentManagerUtils.h"
+#include "nsIRequest.h"
+#include "nsNetCID.h"
 
 #define ASYNC_TEST // undefine this if you want to test sycnronous conversion.
 
@@ -26,9 +26,6 @@
 /////////////////////////////////
 #ifdef XP_WIN
 #include <windows.h>
-#endif
-#ifdef XP_OS2
-#include <os2.h>
 #endif
 
 static int gKeepRunning = 0;
@@ -51,22 +48,23 @@ static NS_DEFINE_CID(kStreamConverterServiceCID, NS_STREAMCONVERTERSERVICE_CID);
 //   the data.
 ////////////////////////////////////////////////////////////////////////
 class EndListener MOZ_FINAL : public nsIStreamListener {
+    ~EndListener() {}
 public:
     // nsISupports declaration
     NS_DECL_ISUPPORTS
 
-    EndListener() {};
+    EndListener() {}
 
     // nsIStreamListener method
     NS_IMETHOD OnDataAvailable(nsIRequest* request, nsISupports *ctxt, nsIInputStream *inStr, 
-                               uint32_t sourceOffset, uint32_t count)
+                               uint64_t sourceOffset, uint32_t count)
     {
         nsresult rv;
         uint32_t read;
         uint64_t len64;
         rv = inStr->Available(&len64);
         if (NS_FAILED(rv)) return rv;
-        uint32_t len = (uint32_t)NS_MIN(len64, (uint64_t)(PR_UINT32_MAX - 1));
+        uint32_t len = (uint32_t)std::min(len64, (uint64_t)(UINT32_MAX - 1));
 
         char *buffer = (char*)nsMemory::Alloc(len + 1);
         if (!buffer) return NS_ERROR_OUT_OF_MEMORY;
@@ -89,20 +87,14 @@ public:
                              nsresult aStatus) { return NS_OK; }
 };
 
-NS_IMPL_ISUPPORTS2(EndListener,
-                   nsIStreamListener,
-                   nsIRequestObserver)
+NS_IMPL_ISUPPORTS(EndListener,
+                  nsIStreamListener,
+                  nsIRequestObserver)
 
 ////////////////////////////////////////////////////////////////////////
 // EndListener END
 ////////////////////////////////////////////////////////////////////////
 
-static uint32_t 
-saturated(uint64_t aValue)
-{
-    return (uint32_t)NS_MIN(aValue, (uint64_t)PR_UINT32_MAX);
-}
- 
 nsresult SendData(const char * aData, nsIStreamListener* aListener, nsIRequest* request) {
     nsresult rv;
 
@@ -120,7 +112,7 @@ nsresult SendData(const char * aData, nsIStreamListener* aListener, nsIRequest* 
     while (avail > 0) {
         uint32_t count = saturated(avail);
         rv = aListener->OnDataAvailable(request, nullptr, dataStream,
-                                        saturated(offset), count);
+                                        offset, count);
         if (NS_FAILED(rv)) return rv;
 
         offset += count;
@@ -131,8 +123,8 @@ nsresult SendData(const char * aData, nsIStreamListener* aListener, nsIRequest* 
 #define SEND_DATA(x) SendData(x, converterListener, request)
 
 static const mozilla::Module::CIDEntry kTestCIDs[] = {
-    { &kTestConverterCID, false, NULL, CreateTestConverter },
-    { NULL }
+    { &kTestConverterCID, false, nullptr, CreateTestConverter },
+    { nullptr }
 };
 
 static const mozilla::Module::ContractIDEntry kTestContracts[] = {
@@ -143,7 +135,7 @@ static const mozilla::Module::ContractIDEntry kTestContracts[] = {
     { NS_ISTREAMCONVERTER_KEY "?from=d/foo&to=e/foo", &kTestConverterCID },
     { NS_ISTREAMCONVERTER_KEY "?from=d/foo&to=f/foo", &kTestConverterCID },
     { NS_ISTREAMCONVERTER_KEY "?from=t/foo&to=k/foo", &kTestConverterCID },
-    { NULL }
+    { nullptr }
 };
 
 static const mozilla::Module::CategoryEntry kTestCategories[] = {
@@ -154,7 +146,7 @@ static const mozilla::Module::CategoryEntry kTestCategories[] = {
     { NS_ISTREAMCONVERTER_KEY, "?from=d/foo&to=e/foo", "x" },
     { NS_ISTREAMCONVERTER_KEY, "?from=d/foo&to=f/foo", "x" },
     { NS_ISTREAMCONVERTER_KEY, "?from=t/foo&to=k/foo", "x" },
-    { NULL }
+    { nullptr }
 };
 
 static const mozilla::Module kTestModule = {
@@ -178,12 +170,12 @@ main(int argc, char* argv[])
 
         nsCOMPtr<nsICategoryManager> catman =
             do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv);
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) return -1;
         nsCString previous;
 
         nsCOMPtr<nsIStreamConverterService> StreamConvService =
                  do_GetService(kStreamConverterServiceCID, &rv);
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) return -1;
 
         // Define the *from* content type and *to* content-type for conversion.
         static const char fromStr[] = "a/foo";
@@ -201,14 +193,14 @@ main(int argc, char* argv[])
         nsCOMPtr<nsIChannel> channel;
         nsCOMPtr<nsIURI> dummyURI;
         rv = NS_NewURI(getter_AddRefs(dummyURI), "http://meaningless");
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) return -1;
 
         rv = NS_NewInputStreamChannel(getter_AddRefs(channel),
                                       dummyURI,
                                       nullptr,   // inStr
                                       "text/plain", // content-type
                                       -1);      // XXX fix contentLength
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) return -1;
 
         nsCOMPtr<nsIRequest> request(do_QueryInterface(channel));
 #endif
@@ -227,7 +219,7 @@ main(int argc, char* argv[])
         nsIStreamListener *converterListener = nullptr;
         rv = StreamConvService->AsyncConvertData(fromStr, toStr,
                                                  dataReceiver, nullptr, &converterListener);
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) return -1;
         NS_RELEASE(dataReceiver);
 
         // at this point we have a stream listener to push data to, and the one
@@ -235,17 +227,17 @@ main(int argc, char* argv[])
         // going. Typically these On*() calls would be made inside their respective wrappers On*()
         // methods.
         rv = converterListener->OnStartRequest(request, nullptr);
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) return -1;
 
         rv = SEND_DATA("aaa");
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) return -1;
 
         rv = SEND_DATA("aaa");
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) return -1;
 
         // Finish the request.
         rv = converterListener->OnStopRequest(request, nullptr, rv);
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) return -1;
 
         NS_RELEASE(converterListener);
 #else
@@ -253,7 +245,7 @@ main(int argc, char* argv[])
         nsCOMPtr<nsIInputStream> convertedData;
         rv = StreamConvService->Convert(inputData, fromStr, toStr,
                                         nullptr, getter_AddRefs(convertedData));
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) return -1;
 #endif
 
         // Enter the message pump to allow the URL load to proceed.
@@ -264,5 +256,5 @@ main(int argc, char* argv[])
     } // this scopes the nsCOMPtrs
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
     NS_ShutdownXPCOM(nullptr);
-    return rv;
+    return 0;
 }

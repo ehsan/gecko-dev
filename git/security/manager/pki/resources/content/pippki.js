@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -43,7 +43,6 @@ function getDERString(cert)
 function getPKCS7String(cert, chainMode)
 {
   var length = {};
-  cert.QueryInterface(Components.interfaces.nsIX509Cert3);
   var pkcs7Array = cert.exportAsCMS(chainMode, length);
   var pkcs7String = '';
   for (var i = 0; i < pkcs7Array.length; i++) {
@@ -73,14 +72,14 @@ function alertPromptService(title, message)
 
 function exportToFile(parent, cert)
 {
-  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
+  var bundle = document.getElementById("pippki_bundle");
   if (!cert)
     return;
 
   var nsIFilePicker = Components.interfaces.nsIFilePicker;
   var fp = Components.classes["@mozilla.org/filepicker;1"].
            createInstance(nsIFilePicker);
-  fp.init(parent, bundle.GetStringFromName("SaveCertAs"),
+  fp.init(parent, bundle.getString("SaveCertAs"),
           nsIFilePicker.modeSave);
   var filename = cert.commonName;
   if (!filename.length)
@@ -88,11 +87,11 @@ function exportToFile(parent, cert)
   // remove all whitespace from the default filename
   fp.defaultString = filename.replace(/\s*/g,'');
   fp.defaultExtension = "crt";
-  fp.appendFilter(bundle.GetStringFromName("CertFormatBase64"), "*.crt; *.pem");
-  fp.appendFilter(bundle.GetStringFromName("CertFormatBase64Chain"), "*.crt; *.pem");
-  fp.appendFilter(bundle.GetStringFromName("CertFormatDER"), "*.der");
-  fp.appendFilter(bundle.GetStringFromName("CertFormatPKCS7"), "*.p7c");
-  fp.appendFilter(bundle.GetStringFromName("CertFormatPKCS7Chain"), "*.p7c");
+  fp.appendFilter(bundle.getString("CertFormatBase64"), "*.crt; *.pem");
+  fp.appendFilter(bundle.getString("CertFormatBase64Chain"), "*.crt; *.pem");
+  fp.appendFilter(bundle.getString("CertFormatDER"), "*.der");
+  fp.appendFilter(bundle.getString("CertFormatPKCS7"), "*.p7c");
+  fp.appendFilter(bundle.getString("CertFormatPKCS7Chain"), "*.p7c");
   fp.appendFilters(nsIFilePicker.filterAll);
   var res = fp.show();
   if (res != nsIFilePicker.returnOK && res != nsIFilePicker.returnReplace)
@@ -110,10 +109,10 @@ function exportToFile(parent, cert)
       content = getDERString(cert);
       break;
     case 3:
-      content = getPKCS7String(cert, Components.interfaces.nsIX509Cert3.CMS_CHAIN_MODE_CertOnly);
+      content = getPKCS7String(cert, Components.interfaces.nsIX509Cert.CMS_CHAIN_MODE_CertOnly);
       break;
     case 4:
-      content = getPKCS7String(cert, Components.interfaces.nsIX509Cert3.CMS_CHAIN_MODE_CertChainWithRoot);
+      content = getPKCS7String(cert, Components.interfaces.nsIX509Cert.CMS_CHAIN_MODE_CertChainWithRoot);
       break;
     case 0:
     default:
@@ -136,14 +135,14 @@ function exportToFile(parent, cert)
   catch(e) {
     switch (e.result) {
       case Components.results.NS_ERROR_FILE_ACCESS_DENIED:
-        msg = bundle.GetStringFromName("writeFileAccessDenied");
+        msg = bundle.getString("writeFileAccessDenied");
         break;
       case Components.results.NS_ERROR_FILE_IS_LOCKED:
-        msg = bundle.GetStringFromName("writeFileIsLocked");
+        msg = bundle.getString("writeFileIsLocked");
         break;
       case Components.results.NS_ERROR_FILE_NO_DEVICE_SPACE:
       case Components.results.NS_ERROR_FILE_DISK_FULL:
-        msg = bundle.GetStringFromName("writeFileNoDeviceSpace");
+        msg = bundle.getString("writeFileNoDeviceSpace");
         break;
       default:
         msg = e.message;
@@ -152,9 +151,9 @@ function exportToFile(parent, cert)
   }
   if (written != content.length) {
     if (!msg.length)
-      msg = bundle.GetStringFromName("writeFileUnknownError");
-    alertPromptService(bundle.GetStringFromName("writeFileFailure"),
-                       bundle.formatStringFromName("writeFileFailed",
-                         [ fp.file.path, msg ], 2));
+      msg = bundle.getString("writeFileUnknownError");
+    alertPromptService(bundle.getString("writeFileFailure"),
+                       bundle.getFormattedString("writeFileFailed",
+                       [fp.file.path, msg]));
   }
 }

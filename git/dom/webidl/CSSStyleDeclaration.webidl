@@ -8,27 +8,30 @@
  */
 
 interface CSSRule;
-interface CSSValue;
 
 interface CSSStyleDeclaration {
-  [GetterInfallible]
+  [SetterThrows]
   attribute DOMString cssText;
 
-  [Infallible]
   readonly attribute unsigned long length;
-  [Infallible]
   getter DOMString item(unsigned long index);
 
+  [Throws]
   DOMString getPropertyValue(DOMString property);
   // Mozilla extension, sort of
-  CSSValue getPropertyCSSValue(DOMString property);
-  [Infallible]
+  [Throws]
+  CSSValue? getPropertyCSSValue(DOMString property);
   DOMString getPropertyPriority(DOMString property);
-  // This would be nicer if it used a string default value of "".
-  // See bug 759622.
-  void setProperty(DOMString property, DOMString value, [TreatNullAs=EmptyString] optional DOMString priority);
+  [Throws]
+  void setProperty(DOMString property, DOMString value, [TreatNullAs=EmptyString] optional DOMString priority = "");
+  [Throws]
   DOMString removeProperty(DOMString property);
 
-  [Infallible]
-  readonly attribute CSSRule parentRule;
+  readonly attribute CSSRule? parentRule;
+};
+
+// Mozilla extensions
+partial interface CSSStyleDeclaration {
+  [ChromeOnly,Throws]
+  DOMString getAuthoredPropertyValue(DOMString property);
 };

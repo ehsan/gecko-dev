@@ -21,35 +21,30 @@ function performTest(hud)
 {
   hud.jsterm.clearOutput(true);
 
-  content.console.log("fooBug773466a");
-  content.console.dir(function funBug773466(){});
-  waitForSuccess({
-    name: "eval results are shown",
-    validatorFn: function()
-    {
-      return hud.outputNode.textContent.indexOf("funBug773466") > -1;
-    },
-    successFn: function()
-    {
-      isnot(hud.outputNode.textContent.indexOf("fooBug773466a"), -1,
-            "fooBug773466a shows");
-      ok(hud.outputNode.querySelector(".webconsole-msg-inspector"),
-         "the console.dir() tree shows");
+  hud.jsterm.execute("console.log('fooBug773466a')");
+  hud.jsterm.execute("myObj = Object.create(null)");
+  hud.jsterm.execute("console.dir(myObj)");
 
-      content.console.log("fooBug773466b");
-
-      waitForSuccess(waitForAnotherConsoleLogCall);
+  waitForMessages({
+    webconsole: hud,
+    messages: [{
+      text: "fooBug773466a",
+      category: CATEGORY_WEBDEV,
+      severity: SEVERITY_LOG,
     },
-    failureFn: finishTest,
+    {
+      name: "console.dir output",
+      consoleDir: "[object Object]",
+    }],
+  }).then(() => {
+    content.console.log("fooBug773466b");
+    waitForMessages({
+      webconsole: hud,
+      messages: [{
+        text: "fooBug773466b",
+        category: CATEGORY_WEBDEV,
+        severity: SEVERITY_LOG,
+      }],
+    }).then(finishTest);
   });
-
-  let waitForAnotherConsoleLogCall = {
-    name: "eval result after console.dir()",
-    validatorFn: function()
-    {
-      return hud.outputNode.textContent.indexOf("fooBug773466b") > -1;
-    },
-    successFn: finishTest,
-    failureFn: finishTest,
-  };
 }

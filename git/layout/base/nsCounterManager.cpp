@@ -10,6 +10,11 @@
 #include "nsBulletFrame.h" // legacy location for list style type to text code
 #include "nsContentUtils.h"
 #include "nsTArray.h"
+#include "mozilla/Likely.h"
+#include "nsIContent.h"
+#include "WritingModes.h"
+
+using namespace mozilla;
 
 bool
 nsCounterUseNode::InitTextFrame(nsGenConList* aList,
@@ -34,8 +39,28 @@ nsCounterUseNode::InitTextFrame(nsGenConList* aList,
       return true;
     }
   }
-  
+
   return false;
+}
+
+CounterStyle*
+nsCounterUseNode::GetCounterStyle()
+{
+    if (!mCounterStyle) {
+        const nsCSSValue& style = mCounterFunction->Item(mAllCounters ? 2 : 1);
+        CounterStyleManager* manager = mPresContext->CounterStyleManager();
+        if (style.GetUnit() == eCSSUnit_Ident) {
+            nsString ident;
+            style.GetStringValue(ident);
+            mCounterStyle = manager->BuildCounterStyle(ident);
+        } else if (style.GetUnit() == eCSSUnit_Symbols) {
+            mCounterStyle = manager->BuildCounterStyle(style.GetArrayValue());
+        } else {
+            NS_NOTREACHED("Unknown counter style");
+            mCounterStyle = CounterStyleManager::GetDecimalStyle();
+        }
+    }
+    return mCounterStyle;
 }
 
 // assign the correct |mValueAfter| value to a node that has been inserted
@@ -57,7 +82,8 @@ void nsCounterChangeNode::Calc(nsCounterList *aList)
         mValueAfter = mChangeValue;
     } else {
         NS_ASSERTION(mType == INCREMENT, "invalid type");
-        mValueAfter = aList->ValueBefore(this) + mChangeValue;
+        mValueAfter = nsCounterManager::IncrementCounter(aList->ValueBefore(this),
+                                                         mChangeValue);
     }
 }
 
@@ -74,15 +100,19 @@ nsCounterUseNode::GetText(nsString& aResult)
         for (nsCounterNode *n = mScopeStart; n->mScopePrev; n = n->mScopeStart)
             stack.AppendElement(n->mScopePrev);
 
-    const nsCSSValue& styleItem = mCounterStyle->Item(mAllCounters ? 2 : 1);
-    int32_t style = styleItem.GetIntValue();
-    const PRUnichar* separator;
+    const char16_t* separator;
     if (mAllCounters)
-        separator = mCounterStyle->Item(1).GetStringBufferValue();
+        separator = mCounterFunction->Item(1).GetStringBufferValue();
 
+    CounterStyle* style = GetCounterStyle();
+    WritingMode wm = mPseudoFrame ?
+        mPseudoFrame->GetWritingMode() : WritingMode();
     for (uint32_t i = stack.Length() - 1;; --i) {
         nsCounterNode *n = stack[i];
-        nsBulletFrame::AppendCounterText(style, n->mValueAfter, aResult);
+        nsAutoString text;
+        bool isTextRTL;
+        style->GetCounterText(n->mValueAfter, wm, text, isTextRTL);
+        aResult.Append(text);
         if (i == 0)
             break;
         NS_ASSERTION(mAllCounters, "yikes, separator is uninitialized");
@@ -178,14 +208,14 @@ nsCounterList::RecalcAll()
 }
 
 nsCounterManager::nsCounterManager()
+    : mNames()
 {
-    mNames.Init(16);
 }
 
 bool
 nsCounterManager::AddCounterResetsAndIncrements(nsIFrame *aFrame)
 {
-    const nsStyleContent *styleContent = aFrame->GetStyleContent();
+    const nsStyleContent *styleContent = aFrame->StyleContent();
     if (!styleContent->CounterIncrementCount() &&
         !styleContent->CounterResetCount())
         return false;
@@ -214,10 +244,6 @@ nsCounterManager::AddResetOrIncrement(nsIFrame *aFrame, int32_t aIndex,
         new nsCounterChangeNode(aFrame, aType, aCounterData->mValue, aIndex);
 
     nsCounterList *counterList = CounterListFor(aCounterData->mCounter);
-    if (!counterList) {
-        NS_NOTREACHED("CounterListFor failed (should only happen on OOM)");
-        return false;
-    }
 
     counterList->Insert(node);
     if (!counterList->IsLast(node)) {
@@ -229,7 +255,7 @@ nsCounterManager::AddResetOrIncrement(nsIFrame *aFrame, int32_t aIndex,
 
     // Don't call Calc() if the list is already dirty -- it'll be recalculated
     // anyway, and trying to calculate with a dirty list doesn't work.
-    if (NS_LIKELY(!counterList->IsDirty())) {
+    if (MOZ_LIKELY(!counterList->IsDirty())) {
         node->Calc(counterList);
     }
     return false;
@@ -262,8 +288,36 @@ nsCounterManager::RecalcAll()
     mNames.EnumerateRead(RecalcDirtyLists, nullptr);
 }
 
+static PLDHashOperator
+SetCounterStylesDirty(const nsAString& aKey,
+                      nsCounterList* aList,
+                      void* aClosure)
+{
+    nsCounterNode* first = aList->First();
+    if (first) {
+        bool changed = false;
+        nsCounterNode* node = first;
+        do {
+            if (node->mType == nsCounterNode::USE) {
+                node->UseNode()->SetCounterStyleDirty();
+                changed = true;
+            }
+        } while ((node = aList->Next(node)) != first);
+        if (changed) {
+            aList->SetDirty();
+        }
+    }
+    return PL_DHASH_NEXT;
+}
+
+void
+nsCounterManager::SetAllCounterStylesDirty()
+{
+    mNames.EnumerateRead(SetCounterStylesDirty, nullptr);
+}
+
 struct DestroyNodesData {
-    DestroyNodesData(nsIFrame *aFrame)
+    explicit DestroyNodesData(nsIFrame *aFrame)
         : mFrame(aFrame)
         , mDestroyedAny(false)
     {

@@ -1,39 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* -r flag is interepreted as follows:
  *	1 -r  means request, not require, on initial handshake.
@@ -73,6 +40,7 @@
 #include "sslproto.h"
 #include "cert.h"
 #include "certt.h"
+#include "ocsp.h"
 
 #ifndef PORT_Sprintf
 #define PORT_Sprintf sprintf
@@ -110,6 +78,21 @@ static PRUint32 loggerOps;
 static PRUint32 loggerBytes;
 static PRUint32 loggerBytesTCP;
 static PRUint32 bulkSentChunks;
+static enum ocspStaplingModeEnum {
+    osm_disabled,  /* server doesn't support stapling */
+    osm_good,      /* supply a signed good status */
+    osm_revoked,   /* supply a signed revoked status */
+    osm_unknown,   /* supply a signed unknown status */
+    osm_failure,   /* supply a unsigned failure status, "try later" */
+    osm_badsig,    /* supply a good status response with a bad signature */
+    osm_corrupted, /* supply a corrupted data block as the status */
+    osm_random,    /* use a random response for each connection */
+    osm_ocsp       /* retrieve ocsp status from external ocsp server,
+		      use empty status if server is unavailable */
+} ocspStaplingMode = osm_disabled;
+typedef enum ocspStaplingModeEnum ocspStaplingModeType;
+static char *ocspStaplingCA = NULL;
+static SECItemArray *certStatus[kt_kea_size] = { NULL };
 
 const int ssl2CipherSuites[] = {
     SSL_EN_RC4_128_WITH_MD5,			/* A */
@@ -124,30 +107,30 @@ const int ssl2CipherSuites[] = {
 const int ssl3CipherSuites[] = {
     -1, /* SSL_FORTEZZA_DMS_WITH_FORTEZZA_CBC_SHA* a */
     -1, /* SSL_FORTEZZA_DMS_WITH_RC4_128_SHA	 * b */
-    SSL_RSA_WITH_RC4_128_MD5,			/* c */
-    SSL_RSA_WITH_3DES_EDE_CBC_SHA,		/* d */
-    SSL_RSA_WITH_DES_CBC_SHA,			/* e */
-    SSL_RSA_EXPORT_WITH_RC4_40_MD5,		/* f */
-    SSL_RSA_EXPORT_WITH_RC2_CBC_40_MD5,		/* g */
+    TLS_RSA_WITH_RC4_128_MD5,			/* c */
+    TLS_RSA_WITH_3DES_EDE_CBC_SHA,		/* d */
+    TLS_RSA_WITH_DES_CBC_SHA,			/* e */
+    TLS_RSA_EXPORT_WITH_RC4_40_MD5,		/* f */
+    TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5,		/* g */
     -1, /* SSL_FORTEZZA_DMS_WITH_NULL_SHA,	 * h */
-    SSL_RSA_WITH_NULL_MD5,			/* i */
+    TLS_RSA_WITH_NULL_MD5,			/* i */
     SSL_RSA_FIPS_WITH_3DES_EDE_CBC_SHA,		/* j */
     SSL_RSA_FIPS_WITH_DES_CBC_SHA,		/* k */
     TLS_RSA_EXPORT1024_WITH_DES_CBC_SHA,	/* l */
     TLS_RSA_EXPORT1024_WITH_RC4_56_SHA,	        /* m */
-    SSL_RSA_WITH_RC4_128_SHA,			/* n */
+    TLS_RSA_WITH_RC4_128_SHA,			/* n */
     -1, /* TLS_DHE_DSS_WITH_RC4_128_SHA, 	 * o */
-    -1, /* SSL_DHE_RSA_WITH_3DES_EDE_CBC_SHA,	 * p */
-    -1, /* SSL_DHE_DSS_WITH_3DES_EDE_CBC_SHA,	 * q */
-    -1, /* SSL_DHE_RSA_WITH_DES_CBC_SHA,	 * r */
-    -1, /* SSL_DHE_DSS_WITH_DES_CBC_SHA,	 * s */
+    -1, /* TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,	 * p */
+    -1, /* TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA,	 * q */
+    -1, /* TLS_DHE_RSA_WITH_DES_CBC_SHA,	 * r */
+    -1, /* TLS_DHE_DSS_WITH_DES_CBC_SHA,	 * s */
     -1, /* TLS_DHE_DSS_WITH_AES_128_CBC_SHA,	 * t */
     -1, /* TLS_DHE_RSA_WITH_AES_128_CBC_SHA,	 * u */
     TLS_RSA_WITH_AES_128_CBC_SHA,     	    	/* v */
     -1, /* TLS_DHE_DSS_WITH_AES_256_CBC_SHA,	 * w */
     -1, /* TLS_DHE_RSA_WITH_AES_256_CBC_SHA,	 * x */
     TLS_RSA_WITH_AES_256_CBC_SHA,     	    	/* y */
-    SSL_RSA_WITH_NULL_SHA,			/* z */
+    TLS_RSA_WITH_NULL_SHA,			/* z */
     0
 };
 
@@ -169,29 +152,37 @@ static PRLogModuleInfo *lm;
 #define VLOG(arg) PR_LOG(lm,PR_LOG_DEBUG,arg)
 
 static void
-Usage(const char *progName)
+PrintUsageHeader(const char *progName)
 {
     fprintf(stderr, 
-
-"Usage: %s -n rsa_nickname -p port [-3BDENRSTbjlmrsuvx] [-w password]\n"
-"         [-t threads] [-i pid_file] [-c ciphers] [-d dbdir] [-g numblocks]\n"
+"Usage: %s -n rsa_nickname -p port [-BDENRbjlmrsuvx] [-w password]\n"
+"         [-t threads] [-i pid_file] [-c ciphers] [-Y] [-d dbdir] [-g numblocks]\n"
 "         [-f password_file] [-L [seconds]] [-M maxProcs] [-P dbprefix]\n"
-"         [-a sni_name]\n"
-#ifdef NSS_ENABLE_ECC
+"         [-V [min-version]:[max-version]] [-a sni_name]\n"
+"         [ T <good|revoked|unknown|badsig|corrupted|none|ocsp>] [-A ca]\n"
+#ifndef NSS_DISABLE_ECC
 "         [-C SSLCacheEntries] [-e ec_nickname]\n"
 #else
 "         [-C SSLCacheEntries]\n"
-#endif /* NSS_ENABLE_ECC */
-"-S means disable SSL v2\n"
-"-3 means disable SSL v3\n"
-"-T means disable TLS\n"
+#endif /* NSS_DISABLE_ECC */
+        ,progName);
+}
+
+static void
+PrintParameterUsage()
+{
+    fputs(
+"-V [min]:[max] restricts the set of enabled SSL/TLS protocol versions.\n"
+"   All versions are enabled by default.\n"
+"   Possible values for min/max: ssl2 ssl3 tls1.0 tls1.1 tls1.2\n"
+"   Example: \"-V ssl3:\" enables SSL 3 and newer.\n"
 "-B bypasses the PKCS11 layer for SSL encryption and MACing\n"
 "-q checks for bypassability\n"
 "-D means disable Nagle delays in TCP\n"
 "-E means disable export ciphersuites and SSL step down key gen\n"
 "-R means disable detection of rollback from TLS to SSL3\n"
 "-a configure server for SNI.\n"
-"-k expected name negotiated on server sockets"
+"-k expected name negotiated on server sockets\n"
 "-b means try binding to the port and exit\n"
 "-m means test the model-socket feature of SSL_ImportFD.\n"
 "-r flag is interepreted as follows:\n"
@@ -215,6 +206,33 @@ Usage(const char *progName)
 "-j means measure TCP throughput (for use with -g option)\n"
 "-C SSLCacheEntries sets the maximum number of entries in the SSL\n" 
 "    session cache\n"
+"-T <mode> enable OCSP stapling. Possible modes:\n"
+"   none: don't send cert status (default)\n"
+"   good, revoked, unknown: Include locally signed response. Requires: -A\n"
+"   failure: return a failure response (try later, unsigned)\n"
+"   badsig: use a good status but with an invalid signature\n"
+"   corrupted: stapled cert status is an invalid block of data\n"
+"   random: each connection uses a random status from this list:\n"
+"           good, revoked, unknown, failure, badsig, corrupted\n"
+"   ocsp: fetch from external OCSP server using AIA, or none\n"
+"-A <ca> Nickname of a CA used to sign a stapled cert status\n"
+"-c Restrict ciphers\n"
+"-Y prints cipher values allowed for parameter -c and exits\n"
+    , stderr);
+}
+
+static void
+Usage(const char *progName)
+{
+    PrintUsageHeader(progName);
+    PrintParameterUsage();
+}
+
+static void
+PrintCipherUsage(const char *progName)
+{
+    PrintUsageHeader(progName);
+    fputs(
 "-c ciphers   Letter(s) chosen from the following list\n"
 "A    SSL2 RC4 128 WITH MD5\n"
 "B    SSL2 RC4 128 EXPORT40 WITH MD5\n"
@@ -239,7 +257,7 @@ Usage(const char *progName)
 "z    SSL3 RSA WITH NULL SHA\n"
 "\n"
 ":WXYZ  Use cipher with hex code { 0xWX , 0xYZ } in TLS\n"
-	,progName);
+    , stderr);
 }
 
 static const char *
@@ -336,9 +354,12 @@ mySSLAuthCertificate(void *arg, PRFileDesc *fd, PRBool checkSig,
     CERTCertificate *    peerCert;
 
     peerCert = SSL_PeerCertificate(fd);
-
-    PRINTF("selfserv: Subject: %s\nselfserv: Issuer : %s\n",
-           peerCert->subjectName, peerCert->issuerName);
+    
+    if (peerCert) {
+        PRINTF("selfserv: Subject: %s\nselfserv: Issuer : %s\n",
+               peerCert->subjectName, peerCert->issuerName);
+        CERT_DestroyCertificate(peerCert);
+    }
 
     rv = SSL_AuthCertificate(arg, fd, checkSig, isServer);
 
@@ -349,7 +370,6 @@ mySSLAuthCertificate(void *arg, PRFileDesc *fd, PRBool checkSig,
 	FPRINTF(stderr, "selfserv: -- SSL3: Certificate Invalid, err %d.\n%s\n", 
                 err, SECU_Strerror(err));
     }
-    CERT_DestroyCertificate(peerCert);
     FLUSH;
     return rv;  
 }
@@ -455,7 +475,7 @@ mySSLSNISocketConfig(PRFileDesc *fd, const SECItem *sniNameArr,
     PRInt32        i = 0;
     const SECItem *current = sniNameArr;
     const char    **nameArr = (const char**)arg;
-    const secuPWData *pwdata;
+    secuPWData *pwdata;
     CERTCertificate *    cert = NULL;
     SECKEYPrivateKey *   privKey = NULL;
 
@@ -789,9 +809,8 @@ logger(void *arg)
 **************************************************************************/
 
 PRBool useModelSocket  = PR_FALSE;
-PRBool disableSSL2     = PR_FALSE;
-PRBool disableSSL3     = PR_FALSE;
-PRBool disableTLS      = PR_FALSE;
+static SSLVersionRange enabledVersions;
+PRBool enableSSL2      = PR_TRUE;
 PRBool disableRollBack = PR_FALSE;
 PRBool NoReuse         = PR_FALSE;
 PRBool hasSidCache     = PR_FALSE;
@@ -1009,7 +1028,7 @@ reload_crl(PRFileDesc *crlFile)
         return SECFailure;
     }
 
-    rv = SECU_ReadDERFromFile(crlDer, crlFile, PR_FALSE);
+    rv = SECU_ReadDERFromFile(crlDer, crlFile, PR_FALSE, PR_FALSE);
     if (rv != SECSuccess) {
         errWarn("Unable to read input file.");
         PORT_Free(crlDer);
@@ -1046,6 +1065,174 @@ void stop_server()
     PZ_TraceFlush();
 }
 
+SECItemArray *
+makeTryLaterOCSPResponse(PLArenaPool *arena)
+{
+    SECItemArray *result = NULL;
+    SECItem *ocspResponse = NULL;
+
+    ocspResponse = CERT_CreateEncodedOCSPErrorResponse(arena,
+					SEC_ERROR_OCSP_TRY_SERVER_LATER);
+    if (!ocspResponse)
+	errExit("cannot created ocspResponse");
+
+    result = SECITEM_AllocArray(arena, NULL, 1);
+    if (!result)
+	errExit("cannot allocate multiOcspResponses");
+
+    result->items[0].data = ocspResponse->data;
+    result->items[0].len = ocspResponse->len;
+
+    return result;
+}
+
+SECItemArray *
+makeCorruptedOCSPResponse(PLArenaPool *arena)
+{
+    SECItemArray *result = NULL;
+    SECItem *ocspResponse = NULL;
+
+    ocspResponse = SECITEM_AllocItem(arena, NULL, 1);
+    if (!ocspResponse)
+	errExit("cannot created ocspResponse");
+
+    result = SECITEM_AllocArray(arena, NULL, 1);
+    if (!result)
+	errExit("cannot allocate multiOcspResponses");
+
+    result->items[0].data = ocspResponse->data;
+    result->items[0].len = ocspResponse->len;
+
+    return result;
+}
+
+SECItemArray *
+makeSignedOCSPResponse(PLArenaPool *arena, ocspStaplingModeType osm,
+		       CERTCertificate *cert, secuPWData *pwdata)
+{
+    SECItemArray *result = NULL;
+    SECItem *ocspResponse = NULL;
+    CERTOCSPSingleResponse **singleResponses;
+    CERTOCSPSingleResponse *sr;
+    CERTOCSPCertID *cid = NULL;
+    CERTCertificate *ca;
+    PRTime now = PR_Now();
+    PRTime nextUpdate;
+
+    PORT_Assert(cert != NULL);
+
+    ca = CERT_FindCertByNickname(CERT_GetDefaultCertDB(), ocspStaplingCA);
+    if (!ca)
+	errExit("cannot find CA");
+
+    cid = CERT_CreateOCSPCertID(cert, now);
+    if (!cid)
+	errExit("cannot created cid");
+
+    nextUpdate = now + 60*60*24 * PR_USEC_PER_SEC; /* plus 1 day */
+
+    switch (osm) {
+	case osm_good:
+	case osm_badsig:
+	    sr = CERT_CreateOCSPSingleResponseGood(arena, cid, now,
+						   &nextUpdate);
+	    break;
+	case osm_unknown:
+	    sr = CERT_CreateOCSPSingleResponseUnknown(arena, cid, now,
+						      &nextUpdate);
+	    break;
+	case osm_revoked:
+	    sr = CERT_CreateOCSPSingleResponseRevoked(arena, cid, now,
+		&nextUpdate,
+		now - 60*60*24 * PR_USEC_PER_SEC, /* minus 1 day */
+		NULL);
+	    break;
+	default:
+	    PORT_Assert(0);
+	    break;
+    }
+
+    if (!sr)
+	errExit("cannot create sr");
+
+    /* meaning of value 2: one entry + one end marker */
+    singleResponses = PORT_ArenaNewArray(arena, CERTOCSPSingleResponse*, 2);
+    if (singleResponses == NULL)
+	errExit("cannot allocate singleResponses");
+
+    singleResponses[0] = sr;
+    singleResponses[1] = NULL;
+
+    ocspResponse = CERT_CreateEncodedOCSPSuccessResponse(arena,
+			(osm == osm_badsig) ? NULL : ca,
+			ocspResponderID_byName, now, singleResponses,
+			&pwdata);
+    if (!ocspResponse)
+	errExit("cannot created ocspResponse");
+
+    CERT_DestroyCertificate(ca);
+    ca = NULL;
+
+    result = SECITEM_AllocArray(arena, NULL, 1);
+    if (!result)
+	errExit("cannot allocate multiOcspResponses");
+
+    result->items[0].data = ocspResponse->data;
+    result->items[0].len = ocspResponse->len;
+
+    CERT_DestroyOCSPCertID(cid);
+    cid = NULL;
+
+    return result;
+}
+
+void
+setupCertStatus(PLArenaPool *arena, enum ocspStaplingModeEnum ocspStaplingMode,
+		CERTCertificate *cert, SSLKEAType kea, secuPWData *pwdata)
+{
+    if (ocspStaplingMode == osm_random) {
+	/* 6 different responses */
+	int r = rand() % 6;
+	switch (r) {
+	    case 0: ocspStaplingMode = osm_good; break;
+	    case 1: ocspStaplingMode = osm_revoked; break;
+	    case 2: ocspStaplingMode = osm_unknown; break;
+	    case 3: ocspStaplingMode = osm_badsig; break;
+	    case 4: ocspStaplingMode = osm_corrupted; break;
+	    case 5: ocspStaplingMode = osm_failure; break;
+	    default: PORT_Assert(0); break;
+	}
+    }
+    if (ocspStaplingMode != osm_disabled) {
+	SECItemArray *multiOcspResponses = NULL;
+	switch (ocspStaplingMode) {
+	    case osm_good:
+	    case osm_revoked:
+	    case osm_unknown:
+	    case osm_badsig:
+		multiOcspResponses =
+		    makeSignedOCSPResponse(arena, ocspStaplingMode, cert,
+					   pwdata);
+		break;
+	    case osm_corrupted:
+		multiOcspResponses = makeCorruptedOCSPResponse(arena);
+		break;
+	    case osm_failure:
+		multiOcspResponses = makeTryLaterOCSPResponse(arena);
+		break;
+	    case osm_ocsp:
+		errExit("stapling mode \"ocsp\" not implemented");
+		break;
+		break;
+	    default:
+		break;
+	}
+	if (multiOcspResponses) {
+	   certStatus[kea] = multiOcspResponses;
+	}
+   }
+}
+
 int
 handle_connection( 
     PRFileDesc *tcp_sock,
@@ -1073,6 +1260,7 @@ handle_connection(
     char               fileName[513];
     char               proto[128];
     PRDescIdentity     aboveLayer = PR_INVALID_IO_LAYER;
+    SSLKEAType  kea;
 
     pBuf   = buf;
     bufRem = sizeof buf;
@@ -1097,6 +1285,12 @@ handle_connection(
 	}
     } else {
 	ssl_sock = tcp_sock;
+    }
+
+    for (kea = kt_rsa; kea < kt_kea_size; kea++) {
+       if (certStatus[kea] != NULL) {
+           SSL_SetStapledOCSPResponses(ssl_sock, certStatus[kea], kea);
+       }
     }
 
     if (loggingLayer) {
@@ -1651,27 +1845,22 @@ server_main(
     }
 
     /* do SSL configuration. */
-    rv = SSL_OptionSet(model_sock, SSL_SECURITY,
-        !(disableSSL2 && disableSSL3 && disableTLS));
+    rv = SSL_OptionSet(model_sock, SSL_SECURITY, 
+                       enableSSL2 || enabledVersions.min != 0);
     if (rv < 0) {
 	errExit("SSL_OptionSet SSL_SECURITY");
     }
 
-    rv = SSL_OptionSet(model_sock, SSL_ENABLE_SSL3, !disableSSL3);
+    rv = SSL_VersionRangeSet(model_sock, &enabledVersions);
     if (rv != SECSuccess) {
-	errExit("error enabling SSLv3 ");
+	errExit("error setting SSL/TLS version range ");
     }
 
-    rv = SSL_OptionSet(model_sock, SSL_ENABLE_TLS, !disableTLS);
+    rv = SSL_OptionSet(model_sock, SSL_ENABLE_SSL2, enableSSL2);
     if (rv != SECSuccess) {
-	errExit("error enabling TLS ");
+       errExit("error enabling SSLv2 ");
     }
 
-    rv = SSL_OptionSet(model_sock, SSL_ENABLE_SSL2, !disableSSL2);
-    if (rv != SECSuccess) {
-	errExit("error enabling SSLv2 ");
-    }
-    
     rv = SSL_OptionSet(model_sock, SSL_ROLLBACK_DETECTION, !disableRollBack);
     if (rv != SECSuccess) {
 	errExit("error enabling RollBack detection ");
@@ -1743,9 +1932,9 @@ server_main(
      * would like it to be. Turn this cipher on.
      */
 
-    secStatus = SSL_CipherPrefSetDefault( SSL_RSA_WITH_NULL_MD5, PR_TRUE);
+    secStatus = SSL_CipherPrefSetDefault( TLS_RSA_WITH_NULL_MD5, PR_TRUE);
     if ( secStatus != SECSuccess ) {
-	errExit("SSL_CipherPrefSetDefault:SSL_RSA_WITH_NULL_MD5");
+	errExit("SSL_CipherPrefSetDefault:TLS_RSA_WITH_NULL_MD5");
     }
 
     if (expectedHostNameVal) {
@@ -1902,12 +2091,49 @@ beAGoodParent(int argc, char **argv, int maxProcs, PRFileDesc * listen_sock)
 	exit(9); \
     } 
 
+SECStatus enableOCSPStapling(const char* mode)
+{
+    if (!strcmp(mode, "good")) {
+	ocspStaplingMode = osm_good;
+	return SECSuccess;
+    }
+    if (!strcmp(mode, "unknown")) {
+	ocspStaplingMode = osm_unknown;
+	return SECSuccess;
+    }
+    if (!strcmp(mode, "revoked")) {
+	ocspStaplingMode = osm_revoked;
+	return SECSuccess;
+    }
+    if (!strcmp(mode, "badsig")) {
+	ocspStaplingMode = osm_badsig;
+	return SECSuccess;
+    }
+    if (!strcmp(mode, "corrupted")) {
+	ocspStaplingMode = osm_corrupted;
+	return SECSuccess;
+    }
+    if (!strcmp(mode, "failure")) {
+	ocspStaplingMode = osm_failure;
+	return SECSuccess;
+    }
+    if (!strcmp(mode, "random")) {
+	ocspStaplingMode = osm_random;
+	return SECSuccess;
+    }
+    if (!strcmp(mode, "ocsp")) {
+	ocspStaplingMode = osm_ocsp;
+	return SECSuccess;
+    }
+    return SECFailure;
+}
+
 int
 main(int argc, char **argv)
 {
     char *               progName    = NULL;
     char *               nickName    = NULL;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     char *               ecNickName   = NULL;
 #endif
     const char *         fileName    = NULL;
@@ -1940,6 +2166,7 @@ main(int argc, char **argv)
     PRUint32             i;
     secuPWData  pwdata = { PW_NONE, 0 };
     char                *expectedHostNameVal = NULL;
+    PLArenaPool         *certStatusArena = NULL;
 
     tmp = strrchr(argv[0], '/');
     tmp = tmp ? tmp + 1 : argv[0];
@@ -1947,18 +2174,19 @@ main(int argc, char **argv)
     progName = progName ? progName + 1 : tmp;
 
     PR_Init( PR_SYSTEM_THREAD, PR_PRIORITY_NORMAL, 1);
+    SSL_VersionRangeGetSupported(ssl_variant_stream, &enabledVersions);
 
     /* please keep this list of options in ASCII collating sequence.
     ** numbers, then capital letters, then lower case, alphabetical. 
     */
     optstate = PL_CreateOptState(argc, argv, 
-        "2:3BC:DEL:M:NP:RSTa:bc:d:e:f:g:hi:jk:lmn:op:qrst:uvw:xyz");
+        "2:A:BC:DEL:M:NP:RT:V:Ya:bc:d:e:f:g:hi:jk:lmn:op:qrst:uvw:xyz");
     while ((status = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
 	++optionsFound;
 	switch(optstate->option) {
 	case '2': fileName = optstate->value; break;
 
-	case '3': disableSSL3 = PR_TRUE; break;
+	case 'A': ocspStaplingCA = PORT_Strdup(optstate->value); break;
 
 	case 'B': bypassPKCS11 = PR_TRUE; break;
 
@@ -1966,6 +2194,8 @@ main(int argc, char **argv)
 
 	case 'D': noDelay = PR_TRUE; break;
 	case 'E': disableStepDown = PR_TRUE; break;
+
+	case 'I': /* reserved for OCSP multi-stapling */ break;
 
         case 'L':
             logStats = PR_TRUE;
@@ -1986,11 +2216,24 @@ main(int argc, char **argv)
 	case 'N': NoReuse = PR_TRUE; break;
 
 	case 'R': disableRollBack = PR_TRUE; break;
+
+	case 'T':
+	    if (enableOCSPStapling(optstate->value) != SECSuccess) {
+		fprintf(stderr, "Invalid OCSP stapling mode.\n");
+		fprintf(stderr, "Run '%s -h' for usage information.\n", progName);
+		exit(53);
+	    }
+	    break;
+
+        case 'V': if (SECU_ParseSSLVersionRangeString(optstate->value,
+                          enabledVersions, enableSSL2,
+                          &enabledVersions, &enableSSL2) != SECSuccess) {
+                      Usage(progName);
+                  }
+                  break;
+
+        case 'Y': PrintCipherUsage(progName); exit(0); break;
         
-        case 'S': disableSSL2 = PR_TRUE; break;
-
-	case 'T': disableTLS = PR_TRUE; break;
-
 	case 'a': if (virtServerNameIndex >= MAX_VIRT_SERVER_NAME_ARRAY_INDEX) {
                       Usage(progName);
                   }
@@ -2003,9 +2246,9 @@ main(int argc, char **argv)
 
 	case 'd': dir = optstate->value; break;
 
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
 	case 'e': ecNickName = PORT_Strdup(optstate->value); break;
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 
 	case 'f':
             pwdata.source = PW_FROMFILE;
@@ -2087,7 +2330,21 @@ main(int argc, char **argv)
     if (!optionsFound) {
 	Usage(progName);
 	exit(51);
-    } 
+    }
+    switch (ocspStaplingMode) {
+	case osm_good:
+	case osm_revoked:
+	case osm_unknown:
+	case osm_random:
+	    if (!ocspStaplingCA) {
+		fprintf(stderr, "Selected stapling response requires the -A parameter.\n");
+		fprintf(stderr, "Run '%s -h' for usage information.\n", progName);
+		exit(52);
+	    }
+	    break;
+	default:
+	    break;
+    }
 
     /* The -b (bindOnly) option is only used by the ssl.sh test
      * script on Linux to determine whether a previous selfserv
@@ -2105,7 +2362,7 @@ main(int argc, char **argv)
     }
 
     if ((nickName == NULL)
- #ifdef NSS_ENABLE_ECC
+ #ifndef NSS_DISABLE_ECC
 						&& (ecNickName == NULL)
  #endif
     ) {
@@ -2291,9 +2548,25 @@ main(int argc, char **argv)
 				    && enabled)
 		savecipher(*cipherSuites);		    
 	}
-	protos = (disableTLS ? 0 : SSL_CBP_TLS1_0) +
-		 (disableSSL3 ? 0 : SSL_CBP_SSL3);
+        protos = 0;
+        if (enabledVersions.min <= SSL_LIBRARY_VERSION_3_0 &&
+            enabledVersions.max >= SSL_LIBRARY_VERSION_3_0) {
+            protos |= SSL_CBP_SSL3;
+        }
+        if (enabledVersions.min <= SSL_LIBRARY_VERSION_TLS_1_0 &&
+            enabledVersions.max >= SSL_LIBRARY_VERSION_TLS_1_0) {
+            protos |= SSL_CBP_TLS1_0;
+        }
+        /* TLS 1.1 has the same SSL Bypass mode requirements as TLS 1.0 */
+        if (enabledVersions.min <= SSL_LIBRARY_VERSION_TLS_1_1 &&
+            enabledVersions.max >= SSL_LIBRARY_VERSION_TLS_1_1) {
+            protos |= SSL_CBP_TLS1_0;
+        }
     }
+
+    certStatusArena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+    if (!certStatusArena)
+	errExit("cannot allocate certStatusArena");
 
     if (nickName) {
 	cert[kt_rsa] = PK11_FindCertFromNickname(nickName, &pwdata);
@@ -2317,8 +2590,10 @@ main(int argc, char **argv)
 	    fprintf(stderr, "selfserv: %s can%s bypass\n", nickName,
 		    bypassOK ? "" : "not");
 	}
+	setupCertStatus(certStatusArena, ocspStaplingMode, cert[kt_rsa], kt_rsa,
+			&pwdata);
     }
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     if (ecNickName) {
 	cert[kt_ecdh] = PK11_FindCertFromNickname(ecNickName, &pwdata);
 	if (cert[kt_ecdh] == NULL) {
@@ -2341,9 +2616,11 @@ main(int argc, char **argv)
 	    }
 	    fprintf(stderr, "selfserv: %s can%s bypass\n", ecNickName,
 		    bypassOK ? "" : "not");
-       }
+	}
+	setupCertStatus(certStatusArena, ocspStaplingMode, cert[kt_ecdh], kt_ecdh,
+			&pwdata);
     }
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 
     if (testbypass)
 	goto cleanup;
@@ -2414,7 +2691,7 @@ cleanup:
     if (certPrefix && certPrefix != emptyString) {                            
         PORT_Free(certPrefix);
     }
- #ifdef NSS_ENABLE_ECC
+ #ifndef NSS_DISABLE_ECC
     if (ecNickName) {
         PORT_Free(ecNickName);
     }
@@ -2422,6 +2699,9 @@ cleanup:
 
     if (hasSidCache) {
 	SSL_ShutdownServerSessionIDCache();
+    }
+    if (certStatusArena) {
+	PORT_FreeArena(certStatusArena, PR_FALSE);
     }
     if (NSS_Shutdown() != SECSuccess) {
 	SECU_PrintError(progName, "NSS_Shutdown");
@@ -2435,4 +2715,3 @@ cleanup:
     printf("selfserv: normal termination\n");
     return 0;
 }
-

@@ -7,8 +7,8 @@ package org.mozilla.gecko.sync.config;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
 
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
@@ -171,8 +171,8 @@ public class AccountPickler {
     Integer timestamp = json.getIntegerSafely(Constants.JSON_KEY_TIMESTAMP);
     if (version == null || timestamp == null) {
       Logger.warn(LOG_TAG, "Did not find version or timestamp in pickle file; ignoring.");
-      version = new Integer(-1);
-      timestamp = new Integer(-1);
+      version = -1;
+      timestamp = -1;
     }
 
     Logger.info(LOG_TAG, "Un-pickled Android account named " + params.username + " (version " + version + ", pickled at " + timestamp + ").");

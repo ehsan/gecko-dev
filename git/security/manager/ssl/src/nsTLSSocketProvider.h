@@ -10,7 +10,6 @@
 #include "nsISocketProvider.h"
 
 
-#define NS_STARTTLSSOCKETPROVIDER_CLASSNAME  "Mozilla STARTTLS Capable Socket Provider Component"
 #define NS_STARTTLSSOCKETPROVIDER_CID \
 { /* b9507aec-1dd1-11b2-8cd5-c48ee0c50307 */         \
      0xb9507aec,                                     \
@@ -22,11 +21,13 @@
 class nsTLSSocketProvider : public nsISocketProvider
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSISOCKETPROVIDER
 
   // nsTLSSocketProvider methods:
   nsTLSSocketProvider();
+
+protected:
   virtual ~nsTLSSocketProvider();
 };
 

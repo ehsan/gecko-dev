@@ -4,6 +4,7 @@
 // Test that an <iframe mozbrowser> is a window.{top,parent,frameElement} barrier.
 "use strict";
 
+SimpleTest.waitForExplicitFinish();
 browserElementTestHelpers.setEnabledPref(true);
 browserElementTestHelpers.addPermission();
 
@@ -17,18 +18,18 @@ function runTest() {
       dump("Got error: " + e + '\n');
     }
   });
-  iframe.mozbrowser = true;
+  iframe.setAttribute('mozbrowser', 'true');
   iframe.src = 'data:text/html,Outer iframe <iframe id="inner-iframe"></iframe>';
   // For kicks, this test uses a display:none iframe.  This shouldn't make a
   // difference in anything.
   iframe.style.display = 'none';
   document.body.appendChild(iframe);
-
-  SimpleTest.waitForExplicitFinish();
 }
 
 var numMsgReceived = 0;
 function outerIframeLoaded() {
+  // If you're changing the amount of is() calls in injectedScript,
+  // also change the number in waitForMessages accordingly
   var injectedScript =
     "data:,function is(a, b, desc) {                                     \
       if (a == b) {                                                      \
@@ -64,7 +65,8 @@ function outerIframeLoaded() {
 
   mm.loadFrameScript(injectedScript, /* allowDelayedLoad = */ false);
 
-  waitForMessages(6);
+  // 8 is the number of is() calls in injectedScript
+  waitForMessages(8);
 }
 
 function waitForMessages(num) {
@@ -76,4 +78,4 @@ function waitForMessages(num) {
   SimpleTest.finish();
 }
 
-runTest();
+addEventListener('testready', runTest);

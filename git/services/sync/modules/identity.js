@@ -4,21 +4,26 @@
 
 "use strict";
 
-const EXPORTED_SYMBOLS = ["Identity", "IdentityManager"];
+this.EXPORTED_SYMBOLS = ["IdentityManager"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/keys.js");
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-sync/util.js");
 
-XPCOMUtils.defineLazyGetter(this, "Identity", function() {
-  return new IdentityManager();
-});
+// Lazy import to prevent unnecessary load on startup.
+for (let symbol of ["BulkKeyBundle", "SyncKeyBundle"]) {
+  XPCOMUtils.defineLazyModuleGetter(this, symbol,
+                                    "resource://services-sync/keys.js",
+                                    symbol);
+}
 
 /**
- * Manages identity and authentication for Sync.
+ * Manages "legacy" identity and authentication for Sync.
+ * See browserid_identity for the Firefox Accounts based identity manager.
  *
  * The following entities are managed:
  *
@@ -30,11 +35,6 @@ XPCOMUtils.defineLazyGetter(this, "Identity", function() {
  *     basic authentication.
  *   sync key - The main encryption key used by Sync.
  *   sync key bundle - A representation of your sync key.
- *
- * An instance of this type is lazily instantiated under Weave.Identity. It is
- * and should be treated as a global variable. The reason is that saved changes
- * are stored in preferences and the password manager. So, if you created
- * multiple instances, they would just step on each other's state.
  *
  * When changes are made to entities that are stored in the password manager
  * (basic password, sync key), those changes are merely staged. To commit them
@@ -58,9 +58,9 @@ XPCOMUtils.defineLazyGetter(this, "Identity", function() {
  * authentication mechanisms, you'll probably want to redefine currentAuthState
  * and any other function that involves the built-in functionality.
  */
-function IdentityManager() {
-  this._log = Log4Moz.repository.getLogger("Sync.Identity");
-  this._log.Level = Log4Moz.Level[Svc.Prefs.get("log.logger.identity")];
+this.IdentityManager = function IdentityManager() {
+  this._log = Log.repository.getLogger("Sync.Identity");
+  this._log.Level = Log.Level[Svc.Prefs.get("log.logger.identity")];
 
   this._basicPassword = null;
   this._basicPasswordAllowLookup = true;
@@ -82,6 +82,45 @@ IdentityManager.prototype = {
   _syncKeySet: false,
 
   _syncKeyBundle: null,
+
+  /**
+   * Initialize the identity provider.  Returns a promise that is resolved
+   * when initialization is complete and the provider can be queried for
+   * its state
+   */
+  initialize: function() {
+    // Nothing to do for this identity provider.
+    return Promise.resolve();
+  },
+
+  finalize: function() {
+    // Nothing to do for this identity provider.
+    return Promise.resolve();
+  },
+
+  /**
+   * Called whenever Service.logout() is called.
+   */
+  logout: function() {
+    // nothing to do for this identity provider.
+  },
+
+  /**
+   * Ensure the user is logged in.  Returns a promise that resolves when
+   * the user is logged in, or is rejected if the login attempt has failed.
+   */
+  ensureLoggedIn: function() {
+    // nothing to do for this identity provider
+    return Promise.resolve();
+  },
+
+  /**
+   * Indicates if the identity manager is still initializing
+   */
+  get readyToAuthenticate() {
+    // We initialize in a fully sync manner, so we are always finished.
+    return true;
+  },
 
   get account() {
     return Svc.Prefs.get("account", this.username);
@@ -135,7 +174,21 @@ IdentityManager.prototype = {
     // If we change the username, we interpret this as a major change event
     // and wipe out the credentials.
     this._log.info("Username changed. Removing stored credentials.");
+    this.resetCredentials();
+  },
+
+  /**
+   * Resets/Drops all credentials we hold for the current user.
+   */
+  resetCredentials: function() {
     this.basicPassword = null;
+    this.resetSyncKey();
+  },
+
+  /**
+   * Resets/Drops the sync key we hold for the current user.
+   */
+  resetSyncKey: function() {
     this.syncKey = null;
     // syncKeyBundle cleared as a result of setting syncKey.
   },
@@ -325,6 +378,25 @@ IdentityManager.prototype = {
   },
 
   /**
+   * Verify the current auth state, unlocking the master-password if necessary.
+   *
+   * Returns a promise that resolves with the current auth state after
+   * attempting to unlock.
+   */
+  unlockAndVerifyAuthState: function() {
+    // Try to fetch the passphrase - this will prompt for MP unlock as a
+    // side-effect...
+    try {
+      this.syncKey;
+    } catch (ex) {
+      this._log.debug("Fetching passphrase threw " + ex +
+                      "; assuming master password locked.");
+      return Promise.resolve(MASTER_PASSWORD_LOCKED);
+    }
+    return Promise.resolve(STATUS_OK);
+  },
+
+  /**
    * Persist credentials to password store.
    *
    * When credentials are updated, they are changed in memory only. This will
@@ -416,9 +488,11 @@ IdentityManager.prototype = {
    * Deletes Sync credentials from the password manager.
    */
   deleteSyncCredentials: function deleteSyncCredentials() {
-    let logins = Services.logins.findLogins({}, PWDMGR_HOST, "", "");
-    for each (let login in logins) {
-      Services.logins.removeLogin(login);
+    for (let host of Utils.getSyncCredentialsHosts()) {
+      let logins = Services.logins.findLogins({}, host, "", "");
+      for each (let login in logins) {
+        Services.logins.removeLogin(login);
+      }
     }
 
     // Wait until after store is updated in case it fails.
@@ -493,5 +567,15 @@ IdentityManager.prototype = {
   onRESTRequestBasic: function onRESTRequestBasic(request) {
     let up = this.username + ":" + this.basicPassword;
     request.setHeader("authorization", "Basic " + btoa(up));
-  }
+  },
+
+  createClusterManager: function(service) {
+    Cu.import("resource://services-sync/stages/cluster.js");
+    return new ClusterManager(service);
+  },
+
+  offerSyncOptions: function () {
+    // Do nothing for Sync 1.1.
+    return {accepted: true};
+  },
 };

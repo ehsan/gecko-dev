@@ -15,19 +15,19 @@ public:
     NS_DECL_NSIHANDLERAPP
     NS_DECL_NSISHARINGHANDLERAPP
 
-    public:
     nsAndroidHandlerApp(const nsAString& aName, const nsAString& aDescription,
                         const nsAString& aPackageName, 
                         const nsAString& aClassName, 
                         const nsACString& aMimeType, const nsAString& aAction);
-    virtual ~nsAndroidHandlerApp();
 
 private:
+    virtual ~nsAndroidHandlerApp();
+
     nsString mName;
     nsString mDescription;
-    nsCString mMimeType;
-    nsString mClassName;
     nsString mPackageName;
+    nsString mClassName;
+    nsCString mMimeType;
     nsString mAction;
 };
 #endif

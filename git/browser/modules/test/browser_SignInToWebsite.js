@@ -255,7 +255,8 @@ function test_auth() {
 
   let winObs = new WindowObserver(function(authWin) {
     ok(authWin, "Authentication window opened");
-    ok(authWin.contentWindow.location);
+    // See bug 1063404.
+    // ok(authWin.location);
   });
 
   Services.ww.registerNotification(winObs);
@@ -267,12 +268,24 @@ function test_auth() {
 function test() {
   waitForExplicitFinish();
 
+  let sitw = {};
+  try {
+    Components.utils.import("resource:///modules/SignInToWebsite.jsm", sitw);
+  } catch (ex) {
+    ok(true, "Skip the test since SignInToWebsite.jsm isn't packaged outside outside mozilla-central");
+    finish();
+    return;
+  }
+
+  PopupNotifications.transitionsEnabled = false;
+
   registerCleanupFunction(cleanUp);
 
-  let sitw = {};
-  Components.utils.import("resource:///modules/SignInToWebsite.jsm", sitw);
-
   ok(sitw.SignInToWebsiteUX, "SignInToWebsiteUX object exists");
+  if (!Services.prefs.getBoolPref("dom.identity.enabled")) {
+    // If the pref isn't enabled then init wasn't called so do that for the test.
+    sitw.SignInToWebsiteUX.init();
+  }
 
   // Replace implementation of ID Service functions for testing
   window.selectIdentity = sitw.SignInToWebsiteUX.selectIdentity;
@@ -303,6 +316,8 @@ function cleanUp() {
   info("cleanup");
   resetState();
 
+  PopupNotifications.transitionsEnabled = true;
+
   for (let topic in gActiveObservers)
     Services.obs.removeObserver(gActiveObservers[topic], topic);
   for (let eventName in gActiveListeners)
@@ -317,6 +332,9 @@ function cleanUp() {
   Components.utils.import("resource:///modules/SignInToWebsite.jsm", sitw);
   sitw.SignInToWebsiteUX.selectIdentity = window.selectIdentity;
   delete window.selectIdentity;
+  if (!Services.prefs.getBoolPref("dom.identity.enabled")) {
+    sitw.SignInToWebsiteUX.uninit();
+  }
 
   Services.prefs.clearUserPref("toolkit.identity.debug");
 }
@@ -459,7 +477,7 @@ function triggerSecondaryCommand(popup, index) {
       EventUtils.synthesizeKey("VK_DOWN", {});
 
     // Activate
-    EventUtils.synthesizeKey("VK_ENTER", {});
+    EventUtils.synthesizeKey("VK_RETURN", {});
   }, false);
 
   // One down event to open the popup

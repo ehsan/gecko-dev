@@ -6,8 +6,7 @@
 #ifndef nsTraceMalloc_h___
 #define nsTraceMalloc_h___
 
-#include "mozilla/StandardInteger.h"
-
+#include <stdint.h>
 #include <stdio.h> /* for FILE */
 #include "prtypes.h"
 
@@ -15,7 +14,9 @@
 #define setlinebuf(stream) setvbuf((stream), (char *)NULL, _IOLBF, 0)
 #endif
 
-PR_BEGIN_EXTERN_C
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * Magic "number" at start of a trace-malloc log file.  Inspired by the PNG
@@ -218,6 +219,8 @@ NS_TraceMallocGetStackTrace(void);
 PR_EXTERN(void)
 NS_TraceMallocPrintStackTrace(FILE *ofp, nsTMStackTraceID id);
 
-PR_END_EXTERN_C
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* nsTraceMalloc_h___ */

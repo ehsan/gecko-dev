@@ -6,7 +6,7 @@
 #ifndef nsMathMLmphantomFrame_h___
 #define nsMathMLmphantomFrame_h___
 
-#include "nsCOMPtr.h"
+#include "mozilla/Attributes.h"
 #include "nsMathMLContainerFrame.h"
 
 //
@@ -20,23 +20,27 @@ public:
   friend nsIFrame* NS_NewMathMLmphantomFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent);
+  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
 
   NS_IMETHOD
-  TransmitAutomaticData() {
+  TransmitAutomaticData() MOZ_OVERRIDE {
     return TransmitAutomaticDataForMrowLikeElement();
   }
 
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) { return NS_OK; }
+  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
+
+  bool
+  IsMrowLike() MOZ_OVERRIDE {
+    return mFrames.FirstChild() != mFrames.LastChild() ||
+           !mFrames.FirstChild();
+  }
 
 protected:
-  nsMathMLmphantomFrame(nsStyleContext* aContext)
+  explicit nsMathMLmphantomFrame(nsStyleContext* aContext)
     : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmphantomFrame();
-  
-  virtual int GetSkipSides() const { return 0; }
 };
 
 #endif /* nsMathMLmphantomFrame_h___ */

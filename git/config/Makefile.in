@@ -4,36 +4,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DEPTH		= @DEPTH@
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
-
-include $(DEPTH)/config/autoconf.mk
-
-# For sanity's sake, we compile nsinstall without the wrapped system
-# headers, so that we can use it to set up the wrapped system headers.
-VISIBILITY_FLAGS =
-
-# STDCXX_COMPAT is not needed here, and will actually fail because
-# libstdc++-compat is not built yet.
-STDCXX_COMPAT =
-
-ifneq (WINNT,$(HOST_OS_ARCH))
-HOST_PROGRAM	= nsinstall$(HOST_BIN_SUFFIX)
-HOST_CSRCS	= nsinstall.c pathsub.c
-endif
-
-TARGETS		= $(HOST_PROGRAM) $(SIMPLE_PROGRAMS)
-
-ifndef CROSS_COMPILE
-ifdef USE_ELF_DYNSTR_GC
-TARGETS		+= elf-dynstr-gc
-# Compiling the above will create dependency files.
-NEED_MDDEPDIR	= 1
-endif
-endif
-
 # IMPORTANT: Disable NSBUILDROOT for this directory only, otherwise we have
 # a recursive rule for finding nsinstall and the Perl scripts.
 ifdef NSBUILDROOT
@@ -44,44 +14,50 @@ ifdef GNU_CC
 MODULE_OPTIMIZE_FLAGS = -O3
 endif
 
-ifndef COMPILER_DEPEND
-ifndef MOZ_NATIVE_MAKEDEPEND
-DIRS		+= mkdepend
-endif
-endif
-
 include $(topsrcdir)/config/config.mk
 
-# Do not install util programs
-NO_INSTALL=1
+# L10n jobs are doing make -C config manually before anything else,
+# and need nsinstall to be built as a consequence.
+export:: host
+
+ifneq (WINNT,$(HOST_OS_ARCH))
+ifdef COMPILE_ENVIRONMENT
+# Ensure nsinstall is atomically created
+nsinstall$(HOST_BIN_SUFFIX): $(HOST_PROGRAM)
+	cp $^ $@.tmp
+	mv $@.tmp $@
+
+NSINSTALL_EXECUTABLES := nsinstall$(HOST_BIN_SUFFIX)
+NSINSTALL_DEST := $(DIST)/bin
+NSINSTALL_TARGET := host
+INSTALL_TARGETS += NSINSTALL
+endif
+endif
+
+ifndef JS_STANDALONE
+HEADERS_FILES = \
+	$(DEPTH)/mozilla-config.h \
+	$(NULL)
+HEADERS_DEST := $(DIST)/include
+HEADERS_TARGET := export
+INSTALL_TARGETS += HEADERS
+endif
 
 include $(topsrcdir)/config/rules.mk
 
 HOST_CFLAGS += -DUNICODE -D_UNICODE
 
-ifeq ($(OS_CONFIG),SunOS4.1)
-NSPR_CFLAGS	+= -I$(srcdir)/../nsprpub/pr/include/md
-endif
-
-HEADERS = \
-	$(DEPTH)/mozilla-config.h \
-	$(srcdir)/nsStaticComponents.h \
-	$(NULL)
-
-export:: $(TARGETS) $(HEADERS)
-	$(INSTALL) $(IFLAGS1) $(HEADERS) $(DIST)/include
-	-$(RM) $(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES)
-ifdef HOST_PROGRAM
-	$(INSTALL) $(HOST_PROGRAM) $(DIST)/bin
-endif
-
+ifndef JS_STANDALONE
+ifndef MOZ_PROFILE_USE
 # Generate a new buildid every time we "export" in config... that's only
 # supposed to be once per-build!
 export::
 ifdef MOZ_BUILD_DATE
-	printf "%s" $(MOZ_BUILD_DATE) > buildid
+	printf '%s' $(MOZ_BUILD_DATE) > buildid
 else
 	$(PYTHON) $(topsrcdir)/toolkit/xre/make-platformini.py --print-buildid > buildid
+endif
+endif
 endif
 
 ifdef WRAP_SYSTEM_INCLUDES
@@ -90,7 +66,7 @@ export-preqs = \
   $(NULL)
 
 export:: $(export-preqs)
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) \
+	$(PYTHON) -m mozbuild.action.preprocessor $(DEFINES) $(ACDEFINES) \
 		-DMOZ_TREE_CAIRO=$(MOZ_TREE_CAIRO) \
 		-DMOZ_TREE_PIXMAN=$(MOZ_TREE_PIXMAN) \
 		-DMOZ_NATIVE_HUNSPELL=$(MOZ_NATIVE_HUNSPELL) \
@@ -100,6 +76,7 @@ export:: $(export-preqs)
 		-DMOZ_NATIVE_JPEG=$(MOZ_NATIVE_JPEG) \
 		-DMOZ_NATIVE_LIBEVENT=$(MOZ_NATIVE_LIBEVENT) \
 		-DMOZ_NATIVE_LIBVPX=$(MOZ_NATIVE_LIBVPX) \
+		-DMOZ_NATIVE_ICU=$(MOZ_NATIVE_ICU) \
 		$(srcdir)/system-headers | $(PERL) $(topsrcdir)/nsprpub/config/make-system-wrappers.pl system_wrappers
 	$(INSTALL) system_wrappers $(DIST)
 
@@ -121,7 +98,7 @@ STL_WRAPPERS_SENTINEL = $(DIST)/stl_wrappers/sentinel
 
 $(STL_WRAPPERS_SENTINEL): $(srcdir)/make-stl-wrappers.py $(srcdir)/$(stl_compiler)-stl-wrapper.template.h $(srcdir)/stl-headers $(GLOBAL_DEPS)
 	$(PYTHON) $(srcdir)/make-stl-wrappers.py stl_wrappers $(stl_compiler) $(srcdir)/$(stl_compiler)-stl-wrapper.template.h $(srcdir)/stl-headers
-	$(PYTHON) $(srcdir)/nsinstall.py stl_wrappers $(DIST)
+	$(PYTHON) $(srcdir)/nsinstall.py -t stl_wrappers $(DIST)
 	touch $(STL_WRAPPERS_SENTINEL)
 
 export:: $(STL_WRAPPERS_SENTINEL)
@@ -130,59 +107,23 @@ GARBAGE += $(STL_WRAPPERS_SENTINEL)
 GARBAGE_DIRS += stl_wrappers
 endif
 
-install::
-	$(SYSINSTALL) $(IFLAGS1) $(DEPTH)/mozilla-config.h $(DESTDIR)$(includedir)
-
 GARBAGE += \
-  $(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES) buildid $(srcdir)/*.pyc *.pyc
-
-ifndef CROSS_COMPILE
-ifdef USE_ELF_DYNSTR_GC
-elf-dynstr-gc: elf-dynstr-gc.c $(GLOBAL_DEPS)
-	$(CC) $(COMPILE_CFLAGS) $(GLIB_CFLAGS) -o $@ $< $(LDFLAGS) $(GLIB_LIBS) 
-endif
-endif
+  $(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES) $(srcdir)/*.pyc *.pyc
 
 FORCE:
 
-ifndef COMPILER_DEPEND
-ifdef MKDEPEND_DIR
-clean clobber realclean clobber_all::
-	cd $(MKDEPEND_DIR); $(MAKE) $@
+ifndef JS_STANDALONE
+check-preqs += check-jar-mn
 endif
-endif
-
-PYUNITS := \
-  unit-Expression.py \
-  unit-Preprocessor.py \
-  unit-nsinstall.py \
-  unit-printprereleasesuffix.py \
-  unit-JarMaker.py \
-  unit-buildlist.py \
-  unit-expandlibs.py \
-  unit-writemozinfo.py \
-  unit-mozunit.py \
-  $(NULL)
-
-check-preqs = \
-  check-python-modules \
-  check-jar-mn \
-  check-makefiles \
-  $(NULL)
+check-preqs += check-makefiles
 
 check:: $(check-preqs)
-
-check-python-modules::
-	@$(EXIT_ON_ERROR) \
-	for test in $(PYUNITS); do \
-	  $(PYTHON) $(srcdir)/tests/$$test ; \
-	done
 
 check-jar-mn::
 	$(MAKE) -C tests/src-simple check-jar
 	$(MAKE) -C tests/src-simple check-flat
 	$(MAKE) -C tests/src-simple check-flat USE_EXTENSION_MANIFEST=1
-ifneq (,$(filter-out WINNT OS2,$(OS_ARCH)))
+ifneq (,$(filter-out WINNT,$(OS_ARCH)))
 	$(MAKE) -C tests/src-simple check-symlink
 endif
 

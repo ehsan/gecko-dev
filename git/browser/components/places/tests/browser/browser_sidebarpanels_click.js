@@ -27,12 +27,13 @@ function test() {
 
   tests.push({
     _itemID: null,
-    init: function() {
+    init: function(aCallback) {
       // Add a bookmark to the Unfiled Bookmarks folder.
       this._itemID = PlacesUtils.bookmarks.insertBookmark(
         PlacesUtils.unfiledBookmarksFolderId, PlacesUtils._uri(TEST_URL),
         PlacesUtils.bookmarks.DEFAULT_INDEX, "test"
       );
+      aCallback();
     },
     prepare: function() {
     },
@@ -49,13 +50,14 @@ function test() {
   });
 
   tests.push({
-    init: function() {
+    init: function(aCallback) {
       // Add a history entry.
       let uri = PlacesUtils._uri(TEST_URL);
-      PlacesUtils.history.addVisit(uri, Date.now() * 1000, null,
-                                   PlacesUtils.history.TRANSITION_TYPED,
-                                   false, 0);
-      ok(PlacesUtils.ghistory2.isVisited(uri), "Item is visited");
+      addVisits(
+        { uri: uri, visitDate: Date.now() * 1000,
+          transition: PlacesUtils.history.TRANSITION_TYPED },
+        window,
+        aCallback);
     },
     prepare: function() {
       sidebar.contentDocument.getElementById("byvisited").doCommand();
@@ -74,7 +76,9 @@ function test() {
   });
 
   function testPlacesPanel(preFunc, postFunc) {
-    currentTest.init();
+    currentTest.init(function() {
+      toggleSidebar(currentTest.sidebarName);
+    });
 
     sidebar.addEventListener("load", function() {
       sidebar.removeEventListener("load", arguments.callee, true);
@@ -113,28 +117,6 @@ function test() {
         // for the purpose of this test.
       });
     }, true);
-    toggleSidebar(currentTest.sidebarName);
-  }
-
-  function synthesizeClickOnSelectedTreeCell(aTree) {
-    let tbo = aTree.treeBoxObject;
-    is(tbo.view.selection.count, 1,
-       "The test node should be successfully selected");
-    // Get selection rowID.
-    let min = {}, max = {};
-    tbo.view.selection.getRangeAt(0, min, max);
-    let rowID = min.value;
-    tbo.ensureRowIsVisible(rowID);
-
-    // Calculate the click coordinates.
-    let x = {}, y = {}, width = {}, height = {};
-    tbo.getCoordsForCellItem(rowID, aTree.columns[0], "text",
-                             x, y, width, height);
-    x = x.value + width.value / 2;
-    y = y.value + height.value / 2;
-    // Simulate the click.
-    EventUtils.synthesizeMouse(aTree.body, x, y, {},
-                               aTree.ownerDocument.defaultView);
   }
 
   function changeSidebarDirection(aDirection) {

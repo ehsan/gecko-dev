@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Util.h"
+#include "mozilla/ArrayUtils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -104,7 +104,7 @@ test_malformed8()
 
     nsString tmp16(NS_LITERAL_STRING("string"));
     AppendUTF8toUTF16(str8, tmp16);
-    if (!tmp16.Equals(NS_LITERAL_STRING("string")))
+    if (!tmp16.EqualsLiteral("string"))
       return false;
 
     if (CompareUTF8toUTF16(str8, EmptyString()) == 0)

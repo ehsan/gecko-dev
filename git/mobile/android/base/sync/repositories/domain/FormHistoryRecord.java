@@ -4,8 +4,8 @@
 
 package org.mozilla.gecko.sync.repositories.domain;
 
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.repositories.android.RepoUtils;
 
@@ -86,7 +86,7 @@ public class FormHistoryRecord extends Record {
    */
   @Override
   public boolean congruentWith(Object o) {
-    if (o == null || !(o instanceof FormHistoryRecord)) {
+    if (!(o instanceof FormHistoryRecord)) {
       return false;
     }
     FormHistoryRecord other = (FormHistoryRecord) o;
@@ -99,7 +99,7 @@ public class FormHistoryRecord extends Record {
 
   @Override
   public boolean equalPayloads(Object o) {
-    if (o == null || !(o instanceof FormHistoryRecord)) {
+    if (!(o instanceof FormHistoryRecord)) {
       Logger.debug(LOG_TAG, "Not a FormHistoryRecord: " + o.getClass());
       return false;
     }

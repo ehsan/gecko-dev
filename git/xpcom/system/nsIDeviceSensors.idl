@@ -24,10 +24,13 @@ interface nsIDeviceSensorData : nsISupports
   readonly attribute double z;
 };
 
-[scriptable, uuid(83306c9f-1c8f-43c4-900a-245d7f219511)]
+[scriptable, uuid(e46e47c7-55ff-44c4-abce-21b14ba07f86)]
 interface nsIDeviceSensors : nsISupports
 {
-  long listenerCount(in unsigned long aType);
+  /**
+   * Returns true if the given window has any listeners of the given type
+   */
+  bool hasWindowListener(in unsigned long aType, in nsIDOMWindow aWindow);
 
   // Holds pointers, not AddRef objects -- it is up to the caller
   // to call RemoveWindowListener before the window is deleted.
@@ -36,3 +39,13 @@ interface nsIDeviceSensors : nsISupports
   [noscript] void removeWindowListener(in unsigned long aType, in nsIDOMWindow aWindow);
   [noscript] void removeWindowAsListener(in nsIDOMWindow aWindow);
 };
+
+%{C++
+
+#define NS_DEVICE_SENSORS_CID \
+{ 0xecba5203, 0x77da, 0x465a, \
+{ 0x86, 0x5e, 0x78, 0xb7, 0xaf, 0x10, 0xd8, 0xf7 } }
+
+#define NS_DEVICE_SENSORS_CONTRACTID "@mozilla.org/devicesensors;1"
+
+%}

@@ -3,6 +3,40 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+# NB: IF YOU ADD ITEMS TO THIS FILE, PLEASE UPDATE THE WHITELIST IN
+# BrowserUITelemetry.jsm. SEE BUG 991757 FOR DETAILS.
+
+      <menugroup id="context-navigation">
+        <menuitem id="context-back"
+                  class="menuitem-iconic"
+                  tooltiptext="&backButton.tooltip;"
+                  aria-label="&backCmd.label;"
+                  command="Browser:BackOrBackDuplicate"
+                  onclick="checkForMiddleClick(this, event);"/>
+        <menuitem id="context-forward"
+                  class="menuitem-iconic"
+                  tooltiptext="&forwardButton.tooltip;"
+                  aria-label="&forwardCmd.label;"
+                  command="Browser:ForwardOrForwardDuplicate"
+                  onclick="checkForMiddleClick(this, event);"/>
+        <menuitem id="context-reload"
+                  class="menuitem-iconic"
+                  tooltiptext="&reloadButton.tooltip;"
+                  aria-label="&reloadCmd.label;"
+                  oncommand="gContextMenu.reload(event);"
+                  onclick="checkForMiddleClick(this, event);"/>
+        <menuitem id="context-stop"
+                  class="menuitem-iconic"
+                  tooltiptext="&stopButton.tooltip;"
+                  aria-label="&stopCmd.label;"
+                  command="Browser:Stop"/>
+        <menuitem id="context-bookmarkpage"
+                  class="menuitem-iconic"
+                  tooltiptext="&bookmarkPageCmd2.label;"
+                  aria-label="&bookmarkPageCmd2.label;"
+                  oncommand="gContextMenu.bookmarkThisPage();"/>
+      </menugroup>
+      <menuseparator id="context-sep-navigation"/>
       <menuseparator id="page-menu-separator"/>
       <menuitem id="spell-no-suggestions"
                 disabled="true"
@@ -28,15 +62,27 @@
                 label="&openLinkCmd.label;"
                 accesskey="&openLinkCmd.accesskey;"
                 oncommand="gContextMenu.openLink();"/>
+      <menuitem id="context-openlinkprivate"
+                label="&openLinkInPrivateWindowCmd.label;"
+                accesskey="&openLinkInPrivateWindowCmd.accesskey;"
+                oncommand="gContextMenu.openLinkInPrivateWindow();"/>
       <menuseparator id="context-sep-open"/>
       <menuitem id="context-bookmarklink"
                 label="&bookmarkThisLinkCmd.label;"
                 accesskey="&bookmarkThisLinkCmd.accesskey;"
                 oncommand="gContextMenu.bookmarkLink();"/>
+      <menuitem id="context-sharelink"
+                label="&shareLink.label;"
+                accesskey="&shareLink.accesskey;"
+                oncommand="gContextMenu.shareLink();"/>
       <menuitem id="context-savelink"
                 label="&saveLinkCmd.label;"
                 accesskey="&saveLinkCmd.accesskey;"
                 oncommand="gContextMenu.saveLink();"/>
+      <menu id="context-marklinkMenu" label="&social.marklinkMenu.label;"
+            accesskey="&social.marklinkMenu.accesskey;">
+        <menupopup/>
+      </menu>
       <menuitem id="context-copyemail"
                 label="&copyEmailCmd.label;"
                 accesskey="&copyEmailCmd.accesskey;"
@@ -44,7 +90,7 @@
       <menuitem id="context-copylink"
                 label="&copyLinkCmd.label;"
                 accesskey="&copyLinkCmd.accesskey;"
-                oncommand="goDoCommand('cmd_copyLink');"/>
+                oncommand="gContextMenu.copyLink();"/>
       <menuseparator id="context-sep-copylink"/>
       <menuitem id="context-media-play"
                 label="&mediaPlay.label;"
@@ -62,6 +108,35 @@
                 label="&mediaUnmute.label;"
                 accesskey="&mediaUnmute.accesskey;"
                 oncommand="gContextMenu.mediaCommand('unmute');"/>
+      <menu id="context-media-playbackrate" label="&mediaPlaybackRate.label;" accesskey="&mediaPlaybackRate.accesskey;">
+        <menupopup>
+          <menuitem id="context-media-playbackrate-050x"
+                    label="&mediaPlaybackRate050x.label;"
+                    accesskey="&mediaPlaybackRate050x.accesskey;"
+                    type="radio"
+                    name="playbackrate"
+                    oncommand="gContextMenu.mediaCommand('playbackRate', 0.5);"/>
+          <menuitem id="context-media-playbackrate-100x"
+                    label="&mediaPlaybackRate100x.label;"
+                    accesskey="&mediaPlaybackRate100x.accesskey;"
+                    type="radio"
+                    name="playbackrate"
+                    checked="true"
+                    oncommand="gContextMenu.mediaCommand('playbackRate', 1.0);"/>
+          <menuitem id="context-media-playbackrate-150x"
+                    label="&mediaPlaybackRate150x.label;"
+                    accesskey="&mediaPlaybackRate150x.accesskey;"
+                    type="radio"
+                    name="playbackrate"
+                    oncommand="gContextMenu.mediaCommand('playbackRate', 1.5);"/>
+          <menuitem id="context-media-playbackrate-200x"
+                    label="&mediaPlaybackRate200x.label;"
+                    accesskey="&mediaPlaybackRate200x.accesskey;"
+                    type="radio"
+                    name="playbackrate"
+                    oncommand="gContextMenu.mediaCommand('playbackRate', 2.0);"/>
+        </menupopup>
+      </menu>
       <menuitem id="context-media-showcontrols"
                 label="&mediaShowControls.label;"
                 accesskey="&mediaShowControls.accesskey;"
@@ -124,6 +199,10 @@
                 label="&saveImageCmd.label;"
                 accesskey="&saveImageCmd.accesskey;"
                 oncommand="gContextMenu.saveMedia();"/>
+      <menuitem id="context-shareimage"
+                label="&shareImage.label;"
+                accesskey="&shareImage.accesskey;"
+                oncommand="gContextMenu.shareImage();"/>
       <menuitem id="context-sendimage"
                 label="&emailImageCmd.label;"
                 accesskey="&emailImageCmd.accesskey;"
@@ -136,10 +215,19 @@
                 label="&viewImageInfoCmd.label;"
                 accesskey="&viewImageInfoCmd.accesskey;"
                 oncommand="gContextMenu.viewImageInfo();"/>
+      <menuitem id="context-viewimagedesc"
+                label="&viewImageDescCmd.label;"
+                accesskey="&viewImageDescCmd.accesskey;"
+                oncommand="gContextMenu.viewImageDesc(event);"
+                onclick="checkForMiddleClick(this, event);"/>
       <menuitem id="context-savevideo"
                 label="&saveVideoCmd.label;"
                 accesskey="&saveVideoCmd.accesskey;"
                 oncommand="gContextMenu.saveMedia();"/>
+      <menuitem id="context-sharevideo"
+                label="&shareVideo.label;"
+                accesskey="&shareVideo.accesskey;"
+                oncommand="gContextMenu.shareVideo();"/>
       <menuitem id="context-saveaudio"
                 label="&saveAudioCmd.label;"
                 accesskey="&saveAudioCmd.accesskey;"
@@ -152,38 +240,36 @@
                 label="&emailVideoCmd.label;"
                 accesskey="&emailVideoCmd.accesskey;"
                 oncommand="gContextMenu.sendMedia();"/>
+      <menu id="context-castvideo"
+                label="&castVideoCmd.label;"
+                accesskey="&castVideoCmd.accesskey;">
+        <menupopup id="context-castvideo-popup" onpopupshowing="gContextMenu.populateCastVideoMenu(this)"/>
+      </menu>
       <menuitem id="context-sendaudio"
                 label="&emailAudioCmd.label;"
                 accesskey="&emailAudioCmd.accesskey;"
                 oncommand="gContextMenu.sendMedia();"/>
-      <menuitem id="context-back"
-                label="&backCmd.label;"
-                accesskey="&backCmd.accesskey;"
-                command="Browser:BackOrBackDuplicate"
-                onclick="checkForMiddleClick(this, event);"/>
-      <menuitem id="context-forward"
-                label="&forwardCmd.label;"
-                accesskey="&forwardCmd.accesskey;"
-                command="Browser:ForwardOrForwardDuplicate"
-                onclick="checkForMiddleClick(this, event);"/>
-      <menuitem id="context-reload"
-                label="&reloadCmd.label;"
-                accesskey="&reloadCmd.accesskey;"
-                command="Browser:ReloadOrDuplicate"
-                onclick="checkForMiddleClick(this, event);"/>
-      <menuitem id="context-stop"
-                label="&stopCmd.label;"
-                accesskey="&stopCmd.accesskey;"
-                command="Browser:Stop"/>
-      <menuseparator id="context-sep-stop"/>
-      <menuitem id="context-bookmarkpage"
-                label="&bookmarkPageCmd2.label;"
-                accesskey="&bookmarkPageCmd2.accesskey;"
-                oncommand="gContextMenu.bookmarkThisPage();"/>
+      <menuitem id="context-ctp-play"
+                label="&playPluginCmd.label;"
+                accesskey="&playPluginCmd.accesskey;"
+                oncommand="gContextMenu.playPlugin();"/>
+      <menuitem id="context-ctp-hide"
+                label="&hidePluginCmd.label;"
+                accesskey="&hidePluginCmd.accesskey;"
+                oncommand="gContextMenu.hidePlugin();"/>
+      <menuseparator id="context-sep-ctp"/>
+      <menuitem id="context-sharepage"
+                label="&sharePageCmd.label;"
+                accesskey="&sharePageCmd.accesskey;"
+                oncommand="SocialShare.sharePage();"/>
       <menuitem id="context-savepage"
                 label="&savePageCmd.label;"
                 accesskey="&savePageCmd.accesskey2;"
                 oncommand="gContextMenu.savePageAs();"/>
+      <menu id="context-markpageMenu" label="&social.markpageMenu.label;"
+            accesskey="&social.markpageMenu.accesskey;">
+        <menupopup/>
+      </menu>
       <menuseparator id="context-sep-viewbgimage"/>
       <menuitem id="context-viewbgimage"
                 label="&viewBGImageCmd.label;"
@@ -222,8 +308,11 @@
                 accesskey="&keywordfield.accesskey;"
                 oncommand="AddKeywordForSearchField();"/>
       <menuitem id="context-searchselect"
-                oncommand="BrowserSearch.loadSearch(getBrowserSelection(), true,
-                                                    'application/x-moz-contextsearch');"/>
+                oncommand="BrowserSearch.loadSearchFromContext(this.searchTerms);"/>
+      <menuitem id="context-shareselect"
+                label="&shareSelect.label;"
+                accesskey="&shareSelect.accesskey;"
+                oncommand="gContextMenu.shareSelect(getBrowserSelection());"/>
       <menuseparator id="frame-sep"/>
       <menu id="frame" label="&thisFrameMenu.label;" accesskey="&thisFrameMenu.accesskey;">
         <menupopup>
@@ -239,7 +328,7 @@
                     label="&openFrameCmd.label;"
                     accesskey="&openFrameCmd.accesskey;"
                     oncommand="gContextMenu.openFrame();"/>
-          <menuseparator/>
+          <menuseparator id="open-frame-sep"/>
           <menuitem id="context-reloadframe"
                     label="&reloadFrameCmd.label;"
                     accesskey="&reloadFrameCmd.accesskey;"
@@ -284,7 +373,7 @@
       <menuitem id="context-viewsource"
                 label="&viewPageSourceCmd.label;"
                 accesskey="&viewPageSourceCmd.accesskey;"
-                oncommand="BrowserViewSourceOfDocument(gContextMenu.browser.contentDocument);"
+                oncommand="BrowserViewSourceOfDocument(gContextMenu.browser.contentDocumentAsCPOW);"
                 observes="isImage"/>
       <menuitem id="context-viewinfo"
                 label="&viewPageInfoCmd.label;"
@@ -292,10 +381,10 @@
                 oncommand="gContextMenu.viewInfo();"/>
       <menuseparator id="spell-separator"/>
       <menuitem id="spell-check-enabled"
-                label="&spellCheckEnable.label;"
+                label="&spellCheckToggle.label;"
                 type="checkbox"
-                accesskey="&spellCheckEnable.accesskey;"
-                oncommand="InlineSpellCheckerUI.toggleEnabled();"/>
+                accesskey="&spellCheckToggle.accesskey;"
+                oncommand="InlineSpellCheckerUI.toggleEnabled(window);"/>
       <menuitem id="spell-add-dictionaries-main"
                 label="&spellAddDictionaries.label;"
                 accesskey="&spellAddDictionaries.accesskey;"

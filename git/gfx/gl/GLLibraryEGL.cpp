@@ -6,16 +6,27 @@
 
 #include "gfxCrashReporterUtils.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/Assertions.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsPrintfCString.h"
+#ifdef XP_WIN
+#include "nsWindowsHelpers.h"
+#endif
 #include "prenv.h"
+#include "GLContext.h"
+#include "gfxPrefs.h"
 
 namespace mozilla {
 namespace gl {
 
+GLLibraryEGL sEGLLibrary;
+#ifdef MOZ_B2G
+ThreadLocal<EGLContext> GLLibraryEGL::sCurrentContext;
+#endif
+
 // should match the order of EGLExtensions, and be null-terminated.
-static const char *sExtensionNames[] = {
+static const char *sEGLExtensionNames[] = {
     "EGL_KHR_image_base",
     "EGL_KHR_image_pixmap",
     "EGL_KHR_gl_texture_2D_image",
@@ -24,6 +35,7 @@ static const char *sExtensionNames[] = {
     "EGL_EXT_create_context_robustness",
     "EGL_KHR_image",
     "EGL_KHR_fence_sync",
+    "EGL_ANDROID_native_fence_sync",
     nullptr
 };
 
@@ -31,7 +43,11 @@ static const char *sExtensionNames[] = {
 
 static PRLibrary* LoadApitraceLibrary()
 {
-    static PRLibrary* sApitraceLibrary = NULL;
+    if (!gfxPrefs::UseApitrace()) {
+        return nullptr;
+    }
+
+    static PRLibrary* sApitraceLibrary = nullptr;
 
     if (sApitraceLibrary)
         return sApitraceLibrary;
@@ -44,7 +60,7 @@ static PRLibrary* LoadApitraceLibrary()
 
     // The firefox process can't write to /data/local, but it can write
     // to $GRE_HOME/
-    nsCAutoString logPath;
+    nsAutoCString logPath;
     logPath.AppendPrintf("%s/%s", getenv("GRE_HOME"), logFile.get());
 
     // apitrace uses the TRACE_FILE environment variable to determine where
@@ -67,7 +83,7 @@ static PRLibrary*
 LoadLibraryForEGLOnWindows(const nsAString& filename)
 {
     nsCOMPtr<nsIFile> file;
-	nsresult rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(file));
+    nsresult rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(file));
     if (NS_FAILED(rv))
         return nullptr;
 
@@ -83,6 +99,19 @@ LoadLibraryForEGLOnWindows(const nsAString& filename)
 }
 #endif // XP_WIN
 
+static EGLDisplay
+GetAndInitDisplay(GLLibraryEGL& egl, void* displayType)
+{
+    EGLDisplay display = egl.fGetDisplay(displayType);
+    if (display == EGL_NO_DISPLAY)
+        return EGL_NO_DISPLAY;
+
+    if (!egl.fInitialize(display, nullptr, nullptr))
+        return EGL_NO_DISPLAY;
+
+    return display;
+}
+
 bool
 GLLibraryEGL::EnsureInitialized()
 {
@@ -92,8 +121,12 @@ GLLibraryEGL::EnsureInitialized()
 
     mozilla::ScopedGfxFeatureReporter reporter("EGL");
 
+#ifdef MOZ_B2G
+    if (!sCurrentContext.init())
+      MOZ_CRASH("Tls init failed");
+#endif
+
 #ifdef XP_WIN
-#ifdef MOZ_WEBGL
     if (!mEGLLibrary) {
         // On Windows, the GLESv2, EGL and DXSDK libraries are shipped with libxul and
         // we should look for them there. We have to load the libs in this
@@ -101,27 +134,38 @@ GLLibraryEGL::EnsureInitialized()
         // libraries. This matters especially for WebRT apps which are in a different directory.
         // See bug 760323 and bug 749459
 
-#ifndef MOZ_D3DX9_DLL
-#error MOZ_D3DX9_DLL should have been defined by the Makefile
-#endif
-        LoadLibraryForEGLOnWindows(NS_LITERAL_STRING(NS_STRINGIFY(MOZ_D3DX9_DLL)));
-        // intentionally leak the D3DX9_DLL library
+        // Also note that we intentionally leak the libs we load.
 
-#ifndef MOZ_D3DCOMPILER_DLL
-#error MOZ_D3DCOMPILER_DLL should have been defined by the Makefile
+        do {
+            // Windows 8.1 has d3dcompiler_47.dll in the system directory.
+            // Try it first. Note that _46 will never be in the system
+            // directory and we ship with at least _43. So there is no point
+            // trying _46 and _43 in the system directory.
+
+            if (LoadLibrarySystem32(L"d3dcompiler_47.dll"))
+                break;
+
+#ifdef MOZ_D3DCOMPILER_VISTA_DLL
+            if (LoadLibraryForEGLOnWindows(NS_LITERAL_STRING(NS_STRINGIFY(MOZ_D3DCOMPILER_VISTA_DLL))))
+                break;
 #endif
-        LoadLibraryForEGLOnWindows(NS_LITERAL_STRING(NS_STRINGIFY(MOZ_D3DCOMPILER_DLL)));
-        // intentionally leak the D3DCOMPILER_DLL library
+
+#ifdef MOZ_D3DCOMPILER_XP_DLL
+            if (LoadLibraryForEGLOnWindows(NS_LITERAL_STRING(NS_STRINGIFY(MOZ_D3DCOMPILER_XP_DLL))))
+                break;
+#endif
+
+            MOZ_ASSERT(false, "d3dcompiler DLL loading failed.");
+        } while (false);
 
         LoadLibraryForEGLOnWindows(NS_LITERAL_STRING("libGLESv2.dll"));
-        // intentionally leak the libGLESv2.dll library
 
         mEGLLibrary = LoadLibraryForEGLOnWindows(NS_LITERAL_STRING("libEGL.dll"));
 
         if (!mEGLLibrary)
             return false;
     }
-#endif // MOZ_WEBGL
+
 #else // !Windows
 
     // On non-Windows (Android) we use system copies of libEGL. We look for
@@ -150,10 +194,11 @@ GLLibraryEGL::EnsureInitialized()
 #endif // !Windows
 
 #define SYMBOL(name) \
-{ (PRFuncPtr*) &mSymbols.f##name, { "egl" #name, NULL } }
+{ (PRFuncPtr*) &mSymbols.f##name, { "egl" #name, nullptr } }
 
     GLLibraryLoader::SymLoadStruct earlySymbols[] = {
         SYMBOL(GetDisplay),
+        SYMBOL(Terminate),
         SYMBOL(GetCurrentSurface),
         SYMBOL(GetCurrentContext),
         SYMBOL(MakeCurrent),
@@ -178,7 +223,7 @@ GLLibraryEGL::EnsureInitialized()
         SYMBOL(BindTexImage),
         SYMBOL(ReleaseTexImage),
         SYMBOL(QuerySurface),
-        { NULL, { NULL } }
+        { nullptr, { nullptr } }
     };
 
     if (!GLLibraryLoader::LoadSymbols(mEGLLibrary, &earlySymbols[0])) {
@@ -186,19 +231,60 @@ GLLibraryEGL::EnsureInitialized()
         return false;
     }
 
-#if defined(MOZ_X11) && defined(MOZ_EGL_XRENDER_COMPOSITE)
-    mEGLDisplay = fGetDisplay((EGLNativeDisplayType) gdk_x11_get_default_xdisplay());
-#else
-    mEGLDisplay = fGetDisplay(EGL_DEFAULT_DISPLAY);
-#endif
-    if (!fInitialize(mEGLDisplay, NULL, NULL))
-        return false;
+    GLLibraryLoader::SymLoadStruct optionalSymbols[] = {
+        // On Android 4.3 and up, certain features like ANDROID_native_fence_sync
+        // can only be queried by using a special eglQueryString.
+        { (PRFuncPtr*) &mSymbols.fQueryStringImplementationANDROID,
+          { "_Z35eglQueryStringImplementationANDROIDPvi", nullptr } },
+        { nullptr, { nullptr } }
+    };
 
-    const char *vendor = (const char*) fQueryString(mEGLDisplay, LOCAL_EGL_VENDOR);
-    if (vendor && (strstr(vendor, "TransGaming") != 0 || strstr(vendor, "Google Inc.") != 0)) {
+    // Do not warn about the failure to load this - see bug 1092191
+    GLLibraryLoader::LoadSymbols(mEGLLibrary, &optionalSymbols[0],
+				 nullptr, nullptr, false);
+
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 18
+    MOZ_RELEASE_ASSERT(mSymbols.fQueryStringImplementationANDROID,
+                       "Couldn't find eglQueryStringImplementationANDROID");
+#endif
+
+    mEGLDisplay = GetAndInitDisplay(*this, EGL_DEFAULT_DISPLAY);
+
+    const char* vendor = (char*)fQueryString(mEGLDisplay, LOCAL_EGL_VENDOR);
+    if (vendor && (strstr(vendor, "TransGaming") != 0 ||
+                   strstr(vendor, "Google Inc.") != 0))
+    {
         mIsANGLE = true;
     }
-    
+
+    if (mIsANGLE) {
+        EGLDisplay newDisplay = EGL_NO_DISPLAY;
+
+        // D3D11 ANGLE only works with OMTC; there's a bug in the non-OMTC layer
+        // manager, and it's pointless to try to fix it.  We also don't try
+        // D3D11 ANGLE if the layer manager is prefering D3D9 (hrm, do we care?)
+        if (gfxPrefs::LayersOffMainThreadCompositionEnabled() &&
+            !gfxPrefs::LayersPreferD3D9())
+        {
+            if (gfxPrefs::WebGLANGLEForceD3D11()) {
+                newDisplay = GetAndInitDisplay(*this,
+                                               LOCAL_EGL_D3D11_ONLY_DISPLAY_ANGLE);
+            } else if (gfxPrefs::WebGLANGLETryD3D11()) {
+                newDisplay = GetAndInitDisplay(*this,
+                                               LOCAL_EGL_D3D11_ELSE_D3D9_DISPLAY_ANGLE);
+            }
+        }
+
+        if (newDisplay != EGL_NO_DISPLAY) {
+            DebugOnly<EGLBoolean> success = fTerminate(mEGLDisplay);
+            MOZ_ASSERT(success == LOCAL_EGL_TRUE);
+
+            mEGLDisplay = newDisplay;
+
+            vendor = (char*)fQueryString(mEGLDisplay, LOCAL_EGL_VENDOR);
+        }
+    }
+
     InitExtensions();
 
     GLLibraryLoader::PlatformLookupFunction lookupFunction =
@@ -266,45 +352,6 @@ GLLibraryEGL::EnsureInitialized()
         }
     }
 
-    mInitialized = true;
-    reporter.SetSuccessful();
-    return true;
-}
-
-void
-GLLibraryEGL::InitExtensions()
-{
-    const char *extensions = (const char*)fQueryString(mEGLDisplay, LOCAL_EGL_EXTENSIONS);
-
-    if (!extensions) {
-        NS_WARNING("Failed to load EGL extension list!");
-        return;
-    }
-
-    bool debugMode = false;
-#ifdef DEBUG
-    if (PR_GetEnv("MOZ_GL_DEBUG"))
-        debugMode = true;
-
-    static bool firstRun = true;
-#else
-    // Non-DEBUG, so never spew.
-    const bool firstRun = false;
-#endif
-
-    mAvailableExtensions.Load(extensions, sExtensionNames, firstRun && debugMode);
-
-#ifdef DEBUG
-    firstRun = false;
-#endif
-}
-
-void
-GLLibraryEGL::LoadConfigSensitiveSymbols()
-{
-    GLLibraryLoader::PlatformLookupFunction lookupFunction =
-            (GLLibraryLoader::PlatformLookupFunction)mSymbols.fGetProcAddress;
-
     if (IsExtensionSupported(KHR_image) || IsExtensionSupported(KHR_image_base)) {
         GLLibraryLoader::SymLoadStruct imageSymbols[] = {
             { (PRFuncPtr*) &mSymbols.fCreateImage,  { "eglCreateImageKHR",  nullptr } },
@@ -328,6 +375,42 @@ GLLibraryEGL::LoadConfigSensitiveSymbols()
     } else {
         MarkExtensionUnsupported(KHR_image_pixmap);
     }
+
+    if (IsExtensionSupported(ANDROID_native_fence_sync)) {
+        GLLibraryLoader::SymLoadStruct nativeFenceSymbols[] = {
+            { (PRFuncPtr*) &mSymbols.fDupNativeFenceFDANDROID, { "eglDupNativeFenceFDANDROID", nullptr } },
+            { nullptr, { nullptr } }
+        };
+
+        bool success = GLLibraryLoader::LoadSymbols(mEGLLibrary,
+                                                    &nativeFenceSymbols[0],
+                                                    lookupFunction);
+        if (!success) {
+            NS_ERROR("EGL supports ANDROID_native_fence_sync without exposing its functions!");
+
+            MarkExtensionUnsupported(ANDROID_native_fence_sync);
+
+            mSymbols.fDupNativeFenceFDANDROID = nullptr;
+        }
+    }
+
+    mInitialized = true;
+    reporter.SetSuccessful();
+    return true;
+}
+
+void
+GLLibraryEGL::InitExtensions()
+{
+    const char *extensions = (const char*)fQueryString(mEGLDisplay, LOCAL_EGL_EXTENSIONS);
+
+    if (!extensions) {
+        NS_WARNING("Failed to load EGL extension list!");
+        return;
+    }
+
+    GLContext::InitializeExtensionsBitSet(mAvailableExtensions, extensions,
+                                          sEGLExtensionNames);
 }
 
 void
@@ -388,7 +471,7 @@ void
 GLLibraryEGL::DumpEGLConfigs()
 {
     int nc = 0;
-    fGetConfigs(mEGLDisplay, NULL, 0, &nc);
+    fGetConfigs(mEGLDisplay, nullptr, 0, &nc);
     EGLConfig *ec = new EGLConfig[nc];
     fGetConfigs(mEGLDisplay, ec, nc, &nc);
 
@@ -399,6 +482,25 @@ GLLibraryEGL::DumpEGLConfigs()
 
     delete [] ec;
 }
+
+#ifdef DEBUG
+/*static*/ void
+GLLibraryEGL::BeforeGLCall(const char* glFunction)
+{
+    if (GLContext::DebugMode()) {
+        if (GLContext::DebugMode() & GLContext::DebugTrace)
+            printf_stderr("[egl] > %s\n", glFunction);
+    }
+}
+
+/*static*/ void
+GLLibraryEGL::AfterGLCall(const char* glFunction)
+{
+    if (GLContext::DebugMode() & GLContext::DebugTrace) {
+        printf_stderr("[egl] < %s\n", glFunction);
+    }
+}
+#endif
 
 } /* namespace gl */
 } /* namespace mozilla */

@@ -5,6 +5,7 @@
 
 #include "IEnumFE.h"
 #include "nsAlgorithm.h"
+#include <algorithm>
 
 CEnumFormatEtc::CEnumFormatEtc() :
   mRefCnt(0),
@@ -30,13 +31,13 @@ CEnumFormatEtc::~CEnumFormatEtc()
 STDMETHODIMP
 CEnumFormatEtc::QueryInterface(REFIID riid, LPVOID *ppv)
 {
-  *ppv = NULL;
+  *ppv = nullptr;
 
   if (IsEqualIID(riid, IID_IUnknown) ||
       IsEqualIID(riid, IID_IEnumFORMATETC))
       *ppv = (LPVOID)this;
 
-  if (*ppv == NULL)
+  if (*ppv == nullptr)
       return E_NOINTERFACE;
 
   // AddRef any interface we'll return.
@@ -93,7 +94,7 @@ CEnumFormatEtc::Next(ULONG aMaxToFetch, FORMATETC *aResult, ULONG *aNumFetched)
   if (!aMaxToFetch)
       return S_FALSE;
 
-  uint32_t count = NS_MIN(static_cast<uint32_t>(aMaxToFetch), left);
+  uint32_t count = std::min(static_cast<uint32_t>(aMaxToFetch), left);
 
   uint32_t idx = 0;
   while (count > 0) {

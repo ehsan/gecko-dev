@@ -7,13 +7,14 @@
 #include "nsISupports.idl"
 
 interface nsIDOMWindow;
+interface nsIDOMElement;
 
 /**
  * An nsILoadContext represents the context of a load.  This interface
  * can be queried for various information about where the load is
  * happening.
  */
-[scriptable, uuid(48b5bf16-e0c7-11e1-b28e-91726188709b)]
+[scriptable, uuid(6ec837fa-af93-4350-bbb8-0985d54c74ca)]
 interface nsILoadContext : nsISupports
 {
   /**
@@ -32,6 +33,23 @@ interface nsILoadContext : nsISupports
    * course.  This attribute may be null if there is no associated window.
    */
   readonly attribute nsIDOMWindow topWindow;
+
+  /**
+   * topFrameElement is the <iframe> or <frame> element which contains the
+   * topWindow with which the load is associated.
+   *
+   * Note that we may have a topFrameElement even when we don't have an
+   * associatedWindow, if the topFrameElement's content lives out of process.
+   */
+  readonly attribute nsIDOMElement topFrameElement;
+
+  /**
+   * If this LoadContext corresponds to a nested remote iframe, we don't have
+   * access to the topFrameElement.  Instead, we must use this id to send
+   * messages. A return value of 0 signifies that this load context is not for
+   * a nested frame.
+   */
+  readonly attribute unsigned long long nestedFrameId;
 
   /**
    * Check whether the load is happening in a particular type of application.
@@ -56,6 +74,11 @@ interface nsILoadContext : nsISupports
    */
   attribute boolean usePrivateBrowsing;
 
+  /**
+   * Attribute that determines if remote (out-of-process) tabs should be used.
+   */
+  readonly attribute boolean useRemoteTabs;
+
 %{C++
   /**
    * De-XPCOMed getter to make call-sites cleaner.
@@ -65,10 +88,26 @@ interface nsILoadContext : nsISupports
     GetUsePrivateBrowsing(&usingPB);
     return usingPB;
   }
+
+  bool UseRemoteTabs() {
+    bool usingRT;
+    GetUseRemoteTabs(&usingRT);
+    return usingRT;
+  }
 %}
 
   /**
-   * Returns true iif the load is occurring inside a browser element.
+   * Set the private browsing state of the load context, meant to be used internally.
+   */
+  [noscript] void SetPrivateBrowsing(in boolean aInPrivateBrowsing);
+
+  /**
+   * Set the remote tabs state of the load context, meant to be used internally.
+   */
+  [noscript] void SetRemoteTabs(in boolean aUseRemoteTabs);
+
+  /**
+   * Returns true iff the load is occurring inside a browser element.
    */
   readonly attribute boolean isInBrowserElement;
 

@@ -5,17 +5,18 @@
 #ifndef mozilla_places_Database_h_
 #define mozilla_places_Database_h_
 
-#include "nsThreadUtils.h"
+#include "MainThreadUtils.h"
 #include "nsWeakReference.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIObserver.h"
 #include "mozilla/storage.h"
 #include "mozilla/storage/StatementCache.h"
 #include "mozilla/Attributes.h"
+#include "nsIEventTarget.h"
 
 // This is the schema version. Update it at any schema change and add a
 // corresponding migrateVxx method below.
-#define DATABASE_SCHEMA_VERSION 21
+#define DATABASE_SCHEMA_VERSION 25
 
 // Fired after Places inited.
 #define TOPIC_PLACES_INIT_COMPLETE "places-init-complete"
@@ -43,6 +44,7 @@
 #define TOPIC_PLACES_CONNECTION_CLOSED "places-connection-closed"
 
 class nsIStringBundle;
+class nsIRunnable;
 
 namespace mozilla {
 namespace places {
@@ -66,7 +68,7 @@ class Database MOZ_FINAL : public nsIObserver
   typedef mozilla::storage::StatementCache<mozIStorageAsyncStatement> AsyncStatementCache;
 
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
   Database();
@@ -122,7 +124,7 @@ public:
    */
   void DispatchToAsyncThread(nsIRunnable* aEvent) const
   {
-    if (mShuttingDown) {
+    if (mClosed) {
       return;
     }
     nsCOMPtr<nsIEventTarget> target = do_GetInterface(mMainConn);
@@ -258,11 +260,6 @@ protected:
   /**
    * Helpers used by schema upgrades.
    */
-  nsresult MigrateV7Up();
-  nsresult MigrateV8Up();
-  nsresult MigrateV9Up();
-  nsresult MigrateV10Up();
-  nsresult MigrateV11Up();
   nsresult MigrateV13Up();
   nsresult MigrateV14Up();
   nsresult MigrateV15Up();
@@ -272,19 +269,20 @@ protected:
   nsresult MigrateV19Up();
   nsresult MigrateV20Up();
   nsresult MigrateV21Up();
+  nsresult MigrateV22Up();
+  nsresult MigrateV23Up();
+  nsresult MigrateV24Up();
+  nsresult MigrateV25Up();
 
   nsresult UpdateBookmarkRootTitles();
-  nsresult CheckAndUpdateGUIDs();
 
 private:
   ~Database();
 
   /**
    * Singleton getter, invoked by class instantiation.
-   *
-   * Note: does AddRef.
    */
-  static Database* GetSingleton();
+  static already_AddRefed<Database> GetSingleton();
 
   static Database* gDatabase;
 
@@ -295,9 +293,9 @@ private:
   mutable StatementCache mAsyncThreadStatements;
 
   int32_t mDBPageSize;
-  enum JournalMode mCurrentJournalMode;
   uint16_t mDatabaseStatus;
   bool mShuttingDown;
+  bool mClosed;
 };
 
 } // namespace places

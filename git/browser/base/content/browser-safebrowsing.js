@@ -6,9 +6,9 @@
 var gSafeBrowsing = {
 
   setReportPhishingMenu: function() {
-
     // A phishing page will have a specific about:blocked content documentURI
-    var isPhishingPage = /^about:blocked\?e=phishingBlocked/.test(content.document.documentURI);
+    var uri = getBrowser().currentURI;
+    var isPhishingPage = uri && uri.spec.startsWith("about:blocked?e=phishingBlocked");
 
     // Show/hide the appropriate menu item.
     document.getElementById("menu_HelpPopup_reportPhishingtoolmenu")
@@ -24,7 +24,6 @@ var gSafeBrowsing = {
     if (!broadcaster)
       return;
 
-    var uri = getBrowser().currentURI;
     if (uri && (uri.schemeIs("http") || uri.schemeIs("https")))
       broadcaster.removeAttribute("disabled");
     else
@@ -39,8 +38,13 @@ var gSafeBrowsing = {
   getReportURL: function(name) {
     var reportUrl = SafeBrowsing.getReportURL(name);
 
-    var pageUrl = gBrowser.currentURI.asciiSpec;
-    reportUrl += "&url=" + encodeURIComponent(pageUrl);
+    var pageUri = gBrowser.currentURI.clone();
+
+    // Remove the query to avoid including potentially sensitive data
+    if (pageUri instanceof Ci.nsIURL)
+      pageUri.query = '';
+
+    reportUrl += "&url=" + encodeURIComponent(pageUri.asciiSpec);
 
     return reportUrl;
   }

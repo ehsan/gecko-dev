@@ -8,15 +8,50 @@
 
 #include "Workers.h"
 
-#include "jsapi.h"
+class nsIPrincipal;
+class nsIURI;
+class nsIDocument;
+class nsString;
+class nsIChannel;
+
+namespace mozilla {
+
+class ErrorResult;
+
+namespace dom {
+
+template <typename T>
+class Sequence;
+
+} // namespace dom
+} // namespace mozilla
 
 BEGIN_WORKERS_NAMESPACE
 
 namespace scriptloader {
 
+nsresult
+ChannelFromScriptURLMainThread(nsIPrincipal* aPrincipal,
+                               nsIURI* aBaseURI,
+                               nsIDocument* aParentDoc,
+                               const nsAString& aScriptURL,
+                               nsIChannel** aChannel);
+
+nsresult
+ChannelFromScriptURLWorkerThread(JSContext* aCx,
+                                 WorkerPrivate* aParent,
+                                 const nsAString& aScriptURL,
+                                 nsIChannel** aChannel);
+
+void ReportLoadError(JSContext* aCx, const nsAString& aURL,
+                     nsresult aLoadResult, bool aIsMainThread);
+
 bool LoadWorkerScript(JSContext* aCx);
 
-bool Load(JSContext* aCx, unsigned aURLCount, jsval* aURLs);
+void Load(JSContext* aCx,
+          WorkerPrivate* aWorkerPrivate,
+          const mozilla::dom::Sequence<nsString>& aScriptURLs,
+          mozilla::ErrorResult& aRv);
 
 } // namespace scriptloader
 

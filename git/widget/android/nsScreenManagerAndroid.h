@@ -12,12 +12,13 @@
 #include "nsIScreenManager.h"
 #include "WidgetUtils.h"
 
-class nsScreenAndroid : public nsBaseScreen
+class nsScreenAndroid MOZ_FINAL : public nsBaseScreen
 {
 public:
     nsScreenAndroid(void *nativeScreen);
     ~nsScreenAndroid();
 
+    NS_IMETHOD GetId(uint32_t* aId);
     NS_IMETHOD GetRect(int32_t* aLeft, int32_t* aTop, int32_t* aWidth, int32_t* aHeight);
     NS_IMETHOD GetAvailRect(int32_t* aLeft, int32_t* aTop, int32_t* aWidth, int32_t* aHeight);
     NS_IMETHOD GetPixelDepth(int32_t* aPixelDepth);
@@ -27,12 +28,13 @@ protected:
     virtual void ApplyMinimumBrightness(uint32_t aBrightness) MOZ_OVERRIDE;
 };
 
-class nsScreenManagerAndroid :
-    public nsIScreenManager
+class nsScreenManagerAndroid MOZ_FINAL : public nsIScreenManager
 {
+private:
+    ~nsScreenManagerAndroid();
+
 public:
     nsScreenManagerAndroid();
-    ~nsScreenManagerAndroid();
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSISCREENMANAGER

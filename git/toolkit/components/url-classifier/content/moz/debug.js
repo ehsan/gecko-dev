@@ -606,10 +606,10 @@ G_DebugService.prototype.observe = function(consoleMessage) {
  */
 G_DebugService.prototype.reportScriptError_ = function(message, sourceName, 
                                                        lineNumber, label) {
-  var message = "\n------------------------------------------------------------\n" +
-                label + ": " + message +
-                "\nlocation: " + sourceName + ", " + "line: " + lineNumber +
-                "\n------------------------------------------------------------\n\n";
+  message = "\n------------------------------------------------------------\n" +
+            label + ": " + message +
+            "\nlocation: " + sourceName + ", " + "line: " + lineNumber +
+            "\n------------------------------------------------------------\n\n";
 
   dump(message);
   this.maybeDumpToFile(message);
@@ -711,7 +711,7 @@ G_Loggifier.prototype.loggify = function(obj) {
     // they're encountered during execution, so declare this helper
     // before using it.)
 
-    function wrap(meth, objName, methName) {
+    let wrap = function (meth, objName, methName) {
       return function() {
         
         // First output the call along with actual parameters

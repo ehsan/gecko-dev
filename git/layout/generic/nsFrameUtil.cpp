@@ -15,9 +15,11 @@
 
 #ifdef DEBUG
 class nsFrameUtil : public nsIFrameUtil {
+protected:
+  virtual ~nsFrameUtil();
+
 public:
   nsFrameUtil();
-  virtual ~nsFrameUtil();
 
   NS_DECL_ISUPPORTS
 
@@ -448,27 +450,27 @@ void
 nsFrameUtil::Tag::ToString(nsString& aResult)
 {
   aResult.Truncate();
-  aResult.Append(PRUnichar('<'));
+  aResult.Append(char16_t('<'));
   if (type == close) {
-    aResult.Append(PRUnichar('/'));
+    aResult.Append(char16_t('/'));
   }
   aResult.AppendASCII(name);
   if (0 != num) {
     int32_t i, n = num;
     for (i = 0; i < n; i++) {
-      aResult.Append(PRUnichar(' '));
+      aResult.Append(char16_t(' '));
       aResult.AppendASCII(attributes[i]);
       if (values[i]) {
         aResult.AppendLiteral("=\"");
         aResult.AppendASCII(values[i]);
-        aResult.Append(PRUnichar('\"'));
+        aResult.Append(char16_t('\"'));
       }
     }
   }
   if (type == openClose) {
-    aResult.Append(PRUnichar('/'));
+    aResult.Append(char16_t('/'));
   }
-  aResult.Append(PRUnichar('>'));
+  aResult.Append(char16_t('>'));
 }
 
 //----------------------------------------------------------------------
@@ -495,7 +497,7 @@ nsFrameUtil::~nsFrameUtil()
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsFrameUtil, nsIFrameUtil)
+NS_IMPL_ISUPPORTS(nsFrameUtil, nsIFrameUtil)
 
 void
 nsFrameUtil::DumpNode(Node* aNode, FILE* aOutputFile, int32_t aIndent)

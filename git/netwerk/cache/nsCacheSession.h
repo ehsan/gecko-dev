@@ -16,19 +16,21 @@
 
 class nsCacheSession : public nsICacheSession
 {
+    virtual ~nsCacheSession();
+
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSICACHESESSION
     
     nsCacheSession(const char * clientID, nsCacheStoragePolicy storagePolicy, bool streamBased);
-    virtual ~nsCacheSession();
     
     nsCString *           ClientID()      { return &mClientID; }
 
     enum SessionInfo {
         eStoragePolicyMask        = 0x000000FF,
         eStreamBasedMask          = 0x00000100,
-        eDoomEntriesIfExpiredMask = 0x00001000
+        eDoomEntriesIfExpiredMask = 0x00001000,
+        ePrivateMask              = 0x00010000
     };
 
     void   MarkStreamBased()  { mInfo |=  eStreamBasedMask; }
@@ -39,6 +41,9 @@ public:
     void   ClearDoomEntriesIfExpired() { mInfo &= ~eDoomEntriesIfExpiredMask; }
     bool WillDoomEntriesIfExpired()  { return (0 != (mInfo & eDoomEntriesIfExpiredMask)); }
 
+    void   MarkPrivate() { mInfo |= ePrivateMask; }
+    void   MarkPublic() { mInfo &= ~ePrivateMask; }
+    bool IsPrivate() { return (mInfo & ePrivateMask) != 0; }
     nsCacheStoragePolicy  StoragePolicy()
     {
         return (nsCacheStoragePolicy)(mInfo & eStoragePolicyMask);

@@ -9,10 +9,10 @@
 #include "celldata.h"
 #include "nsTArray.h"
 #include "nsTArray.h"
-#include "nsRect.h"
 #include "nsCOMPtr.h"
 #include "nsAlgorithm.h"
 #include "nsAutoPtr.h"
+#include <algorithm>
 
 #undef DEBUG_TABLE_CELLMAP
 
@@ -24,6 +24,7 @@ class nsTableFrame;
 class nsCellMap;
 class nsPresContext;
 class nsCellMapColumnIterator;
+struct nsIntRect;
 
 struct nsColInfo
 {
@@ -203,7 +204,7 @@ public:
                      uint32_t   aXPos,
                      bool       aIsLowerRight = false);
 
-  void SetBCBorderEdge(mozilla::css::Side aEdge,
+  void SetBCBorderEdge(mozilla::Side aEdge,
                        nsCellMap&    aCellMap,
                        uint32_t      aCellMapStart,
                        uint32_t      aYPos,
@@ -213,12 +214,12 @@ public:
                        nscoord       aSize,
                        bool          aChanged);
 
-  void SetBCBorderCorner(Corner      aCorner,
+  void SetBCBorderCorner(::Corner    aCorner,
                          nsCellMap&  aCellMap,
                          uint32_t    aCellMapStart,
                          uint32_t    aYPos,
                          uint32_t    aXPos,
-                         mozilla::css::Side aOwner,
+                         mozilla::Side aOwner,
                          nscoord     aSubSize,
                          bool        aBevel,
                          bool        aIsBottomRight = false);
@@ -598,7 +599,7 @@ public:
     if (mCurMap) {
       mCurMapContentRowCount = mCurMap->GetRowCount();
       uint32_t rowArrayLength = mCurMap->mRows.Length();
-      mCurMapRelevantRowCount = NS_MIN(mCurMapContentRowCount, rowArrayLength);
+      mCurMapRelevantRowCount = std::min(mCurMapContentRowCount, rowArrayLength);
       if (mCurMapRelevantRowCount == 0 && mOrigCells > 0) {
         // This row group is useless; advance!
         AdvanceRowGroup();

@@ -14,6 +14,7 @@
 #include "ANPBase.h"
 #include "nsIThread.h"
 #include "nsThreadUtils.h"
+#include "mozilla/Mutex.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPluginsAudio" , ## args)
 #define ASSIGN(obj, name)   (obj)->name = anp_audio_##name
@@ -97,9 +98,13 @@ struct ANPAudioTrack {
   unsigned int isStopped;
   unsigned int keepGoing;
 
+  mozilla::Mutex lock;
+
   void* user;
   ANPAudioCallbackProc proc;
   ANPSampleFormat format;
+
+  ANPAudioTrack() : lock("ANPAudioTrack") { }
 };
 
 class AudioRunnable : public nsRunnable
@@ -120,8 +125,6 @@ AudioRunnable::Run()
   PR_SetCurrentThreadName("Android Audio");
 
   JNIEnv* jenv = GetJNIForThread();
-  if (!jenv)
-    return NS_ERROR_FAILURE;
 
   mozilla::AutoLocalJNIFrame autoFrame(jenv, 2);
 
@@ -131,7 +134,7 @@ AudioRunnable::Run()
     return NS_ERROR_FAILURE;
   }
 
-  jbyte *byte = jenv->GetByteArrayElements(bytearray, NULL);
+  jbyte *byte = jenv->GetByteArrayElements(bytearray, nullptr);
   if (!byte) {
     LOG("AudioRunnable:: Run.  Could not create bytearray");
     return NS_ERROR_FAILURE;
@@ -142,13 +145,20 @@ AudioRunnable::Run()
   buffer.format = mTrack->format;
   buffer.bufferData = (void*) byte;
 
-  while (mTrack->keepGoing)
+  while (true)
   {
     // reset the buffer size
     buffer.size = mTrack->bufferSize;
+    
+    {
+      mozilla::MutexAutoLock lock(mTrack->lock);
 
-    // Get data from the plugin
-    mTrack->proc(kMoreData_ANPAudioEvent, mTrack->user, &buffer);
+      if (!mTrack->keepGoing)
+        break;
+
+      // Get data from the plugin
+      mTrack->proc(kMoreData_ANPAudioEvent, mTrack->user, &buffer);
+    }
 
     if (buffer.size == 0) {
       LOG("%p - kMoreData_ANPAudioEvent", mTrack);
@@ -178,8 +188,8 @@ AudioRunnable::Run()
   jenv->DeleteGlobalRef(mTrack->output_unit);
   jenv->DeleteGlobalRef(mTrack->at_class);
 
-  free(mTrack);
-
+  delete mTrack;
+  
   jenv->ReleaseByteArrayElements(bytearray, byte, 0);
 
   return NS_OK;
@@ -192,14 +202,12 @@ anp_audio_newTrack(uint32_t sampleRate,    // sampling rate in Hz
                    ANPAudioCallbackProc proc,
                    void* user)
 {
-  ANPAudioTrack *s = (ANPAudioTrack*) malloc(sizeof(ANPAudioTrack));
-  if (s == NULL) {
-    return NULL;
+  ANPAudioTrack *s = new ANPAudioTrack();
+  if (s == nullptr) {
+    return nullptr;
   }
 
   JNIEnv *jenv = GetJNIForThread();
-  if (!jenv)
-    return NULL;
 
   s->at_class = init_jni_bindings(jenv);
   s->rate = sampleRate;
@@ -250,10 +258,10 @@ anp_audio_newTrack(uint32_t sampleRate,    // sampling rate in Hz
                                 s->bufferSize,
                                 MODE_STREAM);
 
-  if (autoFrame.CheckForException() || obj == NULL) {
+  if (autoFrame.CheckForException() || obj == nullptr) {
     jenv->DeleteGlobalRef(s->at_class);
     free(s);
-    return NULL;
+    return nullptr;
   }
 
   jint state = jenv->CallIntMethod(obj, at.getstate);
@@ -261,7 +269,7 @@ anp_audio_newTrack(uint32_t sampleRate,    // sampling rate in Hz
   if (autoFrame.CheckForException() || state == STATE_UNINITIALIZED) {
     jenv->DeleteGlobalRef(s->at_class);
     free(s);
-    return NULL;
+    return nullptr;
   }
 
   s->output_unit = jenv->NewGlobalRef(obj);
@@ -271,10 +279,11 @@ anp_audio_newTrack(uint32_t sampleRate,    // sampling rate in Hz
 void
 anp_audio_deleteTrack(ANPAudioTrack* s)
 {
-  if (s == NULL) {
+  if (s == nullptr) {
     return;
   }
 
+  mozilla::MutexAutoLock lock(s->lock);
   s->keepGoing = false;
 
   // deallocation happens in the AudioThread.  There is a
@@ -285,7 +294,7 @@ anp_audio_deleteTrack(ANPAudioTrack* s)
 void
 anp_audio_start(ANPAudioTrack* s)
 {
-  if (s == NULL || s->output_unit == NULL) {
+  if (s == nullptr || s->output_unit == nullptr) {
     return;
   }
 
@@ -295,8 +304,6 @@ anp_audio_start(ANPAudioTrack* s)
   }
 
   JNIEnv *jenv = GetJNIForThread();
-  if (!jenv)
-    return;
 
   mozilla::AutoLocalJNIFrame autoFrame(jenv, 0);
   jenv->CallVoidMethod(s->output_unit, at.play);
@@ -320,13 +327,11 @@ anp_audio_start(ANPAudioTrack* s)
 void
 anp_audio_pause(ANPAudioTrack* s)
 {
-  if (s == NULL || s->output_unit == NULL) {
+  if (s == nullptr || s->output_unit == nullptr) {
     return;
   }
 
   JNIEnv *jenv = GetJNIForThread();
-  if (!jenv)
-    return;
 
   mozilla::AutoLocalJNIFrame autoFrame(jenv, 0);
   jenv->CallVoidMethod(s->output_unit, at.pause);
@@ -335,14 +340,12 @@ anp_audio_pause(ANPAudioTrack* s)
 void
 anp_audio_stop(ANPAudioTrack* s)
 {
-  if (s == NULL || s->output_unit == NULL) {
+  if (s == nullptr || s->output_unit == nullptr) {
     return;
   }
 
   s->isStopped = true;
   JNIEnv *jenv = GetJNIForThread();
-  if (!jenv)
-    return;
 
   mozilla::AutoLocalJNIFrame autoFrame(jenv, 0);
   jenv->CallVoidMethod(s->output_unit, at.stop);

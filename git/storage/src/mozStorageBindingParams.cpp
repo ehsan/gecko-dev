@@ -126,7 +126,6 @@ AsyncBindingParams::AsyncBindingParams(
 )
 : BindingParams(aOwningArray)
 {
-  mNamedParameters.Init();
 }
 
 void
@@ -166,14 +165,14 @@ AsyncBindingParams::iterateOverNamedParameters(const nsACString &aName,
 
   // We do not accept any forms of names other than ":name", but we need to add
   // the colon for SQLite.
-  nsCAutoString name(":");
+  nsAutoCString name(":");
   name.Append(aName);
   int oneIdx = ::sqlite3_bind_parameter_index(closureThunk->statement,
                                               name.get());
 
   if (oneIdx == 0) {
-    nsCAutoString errMsg(aName);
-    errMsg.Append(NS_LITERAL_CSTRING(" is not a valid named parameter."));
+    nsAutoCString errMsg(aName);
+    errMsg.AppendLiteral(" is not a valid named parameter.");
     closureThunk->err = new Error(SQLITE_RANGE, errMsg.get());
     return PL_DHASH_STOP;
   }
@@ -202,7 +201,7 @@ AsyncBindingParams::iterateOverNamedParameters(const nsACString &aName,
 ////////////////////////////////////////////////////////////////////////////////
 //// nsISupports
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(
+NS_IMPL_ISUPPORTS(
   BindingParams
 , mozIStorageBindingParams
 , IStorageBindingParamsInternal
@@ -355,6 +354,22 @@ BindingParams::BindBlobByName(const nsACString &aName,
   return BindByName(aName, value);
 }
 
+
+NS_IMETHODIMP
+BindingParams::BindAdoptedBlobByName(const nsACString &aName,
+                                     uint8_t *aValue,
+                                     uint32_t aValueSize)
+{
+  NS_ENSURE_ARG_MAX(aValueSize, INT_MAX);
+  std::pair<uint8_t *, int> data(
+    aValue,
+    int(aValueSize)
+  );
+  nsCOMPtr<nsIVariant> value(new AdoptedBlobVariant(data));
+
+  return BindByName(aName, value);
+}
+
 NS_IMETHODIMP
 BindingParams::BindByIndex(uint32_t aIndex,
                            nsIVariant *aValue)
@@ -453,6 +468,21 @@ BindingParams::BindBlobByIndex(uint32_t aIndex,
   );
   nsCOMPtr<nsIVariant> value(new BlobVariant(data));
   NS_ENSURE_TRUE(value, NS_ERROR_OUT_OF_MEMORY);
+
+  return BindByIndex(aIndex, value);
+}
+
+NS_IMETHODIMP
+BindingParams::BindAdoptedBlobByIndex(uint32_t aIndex,
+                                      uint8_t *aValue,
+                                      uint32_t aValueSize)
+{
+  NS_ENSURE_ARG_MAX(aValueSize, INT_MAX);
+  std::pair<uint8_t *, int> data(
+    static_cast<uint8_t *>(aValue),
+    int(aValueSize)
+  );
+  nsCOMPtr<nsIVariant> value(new AdoptedBlobVariant(data));
 
   return BindByIndex(aIndex, value);
 }

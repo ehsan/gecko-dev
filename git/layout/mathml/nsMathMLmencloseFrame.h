@@ -7,7 +7,7 @@
 #ifndef nsMathMLmencloseFrame_h___
 #define nsMathMLmencloseFrame_h___
 
-#include "nsCOMPtr.h"
+#include "mozilla/Attributes.h"
 #include "nsMathMLContainerFrame.h"
 
 //
@@ -37,7 +37,9 @@ enum nsMencloseNotation
     NOTATION_UPDIAGONALSTRIKE = 0x100,
     NOTATION_DOWNDIAGONALSTRIKE = 0x200,
     NOTATION_VERTICALSTRIKE = 0x400,
-    NOTATION_HORIZONTALSTRIKE = 0x800
+    NOTATION_HORIZONTALSTRIKE = 0x800,
+    NOTATION_UPDIAGONALARROW = 0x1000,
+    NOTATION_PHASORANGLE = 0x2000
   };
 
 class nsMathMLmencloseFrame : public nsMathMLContainerFrame {
@@ -50,38 +52,44 @@ public:
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize);
+        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
   
   virtual nsresult
   MeasureForWidth(nsRenderingContext& aRenderingContext,
-                  nsHTMLReflowMetrics& aDesiredSize);
+                  nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
   
-  NS_IMETHOD
+  virtual nsresult
   AttributeChanged(int32_t         aNameSpaceID,
                    nsIAtom*        aAttribute,
-                   int32_t         aModType);
+                   int32_t         aModType) MOZ_OVERRIDE;
   
   virtual void
   SetAdditionalStyleContext(int32_t          aIndex, 
-                            nsStyleContext*  aStyleContext);
+                            nsStyleContext*  aStyleContext) MOZ_OVERRIDE;
   virtual nsStyleContext*
-  GetAdditionalStyleContext(int32_t aIndex) const;
+  GetAdditionalStyleContext(int32_t aIndex) const MOZ_OVERRIDE;
 
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
-
-  NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent);
+  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   NS_IMETHOD
-  TransmitAutomaticData();
+  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+
+  NS_IMETHOD
+  TransmitAutomaticData() MOZ_OVERRIDE;
 
   virtual nscoord
-  FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize);
+  FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+
+  bool
+  IsMrowLike() MOZ_OVERRIDE {
+    return mFrames.FirstChild() != mFrames.LastChild() ||
+           !mFrames.FirstChild();
+  }
 
 protected:
-  nsMathMLmencloseFrame(nsStyleContext* aContext);
+  explicit nsMathMLmencloseFrame(nsStyleContext* aContext);
   virtual ~nsMathMLmencloseFrame();
 
   nsresult PlaceInternal(nsRenderingContext& aRenderingContext,
@@ -101,6 +109,7 @@ protected:
   }
 
   nscoord mRuleThickness;
+  nscoord mRadicalRuleThickness;
   nsTArray<nsMathMLChar> mMathMLChar;
   int8_t mLongDivCharIndex, mRadicalCharIndex;
   nscoord mContentWidth;
@@ -108,10 +117,10 @@ protected:
 
   // Display a frame of the specified type.
   // @param aType Type of frame to display
-  nsresult DisplayNotation(nsDisplayListBuilder* aBuilder,
-                           nsIFrame* aFrame, const nsRect& aRect,
-                           const nsDisplayListSet& aLists,
-                           nscoord aThickness, nsMencloseNotation aType);
+  void DisplayNotation(nsDisplayListBuilder* aBuilder,
+                       nsIFrame* aFrame, const nsRect& aRect,
+                       const nsDisplayListSet& aLists,
+                       nscoord aThickness, nsMencloseNotation aType);
 };
 
 #endif /* nsMathMLmencloseFrame_h___ */

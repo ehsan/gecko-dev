@@ -1,38 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
 ** certutil.c
@@ -70,7 +38,7 @@ static CERTSignedCrl *FindCRL
     cert = CERT_FindCertByNicknameOrEmailAddr(certHandle, name);
     if (!cert) {
         CERTName *certName = NULL;
-        PRArenaPool *arena = NULL;
+        PLArenaPool *arena = NULL;
     
         certName = CERT_AsciiToName(name);
         if (certName) {
@@ -125,7 +93,7 @@ static void ListCRLNames (CERTCertDBHandle *certHandle, int crlType, PRBool dele
     CERTCrlHeadNode *crlList = NULL;
     CERTCrlNode *crlNode = NULL;
     CERTName *name = NULL;
-    PRArenaPool *arena = NULL;
+    PLArenaPool *arena = NULL;
     SECStatus rv;
 
     do {
@@ -264,7 +232,7 @@ SECStatus ImportCRL (CERTCertDBHandle *certHandle, char *url, int type,
 
 
     /* Read in the entire file specified with the -f argument */
-    rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE);
+    rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE, PR_FALSE);
     if (rv != SECSuccess) {
 	SECU_PrintError(progName, "unable to read input file");
 	return (SECFailure);
@@ -316,14 +284,14 @@ SECStatus ImportCRL (CERTCertDBHandle *certHandle, char *url, int type,
 SECStatus DumpCRL(PRFileDesc *inFile)
 {
     int rv;
-    PRArenaPool *arena = NULL;
+    PLArenaPool *arena = NULL;
     CERTSignedCrl *newCrl = NULL;
     
     SECItem crlDER;
     crlDER.data = NULL;
 
     /* Read in the entire file specified with the -f argument */
-    rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE);
+    rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE, PR_FALSE);
     if (rv != SECSuccess) {
 	SECU_PrintError(progName, "unable to read input file");
 	return (SECFailure);
@@ -394,7 +362,7 @@ FindSigningCert(CERTCertDBHandle *certHandle, CERTSignedCrl *signCrl,
 }
 
 static CERTSignedCrl*
-CreateModifiedCRLCopy(PRArenaPool *arena, CERTCertDBHandle *certHandle,
+CreateModifiedCRLCopy(PLArenaPool *arena, CERTCertDBHandle *certHandle,
                 CERTCertificate **cert, char *certNickName,
                 PRFileDesc *inFile, PRInt32 decodeOptions,
                 PRInt32 importOptions)
@@ -402,7 +370,7 @@ CreateModifiedCRLCopy(PRArenaPool *arena, CERTCertDBHandle *certHandle,
     SECItem crlDER = {0, NULL, 0};
     CERTSignedCrl *signCrl = NULL;
     CERTSignedCrl *modCrl = NULL;
-    PRArenaPool *modArena = NULL;
+    PLArenaPool *modArena = NULL;
     SECStatus rv = SECSuccess;
 
     if (!arena || !certHandle || !certNickName) {
@@ -418,7 +386,7 @@ CreateModifiedCRLCopy(PRArenaPool *arena, CERTCertDBHandle *certHandle,
     }
     
     if (inFile != NULL) {
-        rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE);
+        rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE, PR_FALSE);
         if (rv != SECSuccess) {
             SECU_PrintError(progName, "unable to read input file");
             PORT_FreeArena(modArena, PR_FALSE);
@@ -496,7 +464,7 @@ CreateModifiedCRLCopy(PRArenaPool *arena, CERTCertDBHandle *certHandle,
 
 
 static CERTSignedCrl*
-CreateNewCrl(PRArenaPool *arena, CERTCertDBHandle *certHandle,
+CreateNewCrl(PLArenaPool *arena, CERTCertDBHandle *certHandle,
              CERTCertificate *cert)
 { 
     CERTSignedCrl *signCrl = NULL;
@@ -705,7 +673,7 @@ GenerateCRL (CERTCertDBHandle *certHandle, char *certNickName,
 {
     CERTCertificate *cert = NULL;
     CERTSignedCrl *signCrl = NULL;
-    PRArenaPool *arena = NULL;
+    PLArenaPool *arena = NULL;
     SECStatus rv;
     SECOidTag hashAlgTag = SEC_OID_UNKNOWN;
 

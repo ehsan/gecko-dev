@@ -10,6 +10,7 @@
 #include "nsIThread.h"
 #include "nsThreadUtils.h"
 #include "gfxImageSurface.h"
+#include "gfxContext.h"
 
 namespace mozilla {
 namespace layers {
@@ -19,14 +20,14 @@ namespace layers {
 // mLayer may be released only on the main thread this object should always be
 // destroyed on the main thread!
 struct ReadbackTask {
-  // The texture that we copied the contents of the thebeslayer to.
+  // The texture that we copied the contents of the paintedlayer to.
   nsRefPtr<ID3D10Texture2D> mReadbackTexture;
   // This exists purely to keep the ReadbackLayer alive for the lifetime of
   // mUpdate. Note that this addref and release should occur -solely- on the
   // main thread.
   nsRefPtr<ReadbackLayer> mLayer;
   ReadbackProcessor::Update mUpdate;
-  // The origin in ThebesLayer coordinates of mReadbackTexture.
+  // The origin in PaintedLayer coordinates of mReadbackTexture.
   gfxPoint mOrigin;
   // mLayer->GetBackgroundOffset() when the task is created.  We have
   // to save this in the ReadbackTask because it might change before
@@ -36,9 +37,10 @@ struct ReadbackTask {
 
 // This class is created and dispatched from the Readback thread but it must be
 // destroyed by the main thread.
-class ReadbackResultWriter : public nsIRunnable
+class ReadbackResultWriter MOZ_FINAL : public nsIRunnable
 {
-  NS_DECL_ISUPPORTS
+  ~ReadbackResultWriter() {}
+  NS_DECL_THREADSAFE_ISUPPORTS
 public:
   ReadbackResultWriter(ReadbackTask *aTask) : mTask(aTask) {}
 
@@ -62,7 +64,7 @@ public:
     HRESULT hr = mTask->mReadbackTexture->Map(0, D3D10_MAP_READ, 0, &mappedTex);
 
     if (FAILED(hr)) {
-      // If this fails we're never going to get our ThebesLayer content.
+      // If this fails we're never going to get our PaintedLayer content.
       update->mLayer->GetSink()->SetUnknown(update->mSequenceCounter);
       return NS_OK;
     }
@@ -71,14 +73,15 @@ public:
       new gfxImageSurface((unsigned char*)mappedTex.pData,
                           gfxIntSize(desc.Width, desc.Height),
                           mappedTex.RowPitch,
-                          gfxASurface::ImageFormatRGB24);
+                          gfxImageFormat::RGB24);
 
     nsRefPtr<gfxContext> ctx =
       update->mLayer->GetSink()->BeginUpdate(update->mUpdateRect + offset,
                                              update->mSequenceCounter);
 
     if (ctx) {
-      ctx->Translate(gfxPoint(offset.x, offset.y));
+      ctx->SetMatrix(
+        ctx->CurrentMatrix().Translate(offset.x, offset.y));
       ctx->SetSource(sourceSurface, gfxPoint(mTask->mOrigin.x,
                                              mTask->mOrigin.y));
       ctx->Paint();
@@ -95,7 +98,7 @@ private:
   nsAutoPtr<ReadbackTask> mTask;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(ReadbackResultWriter, nsIRunnable)
+NS_IMPL_ISUPPORTS(ReadbackResultWriter, nsIRunnable)
 
 DWORD WINAPI StartTaskThread(void *aManager)
 {
@@ -108,9 +111,9 @@ ReadbackManagerD3D10::ReadbackManagerD3D10()
   : mRefCnt(0)
 {
   ::InitializeCriticalSection(&mTaskMutex);
-  mShutdownEvent = ::CreateEventA(NULL, FALSE, FALSE, NULL);
-  mTaskSemaphore = ::CreateSemaphoreA(NULL, 0, 1000000, NULL);
-  mTaskThread = ::CreateThread(NULL, 0, StartTaskThread, this, 0, 0);
+  mShutdownEvent = ::CreateEventA(nullptr, FALSE, FALSE, nullptr);
+  mTaskSemaphore = ::CreateSemaphoreA(nullptr, 0, 1000000, nullptr);
+  mTaskThread = ::CreateThread(nullptr, 0, StartTaskThread, this, 0, 0);
 }
 
 ReadbackManagerD3D10::~ReadbackManagerD3D10()
@@ -144,7 +147,7 @@ ReadbackManagerD3D10::PostTask(ID3D10Texture2D *aTexture, void *aUpdate, const g
   mPendingReadbackTasks.AppendElement(task);
   ::LeaveCriticalSection(&mTaskMutex);
 
-  ::ReleaseSemaphore(mTaskSemaphore, 1, NULL);
+  ::ReleaseSemaphore(mTaskSemaphore, 1, nullptr);
 }
 
 HRESULT

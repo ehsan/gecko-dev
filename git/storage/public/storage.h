@@ -24,10 +24,10 @@
 #include "mozIStorageStatementCallback.h"
 #include "mozIStorageBindingParamsArray.h"
 #include "mozIStorageBindingParams.h"
-#include "mozIStorageServiceQuotaManagement.h"
 #include "mozIStorageVacuumParticipant.h"
 #include "mozIStorageCompletionCallback.h"
 #include "mozIStorageAsyncStatement.h"
+#include "mozIStorageAsyncConnection.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Native Language Helpers

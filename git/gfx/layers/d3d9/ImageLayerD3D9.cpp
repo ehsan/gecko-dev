@@ -3,28 +3,31 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ipc/AutoOpenSurface.h"
-#include "mozilla/layers/PLayers.h"
-#include "mozilla/layers/ShadowLayers.h"
-#include "ShadowBufferD3D9.h"
+#include "mozilla/gfx/2D.h"
+#include "mozilla/gfx/Point.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/layers/PLayerTransaction.h"
 #include "gfxSharedImageSurface.h"
 
 #include "ImageLayerD3D9.h"
-#include "ThebesLayerD3D9.h"
+#include "PaintedLayerD3D9.h"
 #include "gfxPlatform.h"
-#include "gfxImageSurface.h"
+#include "gfx2DGlue.h"
 #include "yuv_convert.h"
-#include "nsIServiceManager.h" 
-#include "nsIConsoleService.h" 
+#include "nsIServiceManager.h"
+#include "nsIConsoleService.h"
 #include "Nv3DVUtils.h"
+#include "D3D9SurfaceImage.h"
 
 namespace mozilla {
 namespace layers {
 
+using namespace mozilla::gfx;
+
 static inline _D3DFORMAT
-D3dFormatForGfxFormat(gfxImageFormat aFormat)
+D3dFormatForSurfaceFormat(SurfaceFormat aFormat)
 {
-  if (aFormat == gfxASurface::ImageFormatA8) {
+  if (aFormat == SurfaceFormat::A8) {
     return D3DFMT_A8;
   }
 
@@ -35,7 +38,7 @@ static already_AddRefed<IDirect3DTexture9>
 DataToTexture(IDirect3DDevice9 *aDevice,
               unsigned char *aData,
               int aStride,
-              const gfxIntSize &aSize,
+              const IntSize &aSize,
               _D3DFORMAT aFormat)
 {
   nsRefPtr<IDirect3DTexture9> texture;
@@ -52,34 +55,34 @@ DataToTexture(IDirect3DDevice9 *aDevice,
     if (FAILED(aDevice->
                CreateTexture(aSize.width, aSize.height,
                              1, 0, aFormat, D3DPOOL_DEFAULT,
-                             getter_AddRefs(texture), NULL)))
+                             getter_AddRefs(texture), nullptr)))
     {
-      return NULL;
+      return nullptr;
     }
 
     nsRefPtr<IDirect3DTexture9> tmpTexture;
     if (FAILED(aDevice->
                CreateTexture(aSize.width, aSize.height,
                              1, 0, aFormat, D3DPOOL_SYSTEMMEM,
-                             getter_AddRefs(tmpTexture), NULL)))
+                             getter_AddRefs(tmpTexture), nullptr)))
     {
-      return NULL;
+      return nullptr;
     }
 
     tmpTexture->GetSurfaceLevel(0, getter_AddRefs(surface));
-    surface->LockRect(&lockedRect, NULL, 0);
+    surface->LockRect(&lockedRect, nullptr, 0);
     NS_ASSERTION(lockedRect.pBits, "Could not lock surface");
   } else {
     if (FAILED(aDevice->
                CreateTexture(aSize.width, aSize.height,
                              1, 0, aFormat, D3DPOOL_MANAGED,
-                             getter_AddRefs(texture), NULL)))
+                             getter_AddRefs(texture), nullptr)))
     {
-      return NULL;
+      return nullptr;
     }
 
     /* lock the entire texture */
-    texture->LockRect(0, &lockedRect, NULL, 0);
+    texture->LockRect(0, &lockedRect, nullptr, 0);
   }
 
   uint32_t width = aSize.width;
@@ -96,7 +99,7 @@ DataToTexture(IDirect3DDevice9 *aDevice,
     surface->UnlockRect();
     nsRefPtr<IDirect3DSurface9> dstSurface;
     texture->GetSurfaceLevel(0, getter_AddRefs(dstSurface));
-    aDevice->UpdateSurface(surface, NULL, dstSurface, NULL);
+    aDevice->UpdateSurface(surface, nullptr, dstSurface, nullptr);
   } else {
     texture->UnlockRect(0);
   }
@@ -105,25 +108,47 @@ DataToTexture(IDirect3DDevice9 *aDevice,
 }
 
 static already_AddRefed<IDirect3DTexture9>
-SurfaceToTexture(IDirect3DDevice9 *aDevice,
-                 gfxASurface *aSurface,
-                 const gfxIntSize &aSize)
+OpenSharedTexture(const D3DSURFACE_DESC& aDesc,
+                  HANDLE aShareHandle,
+                  IDirect3DDevice9 *aDevice)
 {
+  MOZ_ASSERT(aDesc.Format == D3DFMT_X8R8G8B8);
 
-  nsRefPtr<gfxImageSurface> imageSurface = aSurface->GetAsImageSurface();
-
-  if (!imageSurface) {
-    imageSurface = new gfxImageSurface(aSize,
-                                       gfxASurface::ImageFormatARGB32);
-    
-    nsRefPtr<gfxContext> context = new gfxContext(imageSurface);
-    context->SetSource(aSurface);
-    context->SetOperator(gfxContext::OPERATOR_SOURCE);
-    context->Paint();
+  // Open the frame from DXVA's device in our device using the resource
+  // sharing handle.
+  nsRefPtr<IDirect3DTexture9> sharedTexture;
+  HRESULT hr = aDevice->CreateTexture(aDesc.Width,
+                                      aDesc.Height,
+                                      1,
+                                      D3DUSAGE_RENDERTARGET,
+                                      D3DFMT_X8R8G8B8,
+                                      D3DPOOL_DEFAULT,
+                                      getter_AddRefs(sharedTexture),
+                                      &aShareHandle);
+  if (FAILED(hr)) {
+    NS_WARNING("Failed to open shared texture on our device");
   }
+  return sharedTexture.forget();
+}
 
-  return DataToTexture(aDevice, imageSurface->Data(), imageSurface->Stride(),
-                       aSize, D3dFormatForGfxFormat(imageSurface->Format()));
+static already_AddRefed<IDirect3DTexture9>
+SurfaceToTexture(IDirect3DDevice9 *aDevice,
+                 SourceSurface *aSurface,
+                 const IntSize &aSize)
+{
+  RefPtr<DataSourceSurface> dataSurface = aSurface->GetDataSurface();
+  if (!dataSurface) {
+    return nullptr;
+  }
+  DataSourceSurface::MappedSurface map;
+  if (!dataSurface->Map(DataSourceSurface::MapType::READ, &map)) {
+    return nullptr;
+  }
+  nsRefPtr<IDirect3DTexture9> texture =
+    DataToTexture(aDevice, map.mData, map.mStride, aSize,
+                  D3dFormatForSurfaceFormat(dataSurface->GetFormat()));
+  dataSurface->Unmap();
+  return texture.forget();
 }
 
 static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
@@ -133,7 +158,7 @@ static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
   nsAutoPtr<PlanarYCbCrD3D9BackendData> backendData(
     new PlanarYCbCrD3D9BackendData);
 
-  const PlanarYCbCrImage::Data *data = aImage->GetData();
+  const PlanarYCbCrData *data = aImage->GetData();
 
   D3DLOCKED_RECT lockrectY;
   D3DLOCKED_RECT lockrectCb;
@@ -161,32 +186,32 @@ static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
 
     HRESULT hr;
     hr = aDevice->CreateTexture(data->mYSize.width, data->mYSize.height,
-                                1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
-                                getter_AddRefs(backendData->mYTexture), NULL);
+                                1, 0, D3DFMT_A8, D3DPOOL_DEFAULT,
+                                getter_AddRefs(backendData->mYTexture), nullptr);
     if (!FAILED(hr)) {
       hr = aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
-                                  1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
-                                  getter_AddRefs(backendData->mCbTexture), NULL);
+                                  1, 0, D3DFMT_A8, D3DPOOL_DEFAULT,
+                                  getter_AddRefs(backendData->mCbTexture), nullptr);
     }
     if (!FAILED(hr)) {
       hr = aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
-                                  1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
-                                  getter_AddRefs(backendData->mCrTexture), NULL);
+                                  1, 0, D3DFMT_A8, D3DPOOL_DEFAULT,
+                                  getter_AddRefs(backendData->mCrTexture), nullptr);
     }
     if (!FAILED(hr)) {
       hr = aDevice->CreateTexture(data->mYSize.width, data->mYSize.height,
-                                  1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
-                                  getter_AddRefs(tmpYTexture), NULL);
+                                  1, 0, D3DFMT_A8, D3DPOOL_SYSTEMMEM,
+                                  getter_AddRefs(tmpYTexture), nullptr);
     }
     if (!FAILED(hr)) {
       hr = aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
-                                  1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
-                                  getter_AddRefs(tmpCbTexture), NULL);
+                                  1, 0, D3DFMT_A8, D3DPOOL_SYSTEMMEM,
+                                  getter_AddRefs(tmpCbTexture), nullptr);
     }
     if (!FAILED(hr)) {
       hr = aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
-                                  1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
-                                  getter_AddRefs(tmpCrTexture), NULL);
+                                  1, 0, D3DFMT_A8, D3DPOOL_SYSTEMMEM,
+                                  getter_AddRefs(tmpCrTexture), nullptr);
     }
 
     if (FAILED(hr)) {
@@ -198,23 +223,23 @@ static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
     tmpYTexture->GetSurfaceLevel(0, getter_AddRefs(tmpSurfaceY));
     tmpCbTexture->GetSurfaceLevel(0, getter_AddRefs(tmpSurfaceCb));
     tmpCrTexture->GetSurfaceLevel(0, getter_AddRefs(tmpSurfaceCr));
-    tmpSurfaceY->LockRect(&lockrectY, NULL, 0);
-    tmpSurfaceCb->LockRect(&lockrectCb, NULL, 0);
-    tmpSurfaceCr->LockRect(&lockrectCr, NULL, 0);
+    tmpSurfaceY->LockRect(&lockrectY, nullptr, 0);
+    tmpSurfaceCb->LockRect(&lockrectCb, nullptr, 0);
+    tmpSurfaceCr->LockRect(&lockrectCr, nullptr, 0);
   } else {
     HRESULT hr;
     hr = aDevice->CreateTexture(data->mYSize.width, data->mYSize.height,
-                                1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
-                                getter_AddRefs(backendData->mYTexture), NULL);
+                                1, 0, D3DFMT_A8, D3DPOOL_MANAGED,
+                                getter_AddRefs(backendData->mYTexture), nullptr);
     if (!FAILED(hr)) {
       aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
-                             1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
-                             getter_AddRefs(backendData->mCbTexture), NULL);
+                             1, 0, D3DFMT_A8, D3DPOOL_MANAGED,
+                             getter_AddRefs(backendData->mCbTexture), nullptr);
     }
     if (!FAILED(hr)) {
       aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
-                             1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
-                             getter_AddRefs(backendData->mCrTexture), NULL);
+                             1, 0, D3DFMT_A8, D3DPOOL_MANAGED,
+                             getter_AddRefs(backendData->mCrTexture), nullptr);
     }
 
     if (FAILED(hr)) {
@@ -224,9 +249,9 @@ static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
     }
 
     /* lock the entire texture */
-    backendData->mYTexture->LockRect(0, &lockrectY, NULL, 0);
-    backendData->mCbTexture->LockRect(0, &lockrectCb, NULL, 0);
-    backendData->mCrTexture->LockRect(0, &lockrectCr, NULL, 0);
+    backendData->mYTexture->LockRect(0, &lockrectY, nullptr, 0);
+    backendData->mCbTexture->LockRect(0, &lockrectCb, nullptr, 0);
+    backendData->mCrTexture->LockRect(0, &lockrectCr, nullptr, 0);
   }
 
   src  = data->mYChannel;
@@ -268,18 +293,18 @@ static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
     tmpSurfaceCr->UnlockRect();
     nsRefPtr<IDirect3DSurface9> dstSurface;
     backendData->mYTexture->GetSurfaceLevel(0, getter_AddRefs(dstSurface));
-    aDevice->UpdateSurface(tmpSurfaceY, NULL, dstSurface, NULL);
+    aDevice->UpdateSurface(tmpSurfaceY, nullptr, dstSurface, nullptr);
     backendData->mCbTexture->GetSurfaceLevel(0, getter_AddRefs(dstSurface));
-    aDevice->UpdateSurface(tmpSurfaceCb, NULL, dstSurface, NULL);
+    aDevice->UpdateSurface(tmpSurfaceCb, nullptr, dstSurface, nullptr);
     backendData->mCrTexture->GetSurfaceLevel(0, getter_AddRefs(dstSurface));
-    aDevice->UpdateSurface(tmpSurfaceCr, NULL, dstSurface, NULL);
+    aDevice->UpdateSurface(tmpSurfaceCr, nullptr, dstSurface, nullptr);
   } else {
     backendData->mYTexture->UnlockRect(0);
     backendData->mCbTexture->UnlockRect(0);
     backendData->mCrTexture->UnlockRect(0);
   }
 
-  aImage->SetBackendData(mozilla::layers::LAYERS_D3D9, backendData.forget());
+  aImage->SetBackendData(mozilla::layers::LayersBackend::LAYERS_D3D9, backendData.forget());
 }
 
 Layer*
@@ -290,7 +315,7 @@ ImageLayerD3D9::GetLayer()
 
 /*
   * Returns a texture which backs aImage
-  * Will only work if aImage is a cairo or remote image.
+  * Will only work if aImage is a cairo image.
   * Returns nullptr if unsuccessful.
   * If successful, aHasAlpha will be set to true if the texture has an
   * alpha component, false otherwise.
@@ -300,43 +325,43 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
 {
   NS_ASSERTION(aImage, "Null image.");
 
-  if (aImage->GetFormat() == REMOTE_IMAGE_BITMAP) {
-    RemoteBitmapImage *remoteImage =
-      static_cast<RemoteBitmapImage*>(aImage);
-      
-    if (!aImage->GetBackendData(mozilla::layers::LAYERS_D3D9)) {
-      nsAutoPtr<TextureD3D9BackendData> dat(new TextureD3D9BackendData());
-      dat->mTexture = DataToTexture(device(), remoteImage->mData, remoteImage->mStride, remoteImage->mSize, D3DFMT_A8R8G8B8);
-      if (dat->mTexture) {
-        aImage->SetBackendData(mozilla::layers::LAYERS_D3D9, dat.forget());
-      }
-    }
-
-    aHasAlpha = remoteImage->mFormat == RemoteImageData::BGRA32;
-  } else if (aImage->GetFormat() == CAIRO_SURFACE) {
+  if (aImage->GetFormat() == ImageFormat::CAIRO_SURFACE) {
     CairoImage *cairoImage =
       static_cast<CairoImage*>(aImage);
 
-    if (!cairoImage->mSurface) {
+    RefPtr<SourceSurface> surf = cairoImage->GetAsSourceSurface();
+    if (!surf) {
       return nullptr;
     }
 
-    if (!aImage->GetBackendData(mozilla::layers::LAYERS_D3D9)) {
+    if (!aImage->GetBackendData(mozilla::layers::LayersBackend::LAYERS_D3D9)) {
       nsAutoPtr<TextureD3D9BackendData> dat(new TextureD3D9BackendData());
-      dat->mTexture = SurfaceToTexture(device(), cairoImage->mSurface, cairoImage->mSize);
+      dat->mTexture = SurfaceToTexture(device(), surf, cairoImage->GetSize());
       if (dat->mTexture) {
-        aImage->SetBackendData(mozilla::layers::LAYERS_D3D9, dat.forget());
+        aImage->SetBackendData(mozilla::layers::LayersBackend::LAYERS_D3D9, dat.forget());
       }
     }
 
-    aHasAlpha = cairoImage->mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA;
+    aHasAlpha = surf->GetFormat() == SurfaceFormat::B8G8R8A8;
+  } else if (aImage->GetFormat() == ImageFormat::D3D9_RGB32_TEXTURE) {
+    if (!aImage->GetBackendData(mozilla::layers::LayersBackend::LAYERS_D3D9)) {
+      // The texture in which the frame is stored belongs to DXVA's D3D9 device.
+      // We need to open it on our device before we can use it.
+      nsAutoPtr<TextureD3D9BackendData> backendData(new TextureD3D9BackendData());
+      D3D9SurfaceImage* image = static_cast<D3D9SurfaceImage*>(aImage);
+      backendData->mTexture = OpenSharedTexture(image->GetDesc(), image->GetShareHandle(), device());
+      if (backendData->mTexture) {
+        aImage->SetBackendData(mozilla::layers::LayersBackend::LAYERS_D3D9, backendData.forget());
+      }
+    }
+    aHasAlpha = false;
   } else {
     NS_WARNING("Inappropriate image type.");
     return nullptr;
   }
 
   TextureD3D9BackendData *data =
-    static_cast<TextureD3D9BackendData*>(aImage->GetBackendData(mozilla::layers::LAYERS_D3D9));
+    static_cast<TextureD3D9BackendData*>(aImage->GetBackendData(mozilla::layers::LayersBackend::LAYERS_D3D9));
 
   if (!data) {
     return nullptr;
@@ -368,14 +393,14 @@ ImageLayerD3D9::RenderLayer()
 
   SetShaderTransformAndOpacity();
 
-  gfxIntSize size = mScaleMode == SCALE_NONE ? image->GetSize() : mScaleToSize;
+  gfx::IntSize size = image->GetSize();
 
-  if (image->GetFormat() == CAIRO_SURFACE ||
-      image->GetFormat() == REMOTE_IMAGE_BITMAP)
+  if (image->GetFormat() == ImageFormat::CAIRO_SURFACE ||
+      image->GetFormat() == ImageFormat::D3D9_RGB32_TEXTURE)
   {
-    NS_ASSERTION(image->GetFormat() != CAIRO_SURFACE ||
-                 !static_cast<CairoImage*>(image)->mSurface ||
-                 static_cast<CairoImage*>(image)->mSurface->GetContentType() != gfxASurface::CONTENT_ALPHA,
+    NS_ASSERTION(image->GetFormat() != ImageFormat::CAIRO_SURFACE ||
+                 !static_cast<CairoImage*>(image)->mSourceSurface ||
+                 static_cast<CairoImage*>(image)->mSourceSurface->GetFormat() != SurfaceFormat::A8,
                  "Image layer has alpha image");
 
     bool hasAlpha = false;
@@ -394,7 +419,7 @@ ImageLayerD3D9::RenderLayer()
       mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBLAYER, GetMaskLayer());
     }
 
-    if (mFilter == gfxPattern::FILTER_NEAREST) {
+    if (mFilter == GraphicsFilter::FILTER_NEAREST) {
       device()->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
       device()->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
     }
@@ -404,7 +429,7 @@ ImageLayerD3D9::RenderLayer()
     autoLock.Unlock();
 
     device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
-    if (mFilter == gfxPattern::FILTER_NEAREST) {
+    if (mFilter == GraphicsFilter::FILTER_NEAREST) {
       device()->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
       device()->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
     }
@@ -416,12 +441,12 @@ ImageLayerD3D9::RenderLayer()
       return;
     }
 
-    if (!yuvImage->GetBackendData(mozilla::layers::LAYERS_D3D9)) {
+    if (!yuvImage->GetBackendData(mozilla::layers::LayersBackend::LAYERS_D3D9)) {
       AllocateTexturesYCbCr(yuvImage, device(), mD3DManager);
     }
 
     PlanarYCbCrD3D9BackendData *data =
-      static_cast<PlanarYCbCrD3D9BackendData*>(yuvImage->GetBackendData(mozilla::layers::LAYERS_D3D9));
+      static_cast<PlanarYCbCrD3D9BackendData*>(yuvImage->GetBackendData(mozilla::layers::LayersBackend::LAYERS_D3D9));
 
     if (!data) {
       return;
@@ -457,19 +482,19 @@ ImageLayerD3D9::RenderLayer()
     if (mD3DManager->GetNv3DVUtils()) {
       Nv_Stereo_Mode mode;
       switch (yuvImage->GetData()->mStereoMode) {
-      case STEREO_MODE_LEFT_RIGHT:
+      case StereoMode::LEFT_RIGHT:
         mode = NV_STEREO_MODE_LEFT_RIGHT;
         break;
-      case STEREO_MODE_RIGHT_LEFT:
+      case StereoMode::RIGHT_LEFT:
         mode = NV_STEREO_MODE_RIGHT_LEFT;
         break;
-      case STEREO_MODE_BOTTOM_TOP:
+      case StereoMode::BOTTOM_TOP:
         mode = NV_STEREO_MODE_BOTTOM_TOP;
         break;
-      case STEREO_MODE_TOP_BOTTOM:
+      case StereoMode::TOP_BOTTOM:
         mode = NV_STEREO_MODE_TOP_BOTTOM;
         break;
-      case STEREO_MODE_MONO:
+      case StereoMode::MONO:
         mode = NV_STEREO_MODE_MONO;
         break;
       }
@@ -477,7 +502,7 @@ ImageLayerD3D9::RenderLayer()
       // Send control data even in mono case so driver knows to leave stereo mode.
       mD3DManager->GetNv3DVUtils()->SendNv3DVControl(mode, true, FIREFOX_3DV_APP_HANDLE);
 
-      if (yuvImage->GetData()->mStereoMode != STEREO_MODE_MONO) {
+      if (yuvImage->GetData()->mStereoMode != StereoMode::MONO) {
         mD3DManager->GetNv3DVUtils()->SendNv3DVControl(mode, true, FIREFOX_3DV_APP_HANDLE);
 
         nsRefPtr<IDirect3DSurface9> renderTarget;
@@ -508,7 +533,7 @@ ImageLayerD3D9::RenderLayer()
 }
 
 already_AddRefed<IDirect3DTexture9>
-ImageLayerD3D9::GetAsTexture(gfxIntSize* aSize)
+ImageLayerD3D9::GetAsTexture(gfx::IntSize* aSize)
 {
   if (!GetContainer()) {
     return nullptr;
@@ -522,160 +547,13 @@ ImageLayerD3D9::GetAsTexture(gfxIntSize* aSize)
     return nullptr;
   }
 
-  if (image->GetFormat() != CAIRO_SURFACE &&
-      image->GetFormat() != REMOTE_IMAGE_BITMAP) {
+  if (image->GetFormat() != ImageFormat::CAIRO_SURFACE) {
     return nullptr;
   }
-  
+
   bool dontCare;
   *aSize = image->GetSize();
   nsRefPtr<IDirect3DTexture9> result = GetTexture(image, dontCare);
-  return result.forget();
-}
-
-
-ShadowImageLayerD3D9::ShadowImageLayerD3D9(LayerManagerD3D9* aManager)
-  : ShadowImageLayer(aManager, nullptr)
-  , LayerD3D9(aManager)
-{
-  mImplData = static_cast<LayerD3D9*>(this);
-}  
-
-ShadowImageLayerD3D9::~ShadowImageLayerD3D9()
-{}
-
-void
-ShadowImageLayerD3D9::Swap(const SharedImage& aNewFront,
-                           SharedImage* aNewBack)
-{
-  if (aNewFront.type() == SharedImage::TSurfaceDescriptor) {
-    if (!mBuffer) {
-      mBuffer = new ShadowBufferD3D9(this);
-    }
-    AutoOpenSurface surf(OPEN_READ_ONLY, aNewFront.get_SurfaceDescriptor());
-    mBuffer->Upload(surf.Get(), GetVisibleRegion().GetBounds());
-  } else {
-    const YUVImage& yuv = aNewFront.get_YUVImage();
-
-    AutoOpenSurface asurfY(OPEN_READ_ONLY, yuv.Ydata());
-    AutoOpenSurface asurfU(OPEN_READ_ONLY, yuv.Udata());
-    AutoOpenSurface asurfV(OPEN_READ_ONLY, yuv.Vdata());
-    gfxImageSurface* surfY = asurfY.GetAsImage();
-    gfxImageSurface* surfU = asurfU.GetAsImage();
-    gfxImageSurface* surfV = asurfV.GetAsImage();
-
-    PlanarYCbCrImage::Data data;
-    data.mYChannel = surfY->Data();
-    data.mYStride = surfY->Stride();
-    data.mYSize = surfY->GetSize();
-    data.mCbChannel = surfU->Data();
-    data.mCrChannel = surfV->Data();
-    data.mCbCrStride = surfU->Stride();
-    data.mCbCrSize = surfU->GetSize();
-    data.mPicSize = surfY->GetSize();
-    data.mPicX = 0;
-    data.mPicY = 0;
-
-    if (!mYCbCrImage) {
-      mYCbCrImage = new PlanarYCbCrImage(new BufferRecycleBin());
-    }
-
-    mYCbCrImage->SetData(data);
-
-  }
-  
-  *aNewBack = aNewFront;
-}
-
-void
-ShadowImageLayerD3D9::Disconnect()
-{
-  Destroy();
-}
-
-void
-ShadowImageLayerD3D9::Destroy()
-{
-  mBuffer = nullptr;
-  mYCbCrImage = nullptr;
-}
-
-Layer*
-ShadowImageLayerD3D9::GetLayer()
-{
-  return this;
-}
-
-void
-ShadowImageLayerD3D9::RenderLayer()
-{
-  if (mD3DManager->CompositingDisabled()) {
-    return;
-  }
-
-  if (mBuffer) {
-    mBuffer->RenderTo(mD3DManager, GetEffectiveVisibleRegion());
-  } else if (mYCbCrImage) {
-    if (!mYCbCrImage->IsValid()) {
-      return;
-    }
-
-    if (!mYCbCrImage->GetBackendData(mozilla::layers::LAYERS_D3D9)) {
-      AllocateTexturesYCbCr(mYCbCrImage, device(), mD3DManager);
-    }
-
-    PlanarYCbCrD3D9BackendData *data =
-      static_cast<PlanarYCbCrD3D9BackendData*>(mYCbCrImage->GetBackendData(mozilla::layers::LAYERS_D3D9));
-
-    if (!data) {
-      return;
-    }
-
-    if (!mYCbCrImage->IsValid()) {
-      return;
-    }
-
-    SetShaderTransformAndOpacity();
-
-    device()->SetVertexShaderConstantF(CBvLayerQuad,
-                                       ShaderConstantRect(0,
-                                                          0,
-                                                          mYCbCrImage->GetSize().width,
-                                                          mYCbCrImage->GetSize().height),
-                                       1);
-
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::YCBCRLAYER, GetMaskLayer());
-
-    /*
-     * Send 3d control data and metadata
-     */
-    if (mD3DManager->GetNv3DVUtils()) {
-      // TODO Add 3D support
-    }
-
-    // Linear scaling is default here, adhering to mFilter is difficult since
-    // presumably even with point filtering we'll still want chroma upsampling
-    // to be linear. In the current approach we can't.
-    device()->SetTexture(0, data->mYTexture);
-    device()->SetTexture(1, data->mCbTexture);
-    device()->SetTexture(2, data->mCrTexture);
-
-    device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
-  } else {
-    NS_ERROR("Unexpected image format.");
-  }
-
-}
-
-already_AddRefed<IDirect3DTexture9>
-ShadowImageLayerD3D9::GetAsTexture(gfxIntSize* aSize)
-{
-  if (!mBuffer) {
-    return nullptr;
-  }
-  
-  *aSize = mBuffer->GetSize();
-  nsRefPtr<IDirect3DTexture9> result = mBuffer->GetTexture();
   return result.forget();
 }
 

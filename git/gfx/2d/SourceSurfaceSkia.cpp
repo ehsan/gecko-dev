@@ -10,18 +10,24 @@
 #include "skia/SkDevice.h"
 #include "HelpersSkia.h"
 #include "DrawTargetSkia.h"
+#include "DataSurfaceHelpers.h"
+#include "skia/SkGrPixelRef.h"
 
 namespace mozilla {
 namespace gfx {
 
 SourceSurfaceSkia::SourceSurfaceSkia()
-  : mDrawTarget(nullptr)
+  : mDrawTarget(nullptr), mLocked(false)
 {
 }
 
 SourceSurfaceSkia::~SourceSurfaceSkia()
 {
-  MarkIndependent();
+  MaybeUnlock();
+  if (mDrawTarget) {
+    mDrawTarget->SnapshotDestroyed();
+    mDrawTarget = nullptr;
+  }
 }
 
 IntSize
@@ -36,6 +42,24 @@ SourceSurfaceSkia::GetFormat() const
   return mFormat;
 }
 
+bool
+SourceSurfaceSkia::InitFromCanvas(SkCanvas* aCanvas,
+                                  SurfaceFormat aFormat,
+                                  DrawTargetSkia* aOwner)
+{
+  SkISize size = aCanvas->getDeviceSize();
+
+  mBitmap = (SkBitmap)aCanvas->getDevice()->accessBitmap(false);
+
+  mFormat = aFormat;
+
+  mSize = IntSize(size.fWidth, size.fHeight);
+  mStride = mBitmap.rowBytes();
+  mDrawTarget = aOwner;
+
+  return true;
+}
+
 bool 
 SourceSurfaceSkia::InitFromData(unsigned char* aData,
                                 const IntSize &aSize,
@@ -43,72 +67,87 @@ SourceSurfaceSkia::InitFromData(unsigned char* aData,
                                 SurfaceFormat aFormat)
 {
   SkBitmap temp;
-  temp.setConfig(GfxFormatToSkiaConfig(aFormat), aSize.width, aSize.height, aStride);
+  SkAlphaType alphaType = (aFormat == SurfaceFormat::B8G8R8X8) ?
+    kOpaque_SkAlphaType : kPremul_SkAlphaType;
+
+  SkImageInfo info = SkImageInfo::Make(aSize.width,
+                                       aSize.height,
+                                       GfxFormatToSkiaColorType(aFormat),
+                                       alphaType);
+  temp.setInfo(info, aStride);
   temp.setPixels(aData);
 
-  if (!temp.copyTo(&mBitmap, GfxFormatToSkiaConfig(aFormat))) {
+  if (!temp.copyTo(&mBitmap, GfxFormatToSkiaColorType(aFormat))) {
     return false;
   }
-  
+
+  if (aFormat == SurfaceFormat::B8G8R8X8) {
+    mBitmap.setAlphaType(kIgnore_SkAlphaType);
+  }
+
   mSize = aSize;
   mFormat = aFormat;
-  mStride = aStride;
+  mStride = mBitmap.rowBytes();
   return true;
 }
 
 bool
-SourceSurfaceSkia::InitWithBitmap(const SkBitmap& aBitmap,
-                                  SurfaceFormat aFormat,
-                                  DrawTargetSkia* aOwner)
+SourceSurfaceSkia::InitFromTexture(DrawTargetSkia* aOwner,
+                                   unsigned int aTexture,
+                                   const IntSize &aSize,
+                                   SurfaceFormat aFormat)
 {
-  mFormat = aFormat;
-  mSize = IntSize(aBitmap.width(), aBitmap.height());
+  MOZ_ASSERT(aOwner, "null GrContext");
+  GrBackendTextureDesc skiaTexGlue;
+  mSize.width = skiaTexGlue.fWidth = aSize.width;
+  mSize.height = skiaTexGlue.fHeight = aSize.height;
+  skiaTexGlue.fFlags = kNone_GrBackendTextureFlag;
+  skiaTexGlue.fOrigin = kBottomLeft_GrSurfaceOrigin;
+  skiaTexGlue.fConfig = GfxFormatToGrConfig(aFormat);
+  skiaTexGlue.fSampleCnt = 0;
+  skiaTexGlue.fTextureHandle = aTexture;
 
-  if (aOwner) {
-    mBitmap = aBitmap;
-    mStride = aBitmap.rowBytes();
-    mDrawTarget = aOwner;
-    return true;
-  } else if (aBitmap.copyTo(&mBitmap, aBitmap.getConfig())) {
-    mStride = mBitmap.rowBytes();
-    return true;
-  }
-  return false;
+  GrTexture *skiaTexture = aOwner->mGrContext->wrapBackendTexture(skiaTexGlue);
+  SkImageInfo imgInfo = SkImageInfo::Make(aSize.width, aSize.height, GfxFormatToSkiaColorType(aFormat), kOpaque_SkAlphaType);
+  SkGrPixelRef *texRef = new SkGrPixelRef(imgInfo, skiaTexture, false);
+  mBitmap.setInfo(imgInfo, aSize.width*aSize.height*4);
+  mBitmap.setPixelRef(texRef);
+
+  mDrawTarget = aOwner;
+  return true;
 }
 
 unsigned char*
 SourceSurfaceSkia::GetData()
 {
-  mBitmap.lockPixels();
-  unsigned char *pixels = (unsigned char *)mBitmap.getPixels();
-  mBitmap.unlockPixels();
-  return pixels;
+  if (!mLocked) {
+    mBitmap.lockPixels();
+    mLocked = true;
+  }
 
+  unsigned char *pixels = (unsigned char *)mBitmap.getPixels();
+  return pixels;
 }
 
 void
 SourceSurfaceSkia::DrawTargetWillChange()
 {
   if (mDrawTarget) {
+    MaybeUnlock();
+
     mDrawTarget = nullptr;
     SkBitmap temp = mBitmap;
     mBitmap.reset();
-    temp.copyTo(&mBitmap, temp.getConfig());
+    temp.copyTo(&mBitmap, temp.colorType());
   }
 }
 
 void
-SourceSurfaceSkia::DrawTargetDestroyed()
+SourceSurfaceSkia::MaybeUnlock()
 {
-  mDrawTarget = nullptr;
-}
-
-void
-SourceSurfaceSkia::MarkIndependent()
-{
-  if (mDrawTarget) {
-    mDrawTarget->RemoveSnapshot(this);
-    mDrawTarget = nullptr;
+  if (mLocked) {
+    mBitmap.unlockPixels();
+    mLocked = false;
   }
 }
 

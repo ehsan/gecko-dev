@@ -5,11 +5,6 @@
 #ifndef BASE_MESSAGE_PUMP_QT_H_
 #define BASE_MESSAGE_PUMP_QT_H_
 
-#ifdef mozilla_mozalloc_macro_wrappers_h
-/* The "anti-header" */
-#  include "mozilla/mozalloc_undef_macro_wrappers.h"
-#endif
- 
 #include <qobject.h>
 
 #include "base/message_pump.h"
@@ -29,9 +24,9 @@ class MessagePumpQt : public QObject {
   ~MessagePumpQt();
 
   virtual bool event (QEvent *e);
-  void scheduleDelayedIfNeeded(const Time& delayed_work_time);
+  void scheduleDelayedIfNeeded(const TimeTicks& delayed_work_time);
 
- public slots:
+ public Q_SLOTS:
   void dispatchDelayed();
 
  private:
@@ -50,7 +45,7 @@ class MessagePumpForUI : public MessagePump {
   virtual void Run(Delegate* delegate);
   virtual void Quit();
   virtual void ScheduleWork();
-  virtual void ScheduleDelayedWork(const Time& delayed_work_time);
+  virtual void ScheduleDelayedWork(const TimeTicks& delayed_work_time);
 
   // Internal methods used for processing the pump callbacks.  They are
   // public for simplicity but should not be used directly.
@@ -73,7 +68,7 @@ class MessagePumpForUI : public MessagePump {
   RunState* state_;
 
   // This is the time when we need to do delayed work.
-  Time delayed_work_time_;
+  TimeTicks delayed_work_time_;
 
   // MessagePump implementation for Qt based on the GLib implement.
   // On Qt we use a QObject base class and the

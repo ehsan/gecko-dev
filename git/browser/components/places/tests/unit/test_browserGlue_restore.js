@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -27,7 +27,6 @@ let bookmarksObserver = {
       continue_test();
   },
   onItemAdded: function() {},
-  onBeforeItemRemoved: function(id) {},
   onItemRemoved: function(id, folder, index, itemType) {},
   onItemChanged: function() {},
   onItemVisited: function(id, visitID, time) {},
@@ -44,6 +43,7 @@ function run_test() {
 
   // Create our JSON backup copying bookmarks.glue.json to the profile
   // folder.  It will be ignored.
+  remove_all_JSON_backups();
   create_JSON_backup("bookmarks.glue.json");
 
   // Remove current database file.

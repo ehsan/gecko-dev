@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+Components.utils.import('resource://gre/modules/PlacesUtils.jsm');
+
 let FavIcons = {
   // Pref that controls whether to display site icons.
   PREF_CHROME_SITE_ICONS: "browser.chrome.site_icons",
@@ -78,7 +80,7 @@ let FavIcons = {
   _getFavIconFromTabImage:
     function FavIcons_getFavIconFromTabImage(tab, callback) {
 
-    let tabImage = tab.image;
+    let tabImage = gBrowser.getIcon(tab);
 
     // If the tab image's url starts with http(s), fetch icon from favicon
     // service via the moz-anno protocol.
@@ -86,6 +88,8 @@ let FavIcons = {
       let tabImageURI = gWindow.makeURI(tabImage);
       tabImage = this._favIconService.getFaviconLinkForIcon(tabImageURI).spec;
     }
+
+    tabImage = PlacesUtils.getImageURLForResolution(window, tabImage);
 
     callback(tabImage);
   },
@@ -99,7 +103,9 @@ let FavIcons = {
     let {currentURI} = tab.linkedBrowser;
     this._favIconService.getFaviconURLForPage(currentURI, function (uri) {
       if (uri) {
-        callback(this._favIconService.getFaviconLinkForIcon(uri).spec);
+        let icon = PlacesUtils.getImageURLForResolution(window,
+                     this._favIconService.getFaviconLinkForIcon(uri).spec);
+        callback(icon);
       } else {
         callback(this.defaultFavicon);
       }

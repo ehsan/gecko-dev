@@ -6,21 +6,21 @@
 
 #include <limits.h>
 
+#include "mozilla/DebugOnly.h"
+
+#include "nsCache.h"
+#include "nsIMemoryReporter.h"
+
 // include files for ftruncate (or equivalent)
 #if defined(XP_UNIX)
 #include <unistd.h>
 #elif defined(XP_WIN)
 #include <windows.h>
-#elif defined(XP_OS2)
-#define INCL_DOSERRORS
-#include <os2.h>
 #else
 // XXX add necessary include file for ftruncate (or equivalent)
 #endif
 
-#include "prtypes.h"
 #include "prthread.h"
-#include "prbit.h"
 
 #include "private/pprio.h"
 
@@ -32,7 +32,6 @@
 #include "nsDiskCache.h"
 
 #include "nsCacheService.h"
-#include "nsCache.h"
 
 #include "nsDeleteDir.h"
 
@@ -44,8 +43,8 @@
 #include "nsCOMArray.h"
 #include "nsISimpleEnumerator.h"
 
-#include "mozilla/FunctionTimer.h"
 #include "nsThreadUtils.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/Telemetry.h"
 
 static const char DISK_CACHE_DEVICE_ID[] = { "disk" };
@@ -85,7 +84,7 @@ private:
 
 class nsEvictDiskCacheEntriesEvent : public nsRunnable {
 public:
-    nsEvictDiskCacheEntriesEvent(nsDiskCacheDevice *device)
+    explicit nsEvictDiskCacheEntriesEvent(nsDiskCacheDevice *device)
         : mDevice(device) {}
 
     NS_IMETHOD Run()
@@ -183,18 +182,18 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSICACHEDEVICEINFO
 
-    nsDiskCacheDeviceInfo(nsDiskCacheDevice* device)
+    explicit nsDiskCacheDeviceInfo(nsDiskCacheDevice* device)
         :   mDevice(device)
     {
     }
 
-    virtual ~nsDiskCacheDeviceInfo() {}
-    
 private:
+    virtual ~nsDiskCacheDeviceInfo() {}
+
     nsDiskCacheDevice* mDevice;
 };
 
-NS_IMPL_ISUPPORTS1(nsDiskCacheDeviceInfo, nsICacheDeviceInfo)
+NS_IMPL_ISUPPORTS(nsDiskCacheDeviceInfo, nsICacheDeviceInfo)
 
 /* readonly attribute string description; */
 NS_IMETHODIMP nsDiskCacheDeviceInfo::GetDescription(char ** aDescription)
@@ -293,7 +292,7 @@ nsDiskCache::Hash(const char * key, PLDHashNumber initval)
   const uint8_t *k = reinterpret_cast<const uint8_t*>(key);
   uint32_t a, b, c, len, length;
 
-  length = PL_strlen(key);
+  length = strlen(key);
   /* Set up the internal state */
   len = length;
   a = b = 0x9e3779b9;  /* the golden ratio; an arbitrary value */
@@ -350,11 +349,6 @@ nsDiskCache::Truncate(PRFileDesc *  fd, uint32_t  newEOF)
         return NS_ERROR_FAILURE;
     }
 
-#elif defined(XP_OS2)
-    if (DosSetFileSize((HFILE) PR_FileDesc2NativeHandle(fd), newEOF) != NO_ERROR) {
-        NS_ERROR("DosSetFileSize failed");
-        return NS_ERROR_FAILURE;
-    }
 #else
     // add implementations for other platforms here
 #endif
@@ -386,8 +380,6 @@ nsDiskCacheDevice::~nsDiskCacheDevice()
 nsresult
 nsDiskCacheDevice::Init()
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv;
 
     if (Initialized()) {
@@ -401,8 +393,6 @@ nsDiskCacheDevice::Init()
     rv = mBindery.Init();
     if (NS_FAILED(rv))
         return rv;
-
-    nsDeleteDir::RemoveOldTrashes(mCacheDirectory);
 
     // Open Disk Cache
     rv = OpenDiskCache();
@@ -539,7 +529,6 @@ nsDiskCacheDevice::FindEntry(nsCString * key, bool *collision)
 nsresult
 nsDiskCacheDevice::DeactivateEntry(nsCacheEntry * entry)
 {
-    nsresult              rv = NS_OK;
     nsDiskCacheBinding * binding = GetCacheEntryBinding(entry);
     if (!IsValidBinding(binding))
         return NS_ERROR_UNEXPECTED;
@@ -553,7 +542,7 @@ nsDiskCacheDevice::DeactivateEntry(nsCacheEntry * entry)
     // ensure we can cancel the event via the binding later if necessary
     binding->mDeactivateEvent = event;
 
-    rv = nsCacheService::DispatchToCacheIOThread(event);
+    DebugOnly<nsresult> rv = nsCacheService::DispatchToCacheIOThread(event);
     NS_ASSERTION(NS_SUCCEEDED(rv), "DeactivateEntry: Failed dispatching "
                                    "deactivation event");
     return NS_OK;
@@ -847,10 +836,8 @@ nsDiskCacheDevice::OnDataSizeChange(nsCacheEntry * entry, int32_t deltaSize)
     uint32_t  newSizeK =  ((newSize + 0x3FF) >> 10);
 
     // If the new size is larger than max. file size or larger than
-    // 1/8 the cache capacity (which is in KiB's), and the entry has
-    // not been marked for file storage, doom the entry and abort.
-    if (EntryIsTooBig(newSize) &&
-        entry->StoragePolicy() != nsICache::STORE_ON_DISK_AS_FILE) {
+    // 1/8 the cache capacity (which is in KiB's), doom the entry and abort.
+    if (EntryIsTooBig(newSize)) {
 #ifdef DEBUG
         nsresult rv =
 #endif
@@ -987,7 +974,7 @@ nsDiskCacheDevice::OpenDiskCache()
     if (exists) {
         // Try opening cache map file.
         nsDiskCache::CorruptCacheInfo corruptInfo;
-        rv = mCacheMap.Open(mCacheDirectory, &corruptInfo);
+        rv = mCacheMap.Open(mCacheDirectory, &corruptInfo, true);
 
         if (NS_SUCCEEDED(rv)) {
             Telemetry::Accumulate(Telemetry::DISK_CACHE_CORRUPT_DETAILS,
@@ -1017,7 +1004,7 @@ nsDiskCacheDevice::OpenDiskCache()
     
         // reopen the cache map     
         nsDiskCache::CorruptCacheInfo corruptInfo;
-        rv = mCacheMap.Open(mCacheDirectory, &corruptInfo);
+        rv = mCacheMap.Open(mCacheDirectory, &corruptInfo, false);
         if (NS_FAILED(rv))
             return rv;
     }
@@ -1163,3 +1150,15 @@ nsDiskCacheDevice::SetMaxEntrySize(int32_t maxSizeInKilobytes)
     else
         mMaxEntrySize = -1;
 }
+
+size_t
+nsDiskCacheDevice::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+{
+    size_t usage = aMallocSizeOf(this);
+
+    usage += mCacheMap.SizeOfExcludingThis(aMallocSizeOf);
+    usage += mBindery.SizeOfExcludingThis(aMallocSizeOf);
+
+    return usage;
+}
+

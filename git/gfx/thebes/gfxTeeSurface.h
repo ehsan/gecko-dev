@@ -7,7 +7,10 @@
 #define GFX_TEESURFACE_H
 
 #include "gfxASurface.h"
-#include "nsTArray.h"
+#include "nsTArrayForwardDeclare.h"
+#include "nsSize.h"
+
+template<class T> class nsRefPtr;
 
 /**
  * Wraps a cairo_tee_surface. The first surface in the surface list is the
@@ -18,9 +21,9 @@
  * underlying surfaces --- which also applies the device transforms of the
  * underlying surfaces.
  */
-class THEBES_API gfxTeeSurface : public gfxASurface {
+class gfxTeeSurface : public gfxASurface {
 public:
-    gfxTeeSurface(cairo_surface_t *csurf);
+    explicit gfxTeeSurface(cairo_surface_t *csurf);
     gfxTeeSurface(gfxASurface **aSurfaces, int32_t aSurfaceCount);
 
     virtual const gfxIntSize GetSize() const;

@@ -1,47 +1,48 @@
-This is the ANGLE project, from http://code.google.com/p/angleproject/
+This is the ANGLE project, originally from https://chromium.googlesource.com/angle/angle 
 
-Current revision: r1242
+The Mozilla upstream is the 'mozilla' branch from https://github.com/mozilla/angle, which
+includes Mozilla-specific patches on top of upstream.
 
-== Applied local patches ==
+=== How to upgrade ANGLE ===
 
-In this order:
+1. git clone https://github.com/mozilla/angle angle
 
-  angle-renaming-debug.patch
-    rename debug.h to compilerdebug.h to avoid conflict in our makefiles
+2. Go into the angle dir, and add the google upstream as a remote:
+     git remote add google https://chromium.googlesource.com/angle/angle
 
-  angle-renaming-preprocessor-diagonostics.patch
-    rename one of the two Diagnostics.cpp to avoid conflict in our makefiles
+3. Fetch the new google upstream:
+     git fetch google
 
-  angle-renaming-preprocessor-directivehandler.patch
-    rename one of the two DirectiveHandler.cpp to avoid conflict in our makefiles
+4. Switch to the mozilla branch
+     git checkout mozilla
 
-  angle-enforce-readpixels-spec.patch
-    see bug 724476
+5. Rebase the mozilla branch on top of the new google master.  Fix up patches along the way,
+   remove unneded commits.  Google seems to have "chromium/2059" branches as well, that I
+   assume are merges into the Chromium tree.  These might be a good point to rebase on
+   as well, instead of google/master:
+     git rebase -i google/master
+  or git rebase -i google/chromium/2081  (whatever the latest is in 'git branch -a')
 
-  angle-impl-read-bgra.patch
-    see bug 724476
+6. Re-generate moz.build files:
+     ./gyp_mozbuild
 
-  gfx/angle/angle-long-identifier-hash-spooky.patch
-    see bug 676071
+7. nuke mozilla-central/gfx/angle directory
 
-  angle-abort-on-oom-in-preprocessor.patch
-    see bug 680840. Probably not useful anymore now that we're on the new
-    preprocessor, but it doesn't hurt to keep it around a bit longer.
+8. copy all the relevant files from the github checkout
+     cd mozilla-central
+     mkdir gfx/angle
+     cp -r /c/proj/angle/[A-Z]* /c/proj/angle/{include,src,moz.build} gfx/angle
 
-In addition to these patches, the Makefile.in files are ours, they're not present in upsteam ANGLE.
-Therefore, changes made to the Makefile.in files should not be stored in the local .patch files.
+9.  Build. Fix things until it builds.
 
-== How to update this ANGLE copy ==
+10. Try runs and reviews!
 
-1. Unapply patches
-2. Apply diff with new ANGLE version
-3. Reapply patches.
-4. Check for changes in src/build_angle.gyp, update our Makefile.in files accordingly. Note that a single file may be recorded in more than one Makefile.
+11. Once reviews are done and checkin is ready, tag the equivalent git repo:
+    git tag -a mozilla-bug-123456 -m "ANGLE update for bug 123456"
 
-== Visual Studio Solution Files ==
+12. Push the new mozilla branch, along with the tags upstream:
+    git push --tags mozilla +mozilla
 
-Ignore these. We don't use them anymore. We use custom Makefiles.
-
-== Generated parser code==
-
-Don't bother about that anymore. The parser is now generated and included in the ANGLE svn repo.
+The "mozilla" branch head will keep moving, since it will keep getting rebased.
+The tags will point to the topmost commit that was used for a particular bug number,
+so that we can see its history if needed.

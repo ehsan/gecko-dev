@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -319,20 +319,25 @@ function run_test() {
   let bg = Cc["@mozilla.org/browser/browserglue;1"].getService(Ci.nsIObserver);
   // Initialize Places.
   PlacesUtils.history;
+  // Observes Places initialisation complete.
+  Services.obs.addObserver(function waitPlaceInitComplete() {
+    Services.obs.removeObserver(waitPlaceInitComplete, "places-browser-init-complete");
+
+    // Ensure preferences status.
+    do_check_false(Services.prefs.getBoolPref(PREF_AUTO_EXPORT_HTML));
+    do_check_false(Services.prefs.getBoolPref(PREF_RESTORE_DEFAULT_BOOKMARKS));
+    try {
+      do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
+      do_throw("importBookmarksHTML pref should not exist");
+    }
+    catch(ex) {}
+
+    waitForImportAndSmartBookmarks(next_test);
+  }, "places-browser-init-complete", false);
+
   // Usually places init would async notify to glue, but we want to avoid
   // randomness here, thus we fire the notification synchronously.
   bg.observe(null, "places-init-complete", null);
-
-  // Ensure preferences status.
-  do_check_false(Services.prefs.getBoolPref(PREF_AUTO_EXPORT_HTML));
-  do_check_false(Services.prefs.getBoolPref(PREF_RESTORE_DEFAULT_BOOKMARKS));
-  try {
-    do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
-    do_throw("importBookmarksHTML pref should not exist");
-  }
-  catch(ex) {}
-
-  waitForImportAndSmartBookmarks(next_test);
 }
 
 function waitForImportAndSmartBookmarks(aCallback) {
@@ -340,7 +345,7 @@ function waitForImportAndSmartBookmarks(aCallback) {
     Services.obs.removeObserver(waitImport, "bookmarks-restore-success");
     // Delay to test eventual smart bookmarks creation.
     do_execute_soon(function () {
-      waitForAsyncUpdates(aCallback);
+      promiseAsyncUpdates().then(aCallback);
     });
   }, "bookmarks-restore-success", false);
 }

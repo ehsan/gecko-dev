@@ -6,30 +6,37 @@
 #ifndef nsHttpPipeline_h__
 #define nsHttpPipeline_h__
 
-#include "nsHttp.h"
 #include "nsAHttpConnection.h"
 #include "nsAHttpTransaction.h"
-#include "nsIInputStream.h"
-#include "nsIOutputStream.h"
 #include "nsTArray.h"
 #include "nsCOMPtr.h"
 
-class nsHttpPipeline : public nsAHttpConnection
-                     , public nsAHttpTransaction
-                     , public nsAHttpSegmentReader
+class nsIInputStream;
+class nsIOutputStream;
+
+namespace mozilla { namespace net {
+
+class nsHttpPipeline MOZ_FINAL : public nsAHttpConnection
+                               , public nsAHttpTransaction
+                               , public nsAHttpSegmentReader
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSAHTTPCONNECTION(mConnection)
     NS_DECL_NSAHTTPTRANSACTION
     NS_DECL_NSAHTTPSEGMENTREADER
 
     nsHttpPipeline();
-    virtual ~nsHttpPipeline();
+
+  bool ResponseTimeoutEnabled() const MOZ_OVERRIDE MOZ_FINAL {
+    return true;
+  }
 
 private:
+    virtual ~nsHttpPipeline();
+
     nsresult FillSendBuf();
-    
+
     static NS_METHOD ReadFromPipe(nsIInputStream *, void *, const char *,
                                   uint32_t, uint32_t, uint32_t *);
 
@@ -52,13 +59,13 @@ private:
     // overload of nsAHttpTransaction::QueryPipeline()
     nsHttpPipeline *QueryPipeline();
 
-    nsAHttpConnection            *mConnection;
+    nsRefPtr<nsAHttpConnection>   mConnection;
     nsTArray<nsAHttpTransaction*> mRequestQ;  // array of transactions
     nsTArray<nsAHttpTransaction*> mResponseQ; // array of transactions
     nsresult                      mStatus;
 
     // these flags indicate whether or not the first request or response
-    // is partial.  a partial request means that Request(0) has been 
+    // is partial.  a partial request means that Request(0) has been
     // partially written out to the socket.  a partial response means
     // that Response(0) has been partially read in from the socket.
     bool mRequestIsPartial;
@@ -73,7 +80,6 @@ private:
 
     // used when calling ReadSegments/WriteSegments on a transaction.
     nsAHttpSegmentReader *mReader;
-    nsAHttpSegmentWriter *mWriter;
 
     // send buffer
     nsCOMPtr<nsIInputStream>  mSendBufIn;
@@ -92,5 +98,7 @@ private:
     uint64_t  mSendingToProgress;
     bool      mSuppressSendEvents;
 };
+
+}} // namespace mozilla::net
 
 #endif // nsHttpPipeline_h__

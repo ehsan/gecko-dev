@@ -8,59 +8,85 @@
  */
 
 #include "nsHTMLCSSStyleSheet.h"
-#include "nsCRT.h"
-#include "nsIAtom.h"
-#include "nsIURL.h"
-#include "nsCSSPseudoElements.h"
-#include "nsIStyleRule.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/StyleRule.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsPresContext.h"
-#include "nsIDocument.h"
-#include "nsCOMPtr.h"
 #include "nsRuleWalker.h"
-#include "nsRuleData.h"
 #include "nsRuleProcessorData.h"
 #include "mozilla/dom/Element.h"
+#include "nsAttrValue.h"
+#include "nsAttrValueInlines.h"
+#include "RestyleManager.h"
 
+using namespace mozilla;
 using namespace mozilla::dom;
-namespace css = mozilla::css;
+
+namespace {
+
+PLDHashOperator
+ClearAttrCache(const nsAString& aKey, MiscContainer*& aValue, void*)
+{
+  // Ideally we'd just call MiscContainer::Evict, but we can't do that since
+  // we're iterating the hashtable.
+  MOZ_ASSERT(aValue->mType == nsAttrValue::eCSSStyleRule);
+
+  aValue->mValue.mCSSStyleRule->SetHTMLCSSStyleSheet(nullptr);
+  aValue->mValue.mCached = 0;
+
+  return PL_DHASH_REMOVE;
+}
+
+} // anonymous namespace
 
 nsHTMLCSSStyleSheet::nsHTMLCSSStyleSheet()
-  : mDocument(nullptr)
 {
 }
 
-NS_IMPL_ISUPPORTS2(nsHTMLCSSStyleSheet,
-                   nsIStyleSheet,
-                   nsIStyleRuleProcessor)
+nsHTMLCSSStyleSheet::~nsHTMLCSSStyleSheet()
+{
+  // We may go away before all of our cached style attributes do,
+  // so clean up any that are left.
+  mCachedStyleAttrs.Enumerate(ClearAttrCache, nullptr);
+}
+
+NS_IMPL_ISUPPORTS(nsHTMLCSSStyleSheet, nsIStyleRuleProcessor)
 
 /* virtual */ void
 nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 {
-  Element* element = aData->mElement;
+  ElementRulesMatching(aData->mPresContext, aData->mElement,
+                       aData->mRuleWalker);
+}
 
+void
+nsHTMLCSSStyleSheet::ElementRulesMatching(nsPresContext* aPresContext,
+                                          Element* aElement,
+                                          nsRuleWalker* aRuleWalker)
+{
   // just get the one and only style rule from the content's STYLE attribute
-  css::StyleRule* rule = element->GetInlineStyleRule();
+  css::StyleRule* rule = aElement->GetInlineStyleRule();
   if (rule) {
     rule->RuleMatched();
-    aData->mRuleWalker->Forward(rule);
+    aRuleWalker->Forward(rule);
   }
 
-  rule = element->GetSMILOverrideStyleRule();
+  rule = aElement->GetSMILOverrideStyleRule();
   if (rule) {
-    if (aData->mPresContext->IsProcessingRestyles() &&
-        !aData->mPresContext->IsProcessingAnimationStyleChange()) {
+    RestyleManager* restyleManager = aPresContext->RestyleManager();
+    if (restyleManager->SkipAnimationRules()) {
       // Non-animation restyle -- don't process SMIL override style, because we
       // don't want SMIL animation to trigger new CSS transitions. Instead,
       // request an Animation restyle, so we still get noticed.
-      aData->mPresContext->PresShell()->RestyleForAnimation(element,
-                                                            eRestyle_Self);
+      if (restyleManager->PostAnimationRestyles()) {
+        aPresContext->PresShell()->RestyleForAnimation(aElement,
+          eRestyle_StyleAttribute | eRestyle_ChangeAnimationPhase);
+      }
     } else {
       // Animation restyle (or non-restyle traversal of rules)
       // Now we can walk SMIL overrride style, without triggering transitions.
       rule->RuleMatched();
-      aData->mRuleWalker->Forward(rule);
+      aRuleWalker->Forward(rule);
     }
   }
 }
@@ -68,6 +94,18 @@ nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 /* virtual */ void
 nsHTMLCSSStyleSheet::RulesMatching(PseudoElementRuleProcessorData* aData)
 {
+  if (nsCSSPseudoElements::PseudoElementSupportsStyleAttribute(aData->mPseudoType)) {
+    MOZ_ASSERT(aData->mPseudoElement,
+        "If pseudo element is supposed to support style attribute, it must "
+        "have a pseudo element set");
+
+    // just get the one and only style rule from the content's STYLE attribute
+    css::StyleRule* rule = aData->mPseudoElement->GetInlineStyleRule();
+    if (rule) {
+      rule->RuleMatched();
+      aData->mRuleWalker->Forward(rule);
+    }
+  }
 }
 
 /* virtual */ void
@@ -82,24 +120,15 @@ nsHTMLCSSStyleSheet::RulesMatching(XULTreeRuleProcessorData* aData)
 }
 #endif
 
-nsresult
-nsHTMLCSSStyleSheet::Init(nsIURI* aURL, nsIDocument* aDocument)
-{
-  NS_PRECONDITION(aURL && aDocument, "null ptr");
-  if (! aURL || ! aDocument)
-    return NS_ERROR_NULL_POINTER;
-
-  if (mURL || mDocument)
-    return NS_ERROR_ALREADY_INITIALIZED;
-
-  mDocument = aDocument; // not refcounted!
-  mURL = aURL;
-  return NS_OK;
-}
-
 // Test if style is dependent on content state
 /* virtual */ nsRestyleHint
 nsHTMLCSSStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
+{
+  return nsRestyleHint(0);
+}
+
+/* virtual */ nsRestyleHint
+nsHTMLCSSStyleSheet::HasStateDependentStyle(PseudoElementStateRuleProcessorData* aData)
 {
   return nsRestyleHint(0);
 }
@@ -117,7 +146,7 @@ nsHTMLCSSStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aDat
   // Perhaps should check that it's XUL, SVG, (or HTML) namespace, but
   // it doesn't really matter.
   if (aData->mAttrHasChanged && aData->mAttribute == nsGkAtoms::style) {
-    return eRestyle_Self;
+    return eRestyle_StyleAttribute | eRestyle_ChangeAnimationPhase;
   }
 
   return nsRestyleHint(0);
@@ -129,109 +158,56 @@ nsHTMLCSSStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
   return false;
 }
 
-/* virtual */ size_t
-nsHTMLCSSStyleSheet::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+size_t
+SizeOfCachedStyleAttrsEntryExcludingThis(nsStringHashKey::KeyType& aKey,
+                                         MiscContainer* const& aData,
+                                         mozilla::MallocSizeOf aMallocSizeOf,
+                                         void* userArg)
 {
-  return 0;
+  // We don't own the MiscContainers so we don't count them. We do care about
+  // the size of the nsString members in the keys though.
+  return aKey.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
 }
 
 /* virtual */ size_t
-nsHTMLCSSStyleSheet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+nsHTMLCSSStyleSheet::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+{
+  // The size of mCachedStyleAttrs's mTable member (a PLDHashTable) is
+  // significant in itself, but more significant is the size of the nsString
+  // members of the nsStringHashKeys.
+  return mCachedStyleAttrs.SizeOfExcludingThis(SizeOfCachedStyleAttrsEntryExcludingThis,
+                                               aMallocSizeOf,
+                                               nullptr);
+}
+
+/* virtual */ size_t
+nsHTMLCSSStyleSheet::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
 
 void
-nsHTMLCSSStyleSheet::Reset(nsIURI* aURL)
+nsHTMLCSSStyleSheet::CacheStyleAttr(const nsAString& aSerialized,
+                                    MiscContainer* aValue)
 {
-  mURL = aURL;
+  mCachedStyleAttrs.Put(aSerialized, aValue);
 }
 
-/* virtual */ nsIURI*
-nsHTMLCSSStyleSheet::GetSheetURI() const
+void
+nsHTMLCSSStyleSheet::EvictStyleAttr(const nsAString& aSerialized,
+                                    MiscContainer* aValue)
 {
-  return mURL;
-}
-
-/* virtual */ nsIURI*
-nsHTMLCSSStyleSheet::GetBaseURI() const
-{
-  return mURL;
-}
-
-/* virtual */ void
-nsHTMLCSSStyleSheet::GetTitle(nsString& aTitle) const
-{
-  aTitle.AssignLiteral("Internal HTML/CSS Style Sheet");
-}
-
-/* virtual */ void
-nsHTMLCSSStyleSheet::GetType(nsString& aType) const
-{
-  aType.AssignLiteral("text/html");
-}
-
-/* virtual */ bool
-nsHTMLCSSStyleSheet::HasRules() const
-{
-  // Say we always have rules, since we don't know.
-  return true;
-}
-
-/* virtual */ bool
-nsHTMLCSSStyleSheet::IsApplicable() const
-{
-  return true;
-}
-
-/* virtual */ void
-nsHTMLCSSStyleSheet::SetEnabled(bool aEnabled)
-{ // these can't be disabled
-}
-
-/* virtual */ bool
-nsHTMLCSSStyleSheet::IsComplete() const
-{
-  return true;
-}
-
-/* virtual */ void
-nsHTMLCSSStyleSheet::SetComplete()
-{
-}
-
-// style sheet owner info
-/* virtual */ nsIStyleSheet*
-nsHTMLCSSStyleSheet::GetParentSheet() const
-{
-  return nullptr;
-}
-
-/* virtual */ nsIDocument*
-nsHTMLCSSStyleSheet::GetOwningDocument() const
-{
-  return mDocument;
-}
-
-/* virtual */ void
-nsHTMLCSSStyleSheet::SetOwningDocument(nsIDocument* aDocument)
-{
-  mDocument = aDocument;
-}
-
 #ifdef DEBUG
-/* virtual */ void
-nsHTMLCSSStyleSheet::List(FILE* out, int32_t aIndent) const
-{
-  // Indent
-  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
-
-  fputs("HTML CSS Style Sheet: ", out);
-  nsCAutoString urlSpec;
-  mURL->GetSpec(urlSpec);
-  if (!urlSpec.IsEmpty()) {
-    fputs(urlSpec.get(), out);
+  {
+    NS_ASSERTION(aValue = mCachedStyleAttrs.Get(aSerialized),
+                 "Cached value does not match?!");
   }
-  fputs("\n", out);
-}
 #endif
+  mCachedStyleAttrs.Remove(aSerialized);
+}
+
+MiscContainer*
+nsHTMLCSSStyleSheet::LookupStyleAttr(const nsAString& aSerialized)
+{
+  return mCachedStyleAttrs.Get(aSerialized);
+}

@@ -7,7 +7,7 @@
 #include "nsIServiceManager.h"
 #import <Foundation/Foundation.h>
 
-NS_IMPL_ISUPPORTS2(nsIdleServiceX, nsIIdleService, nsIdleService)
+NS_IMPL_ISUPPORTS_INHERITED0(nsIdleServiceX, nsIdleService)
 
 bool
 nsIdleServiceX::PollIdleTime(uint32_t *aIdleTime)
@@ -59,7 +59,7 @@ nsIdleServiceX::PollIdleTime(uint32_t *aIdleTime)
 
   // convert to ms from ns
   time /= 1000000;
-  if (time > PR_UINT32_MAX) // Overflow will occur
+  if (time > UINT32_MAX) // Overflow will occur
     return false;
 
   *aIdleTime = static_cast<uint32_t>(time);

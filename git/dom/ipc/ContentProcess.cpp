@@ -13,6 +13,12 @@ using mozilla::ipc::IOThreadChild;
 namespace mozilla {
 namespace dom {
 
+void
+ContentProcess::SetAppDir(const nsACString& aPath)
+{
+  mXREEmbed.SetAppDir(aPath);
+}
+
 bool
 ContentProcess::Init()
 {
@@ -28,8 +34,11 @@ ContentProcess::Init()
 void
 ContentProcess::CleanUp()
 {
+#if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
+    mContent.CleanUpSandboxEnvironment();
+#endif
     mXREEmbed.Stop();
 }
 
-} // namespace tabs
+} // namespace dom
 } // namespace mozilla

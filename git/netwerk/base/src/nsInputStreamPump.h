@@ -7,30 +7,33 @@
 #define nsInputStreamPump_h__
 
 #include "nsIInputStreamPump.h"
-#include "nsIInputStream.h"
-#include "nsIURI.h"
-#include "nsILoadGroup.h"
-#include "nsIStreamListener.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIProgressEventSink.h"
 #include "nsIAsyncInputStream.h"
-#include "nsIThread.h"
+#include "nsIThreadRetargetableRequest.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/ReentrantMonitor.h"
+
+class nsIInputStream;
+class nsILoadGroup;
+class nsIStreamListener;
 
 class nsInputStreamPump MOZ_FINAL : public nsIInputStreamPump
                                   , public nsIInputStreamCallback
+                                  , public nsIThreadRetargetableRequest
 {
+    ~nsInputStreamPump();
+
 public:
-    NS_DECL_ISUPPORTS
+    typedef mozilla::ReentrantMonitorAutoEnter ReentrantMonitorAutoEnter;
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIREQUEST
     NS_DECL_NSIINPUTSTREAMPUMP
     NS_DECL_NSIINPUTSTREAMCALLBACK
+    NS_DECL_NSITHREADRETARGETABLEREQUEST
 
     nsInputStreamPump(); 
-    ~nsInputStreamPump();
 
-    static NS_HIDDEN_(nsresult)
+    static nsresult
                       Create(nsInputStreamPump  **result,
                              nsIInputStream      *stream,
                              int64_t              streamPos = -1,
@@ -51,7 +54,13 @@ public:
      *
      * Do not call before asyncRead. Do not call after onStopRequest.
      */
-    NS_HIDDEN_(nsresult) PeekStream(PeekSegmentFun callback, void *closure);
+    nsresult PeekStream(PeekSegmentFun callback, void *closure);
+
+    /**
+     * Dispatched (to the main thread) by OnStateStop if it's called off main
+     * thread. Updates mState based on return value of OnStateStop.
+     */
+    nsresult CallOnStateStop();
 
 protected:
 
@@ -71,7 +80,7 @@ protected:
     nsCOMPtr<nsILoadGroup>        mLoadGroup;
     nsCOMPtr<nsIStreamListener>   mListener;
     nsCOMPtr<nsISupports>         mListenerContext;
-    nsCOMPtr<nsIThread>           mTargetThread;
+    nsCOMPtr<nsIEventTarget>      mTargetThread;
     nsCOMPtr<nsIInputStream>      mStream;
     nsCOMPtr<nsIAsyncInputStream> mAsyncStream;
     uint64_t                      mStreamOffset;
@@ -82,8 +91,15 @@ protected:
     uint32_t                      mSuspendCount;
     uint32_t                      mLoadFlags;
     bool                          mIsPending;
-    bool                          mWaiting; // true if waiting on async source
+    // True while in OnInputStreamReady, calling OnStateStart, OnStateTransfer
+    // and OnStateStop. Used to prevent calls to AsyncWait during callbacks.
+    bool                          mProcessingCallbacks;
+    // True if waiting on the "input stream ready" callback.
+    bool                          mWaitingForInputStreamReady;
     bool                          mCloseWhenDone;
+    bool                          mRetargeting;
+    // Protects state/member var accesses across multiple threads.
+    mozilla::ReentrantMonitor     mMonitor;
 };
 
 #endif // !nsInputStreamChannel_h__

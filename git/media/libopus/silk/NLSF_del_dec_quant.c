@@ -8,11 +8,11 @@ this list of conditions and the following disclaimer.
 - Redistributions in binary form must reproduce the above copyright
 notice, this list of conditions and the following disclaimer in the
 documentation and/or other materials provided with the distribution.
-- Neither the name of Internet Society, IETF or IETF Trust, nor the 
+- Neither the name of Internet Society, IETF or IETF Trust, nor the
 names of specific contributors, may be used to endorse or promote
 products derived from this software without specific prior written
 permission.
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS”
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
 ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
@@ -68,7 +68,7 @@ opus_int32 silk_NLSF_del_dec_quant(                             /* O    Returns 
         for( j = 0; j < nStates; j++ ) {
             pred_Q10 = silk_SMULWB( pred_coef_Q16, prev_out_Q10[ j ] );
             res_Q10  = silk_SUB16( in_Q10, pred_Q10 );
-            ind_tmp  = silk_SMULWB( inv_quant_step_size_Q6, res_Q10 );
+            ind_tmp  = silk_SMULWB( (opus_int32)inv_quant_step_size_Q6, res_Q10 );
             ind_tmp  = silk_LIMIT( ind_tmp, -NLSF_QUANT_MAX_AMPLITUDE_EXT, NLSF_QUANT_MAX_AMPLITUDE_EXT-1 );
             ind[ j ][ i ] = (opus_int8)ind_tmp;
 
@@ -86,8 +86,8 @@ opus_int32 silk_NLSF_del_dec_quant(                             /* O    Returns 
                 out0_Q10 = silk_ADD16( out0_Q10, SILK_FIX_CONST( NLSF_QUANT_LEVEL_ADJ, 10 ) );
                 out1_Q10 = silk_ADD16( out1_Q10, SILK_FIX_CONST( NLSF_QUANT_LEVEL_ADJ, 10 ) );
             }
-            out0_Q10  = silk_SMULWB( out0_Q10, quant_step_size_Q16 );
-            out1_Q10  = silk_SMULWB( out1_Q10, quant_step_size_Q16 );
+            out0_Q10  = silk_SMULWB( (opus_int32)out0_Q10, quant_step_size_Q16 );
+            out1_Q10  = silk_SMULWB( (opus_int32)out1_Q10, quant_step_size_Q16 );
             out0_Q10  = silk_ADD16( out0_Q10, pred_Q10 );
             out1_Q10  = silk_ADD16( out1_Q10, pred_Q10 );
             prev_out_Q10[ j           ] = out0_Q10;
@@ -121,7 +121,7 @@ opus_int32 silk_NLSF_del_dec_quant(                             /* O    Returns 
             RD_Q25[ j + nStates ] = silk_SMLABB( silk_MLA( RD_tmp_Q25, silk_SMULBB( diff_Q10, diff_Q10 ), w_Q5[ i ] ), mu_Q20, rate1_Q5 );
         }
 
-        if( nStates < NLSF_QUANT_DEL_DEC_STATES ) {
+        if( nStates <= ( NLSF_QUANT_DEL_DEC_STATES >> 1 ) ) {
             /* double number of states and copy */
             for( j = 0; j < nStates; j++ ) {
                 ind[ j + nStates ][ i ] = ind[ j ][ i ] + 1;

@@ -1,3 +1,5 @@
+// test spdy/3.1
+
 var Ci = Components.interfaces;
 var Cc = Components.classes;
 
@@ -12,16 +14,18 @@ function generateContent(size) {
 
 var posts = [];
 posts.push(generateContent(10));
-posts.push(generateContent(128 * 1024));
+posts.push(generateContent(250000));
 
 // pre-calculated md5sums (in hex) of the above posts
 var md5s = ['f1b708bba17f1ce948dc979f4d7092bc',
-            '8f607cfdd2c87d6a7eedb657dafbd836'];
+            '2ef8d3b6c8f329318eb1a119b12622b6'];
+
+var bigListenerData = generateContent(128 * 1024);
+var bigListenerMD5 = '8f607cfdd2c87d6a7eedb657dafbd836';
 
 function checkIsSpdy(request) {
   try {
-    if (request.getResponseHeader("X-Firefox-Spdy") == "2" ||
-	request.getResponseHeader("X-Firefox-Spdy") == "3") {
+    if (request.getResponseHeader("X-Firefox-Spdy") == "3.1") {
       if (request.getResponseHeader("X-Connection-Spdy") == "yes") {
         return true;
       }
@@ -125,6 +129,20 @@ SpdyHeaderListener.prototype.onDataAvailable = function(request, ctx, stream, of
   read_stream(stream, cnt);
 };
 
+var SpdyPushListener = function() {};
+
+SpdyPushListener.prototype = new SpdyCheckListener();
+
+SpdyPushListener.prototype.onDataAvailable = function(request, ctx, stream, off, cnt) {
+  this.onDataAvailableFired = true;
+  this.isSpdyConnection = checkIsSpdy(request);
+  if (ctx.originalURI.spec == "https://localhost:4443/push.js" ||
+      ctx.originalURI.spec == "https://localhost:4443/push2.js") {
+    do_check_eq(request.getResponseHeader("pushed"), "yes");
+  }
+  read_stream(stream, cnt);
+};
+
 // Does the appropriate checks for a large GET response
 var SpdyBigListener = function() {};
 
@@ -137,7 +155,7 @@ SpdyBigListener.prototype.onDataAvailable = function(request, ctx, stream, off, 
   this.buffer = this.buffer.concat(read_stream(stream, cnt));
   // We know the server should send us the same data as our big post will be,
   // so the md5 should be the same
-  do_check_eq(md5s[1], request.getResponseHeader("X-Expected-MD5"));
+  do_check_eq(bigListenerMD5, request.getResponseHeader("X-Expected-MD5"));
 };
 
 SpdyBigListener.prototype.onStopRequest = function(request, ctx, status) {
@@ -146,7 +164,7 @@ SpdyBigListener.prototype.onStopRequest = function(request, ctx, status) {
   do_check_true(this.isSpdyConnection);
 
   // Don't want to flood output, so don't use do_check_eq
-  do_check_true(this.buffer == posts[1]);
+  do_check_true(this.buffer == bigListenerData);
 
   run_next_test();
   do_test_finished();
@@ -222,6 +240,34 @@ function test_spdy_header() {
   chan.asyncOpen(listener, null);
 }
 
+function test_spdy_push1() {
+  var chan = makeChan("https://localhost:4443/push");
+  chan.loadGroup = loadGroup;
+  var listener = new SpdyPushListener();
+  chan.asyncOpen(listener, chan);
+}
+
+function test_spdy_push2() {
+  var chan = makeChan("https://localhost:4443/push.js");
+  chan.loadGroup = loadGroup;
+  var listener = new SpdyPushListener();
+  chan.asyncOpen(listener, chan);
+}
+
+function test_spdy_push3() {
+  var chan = makeChan("https://localhost:4443/push2");
+  chan.loadGroup = loadGroup;
+  var listener = new SpdyPushListener();
+  chan.asyncOpen(listener, chan);
+}
+
+function test_spdy_push4() {
+  var chan = makeChan("https://localhost:4443/push2.js");
+  chan.loadGroup = loadGroup;
+  var listener = new SpdyPushListener();
+  chan.asyncOpen(listener, chan);
+}
+
 // Make sure we handle GETs that cover more than 2 frames properly
 function test_spdy_big() {
   var chan = makeChan("https://localhost:4443/big");
@@ -257,13 +303,22 @@ function test_spdy_post_big() {
   do_post(posts[1], chan, listener);
 }
 
-var tests = [ test_spdy_basic
+// hack - the header test resets the multiplex object on the server,
+// so make sure header is always run before the multiplex test.
+//
+// make sure post_big runs first to test race condition in restarting
+// a stalled stream when a SETTINGS frame arrives
+var tests = [ test_spdy_post_big
+            , test_spdy_basic
+            , test_spdy_push1
+            , test_spdy_push2
+            , test_spdy_push3
+            , test_spdy_push4
             , test_spdy_xhr
-            , test_spdy_multiplex
             , test_spdy_header
+            , test_spdy_multiplex
             , test_spdy_big
             , test_spdy_post
-            , test_spdy_post_big
             ];
 var current_test = 0;
 
@@ -328,17 +383,42 @@ function addCertOverride(host, port, bits) {
   }
 }
 
+var prefs;
+var spdypref;
+var spdy3pref;
+var spdypush;
+
+var loadGroup;
+
+function resetPrefs() {
+  prefs.setBoolPref("network.http.spdy.enabled", spdypref);
+  prefs.setBoolPref("network.http.spdy.enabled.v3-1", spdy3pref);
+  prefs.setBoolPref("network.http.spdy.allow-push", spdypush);
+}
+
 function run_test() {
   // Set to allow the cert presented by our SPDY server
   do_get_profile();
+  var prefs = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+  var oldPref = prefs.getIntPref("network.http.speculative-parallel-limit");
+  prefs.setIntPref("network.http.speculative-parallel-limit", 0);
+
   addCertOverride("localhost", 4443,
                   Ci.nsICertOverrideService.ERROR_UNTRUSTED |
                   Ci.nsICertOverrideService.ERROR_MISMATCH |
                   Ci.nsICertOverrideService.ERROR_TIME);
 
-  // Make sure spdy is enabled
-  var prefs = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+  prefs.setIntPref("network.http.speculative-parallel-limit", oldPref);
+
+  // Enable all versions of spdy to see that we auto negotiate spdy/3.1
+  spdypref = prefs.getBoolPref("network.http.spdy.enabled");
+  spdy3pref = prefs.getBoolPref("network.http.spdy.enabled.v3-1");
+  spdypush = prefs.getBoolPref("network.http.spdy.allow-push");
   prefs.setBoolPref("network.http.spdy.enabled", true);
+  prefs.setBoolPref("network.http.spdy.enabled.v3-1", true);
+  prefs.setBoolPref("network.http.spdy.allow-push", true);
+
+  loadGroup = Cc["@mozilla.org/network/load-group;1"].createInstance(Ci.nsILoadGroup);
 
   // And make go!
   run_next_test();

@@ -1,12 +1,10 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-extern "C" {
 #include "secdert.h"
-}
 #include "nspr.h"
 #include "nsNSSComponent.h" // for PIPNSS string bundle calls.
 #include "keyhi.h"
@@ -14,11 +12,9 @@ extern "C" {
 #include "cryptohi.h"
 #include "base64.h"
 #include "secasn1.h"
-extern "C" {
 #include "pk11pqg.h"
-}
 #include "nsKeygenHandler.h"
-#include "nsVoidArray.h"
+#include "nsKeygenHandlerContent.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsIContent.h"
@@ -29,6 +25,7 @@ extern "C" {
 #include "nsITokenDialogs.h"
 #include "nsIGenKeypairInfoDlg.h"
 #include "nsNSSShutDown.h"
+#include "nsXULAppAPI.h"
 
 //These defines are taken from the PKCS#11 spec
 #define CKM_RSA_PKCS_KEY_PAIR_GEN     0x00000000
@@ -37,7 +34,7 @@ extern "C" {
 
 DERTemplate SECAlgorithmIDTemplate[] = {
     { DER_SEQUENCE,
-          0, NULL, sizeof(SECAlgorithmID) },
+          0, nullptr, sizeof(SECAlgorithmID) },
     { DER_OBJECT_ID,
           offsetof(SECAlgorithmID,algorithm), },
     { DER_OPTIONAL | DER_ANY,
@@ -65,23 +62,19 @@ DERTemplate CERTPublicKeyAndChallengeTemplate[] =
 };
 
 const SEC_ASN1Template SECKEY_PQGParamsTemplate[] = {
-    { SEC_ASN1_SEQUENCE, 0, NULL, sizeof(PQGParams) },
+    { SEC_ASN1_SEQUENCE, 0, nullptr, sizeof(PQGParams) },
     { SEC_ASN1_INTEGER, offsetof(PQGParams,prime) },
     { SEC_ASN1_INTEGER, offsetof(PQGParams,subPrime) },
     { SEC_ASN1_INTEGER, offsetof(PQGParams,base) },
     { 0, }
 };
 
-
-static NS_DEFINE_IID(kIDOMHTMLSelectElementIID, NS_IDOMHTMLSELECTELEMENT_IID);
-static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
 static PQGParams *
 decode_pqg_params(char *aStr)
 {
     unsigned char *buf = nullptr;
     unsigned int len;
-    PRArenaPool *arena = nullptr;
+    PLArenaPool *arena = nullptr;
     PQGParams *params = nullptr;
     SECStatus status;
 
@@ -226,7 +219,7 @@ SECKEYECParams *
 decode_ec_params(const char *curve)
 {
     SECKEYECParams *ecparams;
-    SECOidData *oidData = NULL;
+    SECOidData *oidData = nullptr;
     SECOidTag curveOidTag = SEC_OID_UNKNOWN; /* default */
     int i, numCurves;
 
@@ -239,13 +232,13 @@ decode_ec_params(const char *curve)
         }
     }
 
-    /* Return NULL if curve name is not recognized */
+    /* Return nullptr if curve name is not recognized */
     if ((curveOidTag == SEC_OID_UNKNOWN) || 
-        (oidData = SECOID_FindOIDByTag(curveOidTag)) == NULL) {
+        (oidData = SECOID_FindOIDByTag(curveOidTag)) == nullptr) {
         return nullptr;
     }
 
-    ecparams = SECITEM_AllocItem(NULL, NULL, (2 + oidData->oid.len));
+    ecparams = SECITEM_AllocItem(nullptr, nullptr, (2 + oidData->oid.len));
 
     if (!ecparams)
       return nullptr;
@@ -262,7 +255,7 @@ decode_ec_params(const char *curve)
     return ecparams;
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsKeygenFormProcessor, nsIFormProcessor)
+NS_IMPL_ISUPPORTS(nsKeygenFormProcessor, nsIFormProcessor)
 
 nsKeygenFormProcessor::nsKeygenFormProcessor()
 { 
@@ -277,11 +270,14 @@ nsKeygenFormProcessor::~nsKeygenFormProcessor()
 nsresult
 nsKeygenFormProcessor::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult)
 {
+  if (GeckoProcessType_Content == XRE_GetProcessType()) {
+    nsCOMPtr<nsISupports> contentProcessor = new nsKeygenFormProcessorContent();
+    return contentProcessor->QueryInterface(aIID, aResult);
+  }
+
   nsresult rv;
   NS_ENSURE_NO_AGGREGATION(aOuter);
   nsKeygenFormProcessor* formProc = new nsKeygenFormProcessor();
-  if (!formProc)
-    return NS_ERROR_OUT_OF_MEMORY;
 
   nsCOMPtr<nsISupports> stabilize = formProc;
   rv = formProc->Init();
@@ -294,6 +290,8 @@ nsKeygenFormProcessor::Create(nsISupports* aOuter, const nsIID& aIID, void* *aRe
 nsresult
 nsKeygenFormProcessor::Init()
 {
+  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+
   nsresult rv;
 
   nsCOMPtr<nsINSSComponent> nssComponent;
@@ -361,9 +359,9 @@ GetSlotWithMechanism(uint32_t aMechanism,
 {
     nsNSSShutDownPreventionLock locker;
     PK11SlotList * slotList = nullptr;
-    PRUnichar** tokenNameList = nullptr;
+    char16_t** tokenNameList = nullptr;
     nsITokenDialogs * dialogs;
-    PRUnichar *unicodeTokenChosen;
+    char16_t *unicodeTokenChosen;
     PK11SlotListElement *slotElement, *tmpSlot;
     uint32_t numSlots = 0, i = 0;
     bool canceled;
@@ -391,7 +389,7 @@ GetSlotWithMechanism(uint32_t aMechanism,
         }
 
         // Allocate the slot name buffer //
-        tokenNameList = static_cast<PRUnichar**>(nsMemory::Alloc(sizeof(PRUnichar *) * numSlots));
+        tokenNameList = static_cast<char16_t**>(nsMemory::Alloc(sizeof(char16_t *) * numSlots));
         if (!tokenNameList) {
             rv = NS_ERROR_OUT_OF_MEMORY;
             goto loser;
@@ -429,7 +427,7 @@ GetSlotWithMechanism(uint32_t aMechanism,
         rv = NS_ERROR_NOT_AVAILABLE;
       }
       else {
-        rv = dialogs->ChooseToken(m_ctx, (const PRUnichar**)tokenNameList, numSlots, &unicodeTokenChosen, &canceled);
+        rv = dialogs->ChooseToken(m_ctx, (const char16_t**)tokenNameList, numSlots, &unicodeTokenChosen, &canceled);
       }
     }
 		NS_RELEASE(dialogs);
@@ -467,9 +465,11 @@ loser:
 }
 
 nsresult
-nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge, 
-				    nsAFlatString& aKeyType,
-				    nsAString& aOutPublicKey, nsAString& aKeyParams)
+nsKeygenFormProcessor::GetPublicKey(const nsAString& aValue,
+                                    const nsAString& aChallenge,
+                                    const nsAFlatString& aKeyType,
+                                    nsAString& aOutPublicKey,
+                                    const nsAString& aKeyParams)
 {
     nsNSSShutDownPreventionLock locker;
     nsresult rv = NS_ERROR_FAILURE;
@@ -485,7 +485,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
     SECKEYPrivateKey *privateKey = nullptr;
     SECKEYPublicKey *publicKey = nullptr;
     CERTSubjectPublicKeyInfo *spkInfo = nullptr;
-    PRArenaPool *arena = nullptr;
+    PLArenaPool *arena = nullptr;
     SECStatus sec_rv = SECFailure;
     SECItem spkiItem;
     SECItem pkacItem;
@@ -533,7 +533,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
         bool found_match = false;
         do {
             end = strchr(str, ',');
-            if (end != nullptr)
+            if (end)
                 *end = '\0';
             primeBits = pqg_prime_bits(str);
             if (keysize == primeBits) {
@@ -541,7 +541,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
                 break;
             }
             str = end + 1;
-        } while (end != nullptr);
+        } while (end);
         if (!found_match) {
             goto loser;
         }
@@ -730,7 +730,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
     }
 
     CopyASCIItoUTF16(keystring, aOutPublicKey);
-    nsCRT::free(keystring);
+    free(keystring);
 
     rv = NS_OK;
 loser:
@@ -754,7 +754,7 @@ loser:
     if ( arena ) {
         PORT_FreeArena(arena, true);
     }
-    if (slot != nullptr) {
+    if (slot) {
         PK11_FreeSlot(slot);
     }
     if (KeygenRunnable) {
@@ -769,22 +769,20 @@ loser:
     return rv;
 }
 
-NS_METHOD 
-nsKeygenFormProcessor::ProcessValue(nsIDOMHTMLElement *aElement, 
-				    const nsAString& aName, 
-				    nsAString& aValue) 
-{ 
-    nsAutoString challengeValue;
-    nsAutoString keyTypeValue;
-    nsAutoString keyParamsValue;
-    
+// static
+void
+nsKeygenFormProcessor::ExtractParams(nsIDOMHTMLElement* aElement,
+                                     nsAString& challengeValue,
+                                     nsAString& keyTypeValue,
+                                     nsAString& keyParamsValue)
+{
     aElement->GetAttribute(NS_LITERAL_STRING("keytype"), keyTypeValue);
     if (keyTypeValue.IsEmpty()) {
         // If this field is not present, we default to rsa.
         keyTypeValue.AssignLiteral("rsa");
     }
-    
-    aElement->GetAttribute(NS_LITERAL_STRING("pqg"), 
+
+    aElement->GetAttribute(NS_LITERAL_STRING("pqg"),
                            keyParamsValue);
     /* XXX We can still support the pqg attribute in the keygen 
      * tag for backward compatibility while introducing a more 
@@ -796,17 +794,40 @@ nsKeygenFormProcessor::ProcessValue(nsIDOMHTMLElement *aElement,
     }
 
     aElement->GetAttribute(NS_LITERAL_STRING("challenge"), challengeValue);
+}
+
+nsresult
+nsKeygenFormProcessor::ProcessValue(nsIDOMHTMLElement* aElement,
+                                    const nsAString& aName,
+                                    nsAString& aValue)
+{
+    nsAutoString challengeValue;
+    nsAutoString keyTypeValue;
+    nsAutoString keyParamsValue;
+    ExtractParams(aElement, challengeValue, keyTypeValue, keyParamsValue);
 
     return GetPublicKey(aValue, challengeValue, keyTypeValue, 
                         aValue, keyParamsValue);
-} 
+}
 
-NS_METHOD nsKeygenFormProcessor::ProvideContent(const nsAString& aFormType, 
-						nsTArray<nsString>& aContent, 
-						nsAString& aAttribute) 
+nsresult
+nsKeygenFormProcessor::ProcessValueIPC(const nsAString& aOldValue,
+                                       const nsAString& aChallenge,
+                                       const nsAString& aKeyType,
+                                       const nsAString& aKeyParams,
+                                       nsAString& newValue)
+{
+    return GetPublicKey(aOldValue, aChallenge, PromiseFlatString(aKeyType),
+                        newValue, aKeyParams);
+}
+
+nsresult
+nsKeygenFormProcessor::ProvideContent(const nsAString& aFormType,
+                                      nsTArray<nsString>& aContent,
+                                      nsAString& aAttribute)
 { 
-  if (Compare(aFormType, NS_LITERAL_STRING("SELECT"), 
-    nsCaseInsensitiveStringComparator()) == 0) {
+  if (Compare(aFormType, NS_LITERAL_STRING("SELECT"),
+              nsCaseInsensitiveStringComparator()) == 0) {
 
     for (size_t i = 0; i < number_of_key_size_choices; ++i) {
       aContent.AppendElement(mSECKeySizeChoiceList[i].name);

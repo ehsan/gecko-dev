@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIInputStream.idl"
-#include "nsrootidl.idl"
 
 /**
  * This interface allows consumption of primitive data types from a "binary
@@ -17,7 +16,7 @@
  * @See nsIBinaryOutputStream
  */
 
-[scriptable, uuid(7b456cb0-8772-11d3-90cf-0040056a906e)]
+[scriptable, uuid(899b826b-2eb3-469c-8b31-4c29f5d341a6)]
 interface nsIBinaryInputStream : nsIInputStream {
     void setInputStream(in nsIInputStream aInputStream);
     
@@ -68,6 +67,19 @@ interface nsIBinaryInputStream : nsIInputStream {
      */
     void readByteArray(in uint32_t aLength,
                        [array, size_is(aLength), retval] out uint8_t aBytes);
+
+    /**
+     * Read opaque bytes from the stream, storing the results in an ArrayBuffer.
+     *
+     * @param aLength the number of bytes that must be read
+     * @param aArrayBuffer the arraybuffer in which to store the results
+     * Note: passing view.buffer, where view is an ArrayBufferView of an
+     *       ArrayBuffer, is not valid unless view.byteOffset == 0.
+     *
+     * @return The number of bytes actually read into aArrayBuffer.
+     */
+    [implicit_jscontext]
+    unsigned long readArrayBuffer(in uint32_t aLength, in jsval aArrayBuffer);
 };
 
 %{C++

@@ -28,12 +28,13 @@
 #include "nsPIDOMWindow.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/WindowsVersion.h"
 #include <io.h>
 #include <propvarutil.h>
 #include <propkey.h>
 #include <shellapi.h>
 
-const PRUnichar kShellLibraryName[] =  L"shell32.dll";
+const wchar_t kShellLibraryName[] =  L"shell32.dll";
 
 static NS_DEFINE_CID(kJumpListBuilderCID, NS_WIN_JUMPLISTBUILDER_CID);
 
@@ -44,12 +45,12 @@ GetHWNDFromDocShell(nsIDocShell *aShell) {
   nsCOMPtr<nsIBaseWindow> baseWindow(do_QueryInterface(reinterpret_cast<nsISupports*>(aShell)));
 
   if (!baseWindow)
-    return NULL;
+    return nullptr;
 
   nsCOMPtr<nsIWidget> widget;
   baseWindow->GetMainWidget(getter_AddRefs(widget));
 
-  return widget ? (HWND)widget->GetNativeData(NS_NATIVE_WINDOW) : NULL;
+  return widget ? (HWND)widget->GetNativeData(NS_NATIVE_WINDOW) : nullptr;
 }
 
 HWND
@@ -58,7 +59,7 @@ GetHWNDFromDOMWindow(nsIDOMWindow *dw) {
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(dw);
   if (!window) 
-    return NULL;
+    return nullptr;
 
   return GetHWNDFromDocShell(window->GetDocShell());
 }
@@ -121,6 +122,7 @@ SetWindowAppUserModelProp(nsIDOMWindow *aParent,
 
 class DefaultController MOZ_FINAL : public nsITaskbarPreviewController
 {
+  ~DefaultController() {}
   HWND mWnd;
 public:
   DefaultController(HWND hWnd) 
@@ -163,13 +165,13 @@ DefaultController::GetThumbnailAspectRatio(float *aThumbnailAspectRatio) {
 }
 
 NS_IMETHODIMP
-DefaultController::DrawPreview(nsIDOMCanvasRenderingContext2D *ctx, bool *rDrawFrame) {
+DefaultController::DrawPreview(nsISupports *ctx, bool *rDrawFrame) {
   *rDrawFrame = true;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-DefaultController::DrawThumbnail(nsIDOMCanvasRenderingContext2D *ctx, uint32_t width, uint32_t height, bool *rDrawFrame) {
+DefaultController::DrawThumbnail(nsISupports *ctx, uint32_t width, uint32_t height, bool *rDrawFrame) {
   *rDrawFrame = false;
   return NS_OK;
 }
@@ -192,7 +194,7 @@ DefaultController::OnClick(nsITaskbarPreviewButton *button) {
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(DefaultController, nsITaskbarPreviewController);
+NS_IMPL_ISUPPORTS(DefaultController, nsITaskbarPreviewController)
 }
 
 namespace mozilla {
@@ -201,16 +203,16 @@ namespace widget {
 ///////////////////////////////////////////////////////////////////////////////
 // nsIWinTaskbar
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(WinTaskbar, nsIWinTaskbar)
+NS_IMPL_ISUPPORTS(WinTaskbar, nsIWinTaskbar)
 
 bool
 WinTaskbar::Initialize() {
   if (mTaskbar)
     return true;
 
-  ::CoInitialize(NULL);
+  ::CoInitialize(nullptr);
   HRESULT hr = ::CoCreateInstance(CLSID_TaskbarList,
-                                  NULL,
+                                  nullptr,
                                   CLSCTX_INPROC_SERVER,
                                   IID_ITaskbarList4,
                                   (void**)&mTaskbar);
@@ -219,6 +221,7 @@ WinTaskbar::Initialize() {
 
   hr = mTaskbar->HrInit();
   if (FAILED(hr)) {
+    // This may fail with shell extensions like blackbox installed.
     NS_WARNING("Unable to initialize taskbar");
     NS_RELEASE(mTaskbar);
     return false;
@@ -240,6 +243,11 @@ WinTaskbar::~WinTaskbar() {
 // static
 bool
 WinTaskbar::GetAppUserModelID(nsAString & aDefaultGroupId) {
+  // For win8 metro builds, we can't set this. The value is static
+  // for the app.
+  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
+    return false;
+  }
   // If marked as such in prefs, use a hash of the profile path for the id
   // instead of the install path hash setup by the installer.
   bool useProfile =
@@ -250,7 +258,7 @@ WinTaskbar::GetAppUserModelID(nsAString & aDefaultGroupId) {
                            getter_AddRefs(profileDir));
     bool exists = false;
     if (profileDir && NS_SUCCEEDED(profileDir->Exists(&exists)) && exists) {
-      nsCAutoString path;
+      nsAutoCString path;
       if (NS_SUCCEEDED(profileDir->GetNativePath(path))) {
         nsAutoString id;
         id.AppendInt(HashString(path));
@@ -284,15 +292,15 @@ WinTaskbar::GetAppUserModelID(nsAString & aDefaultGroupId) {
   regKey.AppendLiteral("\\TaskBarIDs");
 
   WCHAR path[MAX_PATH];
-  if (GetModuleFileNameW(NULL, path, MAX_PATH)) {
-    PRUnichar* slash = wcsrchr(path, '\\');
+  if (GetModuleFileNameW(nullptr, path, MAX_PATH)) {
+    wchar_t* slash = wcsrchr(path, '\\');
     if (!slash)
       return false;
     *slash = '\0'; // no trailing slash
 
     // The hash is short, but users may customize this, so use a respectable
     // string buffer.
-    PRUnichar buf[256];
+    wchar_t buf[256];
     if (WinUtils::GetRegistryKey(HKEY_LOCAL_MACHINE,
                                  regKey.get(),
                                  path,
@@ -325,8 +333,12 @@ WinTaskbar::GetDefaultGroupId(nsAString & aDefaultGroupId) {
 // (static) Called from AppShell
 bool
 WinTaskbar::RegisterAppUserModelID() {
-  if (WinUtils::GetWindowsVersion() < WinUtils::WIN7_VERSION)
+  if (!IsWin7OrLater())
     return false;
+
+  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
+    return false;
+  }
 
   SetCurrentProcessExplicitAppUserModelIDPtr funcAppUserModelID = nullptr;
   bool retVal = false;
@@ -356,9 +368,9 @@ WinTaskbar::RegisterAppUserModelID() {
 
 NS_IMETHODIMP
 WinTaskbar::GetAvailable(bool *aAvailable) {
-  *aAvailable = 
-    WinUtils::GetWindowsVersion() < WinUtils::WIN7_VERSION ?
-    false : true;
+  // ITaskbarList4::HrInit() may fail with shell extensions like blackbox
+  // installed. Initialize early to return available=false in those cases.
+  *aAvailable = IsWin7OrLater() && Initialize();
 
   return NS_OK;
 }

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -23,15 +23,7 @@ function test()
   q = [];
   q.__defineGetter__("0", q.toString);
   q[2] = q;
-  try
-  {
-    q.toSource();
-    throw new Error("didn't throw");
-  }
-  catch (e)
-  {
-    assertEq(e instanceof InternalError, true, "bad error: " + e);
-  }
+  assertEq(q.toSource(), "[\"\", , []]", "wrong string");
 
   reportCompare(expect, actual, summary);
 

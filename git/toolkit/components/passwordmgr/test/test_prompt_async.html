@@ -13,8 +13,7 @@
         // Class monitoring number of open dialog windows
         // It checks there is always open just a single dialog per application
         function dialogMonitor() {
-            var observerService = SpecialPowers.wrap(Components)
-                                               .classes["@mozilla.org/observer-service;1"]
+            var observerService = SpecialPowers.Cc["@mozilla.org/observer-service;1"]
                                                .getService(Ci.nsIObserverService);
             observerService.addObserver(this, "domwindowopened", false);
             observerService.addObserver(this, "domwindowclosed", false);
@@ -25,8 +24,11 @@
          * from SpecialPowers-wrapped objects is unreliable.  Because of that,
          * `dialogMonitor` now tracks the number of open windows rather than
          * specific window objects.
+         *
+         * NB: Because the constructor (above) adds |this| directly as an observer,
+         * we need to do SpecialPowers.wrapCallbackObject directly on the prototype.
          */
-        dialogMonitor.prototype = {
+        dialogMonitor.prototype = SpecialPowers.wrapCallbackObject({
             windowsOpen : 0,
             windowsRegistered : 0,
 
@@ -34,14 +36,13 @@
                 const interfaces = [Ci.nsIObserver, Ci.nsISupports];
 
                 if (!interfaces.some( function(v) { return iid.equals(v) } ))
-                        throw Components.results.NS_ERROR_NO_INTERFACE;
+                        throw SpecialPowers.Cr.NS_ERROR_NO_INTERFACE;
                 return this;
             },
 
             observe: function(subject, topic, data) {
                 if (topic === "domwindowopened") {
                     this.windowsOpen++;
-                    ok(this.windowsOpen == 1, "Didn't open more then one dialog at a time");
                     this.windowsRegistered++;
                     return;
                 }
@@ -52,8 +53,7 @@
             },
 
             shutdown: function() {
-                var observerService = SpecialPowers.wrap(Components)
-                                               .classes["@mozilla.org/observer-service;1"]
+                var observerService = SpecialPowers.Cc["@mozilla.org/observer-service;1"]
                                                .getService(Ci.nsIObserverService);
                 observerService.removeObserver(this, "domwindowopened");
                 observerService.removeObserver(this, "domwindowclosed");
@@ -63,38 +63,27 @@
                 this.windowsOpen = 0;
                 this.windowsRegistered = 0;
             }
-        }
+        });
 
         var monitor = new dialogMonitor();
 
         var pwmgr, logins = [];
 
-        function initLogins() {
-            pwmgr = SpecialPowers.wrap(Components)
-                                 .classes["@mozilla.org/login-manager;1"]
+        function initLogins(pi) {
+            pwmgr = SpecialPowers.Cc["@mozilla.org/login-manager;1"]
                                  .getService(Ci.nsILoginManager);
 
             function addLogin(host, realm, user, pass) {
-                var login = SpecialPowers.wrap(Components)
-                                         .classes["@mozilla.org/login-manager/loginInfo;1"]
+                var login = SpecialPowers.Cc["@mozilla.org/login-manager/loginInfo;1"]
                                          .createInstance(Ci.nsILoginInfo);
                 login.init(host, null, realm, user, pass, "", "");
                 pwmgr.addLogin(login);
                 logins.push(login);
             }
 
-            //need to allow for arbitrary network servers defined in PAC instead of a hardcoded moz-proxy.
-            var ios = SpecialPowers.wrap(Components)
-                                   .classes["@mozilla.org/network/io-service;1"]
-                                   .getService(Components.interfaces.nsIIOService);
-
-            var pps = SpecialPowers.wrap(Components)
-                                   .classes["@mozilla.org/network/protocol-proxy-service;1"]
-                                   .getService();
-
-            var uri = ios.newURI("http://example.com", null, null);
-            var pi = pps.resolve(uri, 0);
-            var mozproxy = "moz-proxy://" + pi.host + ":" + pi.port;
+            var mozproxy = "moz-proxy://" +
+                           SpecialPowers.wrap(pi).host + ":" +
+                           SpecialPowers.wrap(pi).port;
 
             addLogin(mozproxy, "proxy_realm",
                      "proxy_user", "proxy_pass");
@@ -125,8 +114,7 @@
             for (i in logins)
                 pwmgr.removeLogin(logins[i]);
 
-            var authMgr = SpecialPowers.wrap(Components)
-                                       .classes['@mozilla.org/network/http-auth-manager;1']
+            var authMgr = SpecialPowers.Cc['@mozilla.org/network/http-auth-manager;1']
                                        .getService(Ci.nsIHttpAuthManager);
             authMgr.clearAll();
 
@@ -134,6 +122,32 @@
             SimpleTest.finish();
         }
 
+	var resolveCallback = SpecialPowers.wrapCallbackObject({
+	QueryInterface : function (iid) {
+	const interfaces = [Ci.nsIProtocolProxyCallback, Ci.nsISupports];
+
+        if (!interfaces.some( function(v) { return iid.equals(v) } ))
+          throw SpecialPowers.Cr.NS_ERROR_NO_INTERFACE;
+	  return this;
+	},
+
+	onProxyAvailable : function (req, uri, pi, status) {
+          initLogins(pi);
+          doTest(testNum);
+	}
+	});
+
+	function startup() {
+            //need to allow for arbitrary network servers defined in PAC instead of a hardcoded moz-proxy.
+            var ios = SpecialPowers.Cc["@mozilla.org/network/io-service;1"]
+                                   .getService(SpecialPowers.Ci.nsIIOService);
+
+            var pps = SpecialPowers.Cc["@mozilla.org/network/protocol-proxy-service;1"]
+                                   .getService();
+
+            var uri = ios.newURI("http://example.com", null, null);
+            pps.asyncResolve(uri, 0, resolveCallback);
+	}
 
         // --------------- Test loop spin ----------------
         var testNum = 1;
@@ -148,8 +162,7 @@
             iframe2a.onload = onFrameLoad;
             iframe2b.onload = onFrameLoad;
 
-            initLogins();
-            doTest(testNum);
+	    startup();
         }
 
         var expectedLoads;
@@ -253,7 +266,15 @@
                 ok(true, "doTest testNum 4");
                 expectedLoads = 1;
                 expectedDialogs = 2;
-                iframe1Doc.location.reload();
+                iframe1.src = exampleCom + "authenticate.sjs?"+
+                    "user=user4name&"+
+                    "pass=user4pass&"+
+                    "realm=mochirealm4&"+
+                    "proxy_user=proxy_user3&"+
+                    "proxy_pass=proxy_pass3&"+
+                    "proxy_realm=proxy_realm3";
+
+
                 break;
 
             case 5:
@@ -282,7 +303,14 @@
                 ok(true, "doTest testNum 6");
                 expectedLoads = 1;
                 expectedDialogs = 2;
-                iframe1Doc.location.reload();
+                iframe1.src = exampleCom + "authenticate.sjs?"+
+                    "user=user5name&"+
+                    "pass=user5pass&"+
+                    "realm=mochirealm5&"+
+                    "proxy_user=proxy_user4&"+
+                    "proxy_pass=proxy_pass4&"+
+                    "proxy_realm=proxy_realm4&"+
+                    "huge=1";
                 break;
 
             case 7:
@@ -333,6 +361,7 @@
 
                 case 3:
                     dialog.cancelDialog();
+                    setTimeout(onFrameLoad, 10); // there are no successful frames for test 3
                     break;
 
                 case 4:
@@ -344,6 +373,7 @@
 
                 case 5:
                     dialog.cancelDialog();
+                    setTimeout(onFrameLoad, 10); // there are no successful frames for test 5
                     break;
 
                 case 6:
@@ -422,11 +452,9 @@
                 case 3:
                     ok(true, "doCheck testNum 3");
                     is(monitor.windowsRegistered, 1, "Registered 1 open dialog");
-                    var authok1 = iframe1Doc.getElementById("ok").textContent;
-                    var proxyok1 = iframe1Doc.getElementById("proxy").textContent;
 
-                    is(authok1, "FAIL", "WWW Authorization FAILED, frame1");
-                    is(proxyok1, "FAIL", "Proxy Authorization FAILED, frame1");
+                    // ensure that the page content is not displayed on failed proxy auth
+                    is(iframe1Doc.getElementById("ok"), undefined, "frame did not load");
                     break;
 
                 case 4:
@@ -442,14 +470,9 @@
                 case 5:
                     ok(true, "doCheck testNum 5");
                     is(monitor.windowsRegistered, 1, "Registered 1 open dialog");
-                    var authok1 = iframe1Doc.getElementById("ok").textContent;
-                    var proxyok1 = iframe1Doc.getElementById("proxy").textContent;
-                    var footnote = iframe1Doc.getElementById("footnote").textContent;
 
-                    is(authok1, "FAIL", "WWW Authorization FAILED, frame1");
-                    is(proxyok1, "FAIL", "Proxy Authorization FAILED, frame1");
-                    is(footnote, "This is a footnote after the huge content fill",
-                        "Footnote present and loaded completely");
+                    // ensure that the page content is not displayed on failed proxy auth
+                    is(iframe1Doc.getElementById("footnote"), undefined, "frame did not load");
                     break;
 
                 case 6:

@@ -20,7 +20,10 @@ class SourceSurfaceCairo;
 class GradientStopsCairo : public GradientStops
 {
   public:
-    GradientStopsCairo(GradientStop* aStops, uint32_t aNumStops)
+  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(GradientStopsCairo)
+    GradientStopsCairo(GradientStop* aStops, uint32_t aNumStops,
+                       ExtendMode aExtendMode)
+     : mExtendMode(aExtendMode)
     {
       for (uint32_t i = 0; i < aNumStops; ++i) {
         mStops.push_back(aStops[i]);
@@ -34,21 +37,37 @@ class GradientStopsCairo : public GradientStops
       return mStops;
     }
 
-    virtual BackendType GetBackendType() const { return BACKEND_CAIRO; }
+    ExtendMode GetExtendMode() const
+    {
+      return mExtendMode;
+    }
+
+    virtual BackendType GetBackendType() const { return BackendType::CAIRO; }
 
   private:
     std::vector<GradientStop> mStops;
+    ExtendMode mExtendMode;
 };
 
 class DrawTargetCairo : public DrawTarget
 {
 public:
+  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DrawTargetCairo)
+  friend class BorrowedCairoContext;
+
   DrawTargetCairo();
   virtual ~DrawTargetCairo();
 
-  virtual BackendType GetType() const { return BACKEND_CAIRO; }
+  virtual DrawTargetType GetType() const MOZ_OVERRIDE;
+  virtual BackendType GetBackendType() const { return BackendType::CAIRO; }
   virtual TemporaryRef<SourceSurface> Snapshot();
   virtual IntSize GetSize();
+
+  virtual void SetPermitSubpixelAA(bool aPermitSubpixelAA);
+
+  virtual bool LockBits(uint8_t** aData, IntSize* aSize,
+                        int32_t* aStride, SurfaceFormat* aFormat);
+  virtual void ReleaseBits(uint8_t* aData);
 
   virtual void Flush();
   virtual void DrawSurface(SourceSurface *aSurface,
@@ -56,6 +75,10 @@ public:
                            const Rect &aSource,
                            const DrawSurfaceOptions &aSurfOptions = DrawSurfaceOptions(),
                            const DrawOptions &aOptions = DrawOptions());
+  virtual void DrawFilter(FilterNode *aNode,
+                          const Rect &aSourceRect,
+                          const Point &aDestPoint,
+                          const DrawOptions &aOptions = DrawOptions());
   virtual void DrawSurfaceWithShadow(SourceSurface *aSurface,
                                      const Point &aDest,
                                      const Color &aColor,
@@ -68,6 +91,8 @@ public:
   virtual void CopySurface(SourceSurface *aSurface,
                            const IntRect &aSourceRect,
                            const IntPoint &aDestination);
+  virtual void CopyRect(const IntRect &aSourceRect,
+                        const IntPoint &aDestination);
 
   virtual void FillRect(const Rect &aRect,
                         const Pattern &aPattern,
@@ -99,12 +124,16 @@ public:
   virtual void Mask(const Pattern &aSource,
                     const Pattern &aMask,
                     const DrawOptions &aOptions = DrawOptions());
+  virtual void MaskSurface(const Pattern &aSource,
+                           SourceSurface *aMask,
+                           Point aOffset,
+                           const DrawOptions &aOptions = DrawOptions());
 
   virtual void PushClip(const Path *aPath);
   virtual void PushClipRect(const Rect &aRect);
   virtual void PopClip();
 
-  virtual TemporaryRef<PathBuilder> CreatePathBuilder(FillRule aFillRule = FILL_WINDING) const;
+  virtual TemporaryRef<PathBuilder> CreatePathBuilder(FillRule aFillRule = FillRule::FILL_WINDING) const;
 
   virtual TemporaryRef<SourceSurface> CreateSourceSurfaceFromData(unsigned char *aData,
                                                             const IntSize &aSize,
@@ -115,17 +144,22 @@ public:
     CreateSourceSurfaceFromNativeSurface(const NativeSurface &aSurface) const;
   virtual TemporaryRef<DrawTarget>
     CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFormat) const;
+  virtual TemporaryRef<DrawTarget>
+    CreateShadowDrawTarget(const IntSize &aSize, SurfaceFormat aFormat,
+                           float aSigma) const;
 
   virtual TemporaryRef<GradientStops>
     CreateGradientStops(GradientStop *aStops,
                         uint32_t aNumStops,
-                        ExtendMode aExtendMode = EXTEND_CLAMP) const;
+                        ExtendMode aExtendMode = ExtendMode::CLAMP) const;
+
+  virtual TemporaryRef<FilterNode> CreateFilter(FilterType aType);
 
   virtual void *GetNativeSurface(NativeSurfaceType aType);
 
-  bool Init(cairo_surface_t* aSurface, const IntSize& aSize);
-
-  void SetPathObserver(CairoPathContext* aPathObserver);
+  bool Init(cairo_surface_t* aSurface, const IntSize& aSize, SurfaceFormat* aFormat = nullptr);
+  bool Init(const IntSize& aSize, SurfaceFormat aFormat);
+  bool Init(unsigned char* aData, const IntSize &aSize, int32_t aStride, SurfaceFormat aFormat);
 
   virtual void SetTransform(const Matrix& aTransform);
 
@@ -134,44 +168,48 @@ public:
   // Implicitly calls WillChange(aPath).
   void PrepareForDrawing(cairo_t* aContext, const Path* aPath = nullptr);
 
+  static cairo_surface_t *GetDummySurface();
+
 private: // methods
   // Init cairo surface without doing a cairo_surface_reference() call.
-  bool InitAlreadyReferenced(cairo_surface_t* aSurface, const IntSize& aSize);
-
+  bool InitAlreadyReferenced(cairo_surface_t* aSurface, const IntSize& aSize, SurfaceFormat* aFormat = nullptr);
   enum DrawPatternType { DRAW_FILL, DRAW_STROKE };
   void DrawPattern(const Pattern& aPattern,
                    const StrokeOptions& aStrokeOptions,
                    const DrawOptions& aOptions,
-                   DrawPatternType aDrawType);
+                   DrawPatternType aDrawType,
+                   bool aPathBoundsClip = false);
 
-  // Copy-on-write support for snapshot surfaces.
-  friend class SourceSurfaceCairo;
-  void AppendSnapshot(SourceSurfaceCairo* aSnapshot);
-  void RemoveSnapshot(SourceSurfaceCairo* aSnapshot);
+  void CopySurfaceInternal(cairo_surface_t* aSurface,
+                           const IntRect& aSource,
+                           const IntPoint& aDest);
+
+  Rect GetUserSpaceClip();
 
   // Call before you make any changes to the backing surface with which this
   // context is associated. Pass the path you're going to be using if you have
   // one.
   void WillChange(const Path* aPath = nullptr);
 
-  // Call if there is any reason to disassociate all snapshots from this draw
+  // Call if there is any reason to disassociate the snapshot from this draw
   // target; for example, because we're going to be destroyed.
-  void MarkSnapshotsIndependent();
+  void MarkSnapshotIndependent();
 
   // If the current operator is "source" then clear the destination before we
   // draw into it, to simulate the effect of an unbounded source operator.
   void ClearSurfaceForUnboundedSource(const CompositionOp &aOperator);
+
 private: // data
   cairo_t* mContext;
   cairo_surface_t* mSurface;
   IntSize mSize;
-  std::vector<SourceSurfaceCairo*> mSnapshots;
 
-  // It is safe to use a regular pointer here because the CairoPathContext will
-  // deregister itself on destruction. Using a RefPtr would extend the life-
-  // span of the CairoPathContext. This causes a problem when
-  // PathBuilderCairo.Finish()
-  mutable CairoPathContext* mPathObserver;
+  uint8_t* mLockedBits;
+
+  // The latest snapshot of this surface. This needs to be told when this
+  // target is modified. We keep it alive as a cache.
+  RefPtr<SourceSurfaceCairo> mSnapshot;
+  static cairo_surface_t *mDummySurface;
 };
 
 }

@@ -10,7 +10,7 @@ import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import org.mozilla.gecko.sync.Logger;
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionBeginDelegate;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
@@ -70,7 +70,11 @@ public abstract class RepositorySession {
   protected ExecutorService storeWorkQueue = Executors.newSingleThreadExecutor();
 
   // The time that the last sync on this collection completed, in milliseconds since epoch.
-  public long lastSyncTimestamp;
+  private long lastSyncTimestamp = 0;
+
+  public long getLastSyncTimestamp() {
+    return lastSyncTimestamp;
+  }
 
   public static long now() {
     return System.currentTimeMillis();
@@ -94,6 +98,13 @@ public abstract class RepositorySession {
    */
   public boolean dataAvailable() {
     return true;
+  }
+
+  /**
+   * @return true if we cannot safely sync from this <code>RepositorySession</code>.
+   */
+  public boolean shouldSkip() {
+    return false;
   }
 
   /*
@@ -135,20 +146,6 @@ public abstract class RepositorySession {
 
   public abstract void wipe(RepositorySessionWipeDelegate delegate);
 
-  public void unbundle(RepositorySessionBundle bundle) {
-    this.lastSyncTimestamp = 0;
-    if (bundle == null) {
-      return;
-    }
-    if (bundle.containsKey("timestamp")) {
-      try {
-        this.lastSyncTimestamp = bundle.getLong("timestamp");
-      } catch (Exception e) {
-        // Defaults to 0 above.
-      }
-    }
-  }
-
   /**
    * Synchronously perform the shared work of beginning. Throws on failure.
    * @throws InvalidSessionTransitionException
@@ -177,8 +174,8 @@ public abstract class RepositorySession {
     delegate.deferredBeginDelegate(delegateQueue).onBeginSucceeded(this);
   }
 
-  protected RepositorySessionBundle getBundle() {
-    return this.getBundle(null);
+  public void unbundle(RepositorySessionBundle bundle) {
+    this.lastSyncTimestamp = bundle == null ? 0 : bundle.getTimestamp();
   }
 
   /**
@@ -190,12 +187,12 @@ public abstract class RepositorySession {
    * The Synchronizer most likely wants to bump the bundle timestamp to be a value
    * return from a fetch call.
    */
-  protected RepositorySessionBundle getBundle(RepositorySessionBundle optional) {
-    Logger.debug(LOG_TAG, "RepositorySession.getBundle(optional).");
+  protected RepositorySessionBundle getBundle() {
     // Why don't we just persist the old bundle?
-    RepositorySessionBundle bundle = (optional == null) ? new RepositorySessionBundle() : optional;
-    bundle.put("timestamp", this.lastSyncTimestamp);
-    Logger.debug(LOG_TAG, "Setting bundle timestamp to " + this.lastSyncTimestamp);
+    long timestamp = getLastSyncTimestamp();
+    RepositorySessionBundle bundle = new RepositorySessionBundle(timestamp);
+    Logger.debug(LOG_TAG, "Setting bundle timestamp to " + timestamp + ".");
+
     return bundle;
   }
 
@@ -205,7 +202,7 @@ public abstract class RepositorySession {
    */
   public void abort(RepositorySessionFinishDelegate delegate) {
     this.abort();
-    delegate.deferredFinishDelegate(delegateQueue).onFinishSucceeded(this, this.getBundle(null));
+    delegate.deferredFinishDelegate(delegateQueue).onFinishSucceeded(this, this.getBundle());
   }
 
   /**
@@ -237,7 +234,7 @@ public abstract class RepositorySession {
   public void finish(final RepositorySessionFinishDelegate delegate) throws InactiveSessionException {
     try {
       this.transitionFrom(SessionStatus.ACTIVE, SessionStatus.DONE);
-      delegate.deferredFinishDelegate(delegateQueue).onFinishSucceeded(this, this.getBundle(null));
+      delegate.deferredFinishDelegate(delegateQueue).onFinishSucceeded(this, this.getBundle());
     } catch (InvalidSessionTransitionException e) {
       Logger.error(LOG_TAG, "Tried to finish() an unstarted or already finished session");
       throw new InactiveSessionException(e);

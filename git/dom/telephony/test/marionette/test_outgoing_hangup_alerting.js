@@ -1,52 +1,36 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_TIMEOUT = 10000;
+MARIONETTE_TIMEOUT = 60000;
+MARIONETTE_HEAD_JS = 'head.js';
 
-SpecialPowers.addPermission("telephony", true, document);
-
-let telephony = window.navigator.mozTelephony;
 let number = "5555552368";
 let outgoing;
 let calls;
 
-function verifyInitialState() {
-  log("Verifying initial state.");
-  ok(telephony);
-  is(telephony.active, null);
-  ok(telephony.calls);
-  is(telephony.calls.length, 0);
-  calls = telephony.calls;
-
-  runEmulatorCmd("gsm list", function(result) {
-    log("Initial call list: " + result);
-    is(result[0], "OK");
-    dial();
-  });
-}
-
 function dial() {
   log("Make an outgoing call.");
 
-  outgoing = telephony.dial(number);
-  ok(outgoing);
-  is(outgoing.number, number);
-  is(outgoing.state, "dialing");
+  telephony.dial(number).then(call => {
+    outgoing = call;
+    ok(outgoing);
+    is(outgoing.id.number, number);
+    is(outgoing.state, "dialing");
 
-  is(outgoing, telephony.active);
-  //ok(telephony.calls === calls); // bug 717414
-  is(telephony.calls.length, 1);
-  is(telephony.calls[0], outgoing);
+    is(outgoing, telephony.active);
+    //ok(telephony.calls === calls); // bug 717414
+    is(telephony.calls.length, 1);
+    is(telephony.calls[0], outgoing);
 
-  outgoing.onalerting = function onalerting(event) {
-    log("Received 'alerting' call event.");
-    runEmulatorCmd("gsm list", function(result) {
-      log("Call list is now: " + result);
-      is(result[0], "outbound to  " + number + " : ringing");
-      is(result[1], "OK");
-      hangUp();
-    });
-  };
+    outgoing.onalerting = function onalerting(event) {
+      log("Received 'alerting' call event.");
+      emulator.runCmdWithCallback("gsm list", function(result) {
+        log("Call list is now: " + result);
+        is(result[0], "outbound to  " + number + " : ringing");
+        hangUp();
+      });
+    };
+  });
 }
 
 function hangUp() {
@@ -70,19 +54,19 @@ function hangUp() {
     is(telephony.active, null);
     is(telephony.calls.length, 0);
 
-    runEmulatorCmd("gsm list", function(result) {
+    emulator.runCmdWithCallback("gsm list", function(result) {
       log("Call list is now: " + result);
-      is(result[0], "OK");
       cleanUp();
     });
   };
 
   outgoing.hangUp();
-};
+}
 
 function cleanUp() {
-  SpecialPowers.removePermission("telephony", document);
   finish();
 }
 
-verifyInitialState();
+startTest(function() {
+  dial();
+});

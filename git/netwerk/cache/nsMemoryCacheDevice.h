@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim: set ts=8 sts=4 et sw=4 tw=80: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -51,6 +51,7 @@ public:
     virtual nsresult Visit( nsICacheVisitor * visitor );
 
     virtual nsresult EvictEntries(const char * clientID);
+    nsresult EvictPrivateEntries();
     
     void             SetCapacity(int32_t  capacity);
     void             SetMaxEntrySize(int32_t  maxSizeInKilobytes);
@@ -68,6 +69,9 @@ private:
     void      EvictEntry( nsCacheEntry * entry , bool deleteEntry);
     void      EvictEntriesIfNecessary();
     int       EvictionList(nsCacheEntry * entry, int32_t  deltaSize);
+
+    typedef bool (*EvictionMatcherFn)(nsCacheEntry* entry, void* args);
+    nsresult DoEvictEntries(EvictionMatcherFn matchFn, void* args);
 
 #ifdef DEBUG
     void      CheckEntryCount();
@@ -106,14 +110,13 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSICACHEDEVICEINFO
 
-    nsMemoryCacheDeviceInfo(nsMemoryCacheDevice* device)
+    explicit nsMemoryCacheDeviceInfo(nsMemoryCacheDevice* device)
         :   mDevice(device)
     {
     }
 
-    virtual ~nsMemoryCacheDeviceInfo() {}
-    
 private:
+    virtual ~nsMemoryCacheDeviceInfo() {}
     nsMemoryCacheDevice* mDevice;
 };
 

@@ -4,8 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+// HttpLog.h should generally be included first
+#include "HttpLog.h"
+
 #include "nsHttpHeaderArray.h"
-#include "nsHttp.h"
+#include "nsURLHelper.h"
+#include "nsIHttpHeaderVisitor.h"
+
+namespace mozilla {
+namespace net {
 
 //-----------------------------------------------------------------------------
 // nsHttpHeaderArray <public>
@@ -48,9 +55,8 @@ nsresult
 nsHttpHeaderArray::SetHeaderFromNet(nsHttpAtom header, const nsACString &value)
 {
     nsEntry *entry = nullptr;
-    int32_t index;
 
-    index = LookupEntry(header, &entry);
+    LookupEntry(header, &entry);
 
     if (!entry) {
         if (value.IsEmpty()) {
@@ -136,7 +142,7 @@ nsHttpHeaderArray::ParseHeaderLine(const char *line,
     //                     and consisting of either *TEXT or combinations
     //                     of token, separators, and quoted-string>
     //
-    
+
     // We skip over mal-formed headers in the hope that we'll still be able to
     // do something useful with the response.
 
@@ -151,7 +157,7 @@ nsHttpHeaderArray::ParseHeaderLine(const char *line,
         LOG(("malformed header [%s]: field-name not a token\n", line));
         return NS_OK;
     }
-    
+
     *p = 0; // null terminate field-name
 
     nsHttpAtom atom = nsHttp::ResolveAtom(line);
@@ -179,13 +185,32 @@ nsHttpHeaderArray::ParseHeaderLine(const char *line,
 }
 
 void
+nsHttpHeaderArray::ParseHeaderSet(char *buffer)
+{
+    nsHttpAtom hdr;
+    char *val;
+    while (buffer) {
+        char *eof = strchr(buffer, '\r');
+        if (!eof) {
+            break;
+        }
+        *eof = '\0';
+        ParseHeaderLine(buffer, &hdr, &val);
+        buffer = eof + 1;
+        if (*buffer == '\n') {
+            buffer++;
+        }
+    }
+}
+
+void
 nsHttpHeaderArray::Flatten(nsACString &buf, bool pruneProxyHeaders)
 {
     uint32_t i, count = mHeaders.Length();
     for (i = 0; i < count; ++i) {
         const nsEntry &entry = mHeaders[i];
         // prune proxy headers if requested
-        if (pruneProxyHeaders && ((entry.header == nsHttp::Proxy_Authorization) || 
+        if (pruneProxyHeaders && ((entry.header == nsHttp::Proxy_Authorization) ||
                                   (entry.header == nsHttp::Proxy_Connection)))
             continue;
         buf.Append(entry.header);
@@ -209,3 +234,6 @@ nsHttpHeaderArray::Clear()
 {
     mHeaders.Clear();
 }
+
+} // namespace mozilla::net
+} // namespace mozilla

@@ -8,8 +8,6 @@
 #include "nsCSSKeywords.h"
 #include "nsString.h"
 #include "nsStaticNameTable.h"
-#include "nsReadableUtils.h"
-#include "nsStyleConsts.h"
 
 // required to make the symbol external, so that TestCSSPropertyLookup.cpp can link with it
 extern const char* const kCSSRawKeywords[];
@@ -21,13 +19,13 @@ const char* const kCSSRawKeywords[] = {
 };
 #undef CSS_KEY
 
-static int32_t gTableRefCount;
+static int32_t gKeywordTableRefCount;
 static nsStaticCaseInsensitiveNameTable* gKeywordTable;
 
 void
 nsCSSKeywords::AddRefTable(void) 
 {
-  if (0 == gTableRefCount++) {
+  if (0 == gKeywordTableRefCount++) {
     NS_ASSERTION(!gKeywordTable, "pre existing array!");
     gKeywordTable = new nsStaticCaseInsensitiveNameTable();
     if (gKeywordTable) {
@@ -36,8 +34,8 @@ nsCSSKeywords::AddRefTable(void)
       // let's verify the table...
       int32_t index = 0;
       for (; index < eCSSKeyword_COUNT && kCSSRawKeywords[index]; ++index) {
-        nsCAutoString temp1(kCSSRawKeywords[index]);
-        nsCAutoString temp2(kCSSRawKeywords[index]);
+        nsAutoCString temp1(kCSSRawKeywords[index]);
+        nsAutoCString temp2(kCSSRawKeywords[index]);
         ToLowerCase(temp1);
         NS_ASSERTION(temp1.Equals(temp2), "upper case char in table");
         NS_ASSERTION(-1 == temp1.FindChar('_'), "underscore char in table");
@@ -53,7 +51,7 @@ nsCSSKeywords::AddRefTable(void)
 void
 nsCSSKeywords::ReleaseTable(void) 
 {
-  if (0 == --gTableRefCount) {
+  if (0 == --gKeywordTableRefCount) {
     if (gKeywordTable) {
       delete gKeywordTable;
       gKeywordTable = nullptr;

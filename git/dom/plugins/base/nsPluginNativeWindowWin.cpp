@@ -3,6 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/BasicEvents.h"
+#include "mozilla/DebugOnly.h"
+
 #include "windows.h"
 #include "windowsx.h"
 
@@ -15,9 +18,7 @@
 
 #include "nsDebug.h"
 
-#include "nsGUIEvent.h"
 #include "nsWindowsDllInterceptor.h"
-#include "nsPluginSafety.h"
 #include "nsPluginNativeWindow.h"
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
@@ -55,7 +56,7 @@ public:
   UINT   GetMsg()    { return mMsg; };
   WPARAM GetWParam() { return mWParam; };
   LPARAM GetLParam() { return mLParam; };
-  bool InUse()     { return (mWnd!=NULL); };
+  bool InUse()       { return mWnd != nullptr; };
 
   NS_DECL_NSIRUNNABLE
 
@@ -74,7 +75,7 @@ PluginWindowEvent::PluginWindowEvent()
 
 void PluginWindowEvent::Clear()
 {
-  mWnd    = NULL;
+  mWnd    = nullptr;
   mMsg    = 0;
   mWParam = 0;
   mLParam = 0;
@@ -83,8 +84,8 @@ void PluginWindowEvent::Clear()
 void PluginWindowEvent::Init(const PluginWindowWeakRef &ref, HWND aWnd,
                              UINT aMsg, WPARAM aWParam, LPARAM aLParam)
 {
-  NS_ASSERTION(aWnd != NULL, "invalid plugin event value");
-  NS_ASSERTION(mWnd == NULL, "event already in use");
+  NS_ASSERTION(aWnd != nullptr, "invalid plugin event value");
+  NS_ASSERTION(mWnd == nullptr, "event already in use");
   mPluginWindowRef = ref;
   mWnd    = aWnd;
   mMsg    = aMsg;
@@ -188,7 +189,14 @@ NS_IMETHODIMP nsDelayedPopupsEnabledEvent::Run()
 static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 /**
- *   New plugin window procedure
+ * New plugin window procedure
+ *
+ * e10s note - this subclass, and the hooks we set below using WindowsDllInterceptor
+ * are currently not in use when running with e10s. (Utility calls like CallSetWindow
+ * are still in use in the content process.) We would like to keep things this away,
+ * essentially making all the hacks here obsolete. Some of the mitigation work here has
+ * already been supplanted by code in PluginInstanceChild. The rest we eventually want
+ * to rip out.
  */
 static LRESULT CALLBACK PluginWndProcInternal(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -271,7 +279,7 @@ static LRESULT CALLBACK PluginWndProcInternal(HWND hWnd, UINT msg, WPARAM wParam
         nsCOMPtr<nsIWidget> widget;
         win->GetPluginWidget(getter_AddRefs(widget));
         if (widget) {
-          nsGUIEvent event(true, NS_PLUGIN_ACTIVATE, widget);
+          WidgetGUIEvent event(true, NS_PLUGIN_ACTIVATE, widget);
           nsEventStatus status;
           widget->DispatchEvent(&event, status);
         }
@@ -374,8 +382,8 @@ typedef LONG_PTR
   (WINAPI *User32SetWindowLongPtrW)(HWND hWnd,
                                     int nIndex,
                                     LONG_PTR dwNewLong);
-static User32SetWindowLongPtrA sUser32SetWindowLongAHookStub = NULL;
-static User32SetWindowLongPtrW sUser32SetWindowLongWHookStub = NULL;
+static User32SetWindowLongPtrA sUser32SetWindowLongAHookStub = nullptr;
+static User32SetWindowLongPtrW sUser32SetWindowLongWHookStub = nullptr;
 #else
 typedef LONG
 (WINAPI *User32SetWindowLongA)(HWND hWnd,
@@ -385,8 +393,8 @@ typedef LONG
 (WINAPI *User32SetWindowLongW)(HWND hWnd,
                                int nIndex,
                                LONG dwNewLong);
-static User32SetWindowLongA sUser32SetWindowLongAHookStub = NULL;
-static User32SetWindowLongW sUser32SetWindowLongWHookStub = NULL;
+static User32SetWindowLongA sUser32SetWindowLongAHookStub = nullptr;
+static User32SetWindowLongW sUser32SetWindowLongWHookStub = nullptr;
 #endif
 static inline bool
 SetWindowLongHookCheck(HWND hWnd,
@@ -497,11 +505,11 @@ nsPluginNativeWindowWin::nsPluginNativeWindowWin() : nsPluginNativeWindow()
   width = 0; 
   height = 0; 
 
-  mPrevWinProc = NULL;
-  mPluginWinProc = NULL;
+  mPrevWinProc = nullptr;
+  mPluginWinProc = nullptr;
   mPluginType = nsPluginType_Unknown;
 
-  mParentWnd = NULL;
+  mParentWnd = nullptr;
   mParentProc = 0;
 
   if (!sWM_FLASHBOUNCEMSG) {
@@ -600,6 +608,8 @@ nsresult nsPluginNativeWindowWin::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> 
   // not interested in subclassing business any more, undo and don't subclass
   if (!aPluginInstance) {
     UndoSubclassAndAssociateWindow();
+    // release plugin instance
+    SetPluginInstance(nullptr);
     nsPluginNativeWindow::CallSetWindow(aPluginInstance);
     return NS_OK;
   }
@@ -618,6 +628,14 @@ nsresult nsPluginNativeWindowWin::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> 
       else
         mPluginType = nsPluginType_Other;
     }
+  }
+
+  // With e10s we execute in the content process and as such we don't
+  // have access to native widgets. CallSetWindow and skip native widget
+  // subclassing.
+  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+    nsPluginNativeWindow::CallSetWindow(aPluginInstance);
+    return NS_OK;
   }
 
   if (window) {
@@ -694,7 +712,7 @@ nsresult nsPluginNativeWindowWin::SubclassAndAssociateWindow()
   if (!mPluginWinProc)
     return NS_ERROR_FAILURE;
 
-  nsPluginNativeWindowWin * win = (nsPluginNativeWindowWin *)::GetProp(hWnd, NS_PLUGIN_WINDOW_PROPERTY_ASSOCIATION);
+  DebugOnly<nsPluginNativeWindowWin *> win = (nsPluginNativeWindowWin *)::GetProp(hWnd, NS_PLUGIN_WINDOW_PROPERTY_ASSOCIATION);
   NS_ASSERTION(!win || (win == this), "plugin window already has property and this is not us");
   
   if (!::SetProp(hWnd, NS_PLUGIN_WINDOW_PROPERTY_ASSOCIATION, (HANDLE)this))
@@ -705,9 +723,6 @@ nsresult nsPluginNativeWindowWin::SubclassAndAssociateWindow()
 
 nsresult nsPluginNativeWindowWin::UndoSubclassAndAssociateWindow()
 {
-  // release plugin instance
-  SetPluginInstance(nullptr);
-
   // remove window property
   HWND hWnd = (HWND)window;
   if (IsWindow(hWnd))
@@ -719,7 +734,7 @@ nsresult nsPluginNativeWindowWin::UndoSubclassAndAssociateWindow()
     WNDPROC currentWndProc = (WNDPROC)::GetWindowLongPtr(hWnd, GWLP_WNDPROC);
     if (currentWndProc == PluginWndProc)
       SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)mPluginWinProc);
-    mPluginWinProc = NULL;
+    mPluginWinProc = nullptr;
 
     LONG_PTR style = GetWindowLongPtr(hWnd, GWL_STYLE);
     style &= ~WS_CLIPCHILDREN;
@@ -728,7 +743,7 @@ nsresult nsPluginNativeWindowWin::UndoSubclassAndAssociateWindow()
 
   if (mPluginType == nsPluginType_PDF && mParentWnd) {
     ::SetWindowLongPtr(mParentWnd, GWLP_WNDPROC, mParentProc);
-    mParentWnd = NULL;
+    mParentWnd = nullptr;
     mParentProc = 0;
   }
 

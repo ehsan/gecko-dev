@@ -4,33 +4,38 @@
 
 def test(mod, path, entity = None):
   import re
-  # ignore anyhting but Firefox
+  # ignore anything but Firefox
   if mod not in ("netwerk", "dom", "toolkit", "security/manager",
-                 "browser", "extensions/reporter", "extensions/spellcheck",
+                 "browser", "webapprt",
+                 "extensions/reporter", "extensions/spellcheck",
                  "other-licenses/branding/firefox",
                  "browser/branding/official",
                  "services/sync"):
-    return False
-  if mod != "browser" and mod != "extensions/spellcheck":
+    return "ignore"
+  if mod not in ("browser", "extensions/spellcheck"):
     # we only have exceptions for browser and extensions/spellcheck
-    return True
+    return "error"
   if not entity:
+    # the only files to ignore are spell checkers and search
     if mod == "extensions/spellcheck":
-      return False
+      return "ignore"
     # browser
-    return not (re.match(r"searchplugins\/.+\.xml", path) or
-                re.match(r"chrome\/help\/images\/[A-Za-z-_]+\.png", path))
+    if (re.match(r"searchplugins\/.+\.xml", path) or
+        path == "searchplugins/metrolist.txt"):
+      return "ignore"
+    return "error"
   if mod == "extensions/spellcheck":
     # l10n ships en-US dictionary or something, do compare
-    return True
+    return "error"
   if path == "defines.inc":
-    return entity != "MOZ_LANGPACK_CONTRIBUTORS"
+    return "ignore" if entity == "MOZ_LANGPACK_CONTRIBUTORS" else "error"
 
-  if path != "chrome/browser-region/region.properties":
+  if mod == "browser" and path == "chrome/browser-region/region.properties":
     # only region.properties exceptions remain, compare all others
-    return True
-  
-  return not (re.match(r"browser\.search\.order\.[1-9]", entity) or
-              re.match(r"browser\.contentHandlers\.types\.[0-5]", entity) or
-              re.match(r"gecko\.handlerService\.schemes\.", entity) or
-              re.match(r"gecko\.handlerService\.defaultHandlersVersion", entity))
+    return ("ignore"
+            if (re.match(r"browser\.search\.order\.[1-9]", entity) or
+                re.match(r"browser\.contentHandlers\.types\.[0-5]", entity) or
+                re.match(r"gecko\.handlerService\.schemes\.", entity) or
+                re.match(r"gecko\.handlerService\.defaultHandlersVersion", entity))
+            else "error")
+  return "error"

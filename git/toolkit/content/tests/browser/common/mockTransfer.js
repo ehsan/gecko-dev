@@ -52,7 +52,9 @@ MockTransfer.prototype = {
   onRefreshAttempted: function () {},
 
   /* nsITransfer */
-  init: function () {}
+  init: function() {},
+  setSha256Hash: function() {},
+  setSignatureInfo: function() {}
 };
 
 // Create an instance of a MockObjectRegisterer whose methods can be used to

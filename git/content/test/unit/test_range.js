@@ -6,9 +6,6 @@ const C_i = Components.interfaces;
 
 const UNORDERED_TYPE = C_i.nsIDOMXPathResult.ANY_UNORDERED_NODE_TYPE;
 
-// Instantiate nsIDOMScriptObjectFactory so that DOMException is usable in xpcshell
-Components.classesByID["{9eb760f0-4380-11d2-b328-00805f8a3859}"].getService(C_i.nsISupports);
-
 /**
  * Determine if the data node has only ignorable white-space.
  *
@@ -133,15 +130,13 @@ function evalXPathInDocumentFragment(aContextNode, aPath) {
   var walker = aContextNode.ownerDocument.createTreeWalker(
                  aContextNode,
                  targetType,
-                 filter,
-                 true);
+                 filter);
   var targetNode = walker.nextNode();
   do_check_neq(targetNode, null);
 
   // Apply our remaining xpath to the found node.
   var expr = aContextNode.ownerDocument.createExpression(realPath, null);
   var result = expr.evaluate(targetNode, UNORDERED_TYPE, null);
-  do_check_true(result instanceof C_i.nsIDOMXPathResult);
   return result.singleNodeValue;
 }
 
@@ -187,8 +182,7 @@ function getParsedDocument(aPath) {
   var walker = doc.createTreeWalker(doc,
                                     C_i.nsIDOMNodeFilter.SHOW_TEXT |
                                     C_i.nsIDOMNodeFilter.SHOW_CDATA_SECTION,
-                                    isWhitespace,
-                                    false);
+                                    isWhitespace);
   while (walker.nextNode()) {
     var parent = walker.currentNode.parentNode;
     parent.removeChild(walker.currentNode);
@@ -279,8 +273,7 @@ function run_extract_test() {
     dump("Ensure the original nodes weren't extracted - test " + i + "\n\n");
     var walker = doc.createTreeWalker(baseFrag,
 				      C_i.nsIDOMNodeFilter.SHOW_ALL,
-				      null,
-				      false);
+				      null);
     var foundStart = false;
     var foundEnd = false;
     do {
@@ -313,8 +306,7 @@ function run_extract_test() {
     dump("Ensure the original nodes weren't deleted - test " + i + "\n\n");
     walker = doc.createTreeWalker(baseFrag,
                                   C_i.nsIDOMNodeFilter.SHOW_ALL,
-                                  null,
-                                  false);
+                                  null);
     foundStart = false;
     foundEnd = false;
     do {
@@ -367,7 +359,7 @@ function run_miscellaneous_tests() {
       baseRange.setStart(null, 0);
       do_throw("Should have thrown NOT_OBJECT_ERR!");
     } catch (e) {
-      do_check_eq(e.name, "NS_ERROR_DOM_NOT_OBJECT_ERR");
+      do_check_eq(e.constructor.name, "TypeError");
     }
 
     // Invalid start node
@@ -375,7 +367,7 @@ function run_miscellaneous_tests() {
       baseRange.setStart({}, 0);
       do_throw("Should have thrown SecurityError!");
     } catch (e) {
-      do_check_eq(e.name, "SecurityError");
+      do_check_eq(e.constructor.name, "TypeError");
     }
 
     // Invalid index

@@ -9,7 +9,8 @@ onmessage = function(event) {
   rtnObj.size = file.size;
   rtnObj.type = file.type;
   rtnObj.name = file.name;
-  rtnObj.mozFullPath = file.mozFullPath;
+  rtnObj.path = file.path;
+  rtnObj.lastModifiedDate = file.lastModifiedDate;
 
   postMessage(rtnObj);
 };

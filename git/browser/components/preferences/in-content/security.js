@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
+
 var gSecurityPane = {
   _pane: null,
 
@@ -10,8 +12,25 @@ var gSecurityPane = {
    */
   init: function ()
   {
+    function setEventListener(aId, aEventType, aCallback)
+    {
+      document.getElementById(aId)
+              .addEventListener(aEventType, aCallback.bind(gSecurityPane));
+    }
+
     this._pane = document.getElementById("paneSecurity");
     this._initMasterPasswordUI();
+
+    setEventListener("addonExceptions", "command",
+      gSecurityPane.showAddonExceptions);
+    setEventListener("passwordExceptions", "command",
+      gSecurityPane.showPasswordExceptions);
+    setEventListener("useMasterPassword", "command",
+      gSecurityPane.updateMasterPasswordButton);
+    setEventListener("changeMasterPassword", "command",
+      gSecurityPane.changeMasterPassword);
+    setEventListener("showPasswords", "command",
+      gSecurityPane.showPasswords);
   },
 
   // ADD-ONS
@@ -53,10 +72,8 @@ var gSecurityPane = {
       params.introText = bundlePrefs.getString("addonspermissionstext");
     }
 
-    openDialog("chrome://browser/content/preferences/permissions.xul",
-               "Browser:Permissions",
-               "model=yes",
-               params);
+    gSubDialog.open("chrome://browser/content/preferences/permissions.xul",
+                    null, params);
   },
 
   /**
@@ -90,11 +107,7 @@ var gSecurityPane = {
     var pref = document.getElementById("signon.rememberSignons");
     var excepts = document.getElementById("passwordExceptions");
 
-    const Cc = Components.classes, Ci = Components.interfaces;
-    var pbs = Cc["@mozilla.org/privatebrowsing;1"].
-              getService(Ci.nsIPrivateBrowsingService);
-
-    if (pbs.autoStarted) {
+    if (PrivateBrowsingUtils.permanentPrivateBrowsing) {
       document.getElementById("savePasswords").disabled = true;
       excepts.disabled = true;
       return false;
@@ -111,10 +124,7 @@ var gSecurityPane = {
    */
   showPasswordExceptions: function ()
   {
-    openDialog("chrome://passwordmgr/content/passwordManagerExceptions.xul",
-               "Toolkit:PasswordManagerExceptions",
-               "model=yes",
-               null);
+    gSubDialog.open("chrome://passwordmgr/content/passwordManagerExceptions.xul");
   },
 
   /**
@@ -193,12 +203,12 @@ var gSecurityPane = {
       promptService.alert(window,
                           bundle.getString("pw_change_failed_title"),
                           bundle.getString("pw_change2empty_in_fips_mode"));
+      this._initMasterPasswordUI();
     }
     else {
-      openDialog("chrome://mozapps/content/preferences/removemp.xul",
-                 "Toolkit:RemoveMasterPassword", "modal=yes", null);
+      gSubDialog.open("chrome://mozapps/content/preferences/removemp.xul",
+                      null, null, this._initMasterPasswordUI.bind(this));
     }
-    this._initMasterPasswordUI();
   },
 
   /**
@@ -206,9 +216,8 @@ var gSecurityPane = {
    */
   changeMasterPassword: function ()
   {
-    openDialog("chrome://mozapps/content/preferences/changemp.xul",
-               "Toolkit:ChangeMasterPassword", "modal=yes", null);
-    this._initMasterPasswordUI();
+    gSubDialog.open("chrome://mozapps/content/preferences/changemp.xul",
+                    null, null, this._initMasterPasswordUI.bind(this));
   },
 
   /**
@@ -217,9 +226,7 @@ var gSecurityPane = {
    */
   showPasswords: function ()
   {
-    openDialog("chrome://passwordmgr/content/passwordManager.xul",
-               "Toolkit:PasswordManager",
-               "modal=yes", null);
+    gSubDialog.open("chrome://passwordmgr/content/passwordManager.xul");
   }
 
 };

@@ -4,7 +4,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #####################################################################################
-# Dependency build overhead: 
+# Dependency build overhead:
 #   o always create/update/hard link targets boomkarks.json & searchplugins
 #   o latest symlink will be correct for the current locale / local build.
 #   o logic is essentially FORCE for language packs w/o all the build overhead
@@ -12,13 +12,6 @@
 #     based on current locale.
 #####################################################################################
 
-DEPTH     = @DEPTH@
-topsrcdir = @top_srcdir@
-srcdir    = @srcdir@
-VPATH     = @srcdir@
-relativesrcdir = @relativesrcdir@
-
-include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/config.mk
 
 USE_AUTOTARGETS_MK=1
@@ -26,12 +19,6 @@ include $(topsrcdir)/config/makefiles/makeutils.mk
 
 # Separate items of contention
 tgt-gendir = .deps/generated_$(AB_CD)
-
-jar-maker = \
-  $(firstword \
-    $(wildcard $(MOZILLA_DIR)/config/JarMaker.py) \
-    $(topsrcdir)/config/JarMaker.py \
-  )
 
 GENERATED_DIRS += .deps
 
@@ -48,11 +35,6 @@ SUBMAKEFILES += \
         $(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/Makefile \
         $(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales/Makefile \
         $(NULL)
-
-DEFINES += \
-	-DAB_CD=$(AB_CD) \
-	$(NULL)
-
 
 ###########################################################################
 # Default target, preserve existing functionality for:
@@ -88,7 +70,7 @@ GARBAGE += $(plugin-file-ts)
 # plugin-file-ts track searchlist file used ($path/list.txt)
 # and time when the file was last modified.
 ###########################################################################
-plugin-file-ts-preqs =\
+plugin-file-ts-preqs = \
   $(call mkdir_deps,$(dir $(plugin-file-ts))) \
   $(plugin_file) \
   $(NULL)
@@ -112,7 +94,7 @@ GARBAGE += $(search-jar) $(search-jar-ts) $(search-jar-common)
 SEARCH_PLUGINS = $(shell cat $(plugin_file))
 $(call errorIfEmpty,SEARCH_PLUGINS)
 
-search-jar-preqs =\
+search-jar-preqs = \
   $(plugin-file-ts) \
   $(if $(IS_LANGUAGE_REPACK),FORCE) \
   $(NULL)
@@ -120,15 +102,11 @@ search-jar-preqs =\
 .PHONY: search-jar
 search-jar: $(search-jar)
 $(search-jar): $(search-jar-preqs)
-	@echo "\nGenerating: search-jar"
-	printf "$(AB_CD).jar:" > $@
+	@echo '\nGenerating: search-jar'
+	printf '$(AB_CD).jar:' > $@
 	ln -fn $@ .
-	printf "$(foreach plugin,$(SEARCH_PLUGINS),$(subst __PLUGIN_SUBST__,$(plugin), \n locale/$(AB_CD)/browser/searchplugins/__PLUGIN_SUBST__.xml (__PLUGIN_SUBST__.xml)))" >>  $@
+	printf '$(foreach plugin,$(SEARCH_PLUGINS),$(subst __PLUGIN_SUBST__,$(plugin), \n locale/$(AB_CD)/browser/searchplugins/__PLUGIN_SUBST__.xml (__PLUGIN_SUBST__.xml)))' >>  $@
 	@echo   >> $@
-
-.PHONY: searchplugins
-searchplugins: $(search-jar-ts)
-	@echo "\nGenerating: $@"	
 
 ###################
 search-dir-deps = \
@@ -141,17 +119,17 @@ search-preqs =\
   $(call mkdir_deps,$(FINAL_TARGET)/chrome) \
   $(search-jar) \
   $(search-dir-deps) \
-  $(jar-maker) \
   $(if $(IS_LANGUAGE_REPACK),FORCE) \
   $(GLOBAL_DEPS) \
   $(NULL)
 
-$(search-jar-ts): $(search-preqs)
-	$(PYTHON) $(jar-maker) \
+.PHONY: searchplugins
+searchplugins: $(search-preqs)
+	$(call py_action,jar_maker,\
           $(QUIET) -j $(FINAL_TARGET)/chrome \
           -s $(topsrcdir)/$(relativesrcdir)/en-US/searchplugins \
           -s $(LOCALE_SRCDIR)/searchplugins \
-          $(MAKE_JARS_FLAGS) $(search-jar)
+          $(MAKE_JARS_FLAGS) $(search-jar))
 	$(TOUCH) $@
 
 include $(topsrcdir)/config/rules.mk
@@ -164,19 +142,16 @@ libs-preqs =\
 
 libs-%: $(libs-preqs)
 	$(display-deps)
-	@$(MAKE) -C $(DEPTH)/toolkit/locales libs-$* BOTH_MANIFESTS=1
-	@$(MAKE) -C $(DEPTH)/services/sync/locales AB_CD=$* XPI_NAME=locale-$* BOTH_MANIFESTS=1
-	@$(MAKE) -C $(DEPTH)/intl/locales AB_CD=$* XPI_NAME=locale-$* BOTH_MANIFESTS=1
+	@$(MAKE) -C $(DEPTH)/toolkit/locales libs-$*
+	@$(MAKE) -C $(DEPTH)/intl/locales AB_CD=$* XPI_NAME=locale-$*
 	@$(MAKE) -B $(bookmarks) AB_CD=$*
 	@$(MAKE) -B searchplugins AB_CD=$* XPI_NAME=locale-$*
-	@$(MAKE) libs AB_CD=$* XPI_NAME=locale-$* PREF_DIR=defaults/pref BOTH_MANIFESTS=1
-	@$(MAKE) -C $(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales AB_CD=$* XPI_NAME=locale-$* BOTH_MANIFESTS=1
+	@$(MAKE) libs AB_CD=$* XPI_NAME=locale-$* PREF_DIR=defaults/pref
+	@$(MAKE) -C $(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales AB_CD=$* XPI_NAME=locale-$*
 
 # Tailored target to just add the chrome processing for multi-locale builds
 chrome-%:
 	$(display-deps)
-	@$(MAKE) -C $(DEPTH)/toolkit/locales chrome-$*
-	@$(MAKE) -C $(DEPTH)/services/sync/locales chrome AB_CD=$*
 	@$(MAKE) -B $(bookmarks) AB_CD=$*
 	@$(MAKE) -B searchplugins AB_CD=$*
 	@$(MAKE) chrome AB_CD=$*
@@ -195,30 +170,27 @@ bookmarks-inc-array = \
   )
 bookmarks-inc = $(firstword $(bookmarks-inc-array))
 
-bookmarks-preqs =\
+bookmarks-preqs = \
   $(bookmarks-inc) \
-  $(call mkdir_deps,$(dir $(bookmarks-ts))) \
   $(src-bookmarks) \
   generic/profile/$(bookmarks).in \
-  $(topsrcdir)/config/Preprocessor.py \
   $(if $(IS_LANGUAGE_REPACK),FORCE) \
   $(GLOBAL_DEPS) \
   $(NULL)
 
 $(bookmarks-ts): $(bookmarks-preqs)
 	$(display_deps)
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
+	$(call py_action,preprocessor, \
       -I $< \
       -DAB_CD=$(NO_JA_JP_MAC_AB_CD) \
       $(src-bookmarks) \
-      > $@
+      -o $@)
 
 .PHONY: bookmarks $(bookmarks)
 bookmarks: $(bookmarks)
 $(bookmarks): $(bookmarks-ts)
-	@echo "\nGenerating: $@"
+	@echo '\nGenerating: $@'
 	ln -fn $< .
 
 
 export:: searchplugins bookmarks
-

@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsURIChecker.h"
-#include "nsIServiceManager.h"
 #include "nsIAuthPrompt.h"
 #include "nsIHttpChannel.h"
 #include "nsNetUtil.h"
@@ -16,7 +15,7 @@
 static bool
 ServerIsNES3x(nsIHttpChannel *httpChannel)
 {
-    nsCAutoString server;
+    nsAutoCString server;
     httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Server"), server);
     // case sensitive string comparison is OK here.  the server string
     // is a well-known value, so we should not have to worry about it
@@ -27,13 +26,13 @@ ServerIsNES3x(nsIHttpChannel *httpChannel)
 
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS6(nsURIChecker,
-                   nsIURIChecker,
-                   nsIRequest,
-                   nsIRequestObserver,
-                   nsIStreamListener,
-                   nsIChannelEventSink,
-                   nsIInterfaceRequestor)
+NS_IMPL_ISUPPORTS(nsURIChecker,
+                  nsIURIChecker,
+                  nsIRequest,
+                  nsIRequestObserver,
+                  nsIStreamListener,
+                  nsIChannelEventSink,
+                  nsIInterfaceRequestor)
 
 nsURIChecker::nsURIChecker()
     : mStatus(NS_OK)
@@ -310,7 +309,7 @@ nsURIChecker::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
 
 NS_IMETHODIMP
 nsURIChecker::OnDataAvailable(nsIRequest *aRequest, nsISupports *aCtxt,
-                               nsIInputStream *aInput, uint32_t aOffset,
+                               nsIInputStream *aInput, uint64_t aOffset,
                                uint32_t aCount)
 {
     NS_NOTREACHED("nsURIChecker::OnDataAvailable");

@@ -16,6 +16,12 @@
 #ifndef GONKKEYMAPPING_H
 #define GONKKEYMAPPING_H
 
+#include "libui/android_keycodes.h"
+#include "mozilla/EventForwards.h"
+
+namespace mozilla {
+namespace widget {
+
 /* See libui/KeycodeLabels.h for the mapping */
 static const unsigned long kKeyMapping[] = {
     0,
@@ -42,8 +48,8 @@ static const unsigned long kKeyMapping[] = {
     NS_VK_LEFT,
     NS_VK_RIGHT,
     NS_VK_SELECT,
-    NS_VK_PAGE_UP,   // VOLUME_UP
-    NS_VK_PAGE_DOWN, // VOLUME_DOWN
+    NS_VK_VOLUME_UP,
+    NS_VK_VOLUME_DOWN,
     NS_VK_SLEEP,     // POWER
     NS_VK_PRINTSCREEN, // CAMERA
     NS_VK_CLEAR,
@@ -85,7 +91,7 @@ static const unsigned long kKeyMapping[] = {
     0, // EXPLORER
     0, // ENVELOPE
     NS_VK_RETURN, // ENTER
-    NS_VK_DELETE,
+    NS_VK_BACK,
     NS_VK_BACK_QUOTE, // GRAVE
     NS_VK_HYPHEN_MINUS,
     NS_VK_EQUALS,
@@ -97,7 +103,7 @@ static const unsigned long kKeyMapping[] = {
     NS_VK_SLASH,
     NS_VK_AT,
     0, // NUM
-    0, // HEADSETHOOK
+    NS_VK_F1, // HEADSETHOOK
     0, // FOCUS
     NS_VK_PLUS,
     NS_VK_CONTEXT_MENU,
@@ -110,8 +116,8 @@ static const unsigned long kKeyMapping[] = {
     0, // MEDIA_REWIND
     0, // MEDIA_FAST_FORWARD
     0, // MUTE
-    0, // PAGE_UP
-    0, // PAGE_DOWN
+    NS_VK_PAGE_UP,
+    NS_VK_PAGE_DOWN,
     0, // PICTSYMBOLS
     0, // SWITCH_CHARSET
     0, // BUTTON_A
@@ -129,8 +135,8 @@ static const unsigned long kKeyMapping[] = {
     0, // BUTTON_START
     0, // BUTTON_SELECT
     0, // BUTTON_MODE
-    0, // ESCAPE
-    0, // FORWARD_DEL
+    NS_VK_ESCAPE,
+    NS_VK_DELETE,
     0, // CTRL_LEFT
     0, // CTRL_RIGHT
     NS_VK_CAPS_LOCK,
@@ -178,8 +184,118 @@ static const unsigned long kKeyMapping[] = {
     NS_VK_ADD,
     NS_VK_PERIOD,
     NS_VK_COMMA,
-    NS_VK_ENTER,
+    NS_VK_RETURN,
     NS_VK_EQUALS,
+    0, // NUMPAD_LEFT_PAREN
+    0, // NUMPAD_RIGHT_PAREN
+    NS_VK_VOLUME_MUTE,
     // There are more but we don't map them
 };
+
+static KeyNameIndex GetKeyNameIndex(int aKeyCode)
+{
+    switch (aKeyCode) {
+#define NS_NATIVE_KEY_TO_DOM_KEY_NAME_INDEX(aNativeKey, aKeyNameIndex) \
+    case aNativeKey: return aKeyNameIndex;
+
+#include "NativeKeyToDOMKeyName.h"
+
+#undef NS_NATIVE_KEY_TO_DOM_KEY_NAME_INDEX
+
+    case AKEYCODE_0:
+    case AKEYCODE_1:
+    case AKEYCODE_2:
+    case AKEYCODE_3:
+    case AKEYCODE_4:
+    case AKEYCODE_5:
+    case AKEYCODE_6:
+    case AKEYCODE_7:
+    case AKEYCODE_8:
+    case AKEYCODE_9:
+    case AKEYCODE_STAR:
+    case AKEYCODE_POUND:
+    case AKEYCODE_A:
+    case AKEYCODE_B:
+    case AKEYCODE_C:
+    case AKEYCODE_D:
+    case AKEYCODE_E:
+    case AKEYCODE_F:
+    case AKEYCODE_G:
+    case AKEYCODE_H:
+    case AKEYCODE_I:
+    case AKEYCODE_J:
+    case AKEYCODE_K:
+    case AKEYCODE_L:
+    case AKEYCODE_M:
+    case AKEYCODE_N:
+    case AKEYCODE_O:
+    case AKEYCODE_P:
+    case AKEYCODE_Q:
+    case AKEYCODE_R:
+    case AKEYCODE_S:
+    case AKEYCODE_T:
+    case AKEYCODE_U:
+    case AKEYCODE_V:
+    case AKEYCODE_W:
+    case AKEYCODE_X:
+    case AKEYCODE_Y:
+    case AKEYCODE_Z:
+    case AKEYCODE_COMMA:
+    case AKEYCODE_PERIOD:
+    case AKEYCODE_SPACE:
+    case AKEYCODE_GRAVE:
+    case AKEYCODE_MINUS:
+    case AKEYCODE_EQUALS:
+    case AKEYCODE_LEFT_BRACKET:
+    case AKEYCODE_RIGHT_BRACKET:
+    case AKEYCODE_BACKSLASH:
+    case AKEYCODE_SEMICOLON:
+    case AKEYCODE_APOSTROPHE:
+    case AKEYCODE_SLASH:
+    case AKEYCODE_AT:
+    case AKEYCODE_PLUS:
+    case AKEYCODE_NUMPAD_0:
+    case AKEYCODE_NUMPAD_1:
+    case AKEYCODE_NUMPAD_2:
+    case AKEYCODE_NUMPAD_3:
+    case AKEYCODE_NUMPAD_4:
+    case AKEYCODE_NUMPAD_5:
+    case AKEYCODE_NUMPAD_6:
+    case AKEYCODE_NUMPAD_7:
+    case AKEYCODE_NUMPAD_8:
+    case AKEYCODE_NUMPAD_9:
+    case AKEYCODE_NUMPAD_DIVIDE:
+    case AKEYCODE_NUMPAD_MULTIPLY:
+    case AKEYCODE_NUMPAD_SUBTRACT:
+    case AKEYCODE_NUMPAD_ADD:
+    case AKEYCODE_NUMPAD_DOT:
+    case AKEYCODE_NUMPAD_COMMA:
+    case AKEYCODE_NUMPAD_EQUALS:
+    case AKEYCODE_NUMPAD_LEFT_PAREN:
+    case AKEYCODE_NUMPAD_RIGHT_PAREN:
+        return KEY_NAME_INDEX_USE_STRING;
+
+    default:
+        return KEY_NAME_INDEX_Unidentified;
+    }
+}
+
+static CodeNameIndex GetCodeNameIndex(int aScanCode)
+{
+    switch (aScanCode) {
+#define NS_NATIVE_KEY_TO_DOM_CODE_NAME_INDEX(aNativeKey, aCodeNameIndex) \
+    case aNativeKey: return aCodeNameIndex;
+
+#include "NativeKeyToDOMCodeName.h"
+
+#undef NS_NATIVE_KEY_TO_DOM_CODE_NAME_INDEX
+
+    default:
+        return CODE_NAME_INDEX_UNKNOWN;
+    }
+}
+
+} // namespace widget
+} // namespace mozilla
+
 #endif /* GONKKEYMAPPING_H */

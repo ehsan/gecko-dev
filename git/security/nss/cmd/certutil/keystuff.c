@@ -1,39 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdio.h>
 #include <string.h>
@@ -47,9 +14,7 @@
 
 #if defined(XP_WIN) || defined (XP_PC)
 #include <time.h>
-#ifndef WINCE
 #include <conio.h>
-#endif
 #endif
 
 #if defined(__sun) && !defined(SVR4)
@@ -129,7 +94,7 @@ UpdateRNG(void)
     /* Get random noise from keyboard strokes */
     count = 0;
     while (count < sizeof randbuf) {
-#if defined(XP_UNIX) || defined(WINCE)
+#if defined(XP_UNIX)
 	c = getc(stdin);
 #else
 	c = getch();
@@ -240,7 +205,7 @@ decode_pqg_params(const char *str)
 {
     char *buf;
     unsigned int len;
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     SECKEYPQGParams *params;
     SECStatus status;
  
@@ -391,7 +356,7 @@ CERTUTIL_FileForRNG(const char *noise)
     return SECSuccess;
 }
 
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
 typedef struct curveNameTagPairStr {
     char *curveName;
     SECOidTag curveOidTag;
@@ -519,16 +484,16 @@ getECParams(const char *curve)
 
     return ecparams;
 }
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 
 SECKEYPrivateKey *
 CERTUTIL_GeneratePrivateKey(KeyType keytype, PK11SlotInfo *slot, int size,
 			    int publicExponent, const char *noise, 
 			    SECKEYPublicKey **pubkeyp, const char *pqgFile,
-                            secuPWData *pwdata)
+			    PK11AttrFlags attrFlags, CK_FLAGS opFlagsOn,
+			    CK_FLAGS opFlagsOff, secuPWData *pwdata)
 {
     CK_MECHANISM_TYPE  mechanism;
-    SECOidTag          algtag;
     PK11RSAGenParams   rsaparams;
     SECKEYPQGParams  * dsaparams = NULL;
     void             * params;
@@ -563,12 +528,10 @@ CERTUTIL_GeneratePrivateKey(KeyType keytype, PK11SlotInfo *slot, int size,
 	rsaparams.keySizeInBits = size;
 	rsaparams.pe = publicExponent;
 	mechanism = CKM_RSA_PKCS_KEY_PAIR_GEN;
-	algtag = SEC_OID_PKCS1_MD5_WITH_RSA_ENCRYPTION;
 	params = &rsaparams;
 	break;
     case dsaKey:
 	mechanism = CKM_DSA_KEY_PAIR_GEN;
-	algtag = SEC_OID_ANSIX9_DSA_SIGNATURE_WITH_SHA1_DIGEST;
 	if (pqgFile) {
 	    dsaparams = getpqgfromfile(size, pqgFile);
 	    if (dsaparams == NULL)
@@ -579,14 +542,14 @@ CERTUTIL_GeneratePrivateKey(KeyType keytype, PK11SlotInfo *slot, int size,
 	    params = (void *)&default_pqg_params;
 	}
 	break;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     case ecKey:
 	mechanism = CKM_EC_KEY_PAIR_GEN;
 	/* For EC keys, PQGFile determines EC parameters */
 	if ((params = (void *) getECParams(pqgFile)) == NULL)
 	    return NULL;
 	break;
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
     default:
 	return NULL;
     }
@@ -594,14 +557,14 @@ CERTUTIL_GeneratePrivateKey(KeyType keytype, PK11SlotInfo *slot, int size,
     fprintf(stderr, "\n\n");
     fprintf(stderr, "Generating key.  This may take a few moments...\n\n");
 
-    privKey = PK11_GenerateKeyPair(slot, mechanism, params, pubkeyp,
-				PR_TRUE /*isPerm*/, PR_TRUE /*isSensitive*/, 
+    privKey = PK11_GenerateKeyPairWithOpFlags(slot, mechanism, params, pubkeyp,
+				attrFlags, opFlagsOn, opFlagsOn|opFlagsOff,
 				pwdata /*wincx*/);
     /* free up the params */
     switch (keytype) {
     case dsaKey: if (dsaparams) CERTUTIL_DestroyParamsPQG(dsaparams); 
 	                                                      break;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     case ecKey: SECITEM_FreeItem((SECItem *)params, PR_TRUE); break;
 #endif
     default: /* nothing to free */                            break;
