@@ -263,15 +263,11 @@ this.DOMApplicationRegistry = {
 
   updateOfflineCacheForApp: function updateOfflineCacheForApp(aId) {
     let app = this.webapps[aId];
-    this._readManifests([{ id: aId }], function(aResult) {
-      let manifest = new ManifestHelper(aResult[0].manifest, app.origin);
-      OfflineCacheInstaller.installCache({
-        cachePath: app.cachePath,
-        appId: aId,
-        origin: Services.io.newURI(app.origin, null, null),
-        localId: app.localId,
-        appcache_path: manifest.fullAppcachePath()
-      });
+    OfflineCacheInstaller.installCache({
+      basePath: app.basePath,
+      appId: aId,
+      origin: app.origin,
+      localId: app.localId
     });
   },
 
@@ -324,7 +320,6 @@ this.DOMApplicationRegistry = {
       });
 
     app.installState = "installed";
-    app.cachePath = app.basePath;
     app.basePath = FileUtils.getDir(DIRECTORY_NAME, ["webapps"], true, true)
                             .path;
 

@@ -15,7 +15,7 @@ Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
   "resource://gre/modules/commonjs/sdk/core/promise.js");
 
-this.NetMonitorPanel = function NetMonitorPanel(iframeWindow, toolbox) {
+function NetMonitorPanel(iframeWindow, toolbox) {
   this.panelWin = iframeWindow;
   this._toolbox = toolbox;
 
@@ -33,7 +33,7 @@ NetMonitorPanel.prototype = {
    * @return object
    *         A Promise that is resolved when the NetMonitor completes opening.
    */
-  open: function() {
+  open: function NetMonitorPanel_open() {
     let promise;
 
     // Local monitoring needs to make the target remote.

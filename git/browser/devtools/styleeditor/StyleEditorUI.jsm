@@ -31,7 +31,6 @@ const STYLE_EDITOR_TEMPLATE = "stylesheet";
  *
  * Emits events:
  *   'editor-added': A new editor was added to the UI
- *   'editor-selected': An editor was selected
  *   'error': An error occured
  *
  * @param {StyleEditorDebuggee} debuggee
@@ -341,8 +340,6 @@ StyleEditorUI.prototype = {
     });
 
     this._view.activeSummary = editor.summary;
-
-    this.emit("editor-selected", editor);
   },
 
   /**

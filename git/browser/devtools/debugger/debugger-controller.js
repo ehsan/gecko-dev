@@ -5,7 +5,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
 const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
 const NEW_SOURCE_IGNORED_URLS = ["debugger eval code", "self-hosted"];
@@ -39,7 +41,7 @@ let DebuggerController = {
   /**
    * Initializes the debugger controller.
    */
-  initialize: function() {
+  initialize: function DC_initialize() {
     dumpn("Initializing the DebuggerController");
 
     this.startupDebugger = this.startupDebugger.bind(this);
@@ -61,7 +63,7 @@ let DebuggerController = {
    * @return object
    *         A promise that is resolved when the debugger finishes startup.
    */
-  startupDebugger: function() {
+  startupDebugger: function DC_startupDebugger() {
     if (this._isInitialized) {
       return this._startup.promise;
     }
@@ -90,7 +92,7 @@ let DebuggerController = {
    * @return object
    *         A promise that is resolved when the debugger finishes shutdown.
    */
-  shutdownDebugger: function() {
+  shutdownDebugger: function DC__shutdownDebugger() {
     if (this._isDestroyed) {
       return this._shutdown.promise;
     }
@@ -126,7 +128,7 @@ let DebuggerController = {
    * @return object
    *         A promise that is resolved when the debugger finishes connecting.
    */
-  connect: function() {
+  connect: function DC_connect() {
     if (this._connection) {
       return this._connection.promise;
     }
@@ -169,7 +171,7 @@ let DebuggerController = {
   /**
    * Disconnects the debugger client and removes event handlers as necessary.
    */
-  disconnect: function() {
+  disconnect: function DC_disconnect() {
     // Return early if the client didn't even have a chance to instantiate.
     if (!this.client) {
       return;
@@ -196,7 +198,7 @@ let DebuggerController = {
    * @param object aPacket
    *        Packet received from the server.
    */
-  _onTabNavigated: function(aType, aPacket) {
+  _onTabNavigated: function DC__onTabNavigated(aType, aPacket) {
     if (aType == "will-navigate") {
       DebuggerView._handleTabNavigation();
 
@@ -215,7 +217,7 @@ let DebuggerController = {
   /**
    * Called when the debugged tab is closed.
    */
-  _onTabDetached: function() {
+  _onTabDetached: function DC__onTabDetached() {
     this.shutdownDebugger();
   },
 
@@ -229,7 +231,7 @@ let DebuggerController = {
    * @param function aCallback
    *        A function to invoke once the client attached to the active thread.
    */
-  _startDebuggingTab: function(aClient, aThreadActor, aCallback) {
+  _startDebuggingTab: function DC__startDebuggingTab(aClient, aThreadActor, aCallback) {
     if (!aClient) {
       Cu.reportError("No client found!");
       return;
@@ -257,7 +259,7 @@ let DebuggerController = {
   /**
    * Warn if resuming execution produced a wrongOrder error.
    */
-  _ensureResumptionOrder: function(aResponse) {
+  _ensureResumptionOrder: function DC__ensureResumptionOrder(aResponse) {
     if (aResponse.error == "wrongOrder") {
       DebuggerView.Toolbar.showResumeWarning(aResponse.lastPausedUrl);
     }
@@ -273,7 +275,7 @@ let DebuggerController = {
    * @param function aCallback
    *        A function to invoke once the client attached to the active thread.
    */
-  _startChromeDebugging: function(aClient, aChromeDebugger, aCallback) {
+  _startChromeDebugging: function DC__startChromeDebugging(aClient, aChromeDebugger, aCallback) {
     if (!aClient) {
       Cu.reportError("No client found!");
       return;
@@ -302,7 +304,7 @@ let DebuggerController = {
    * Detach and reattach to the thread actor with useSourceMaps true, blow
    * away old scripts and get sources again.
    */
-  reconfigureThread: function(aUseSourceMaps) {
+  reconfigureThread: function DC_reconfigureThread(aUseSourceMaps) {
     this.client.reconfigureThread(aUseSourceMaps, (aResponse) => {
       if (aResponse.error) {
         let msg = "Couldn't reconfigure thread: " + aResponse.message;
@@ -324,7 +326,7 @@ let DebuggerController = {
   /**
    * Attempts to quit the current process if allowed.
    */
-  _quitApp: function() {
+  _quitApp: function DC__quitApp() {
     let canceled = Cc["@mozilla.org/supports-PRBool;1"]
       .createInstance(Ci.nsISupportsPRBool);
 
@@ -360,7 +362,7 @@ ThreadState.prototype = {
   /**
    * Connect to the current thread client.
    */
-  connect: function() {
+  connect: function TS_connect() {
     dumpn("ThreadState is connecting...");
     this.activeThread.addListener("paused", this._update);
     this.activeThread.addListener("resumed", this._update);
@@ -371,7 +373,7 @@ ThreadState.prototype = {
   /**
    * Disconnect from the client.
    */
-  disconnect: function() {
+  disconnect: function TS_disconnect() {
     if (!this.activeThread) {
       return;
     }
@@ -383,7 +385,7 @@ ThreadState.prototype = {
   /**
    * Handles any initialization on a tab navigation event issued by the client.
    */
-  _handleTabNavigation: function() {
+  _handleTabNavigation: function TS__handleTabNavigation() {
     if (!this.activeThread) {
       return;
     }
@@ -394,7 +396,7 @@ ThreadState.prototype = {
   /**
    * Update the UI after a thread state change.
    */
-  _update: function(aEvent) {
+  _update: function TS__update(aEvent) {
     DebuggerView.Toolbar.toggleResumeButtonState(this.activeThread.state);
 
     if (DebuggerController._target && (aEvent == "paused" || aEvent == "resumed")) {
@@ -432,7 +434,7 @@ StackFrames.prototype = {
   /**
    * Connect to the current thread client.
    */
-  connect: function() {
+  connect: function SF_connect() {
     dumpn("StackFrames is connecting...");
     this.activeThread.addListener("paused", this._onPaused);
     this.activeThread.addListener("resumed", this._onResumed);
@@ -444,7 +446,7 @@ StackFrames.prototype = {
   /**
    * Disconnect from the client.
    */
-  disconnect: function() {
+  disconnect: function SF_disconnect() {
     if (!this.activeThread) {
       return;
     }
@@ -458,7 +460,7 @@ StackFrames.prototype = {
   /**
    * Handles any initialization on a tab navigation event issued by the client.
    */
-  _handleTabNavigation: function() {
+  _handleTabNavigation: function SF__handleTabNavigation() {
     dumpn("Handling tab navigation in the StackFrames");
     // Nothing to do here yet.
   },
@@ -471,7 +473,7 @@ StackFrames.prototype = {
    * @param object aPacket
    *        The response packet.
    */
-  _onPaused: function(aEvent, aPacket) {
+  _onPaused: function SF__onPaused(aEvent, aPacket) {
     switch (aPacket.why.type) {
       // If paused by a breakpoint, store the breakpoint location.
       case "breakpoint":
@@ -494,7 +496,7 @@ StackFrames.prototype = {
   /**
    * Handler for the thread client's resumed notification.
    */
-  _onResumed: function() {
+  _onResumed: function SF__onResumed() {
     DebuggerView.editor.setDebugLocation(-1);
 
     // Prepare the watch expression evaluation string for the next pause.
@@ -506,7 +508,7 @@ StackFrames.prototype = {
   /**
    * Handler for the thread client's framesadded notification.
    */
-  _onFrames: function() {
+  _onFrames: function SF__onFrames() {
     // Ignore useless notifications.
     if (!this.activeThread.cachedFrames.length) {
       return;
@@ -589,7 +591,7 @@ StackFrames.prototype = {
   /**
    * Handler for the thread client's framescleared notification.
    */
-  _onFramesCleared: function() {
+  _onFramesCleared: function SF__onFramesCleared() {
     this.currentFrame = null;
     this.currentWatchExpressions = null;
     this.currentBreakpointLocation = null;
@@ -605,7 +607,7 @@ StackFrames.prototype = {
   /**
    * Called soon after the thread client's framescleared notification.
    */
-  _afterFramesCleared: function() {
+  _afterFramesCleared: function SF__afterFramesCleared() {
     // Ignore useless notifications.
     if (this.activeThread.cachedFrames.length) {
       return;
@@ -624,7 +626,7 @@ StackFrames.prototype = {
    * @param number aDepth
    *        The depth of the frame in the stack.
    */
-  selectFrame: function(aDepth) {
+  selectFrame: function SF_selectFrame(aDepth) {
     let frame = this.activeThread.cachedFrames[this.currentFrame = aDepth];
     if (!frame) {
       return;
@@ -702,7 +704,7 @@ StackFrames.prototype = {
    * @param object aEnv
    *        The scope's environment.
    */
-  _addScopeExpander: function(aScope, aEnv) {
+  _addScopeExpander: function SF__addScopeExpander(aScope, aEnv) {
     aScope._sourceEnvironment = aEnv;
 
     // It's a good idea to be prepared in case of an expansion.
@@ -720,7 +722,7 @@ StackFrames.prototype = {
    * @param any aGrip
    *        The grip of the variable.
    */
-  _addVarExpander: function(aVar, aGrip) {
+  _addVarExpander: function SF__addVarExpander(aVar, aGrip) {
     // No need for expansion for primitive values.
     if (VariablesView.isPrimitive({ value: aGrip })) {
       return;
@@ -744,7 +746,7 @@ StackFrames.prototype = {
    * @param object aExp
    *        The grip of the evaluation results.
    */
-  _fetchWatchExpressions: function(aScope, aExp) {
+  _fetchWatchExpressions: function SF__fetchWatchExpressions(aScope, aExp) {
     // Fetch the expressions only once.
     if (aScope._fetched) {
       return;
@@ -752,7 +754,7 @@ StackFrames.prototype = {
     aScope._fetched = true;
 
     // Add nodes for every watch expression in scope.
-    this.activeThread.pauseGrip(aExp).getPrototypeAndProperties((aResponse) => {
+    this.activeThread.pauseGrip(aExp).getPrototypeAndProperties(function(aResponse) {
       let ownProperties = aResponse.ownProperties;
       let totalExpressions = DebuggerView.WatchExpressions.itemCount;
 
@@ -772,7 +774,7 @@ StackFrames.prototype = {
       // Signal that watch expressions have been fetched.
       window.dispatchEvent(document, "Debugger:FetchedWatchExpressions");
       DebuggerView.Variables.commitHierarchy();
-    });
+    }.bind(this));
   },
 
   /**
@@ -782,7 +784,7 @@ StackFrames.prototype = {
    * @param Scope aScope
    *        The scope where the variables will be placed into.
    */
-  _fetchScopeVariables: function(aScope) {
+  _fetchScopeVariables: function SF__fetchScopeVariables(aScope) {
     // Fetch the variables only once.
     if (aScope._fetched) {
       return;
@@ -794,7 +796,7 @@ StackFrames.prototype = {
       case "with":
       case "object":
         // Add nodes for every variable in scope.
-        this.activeThread.pauseGrip(env.object).getPrototypeAndProperties((aResponse) => {
+        this.activeThread.pauseGrip(env.object).getPrototypeAndProperties(function(aResponse) {
           let { ownProperties, safeGetterValues } = aResponse;
           this._mergeSafeGetterValues(ownProperties, safeGetterValues);
           this._insertScopeVariables(ownProperties, aScope);
@@ -802,7 +804,7 @@ StackFrames.prototype = {
           // Signal that variables have been fetched.
           window.dispatchEvent(document, "Debugger:FetchedVariables");
           DebuggerView.Variables.commitHierarchy();
-        });
+        }.bind(this));
         break;
       case "block":
       case "function":
@@ -828,7 +830,7 @@ StackFrames.prototype = {
    * @param object aFrame
    *        The frame to get some references from.
    */
-  _insertScopeFrameReferences: function(aScope, aFrame) {
+  _insertScopeFrameReferences: function SF__insertScopeFrameReferences(aScope, aFrame) {
     // Add any thrown exception.
     if (this.currentException) {
       let excRef = aScope.addVar("<exception>", { value: this.currentException });
@@ -849,7 +851,7 @@ StackFrames.prototype = {
    * @param Scope aScope
    *        The scope where the nodes will be placed into.
    */
-  _insertScopeArguments: function(aArguments, aScope) {
+  _insertScopeArguments: function SF__insertScopeArguments(aArguments, aScope) {
     if (!aArguments) {
       return;
     }
@@ -869,7 +871,7 @@ StackFrames.prototype = {
    * @param Scope aScope
    *        The scope where the nodes will be placed into.
    */
-  _insertScopeVariables: function(aVariables, aScope) {
+  _insertScopeVariables: function SF__insertScopeVariables(aVariables, aScope) {
     if (!aVariables) {
       return;
     }
@@ -894,7 +896,7 @@ StackFrames.prototype = {
    * @param Variable aVar
    *        The variable where the properties will be placed into.
    */
-  _fetchVarProperties: function(aVar) {
+  _fetchVarProperties: function SF__fetchVarProperties(aVar) {
     // Fetch the properties only once.
     if (aVar._fetched) {
       return;
@@ -902,7 +904,7 @@ StackFrames.prototype = {
     aVar._fetched = true;
     let grip = aVar._sourceGrip;
 
-    this.activeThread.pauseGrip(grip).getPrototypeAndProperties((aResponse) => {
+    this.activeThread.pauseGrip(grip).getPrototypeAndProperties(function(aResponse) {
       let { ownProperties, prototype, safeGetterValues } = aResponse;
       let sortable = VariablesView.NON_SORTABLE_CLASSES.indexOf(grip.class) == -1;
 
@@ -931,7 +933,7 @@ StackFrames.prototype = {
       // Signal that properties have been fetched.
       window.dispatchEvent(document, "Debugger:FetchedProperties");
       DebuggerView.Variables.commitHierarchy();
-    });
+    }.bind(this));
   },
 
   /**
@@ -945,15 +947,17 @@ StackFrames.prototype = {
    * @param object aSafeGetterValues
    *        The |safeGetterValues| object.
    */
-  _mergeSafeGetterValues: function(aOwnProperties, aSafeGetterValues) {
+  _mergeSafeGetterValues:
+  function SF__mergeSafeGetterValues(aOwnProperties, aSafeGetterValues) {
     // Merge the safe getter values into one object such that we can use it
     // in VariablesView.
     for (let name of Object.keys(aSafeGetterValues)) {
       if (name in aOwnProperties) {
         aOwnProperties[name].getterValue = aSafeGetterValues[name].getterValue;
-        aOwnProperties[name].getterPrototypeLevel =
-          aSafeGetterValues[name].getterPrototypeLevel;
-      } else {
+        aOwnProperties[name].getterPrototypeLevel = aSafeGetterValues[name]
+                                                    .getterPrototypeLevel;
+      }
+      else {
         aOwnProperties[name] = aSafeGetterValues[name];
       }
     }
@@ -965,7 +969,7 @@ StackFrames.prototype = {
    * @param object aFrame
    *        The new frame to add.
    */
-  _addFrame: function(aFrame) {
+  _addFrame: function SF__addFrame(aFrame) {
     let depth = aFrame.depth;
     let { url, line } = aFrame.where;
     let frameLocation = NetworkHelper.convertToUnicode(unescape(url));
@@ -977,7 +981,7 @@ StackFrames.prototype = {
   /**
    * Loads more stack frames from the debugger server cache.
    */
-  addMoreFrames: function() {
+  addMoreFrames: function SF_addMoreFrames() {
     this.activeThread.fillFrames(
       this.activeThread.cachedFrames.length + CALL_STACK_PAGE_SIZE);
   },
@@ -985,7 +989,7 @@ StackFrames.prototype = {
   /**
    * Updates a list of watch expressions to evaluate on each pause.
    */
-  syncWatchExpressions: function() {
+  syncWatchExpressions: function SF_syncWatchExpressions() {
     let list = DebuggerView.WatchExpressions.getExpressions();
 
     // Sanity check all watch expressions before syncing them. To avoid
@@ -1036,7 +1040,7 @@ StackFrames.prototype = {
    * @param number aFrame [optional]
    *        The frame depth used for evaluation.
    */
-  evaluate: function(aExpression, aFrame = this.currentFrame || 0) {
+  evaluate: function SF_evaluate(aExpression, aFrame = this.currentFrame || 0) {
     let frame = this.activeThread.cachedFrames[aFrame];
     this.activeThread.eval(frame.actor, aExpression);
   }
@@ -1064,7 +1068,7 @@ SourceScripts.prototype = {
   /**
    * Connect to the current thread client.
    */
-  connect: function() {
+  connect: function SS_connect() {
     dumpn("SourceScripts is connecting...");
     this.debuggerClient.addListener("newGlobal", this._onNewGlobal);
     this.debuggerClient.addListener("newSource", this._onNewSource);
@@ -1074,7 +1078,7 @@ SourceScripts.prototype = {
   /**
    * Disconnect from the client.
    */
-  disconnect: function() {
+  disconnect: function SS_disconnect() {
     if (!this.activeThread) {
       return;
     }
@@ -1087,7 +1091,7 @@ SourceScripts.prototype = {
   /**
    * Handles any initialization on a tab navigation event issued by the client.
    */
-  _handleTabNavigation: function() {
+  _handleTabNavigation: function SS__handleTabNavigation() {
     if (!this.activeThread) {
       return;
     }
@@ -1102,7 +1106,7 @@ SourceScripts.prototype = {
   /**
    * Handler for the debugger client's unsolicited newGlobal notification.
    */
-  _onNewGlobal: function(aNotification, aPacket) {
+  _onNewGlobal: function SS__onNewGlobal(aNotification, aPacket) {
     // TODO: bug 806775, update the globals list using aPacket.hostAnnotations
     // from bug 801084.
   },
@@ -1110,7 +1114,7 @@ SourceScripts.prototype = {
   /**
    * Handler for the debugger client's unsolicited newSource notification.
    */
-  _onNewSource: function(aNotification, aPacket) {
+  _onNewSource: function SS__onNewSource(aNotification, aPacket) {
     // Ignore bogus scripts, e.g. generated from 'clientEvaluate' packets.
     if (NEW_SOURCE_IGNORED_URLS.indexOf(aPacket.source.url) != -1) {
       return;
@@ -1150,7 +1154,7 @@ SourceScripts.prototype = {
   /**
    * Callback for the debugger's active thread getSources() method.
    */
-  _onSourcesAdded: function(aResponse) {
+  _onSourcesAdded: function SS__onSourcesAdded(aResponse) {
     if (aResponse.error) {
       Cu.reportError(new Error("Error getting sources: " + aResponse.message));
       return;
@@ -1199,7 +1203,7 @@ SourceScripts.prototype = {
    * @param function aTimeout
    *        Function called when the source text takes too long to fetch.
    */
-  getText: function(aSource, aCallback, aTimeout) {
+  getText: function SS_getText(aSource, aCallback, aTimeout) {
     // If already loaded, return the source text immediately.
     if (aSource.loaded) {
       aCallback(aSource);
@@ -1236,7 +1240,7 @@ SourceScripts.prototype = {
    * @return array
    *         An array containing [url, text] entries for the fetched sources.
    */
-  getCache: function() {
+  getCache: function SS_getCache() {
     let sources = [];
     for (let source of this._cache) {
       sources.push(source);
@@ -1247,7 +1251,7 @@ SourceScripts.prototype = {
   /**
    * Clears all the fetched sources from cache.
    */
-  clearCache: function() {
+  clearCache: function SS_clearCache() {
     this._cache.clear();
   },
 
@@ -1262,7 +1266,7 @@ SourceScripts.prototype = {
    *          - onTimeout: optional, called when a source takes too long to fetch
    *          - onFinished: called when all the sources are fetched
    */
-  fetchSources: function(aUrls, aCallbacks = {}) {
+  fetchSources: function SS_fetchSources(aUrls, aCallbacks = {}) {
     this._fetchQueue = new Set();
     this._fetchCallbacks = aCallbacks;
 
@@ -1293,7 +1297,7 @@ SourceScripts.prototype = {
    * @param object aSource
    *        The source object coming from the active thread.
    */
-  _onFetch: function(aSource) {
+  _onFetch: function SS__onFetch(aSource) {
     // Remember the source in a cache so we don't have to fetch it again.
     this._cache.set(aSource.url, aSource.text);
 
@@ -1323,7 +1327,7 @@ SourceScripts.prototype = {
    * @param object aSource
    *        The source object coming from the active thread.
    */
-  _onTimeout: function(aSource) {
+  _onTimeout: function SS__onTimeout(aSource) {
     // Remove the source from the fetch queue.
     this._fetchQueue.delete(aSource.url);
 
@@ -1341,7 +1345,7 @@ SourceScripts.prototype = {
   /**
    * Called when all the sources have been fetched.
    */
-  _onFinished: function() {
+  _onFinished: function SS__onFinished() {
     // Invoke the finish callback if provided via fetchSources();
     if (this._fetchCallbacks.onFinished) {
       this._fetchCallbacks.onFinished();
@@ -1394,7 +1398,7 @@ Breakpoints.prototype = {
   /**
    * Adds the source editor breakpoint handlers.
    */
-  initialize: function() {
+  initialize: function BP_initialize() {
     this.editor.addEventListener(
       SourceEditor.EVENTS.BREAKPOINT_CHANGE, this._onEditorBreakpointChange);
   },
@@ -1402,7 +1406,7 @@ Breakpoints.prototype = {
   /**
    * Removes the source editor breakpoint handlers & all the added breakpoints.
    */
-  destroy: function() {
+  destroy: function BP_destroy() {
     this.editor.removeEventListener(
       SourceEditor.EVENTS.BREAKPOINT_CHANGE, this._onEditorBreakpointChange);
 
@@ -1418,7 +1422,7 @@ Breakpoints.prototype = {
    * @param object aEvent
    *        The SourceEditor.EVENTS.BREAKPOINT_CHANGE event object.
    */
-  _onEditorBreakpointChange: function(aEvent) {
+  _onEditorBreakpointChange: function BP__onEditorBreakpointChange(aEvent) {
     if (this._skipEditorBreakpointCallbacks) {
       return;
     }
@@ -1434,11 +1438,11 @@ Breakpoints.prototype = {
    * @param object aEditorBreakpoint
    *        The breakpoint object coming from the editor.
    */
-  _onEditorBreakpointAdd: function(aEditorBreakpoint) {
+  _onEditorBreakpointAdd: function BP__onEditorBreakpointAdd(aEditorBreakpoint) {
     let url = DebuggerView.Sources.selectedValue;
     let line = aEditorBreakpoint.line + 1;
 
-    this.addBreakpoint({ url: url, line: line }, (aBreakpointClient) => {
+    this.addBreakpoint({ url: url, line: line }, function(aBreakpointClient) {
       // If the breakpoint client has an "actualLocation" attached, then
       // the original requested placement for the breakpoint wasn't accepted.
       // In this case, we need to update the editor with the new location.
@@ -1446,7 +1450,7 @@ Breakpoints.prototype = {
         this.editor.removeBreakpoint(line - 1);
         this.editor.addBreakpoint(aBreakpointClient.actualLocation.line - 1);
       }
-    });
+    }.bind(this));
   },
 
   /**
@@ -1455,7 +1459,7 @@ Breakpoints.prototype = {
    * @param object aEditorBreakpoint
    *        The breakpoint object that was removed from the editor.
    */
-  _onEditorBreakpointRemove: function(aEditorBreakpoint) {
+  _onEditorBreakpointRemove: function BP__onEditorBreakpointRemove(aEditorBreakpoint) {
     let url = DebuggerView.Sources.selectedValue;
     let line = aEditorBreakpoint.line + 1;
 
@@ -1467,7 +1471,7 @@ Breakpoints.prototype = {
    * breakpoints in the debugger and adds them back into the editor view.
    * This is invoked when the selected script is changed.
    */
-  updateEditorBreakpoints: function() {
+  updateEditorBreakpoints: function BP_updateEditorBreakpoints() {
     for each (let breakpointClient in this.store) {
       if (DebuggerView.Sources.selectedValue == breakpointClient.location.url) {
         this._showBreakpoint(breakpointClient, {
@@ -1483,7 +1487,7 @@ Breakpoints.prototype = {
    * breakpoints in the debugger and adds them back into the breakpoints pane.
    * This is invoked when scripts are added.
    */
-  updatePaneBreakpoints: function() {
+  updatePaneBreakpoints: function BP_updatePaneBreakpoints() {
     for each (let breakpointClient in this.store) {
       if (DebuggerView.Sources.containsValue(breakpointClient.location.url)) {
         this._showBreakpoint(breakpointClient, {
@@ -1515,7 +1519,8 @@ Breakpoints.prototype = {
    *          - noPaneUpdate: tells if you want to skip breakpoint pane updates
    *          - noPaneHighlight: tells if you don't want to highlight the breakpoint
    */
-  addBreakpoint: function(aLocation, aCallback, aFlags = {}) {
+  addBreakpoint:
+  function BP_addBreakpoint(aLocation, aCallback, aFlags = {}) {
     let breakpointClient = this.getBreakpoint(aLocation.url, aLocation.line);
 
     // If the breakpoint was already added, callback immediately.
@@ -1524,7 +1529,7 @@ Breakpoints.prototype = {
       return;
     }
 
-    this.activeThread.setBreakpoint(aLocation, (aResponse, aBreakpointClient) => {
+    this.activeThread.setBreakpoint(aLocation, function(aResponse, aBreakpointClient) {
       let { url, line } = aResponse.actualLocation || aLocation;
 
       // If the response contains a breakpoint that exists in the cache, prevent
@@ -1564,7 +1569,7 @@ Breakpoints.prototype = {
 
       // We're done here.
       aCallback && aCallback(aBreakpointClient, aResponse.error);
-    });
+    }.bind(this));
   },
 
   /**
@@ -1579,7 +1584,8 @@ Breakpoints.prototype = {
    * @param object aFlags [optional]
    *        @see DebuggerController.Breakpoints.addBreakpoint
    */
-  removeBreakpoint: function(aBreakpointClient, aCallback, aFlags = {}) {
+  removeBreakpoint:
+  function BP_removeBreakpoint(aBreakpointClient, aCallback, aFlags = {}) {
     let breakpointActor = (aBreakpointClient || {}).actor;
 
     // If the breakpoint was already removed, callback immediately.
@@ -1588,7 +1594,7 @@ Breakpoints.prototype = {
       return;
     }
 
-    aBreakpointClient.remove(() => {
+    aBreakpointClient.remove(function() {
       // Delete the breakpoint client from the store.
       delete this.store[breakpointActor];
 
@@ -1597,7 +1603,7 @@ Breakpoints.prototype = {
 
       // We're done here.
       aCallback && aCallback(aBreakpointClient.location);
-    });
+    }.bind(this));
   },
 
   /**
@@ -1608,7 +1614,7 @@ Breakpoints.prototype = {
    * @param object aFlags [optional]
    *        @see DebuggerController.Breakpoints.addBreakpoint
    */
-  _showBreakpoint: function(aBreakpointClient, aFlags = {}) {
+  _showBreakpoint: function BP__showBreakpoint(aBreakpointClient, aFlags = {}) {
     let currentSourceUrl = DebuggerView.Sources.selectedValue;
     let { url, line } = aBreakpointClient.location;
 
@@ -1644,7 +1650,7 @@ Breakpoints.prototype = {
    * @param object aFlags [optional]
    *        @see DebuggerController.Breakpoints.addBreakpoint
    */
-  _hideBreakpoint: function(aBreakpointClient, aFlags = {}) {
+  _hideBreakpoint: function BP__hideBreakpoint(aBreakpointClient, aFlags = {}) {
     let currentSourceUrl = DebuggerView.Sources.selectedValue;
     let { url, line } = aBreakpointClient.location;
 
@@ -1672,7 +1678,7 @@ Breakpoints.prototype = {
    * @return object
    *         The BreakpointActor object.
    */
-  getBreakpoint: function(aUrl, aLine) {
+  getBreakpoint: function BP_getBreakpoint(aUrl, aLine) {
     for each (let breakpointClient in this.store) {
       if (breakpointClient.location.url == aUrl &&
           breakpointClient.location.line == aLine) {

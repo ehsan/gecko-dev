@@ -39,7 +39,7 @@ DebuggerUI.prototype = {
    * Update the status of tool's menuitems and buttons when
    * the user switches tabs.
    */
-  listenToTabs: function() {
+  listenToTabs: function DUI_listenToTabs() {
     let win = this.chromeWindow;
     let tabs = win.gBrowser.tabContainer;
 
@@ -56,7 +56,7 @@ DebuggerUI.prototype = {
    * Called by the DebuggerPane to update the Debugger toggle switches with the
    * debugger state.
    */
-  refreshCommand: function() {
+  refreshCommand: function DUI_refreshCommand() {
     let scriptDebugger = this.getDebugger();
     let command = this.chromeWindow.document.getElementById("Tools:Debugger");
     let selectedTab = this.chromeWindow.gBrowser.selectedTab;
@@ -74,7 +74,7 @@ DebuggerUI.prototype = {
    * @return DebuggerPane | null
    *         The script debugger instance if it's started, null if stopped.
    */
-  toggleDebugger: function() {
+  toggleDebugger: function DUI_toggleDebugger() {
     let scriptDebugger = this.findDebugger();
     let selectedTab = this.chromeWindow.gBrowser.selectedTab;
 
@@ -91,7 +91,7 @@ DebuggerUI.prototype = {
    * @return RemoteDebuggerWindow | null
    *         The remote debugger instance if it's started, null if stopped.
    */
-  toggleRemoteDebugger: function() {
+  toggleRemoteDebugger: function DUI_toggleRemoteDebugger() {
     let remoteDebugger = this.getRemoteDebugger();
 
     if (remoteDebugger) {
@@ -107,7 +107,7 @@ DebuggerUI.prototype = {
    * @return ChromeDebuggerProcess | null
    *         The chrome debugger instance if it's started, null if stopped.
    */
-  toggleChromeDebugger: function(aOnClose, aOnRun) {
+  toggleChromeDebugger: function DUI_toggleChromeDebugger(aOnClose, aOnRun) {
     let chromeDebugger = this.getChromeDebugger();
 
     if (chromeDebugger) {
@@ -123,7 +123,7 @@ DebuggerUI.prototype = {
    * @return DebuggerPane | null
    *         The script debugger instance if it exists, null otherwise.
    */
-  findDebugger: function() {
+  findDebugger: function DUI_findDebugger() {
     let enumerator = Services.wm.getEnumerator("navigator:browser");
     while (enumerator.hasMoreElements()) {
       let chromeWindow = enumerator.getNext().QueryInterface(Ci.nsIDOMWindow);
@@ -141,7 +141,7 @@ DebuggerUI.prototype = {
    * @return DebuggerPane | null
    *         The script debugger instance if it exists, null otherwise.
    */
-  getDebugger: function() {
+  getDebugger: function DUI_getDebugger() {
     return '_scriptDebugger' in this ? this._scriptDebugger : null;
   },
 
@@ -151,7 +151,7 @@ DebuggerUI.prototype = {
    * @return RemoteDebuggerWindow | null
    *         The remote debugger instance if it exists, null otherwise.
    */
-  getRemoteDebugger: function() {
+  getRemoteDebugger: function DUI_getRemoteDebugger() {
     return '_remoteDebugger' in this ? this._remoteDebugger : null;
   },
 
@@ -161,7 +161,7 @@ DebuggerUI.prototype = {
    * @return ChromeDebuggerProcess | null
    *         The chrome debugger instance if it exists, null otherwise.
    */
-  getChromeDebugger: function() {
+  getChromeDebugger: function DUI_getChromeDebugger() {
     return '_chromeDebugger' in this ? this._chromeDebugger : null;
   }
 };
@@ -174,7 +174,7 @@ DebuggerUI.prototype = {
  * @param XULElement aTab
  *        The tab in which to create the debugger.
  */
-this.DebuggerPane = function DebuggerPane(aDebuggerUI, aTab) {
+function DebuggerPane(aDebuggerUI, aTab) {
   this.globalUI = aDebuggerUI;
   this._win = aDebuggerUI.chromeWindow;
   this._tab = aTab;
@@ -188,7 +188,7 @@ DebuggerPane.prototype = {
   /**
    * Initializes the debugger server.
    */
-  _initServer: function() {
+  _initServer: function DP__initServer() {
     if (!DebuggerServer.initialized) {
       DebuggerServer.init();
       DebuggerServer.addBrowserActors();
@@ -198,7 +198,7 @@ DebuggerPane.prototype = {
   /**
    * Creates and initializes the widgets containing the debugger UI.
    */
-  _create: function() {
+  _create: function DP__create() {
     this.globalUI._scriptDebugger = this;
 
     let gBrowser = this._win.gBrowser;
@@ -238,7 +238,7 @@ DebuggerPane.prototype = {
    *        Clients can pass a close callback to be notified when
    *        the panel successfully closes.
    */
-  close: function(aCloseCallback) {
+  close: function DP_close(aCloseCallback) {
     if (!this.globalUI) {
       return;
     }
@@ -305,7 +305,7 @@ DebuggerPane.prototype = {
  * @param DebuggerUI aDebuggerUI
  *        The parent instance creating the new debugger.
  */
-this.RemoteDebuggerWindow = function RemoteDebuggerWindow(aDebuggerUI) {
+function RemoteDebuggerWindow(aDebuggerUI) {
   this.globalUI = aDebuggerUI;
   this._win = aDebuggerUI.chromeWindow;
 
@@ -317,7 +317,7 @@ RemoteDebuggerWindow.prototype = {
   /**
    * Creates and initializes the widgets containing the remote debugger UI.
    */
-  _create: function() {
+  _create: function DP__create() {
     this.globalUI._remoteDebugger = this;
 
     this._dbgwin = this.globalUI.chromeWindow.open(DBG_XUL,
@@ -343,7 +343,7 @@ RemoteDebuggerWindow.prototype = {
   /**
    * Closes the remote debugger, along with the parent window if necessary.
    */
-  close: function() {
+  close: function DP_close() {
     if (!this.globalUI) {
       return;
     }
@@ -390,7 +390,7 @@ RemoteDebuggerWindow.prototype = {
  * @param function aOnRun
  *        Optional, a function called when the process starts running.
  */
-this.ChromeDebuggerProcess = function ChromeDebuggerProcess(aDebuggerUI, aOnClose, aOnRun) {
+function ChromeDebuggerProcess(aDebuggerUI, aOnClose, aOnRun) {
   this.globalUI = aDebuggerUI;
   this._win = aDebuggerUI.chromeWindow;
   this._closeCallback = aOnClose;
@@ -405,7 +405,7 @@ ChromeDebuggerProcess.prototype = {
   /**
    * Initializes the debugger server.
    */
-  _initServer: function() {
+  _initServer: function RDP__initServer() {
     if (!DebuggerServer.initialized) {
       DebuggerServer.init();
       DebuggerServer.addBrowserActors();
@@ -416,7 +416,7 @@ ChromeDebuggerProcess.prototype = {
   /**
    * Initializes a profile for the remote debugger process.
    */
-  _initProfile: function() {
+  _initProfile: function RDP__initProfile() {
     let profileService = Cc["@mozilla.org/toolkit/profile-service;1"]
       .createInstance(Ci.nsIToolkitProfileService);
 
@@ -460,7 +460,7 @@ ChromeDebuggerProcess.prototype = {
   /**
    * Creates and initializes the profile & process for the remote debugger.
    */
-  _create: function() {
+  _create: function RDP__create() {
     this.globalUI._chromeDebugger = this;
 
     let file = Services.dirsvc.get("XREExeF", Ci.nsIFile);
@@ -485,7 +485,7 @@ ChromeDebuggerProcess.prototype = {
   /**
    * Closes the remote debugger, removing the profile and killing the process.
    */
-  close: function() {
+  close: function RDP_close() {
     dumpn("Closing chrome debugging process");
     if (!this.globalUI) {
       dumpn("globalUI is missing");
@@ -520,7 +520,7 @@ let L10N = {
    * @param string aName
    * @return string
    */
-  getStr: function(aName) {
+  getStr: function L10N_getStr(aName) {
     return this.stringBundle.GetStringFromName(aName);
   }
 };

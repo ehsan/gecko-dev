@@ -71,7 +71,7 @@ BreadcrumbsWidget.prototype = {
    * @return nsIDOMNode
    *         The element associated with the displayed item.
    */
-  insertItemAt: function(aIndex, aContents) {
+  insertItemAt: function BCW_insertItemAt(aIndex, aContents) {
     let list = this._list;
     let breadcrumb = new Breadcrumb(this, aContents);
     return list.insertBefore(breadcrumb._target, list.childNodes[aIndex]);
@@ -85,7 +85,7 @@ BreadcrumbsWidget.prototype = {
    * @return nsIDOMNode
    *         The element associated with the displayed item.
    */
-  getItemAtIndex: function(aIndex) {
+  getItemAtIndex: function BCW_getItemAtIndex(aIndex) {
     return this._list.childNodes[aIndex];
   },
 
@@ -95,7 +95,7 @@ BreadcrumbsWidget.prototype = {
    * @param nsIDOMNode aChild
    *        The element associated with the displayed item.
    */
-  removeChild: function(aChild) {
+  removeChild: function BCW_removeChild(aChild) {
     this._list.removeChild(aChild);
 
     if (this._selectedItem == aChild) {
@@ -106,7 +106,7 @@ BreadcrumbsWidget.prototype = {
   /**
    * Removes all of the child nodes from this container.
    */
-  removeAllItems: function() {
+  removeAllItems: function BCW_removeAllItems() {
     let list = this._list;
 
     while (list.hasChildNodes()) {
@@ -154,7 +154,7 @@ BreadcrumbsWidget.prototype = {
   /**
    * The underflow and overflow listener for the arrowscrollbox container.
    */
-  _onUnderflow: function({ target }) {
+  _onUnderflow: function BCW__onUnderflow({target}) {
     if (target != this._list) {
       return;
     }
@@ -166,7 +166,7 @@ BreadcrumbsWidget.prototype = {
   /**
    * The underflow and overflow listener for the arrowscrollbox container.
    */
-  _onOverflow: function({ target }) {
+  _onOverflow: function BCW__onOverflow({target}) {
     if (target != this._list) {
       return;
     }
