@@ -149,17 +149,6 @@ xpc_ActivateDebugMode();
 // readable string conversions, static methods and members only
 class XPCStringConvert
 {
-    // One-slot cache, because it turns out it's common for web pages to
-    // get the same string a few times in a row.  We get about a 40% cache
-    // hit rate on this cache last it was measured.  We'd get about 70%
-    // hit rate with a hashtable with removal on finalization, but that
-    // would take a lot more machinery.
-    struct ZoneStringCache
-    {
-        nsStringBuffer* mBuffer;
-        JSString* mString;
-    };
-
 public:
 
     // If the string shares the readable's buffer, that buffer will
@@ -173,12 +162,10 @@ public:
     StringBufferToJSVal(JSContext* cx, nsStringBuffer* buf, uint32_t length,
                         JS::MutableHandleValue rval, bool* sharedBuffer)
     {
-        JS::Zone *zone = js::GetContextZone(cx);
-        ZoneStringCache *cache = static_cast<ZoneStringCache*>(JS_GetZoneUserData(zone));
-        if (cache && buf == cache->mBuffer) {
-            MOZ_ASSERT(JS::GetGCThingZone(cache->mString) == zone);
-            JS::MarkStringAsLive(zone, cache->mString);
-            rval.setString(cache->mString);
+        if (buf == sCachedBuffer &&
+            JS::GetGCThingZone(sCachedString) == js::GetContextZone(cx))
+        {
+            rval.set(JS::StringValue(sCachedString));
             *sharedBuffer = false;
             return true;
         }
@@ -190,20 +177,17 @@ public:
             return false;
         }
         rval.setString(str);
-        if (!cache) {
-            cache = new ZoneStringCache();
-            JS_SetZoneUserData(zone, cache);
-        }
-        cache->mBuffer = buf;
-        cache->mString = str;
+        sCachedString = str;
+        sCachedBuffer = buf;
         *sharedBuffer = true;
         return true;
     }
 
-    static void FreeZoneCache(JS::Zone *zone);
-    static void ClearZoneCache(JS::Zone *zone);
+    static void ClearCache();
 
 private:
+    static nsStringBuffer* sCachedBuffer;
+    static JSString* sCachedString;
     static const JSStringFinalizer sDOMStringFinalizer;
 
     static void FinalizeDOMString(const JSStringFinalizer *fin, jschar *chars);

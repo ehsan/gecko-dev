@@ -184,8 +184,7 @@ public:
   virtual bool DoSendAsyncMessage(JSContext* aCx,
                                   const nsAString& aMessage,
                                   const mozilla::dom::StructuredCloneData& aData,
-                                  JS::Handle<JSObject *> aCpows,
-                                  nsIPrincipal* aPrincipal) MOZ_OVERRIDE;
+                                  JS::Handle<JSObject *> aCpows);
   virtual bool CheckPermission(const nsAString& aPermission) MOZ_OVERRIDE;
   virtual bool CheckManifestURL(const nsAString& aManifestURL) MOZ_OVERRIDE;
   virtual bool CheckAppHasPermission(const nsAString& aPermission) MOZ_OVERRIDE;

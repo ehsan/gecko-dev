@@ -211,8 +211,7 @@ HTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
 
   int32_t index = Index();
   uint32_t mask = HTMLSelectElement::SET_DISABLED;
-  bool defaultSelected = aValue;
-  if (defaultSelected) {
+  if (aValue) {
     mask |= HTMLSelectElement::IS_SELECTED;
   }
 
@@ -228,10 +227,8 @@ HTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
   // Now reset our members; when we finish the attr set we'll end up with the
   // rigt selected state.
   mIsInSetDefaultSelected = inSetDefaultSelected;
-  // mIsSelected has already been set by SetOptionsSelectedByIndex.
-  // Possibly more than once; make sure our mSelectedChanged state is
-  // set correctly.
-  mSelectedChanged = mIsSelected != defaultSelected;
+  mSelectedChanged = false;
+  // mIsSelected doesn't matter while mSelectedChanged is false
 
   return NS_OK;
 }

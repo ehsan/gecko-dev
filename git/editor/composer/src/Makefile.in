@@ -30,3 +30,6 @@ _FILES = \
 
 libs::
 	$(INSTALL) $(_FILES) $(DIST)/bin/res
+
+install::
+	$(SYSINSTALL) $(IFLAGS1) $(_FILES) $(DESTDIR)$(mozappdir)/res

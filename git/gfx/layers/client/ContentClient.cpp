@@ -894,14 +894,12 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
   // although they never cover it. This leads to two draw rects, the narow strip and the actually
   // newly exposed area. It would be wise to fix this glitch in any way to have simpler
   // clip and draw regions.
-  result.mClip = CLIP_DRAW;
+  gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
 
   if (mContentType == GFX_CONTENT_COLOR_ALPHA) {
-    result.mContext->Save();
-    gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
     result.mContext->SetOperator(gfxContext::OPERATOR_CLEAR);
     result.mContext->Paint();
-    result.mContext->Restore();
+    result.mContext->SetOperator(gfxContext::OPERATOR_OVER);
   }
 
   return result;

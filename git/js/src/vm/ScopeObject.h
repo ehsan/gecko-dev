@@ -54,26 +54,13 @@ namespace frontend { struct Definition; }
  *
  * (See also AssertDynamicScopeMatchesStaticScope.)
  */
-template <AllowGC allowGC>
 class StaticScopeIter
 {
-    typename MaybeRooted<JSObject*, allowGC>::RootType obj;
+    RootedObject obj;
     bool onNamedLambda;
 
   public:
-    StaticScopeIter(ExclusiveContext *cx, JSObject *obj)
-      : obj(cx, obj), onNamedLambda(false)
-    {
-        JS_STATIC_ASSERT(allowGC == CanGC);
-        JS_ASSERT_IF(obj, obj->is<StaticBlockObject>() || obj->is<JSFunction>());
-    }
-
-    StaticScopeIter(JSObject *obj)
-      : obj((ExclusiveContext *) nullptr, obj), onNamedLambda(false)
-    {
-        JS_STATIC_ASSERT(allowGC == NoGC);
-        JS_ASSERT_IF(obj, obj->is<StaticBlockObject>() || obj->is<JSFunction>());
-    }
+    explicit StaticScopeIter(ExclusiveContext *cx, JSObject *obj);
 
     bool done() const;
     void operator++(int);
@@ -119,15 +106,15 @@ struct ScopeCoordinate
  * accessed by the ALIASEDVAR op at 'pc'.
  */
 extern Shape *
-ScopeCoordinateToStaticScopeShape(JSScript *script, jsbytecode *pc);
+ScopeCoordinateToStaticScopeShape(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 /* Return the name being accessed by the given ALIASEDVAR op. */
 extern PropertyName *
-ScopeCoordinateName(JSScript *script, jsbytecode *pc);
+ScopeCoordinateName(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 /* Return the function script accessed by the given ALIASEDVAR op, or nullptr. */
 extern JSScript *
-ScopeCoordinateFunctionScript(JSScript *script, jsbytecode *pc);
+ScopeCoordinateFunctionScript(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 /*****************************************************************************/
 
