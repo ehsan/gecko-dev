@@ -467,8 +467,6 @@ protected:
   void ClearFrameOffsetCache();
 
   virtual PRBool HasAnyNoncollapsedCharacters();
-
-  void ClearMetrics(nsHTMLReflowMetrics& aMetrics);
 };
 
 #endif

@@ -46,11 +46,9 @@
 #include "nsTArray.h"
 #include "nsPluginError.h"
 
-class gfxASurface;
-class gfxContext;
-class nsCString;
-struct nsIntRect;
 class nsNPAPIPlugin;
+class gfxASurface;
+class nsCString;
 
 namespace mozilla {
 namespace layers {
@@ -104,16 +102,6 @@ public:
 #if defined(XP_MACOSX)
   virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing) = 0;
 #endif
-  /**
-   * The next three methods are the third leg in the trip to
-   * PluginInstanceParent.  They approximately follow the ReadbackSink
-   * API.
-   */
-  virtual nsresult SetBackgroundUnknown(NPP instance) = 0;
-  virtual nsresult BeginUpdateBackground(NPP instance,
-                                         const nsIntRect&, gfxContext**) = 0;
-  virtual nsresult EndUpdateBackground(NPP instance,
-                                       gfxContext*, const nsIntRect&) = 0;
 };
 
 

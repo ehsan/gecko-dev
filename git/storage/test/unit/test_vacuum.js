@@ -218,7 +218,6 @@ function test_skipped_optout_vacuum()
   synthesize_idle_daily();
 },
 
-/* Changing page size on WAL is not supported till Bug 634374 is properly fixed.
 function test_page_size_change_with_wal()
 {
   print("\n*** Test that a VACUUM changes page_size with WAL mode");
@@ -283,7 +282,6 @@ function test_page_size_change_with_wal()
 
   synthesize_idle_daily();
 },
-*/
 
 function test_memory_database_crash()
 {
@@ -311,7 +309,7 @@ function test_memory_database_crash()
   synthesize_idle_daily();
 },
 
-/* Changing page size on WAL is not supported till Bug 634374 is properly fixed.
+/* Test temporarily disabled due to bug 599098.
 function test_wal_restore_fail()
 {
   print("\n*** Test that a failing WAL restoration notifies failure");
