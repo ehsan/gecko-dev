@@ -138,11 +138,6 @@ BrowserIDService.prototype = {
   _getEmails: function _getEmails(cb, options, sandbox) {
     let self = this;
 
-    if (!sandbox) {
-      cb(new Error("Sandbox not created"), null);
-      return;
-    }
-
     function callback(res) {
       let emails = {};
       try {
@@ -387,18 +382,8 @@ BrowserIDService.prototype = {
  */
 function Sandbox(cb, uri) {
   this._uri = uri;
-
-  // Put in a try/catch block because Services.wm.getMostRecentWindow, called in
-  // _createFrame will be null in XPCShell.
-  try {
-    this._createFrame();
-    this._createSandbox(cb, uri);
-  } catch(e) {
-    this._log = Log4Moz.repository.getLogger("Service.AITC.BrowserID.Sandbox");
-    this._log.level = Log4Moz.Level[PREFS.get("log")];
-    this._log.error("Could not create Sandbox " + e);
-    cb(null);
-  }
+  this._createFrame();
+  this._createSandbox(cb, uri);
 }
 Sandbox.prototype = {
   /**

@@ -238,7 +238,6 @@ nsSVGGradientFrame::GetRadialGradientWithLength(PRUint32 aIndex,
 
 already_AddRefed<gfxPattern>
 nsSVGGradientFrame::GetPaintServerPattern(nsIFrame *aSource,
-                                          const gfxMatrix& aContextMatrix,
                                           nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                                           float aGraphicOpacity,
                                           const gfxRect *aOverrideBounds)

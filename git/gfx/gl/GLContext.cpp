@@ -1274,12 +1274,12 @@ PRUint32 TiledTextureImage::GetTileCount()
 }
 
 GLContext::GLFormats
-GLContext::ChooseGLFormats(ContextFormat& aCF, ColorByteOrder aByteOrder)
+GLContext::ChooseGLFormats(ContextFormat& aCF)
 {
     GLFormats formats;
 
     if (aCF.alpha) {
-        if (mIsGLES2 && IsExtensionSupported(EXT_texture_format_BGRA8888) && aByteOrder != ForceRGBA) {
+        if (mIsGLES2 && IsExtensionSupported(EXT_texture_format_BGRA8888)) {
             formats.texColor = LOCAL_GL_BGRA;
         } else {
             formats.texColor = LOCAL_GL_RGBA;

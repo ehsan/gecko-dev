@@ -6,15 +6,12 @@
 #ifndef nsTransactionItem_h__
 #define nsTransactionItem_h__
 
+#include "nsITransaction.h"
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsISupportsImpl.h"
-#include "nscore.h"
-#include "prtypes.h"
 
-class nsITransaction;
-class nsTransactionManager;
 class nsTransactionStack;
+class nsTransactionManager;
 
 class nsTransactionItem
 {

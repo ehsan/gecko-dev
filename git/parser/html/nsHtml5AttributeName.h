@@ -86,7 +86,7 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* createAttributeName(nsIAtom* name);
   public:
     virtual void release();
-    virtual ~nsHtml5AttributeName();
+    ~nsHtml5AttributeName();
     virtual nsHtml5AttributeName* cloneAttributeName(nsHtml5AtomTable* interner);
     PRInt32 getUri(PRInt32 mode);
     nsIAtom* getLocal(PRInt32 mode);

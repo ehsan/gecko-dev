@@ -241,8 +241,7 @@ class Marionette(object):
         response = self._send_message('setSearchTimeout', 'ok', value=timeout)
         return response
 
-    @property
-    def current_window_handle(self):
+    def get_window(self):
         self.window = self._send_message('getWindow', 'value')
         return self.window
     
@@ -251,14 +250,13 @@ class Marionette(object):
         response = self._send_message('getTitle', 'value') 
         return response
 
-    @property
-    def window_handles(self):
+    def get_windows(self):
         response = self._send_message('getWindows', 'value')
         return response
 
     def close_window(self, window_id=None):
         if not window_id:
-            window_id = self.current_window_handle
+            window_id = self.get_window()
         response = self._send_message('closeWindow', 'ok', value=window_id)
         return response
 

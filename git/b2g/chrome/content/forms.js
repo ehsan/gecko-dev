@@ -53,8 +53,7 @@ let FormAssistant = {
           checkbox: true,
           radio: true,
           reset: true,
-          submit: true,
-          image: true
+          submit: true
         };
     
         if (evt.target instanceof HTMLSelectElement) { 
@@ -157,10 +156,6 @@ let FormAssistant = {
   },
 
   tryShowIme: function(element) {
-    if (!element) {
-      return;
-    }
-
     // FIXME/bug 729623: work around apparent bug in the IME manager
     // in gecko.
     let readonly = element.getAttribute("readonly");

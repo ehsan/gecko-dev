@@ -6,11 +6,9 @@
 #ifndef nsTransactionStack_h__
 #define nsTransactionStack_h__
 
-#include "nsCOMPtr.h"
 #include "nsDeque.h"
-#include "prtypes.h"
+#include "nsCOMPtr.h"
 
-class nsCycleCollectionTraversalCallback;
 class nsTransactionItem;
 
 class nsTransactionStack

@@ -15,6 +15,7 @@
 #include "nsIDocumentEncoder.h"
 #include "nsCaret.h"
 #include "nsISelectionListener.h"
+#include "nsISelectionPrivate.h"
 #include "nsIController.h"
 #include "nsIControllers.h"
 #include "nsIControllerContext.h"
@@ -73,7 +74,6 @@
 #include "nsPresState.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Selection.h"
 
 #define DEFAULT_COLUMN_WIDTH 20
 

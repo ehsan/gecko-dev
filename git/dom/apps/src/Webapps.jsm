@@ -14,7 +14,6 @@ let EXPORTED_SYMBOLS = ["DOMApplicationRegistry", "DOMApplicationManifest"];
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
-Cu.import("resource://gre/modules/WebappOSUtils.jsm");
 
 const WEBAPP_RUNTIME = Services.appinfo.ID == "webapprt@mozilla.org";
 
@@ -172,7 +171,7 @@ let DOMApplicationRegistry = {
         this.uninstall(msg);
         break;
       case "Webapps:Launch":
-        WebappOSUtils.launch(msg);
+        Services.obs.notifyObservers(this, "webapps-launch", JSON.stringify(msg));
         break;
       case "Webapps:GetInstalled":
         this.getInstalled(msg);
@@ -610,7 +609,7 @@ let DOMApplicationRegistry = {
   getAppById: function(aId) {
     if (!this.webapps[aId])
       return null;
-
+    
     let app = this._cloneAppObject(this.webapps[aId]);
     return app;
   },

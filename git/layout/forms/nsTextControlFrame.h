@@ -181,10 +181,13 @@ public: //for methods who access nsTextControlFrame directly
 
   NS_STACK_CLASS class ValueSetter {
   public:
-    ValueSetter(nsIEditor* aEditor)
-      : mEditor(aEditor)
+    ValueSetter(nsTextControlFrame* aFrame,
+                nsIEditor* aEditor)
+      : mFrame(aFrame)
+      , mEditor(aEditor)
       , mCanceled(false)
     {
+      MOZ_ASSERT(aFrame);
       MOZ_ASSERT(aEditor);
 
       // To protect against a reentrant call to SetValue, we check whether
@@ -207,6 +210,7 @@ public: //for methods who access nsTextControlFrame directly
     }
 
   private:
+    nsTextControlFrame* mFrame;
     nsCOMPtr<nsIEditor> mEditor;
     bool mOuterTransaction;
     bool mCanceled;

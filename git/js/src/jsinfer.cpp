@@ -1830,8 +1830,7 @@ TypeCompartment::init(JSContext *cx)
 
 TypeObject *
 TypeCompartment::newTypeObject(JSContext *cx, JSScript *script,
-                               JSProtoKey key, JSObject *proto_, bool unknown,
-                               bool isDOM)
+                               JSProtoKey key, JSObject *proto_, bool unknown)
 {
     RootedObject proto(cx, proto_);
     TypeObject *object = gc::NewGCThing<TypeObject>(cx, gc::FINALIZE_TYPE_OBJECT, sizeof(TypeObject));
@@ -1839,17 +1838,10 @@ TypeCompartment::newTypeObject(JSContext *cx, JSScript *script,
         return NULL;
     new(object) TypeObject(proto, key == JSProto_Function, unknown);
 
-    if (!cx->typeInferenceEnabled()) {
+    if (!cx->typeInferenceEnabled())
         object->flags |= OBJECT_FLAG_UNKNOWN_MASK;
-    } else {
-        if (isDOM) {
-            object->setFlags(cx, OBJECT_FLAG_NON_DENSE_ARRAY
-                               | OBJECT_FLAG_NON_TYPED_ARRAY
-                               | OBJECT_FLAG_NON_PACKED_ARRAY);
-        } else {
-            object->setFlagsFromKey(cx, key);
-        }
-    }
+    else
+        object->setFlagsFromKey(cx, key);
 
     return object;
 }
@@ -3418,8 +3410,6 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         break;
       }
 
-      case JSOP_GETALIASEDVAR:
-      case JSOP_CALLALIASEDVAR:
       case JSOP_GETARG:
       case JSOP_CALLARG:
       case JSOP_GETLOCAL:
@@ -3439,12 +3429,11 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
             /* Local 'let' variable. Punt on types for these, for now. */
             pushed[0].addType(cx, Type::UnknownType());
         }
-        if (op == JSOP_CALLARG || op == JSOP_CALLLOCAL || op == JSOP_CALLALIASEDVAR)
+        if (op == JSOP_CALLARG || op == JSOP_CALLLOCAL)
             pushed[0].addPropagateThis(cx, script, pc, Type::UndefinedType());
         break;
       }
 
-      case JSOP_SETALIASEDVAR:
       case JSOP_SETARG:
       case JSOP_SETLOCAL: {
         uint32_t slot = GetBytecodeSlot(script, pc);
@@ -3461,6 +3450,24 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         poppedTypes(pc, 0)->addSubset(cx, &pushed[0]);
         break;
       }
+
+      case JSOP_GETALIASEDVAR:
+      case JSOP_CALLALIASEDVAR:
+        /*
+         * Every aliased variable will contain 'undefined' in addition to the
+         * type of whatever value is written to it. Thus, a dynamic barrier is
+         * necessary. Since we don't expect the to observe more than 1 type,
+         * there is little benefit to maintaining a TypeSet for the aliased
+         * variable. Instead, we monitor/barrier all reads unconditionally.
+         */
+        bytecodeTypes(pc)->addSubset(cx, &pushed[0]);
+        if (op == JSOP_CALLALIASEDVAR)
+            pushed[0].addPropagateThis(cx, script, pc, Type::UnknownType());
+        break;
+
+      case JSOP_SETALIASEDVAR:
+        poppedTypes(pc, 0)->addSubset(cx, &pushed[0]);
+        break;
 
       case JSOP_INCARG:
       case JSOP_DECARG:
@@ -5254,7 +5261,7 @@ JSObject::setNewTypeUnknown(JSContext *cx)
 }
 
 TypeObject *
-JSObject::getNewType(JSContext *cx, JSFunction *fun_, bool isDOM)
+JSObject::getNewType(JSContext *cx, JSFunction *fun_)
 {
     TypeObjectSet &table = cx->compartment->newTypeObjects;
 
@@ -5279,9 +5286,6 @@ JSObject::getNewType(JSContext *cx, JSFunction *fun_, bool isDOM)
         if (type->newScript && type->newScript->fun != fun_)
             type->clearNewScript(cx);
 
-        if (!isDOM && !type->hasAnyFlags(OBJECT_FLAG_NON_DOM))
-            type->setFlags(cx, OBJECT_FLAG_NON_DOM);
-
         return type;
     }
 
@@ -5294,8 +5298,7 @@ JSObject::getNewType(JSContext *cx, JSFunction *fun_, bool isDOM)
     bool markUnknown = self->lastProperty()->hasObjectFlag(BaseShape::NEW_TYPE_UNKNOWN);
 
     RootedTypeObject type(cx);
-    type = cx->compartment->types.newTypeObject(cx, NULL, JSProto_Object, self,
-                                                markUnknown, isDOM);
+    type = cx->compartment->types.newTypeObject(cx, NULL, JSProto_Object, self, markUnknown);
     if (!type)
         return NULL;
 

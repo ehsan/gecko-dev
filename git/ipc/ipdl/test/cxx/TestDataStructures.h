@@ -24,13 +24,7 @@ public:
     { }
     virtual ~TestDataStructuresSub()
     { }
-    NS_OVERRIDE
-    virtual void ActorDestroy(ActorDestroyReason why)
-    {
-      if (Deletion != why)
-        fail("unexpected destruction!");
-    }
-  uint32 mI;
+    uint32 mI;
 };
 
 //-----------------------------------------------------------------------------

@@ -506,12 +506,6 @@ public:
   static bool GetEchoPassword();
 
   /**
-   * The millisecond to mask password value.
-   * This value is only valid when GetEchoPassword() returns true.
-   */
-  static PRUint32 GetPasswordMaskDelay();
-
-  /**
    * When system look and feel is changed, Refresh() must be called.  Then,
    * cached data would be released.
    */

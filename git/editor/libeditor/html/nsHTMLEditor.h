@@ -31,7 +31,6 @@
 #include "nsIHTMLAbsPosEditor.h"
 #include "nsIHTMLInlineTableEditor.h"
 #include "nsIHTMLObjectResizeListener.h"
-#include "nsIHTMLObjectResizer.h"
 
 #include "nsIDocumentObserver.h"
 
@@ -39,7 +38,6 @@
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 #include "nsAttrName.h"
-#include "nsStubMutationObserver.h"
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/Element.h"

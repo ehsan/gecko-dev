@@ -11,7 +11,6 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.Log;
 import android.view.Surface;
@@ -473,7 +472,7 @@ public final class Tab {
         if (!mReaderEnabled)
             return;
 
-        GeckoApp.mAppContext.loadUrl("about:reader?url=" + Uri.encode(getURL()));
+        GeckoApp.mAppContext.loadUrl("about:reader?url=" + getURL());
     }
 
     public boolean doReload() {

@@ -367,7 +367,7 @@ ShadowLayerForwarder::ShadowDrawToTarget(gfxContext* aTarget) {
 }
 
 
-SharedMemory::SharedMemoryType
+static SharedMemory::SharedMemoryType
 OptimalShmemType()
 {
 #if defined(MOZ_PLATFORM_MAEMO) && defined(MOZ_HAVE_SHAREDMEMORYSYSV)

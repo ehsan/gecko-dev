@@ -252,6 +252,7 @@ private:
   bool mAutoIncrement;
   nsCOMPtr<nsIAtom> mDatabaseId;
   nsRefPtr<ObjectStoreInfo> mInfo;
+  PRUint32 mStructuredCloneVersion;
 
   nsTArray<nsRefPtr<IDBIndex> > mCreatedIndexes;
 

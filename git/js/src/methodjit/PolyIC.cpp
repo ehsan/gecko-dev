@@ -1916,7 +1916,7 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
     if (!obj)
         THROW();
 
-    if (!monitor.recompiled() && pic->shouldUpdate(f)) {
+    if (!monitor.recompiled() && pic->shouldUpdate(f.cx)) {
         GetPropCompiler cc(f, obj, *pic, name, stub);
         if (!cc.update())
             THROW();
@@ -1960,7 +1960,7 @@ ic::SetProp(VMFrame &f, ic::PICInfo *pic)
 
     // Note, we can't use SetName for PROPINC PICs because the property
     // cache can't handle a GET and SET from the same scripted PC.
-    if (!monitor.recompiled() && pic->shouldUpdate(f)) {
+    if (!monitor.recompiled() && pic->shouldUpdate(f.cx)) {
         SetPropCompiler cc(f, obj, *pic, name, stub);
         LookupStatus status = cc.update();
         if (status == Lookup_Error)
@@ -2035,12 +2035,11 @@ ic::BindName(VMFrame &f, ic::PICInfo *pic)
 }
 
 void
-BaseIC::spew(VMFrame &f, const char *event, const char *message)
+BaseIC::spew(JSContext *cx, const char *event, const char *message)
 {
 #ifdef JS_METHODJIT_SPEW
     JaegerSpew(JSpew_PICs, "%s %s: %s (%s: %d)\n",
-               js_CodeName[JSOp(*f.pc())], event, message,
-               f.cx->fp()->script()->filename, CurrentLine(f.cx));
+               js_CodeName[op], event, message, cx->fp()->script()->filename, CurrentLine(cx));
 #endif
 }
 
@@ -2073,7 +2072,7 @@ BaseIC::disable(VMFrame &f, const char *reason, void *stub)
         f.chunk()->pcLengths[offset].picsLength = 0;
     }
 
-    spew(f, "disabled", reason);
+    spew(f.cx, "disabled", reason);
     Repatcher repatcher(f.chunk());
     repatcher.relink(slowPathCall, FunctionPtr(stub));
     return Lookup_Uncacheable;
@@ -2089,11 +2088,11 @@ BaseIC::updatePCCounters(VMFrame &f, Assembler &masm)
 }
 
 bool
-BaseIC::shouldUpdate(VMFrame &f)
+BaseIC::shouldUpdate(JSContext *cx)
 {
     if (!hit) {
         hit = true;
-        spew(f, "ignored", "first hit");
+        spew(cx, "ignored", "first hit");
         return false;
     }
     JS_ASSERT(stubsGenerated < MAX_PIC_STUBS);
@@ -2131,11 +2130,11 @@ DisabledGetElem(VMFrame &f, ic::GetElementIC *ic)
 }
 
 bool
-GetElementIC::shouldUpdate(VMFrame &f)
+GetElementIC::shouldUpdate(JSContext *cx)
 {
     if (!hit) {
         hit = true;
-        spew(f, "ignored", "first hit");
+        spew(cx, "ignored", "first hit");
         return false;
     }
     JS_ASSERT(stubsGenerated < MAX_GETELEM_IC_STUBS);
@@ -2243,6 +2242,13 @@ GetElementIC::attachGetProp(VMFrame &f, HandleObject obj, HandleValue v, HandleP
         protoGuard = masm.guardShape(holderReg, holder);
     }
 
+    if (op == JSOP_CALLELEM) {
+        // Emit a write of |obj| to the top of the stack, before we lose it.
+        Value *thisVp = &cx->regs().sp[-1];
+        Address thisSlot(JSFrameReg, StackFrame::offsetOfFixed(thisVp - cx->fp()->slots()));
+        masm.storeValueFromComponents(ImmType(JSVAL_TYPE_OBJECT), objReg, thisSlot);
+    }
+
     // Load the value.
     Shape *shape = getprop.shape;
     masm.loadObjProp(holder, holderReg, shape, typeReg, objReg);
@@ -2273,7 +2279,7 @@ GetElementIC::attachGetProp(VMFrame &f, HandleObject obj, HandleValue v, HandleP
 #if DEBUG
     char *chars = DeflateString(cx, v.toString()->getChars(cx), v.toString()->length());
     JaegerSpew(JSpew_PICs, "generated %s stub at %p for atom %p (\"%s\") shape %p (%s: %d)\n",
-               js_CodeName[JSOp(*f.pc())], cs.executableAddress(), (void*)name, chars,
+               js_CodeName[op], cs.executableAddress(), (void*)name, chars,
                (void*)holder->lastProperty(), cx->fp()->script()->filename, CurrentLine(cx));
     cx->free_(chars);
 #endif
@@ -2356,7 +2362,7 @@ GetElementIC::attachTypedArray(VMFrame &f, HandleObject obj, HandleValue v, Hand
     if (!v.isInt32())
         return disable(f, "typed array with string key");
 
-    if (JSOp(*f.pc()) == JSOP_CALLELEM)
+    if (op == JSOP_CALLELEM)
         return disable(f, "typed array with call");
 
     // The fast-path guarantees that after the dense shape guard, the type is
@@ -2512,7 +2518,7 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
             THROW();
     }
 
-    if (!monitor.recompiled() && ic->shouldUpdate(f)) {
+    if (!monitor.recompiled() && ic->shouldUpdate(cx)) {
 #ifdef DEBUG
         f.regs.sp[-2] = MagicValue(JS_GENERIC_MAGIC);
 #endif
@@ -2796,15 +2802,15 @@ SetElementIC::update(VMFrame &f, const Value &objval, const Value &idval)
 }
 
 bool
-SetElementIC::shouldUpdate(VMFrame &f)
+SetElementIC::shouldUpdate(JSContext *cx)
 {
     if (!hit) {
         hit = true;
-        spew(f, "ignored", "first hit");
+        spew(cx, "ignored", "first hit");
         return false;
     }
 #ifdef JSGC_INCREMENTAL_MJ
-    JS_ASSERT(!f.cx->compartment->needsBarrier());
+    JS_ASSERT(!cx->compartment->needsBarrier());
 #endif
     JS_ASSERT(stubsGenerated < MAX_PIC_STUBS);
     return true;
@@ -2814,7 +2820,9 @@ template<JSBool strict>
 void JS_FASTCALL
 ic::SetElement(VMFrame &f, ic::SetElementIC *ic)
 {
-    if (ic->shouldUpdate(f)) {
+    JSContext *cx = f.cx;
+
+    if (ic->shouldUpdate(cx)) {
         LookupStatus status = ic->update(f, f.regs.sp[-3], f.regs.sp[-2]);
         if (status == Lookup_Error)
             THROW();

@@ -65,18 +65,12 @@
     // Now we can do things on nsIRequest (like what?)
  */
 
-#include "mozilla/mozalloc.h"
-#include "nsAString.h"
-#include "nsDebug.h"
-#include "nsError.h"
 #include "nsHTMLURIRefObject.h"
-#include "nsID.h"
+
+#include "nsAString.h"
+#include "nsString.h"
 #include "nsIDOMAttr.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMNamedNodeMap.h"
-#include "nsIDOMNode.h"
-#include "nsISupportsUtils.h"
-#include "nsString.h"
 
 // String classes change too often and I can't keep up.
 // Set this macro to this week's approved case-insensitive compare routine.

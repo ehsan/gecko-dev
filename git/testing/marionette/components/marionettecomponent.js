@@ -7,7 +7,6 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 const MARIONETTE_CONTRACTID = "@mozilla.org/marionette;1";
 const MARIONETTE_CID = Components.ID("{786a1369-dca5-4adc-8486-33d23c88010a}");
 const DEBUGGER_ENABLED_PREF = 'devtools.debugger.remote-enabled';
-const MARIONETTE_ENABLED_PREF = 'marionette.defaultPrefs.enabled';
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -31,8 +30,7 @@ MarionetteComponent.prototype = {
     let observerService = Services.obs;
     switch (aTopic) {
       case "profile-after-change":
-        if (Services.prefs.prefHasUserValue(MARIONETTE_ENABLED_PREF) && 
-            Services.prefs.getBoolPref(MARIONETTE_ENABLED_PREF)) {
+        if (Services.prefs.getBoolPref('marionette.defaultPrefs.enabled')) {
 
           this.logger.level = Log4Moz.Level["All"];
           let logf = FileUtils.getFile('ProfD', ['marionette.log']);

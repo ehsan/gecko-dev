@@ -2400,9 +2400,7 @@ js::NewObjectWithGivenProto(JSContext *cx, js::Class *clasp, JSObject *proto_, J
         }
     }
 
-    bool isDOM = (clasp->flags & JSCLASS_IS_DOMJSCLASS);
-    types::TypeObject *type = proto ? proto->getNewType(cx, NULL, isDOM)
-                                    : cx->compartment->getEmptyType(cx);
+    types::TypeObject *type = proto ? proto->getNewType(cx) : cx->compartment->getEmptyType(cx);
     if (!type)
         return NULL;
 

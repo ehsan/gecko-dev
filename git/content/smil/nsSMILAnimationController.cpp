@@ -770,8 +770,7 @@ nsSMILAnimationController::GetTargetIdentifierForAnimation(
         isCSS = targetElem->GetNameSpaceID() != kNameSpaceID_SVG;
       } else {
         nsCSSProperty prop =
-          nsCSSProps::LookupProperty(nsDependentAtomString(attributeName),
-                                     nsCSSProps::eEnabled);
+          nsCSSProps::LookupProperty(nsDependentAtomString(attributeName));
         isCSS = nsSMILCSSProperty::IsPropertyAnimatable(prop);
       }
     }

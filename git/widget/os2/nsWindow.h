@@ -271,7 +271,6 @@ protected:
   nsCOMPtr<imgIContainer> mCssCursorImg;// saved by SetCursor(imgIContainer*)
   nsRefPtr<gfxOS2Surface> mThebesSurface;
   bool          mIsComposing;
-  nsString      mLastDispatchedCompositionString;
 #ifdef DEBUG_FOCUS
   int           mWindowIdentifier;  // a serial number for each new window
 #endif

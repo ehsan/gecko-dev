@@ -531,7 +531,7 @@ CheckStrictParameters(JSContext *cx, Parser *parser)
                 return false;
         }
 
-        if (FindKeyword(name->charsZ(), name->length())) {
+        if (sc->needStrictChecks() && FindKeyword(name->charsZ(), name->length())) {
             /*
              * JSOPTION_STRICT is supposed to warn about future keywords, too,
              * but we took care of that in the scanner.
@@ -5033,18 +5033,13 @@ BumpStaticLevel(ParseNode *pn, TreeContext *tc)
     return pn->pn_cookie.set(tc->sc->context, level, pn->pn_cookie.slot());
 }
 
-static bool
+static void
 AdjustBlockId(ParseNode *pn, unsigned adjust, TreeContext *tc)
 {
     JS_ASSERT(pn->isArity(PN_LIST) || pn->isArity(PN_FUNC) || pn->isArity(PN_NAME));
-    if (JS_BIT(20) - pn->pn_blockid <= adjust + 1) {
-        JS_ReportErrorNumber(tc->sc->context, js_GetErrorMessage, NULL, JSMSG_NEED_DIET, "program");
-        return false;
-    }
     pn->pn_blockid += adjust;
     if (pn->pn_blockid >= tc->blockidGen)
         tc->blockidGen = pn->pn_blockid + 1;
-    return true;
 }
 
 bool
@@ -5061,10 +5056,8 @@ CompExprTransplanter::transplant(ParseNode *pn)
             if (!transplant(pn2))
                 return false;
         }
-        if (pn->pn_pos >= root->pn_pos) {
-            if (!AdjustBlockId(pn, adjust, tc))
-                return false;
-        }
+        if (pn->pn_pos >= root->pn_pos)
+            AdjustBlockId(pn, adjust, tc);
         break;
 
       case PN_TERNARY:
@@ -5149,8 +5142,7 @@ CompExprTransplanter::transplant(ParseNode *pn)
             if (dn->isPlaceholder() && dn->pn_pos >= root->pn_pos && dn->dn_uses == pn) {
                 if (genexp && !BumpStaticLevel(dn, tc))
                     return false;
-                if (!AdjustBlockId(dn, adjust, tc))
-                    return false;
+                AdjustBlockId(dn, adjust, tc);
             }
 
             RootedAtom atom(parser->context, pn->pn_atom);
@@ -5211,8 +5203,7 @@ CompExprTransplanter::transplant(ParseNode *pn)
                     if (genexp && !visitedImplicitArguments.has(dn)) {
                         if (!BumpStaticLevel(dn, tc))
                             return false;
-                        if (!AdjustBlockId(dn, adjust, tc))
-                            return false;
+                        AdjustBlockId(dn, adjust, tc);
                         if (!visitedImplicitArguments.put(dn))
                             return false;
                     }
@@ -5220,10 +5211,8 @@ CompExprTransplanter::transplant(ParseNode *pn)
             }
         }
 
-        if (pn->pn_pos >= root->pn_pos) {
-            if (!AdjustBlockId(pn, adjust, tc))
-                return false;
-        }
+        if (pn->pn_pos >= root->pn_pos)
+            AdjustBlockId(pn, adjust, tc);
         break;
 
       case PN_NAMESET:
@@ -5303,8 +5292,7 @@ Parser::comprehensionTail(ParseNode *kid, unsigned blockid, bool isGenexp,
     if (!transplanter.init())
         return NULL;
 
-    if (!transplanter.transplant(kid))
-        return false;
+    transplanter.transplant(kid);
 
     JS_ASSERT(tc->blockChain && tc->blockChain == pn->pn_objbox->object);
     data.initLet(HoistVars, *tc->blockChain, JSMSG_ARRAY_INIT_TOO_BIG);

@@ -611,7 +611,7 @@ SizeOfJSContext();
     D(ALLOC_TRIGGER)                            \
     D(DEBUG_GC)                                 \
     D(DEBUG_MODE_GC)                            \
-    D(TRANSPLANT)                               \
+    D(UNUSED3) /* was REFILL */                 \
                                                 \
     /* Reasons from Firefox */                  \
     D(DOM_WINDOW_UTILS)                         \

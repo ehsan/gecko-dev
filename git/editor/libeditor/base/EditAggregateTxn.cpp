@@ -4,13 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "EditAggregateTxn.h"
-#include "nsAString.h"
-#include "nsCOMPtr.h"                   // for nsCOMPtr
-#include "nsError.h"                    // for NS_OK, etc
-#include "nsISupportsUtils.h"           // for NS_ADDREF
-#include "nsITransaction.h"             // for nsITransaction
-#include "nsString.h"                   // for nsAutoString
-#include "prtypes.h"                    // for PRUint32
+#include "nsCOMPtr.h"
 
 EditAggregateTxn::EditAggregateTxn()
   : EditTxn()

@@ -198,7 +198,7 @@ def Compilable(filename):
   return os.path.splitext(filename)[1] in COMPILABLE_EXTENSIONS
 
 class MakefileGenerator(object):
-  def __init__(self, target_dicts, data, options, depth, topsrcdir, relative_topsrcdir, relative_srcdir, output_dir, flavor):
+  def __init__(self, target_dicts, data, options, depth, topsrcdir, relative_topsrcdir, relative_srcdir, output_dir):
     self.target_dicts = target_dicts
     self.data = data
     self.options = options
@@ -208,7 +208,6 @@ class MakefileGenerator(object):
     self.relative_topsrcdir = swapslashes(relative_topsrcdir)
     self.srcdir = swapslashes(os.path.join(topsrcdir, relative_srcdir))
     self.output_dir = output_dir
-    self.flavor = flavor
     # Directories to be built in order.
     self.dirs = []
     # Directories that can be built in any order, but before |dirs|.
@@ -369,14 +368,10 @@ class MakefileGenerator(object):
     else:
       # Maybe nothing?
       return False
-    if self.flavor == 'win':
-      top = self.relative_topsrcdir
-    else:
-      top = self.topsrcdir
-    WriteMakefile(output_file, data, build_file, depth, top,
+    WriteMakefile(output_file, data, build_file, depth, self.relative_topsrcdir,
                   # we set srcdir up one directory, since the subdir
                   # doesn't actually exist in the source directory
-                  swapslashes(os.path.join(top, self.relative_srcdir, os.path.split(rel_path)[0])),
+                  swapslashes(os.path.join(self.relative_topsrcdir, self.relative_srcdir, os.path.split(rel_path)[0])),
                   self.relative_srcdir)
     return True
 
@@ -398,8 +393,6 @@ def GenerateOutput(target_list, target_dicts, data, params):
   relative_srcdir = gyp.common.RelativePath(gyp_file_dir, topsrcdir)
   # The relative path from objdir to gyp_file_dir
   srcdir = gyp.common.RelativePath(gyp_file_dir, objdir)
-  # The absolute path to the source dir
-  abs_srcdir = topsrcdir + "/" + relative_srcdir
   # The path to get up to the root of the objdir from the output dir.
   depth = getdepth(relative_srcdir)
   # The output directory.
@@ -422,23 +415,17 @@ def GenerateOutput(target_list, target_dicts, data, params):
       build_file_, _, _ = gyp.common.ParseQualifiedTarget(target)
       build_files.add(topsrcdir_path(build_file_))
 
-  generator = MakefileGenerator(target_dicts, data, options, depth, topsrcdir, relative_topsrcdir, relative_srcdir, output_dir, flavor)
+  generator = MakefileGenerator(target_dicts, data, options, depth, topsrcdir, relative_topsrcdir, relative_srcdir, output_dir)
   generator.ProcessTargets(needed_targets)
 
   # Write the top-level makefile, which simply calls the other makefiles
   topdata = {'DIRS': generator.dirs}
   if generator.parallel_dirs:
     topdata['PARALLEL_DIRS'] = generator.parallel_dirs
-  if flavor == 'win':
-    top = relative_topsrcdir
-    src = srcdir
-  else:
-    top = topsrcdir
-    src = abs_srcdir
   WriteMakefile(makefile_path, topdata, params['build_files'][0],
                 depth,
-                swapslashes(top),
-                swapslashes(src),
+                swapslashes(relative_topsrcdir),
+                swapslashes(srcdir),
                 swapslashes(relative_srcdir))
   scriptname = topsrcdir_path(__file__)
   # Reassemble a commandline from parts so that all the paths are correct

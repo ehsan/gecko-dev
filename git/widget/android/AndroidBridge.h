@@ -174,7 +174,7 @@ public:
 
     void ScheduleRestart();
 
-    void SetLayerClient(JNIEnv* env, jobject jobj);
+    void SetLayerClient(jobject jobj);
     AndroidGeckoLayerClient &GetLayerClient() { return *mLayerClient; }
 
     void SetSurfaceView(jobject jobj);
@@ -260,7 +260,7 @@ public:
     void *CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoSurfaceView& surfaceView);
 
     // Switch Java to composite with the Gecko Compositor thread
-    void RegisterCompositor(JNIEnv* env = NULL, bool resetting = false);
+    void RegisterCompositor();
     EGLSurface ProvideEGLSurface();
 
     bool GetStaticStringField(const char *classID, const char *field, nsAString &result, JNIEnv* env = nsnull);

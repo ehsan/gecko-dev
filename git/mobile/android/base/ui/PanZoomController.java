@@ -142,13 +142,6 @@ public class PanZoomController
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(MESSAGE_PREFS_GET, prefs.toString()));
     }
 
-    public void destroy() {
-        GeckoAppShell.unregisterGeckoEventListener(MESSAGE_ZOOM_RECT, this);
-        GeckoAppShell.unregisterGeckoEventListener(MESSAGE_ZOOM_PAGE, this);
-        GeckoAppShell.unregisterGeckoEventListener(MESSAGE_PREFS_DATA, this);
-        mSubscroller.destroy();
-    }
-
     // for debugging bug 713011; it can be taken out once that is resolved.
     private void checkMainThread() {
         if (mMainThread != Thread.currentThread()) {
@@ -875,7 +868,7 @@ public class PanZoomController
 
     @Override
     public boolean onScale(SimpleScaleGestureDetector detector) {
-        if (GeckoApp.mAppContext == null || GeckoApp.mAppContext.mDOMFullScreen)
+        if (GeckoApp.mDOMFullScreen)
             return false;
 
         if (mState != PanZoomState.PINCHING)

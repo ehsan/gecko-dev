@@ -76,8 +76,5 @@ function run_test() {
   } finally {
     Svc.Obs.notify("weave:engine:stop-tracking");
     prefs.resetBranch("");
-    if (tracker._lazySave) {
-      tracker._lazySave.clear();
-    }
   }
 }

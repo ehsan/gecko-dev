@@ -729,13 +729,6 @@ LookAndFeel::GetEchoPassword()
 }
 
 // static
-PRUint32
-LookAndFeel::GetPasswordMaskDelay()
-{
-  return nsLookAndFeel::GetInstance()->GetPasswordMaskDelayImpl();
-}
-
-// static
 void
 LookAndFeel::Refresh()
 {

@@ -207,25 +207,23 @@ struct IdleObserverHolder
 {
   nsCOMPtr<nsIIdleObserver> mIdleObserver;
   PRUint32 mTimeInS;
-  bool mPrevNotificationIdle;
 
   IdleObserverHolder()
-    : mTimeInS(0), mPrevNotificationIdle(false)
+    : mTimeInS(0)
   {
     MOZ_COUNT_CTOR(IdleObserverHolder);
   }
 
-  IdleObserverHolder(const IdleObserverHolder& aOther)
-    : mIdleObserver(aOther.mIdleObserver), mTimeInS(aOther.mTimeInS),
-      mPrevNotificationIdle(aOther.mPrevNotificationIdle)
+  IdleObserverHolder(const IdleObserverHolder& aOtherIdleObserver)
+    : mIdleObserver(aOtherIdleObserver.mIdleObserver), mTimeInS(aOtherIdleObserver.mTimeInS)
   {
     MOZ_COUNT_CTOR(IdleObserverHolder);
   }
 
-  bool operator==(const IdleObserverHolder& aOther) const {
+  bool operator==(const IdleObserverHolder& aOtherIdleObserver) const {
     return
-      mIdleObserver == aOther.mIdleObserver &&
-      mTimeInS == aOther.mTimeInS;
+      mIdleObserver == aOtherIdleObserver.mIdleObserver &&
+      mTimeInS == aOtherIdleObserver.mTimeInS;
   }
 
   ~IdleObserverHolder()
@@ -585,9 +583,10 @@ public:
   void AddEventTargetObject(nsDOMEventTargetHelper* aObject);
   void RemoveEventTargetObject(nsDOMEventTargetHelper* aObject);
 
-  void NotifyIdleObserver(IdleObserverHolder* aIdleObserverHolder,
+  void NotifyIdleObserver(nsIIdleObserver* aIdleObserver,
+                          PRUint32 aIdleObserverTimeInS,
                           bool aCallOnidle);
-  nsresult HandleIdleActiveEvent();
+  nsresult NotifyIdleObserversOfIdleActiveEvent();
   bool ContainsIdleObserver(nsIIdleObserver* aIdleObserver, PRUint32 timeInS);
   void HandleIdleObserverCallback();
 

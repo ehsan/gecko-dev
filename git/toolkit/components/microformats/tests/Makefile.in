@@ -9,7 +9,9 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MOCHITEST_FILES = \
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES = \
 		test_Microformats.html \
 		test_Microformats_hCard.html \
 		test_Microformats_geo.html \
@@ -23,4 +25,5 @@ MOCHITEST_FILES = \
 		geo.html \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs::	$(_TEST_FILES)
+	$(INSTALL) $^ $(DEPTH)/_tests/testing/mochitest/tests/toolkit/components/microformats/tests

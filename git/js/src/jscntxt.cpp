@@ -1043,7 +1043,6 @@ JSContext::~JSContext()
 
 #ifdef DEBUG
 namespace JS {
-
 JS_FRIEND_API(void)
 SetRootingUnnecessaryForContext(JSContext *cx, bool value)
 {
@@ -1055,13 +1054,6 @@ IsRootingUnnecessaryForContext(JSContext *cx)
 {
     return cx->rootingUnnecessary;
 }
-
-JS_FRIEND_API(bool)
-RelaxRootChecksForContext(JSContext *cx)
-{
-    return cx->runtime->relaxRootChecks;
-}
-
 } /* namespace JS */
 #endif
 

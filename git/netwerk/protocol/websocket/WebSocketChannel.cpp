@@ -158,7 +158,7 @@ class FailDelayManager
 public:
   FailDelayManager()
   {
-    MOZ_COUNT_CTOR(FailDelayManager);
+    MOZ_COUNT_CTOR(nsWSAdmissionManager);
 
     mDelaysDisabled = false;
 
@@ -175,7 +175,7 @@ public:
 
   ~FailDelayManager()
   {
-    MOZ_COUNT_DTOR(FailDelayManager);
+    MOZ_COUNT_DTOR(nsWSAdmissionManager);
     for (PRUint32 i = 0; i < mEntries.Length(); i++) {
       delete mEntries[i];
     }

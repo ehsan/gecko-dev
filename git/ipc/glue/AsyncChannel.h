@@ -150,7 +150,6 @@ public:
     
         void OnCloseChannel();
         void OnChannelOpened();
-        void OnTakeConnectedChannel();
         void OnEchoMessage(Message* msg);
 
         void AssertIOThread() const
@@ -209,10 +208,7 @@ protected:
 
     bool Connected() const {
         mMonitor->AssertCurrentThreadOwns();
-        // The transport layer allows us to send messages before
-        // receiving the "connected" ack from the remote side.
-        return (ChannelOpening == mChannelState ||
-                ChannelConnected == mChannelState);
+        return ChannelConnected == mChannelState;
     }
 
     // Return true if |msg| is a special message targeted at the IO

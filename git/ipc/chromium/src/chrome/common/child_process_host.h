@@ -99,7 +99,6 @@ class ChildProcessHost :
     virtual void OnMessageReceived(const IPC::Message& msg);
     virtual void OnChannelConnected(int32 peer_pid);
     virtual void OnChannelError();
-    virtual void GetQueuedMessages(std::queue<IPC::Message>& queue);
    private:
     ChildProcessHost* host_;
   };

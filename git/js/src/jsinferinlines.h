@@ -1323,8 +1323,7 @@ TypeObject::setFlagsFromKey(JSContext *cx, JSProtoKey key)
 
     switch (key) {
       case JSProto_Array:
-        flags = OBJECT_FLAG_NON_TYPED_ARRAY
-              | OBJECT_FLAG_NON_DOM;
+        flags = OBJECT_FLAG_NON_TYPED_ARRAY;
         break;
 
       case JSProto_Int8Array:
@@ -1338,15 +1337,13 @@ TypeObject::setFlagsFromKey(JSContext *cx, JSProtoKey key)
       case JSProto_Uint8ClampedArray:
       case JSProto_DataView:
         flags = OBJECT_FLAG_NON_DENSE_ARRAY
-              | OBJECT_FLAG_NON_PACKED_ARRAY
-              | OBJECT_FLAG_NON_DOM;
+              | OBJECT_FLAG_NON_PACKED_ARRAY;
         break;
 
       default:
         flags = OBJECT_FLAG_NON_DENSE_ARRAY
               | OBJECT_FLAG_NON_PACKED_ARRAY
-              | OBJECT_FLAG_NON_TYPED_ARRAY
-              | OBJECT_FLAG_NON_DOM;
+              | OBJECT_FLAG_NON_TYPED_ARRAY;
         break;
     }
 

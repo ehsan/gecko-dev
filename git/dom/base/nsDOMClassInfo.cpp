@@ -85,7 +85,7 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsScriptNameSpaceManager.h"
-#include "nsIScriptEventHandlerOwner.h"
+#include "nsIScriptObjectOwner.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsJSEnvironment.h"
 
@@ -609,9 +609,7 @@ static const char kDOMStringBundleURL[] =
   (EVENTTARGET_SCRIPTABLE_FLAGS)
 
 #define DOMCLASSINFO_STANDARD_FLAGS                                           \
-  (nsIClassInfo::MAIN_THREAD_ONLY |                                           \
-   nsIClassInfo::DOM_OBJECT       |                                           \
-   nsIClassInfo::SINGLETON_CLASSINFO)
+  (nsIClassInfo::MAIN_THREAD_ONLY | nsIClassInfo::DOM_OBJECT)
 
 
 #ifdef DEBUG
@@ -4787,14 +4785,6 @@ nsDOMClassInfo::PostCreate(nsIXPConnectWrappedNative *wrapper,
 }
 
 NS_IMETHODIMP
-nsDOMClassInfo::PostTransplant(nsIXPConnectWrappedNative *wrapper,
-                               JSContext *cx, JSObject *obj)
-{
-  MOZ_NOT_REACHED("nsDOMClassInfo::PostTransplant Don't call me!");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMClassInfo::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                             JSObject *obj, jsid id, jsval *vp,
                             bool *_retval)
@@ -5797,6 +5787,23 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
         }
       }
     }
+  }
+
+  nsCOMPtr<nsIScriptObjectOwner> owner(do_QueryInterface(native));
+  if (owner) {
+    nsIScriptContext *context = nsJSUtils::GetStaticScriptContext(cx, obj);
+    if (!context) {
+      return NS_ERROR_UNEXPECTED;
+    }
+
+    JSObject* new_obj;
+    rv = owner->GetScriptObject(context, (void**)&new_obj);
+
+    if (NS_SUCCEEDED(rv)) {
+      *rval = OBJECT_TO_JSVAL(new_obj);
+    }
+
+    return rv;
   }
 
   return WrapNative(cx, obj, native, true, rval);
@@ -6933,10 +6940,23 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
     jsval prop_val = JSVAL_VOID; // Property value.
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    nsCOMPtr<nsIDOMGlobalPropertyInitializer> gpi(do_QueryInterface(native));
-    if (gpi) {
-      rv = gpi->Init(aWin, &prop_val);
-      NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIScriptObjectOwner> owner(do_QueryInterface(native));
+    if (owner) {
+      nsIScriptContext *context = nsJSUtils::GetStaticScriptContext(cx, obj);
+      NS_ENSURE_TRUE(context, NS_ERROR_UNEXPECTED);
+
+      JSObject *prop_obj = nsnull;
+      rv = owner->GetScriptObject(context, (void**)&prop_obj);
+      NS_ENSURE_TRUE(NS_SUCCEEDED(rv) && prop_obj, NS_ERROR_UNEXPECTED);
+
+      prop_val = OBJECT_TO_JSVAL(prop_obj);
+    } else {
+      nsCOMPtr<nsIDOMGlobalPropertyInitializer> gpi(do_QueryInterface(native));
+
+      if (gpi) {
+        rv = gpi->Init(aWin, &prop_val);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
     }
 
     if (JSVAL_IS_PRIMITIVE(prop_val) && !JSVAL_IS_NULL(prop_val)) {
@@ -8175,15 +8195,6 @@ nsElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsElementSH::PostTransplant(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                            JSObject *obj)
-{
-  // XBL bindings are reapplied asynchronously when the node is inserted into a
-  // new document and frame construction occurs.
-  return NS_OK;
-}
-
 
 // Generic array scriptable helper.
 
@@ -8724,14 +8735,6 @@ nsDocumentSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       return NS_ERROR_FAILURE;
     }
   }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocumentSH::PostTransplant(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                             JSObject *obj)
-{
-  // Nothing to do here.
   return NS_OK;
 }
 
@@ -9859,20 +9862,6 @@ nsHTMLPluginObjElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper,
 }
 
 NS_IMETHODIMP
-nsHTMLPluginObjElementSH::PostTransplant(nsIXPConnectWrappedNative *wrapper,
-                                         JSContext *cx, JSObject *obj)
-{
-  // Call through to PostCreate to do the prototype setup all over again. We
-  // may reuse the same prototype, in which case our prototype will be a wrapped
-  // version of the original.
-  nsresult rv = PostCreate(wrapper, cx, obj);
-  if (NS_FAILED(rv)) {
-      NS_WARNING("Calling PostCreate during PostTransplant for plugin element failed.");
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsHTMLPluginObjElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
                                       JSContext *cx, JSObject *obj, jsid id,
                                       jsval *vp, bool *_retval)
@@ -10684,7 +10673,7 @@ nsNonDOMObjectSH::GetFlags(PRUint32 *aFlags)
   // This is NOT a DOM Object.  Use this helper class for cases when you need
   // to do something like implement nsISecurityCheckedComponent in a meaningful
   // way.
-  *aFlags = nsIClassInfo::MAIN_THREAD_ONLY | nsIClassInfo::SINGLETON_CLASSINFO;
+  *aFlags = nsIClassInfo::MAIN_THREAD_ONLY;
   return NS_OK;
 }
 

@@ -31,7 +31,6 @@ SimpleTest.waitForExplicitFinish();
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
-const OSX_10_5 = navigator.oscpu == "Intel Mac OS X 10.5";
 
 const secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
 
@@ -128,7 +127,7 @@ function check_loaded_content(aNothingShouldLoad, aCallback) {
 
     if (aNothingShouldLoad) {
       is(xhr.responseText, "NOTHING", "Check that nothing was loaded on the server");
-    } else if (!OSX_10_5) {
+    } else {
       let loadedTypes = xhr.responseText == "NOTHING" ? [] : xhr.responseText.split(",");
 
       // TODO: Media should be disabled after bug 759964.

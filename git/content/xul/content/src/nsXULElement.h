@@ -25,7 +25,7 @@
 #include "nsEventListenerManager.h"
 #include "nsIRDFCompositeDataSource.h"
 #include "nsIRDFResource.h"
-#include "nsIScriptEventHandlerOwner.h"
+#include "nsIScriptObjectOwner.h"
 #include "nsBindingManager.h"
 #include "nsIURI.h"
 #include "nsIXULTemplateBuilder.h"
@@ -487,8 +487,6 @@ public:
     {
       mBindingParent = aBindingParent;
     }
-
-    const nsAttrValue* GetAttrValue(const nsAString& aName);
 
     /**
      * Get the attr info for the given namespace ID and attribute name.

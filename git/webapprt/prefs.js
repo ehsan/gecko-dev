@@ -34,5 +34,3 @@ pref("full-screen-api.enabled", true);
 
 // Enable smooth scrolling
 pref("general.smoothScroll", true);
-
-pref("plugin.allowed_types", "application/x-shockwave-flash,application/futuresplash");

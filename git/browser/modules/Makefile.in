@@ -19,7 +19,6 @@ EXTRA_JS_MODULES = \
 	NewTabUtils.jsm \
 	offlineAppCache.jsm \
 	TelemetryTimestamps.jsm \
-	Social.jsm \
 	webappsUI.jsm \
 	$(NULL)
 

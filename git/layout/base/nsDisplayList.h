@@ -1925,7 +1925,7 @@ public:
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                              LayerManager* aManager,
                                              const ContainerParameters& aContainerParameters);
-  NS_DISPLAY_DECL_NAME("FixedPosition", TYPE_FIXED_POSITION)
+  NS_DISPLAY_DECL_NAME("FixedPosition", TYPE_OWN_LAYER)
 };
 
 /**
@@ -2230,7 +2230,7 @@ public:
   }
 #endif
 
-  NS_DISPLAY_DECL_NAME("nsDisplayTransform", TYPE_TRANSFORM)
+  NS_DISPLAY_DECL_NAME("nsDisplayTransform", TYPE_TRANSFORM);
 
   virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder)
   {
