@@ -212,7 +212,6 @@ function waitForGraphRendered (front, nodeCount, edgeCount) {
 }
 
 function checkVariableView (view, index, hash, description = "") {
-  info("Checking Variable View");
   let scope = view.getScopeAtIndex(index);
   let variables = Object.keys(hash);
   variables.forEach(variable => {
@@ -230,21 +229,18 @@ function modifyVariableView (win, view, index, prop, value) {
   let aVar = scope.get(prop);
   scope.expand();
 
-  win.on(win.EVENTS.UI_SET_PARAM, handleSetting);
-  win.on(win.EVENTS.UI_SET_PARAM_ERROR, handleSetting);
-
-  // Focus and select the variable to begin editing
-  win.focus();
-  aVar.focus();
-  EventUtils.sendKey("RETURN", win);
-
   // Must wait for the scope DOM to be available to receive
   // events
   executeSoon(() => {
+    let varValue = aVar.target.querySelector(".title > .value");
+    EventUtils.sendMouseEvent({ type: "mousedown" }, varValue, win);
+
+    win.on(win.EVENTS.UI_SET_PARAM, handleSetting);
+    win.on(win.EVENTS.UI_SET_PARAM_ERROR, handleSetting);
+
     info("Setting " + value + " for " + prop + "....");
-    for (let c of (value + "")) {
-      EventUtils.synthesizeKey(c, {}, win);
-    }
+    let varInput = aVar.target.querySelector(".title > .element-value-input");
+    setText(varInput, value);
     EventUtils.sendKey("RETURN", win);
   });
 
@@ -258,6 +254,18 @@ function modifyVariableView (win, view, index, prop, value) {
   }
 
   return deferred.promise;
+}
+
+function clearText (aElement) {
+  info("Clearing text...");
+  aElement.focus();
+  aElement.value = "";
+}
+
+function setText (aElement, aText) {
+  clearText(aElement);
+  info("Setting text: " + aText);
+  aElement.value = aText;
 }
 
 function findGraphEdge (win, source, target) {
@@ -276,20 +284,6 @@ function click (win, element) {
 
 function mouseOver (win, element) {
   EventUtils.sendMouseEvent({ type: "mouseover" }, element, win);
-}
-
-function isVisible (element) {
-  return !element.getAttribute("hidden");
-}
-
-/**
- * Used in debugging, returns a promise that resolves in `n` milliseconds.
- */
-function wait (n) {
-  let { promise, resolve } = Promise.defer();
-  setTimeout(resolve, n);
-  info("Waiting " + n/1000 + " seconds.");
-  return promise;
 }
 
 /**

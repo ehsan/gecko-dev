@@ -6,7 +6,6 @@
 
 #include "AudioDestinationNode.h"
 #include "mozilla/dom/AudioDestinationNodeBinding.h"
-#include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "AudioChannelAgent.h"
@@ -126,15 +125,11 @@ public:
     // which is strongly referenced by the runnable that called
     // AudioDestinationNode::FireOfflineCompletionEvent.
 
-    // We need the global for the context so that we can enter its compartment.
-    JSObject* global = context->GetGlobalJSObject();
-    if (NS_WARN_IF(!global)) {
+    AutoPushJSContext cx(context->GetJSContext());
+    if (!cx) {
       return;
     }
-
-    AutoJSAPI jsapi;
-    JSContext* cx = jsapi.cx();
-    JSAutoCompartment ac(cx, global);
+    JSAutoRequest ar(cx);
 
     // Create the input buffer
     nsRefPtr<AudioBuffer> renderedBuffer = new AudioBuffer(context,
@@ -144,7 +139,7 @@ public:
       return;
     }
     for (uint32_t i = 0; i < mInputChannels.Length(); ++i) {
-      renderedBuffer->SetRawChannelContents(i, mInputChannels[i]);
+      renderedBuffer->SetRawChannelContents(cx, i, mInputChannels[i]);
     }
 
     nsRefPtr<OfflineAudioCompletionEvent> event =

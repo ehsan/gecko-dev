@@ -323,7 +323,6 @@ gbjar.sources += [
     'preferences/GeckoPreferenceFragment.java',
     'preferences/GeckoPreferences.java',
     'preferences/LinkPreference.java',
-    'preferences/LocaleListPreference.java',
     'preferences/ModifiableHintPreference.java',
     'preferences/MultiChoicePreference.java',
     'preferences/PanelsPreference.java',

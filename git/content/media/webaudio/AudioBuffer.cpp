@@ -166,7 +166,8 @@ AudioBuffer::CopyToChannel(JSContext* aJSContext, const Float32Array& aSource,
 }
 
 void
-AudioBuffer::SetRawChannelContents(uint32_t aChannel, float* aContents)
+AudioBuffer::SetRawChannelContents(JSContext* aJSContext, uint32_t aChannel,
+                                   float* aContents)
 {
   PodCopy(JS_GetFloat32ArrayData(mJSChannels[aChannel]), aContents, mLength);
 }
