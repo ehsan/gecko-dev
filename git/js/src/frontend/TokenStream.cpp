@@ -1867,7 +1867,7 @@ TokenStream::getTokenInternal()
 
       case '<':
 #if JS_HAS_XML_SUPPORT
-        if ((flags & TSF_OPERAND) && (hasXML() || peekChar() != '!')) {
+        if ((flags & TSF_OPERAND) && !isStrictMode() && (hasXML() || peekChar() != '!')) {
             if (!getXMLMarkup(&tt, &tp))
                 goto error;
             goto out;
