@@ -100,6 +100,18 @@ public:
 
 //-------------- End Invalidate Event Definition ---------------------------
 
+static PRBool IsViewVisible(nsView *aView)
+{
+  if (!aView->IsEffectivelyVisible())
+    return PR_FALSE;
+
+  // Find out if the root view is visible by asking the view observer
+  // (this won't be needed anymore if we link view trees across chrome /
+  // content boundaries in DocumentViewerImpl::MakeWindow).
+  nsIViewObserver* vo = aView->GetViewManager()->GetViewObserver();
+  return vo && vo->IsVisible();
+}
+
 void
 nsViewManager::PostInvalidateEvent()
 {
@@ -312,7 +324,7 @@ void nsViewManager::DoSetWindowDimensions(nscoord aWidth, nscoord aHeight)
 NS_IMETHODIMP nsViewManager::SetWindowDimensions(nscoord aWidth, nscoord aHeight)
 {
   if (mRootView) {
-    if (mRootView->IsEffectivelyVisible()) {
+    if (IsViewVisible(mRootView)) {
       mDelayedResize.SizeTo(NSCOORD_NONE, NSCOORD_NONE);
       DoSetWindowDimensions(aWidth, aHeight);
     } else {
@@ -609,10 +621,7 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
       NS_ASSERTION(view != aWidgetView, "will recur infinitely");
       PRBool visible;
       childWidget->IsVisible(visible);
-      nsWindowType type;
-      childWidget->GetWindowType(type);
-      if (view && visible && !IsWidgetDrawnByPlugin(childWidget, view) &&
-          type != eWindowType_popup) {
+      if (view && visible && !IsWidgetDrawnByPlugin(childWidget, view)) {
         // Don't mess with views that are in completely different view
         // manager trees
         nsViewManager* viewManager = view->GetViewManager();
@@ -870,7 +879,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
                       ? vm->mRootView->GetParent()->GetViewManager()
                       : nsnull) {
             if (vm->mDelayedResize != nsSize(NSCOORD_NONE, NSCOORD_NONE) &&
-                vm->mRootView->IsEffectivelyVisible()) {
+                IsViewVisible(vm->mRootView)) {
               vm->FlushDelayedResize(PR_TRUE);
 
               // Paint later.
@@ -885,7 +894,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
           }
 
           if (!didResize) {
-            //NS_ASSERTION(view->IsEffectivelyVisible(), "painting an invisible view");
+            //NS_ASSERTION(IsViewVisible(view), "painting an invisible view");
 
             // Notify view observers that we're about to paint.
             // Make sure to not send WillPaint notifications while scrolling.
@@ -1662,13 +1671,11 @@ nsViewManager::CallWillPaintOnObservers(PRBool aWillSendDidPaint)
     nsViewManager* vm = (nsViewManager*)gViewManagers->ElementAt(index);
     if (vm->RootViewManager() == this) {
       // One of our kids.
-      if (vm->mRootView && vm->mRootView->IsEffectivelyVisible()) {
-        nsCOMPtr<nsIViewObserver> obs = vm->GetViewObserver();
-        if (obs) {
-          obs->WillPaint(aWillSendDidPaint);
-          NS_ASSERTION(mUpdateBatchCnt == savedUpdateBatchCnt,
-                       "Observer did not end view batch?");
-        }
+      nsCOMPtr<nsIViewObserver> obs = vm->GetViewObserver();
+      if (obs) {
+        obs->WillPaint(aWillSendDidPaint);
+        NS_ASSERTION(mUpdateBatchCnt == savedUpdateBatchCnt,
+                     "Observer did not end view batch?");
       }
     }
   }

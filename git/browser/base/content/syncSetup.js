@@ -58,7 +58,6 @@ const SETUP_SUCCESS_PAGE            = 8;
 Cu.import("resource://services-sync/main.js");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/PluralForm.jsm");
 
 var gSyncSetup = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports,
@@ -719,9 +718,7 @@ var gSyncSetup = {
         if (stm.step())
           daysOfHistory = stm.getInt32(0);
         document.getElementById("historyCount").value =
-          PluralForm.get(daysOfHistory,
-                         this._stringBundle.GetStringFromName("historyDaysCount.label"))
-                             .replace("#1", daysOfHistory);
+          this._stringBundle.formatStringFromName("historyCount.label",  [daysOfHistory], 1);
 
         // bookmarks
         let bookmarks = 0;
@@ -734,16 +731,12 @@ var gSyncSetup = {
         if (stm.executeStep())
           bookmarks = stm.row.bookmarks;
         document.getElementById("bookmarkCount").value =
-          PluralForm.get(bookmarks,
-                         this._stringBundle.GetStringFromName("bookmarksCount.label"))
-                             .replace("#1", bookmarks);
+          this._stringBundle.formatStringFromName("bookmarkCount.label", [bookmarks], 1);
 
         // passwords
         let logins = Weave.Svc.Login.getAllLogins({});
         document.getElementById("passwordCount").value =
-          PluralForm.get(logins.length,
-                         this._stringBundle.GetStringFromName("passwordsCount.label"))
-                             .replace("#1", logins.length);
+          this._stringBundle.formatStringFromName("passwordCount.label",  [logins.length], 1);
         this._case1Setup = true;
         break;
       case 2:
@@ -769,9 +762,7 @@ var gSyncSetup = {
         }
         if (count > 5) {
           let label =
-            PluralForm.get(count - 5,
-                           this._stringBundle.GetStringFromName("additionalClientCount.label"))
-                               .replace("#1", count - 5);
+            this._stringBundle.formatStringFromName("additionalClients.label", [count - 5], 1);
           appendNode(label);
         }
         this._case2Setup = true;

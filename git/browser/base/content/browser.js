@@ -789,72 +789,6 @@ const gXPInstallObserver = {
   }
 };
 
-const gFormSubmitObserver = {
-  QueryInterface : XPCOMUtils.generateQI([Ci.nsIFormSubmitObserver]),
-
-  panel: null,
-
-  init: function()
-  {
-    this.panel = document.getElementById('invalid-form-popup');
-    this.panel.appendChild(document.createTextNode(""));
-  },
-
-  panelIsOpen: function()
-  {
-    return this.panel && this.panel.state != "hiding" &&
-           this.panel.state != "closed";
-  },
-
-  notifyInvalidSubmit : function (aFormElement, aInvalidElements)
-  {
-    // We are going to handle invalid form submission attempt by focusing the
-    // first invalid element and show the corresponding validation message in a
-    // panel attached to the element.
-    if (!aInvalidElements.length) {
-      return;
-    }
-
-    // Don't show the popup if the current tab doesn't contain the invalid form.
-    if (gBrowser.selectedTab.linkedBrowser.contentDocument !=
-        aFormElement.ownerDocument) {
-      return;
-    }
-
-    let element = aInvalidElements.queryElementAt(0, Ci.nsISupports);
-
-    if (!(element instanceof HTMLInputElement ||
-          element instanceof HTMLTextAreaElement ||
-          element instanceof HTMLSelectElement ||
-          element instanceof HTMLButtonElement)) {
-      return;
-    }
-
-    // Limit the message to 256 characters.
-    this.panel.firstChild.nodeValue = element.validationMessage.substring(0, 256);
-
-    element.focus();
-
-    // If the user type something or blur the element, we want to remove the popup.
-    // We could check for clicks but a click is already removing the popup.
-    let eventHandler = function(e) {
-      gFormSubmitObserver.panel.hidePopup();
-    };
-    element.addEventListener("input", eventHandler, false);
-    element.addEventListener("blur", eventHandler, false);
-
-    // One event to bring them all and in the darkness bind them all.
-    this.panel.addEventListener("popuphiding", function(aEvent) {
-      aEvent.target.removeEventListener("popuphiding", arguments.callee, false);
-      element.removeEventListener("input", eventHandler, false);
-      element.removeEventListener("blur", eventHandler, false);
-    }, false);
-
-    this.panel.hidden = false;
-    this.panel.openPopup(element, "after_start", 0, 0);
-  }
-};
-
 // Simple gestures support
 //
 // As per bug #412486, web content must not be allowed to receive any
@@ -1384,12 +1318,10 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   Services.obs.addObserver(gXPInstallObserver, "addon-install-blocked", false);
   Services.obs.addObserver(gXPInstallObserver, "addon-install-failed", false);
   Services.obs.addObserver(gXPInstallObserver, "addon-install-complete", false);
-  Services.obs.addObserver(gFormSubmitObserver, "invalidformsubmit", false);
 
   BrowserOffline.init();
   OfflineApps.init();
   IndexedDBPromptHelper.init();
-  gFormSubmitObserver.init();
 
   gBrowser.addEventListener("pageshow", function(evt) { setTimeout(pageShowEventHandlers, 0, evt); }, true);
 
@@ -1596,7 +1528,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   let consoleEnabled = gPrefService.getBoolPref("devtools.errorconsole.enabled");
   if (consoleEnabled) {
     document.getElementById("javascriptConsole").hidden = false;
-    document.getElementById("key_errorConsole").removeAttribute("disabled");
+    document.getElementById("key_errorConsole").disabled = false;
   }
 
   Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
@@ -1630,7 +1562,6 @@ function BrowserShutdown()
   Services.obs.removeObserver(gXPInstallObserver, "addon-install-failed");
   Services.obs.removeObserver(gXPInstallObserver, "addon-install-complete");
   Services.obs.removeObserver(gPluginHandler.pluginCrashed, "plugin-crashed");
-  Services.obs.removeObserver(gFormSubmitObserver, "invalidformsubmit");
 
   try {
     gBrowser.removeProgressListener(window.XULBrowserWindow);
@@ -1803,15 +1734,16 @@ function initializeSanitizer()
   }
 }
 
-function gotoHistoryIndex(aEvent) {
-  let index = aEvent.target.getAttribute("index");
+function gotoHistoryIndex(aEvent)
+{
+  var index = aEvent.target.getAttribute("index");
   if (!index)
     return false;
 
-  let where = whereToOpenLink(aEvent);
+  var where = whereToOpenLink(aEvent);
 
   if (where == "current") {
-    // Normal click. Go there in the current tab and update session history.
+    // Normal click.  Go there in the current tab and update session history.
 
     try {
       gBrowser.gotoIndex(index);
@@ -1821,14 +1753,20 @@ function gotoHistoryIndex(aEvent) {
     }
     return true;
   }
-  // Modified click. Go there in a new tab/window.
+  else {
+    // Modified click.  Go there in a new tab/window.
+    // This code doesn't copy history or work well with framed pages.
 
-  duplicateTabIn(gBrowser.selectedTab, where, index);
-  return true;
+    var sessionHistory = getWebNavigation().sessionHistory;
+    var entry = sessionHistory.getEntryAtIndex(index, false);
+    var url = entry.URI.spec;
+    openUILinkIn(url, where, {relatedToCurrent: true});
+    return true;
+  }
 }
 
 function BrowserForward(aEvent) {
-  let where = whereToOpenLink(aEvent, false, true);
+  var where = whereToOpenLink(aEvent, false, true);
 
   if (where == "current") {
     try {
@@ -1838,13 +1776,16 @@ function BrowserForward(aEvent) {
     }
   }
   else {
-    let currentIndex = getWebNavigation().sessionHistory.index;
-    duplicateTabIn(gBrowser.selectedTab, where, currentIndex + 1);
+    var sessionHistory = getWebNavigation().sessionHistory;
+    var currentIndex = sessionHistory.index;
+    var entry = sessionHistory.getEntryAtIndex(currentIndex + 1, false);
+    var url = entry.URI.spec;
+    openUILinkIn(url, where, {relatedToCurrent: true});
   }
 }
 
 function BrowserBack(aEvent) {
-  let where = whereToOpenLink(aEvent, false, true);
+  var where = whereToOpenLink(aEvent, false, true);
 
   if (where == "current") {
     try {
@@ -1854,8 +1795,11 @@ function BrowserBack(aEvent) {
     }
   }
   else {
-    let currentIndex = getWebNavigation().sessionHistory.index;
-    duplicateTabIn(gBrowser.selectedTab, where, currentIndex - 1);
+    var sessionHistory = getWebNavigation().sessionHistory;
+    var currentIndex = sessionHistory.index;
+    var entry = sessionHistory.getEntryAtIndex(currentIndex - 1, false);
+    var url = entry.URI.spec;
+    openUILinkIn(url, where, {relatedToCurrent: true});
   }
 }
 
@@ -1905,11 +1849,12 @@ function BrowserReloadOrDuplicate(aEvent) {
     return;
   }
 
-  let where = whereToOpenLink(aEvent, false, true);
+  var where = whereToOpenLink(aEvent, false, true);
   if (where == "current")
     BrowserReload();
   else
-    duplicateTabIn(gBrowser.selectedTab, where);
+    openUILinkIn(getWebNavigation().currentURI.spec, where,
+                 {relatedToCurrent: true});
 }
 
 function BrowserReload() {
@@ -4245,11 +4190,6 @@ var XULBrowserWindow = {
   onLocationChange: function (aWebProgress, aRequest, aLocationURI) {
     var location = aLocationURI ? aLocationURI.spec : "";
     this._hostChanged = true;
-
-    // Hide the form invalid popup.
-    if (gFormSubmitObserver.panelIsOpen()) {
-      gFormSubmitObserver.panel.hidePopup();
-    }
 
     if (document.tooltipNode) {
       // Optimise for the common case
@@ -8049,12 +7989,6 @@ function switchToTabHavingURI(aURI, aOpenNew, aCallback) {
   return false;
 }
 
-function restoreLastSession() {
-  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
-           getService(Ci.nsISessionStore);
-  ss.restoreLastSession();
-}
-
 var TabContextMenu = {
   contextTab: null,
   updateContextMenu: function updateContextMenu(aPopupMenu) {
@@ -8098,48 +8032,3 @@ XPCOMUtils.defineLazyGetter(this, "HUDConsoleUI", function () {
   }
 });
 
-/* duplicateTabIn duplicates tab in a place specified by the parameter |where|.
- *
- * |where| can be:
- *  "tab"         new tab
- *  "tabshifted"  same as "tab" but in background if default is to select new
- *                tabs, and vice versa
- *  "window"      new window
- *
- * historyIndex is an index the page can navigate to after the new tab is
- * created and loaded, it can for example be used to go back one page after the
- * tab is duplicated.
- */
-function duplicateTabIn(aTab, where, historyIndex) {
-  let newTab = gBrowser.duplicateTab(aTab);
-
-  // Go to index if it's provided, fallback to loadURI if there's no history.
-  if (historyIndex != null) {
-    try {
-      gBrowser.getBrowserForTab(newTab).gotoIndex(historyIndex);
-    }
-    catch (ex) {
-      let sessionHistory = aTab.linkedBrowser.sessionHistory;
-      let entry = sessionHistory.getEntryAtIndex(historyIndex, false);
-      let fallbackUrl = entry.URI.spec;
-      gBrowser.getBrowserForTab(newTab).loadURI(fallbackUrl);
-    }
-  }
-
-  var loadInBackground =
-    getBoolPref("browser.tabs.loadBookmarksInBackground", false);
-
-  switch (where) {
-    case "window":
-      gBrowser.hideTab(newTab);
-      gBrowser.replaceTabWithWindow(newTab);
-      break;
-    case "tabshifted":
-      loadInBackground = !loadInBackground;
-      // fall through
-    case "tab":
-      if (!loadInBackground)
-        gBrowser.selectedTab = newTab;
-      break;
-  }
-}

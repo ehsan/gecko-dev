@@ -815,8 +815,6 @@ public:
 
   virtual LayerManager* GetLayerManager();
 
-  virtual void SynthesizeMouseMove(PRBool aFromScroll);
-
   //nsIViewObserver interface
 
   NS_IMETHOD Paint(nsIView* aDisplayRoot,
@@ -836,6 +834,7 @@ public:
                                                         nsIDOMEvent* aEvent,
                                                         nsEventStatus* aStatus);
   NS_IMETHOD ResizeReflow(nsIView *aView, nscoord aWidth, nscoord aHeight);
+  NS_IMETHOD_(PRBool) IsVisible();
   NS_IMETHOD_(PRBool) ShouldIgnoreInvalidation();
   NS_IMETHOD_(void) WillPaint(PRBool aWillSendDidPaint);
   NS_IMETHOD_(void) DidPaint();
@@ -4559,8 +4558,8 @@ PresShell::UnsuppressAndInvalidate()
   if (win)
     win->SetReadyForFocus();
 
-  if (!mHaveShutDown)
-    SynthesizeMouseMove(PR_FALSE);
+  if (!mHaveShutDown && mViewManager)
+    mViewManager->SynthesizeMouseMove(PR_FALSE);
 }
 
 void
@@ -5814,7 +5813,8 @@ void PresShell::UpdateCanvasBackground()
     mCanvasBackgroundColor =
       nsCSSRendering::DetermineBackgroundColor(mPresContext, bgStyle,
                                                rootStyleFrame);
-    if (GetPresContext()->IsRootContentDocument() &&
+    if (nsLayoutUtils::GetCrossDocParentFrame(FrameManager()->GetRootFrame()) &&
+        !nsContentUtils::IsChildOfSameType(mDocument) &&
         !IsTransparentContainerElement(mPresContext)) {
       mCanvasBackgroundColor =
         NS_ComposeColors(mPresContext->DefaultBackgroundColor(), mCanvasBackgroundColor);
@@ -5861,13 +5861,6 @@ LayerManager* PresShell::GetLayerManager()
     }
   }
   return nsnull;
-}
-
-void PresShell::SynthesizeMouseMove(PRBool aFromScroll)
-{
-  if (mViewManager && !mPaintingSuppressed && mIsActive) {
-    mViewManager->SynthesizeMouseMove(aFromScroll);
-  }
 }
 
 static void DrawThebesLayer(ThebesLayer* aLayer,
@@ -7190,6 +7183,18 @@ PresShell::ResizeReflow(nsIView *aView, nscoord aWidth, nscoord aHeight)
 }
 
 NS_IMETHODIMP_(PRBool)
+PresShell::IsVisible()
+{
+  nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
+  nsCOMPtr<nsIBaseWindow> bw = do_QueryInterface(container);
+  if (!bw)
+    return PR_FALSE;
+  PRBool res = PR_TRUE;
+  bw->GetVisibility(&res);
+  return res;
+}
+
+NS_IMETHODIMP_(PRBool)
 PresShell::ShouldIgnoreInvalidation()
 {
   return mPaintingSuppressed || !mIsActive;
@@ -7198,9 +7203,9 @@ PresShell::ShouldIgnoreInvalidation()
 NS_IMETHODIMP_(void)
 PresShell::WillPaint(PRBool aWillSendDidPaint)
 {
-  // Don't bother doing anything if some viewmanager in our tree is painting
-  // while we still have painting suppressed or we are not active.
-  if (mPaintingSuppressed || !mIsActive) {
+  // Don't bother doing anything if some viewmanager in our tree is
+  // painting while we still have painting suppressed.
+  if (mPaintingSuppressed) {
     return;
   }
 
@@ -7369,6 +7374,8 @@ PresShell::Thaw()
   if (mDocument)
     mDocument->EnumerateSubDocuments(ThawSubDocument, nsnull);
 
+  UnsuppressPainting();
+
   // Get the activeness of our presshell, as this might have changed
   // while we were in the bfcache
   QueryIsActive();
@@ -7376,8 +7383,6 @@ PresShell::Thaw()
   // We're now unfrozen
   mFrozen = PR_FALSE;
   UpdateImageLockingState();
-
-  UnsuppressPainting();
 }
 
 //--------------------------------------------------------
@@ -7443,7 +7448,10 @@ PresShell::DidDoReflow(PRBool aInterruptible)
   mFrameConstructor->EndUpdate();
   
   HandlePostedReflowCallbacks(aInterruptible);
-  SynthesizeMouseMove(PR_FALSE);
+  // Null-check mViewManager in case this happens during Destroy.  See
+  // bugs 244435 and 238546.
+  if (!mPaintingSuppressed && mViewManager)
+    mViewManager->SynthesizeMouseMove(PR_FALSE);
   if (mCaret) {
     // Update the caret's position now to account for any changes created by
     // the reflow.

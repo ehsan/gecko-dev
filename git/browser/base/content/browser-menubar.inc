@@ -397,11 +397,6 @@
                           oncommand="BrowserOpenSyncTabs();"
                           disabled="true"/>
 #endif
-                <menuitem id="historyRestoreLastSession"
-                          class="restoreLastSession"
-                          label="&historyRestoreLastSession.label;"
-                          oncommand="restoreLastSession();"
-                          disabled="true"/>
                 <menu id="historyUndoMenu"
                       class="recentlyClosedTabsMenu"
                       label="&historyUndoMenu.label;"

@@ -884,10 +884,10 @@ var gViewController = {
       isEnabled: function(aAddon) {
         if (!aAddon)
           return false;
-        return ("contributionURL" in aAddon && aAddon.contributionURL);
+        return ("contributeURL" in aAddon && aAddon.contributeURL);
       },
       doCommand: function(aAddon) {
-        openURL(aAddon.contributionURL);
+        openURL(aAddon.contributeURL);
       }
     }
   },
@@ -1741,7 +1741,7 @@ var gDetailView = {
                                               : aAddon.description;
 
     var contributions = document.getElementById("detail-contributions");
-    if ("contributionURL" in aAddon && aAddon.contributionURL) {
+    if ("contributeURL" in aAddon && aAddon.contributeURL) {
       contributions.hidden = false;
       var amount = document.getElementById("detail-contrib-suggested");
       amount.value = gStrings.ext.formatStringFromName("contributionAmount",

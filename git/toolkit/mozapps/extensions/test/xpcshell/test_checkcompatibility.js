@@ -64,7 +64,9 @@ function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "2.2.3", "2");
 
   ADDONS.forEach(function(a) {
-    writeInstallRDFForExtension(a, profileDir);
+    let dest = profileDir.clone();
+    dest.append(a.id);
+    writeInstallRDFToDir(a, dest);
   });
 
   startupManager();
