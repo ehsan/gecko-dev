@@ -37,9 +37,7 @@ if CONFIG['MOZ_URL_CLASSIFIER']:
     ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
-    # Can't build unified because we need CreateEvent which some IPC code
-    # included in LoadContext ends up undefining.
-    SOURCES += [
+    UNIFIED_SOURCES += [
         'nsDownloadScanner.cpp',
     ]
 
@@ -57,7 +55,6 @@ FINAL_LIBRARY = 'toolkitcomps'
 
 LOCAL_INCLUDES += [
     '../protobuf',
-    '/ipc/chromium/src'
 ]
 
 DEFINES['GOOGLE_PROTOBUF_NO_RTTI'] = True

@@ -825,8 +825,10 @@ GonkGPSGeolocationProvider::Handle(const nsAString& aName,
   } else
 #endif // MOZ_B2G_RIL
   if (aName.EqualsLiteral(SETTING_DEBUG_ENABLED)) {
-    gGPSDebugging = aResult.isBoolean() ? aResult.toBoolean() : false;
-    return NS_OK;
+    if (!aResult.isBoolean()) {
+      return NS_ERROR_FAILURE;
+    }
+    gGPSDebugging = aResult.toBoolean();
   }
   return NS_OK;
 }

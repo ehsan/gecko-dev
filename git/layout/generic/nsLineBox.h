@@ -1699,10 +1699,12 @@ public:
                          bool* aXIsAfterLastFrame) MOZ_OVERRIDE;
 
   NS_IMETHOD GetNextSiblingOnLine(nsIFrame*& aFrame, int32_t aLineNumber) MOZ_OVERRIDE;
+#ifdef IBMBIDI
   NS_IMETHOD CheckLineOrder(int32_t                  aLine,
                             bool                     *aIsReordered,
                             nsIFrame                 **aFirstVisual,
                             nsIFrame                 **aLastVisual) MOZ_OVERRIDE;
+#endif
   nsresult Init(nsLineList& aLines, bool aRightToLeft);
 
 private:
