@@ -164,7 +164,7 @@ PRBool nsBuiltinDecoderStateMachine::HasFutureAudio() const {
   mDecoder->GetMonitor().AssertCurrentThreadIn();
   PRBool aboveLowAudioThreshold = PR_FALSE;
   if (mAudioEndTime != -1) {
-    aboveLowAudioThreshold = mAudioEndTime - GetMediaTime() > LOW_AUDIO_MS;
+    aboveLowAudioThreshold = mAudioEndTime - mCurrentFrameTime + mStartTime > LOW_AUDIO_MS;
   }
   return HasAudio() &&
     !mAudioCompleted &&
@@ -259,7 +259,7 @@ void nsBuiltinDecoderStateMachine::DecodeLoop()
     PRInt64 audioDecoded = 0;
     {
       MonitorAutoEnter mon(mDecoder->GetMonitor());
-      currentTime = GetMediaTime();
+      currentTime = mCurrentFrameTime + mStartTime;
       audioDecoded = mReader->mAudioQueue.Duration();
       if (mAudioEndTime != -1) {
         audioDecoded += mAudioEndTime - currentTime;
@@ -362,8 +362,6 @@ void nsBuiltinDecoderStateMachine::AudioLoop()
   PRUint64 audioDuration = 0;
   PRInt64 audioStartTime = -1;
   PRUint32 channels, rate;
-  float volume = -1;
-  PRBool setVolume;
   {
     MonitorAutoEnter mon(mDecoder->GetMonitor());
     mAudioCompleted = PR_FALSE;
@@ -397,21 +395,8 @@ void nsBuiltinDecoderStateMachine::AudioLoop()
       {
         break;
       }
-
-      // We only want to go to the expense of taking the audio monitor and
-      // changing the volume if it's the first time we've entered the loop
-      // (as we must sync the volume in case it's changed since the
-      // nsAudioStream was created) or if the volume has changed.
-      setVolume = volume != mVolume;
-      volume = mVolume;
     }
 
-    if (setVolume) {
-      MonitorAutoEnter audioMon(mAudioMonitor);
-      if (mAudioStream) {
-        mAudioStream->SetVolume(volume);
-      }
-    }
     NS_ASSERTION(mReader->mAudioQueue.GetSize() > 0,
                  "Should have data to play");
     // See if there's missing samples in the audio stream. If there is, push
@@ -466,7 +451,7 @@ void nsBuiltinDecoderStateMachine::AudioLoop()
         break;
       }
 
-      PRInt64 audioAhead = mAudioEndTime - GetMediaTime();
+      PRInt64 audioAhead = mAudioEndTime - mCurrentFrameTime - mStartTime;
       if (audioAhead > AMPLE_AUDIO_MS) {
         // We've pushed enough audio onto the hardware that we've queued up a
         // significant amount ahead of the playback position. The decode
@@ -668,7 +653,7 @@ void nsBuiltinDecoderStateMachine::UpdatePlaybackPosition(PRInt64 aTime)
   }
 
   // Notify DOM of any queued up audioavailable events
-  mEventManager.DispatchPendingEvents(GetMediaTime());
+  mEventManager.DispatchPendingEvents(mCurrentFrameTime + mStartTime);
 }
 
 void nsBuiltinDecoderStateMachine::ClearPositionChangeFlag()
@@ -693,8 +678,16 @@ nsHTMLMediaElement::NextFrameStatus nsBuiltinDecoderStateMachine::GetNextFrameSt
 void nsBuiltinDecoderStateMachine::SetVolume(float volume)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  MonitorAutoEnter mon(mDecoder->GetMonitor());
-  mVolume = volume;
+  {
+    MonitorAutoEnter audioMon(mAudioMonitor);
+    if (mAudioStream) {
+      mAudioStream->SetVolume(volume);
+    }
+  }
+  {
+    MonitorAutoEnter mon(mDecoder->GetMonitor());
+    mVolume = volume;
+  }
 }
 
 float nsBuiltinDecoderStateMachine::GetCurrentTime()
@@ -996,7 +989,6 @@ nsresult nsBuiltinDecoderStateMachine::Run()
           StopPlayback(AUDIO_SHUTDOWN);
           StopDecodeThreads();
           ResetPlayback();
-          PRInt64 currentTime = GetMediaTime();
           nsresult res;
           {
             MonitorAutoExit exitMon(mDecoder->GetMonitor());
@@ -1005,7 +997,7 @@ nsresult nsBuiltinDecoderStateMachine::Run()
             res = mReader->Seek(seekTime,
                                 mStartTime,
                                 mEndTime,
-                                currentTime);
+                                mCurrentFrameTime + mStartTime);
           }
           if (NS_SUCCEEDED(res)){
             PRInt64 audioTime = seekTime;
@@ -1043,7 +1035,7 @@ nsresult nsBuiltinDecoderStateMachine::Run()
         // if we need to seek again.
         
         nsCOMPtr<nsIRunnable> stopEvent;
-        if (GetMediaTime() == mEndTime) {
+        if (mCurrentFrameTime == mEndTime) {
           LOG(PR_LOG_DEBUG, ("%p Changed state from SEEKING (to %lldms) to COMPLETED",
                              mDecoder, seekTime));
           stopEvent = NS_NewRunnableMethod(mDecoder, &nsBuiltinDecoder::SeekingStoppedAtEnd);
