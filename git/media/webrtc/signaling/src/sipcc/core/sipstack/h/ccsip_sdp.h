@@ -47,7 +47,7 @@
 #include "ccapi.h"
 
 // RAMC-start
-#define CCSIP_SDP_BUF_SIZE      SDP_MAX_LEN
+#define CCSIP_SDP_BUF_SIZE      2048
 
 /* SDP bitmask values */
 #define CCSIP_SRC_SDP_BIT       0x1

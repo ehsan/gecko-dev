@@ -40,8 +40,6 @@
 #ifndef CSFLOG_H
 #define CSFLOG_H
 
-#include <stdarg.h>
-
 typedef enum{
 	CSF_LOG_CRITICAL =1,
 	CSF_LOG_ERROR,

@@ -847,19 +847,11 @@ JSCompartment::sweepBreakpoints(FreeOp *fop)
     }
 }
 
-void
-JSCompartment::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compartmentObject,
-                                   TypeInferenceSizes *tiSizes, size_t *shapesCompartmentTables,
-                                   size_t *crossCompartmentWrappersArg, size_t *regexpCompartment,
-                                   size_t *debuggeesSet)
+size_t
+JSCompartment::sizeOfShapeTable(JSMallocSizeOfFun mallocSizeOf)
 {
-    *compartmentObject = mallocSizeOf(this);
-    sizeOfTypeInferenceData(tiSizes, mallocSizeOf);
-    *shapesCompartmentTables = baseShapes.sizeOfExcludingThis(mallocSizeOf)
-                             + initialShapes.sizeOfExcludingThis(mallocSizeOf)
-                             + newTypeObjects.sizeOfExcludingThis(mallocSizeOf)
-                             + lazyTypeObjects.sizeOfExcludingThis(mallocSizeOf);
-    *crossCompartmentWrappersArg = crossCompartmentWrappers.sizeOfExcludingThis(mallocSizeOf);
-    *regexpCompartment = regExps.sizeOfExcludingThis(mallocSizeOf);
-    *debuggeesSet = debuggees.sizeOfExcludingThis(mallocSizeOf);
+    return baseShapes.sizeOfExcludingThis(mallocSizeOf)
+         + initialShapes.sizeOfExcludingThis(mallocSizeOf)
+         + newTypeObjects.sizeOfExcludingThis(mallocSizeOf)
+         + lazyTypeObjects.sizeOfExcludingThis(mallocSizeOf);
 }

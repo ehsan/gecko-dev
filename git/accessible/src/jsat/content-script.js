@@ -46,9 +46,7 @@ function virtualCursorControl(aMessage) {
           moved = vc[details.action](rule);
         }
       } catch (x) {
-        let acc = Utils.AccRetrieval.
-          getAccessibleFor(content.document.activeElement);
-        moved = vc.moveNext(rule, acc, true);
+        moved = vc.moveNext(rule, content.document.activeElement, true);
       }
       break;
     case 'moveToPoint':
@@ -90,7 +88,7 @@ function forwardMessage(aVirtualCursor, aMessage) {
       return true;
     }
   } catch (x) {
-    // Frame may be hidden, we regard this case as false.
+    Logger.error(x);
   }
   return false;
 }

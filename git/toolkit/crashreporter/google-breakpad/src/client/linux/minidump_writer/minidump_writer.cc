@@ -62,6 +62,9 @@
 
 #include <algorithm>
 
+#include "client/minidump_file_writer.h"
+#include "google_breakpad/common/minidump_format.h"
+
 #include "client/linux/handler/exception_handler.h"
 #include "client/linux/minidump_writer/line_reader.h"
 #include "client/linux/minidump_writer/linux_dumper.h"
@@ -1005,8 +1008,7 @@ class MinidumpWriter {
     for (int i = 0;;) {
       ElfW(Dyn) dyn;
       dynamic_length += sizeof(dyn);
-      dumper_->CopyFromProcess(&dyn, GetCrashThread(), dynamic+i++,
-                               sizeof(dyn));
+      dumper_->CopyFromProcess(&dyn, GetCrashThread(), dynamic+i++, sizeof(dyn));
       if (dyn.d_tag == DT_DEBUG) {
         r_debug = reinterpret_cast<struct r_debug*>(dyn.d_un.d_ptr);
         continue;
@@ -1081,7 +1083,7 @@ class MinidumpWriter {
     debug.get()->ldbase = (void*)debug_entry.r_ldbase;
     debug.get()->dynamic = dynamic;
 
-    char* dso_debug_data = new char[dynamic_length];
+    char *dso_debug_data = new char[dynamic_length];
     dumper_->CopyFromProcess(dso_debug_data, GetCrashThread(), dynamic,
                              dynamic_length);
     debug.CopyIndexAfterObject(0, dso_debug_data, dynamic_length);
@@ -1208,14 +1210,8 @@ class MinidumpWriter {
             if (space_ptr != value)
               continue;
 
-            // skip past the colon and all the spaces that follow
-            do {
-              value++;
-            } while (my_isspace(*value));
-
             uintptr_t val;
-            if (my_read_decimal_ptr(&val, value) == value)
-              continue;
+            my_read_decimal_ptr(&val, ++value);
             entry->value = static_cast<int>(val);
             entry->found = true;
           }
@@ -1227,7 +1223,7 @@ class MinidumpWriter {
           if (!value)
             goto popline;
 
-          // skip past the colon and all the spaces that follow
+          // skip ':" and all the spaces that follows
           do {
             value++;
           } while (my_isspace(*value));

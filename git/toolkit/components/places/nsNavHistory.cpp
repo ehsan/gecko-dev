@@ -1257,8 +1257,7 @@ nsNavHistory::CanAddURI(nsIURI* aURI, bool* canAdd)
       scheme.EqualsLiteral("resource") ||
       scheme.EqualsLiteral("data") ||
       scheme.EqualsLiteral("wyciwyg") ||
-      scheme.EqualsLiteral("javascript") ||
-      scheme.EqualsLiteral("blob")) {
+      scheme.EqualsLiteral("javascript")) {
     *canAdd = false;
     return NS_OK;
   }

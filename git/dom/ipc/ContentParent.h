@@ -144,7 +144,6 @@ private:
     static void DelayedPreallocateAppProcess();
     static void ScheduleDelayedPreallocateAppProcess();
     static already_AddRefed<ContentParent> MaybeTakePreallocatedAppProcess();
-    static void FirstIdle();
 
     // Hide the raw constructor methods since we don't want client code
     // using them.
@@ -308,8 +307,6 @@ private:
                                  const nsCString& aCategory);
 
     virtual bool RecvPrivateDocShellsExist(const bool& aExist);
-
-    virtual bool RecvFirstIdle();
 
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 

@@ -167,8 +167,12 @@ class MacroAssembler : public MacroAssemblerSpecific
     void loadTypedOrValue(const T &src, TypedOrValueRegister dest) {
         if (dest.hasValue())
             loadValue(src, dest.valueReg());
+        else if (dest.type() == MIRType_Int32)
+            unboxInt32(src, dest.typedReg().gpr());
+        else if (dest.type() == MIRType_Boolean)
+            unboxBoolean(src, dest.typedReg().gpr());
         else
-            loadUnboxedValue(src, dest.type(), dest.typedReg());
+            loadUnboxedValue(src, dest.typedReg());
     }
 
     template<typename T>
@@ -181,7 +185,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         } else {
             if (holeCheck)
                 branchTestMagic(Assembler::Equal, src, hole);
-            loadUnboxedValue(src, dest.type(), dest.typedReg());
+            loadUnboxedValue(src, dest.typedReg());
         }
     }
 

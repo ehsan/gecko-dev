@@ -6,8 +6,6 @@ const LAST_URL_PREF = "general.open_location.last_url";
 const nsISupportsString = Components.interfaces.nsISupportsString;
 const Ci = Components.interfaces;
 
-Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
-
 var EXPORTED_SYMBOLS = [ "OpenLocationLastURL" ];
 
 let prefSvc = Components.classes["@mozilla.org/preferences-service;1"]
@@ -49,10 +47,10 @@ OpenLocationLastURL.prototype = {
   isPrivate: function OpenLocationLastURL_isPrivate() {
     // Assume not in private browsing mode, unless the browser window is
     // in private mode.
-    if (!this.window)
+    if (!this.window || !("gPrivateBrowsingUI" in this.window))
       return false;
-
-    return PrivateBrowsingUtils.isWindowPrivate(this.window);
+  
+    return this.window.gPrivateBrowsingUI.privateWindow;
   },
   get value() {
     if (this.isPrivate())

@@ -2134,6 +2134,12 @@ nsHTMLMediaElement::IsWebMType(const nsACString& aType)
 #endif
 
 #if defined(MOZ_GSTREAMER) || defined(MOZ_WIDGET_GONK)
+const char nsHTMLMediaElement::gH264Types[3][16] = {
+  "video/mp4",
+  "video/3gpp",
+  "video/quicktime",
+};
+
 char const *const nsHTMLMediaElement::gH264Codecs[7] = {
   "avc1.42E01E",
   "avc1.42001E",
@@ -2146,12 +2152,6 @@ char const *const nsHTMLMediaElement::gH264Codecs[7] = {
 #endif
 
 #ifdef MOZ_GSTREAMER
-const char nsHTMLMediaElement::gH264Types[3][16] = {
-  "video/mp4",
-  "video/3gpp",
-  "video/quicktime",
-};
-
 bool
 nsHTMLMediaElement::IsH264Enabled()
 {
@@ -2176,14 +2176,6 @@ nsHTMLMediaElement::IsH264Type(const nsACString& aType)
 #endif
 
 #ifdef MOZ_WIDGET_GONK
-const char nsHTMLMediaElement::gOmxTypes[5][16] = {
-  "audio/mpeg",
-  "audio/mp4",
-  "video/mp4",
-  "video/3gpp",
-  "video/quicktime",
-};
-
 bool
 nsHTMLMediaElement::IsOmxEnabled()
 {
@@ -2191,14 +2183,14 @@ nsHTMLMediaElement::IsOmxEnabled()
 }
 
 bool
-nsHTMLMediaElement::IsOmxSupportedType(const nsACString& aType)
+nsHTMLMediaElement::IsH264Type(const nsACString& aType)
 {
   if (!IsOmxEnabled()) {
     return false;
   }
 
-  for (uint32_t i = 0; i < ArrayLength(gOmxTypes); ++i) {
-    if (aType.EqualsASCII(gOmxTypes[i])) {
+  for (uint32_t i = 0; i < ArrayLength(gH264Types); ++i) {
+    if (aType.EqualsASCII(gH264Types[i])) {
       return true;
     }
   }
@@ -2308,7 +2300,7 @@ nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
   }
 #endif
 #ifdef MOZ_WIDGET_GONK
-  if (IsOmxSupportedType(nsDependentCString(aMIMEType))) {
+  if (IsH264Type(nsDependentCString(aMIMEType))) {
     *aCodecList = gH264Codecs;
     return CANPLAY_MAYBE;
   }
@@ -2340,7 +2332,7 @@ bool nsHTMLMediaElement::ShouldHandleMediaType(const char* aMIMEType)
     return true;
 #endif
 #ifdef MOZ_WIDGET_GONK
-  if (IsOmxSupportedType(nsDependentCString(aMIMEType))) {
+  if (IsH264Type(nsDependentCString(aMIMEType))) {
     return true;
   }
 #endif
@@ -2461,7 +2453,7 @@ nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
   }
 #endif
 #ifdef MOZ_WIDGET_GONK
-  if (IsOmxSupportedType(aType)) {
+  if (IsH264Type(aType)) {
     nsRefPtr<nsMediaOmxDecoder> decoder = new nsMediaOmxDecoder();
     if (decoder->Init(this)) {
       return decoder.forget();

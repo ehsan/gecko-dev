@@ -90,7 +90,6 @@ MessageLoop::MessageLoop(Type type)
       nestable_tasks_allowed_(true),
       exception_restoration_(false),
       state_(NULL),
-      run_depth_base_(1),
 #ifdef OS_WIN
       os_modal_loop_(false),
 #endif  // OS_WIN
@@ -103,12 +102,6 @@ MessageLoop::MessageLoop(Type type)
   }
   if (type_ == TYPE_MOZILLA_CHILD) {
     pump_ = new mozilla::ipc::MessagePumpForChildProcess();
-    // There is a MessageLoop Run call from XRE_InitChildProcess
-    // and another one from MessagePumpForChildProcess. The one
-    // from MessagePumpForChildProcess becomes the base, so we need
-    // to set run_depth_base_ to 2 or we'll never be able to process
-    // Idle tasks.
-    run_depth_base_ = 2;
     return;
   }
 
@@ -219,7 +212,7 @@ void MessageLoop::RunInternal() {
 // Wrapper functions for use in above message loop framework.
 
 bool MessageLoop::ProcessNextDelayedNonNestableTask() {
-  if (state_->run_depth > run_depth_base_)
+  if (state_->run_depth != 1)
     return false;
 
   if (deferred_non_nestable_work_queue_.empty())
@@ -337,7 +330,7 @@ void MessageLoop::RunTask(Task* task) {
 }
 
 bool MessageLoop::DeferOrRunPendingTask(const PendingTask& pending_task) {
-  if (pending_task.nestable || state_->run_depth >= run_depth_base_) {
+  if (pending_task.nestable || state_->run_depth == 1) {
     RunTask(pending_task.task);
     // Show that we ran a task (Note: a new one might arrive as a
     // consequence!).

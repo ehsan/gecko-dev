@@ -75,7 +75,7 @@
 
             <Button android:id="@+id/awesome_bar"
                     style="@style/AddressBar.Button"
-                    android:background="@drawable/address_bar_url_level"/>
+                    android:background="@drawable/address_bar_url"/>
 
             <LinearLayout style="@style/AddressBar.Button"
                           android:orientation="horizontal">

@@ -10,7 +10,6 @@
 
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
-#include "nss.h"
 #include "ssl.h"
 #include "sslproto.h"
 

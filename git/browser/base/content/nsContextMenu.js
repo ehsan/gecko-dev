@@ -1249,12 +1249,12 @@ nsContextMenu.prototype = {
       engineName = ss.defaultEngine.name;
 
     // format "Search <engine> for <selection>" string to show in menu
-    var menuLabel = gNavigatorBundle.getFormattedString("contextMenuSearch",
+    var menuLabel = gNavigatorBundle.getFormattedString("contextMenuSearchText",
                                                         [engineName,
                                                          selectedText]);
     document.getElementById("context-searchselect").label = menuLabel;
     document.getElementById("context-searchselect").accessKey =
-             gNavigatorBundle.getString("contextMenuSearch.accesskey"); 
+             gNavigatorBundle.getString("contextMenuSearchText.accesskey"); 
 
     return true;
   },

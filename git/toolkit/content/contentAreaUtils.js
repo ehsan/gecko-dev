@@ -434,9 +434,9 @@ function internalPersist(persistArgs)
                          persistArgs.targetContentType, encodingFlags, kWrapColumn);
   } else {
     let privacyContext = persistArgs.initiatingWindow
-                                    .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                                    .getInterface(Components.interfaces.nsIWebNavigation)
-                                    .QueryInterface(Components.interfaces.nsILoadContext);
+                                    .QueryInterface(Ci.nsIInterfaceRequestor)
+                                    .getInterface(Ci.nsIWebNavigation)
+                                    .QueryInterface(Ci.nsILoadContext);
     persist.saveURI(persistArgs.sourceURI,
                     persistArgs.sourceCacheKey, persistArgs.sourceReferrer, persistArgs.sourcePostData, null,
                     targetFileURL, privacyContext);

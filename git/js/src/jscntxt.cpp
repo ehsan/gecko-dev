@@ -100,6 +100,19 @@ js::TraceCycleDetectionSet(JSTracer *trc, js::ObjectSet &set)
     }
 }
 
+struct CallbackData
+{
+    CallbackData(JSMallocSizeOfFun f) : mallocSizeOf(f), n(0) {}
+    JSMallocSizeOfFun mallocSizeOf;
+    size_t n;
+};
+
+void CompartmentCallback(JSRuntime *rt, void *vdata, JSCompartment *compartment)
+{
+    CallbackData *data = (CallbackData *) vdata;
+    data->n += data->mallocSizeOf(compartment);
+}
+
 void
 JSRuntime::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, RuntimeSizes *rtSizes)
 {
@@ -134,6 +147,11 @@ JSRuntime::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, RuntimeSizes *rtS
     rtSizes->scriptFilenames = scriptFilenameTable.sizeOfExcludingThis(mallocSizeOf);
     for (ScriptFilenameTable::Range r = scriptFilenameTable.all(); !r.empty(); r.popFront())
         rtSizes->scriptFilenames += mallocSizeOf(r.front());
+
+    rtSizes->compartmentObjects = 0;
+    CallbackData data(mallocSizeOf);
+    JS_IterateCompartments(this, &data, CompartmentCallback);
+    rtSizes->compartmentObjects = data.n;
 }
 
 size_t

@@ -130,8 +130,7 @@ nsDOMFileBase::GetName(nsAString &aFileName)
 NS_IMETHODIMP
 nsDOMFileBase::GetLastModifiedDate(JSContext* cx, JS::Value *aLastModifiedDate)
 {
-  JSObject* date = JS_NewDateObjectMsec(cx, JS_Now() / PR_USEC_PER_MSEC);
-  aLastModifiedDate->setObject(*date);
+  aLastModifiedDate->setNull();
   return NS_OK;
 }
 
@@ -507,8 +506,7 @@ nsDOMFileFile::GetLastModifiedDate(JSContext* cx, JS::Value *aLastModifiedDate)
     aLastModifiedDate->setObject(*date);
   }
   else {
-    date = JS_NewDateObjectMsec(cx, JS_Now() / PR_USEC_PER_MSEC);
-    aLastModifiedDate->setObject(*date);
+    aLastModifiedDate->setNull();
   }
 
   return NS_OK;

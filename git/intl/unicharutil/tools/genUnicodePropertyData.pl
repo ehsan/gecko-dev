@@ -54,10 +54,10 @@ if ($#ARGV != 1) {
 # Run this tool using a command line of the form
 #
 #     perl genUnicodePropertyData.pl \
-#             /path/to/harfbuzz/src  \
+#             /path/to/hb-common.h   \
 #             /path/to/UCD-directory
 #
-# where harfbuzz/src is the directory containing harfbuzz .cc and .hh files,
+# where hb-common.h is currently found in the gfx/harfbuzz/src directory,
 # and UCD-directory is a directory containing the current Unicode Character
 # Database files (UnicodeData.txt, etc), available from
 # http://www.unicode.org/Public/UNIDATA/
@@ -207,33 +207,23 @@ my %catCode;
 my @scriptCodeToTag;
 my @scriptCodeToName;
 
-sub readHarfBuzzHeader
-{
-    my $file = shift;
-    open FH, "< $ARGV[0]/$file" or die "can't open harfbuzz header $ARGV[0]/$file\n";
-    while (<FH>) {
-        if (m/HB_SCRIPT_([A-Z_]+)\s*=\s*HB_TAG\s*\(('.','.','.','.')\)\s*,/) {
-            unless (exists $scriptCode{$1}) {
-                warn "unknown script name $1 found in $file\n";
-                next;
-            }
-            $sc = $scriptCode{$1};
-            $scriptCodeToTag[$sc] = $2;
-            $scriptCodeToName[$sc] = $1;
+open FH, "< $ARGV[0]" or die "can't open $ARGV[0] (should be header file hb-common.h)\n";
+while (<FH>) {
+    if (m/HB_SCRIPT_([A-Z_]+)\s*=\s*HB_TAG\s*\(('.','.','.','.')\)\s*,/) {
+        unless (exists $scriptCode{$1}) {
+            warn "unknown script name $1 found in hb-common.h\n";
+            next;
         }
-        if (m/HB_UNICODE_GENERAL_CATEGORY_([A-Z_]+)/) {
-            $cc++;
-            $catCode{$1} = $cc;
-        }
+        $sc = $scriptCode{$1};
+        $scriptCodeToTag[$sc] = $2;
+        $scriptCodeToName[$sc] = $1;
     }
-    close FH;
+    if (m/HB_UNICODE_GENERAL_CATEGORY_([A-Z_]+)/) {
+        $cc++;
+        $catCode{$1} = $cc;
+    }
 }
-
-&readHarfBuzzHeader("hb-common.h");
-&readHarfBuzzHeader("hb-unicode.h");
-
-die "didn't find HarfBuzz script codes\n" if $sc == -1;
-die "didn't find HarfBuzz category codes\n" if $cc == -1;
+close FH;
 
 my %xidmodCode = (
 'inclusion'         => 0,
@@ -791,8 +781,7 @@ print HEADER "enum {\n";
 for (my $i = 0; $i < scalar @scriptCodeToName; ++$i) {
   print HEADER "  MOZ_SCRIPT_", $scriptCodeToName[$i], " = ", $i, ",\n";
 }
-print HEADER "\n  MOZ_NUM_SCRIPT_CODES = ", scalar @scriptCodeToName, ",\n";
-print HEADER "\n  MOZ_SCRIPT_INVALID = -1\n";
+print HEADER "  MOZ_SCRIPT_INVALID = -1\n";
 print HEADER "};\n\n";
 
 print HEADER <<__END;

@@ -73,7 +73,6 @@ const kUssdReceivedTopic     = "mobile-connection-ussd-received";
 const kStkCommandTopic       = "icc-manager-stk-command";
 const kStkSessionEndTopic    = "icc-manager-stk-session-end";
 const kDataErrorTopic        = "mobile-connection-data-error";
-const kIccCardLockErrorTopic = "mobile-connection-icccardlock-error";
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
@@ -699,14 +698,7 @@ RILContentHelper.prototype = {
           let result = new MobileICCCardLockResult(msg.json);
           this.fireRequestSuccess(msg.json.requestId, result);
         } else {
-          if (msg.json.rilMessageType == "iccSetCardLock" ||
-              msg.json.rilMessageType == "iccUnlockCardLock") {
-            let result = JSON.stringify({lockType: msg.json.lockType,
-                                         retryCount: msg.json.retryCount});
-            Services.obs.notifyObservers(null, kIccCardLockErrorTopic,
-                                         result);
-          }
-          this.fireRequestError(msg.json.requestId, msg.json.errorMsg);
+          this.fireRequestError(msg.json.requestId, msg.json);
         }
         break;
       case "RIL:USSDReceived":

@@ -43,7 +43,6 @@ CPPSRCS	= \
 ifdef MOZ_WEBGL
 
 CPPSRCS += \
-	WebGLActiveInfo.cpp \
 	WebGLBuffer.cpp \
 	WebGLContext.cpp \
 	WebGLContextGL.cpp \
@@ -64,10 +63,8 @@ CPPSRCS += \
 	WebGLProgram.cpp \
 	WebGLRenderbuffer.cpp \
 	WebGLShader.cpp \
-	WebGLShaderPrecisionFormat.cpp \
 	WebGLTexelConversions.cpp \
 	WebGLTexture.cpp \
-	WebGLUniformLocation.cpp \
 	$(NULL)
 
 DEFINES += -DUSE_ANGLE

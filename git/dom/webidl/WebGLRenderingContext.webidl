@@ -70,11 +70,7 @@ interface WebGLTexture {
 interface WebGLUniformLocation {
 };
 
-interface WebGLActiveInfo {
-    readonly attribute GLint size;
-    readonly attribute GLenum type;
-    readonly attribute DOMString name;
-};
+interface WebGLActiveInfo;
 
 interface WebGLShaderPrecisionFormat {
     readonly attribute GLint rangeMin;
@@ -592,11 +588,8 @@ interface WebGLRenderingContext {
 
     void generateMipmap(GLenum target);
 
-    [Creator]
     WebGLActiveInfo? getActiveAttrib(WebGLProgram? program, GLuint index);
-    [Creator]
     WebGLActiveInfo? getActiveUniform(WebGLProgram? program, GLuint index);
-
     sequence<WebGLShader>? getAttachedShaders(WebGLProgram? program);
 
     [WebGLHandlesContextLoss] GLint getAttribLocation(WebGLProgram? program, DOMString name);

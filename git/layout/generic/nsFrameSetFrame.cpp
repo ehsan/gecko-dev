@@ -140,9 +140,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG
-  NS_IMETHOD List(FILE* out,
-                  int32_t aIndent,
-                  uint32_t aFlags = 0) const MOZ_OVERRIDE;
+  NS_IMETHOD List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -1821,14 +1819,12 @@ void nsDisplayFramesetBlank::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 #ifdef DEBUG
-NS_IMETHODIMP
-nsHTMLFramesetBlankFrame::List(FILE*    out,
-                               int32_t  aIndent,
-                               uint32_t aFlags) const
+NS_IMETHODIMP nsHTMLFramesetBlankFrame::List(FILE*   out, 
+                                             int32_t aIndent) const
 {
-  IndentBy(out, aIndent);
+  for (int32_t i = aIndent; --i >= 0; ) fputs("  ", out);   // Indent
   fprintf(out, "%p BLANK \n", (void*)this);
-  return nsLeafFrame::List(out, aIndent, aFlags);
+  return nsLeafFrame::List(out, aIndent);
 }
 #endif
 

@@ -16,7 +16,6 @@ include $(topsrcdir)/dom/dom-config.mk
 XPIDLSRCS = \
   nsIDOMIccManager.idl \
   SimToolKit.idl \
-  nsIDOMICCCardLockErrorEvent.idl \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

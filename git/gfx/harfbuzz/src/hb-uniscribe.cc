@@ -33,6 +33,8 @@
 #include <windows.h>
 #include <usp10.h>
 
+typedef ULONG WIN_ULONG;
+
 #include "hb-uniscribe.h"
 
 #include "hb-ot-name-table.hh"
@@ -119,8 +121,8 @@ populate_log_font (LOGFONTW  *lf,
   lf->lfHeight = -font->y_scale;
   lf->lfCharSet = DEFAULT_CHARSET;
 
-  hb_blob_t *blob = OT::Sanitizer<OT::name>::sanitize (hb_face_reference_table (font->face, HB_TAG ('n','a','m','e')));
-  const OT::name *name_table = OT::Sanitizer<OT::name>::lock_instance (blob);
+  hb_blob_t *blob = Sanitizer<name>::sanitize (hb_face_reference_table (font->face, HB_TAG ('n','a','m','e')));
+  const name *name_table = Sanitizer<name>::lock_instance (blob);
   unsigned int len = name_table->get_name (3, 1, 0x409, 4,
 					   lf->lfFaceName,
 					   sizeof (lf->lfFaceName[0]) * LF_FACESIZE)
@@ -303,7 +305,7 @@ retry:
   SCRIPT_ITEM items[MAX_ITEMS + 1];
   SCRIPT_CONTROL bidi_control = {0};
   SCRIPT_STATE bidi_state = {0};
-  ULONG script_tags[MAX_ITEMS];
+  WIN_ULONG script_tags[MAX_ITEMS];
   int item_count;
 
   /* MinGW32 doesn't define fMergeNeutralItems, so we bruteforce */

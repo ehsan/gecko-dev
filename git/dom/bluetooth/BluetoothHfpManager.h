@@ -30,8 +30,6 @@ public:
   bool SendLine(const char* aMessage);
   void CallStateChanged(int aCallIndex, int aCallState,
                         const char* aNumber, bool aIsActive);
-  void EnumerateCallState(int aCallIndex, int aCallState,
-                          const char* aNumber, bool aIsActive);
   bool Listen();
 
 private:
@@ -47,9 +45,6 @@ private:
   int mCurrentVgs;
   int mCurrentCallIndex;
   int mCurrentCallState;
-  int mCall;
-  int mCallSetup;
-  int mCallHeld;
   nsAutoPtr<BluetoothRilListener> mListener;
   nsString mDevicePath;
 };

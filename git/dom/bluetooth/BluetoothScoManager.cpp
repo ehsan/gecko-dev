@@ -33,34 +33,21 @@ public:
 
   BluetoothScoManagerObserver()
   {
-  }
-
-  bool Init()
-  {
     nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
     MOZ_ASSERT(obs);
 
     if (NS_FAILED(obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false))) {
       NS_WARNING("Failed to add shutdown observer!");
-      return false;
     }
-    return true;
-  }
-
-  bool Shutdown()
-  {
-    nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-    if (!obs ||
-        (NS_FAILED(obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID)))) {
-      NS_WARNING("Can't unregister observers!");
-      return false;
-    }
-    return true;
   }
 
   ~BluetoothScoManagerObserver()
   {
-    Shutdown();
+    nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+    if (obs &&
+        (NS_FAILED(obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID)))) {
+      NS_WARNING("Can't unregister observers!");
+    }
   }
 };
 
@@ -68,7 +55,7 @@ NS_IMPL_ISUPPORTS1(BluetoothScoManagerObserver, nsIObserver)
 
 namespace {
 StaticRefPtr<BluetoothScoManager> gBluetoothScoManager;
-StaticRefPtr<BluetoothScoManagerObserver> sScoObserver;
+StaticAutoPtr<BluetoothScoManagerObserver> sScoObserver;
 bool gInShutdown = false;
 } // anonymous namespace
 
@@ -95,9 +82,6 @@ bool
 BluetoothScoManager::Init()
 {
   sScoObserver = new BluetoothScoManagerObserver();
-  if (sScoObserver->Init()) {
-    NS_WARNING("Cannot set up SCO observers!");
-  }
   return true;
 }
 
@@ -109,7 +93,6 @@ BluetoothScoManager::~BluetoothScoManager()
 void
 BluetoothScoManager::Cleanup()
 {
-  sScoObserver->Shutdown();
   sScoObserver = nullptr;
 }
 

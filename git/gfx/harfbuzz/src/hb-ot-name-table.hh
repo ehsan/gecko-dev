@@ -30,8 +30,6 @@
 #include "hb-open-type-private.hh"
 
 
-namespace OT {
-
 
 /*
  * name -- The Naming Table
@@ -125,8 +123,6 @@ struct name
   DEFINE_SIZE_ARRAY (6, nameRecord);
 };
 
-
-} // namespace OT
 
 
 #endif /* HB_OT_NAME_TABLE_HH */

@@ -606,7 +606,7 @@ public:
 JSString *
 nsOuterWindowProxy::obj_toString(JSContext *cx, JSObject *proxy)
 {
-    MOZ_ASSERT(js::IsProxy(proxy));
+    JS_ASSERT(js::IsProxy(proxy));
 
     return JS_NewStringCopyZ(cx, "[object Window]");
 }
@@ -626,29 +626,8 @@ nsOuterWindowProxy::finalize(JSFreeOp *fop, JSObject *proxy)
 nsOuterWindowProxy
 nsOuterWindowProxy::singleton;
 
-class nsChromeOuterWindowProxy : public nsOuterWindowProxy
-{
-public:
-  nsChromeOuterWindowProxy() : nsOuterWindowProxy() {}
-
-  virtual JSString *obj_toString(JSContext *cx, JSObject *wrapper);
-
-  static nsChromeOuterWindowProxy singleton;
-};
-
-JSString *
-nsChromeOuterWindowProxy::obj_toString(JSContext *cx, JSObject *proxy)
-{
-    MOZ_ASSERT(js::IsProxy(proxy));
-
-    return JS_NewStringCopyZ(cx, "[object ChromeWindow]");
-}
-
-nsChromeOuterWindowProxy
-nsChromeOuterWindowProxy::singleton;
-
 static JSObject*
-NewOuterWindowProxy(JSContext *cx, JSObject *parent, bool isChrome)
+NewOuterWindowProxy(JSContext *cx, JSObject *parent)
 {
   JSAutoCompartment ac(cx, parent);
   JSObject *proto;
@@ -656,9 +635,7 @@ NewOuterWindowProxy(JSContext *cx, JSObject *parent, bool isChrome)
     return nullptr;
 
   JSObject *obj = js::Wrapper::New(cx, parent, proto, parent,
-                                   isChrome ? &nsChromeOuterWindowProxy::singleton
-                                            : &nsOuterWindowProxy::singleton);
-
+                                   &nsOuterWindowProxy::singleton);
   NS_ASSERTION(js::GetObjectClass(obj)->ext.innerObject, "bad class");
   return obj;
 }
@@ -1696,8 +1673,7 @@ nsGlobalWindow::CreateOuterObject(nsGlobalWindow* aNewInner)
 {
   JSContext* cx = mContext->GetNativeContext();
 
-  bool isChrome = IsChromeWindow();
-  if (isChrome) {
+  if (IsChromeWindow()) {
     // Always enable E4X for XUL and other chrome content -- there is no
     // need to preserve the <!-- script hiding hack from JS-in-HTML daze
     // (introduced in 1995 for graceful script degradation in Netscape 1,
@@ -1705,8 +1681,7 @@ nsGlobalWindow::CreateOuterObject(nsGlobalWindow* aNewInner)
     JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_MOAR_XML);
   }
 
-  JSObject* outer = NewOuterWindowProxy(cx, aNewInner->FastGetGlobalJSObject(),
-                                        isChrome);
+  JSObject* outer = NewOuterWindowProxy(cx, aNewInner->FastGetGlobalJSObject());
   if (!outer) {
     return NS_ERROR_FAILURE;
   }
@@ -2012,8 +1987,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       mJSObject = mContext->GetNativeGlobal();
       SetWrapper(mJSObject);
     } else {
-      JSObject *outerObject = NewOuterWindowProxy(cx, xpc_UnmarkGrayObject(newInnerWindow->mJSObject),
-                                                  thisChrome);
+      JSObject *outerObject = NewOuterWindowProxy(cx, xpc_UnmarkGrayObject(newInnerWindow->mJSObject));
       if (!outerObject) {
         NS_ERROR("out of memory");
         return NS_ERROR_FAILURE;

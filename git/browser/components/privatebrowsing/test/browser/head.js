@@ -25,8 +25,7 @@ function waitForClearHistory(aCallback) {
 }
 
 /*
- * Function created to put a window in PB mode.
- * THIS IS DANGEROUS.  DO NOT DO THIS OUTSIDE OF TESTS!
+ * Function created to replace the |privateWindow| setter
  */
 function setPrivateWindow(aWindow, aEnable) {
   return aWindow.QueryInterface(Ci.nsIInterfaceRequestor)

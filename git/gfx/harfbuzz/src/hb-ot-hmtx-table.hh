@@ -30,8 +30,6 @@
 #include "hb-open-type-private.hh"
 
 
-namespace OT {
-
 
 /*
  * hmtx -- The Horizontal Metrics Table
@@ -84,9 +82,5 @@ struct hmtx
   public:
   DEFINE_SIZE_ARRAY2 (0, longHorMetric, leftSideBearingX);
 };
-
-
-} // namespace OT
-
 
 #endif /* HB_OT_HMTX_TABLE_HH */

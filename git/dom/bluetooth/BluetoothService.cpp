@@ -281,7 +281,6 @@ BluetoothService::Cleanup()
 
   if (mRegisteredForLocalAgent) {
     UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(LOCAL_AGENT_PATH), this);
-    UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(REMOTE_AGENT_PATH), this);
     mRegisteredForLocalAgent = false;
   }
 
@@ -386,6 +385,11 @@ BluetoothService::StartStopBluetooth(bool aStart)
   if (aStart) {
     RegisterBluetoothSignalHandler(NS_LITERAL_STRING(LOCAL_AGENT_PATH), this);
     RegisterBluetoothSignalHandler(NS_LITERAL_STRING(REMOTE_AGENT_PATH), this);
+
+    BluetoothManagerList::ForwardIterator iter(mLiveManagers);
+    while (iter.HasMore()) {
+      RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), (BluetoothSignalObserver*)iter.GetNext());
+    }
   }
 
   nsCOMPtr<nsIRunnable> runnable = new ToggleBtTask(aStart);
@@ -412,22 +416,6 @@ BluetoothService::SetEnabled(bool aEnabled)
 
   for (uint32_t index = 0; index < childActors.Length(); index++) {
     unused << childActors[index]->SendEnabled(aEnabled);
-  }
-
-  if (aEnabled) {
-    BluetoothManagerList::ForwardIterator iter(mLiveManagers);
-    BluetoothSignalObserverList* ol;
-    nsString managerPath = NS_LITERAL_STRING("/");
-
-    // Skip when BluetoothManager has been registered in constructor
-    // Re-register here after toggling due to table mBluetoothSignalObserverTable was cleared
-    if (!mBluetoothSignalObserverTable.Get(managerPath, &ol)) {
-      while (iter.HasMore()) {
-        RegisterBluetoothSignalHandler(managerPath, (BluetoothSignalObserver*)iter.GetNext());
-      }
-    }
-  } else {
-    mBluetoothSignalObserverTable.Clear();
   }
 
   BluetoothManagerList::ForwardIterator iter(mLiveManagers);

@@ -10,7 +10,7 @@
  */
 
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/ForgetAboutSite.jsm");
+Components.utils.import("resource://gre/modules/ClearRecentHistory.jsm");
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Utility Functions
@@ -114,7 +114,7 @@ function run_test()
     check_active_download(data[i].source, true);
 
   // Dispatch the remove call
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  ClearRecentHistory.removeDataFromDomain("mozilla.org");
 
   // And check our data
   for (let i = 0; i < data.length; i++)
