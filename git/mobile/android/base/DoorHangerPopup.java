@@ -95,15 +95,10 @@ public class DoorHangerPopup extends PopupWindow
     public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
         switch(msg) {
             case CLOSED:
-                // Remove any doorhangers for a tab when it's closed (make
-                // a temporary set to avoid a ConcurrentModificationException)
-                HashSet<DoorHanger> doorHangersToRemove = new HashSet<DoorHanger>();
+                // Remove any doorhangers for a tab when it's closed
                 for (DoorHanger dh : mDoorHangers) {
                     if (dh.getTabId() == tab.getId())
-                        doorHangersToRemove.add(dh);
-                }
-                for (DoorHanger dh : doorHangersToRemove) {
-                    removeDoorHanger(dh);
+                        removeDoorHanger(dh);
                 }
                 break;
 
