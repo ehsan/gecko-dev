@@ -571,7 +571,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
             if (os) {
                 os->NotifyObservers(nullptr,
                                     "memory-pressure",
-                                    MOZ_UTF16("low-memory"));
+                                    NS_LITERAL_STRING("low-memory").get());
             }
         }
         break;

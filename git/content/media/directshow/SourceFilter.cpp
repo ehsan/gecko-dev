@@ -21,9 +21,9 @@ namespace mozilla {
 
 #if defined(PR_LOGGING) && defined (DEBUG_SOURCE_TRACE)
 PRLogModuleInfo* GetDirectShowLog();
-#define DIRECTSHOW_LOG(...) PR_LOG(GetDirectShowLog(), PR_LOG_DEBUG, (__VA_ARGS__))
+#define LOG(...) PR_LOG(GetDirectShowLog(), PR_LOG_DEBUG, (__VA_ARGS__))
 #else
-#define DIRECTSHOW_LOG(...)
+#define LOG(...)
 #endif
 
 static HRESULT
@@ -246,13 +246,13 @@ OutputPin::OutputPin(MediaResource* aResource,
     mQueriedForAsyncReader(false)
 {
   MOZ_COUNT_CTOR(OutputPin);
-  DIRECTSHOW_LOG("OutputPin::OutputPin()");
+  LOG("OutputPin::OutputPin()");
 }
 
 OutputPin::~OutputPin()
 {
   MOZ_COUNT_DTOR(OutputPin);
-  DIRECTSHOW_LOG("OutputPin::~OutputPin()");
+  LOG("OutputPin::~OutputPin()");
 }
 
 HRESULT
@@ -296,21 +296,21 @@ OutputPin::CheckMediaType(const MediaType* aMediaType)
       IsEqualGUID(aMediaType->subtype, myMediaType->subtype) &&
       IsEqualGUID(aMediaType->formattype, myMediaType->formattype))
   {
-    DIRECTSHOW_LOG("OutputPin::CheckMediaType() Match: major=%s minor=%s TC=%d FSS=%d SS=%u",
-                   GetDirectShowGuidName(aMediaType->majortype),
-                   GetDirectShowGuidName(aMediaType->subtype),
-                   aMediaType->TemporalCompression(),
-                   aMediaType->bFixedSizeSamples,
-                   aMediaType->SampleSize());
+    LOG("OutputPin::CheckMediaType() Match: major=%s minor=%s TC=%d FSS=%d SS=%u",
+        GetDirectShowGuidName(aMediaType->majortype),
+        GetDirectShowGuidName(aMediaType->subtype),
+        aMediaType->TemporalCompression(),
+        aMediaType->bFixedSizeSamples,
+        aMediaType->SampleSize());
     return S_OK;
   }
 
-  DIRECTSHOW_LOG("OutputPin::CheckMediaType() Failed to match: major=%s minor=%s TC=%d FSS=%d SS=%u",
-                 GetDirectShowGuidName(aMediaType->majortype),
-                 GetDirectShowGuidName(aMediaType->subtype),
-                 aMediaType->TemporalCompression(),
-                 aMediaType->bFixedSizeSamples,
-                 aMediaType->SampleSize());
+  LOG("OutputPin::CheckMediaType() Failed to match: major=%s minor=%s TC=%d FSS=%d SS=%u",
+      GetDirectShowGuidName(aMediaType->majortype),
+      GetDirectShowGuidName(aMediaType->subtype),
+      aMediaType->TemporalCompression(),
+      aMediaType->bFixedSizeSamples,
+      aMediaType->SampleSize());
   return S_FALSE;
 }
 
@@ -550,7 +550,7 @@ OutputPin::SyncRead(LONGLONG aPosition,
   NS_ENSURE_TRUE(aLength > 0, E_FAIL);
   NS_ENSURE_TRUE(aBuffer, E_POINTER);
 
-  DIRECTSHOW_LOG("OutputPin::SyncRead(%lld, %d)", aPosition, aLength);
+  LOG("OutputPin::SyncRead(%lld, %d)", aPosition, aLength);
   {
     // Ignore reads while flushing.
     CriticalSectionAutoEnter lock(*mLock);
@@ -600,7 +600,7 @@ OutputPin::Length(LONGLONG* aTotal, LONGLONG* aAvailable)
     *aAvailable = mResource.GetCachedDataEnd();
   }
 
-  DIRECTSHOW_LOG("OutputPin::Length() len=%lld avail=%lld", *aTotal, *aAvailable);
+  LOG("OutputPin::Length() len=%lld avail=%lld", *aTotal, *aAvailable);
 
   return hr;
 }
@@ -639,15 +639,15 @@ SourceFilter::SourceFilter(const GUID& aMajorType,
   mMediaType.majortype = aMajorType;
   mMediaType.subtype = aSubType;
 
-  DIRECTSHOW_LOG("SourceFilter Constructor(%s, %s)",
-                 GetDirectShowGuidName(aMajorType),
-                 GetDirectShowGuidName(aSubType));
+  LOG("SourceFilter Constructor(%s, %s)",
+      GetDirectShowGuidName(aMajorType),
+      GetDirectShowGuidName(aSubType));
 }
 
 SourceFilter::~SourceFilter()
 {
   MOZ_COUNT_DTOR(SourceFilter);
-  DIRECTSHOW_LOG("SourceFilter Destructor()");
+  LOG("SourceFilter Destructor()");
 }
 
 BasePin*
@@ -671,7 +671,7 @@ SourceFilter::GetMediaType() const
 nsresult
 SourceFilter::Init(MediaResource* aResource, int64_t aMP3Offset)
 {
-  DIRECTSHOW_LOG("SourceFilter::Init()");
+  LOG("SourceFilter::Init()");
 
   mOutputPin = new OutputPin(aResource,
                              this,

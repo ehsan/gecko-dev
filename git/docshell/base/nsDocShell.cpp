@@ -11703,25 +11703,25 @@ nsDocShell::ConfirmRepost(bool * aRepost)
                "Unable to set up repost prompter.");
 
   nsXPIDLString brandName;
-  rv = brandBundle->GetStringFromName(MOZ_UTF16("brandShortName"),
+  rv = brandBundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
                                       getter_Copies(brandName));
 
   nsXPIDLString msgString, button0Title;
   if (NS_FAILED(rv)) { // No brand, use the generic version.
-    rv = appBundle->GetStringFromName(MOZ_UTF16("confirmRepostPrompt"),
+    rv = appBundle->GetStringFromName(NS_LITERAL_STRING("confirmRepostPrompt").get(),
                                       getter_Copies(msgString));
   }
   else {
     // Brand available - if the app has an override file with formatting, the app name will
     // be included. Without an override, the prompt will look like the generic version.
     const PRUnichar *formatStrings[] = { brandName.get() };
-    rv = appBundle->FormatStringFromName(MOZ_UTF16("confirmRepostPrompt"),
+    rv = appBundle->FormatStringFromName(NS_LITERAL_STRING("confirmRepostPrompt").get(),
                                          formatStrings, ArrayLength(formatStrings),
                                          getter_Copies(msgString));
   }
   if (NS_FAILED(rv)) return rv;
 
-  rv = appBundle->GetStringFromName(MOZ_UTF16("resendButton.label"),
+  rv = appBundle->GetStringFromName(NS_LITERAL_STRING("resendButton.label").get(),
                                     getter_Copies(button0Title));
   if (NS_FAILED(rv)) return rv;
 

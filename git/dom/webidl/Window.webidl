@@ -16,6 +16,7 @@
  */
 
 interface ApplicationCache;
+interface MediaQueryList;
 interface MozFrameRequestCallback;
 interface nsIDOMCrypto;
 interface Pkcs11;
@@ -146,8 +147,8 @@ dictionary ScrollOptions {
 };
 
 partial interface Window {
-  //[Throws,NewObject] MediaQueryList matchMedia(DOMString query);
-  [Throws,NewObject] MediaQueryList? matchMedia(DOMString query);
+  //[Throws] MediaQueryList matchMedia(DOMString query);
+  [Throws] MediaQueryList? matchMedia(DOMString query);
   //[SameObject]
   [Throws] readonly attribute Screen screen;
 

@@ -10,7 +10,7 @@
 #include "nsIChannel.h"
 #include <algorithm>
 
-#define TOKEN_DELIMITERS MOZ_UTF16("\t\r\n ")
+#define TOKEN_DELIMITERS NS_LITERAL_STRING("\t\r\n ").get()
 
 // nsISupports methods
 NS_IMPL_ISUPPORTS4(nsTXTToHTMLConv,

@@ -436,7 +436,7 @@ bool nsDSURIContentListener::CheckFrameOptions(nsIRequest *request)
             if (mDocShell) {
                 nsCOMPtr<nsIWebNavigation> webNav(do_QueryObject(mDocShell));
                 if (webNav) {
-                    webNav->LoadURI(MOZ_UTF16("about:blank"),
+                    webNav->LoadURI(NS_LITERAL_STRING("about:blank").get(),
                                     0, nullptr, nullptr, nullptr);
                 }
             }

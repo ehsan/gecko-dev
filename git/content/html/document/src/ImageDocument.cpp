@@ -744,7 +744,7 @@ ImageDocument::UpdateTitleAndCharset()
     ratioStr.AppendInt(NSToCoordFloor(GetRatio() * 100));
 
     const PRUnichar* formatString[1] = { ratioStr.get() };
-    mStringBundle->FormatStringFromName(MOZ_UTF16("ScaledImage"),
+    mStringBundle->FormatStringFromName(NS_LITERAL_STRING("ScaledImage").get(),
                                         formatString, 1,
                                         getter_Copies(status));
   }

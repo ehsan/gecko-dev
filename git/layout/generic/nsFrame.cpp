@@ -4892,13 +4892,7 @@ nsIFrame::InvalidateLayer(uint32_t aDisplayItemKey,
     // Plugins can transition from not rendering anything to rendering,
     // and still only call this. So always invalidate, with specifying
     // the display item type just in case.
-    //
-    // In the bug 930056, dialer app startup but not shown on the
-    // screen because sometimes we don't have any retainned data
-    // for remote type displayitem and thus Repaint event is not
-    // triggered. So, always invalidate here as well.
-    if (aDisplayItemKey == nsDisplayItem::TYPE_PLUGIN ||
-        aDisplayItemKey == nsDisplayItem::TYPE_REMOTE) {
+    if (aDisplayItemKey == nsDisplayItem::TYPE_PLUGIN) {
       InvalidateFrame();
     } else {
       InvalidateFrame(aDisplayItemKey);

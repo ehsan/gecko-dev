@@ -1278,8 +1278,6 @@ uint32_t MediaDecoderStateMachine::PlayFromAudioQueue(uint64_t aFrameOffset,
   mAudioStream->Write(audio->mAudioData,
                       audio->mFrames);
 
-  aChannels = mAudioStream->GetOutChannels();
-
   StartAudioStreamPlaybackIfNeeded(mAudioStream);
 
   offset = audio->mOffset;

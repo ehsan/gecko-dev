@@ -709,9 +709,13 @@ bool WebMReader::DecodeAudioPacket(nestegg_packet* aPacket, int64_t aOffset)
       }
 #endif
 
-      // No channel mapping for more than 8 channels.
-      if (channels > 8) {
-        return false;
+      // More than 2 decoded channels must be downmixed to stereo.
+      if (channels > 2) {
+        // Opus doesn't provide a channel mapping for more than 8 channels,
+        // so we can't downmix more than that.
+        if (channels > 8)
+          return false;
+        OggReader::DownmixToStereo(buffer, channels, frames);
       }
 
       CheckedInt64 duration = FramesToUsecs(frames, rate);

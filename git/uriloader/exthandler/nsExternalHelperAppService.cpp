@@ -1842,7 +1842,7 @@ void nsExternalAppHandler::SendStatusChange(ErrorType type, nsresult rv, nsIRequ
                 // We don't have a listener.  Simply show the alert ourselves.
                 nsCOMPtr<nsIPrompt> prompter(do_GetInterface(mWindowContext));
                 nsXPIDLString title;
-                bundle->FormatStringFromName(MOZ_UTF16("title"),
+                bundle->FormatStringFromName(NS_LITERAL_STRING("title").get(),
                                              strings,
                                              1,
                                              getter_Copies(title));

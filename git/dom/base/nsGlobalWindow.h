@@ -108,7 +108,6 @@ namespace dom {
 class BarProp;
 class Function;
 class Gamepad;
-class MediaQueryList;
 class Navigator;
 class SpeechSynthesis;
 namespace indexedDB {
@@ -851,8 +850,8 @@ public:
   already_AddRefed<nsICSSDeclaration>
     GetComputedStyle(mozilla::dom::Element& aElt, const nsAString& aPseudoElt,
                      mozilla::ErrorResult& aError);
-  already_AddRefed<mozilla::dom::MediaQueryList> MatchMedia(const nsAString& aQuery,
-                                                            mozilla::ErrorResult& aError);
+  already_AddRefed<nsIDOMMediaQueryList> MatchMedia(const nsAString& aQuery,
+                                                    mozilla::ErrorResult& aError);
   nsScreen* GetScreen(mozilla::ErrorResult& aError);
   void MoveTo(int32_t aXPos, int32_t aYPos, mozilla::ErrorResult& aError);
   void MoveBy(int32_t aXDif, int32_t aYDif, mozilla::ErrorResult& aError);

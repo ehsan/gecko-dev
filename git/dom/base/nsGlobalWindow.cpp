@@ -210,7 +210,6 @@
 #include "mozilla/dom/WindowBinding.h"
 #include "nsITabChild.h"
 #include "nsIDOMMediaQueryList.h"
-#include "mozilla/dom/MediaQueryList.h"
 #include "mozilla/dom/ScriptSettings.h"
 
 #ifdef MOZ_WEBSPEECH
@@ -5018,7 +5017,7 @@ nsGlobalWindow::GetMozAnimationStartTime(int64_t *aTime)
   return rv.ErrorCode();
 }
 
-already_AddRefed<MediaQueryList>
+already_AddRefed<nsIDOMMediaQueryList>
 nsGlobalWindow::MatchMedia(const nsAString& aMediaQueryList,
                            ErrorResult& aError)
 {
@@ -8900,7 +8899,7 @@ nsGlobalWindow::Find(const nsAString& aString, bool aCaseSensitive,
     nsCOMPtr<nsIDOMWindow> findDialog;
 
     if (windowMediator) {
-      windowMediator->GetMostRecentWindow(MOZ_UTF16("findInPage"),
+      windowMediator->GetMostRecentWindow(NS_LITERAL_STRING("findInPage").get(),
                                           getter_AddRefs(findDialog));
     }
 

@@ -649,8 +649,6 @@ RegExpCompartment::getOrCreateMatchResultTemplateObject(JSContext *cx)
 
     /* Create template array object */
     RootedObject templateObject(cx, NewDenseUnallocatedArray(cx, 0, nullptr, TenuredObject));
-    if (!templateObject)
-        return matchResultTemplateObject_; // = nullptr
 
     /* Set dummy index property */
     RootedValue index(cx, Int32Value(0));

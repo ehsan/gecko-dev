@@ -1158,7 +1158,7 @@ public:
     MOZ_ASSERT(NS_IsMainThread());
 
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->NotifyObservers(mFile, "file-watcher-notify", MOZ_UTF16("modified"));
+    obs->NotifyObservers(mFile, "file-watcher-notify", NS_LITERAL_STRING("modified").get());
     return NS_OK;
   }
 

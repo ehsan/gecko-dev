@@ -18,7 +18,6 @@
 #endif
 #include "nsThreadUtils.h"
 #include "prtime.h"
-#include "AudioSampleFormat.h"
 
 using mozilla::CheckedInt64;
 using mozilla::CheckedUint64;
@@ -147,13 +146,6 @@ void ScaleDisplayByAspectRatio(nsIntSize& aDisplay, float aAspectRatio);
 // All other platforms use their system defaults.
 #define MEDIA_THREAD_STACK_SIZE nsIThreadManager::DEFAULT_STACK_SIZE
 #endif
-
-// Downmix multichannel Audio samples to Stereo.
-// Input are the buffer contains multichannel data,
-// the number of channels and the number of frames.
-int DownmixAudioToStereo(mozilla::AudioDataValue* buffer,
-                         int channels,
-                         uint32_t frames);
 
 bool IsVideoContentType(const nsCString& aContentType);
 

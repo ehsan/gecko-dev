@@ -1172,7 +1172,7 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
         NS_ConvertASCIItoUTF16 ucsTargetScheme(targetScheme);
         const PRUnichar* formatStrings[] = { ucsTargetScheme.get() };
         rv = sStrBundle->
-            FormatStringFromName(MOZ_UTF16("ProtocolFlagError"),
+            FormatStringFromName(NS_LITERAL_STRING("ProtocolFlagError").get(),
                                  formatStrings,
                                  ArrayLength(formatStrings),
                                  getter_Copies(message));

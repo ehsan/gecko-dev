@@ -82,7 +82,7 @@ ApplicationAccessible::Name(nsString& aName)
     return eNameOK;
 
   nsXPIDLString appName;
-  rv = bundle->GetStringFromName(MOZ_UTF16("brandShortName"),
+  rv = bundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
                                  getter_Copies(appName));
   if (NS_FAILED(rv) || appName.IsEmpty()) {
     NS_WARNING("brandShortName not found, using default app name");

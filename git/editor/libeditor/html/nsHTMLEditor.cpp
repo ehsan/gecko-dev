@@ -1212,12 +1212,12 @@ nsHTMLEditor::ReplaceHeadContentsWithHTML(const nsAString& aSourceToInsert)
   nsAutoString inputString (aSourceToInsert);  // hope this does copy-on-write
  
   // Windows linebreaks: Map CRLF to LF:
-  inputString.ReplaceSubstring(MOZ_UTF16("\r\n"),
-                               MOZ_UTF16("\n"));
+  inputString.ReplaceSubstring(NS_LITERAL_STRING("\r\n").get(),
+                               NS_LITERAL_STRING("\n").get());
  
   // Mac linebreaks: Map any remaining CR to LF:
-  inputString.ReplaceSubstring(MOZ_UTF16("\r"),
-                               MOZ_UTF16("\n"));
+  inputString.ReplaceSubstring(NS_LITERAL_STRING("\r").get(),
+                               NS_LITERAL_STRING("\n").get());
 
   nsAutoEditBatch beginBatching(this);
 

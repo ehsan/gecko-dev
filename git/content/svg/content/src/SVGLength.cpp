@@ -24,7 +24,7 @@ SVGLength::GetValueAsString(nsAString &aValue) const
 {
   PRUnichar buf[24];
   nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-                            MOZ_UTF16("%g"),
+                            NS_LITERAL_STRING("%g").get(),
                             (double)mValue);
   aValue.Assign(buf);
 

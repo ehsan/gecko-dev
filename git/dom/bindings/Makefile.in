@@ -60,9 +60,7 @@ codegen_dependencies := \
 
 $(call include_deps,codegen.pp)
 
-codegen.pp: codegen.done
-
-codegen.done: $(codegen_dependencies)
+codegen.pp: $(codegen_dependencies)
 	$(call py_action,webidl,$(srcdir))
 	@$(TOUCH) $@
 

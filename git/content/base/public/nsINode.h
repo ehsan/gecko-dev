@@ -31,7 +31,6 @@
 
 class nsAttrAndChildArray;
 class nsChildContentList;
-class nsCSSSelectorList;
 class nsDOMAttributeMap;
 class nsIContent;
 class nsIDocument;
@@ -1698,17 +1697,6 @@ protected:
    */
   nsresult doInsertChildAt(nsIContent* aKid, uint32_t aIndex,
                            bool aNotify, nsAttrAndChildArray& aChildArray);
-
-  /**
-   * Parse the given selector string into an nsCSSSelectorList.
-   *
-   * A null return value with a non-failing aRv means the string only
-   * contained pseudo-element selectors.
-   *
-   * A failing aRv means the string was not a valid selector.
-   */
-  nsCSSSelectorList* ParseSelectorList(const nsAString& aSelectorString,
-                                       mozilla::ErrorResult& aRv);
 
 public:
   /* Event stuff that documents and elements share.  This needs to be

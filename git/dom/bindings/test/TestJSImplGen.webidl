@@ -43,10 +43,6 @@ interface TestJSImplInterface {
   void passVariadicByte(byte... arg);
   [Cached, Pure]
   readonly attribute byte cachedByte;
-  [Cached, Constant]
-  readonly attribute byte cachedConstantByte;
-  [Cached, Pure]
-  attribute byte cachedWritableByte;
 
   readonly attribute short readonlyShort;
   attribute short writableShort;
@@ -220,12 +216,6 @@ interface TestJSImplInterface {
   readonly attribute sequence<long> readonlySequence;
   [Cached, Pure]
   readonly attribute sequence<Dict> readonlySequenceOfDictionaries;
-  [Cached, Pure]
-  readonly attribute sequence<Dict>? readonlyNullableSequenceOfDictionaries;
-  [Cached, Pure, Frozen]
-  readonly attribute sequence<long> readonlyFrozenSequence;
-  [Cached, Pure, Frozen]
-  readonly attribute sequence<long>? readonlyFrozenNullableSequence;
   sequence<long> receiveSequence();
   sequence<long>? receiveNullableSequence();
   sequence<long?> receiveSequenceOfNullableInts();

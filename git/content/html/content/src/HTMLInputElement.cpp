@@ -7026,15 +7026,15 @@ HTMLInputElement::SetFilePickerFiltersFromAccept(nsIFilePicker* filePicker)
     // First, check for image/audio/video filters...
     if (token.EqualsLiteral("image/*")) {
       filterMask = nsIFilePicker::filterImages;
-      filterBundle->GetStringFromName(MOZ_UTF16("imageFilter"),
+      filterBundle->GetStringFromName(NS_LITERAL_STRING("imageFilter").get(),
                                       getter_Copies(extensionListStr));
     } else if (token.EqualsLiteral("audio/*")) {
       filterMask = nsIFilePicker::filterAudio;
-      filterBundle->GetStringFromName(MOZ_UTF16("audioFilter"),
+      filterBundle->GetStringFromName(NS_LITERAL_STRING("audioFilter").get(),
                                       getter_Copies(extensionListStr));
     } else if (token.EqualsLiteral("video/*")) {
       filterMask = nsIFilePicker::filterVideo;
-      filterBundle->GetStringFromName(MOZ_UTF16("videoFilter"),
+      filterBundle->GetStringFromName(NS_LITERAL_STRING("videoFilter").get(),
                                       getter_Copies(extensionListStr));
     } else {
       //... if no image/audio/video filter is found, check mime types filters

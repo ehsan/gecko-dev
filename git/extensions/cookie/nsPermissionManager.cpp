@@ -767,7 +767,7 @@ nsPermissionManager::AddInternal(nsIPrincipal* aPrincipal,
                                       aPermission,
                                       aExpireType,
                                       aExpireTime,
-                                      MOZ_UTF16("added"));
+                                      NS_LITERAL_STRING("added").get());
       }
 
       break;
@@ -793,7 +793,7 @@ nsPermissionManager::AddInternal(nsIPrincipal* aPrincipal,
                                       oldPermissionEntry.mPermission,
                                       oldPermissionEntry.mExpireType,
                                       oldPermissionEntry.mExpireTime,
-                                      MOZ_UTF16("deleted"));
+                                      NS_LITERAL_STRING("deleted").get());
       }
 
       // If there are no more permissions stored for that entry, clear it.
@@ -840,7 +840,7 @@ nsPermissionManager::AddInternal(nsIPrincipal* aPrincipal,
                                       aPermission,
                                       aExpireType,
                                       aExpireTime,
-                                      MOZ_UTF16("changed"));
+                                      NS_LITERAL_STRING("changed").get());
       }
 
       break;
@@ -916,7 +916,7 @@ nsPermissionManager::RemoveAllInternal(bool aNotifyObservers)
   // on-disk database to notify observers.
   RemoveAllFromMemory();
   if (aNotifyObservers) {
-    NotifyObservers(nullptr, MOZ_UTF16("cleared"));
+    NotifyObservers(nullptr, NS_LITERAL_STRING("cleared").get());
   }
 
   // clear the db
@@ -1256,7 +1256,7 @@ NS_IMETHODIMP nsPermissionManager::Observe(nsISupports *aSubject, const char *aT
     // The profile is about to change,
     // or is going away because the application is shutting down.
     mIsShuttingDown = true;
-    if (!nsCRT::strcmp(someData, MOZ_UTF16("shutdown-cleanse"))) {
+    if (!nsCRT::strcmp(someData, NS_LITERAL_STRING("shutdown-cleanse").get())) {
       // Clear the permissions file and close the db asynchronously
       RemoveAllInternal(false);
     } else {
@@ -1387,7 +1387,7 @@ nsPermissionManager::RemoveExpiredPermissionsForAppEnumerator(
                                                         oldPermissionEntry.mPermission,
                                                         oldPermissionEntry.mExpireType,
                                                         oldPermissionEntry.mExpireTime,
-                                                        MOZ_UTF16("deleted"));
+                                                        NS_LITERAL_STRING("deleted").get());
       --i;
       continue;
     }
@@ -1403,7 +1403,7 @@ nsPermissionManager::RemoveExpiredPermissionsForAppEnumerator(
                                                       permEntry.mPermission,
                                                       permEntry.mExpireType,
                                                       permEntry.mExpireTime,
-                                                      MOZ_UTF16("changed"));
+                                                      NS_LITERAL_STRING("changed").get());
   }
 
   return PL_DHASH_NEXT;

@@ -867,7 +867,7 @@ nsWindowsShellService::SetDesktopBackground(nsIDOMElement* aElement,
   // e.g. "Desktop Background.bmp"
   nsString fileLeafName;
   rv = shellBundle->GetStringFromName
-                      (MOZ_UTF16("desktopBackgroundLeafNameWin"),
+                      (NS_LITERAL_STRING("desktopBackgroundLeafNameWin").get(),
                        getter_Copies(fileLeafName));
   NS_ENSURE_SUCCESS(rv, rv);
 

@@ -68,7 +68,6 @@ public:
 
   uint16_t mState;
   bool mDirection; // true: incoming call; false: outgoing call
-  bool mIsConference;
   nsString mNumber;
   int mType;
 };
@@ -122,8 +121,7 @@ public:
    */
   void HandleCallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
                               const nsAString& aError, const nsAString& aNumber,
-                              const bool aIsOutgoing, const bool aIsConference,
-                              bool aSend);
+                              const bool aIsOutgoing, bool aSend);
   void HandleIccInfoChanged(uint32_t aClientId);
   void HandleVoiceConnectionChanged(uint32_t aClientId);
 

@@ -77,10 +77,8 @@ class ErrorObject : public JSObject
     }
 
     JSErrorReport * getErrorReport() const {
-        const Value &slot = getReservedSlot(ERROR_REPORT_SLOT);
-        if (slot.isUndefined())
-            return nullptr;
-        return static_cast<JSErrorReport*>(slot.toPrivate());
+        void *priv = getReservedSlot(ERROR_REPORT_SLOT).toPrivate();
+        return static_cast<JSErrorReport*>(priv);
     }
 
     JSString * fileName() const {
