@@ -42,15 +42,15 @@ namespace JSC { typedef MacroAssemblerNone MacroAssembler; }
 #elif JS_CODEGEN_ARM
 // Merged with the jit backend support.
 
-#elif JS_CODEGEN_MIPS
+#elif WTF_CPU_MIPS
 #include "assembler/assembler/MacroAssemblerMIPS.h"
 namespace JSC { typedef MacroAssemblerMIPS MacroAssembler; }
 
-#elif JS_CODEGEN_X86
+#elif WTF_CPU_X86
 #include "assembler/assembler/MacroAssemblerX86.h"
 namespace JSC { typedef MacroAssemblerX86 MacroAssembler; }
 
-#elif JS_CODEGEN_X64
+#elif WTF_CPU_X86_64
 #include "assembler/assembler/MacroAssemblerX86_64.h"
 namespace JSC { typedef MacroAssemblerX86_64 MacroAssembler; }
 

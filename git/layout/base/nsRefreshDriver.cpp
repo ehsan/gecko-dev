@@ -696,11 +696,10 @@ nsRefreshDriver::nsRefreshDriver(nsPresContext* aPresContext)
     mRequestedHighPrecision(false),
     mInRefresh(false),
     mWaitingForTransaction(false),
-    mSkippedPaints(false)
+    mSkippedPaints(0)
 {
   mMostRecentRefreshEpochTime = JS_Now();
   mMostRecentRefresh = TimeStamp::Now();
-  mMostRecentTick = mMostRecentRefresh;
 }
 
 nsRefreshDriver::~nsRefreshDriver()
@@ -738,7 +737,7 @@ nsRefreshDriver::AdvanceTimeAndRefresh(int64_t aMilliseconds)
     if (mWaitingForTransaction) {
       // Disable any refresh driver throttling when entering test mode
       mWaitingForTransaction = false;
-      mSkippedPaints = false;
+      mSkippedPaints = 0;
     }
   }
 
@@ -1079,18 +1078,17 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
   mMostRecentRefresh = aNowTime;
   mMostRecentRefreshEpochTime = aNowEpoch;
 
-  if (IsWaitingForPaint(aNowTime)) {
+  if (IsWaitingForPaint()) {
     // We're currently suspended waiting for earlier Tick's to
     // be completed (on the Compositor). Mark that we missed the paint
     // and keep waiting.
     return;
   }
-  mMostRecentTick = aNowTime;
   if (mRootRefresh) {
     mRootRefresh->RemoveRefreshObserver(this, Flush_Style);
     mRootRefresh = nullptr;
   }
-  mSkippedPaints = false;
+  mSkippedPaints = 0;
 
   nsCOMPtr<nsIPresShell> presShell = mPresContext->GetPresShell();
   if (!presShell || (ObserverCount() == 0 && ImageRequestCount() == 0)) {
@@ -1402,7 +1400,7 @@ nsRefreshDriver::FinishedWaitingForTransaction()
     DoRefresh();
     profiler_tracing("Paint", "RD", TRACING_INTERVAL_END);
   }
-  mSkippedPaints = false;
+  mSkippedPaints = 0;
 }
 
 uint64_t
@@ -1410,11 +1408,11 @@ nsRefreshDriver::GetTransactionId()
 {
   ++mPendingTransaction;
 
-  if (mPendingTransaction >= mCompletedTransaction + 2 &&
+  if (mPendingTransaction == mCompletedTransaction + 2 &&
       !mWaitingForTransaction &&
       !mTestControllingRefreshes) {
     mWaitingForTransaction = true;
-    mSkippedPaints = false;
+    mSkippedPaints = 0;
   }
 
   return mPendingTransaction;
@@ -1457,7 +1455,7 @@ nsRefreshDriver::WillRefresh(mozilla::TimeStamp aTime)
 }
 
 bool
-nsRefreshDriver::IsWaitingForPaint(mozilla::TimeStamp aTime)
+nsRefreshDriver::IsWaitingForPaint()
 {
   if (mTestControllingRefreshes) {
     return false;
@@ -1465,8 +1463,9 @@ nsRefreshDriver::IsWaitingForPaint(mozilla::TimeStamp aTime)
   // If we've skipped too many ticks then it's possible
   // that something went wrong and we're waiting on
   // a notification that will never arrive.
-  if (aTime > (mMostRecentTick + TimeDuration::FromMilliseconds(200))) {
-    mSkippedPaints = false;
+  static const uint32_t kMaxSkippedPaints = 10;
+  if (mSkippedPaints > kMaxSkippedPaints) {
+    mSkippedPaints = 0;
     mWaitingForTransaction = false;
     if (mRootRefresh) {
       mRootRefresh->RemoveRefreshObserver(this, Flush_Style);
@@ -1474,7 +1473,7 @@ nsRefreshDriver::IsWaitingForPaint(mozilla::TimeStamp aTime)
     return false;
   }
   if (mWaitingForTransaction) {
-    mSkippedPaints = true;
+    mSkippedPaints++;
     return true;
   }
 
@@ -1484,7 +1483,7 @@ nsRefreshDriver::IsWaitingForPaint(mozilla::TimeStamp aTime)
   if (displayRoot) {
     nsRefreshDriver *rootRefresh = displayRoot->GetRootPresContext()->RefreshDriver();
     if (rootRefresh && rootRefresh != this) {
-      if (rootRefresh->IsWaitingForPaint(aTime)) {
+      if (rootRefresh->IsWaitingForPaint()) {
         if (mRootRefresh != rootRefresh) {
           if (mRootRefresh) {
             mRootRefresh->RemoveRefreshObserver(this, Flush_Style);
@@ -1492,7 +1491,7 @@ nsRefreshDriver::IsWaitingForPaint(mozilla::TimeStamp aTime)
           rootRefresh->AddRefreshObserver(this, Flush_Style);
           mRootRefresh = rootRefresh;
         }
-        mSkippedPaints = true;
+        mSkippedPaints++;
         return true;
       }
     }

@@ -3440,13 +3440,12 @@ types::TypeMonitorCallSlow(JSContext *cx, JSObject *callee, const CallArgs &args
 }
 
 static inline bool
-IsAboutToBeFinalized(TypeObjectKey **keyp)
+IsAboutToBeFinalized(TypeObjectKey *key)
 {
     /* Mask out the low bit indicating whether this is a type or JS object. */
-    uintptr_t flagBit = uintptr_t(*keyp) & 1;
-    gc::Cell *tmp = reinterpret_cast<gc::Cell *>(uintptr_t(*keyp) & ~1);
+    gc::Cell *tmp = reinterpret_cast<gc::Cell *>(uintptr_t(key) & ~1);
     bool isAboutToBeFinalized = IsCellAboutToBeFinalized(&tmp);
-    *keyp = reinterpret_cast<TypeObjectKey *>(uintptr_t(tmp) | flagBit);
+    JS_ASSERT(tmp == reinterpret_cast<gc::Cell *>(uintptr_t(key) & ~1));
     return isAboutToBeFinalized;
 }
 
@@ -3888,6 +3887,28 @@ ExclusiveContext::getNewType(const Class *clasp, TaggedProto proto, JSFunction *
     return type;
 }
 
+#if defined(JSGC_GENERATIONAL) && defined(JS_GC_ZEAL)
+void
+JSCompartment::checkNewTypeObjectTableAfterMovingGC()
+{
+    /*
+     * Assert that the postbarriers have worked and that nothing is left in
+     * newTypeObjects that points into the nursery, and that the hash table
+     * entries are discoverable.
+     */
+    for (TypeObjectWithNewScriptSet::Enum e(newTypeObjects); !e.empty(); e.popFront()) {
+        TypeObjectWithNewScriptEntry entry = e.front();
+        JS_ASSERT(!IsInsideNursery(entry.newFunction));
+        TaggedProto proto = entry.object->proto();
+        JS_ASSERT_IF(proto.isObject(), !IsInsideNursery(proto.toObject()));
+        TypeObjectWithNewScriptEntry::Lookup
+            lookup(entry.object->clasp(), proto, entry.newFunction);
+        TypeObjectWithNewScriptSet::Ptr ptr = newTypeObjects.lookup(lookup);
+        JS_ASSERT(ptr.found() && &*ptr == &e.front());
+    }
+}
+#endif
+
 TypeObject *
 ExclusiveContext::getSingletonType(const Class *clasp, TaggedProto proto)
 {
@@ -3944,7 +3965,7 @@ ConstraintTypeSet::sweep(Zone *zone, bool *oom)
         objectCount = 0;
         for (unsigned i = 0; i < oldCapacity; i++) {
             TypeObjectKey *object = oldArray[i];
-            if (object && !IsAboutToBeFinalized(&object)) {
+            if (object && !IsAboutToBeFinalized(object)) {
                 TypeObjectKey **pentry =
                     HashSetInsert<TypeObjectKey *,TypeObjectKey,TypeObjectKey>
                         (zone->types.typeLifoAlloc, objectSet, objectCount, object);
@@ -3962,11 +3983,9 @@ ConstraintTypeSet::sweep(Zone *zone, bool *oom)
         setBaseObjectCount(objectCount);
     } else if (objectCount == 1) {
         TypeObjectKey *object = (TypeObjectKey *) objectSet;
-        if (IsAboutToBeFinalized(&object)) {
+        if (IsAboutToBeFinalized(object)) {
             objectSet = nullptr;
             setBaseObjectCount(0);
-        } else {
-            objectSet = reinterpret_cast<TypeObjectKey **>(object);
         }
     }
 
@@ -4180,95 +4199,26 @@ TypeCompartment::sweep(FreeOp *fop)
 void
 JSCompartment::sweepNewTypeObjectTable(TypeObjectWithNewScriptSet &table)
 {
-    JS_ASSERT(zone()->isCollecting());
-    if (table.initialized()) {
-        for (TypeObjectWithNewScriptSet::Enum e(table); !e.empty(); e.popFront()) {
-            TypeObjectWithNewScriptEntry entry = e.front();
-            if (IsTypeObjectAboutToBeFinalized(entry.object.unsafeGet()) ||
-                (entry.newFunction && IsObjectAboutToBeFinalized(&entry.newFunction)))
-            {
-                e.removeFront();
-            } else {
-                /* Any rekeying necessary is handled by fixupNewTypeObjectTable() below. */
-                JS_ASSERT(entry.object == e.front().object);
-                JS_ASSERT(entry.newFunction == e.front().newFunction);
-            }
-        }
-    }
-}
+    gcstats::AutoPhase ap(runtimeFromMainThread()->gc.stats,
+                          gcstats::PHASE_SWEEP_TABLES_TYPE_OBJECT);
 
-#ifdef JSGC_COMPACTING
-void
-JSCompartment::fixupNewTypeObjectTable(TypeObjectWithNewScriptSet &table)
-{
-    /*
-     * Each entry's hash depends on the object's prototype and we can't tell
-     * whether that has been moved or not in sweepNewTypeObjectTable().
-     */
-    JS_ASSERT(zone()->isCollecting());
+    JS_ASSERT(zone()->isGCSweeping());
     if (table.initialized()) {
         for (TypeObjectWithNewScriptSet::Enum e(table); !e.empty(); e.popFront()) {
             TypeObjectWithNewScriptEntry entry = e.front();
-            bool needRekey = false;
-            if (IsForwarded(entry.object.get())) {
-                entry.object.set(Forwarded(entry.object.get()));
-                needRekey = true;
-            }
-            TaggedProto proto = entry.object->proto();
-            if (proto.isObject() && IsForwarded(proto.toObject())) {
-                proto = TaggedProto(Forwarded(proto.toObject()));
-                needRekey = true;
-            }
-            if (entry.newFunction && IsForwarded(entry.newFunction)) {
-                entry.newFunction = Forwarded(entry.newFunction);
-                needRekey = true;
-            }
-            if (needRekey) {
+            if (IsTypeObjectAboutToBeFinalized(entry.object.unsafeGet())) {
+                e.removeFront();
+            } else if (entry.newFunction && IsObjectAboutToBeFinalized(&entry.newFunction)) {
+                e.removeFront();
+            } else if (entry.object.unbarrieredGet() != e.front().object.unbarrieredGet()) {
                 TypeObjectWithNewScriptSet::Lookup lookup(entry.object->clasp(),
-                                                          proto,
+                                                          entry.object->proto(),
                                                           entry.newFunction);
                 e.rekeyFront(lookup, entry);
             }
         }
     }
 }
-#endif
-
-#ifdef JSGC_HASH_TABLE_CHECKS
-
-void
-JSCompartment::checkNewTypeObjectTablesAfterMovingGC()
-{
-    checkNewTypeObjectTableAfterMovingGC(newTypeObjects);
-    checkNewTypeObjectTableAfterMovingGC(lazyTypeObjects);
-}
-
-void
-JSCompartment::checkNewTypeObjectTableAfterMovingGC(TypeObjectWithNewScriptSet &table)
-{
-    /*
-     * Assert that nothing points into the nursery or needs to be relocated, and
-     * that the hash table entries are discoverable.
-     */
-    if (!table.initialized())
-        return;
-
-    for (TypeObjectWithNewScriptSet::Enum e(table); !e.empty(); e.popFront()) {
-        TypeObjectWithNewScriptEntry entry = e.front();
-        CheckGCThingAfterMovingGC(entry.object.get());
-        TaggedProto proto = entry.object->proto();
-        if (proto.isObject())
-            CheckGCThingAfterMovingGC(proto.toObject());
-        CheckGCThingAfterMovingGC(entry.newFunction);
-
-        TypeObjectWithNewScriptEntry::Lookup
-            lookup(entry.object->clasp(), proto, entry.newFunction);
-        TypeObjectWithNewScriptSet::Ptr ptr = table.lookup(lookup);
-        JS_ASSERT(ptr.found() && &*ptr == &e.front());
-    }
-}
-
-#endif // JSGC_HASH_TABLE_CHECKS
 
 TypeCompartment::~TypeCompartment()
 {
@@ -4281,7 +4231,7 @@ TypeCompartment::~TypeCompartment()
 TypeScript::Sweep(FreeOp *fop, JSScript *script, bool *oom)
 {
     JSCompartment *compartment = script->compartment();
-    JS_ASSERT(compartment->zone()->isGCSweepingOrCompacting());
+    JS_ASSERT(compartment->zone()->isGCSweeping());
 
     unsigned num = NumTypeSets(script);
     StackTypeSet *typeArray = script->types->typeArray();
@@ -4360,7 +4310,7 @@ TypeZone::~TypeZone()
 void
 TypeZone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
 {
-    JS_ASSERT(zone()->isGCSweepingOrCompacting());
+    JS_ASSERT(zone()->isGCSweeping());
 
     JSRuntime *rt = fop->runtime();
 
@@ -4390,8 +4340,7 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
     }
 
     {
-        gcstats::MaybeAutoPhase ap2(rt->gc.stats, !rt->isHeapCompacting(),
-                                    gcstats::PHASE_DISCARD_TI);
+        gcstats::AutoPhase ap2(rt->gc.stats, gcstats::PHASE_DISCARD_TI);
 
         for (ZoneCellIterUnderGC i(zone(), FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
@@ -4422,8 +4371,7 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
     }
 
     {
-        gcstats::MaybeAutoPhase ap2(rt->gc.stats, !rt->isHeapCompacting(),
-                                    gcstats::PHASE_SWEEP_TYPES);
+        gcstats::AutoPhase ap2(rt->gc.stats, gcstats::PHASE_SWEEP_TYPES);
 
         for (gc::ZoneCellIterUnderGC iter(zone(), gc::FINALIZE_TYPE_OBJECT);
              !iter.done(); iter.next())
@@ -4451,8 +4399,7 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
     }
 
     {
-        gcstats::MaybeAutoPhase ap2(rt->gc.stats, !rt->isHeapCompacting(),
-                                    gcstats::PHASE_FREE_TI_ARENA);
+        gcstats::AutoPhase ap2(rt->gc.stats, gcstats::PHASE_FREE_TI_ARENA);
         rt->freeLifoAlloc.transferFrom(&oldAlloc);
     }
 }
