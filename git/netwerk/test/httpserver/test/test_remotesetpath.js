@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Make sure PUT/GET support work as expected
+// Make sure setIndexHandler works as expected
 
 
 var paths =

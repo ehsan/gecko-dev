@@ -138,9 +138,6 @@ public:
         { return (mParserState != PARSE_INIT && mParserState != PARSE_ERROR); }
     PRBool NeedsUpdate() { return mParserState != PARSE_INIT && mNeedsUpdate; }
 
-    void GetManifestHash(nsCString &aManifestHash)
-        { aManifestHash = mManifestHashValue; }
-
 private:
     static NS_METHOD ReadManifest(nsIInputStream *aInputStream,
                                   void *aClosure,
@@ -199,7 +196,6 @@ private:
     // manifest hash data
     nsCOMPtr<nsICryptoHash> mManifestHash;
     PRBool mManifestHashInitialized;
-    nsCString mManifestHashValue;
     nsCString mOldManifestHashValue;
 };
 
@@ -220,9 +216,10 @@ public:
     nsresult Cancel();
 
     void LoadCompleted();
-    void ManifestCheckCompleted(nsresult aStatus,
-                                const nsCString &aManifestHash);
-    void AddDocument(nsIDOMDocument *aDocument);
+
+    void AddDocument(nsIDOMDocument *aDocument) {
+        mDocuments.AppendObject(aDocument);
+    };
 
 private:
     nsresult HandleManifest(PRBool *aDoUpdate);
@@ -245,7 +242,6 @@ private:
     nsresult NotifyStarted(nsOfflineCacheUpdateItem *aItem);
     nsresult NotifyCompleted(nsOfflineCacheUpdateItem *aItem);
     nsresult AssociateDocument(nsIDOMDocument *aDocument);
-    nsresult ScheduleImplicit();
     nsresult Finish();
 
     enum {
@@ -285,10 +281,6 @@ private:
 
     /* Documents that requested this update */
     nsCOMArray<nsIDOMDocument> mDocuments;
-
-    /* Reschedule count.  When an update is rescheduled due to
-     * mismatched manifests, the reschedule count will be increased. */
-    PRUint32 mRescheduleCount;
 };
 
 class nsOfflineCacheUpdateService : public nsIOfflineCacheUpdateService

@@ -2861,14 +2861,19 @@ nsGlobalWindow::GetApplicationCache(nsIDOMOfflineResourceList **aApplicationCach
     nsresult rv = webNav->GetCurrentURI(getter_AddRefs(uri));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
     nsCOMPtr<nsIURI> manifestURI;
-    nsContentUtils::GetOfflineAppManifest(doc, getter_AddRefs(manifestURI));
+    nsContentUtils::GetOfflineAppManifest(GetOuterWindowInternal(),
+                                          getter_AddRefs(manifestURI));
+
+    PRBool isToplevel;
+    nsCOMPtr<nsIDOMWindow> parentWindow;
+    GetParent(getter_AddRefs(parentWindow));
+    isToplevel = (parentWindow.get() == static_cast<nsIDOMWindow*>(GetOuterWindowInternal()));
 
     nsDOMOfflineResourceList* applicationCache =
-      new nsDOMOfflineResourceList(manifestURI, uri, this);
+      new nsDOMOfflineResourceList(isToplevel, manifestURI, uri, this);
 
-    if (!applicationCache)
+    if (!applicationCache) 
         return NS_ERROR_OUT_OF_MEMORY;
 
     mApplicationCache = applicationCache;
