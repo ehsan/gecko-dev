@@ -598,6 +598,9 @@ protected:
   virtual void GetBoxName(nsAutoString& aName);
 #endif
 
+  virtual PRBool GetWasCollapsed(nsBoxLayoutState& aState);
+  virtual void SetWasCollapsed(nsBoxLayoutState& aState, PRBool aWas);
+
   void InitBoxMetrics(PRBool aClear);
   nsBoxLayoutMetrics* BoxMetrics() const;
 
