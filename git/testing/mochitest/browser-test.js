@@ -119,7 +119,10 @@ Tester.prototype = {
     }
 
     // Make sure the window is raised before each test.
-    this.SimpleTest.waitForFocus(aCallback);
+    let self = this;
+    this.SimpleTest.waitForFocus(function() {
+      aCallback.apply(self);
+    });
   },
 
   finish: function Tester_finish(aSkipSummary) {
@@ -189,23 +192,22 @@ Tester.prototype = {
       let time = Date.now() - this.lastStartTime;
       this.dumper.dump("INFO TEST-END | " + this.currentTest.path + " | finished in " + time + "ms\n");
       this.currentTest.setDuration(time);
-
-      testScope.destroy();
-      this.currentTest.scope = null;
     }
 
     // Check the window state for the current test before moving to the next one.
     // This also causes us to check before starting any tests, since nextTest()
     // is invoked to start the tests.
-    this.waitForWindowsState((function () {
-      if (this.done) {
-        this.finish();
-        return;
-      }
+    this.waitForWindowsState(this.realNextTest);
+  },
 
-      this.currentTestIndex++;
-      this.execTest();
-    }).bind(this));
+  realNextTest: function Test_realNextTest() {
+    if (this.done) {
+      this.finish();
+      return;
+    }
+
+    this.currentTestIndex++;
+    this.execTest();
   },
 
   execTest: function Tester_execTest() {
@@ -435,10 +437,5 @@ testScope.prototype = {
   __timeoutFactor: 1,
 
   EventUtils: {},
-  SimpleTest: {},
-
-  destroy: function test_destroy() {
-    for (let prop in this)
-      delete this[prop];
-  }
+  SimpleTest: {}
 };
