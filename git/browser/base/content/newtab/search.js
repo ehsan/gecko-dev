@@ -158,10 +158,7 @@ let gSearch = {
     let image = document.createElementNS(XUL_NAMESPACE, "image");
     if (engine.iconBuffer) {
       let blob = new Blob([engine.iconBuffer]);
-      let size = Math.round(16 * window.devicePixelRatio);
-      let sizeStr = size + "," + size;
-      let uri = URL.createObjectURL(blob) + "#-moz-resolution=" + sizeStr;
-      image.setAttribute("src", uri);
+      image.setAttribute("src", URL.createObjectURL(blob));
     }
     box.appendChild(image);
 
