@@ -205,7 +205,6 @@ nsHttpHandler::nsHttpHandler()
     , mTCPKeepaliveShortLivedIdleTimeS(10)
     , mTCPKeepaliveLongLivedEnabled(false)
     , mTCPKeepaliveLongLivedIdleTimeS(600)
-    , mEnforceH1Framing(false)
 {
 #if defined(PR_LOGGING)
     gHttpLog = PR_NewLogModule("nsHttp");
@@ -1455,13 +1454,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         if (NS_SUCCEEDED(rv) && val > 0)
             mTCPKeepaliveLongLivedIdleTimeS = clamped(val,
                                                       1, kMaxTCPKeepIdle);
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("enforce-framing.http1"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("enforce-framing.http1"), &cVar);
-        if (NS_SUCCEEDED(rv)) {
-            mEnforceH1Framing = cVar;
-        }
     }
 
     // Enable HTTP response timeout if TCP Keepalives are disabled.

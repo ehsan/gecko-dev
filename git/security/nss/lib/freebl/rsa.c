@@ -97,8 +97,8 @@ static struct RSABlindingParamsListStr blindingParamsList = { 0 };
 static PRBool nssRSAUseBlinding = PR_TRUE;
 
 static SECStatus
-rsa_build_from_primes(const mp_int *p, const mp_int *q,
-		mp_int *e, PRBool needPublicExponent,
+rsa_build_from_primes(mp_int *p, mp_int *q, 
+		mp_int *e, PRBool needPublicExponent, 
 		mp_int *d, PRBool needPrivateExponent,
 		RSAPrivateKey *key, unsigned int keySizeInBits)
 {
@@ -116,12 +116,6 @@ rsa_build_from_primes(const mp_int *p, const mp_int *q,
     CHECK_MPI_OK( mp_init(&psub1) );
     CHECK_MPI_OK( mp_init(&qsub1) );
     CHECK_MPI_OK( mp_init(&tmp)   );
-    /* p and q must be distinct. */
-    if (mp_cmp(p, q) == 0) {
-	PORT_SetError(SEC_ERROR_NEED_RANDOM);
-	rv = SECFailure;
-	goto cleanup;
-    }
     /* 1.  Compute n = p*q */
     CHECK_MPI_OK( mp_mul(p, q, &n) );
     /*     verify that the modulus has the desired number of bits */
@@ -286,11 +280,7 @@ RSA_NewKey(int keySizeInBits, SECItem *publicExponent)
 	PORT_SetError(0);
 	CHECK_SEC_OK( generate_prime(&p, primeLen) );
 	CHECK_SEC_OK( generate_prime(&q, primeLen) );
-	/* Assure p > q */
-	/* NOTE: PKCS #1 does not require p > q, and NSS doesn't use any
-	 * implementation optimization that requires p > q. We can remove
-	 * this code in the future.
-	 */
+	/* Assure q < p */
 	if (mp_cmp(&p, &q) < 0)
 	    mp_exch(&p, &q);
 	/* Attempt to use these primes to generate a key */
@@ -772,11 +762,7 @@ RSA_PopulatePrivateKey(RSAPrivateKey *key)
 	}
      }
 
-     /* Assure p > q */
-     /* NOTE: PKCS #1 does not require p > q, and NSS doesn't use any
-      * implementation optimization that requires p > q. We can remove
-      * this code in the future.
-      */
+     /* force p to the the larger prime */
      if (mp_cmp(&p, &q) < 0)
 	mp_exch(&p, &q);
 
@@ -1107,7 +1093,7 @@ get_blinding_params(RSAPrivateKey *key, mp_int *n, unsigned int modLen,
 {
     RSABlindingParams *rsabp           = NULL;
     blindingParams    *bpUnlinked      = NULL;
-    blindingParams    *bp;
+    blindingParams    *bp, *prevbp     = NULL;
     PRCList           *el;
     SECStatus          rv              = SECSuccess;
     mp_err             err             = MP_OKAY;
@@ -1197,6 +1183,7 @@ get_blinding_params(RSAPrivateKey *key, mp_int *n, unsigned int modLen,
 	}
 	/* We did not find a usable set of blinding params.  Can we make one? */
 	/* Find a free bp struct. */
+	prevbp = NULL;
 	if ((bp = rsabp->free) != NULL) {
 	    /* unlink this bp */
 	    rsabp->free  = bp->next;
@@ -1413,8 +1400,8 @@ RSA_PrivateKeyCheck(const RSAPrivateKey *key)
     SECITEM_TO_MPINT(key->exponent1,       &d_p);
     SECITEM_TO_MPINT(key->exponent2,       &d_q);
     SECITEM_TO_MPINT(key->coefficient,     &qInv);
-    /* p and q must be distinct. */
-    if (mp_cmp(&p, &q) == 0) {
+    /* p > q */
+    if (mp_cmp(&p, &q) <= 0) {
 	rv = SECFailure;
 	goto cleanup;
     }
