@@ -54,8 +54,6 @@ let EXPORTED_SYMBOLS = [ "PlacesDBUtils" ];
 
 const FINISHED_MAINTENANCE_TOPIC = "places-maintenance-finished";
 
-const BYTES_PER_MEBIBYTE = 1048576;
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Smart getters
 
@@ -117,6 +115,7 @@ let PlacesDBUtils = {
       this.checkIntegrity
     , this.checkCoherence
     , this._refreshUI
+    , this._telemetry
     ]);
     tasks.callback = aCallback;
     tasks.scope = aScope;
@@ -862,7 +861,7 @@ let PlacesDBUtils = {
    * @param [optional] aTasks
    *        Tasks object to execute.
    */
-  telemetry: function PDBU_telemetry(aTasks)
+  _telemetry: function PDBU__telemetry(aTasks)
   {
     let tasks = new Tasks(aTasks);
 
@@ -912,7 +911,7 @@ let PlacesDBUtils = {
         let DBFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
         DBFile.append("places.sqlite");
         try {
-          return parseInt(DBFile.fileSize / BYTES_PER_MEBIBYTE);
+          return parseInt(DBFile.fileSize / 1024);
         } catch (ex) {
           return 0;
         }
@@ -922,7 +921,7 @@ let PlacesDBUtils = {
         let DBFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
         DBFile.append("places.sqlite-wal");
         try {
-          return parseInt(DBFile.fileSize / BYTES_PER_MEBIBYTE);
+          return parseInt(DBFile.fileSize / 1024);
         } catch (ex) {
           return 0;
         }

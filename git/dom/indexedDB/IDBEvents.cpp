@@ -44,7 +44,7 @@
 
 #include "jscntxt.h"
 #include "nsContentUtils.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMException.h"
 #include "nsJSON.h"
 #include "nsThreadUtils.h"

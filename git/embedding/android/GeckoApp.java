@@ -87,7 +87,7 @@ abstract public class GeckoApp
     private IntentFilter mConnectivityFilter;
     private BroadcastReceiver mConnectivityReceiver;
 
-    enum LaunchState {PreLaunch, Launching, WaitForDebugger,
+    enum LaunchState {PreLaunch, Launching, WaitButton,
                       Launched, GeckoRunning, GeckoExiting};
     private static LaunchState sLaunchState = LaunchState.PreLaunch;
     private static boolean sTryCatchAttached = false;
@@ -427,19 +427,21 @@ abstract public class GeckoApp
         }
         final String action = intent.getAction();
         if (ACTION_DEBUG.equals(action) &&
-            checkAndSetLaunchState(LaunchState.Launching, LaunchState.WaitForDebugger)) {
-
-            mMainHandler.postDelayed(new Runnable() {
-                public void run() {
-                    Log.i(LOG_FILE_NAME, "Launching from debug intent after 5s wait");
+            checkAndSetLaunchState(LaunchState.Launching, LaunchState.WaitButton)) {
+            final Button launchButton = new Button(this);
+            launchButton.setText("Launch"); // don't need to localize
+            launchButton.setOnClickListener(new Button.OnClickListener() {
+                public void onClick (View v) {
+                    // hide the button so we can't be launched again
+                    mainLayout.removeView(launchButton);
                     setLaunchState(LaunchState.Launching);
                     launch(null);
                 }
-            }, 1000 * 5 /* 5 seconds */);
-            Log.i(LOG_FILE_NAME, "Intent : ACTION_DEBUG - waiting 5s before launching");
+            });
+            mainLayout.addView(launchButton, 300, 200);
             return;
         }
-        if (checkLaunchState(LaunchState.WaitForDebugger) || launch(intent))
+        if (checkLaunchState(LaunchState.WaitButton) || launch(intent))
             return;
 
         if (Intent.ACTION_MAIN.equals(action)) {

@@ -718,11 +718,10 @@ JS_XDRScript(JSXDRState *xdr, JSScript **scriptp)
         return false;
 
     if (xdr->mode == JSXDR_DECODE) {
-        JS_ASSERT(!script->compileAndGo);
         if (!js_NewScriptObject(xdr->cx, script))
             return false;
         js_CallNewScriptHook(xdr->cx, script, NULL);
-        Debugger::onNewScript(xdr->cx, script, script->u.object, NULL);
+        Debugger::onNewScript(xdr->cx, script, script->u.object, Debugger::NewHeldScript);
         *scriptp = script;
     }
 

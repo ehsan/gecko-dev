@@ -48,7 +48,7 @@ DIRS = \
 	base \
 	shistory \
 	build \
-	resources/content \
+	resources \
 	$(NULL)
 
 ifdef ENABLE_TESTS

@@ -63,6 +63,7 @@
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsopcode.h"
+#include "jsregexp.h"
 #include "jsscan.h"
 #include "jsscope.h"
 #include "jsscript.h"
@@ -78,8 +79,6 @@
 #include "jsscriptinlines.h"
 
 #include "jsautooplen.h"
-
-#include "vm/RegExpObject-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -435,11 +434,10 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
         }
 
         if (clasp == &RegExpClass) {
-            JSString *source = obj->asRegExp()->toString(cx);
-            if (!source)
+            AutoValueRooter tvr(cx);
+            if (!js_regexp_toString(cx, obj, tvr.addr()))
                 return false;
-            JS::Anchor<JSString *> anchor(source);
-            return bytes->encode(cx, source);
+            return bytes->encode(cx, tvr.value().toString());
         }
     }
 
@@ -4230,9 +4228,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 
               case JSOP_REGEXP:
                 GET_REGEXP_FROM_BYTECODE(jp->script, pc, 0, obj);
-                str = obj->asRegExp()->toString(cx);
-                if (!str)
+                if (!js_regexp_toString(cx, obj, &val))
                     return NULL;
+                str = JSVAL_TO_STRING(val);
                 goto sprint_string;
 
               case JSOP_TABLESWITCH:

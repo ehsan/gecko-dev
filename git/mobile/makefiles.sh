@@ -52,6 +52,7 @@ mobile/modules/Makefile
 mobile/installer/Makefile
 mobile/locales/Makefile
 mobile/Makefile
+mobile/themes/Makefile
 mobile/themes/core/Makefile"
 
 if test -n "$MOZ_UPDATE_PACKAGING"; then

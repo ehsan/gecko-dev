@@ -43,7 +43,6 @@
 
 #include "xpcprivate.h"
 #include "XPCWrapper.h"
-#include "nsWrapperCacheInlines.h"
 
 /***************************************************************************/
 
@@ -1474,7 +1473,7 @@ XPCNativeScriptableShared::PopulateJSClass(JSBool isGlobal)
                           JSCLASS_NEW_RESOLVE;
 
     if(isGlobal)
-        mJSClass.base.flags |= XPCONNECT_GLOBAL_FLAGS;
+        mJSClass.base.flags |= JSCLASS_GLOBAL_FLAGS;
 
     JSPropertyOp addProperty;
     if(mFlags.WantAddProperty())

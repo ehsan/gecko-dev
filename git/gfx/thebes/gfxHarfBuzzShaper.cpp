@@ -891,13 +891,15 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
         hb_buffer_reverse(buffer);
     }
 
+#ifdef DEBUG
     nsresult rv =
-        SetGlyphsFromRun(aContext, aTextRun, buffer, aRunStart, aRunLength);
+#endif
+    SetGlyphsFromRun(aContext, aTextRun, buffer, aRunStart, aRunLength);
     NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "failed to store glyphs into textrun");
     hb_buffer_destroy(buffer);
     hb_font_destroy(font);
 
-    return NS_SUCCEEDED(rv);
+    return PR_TRUE;
 }
 
 /**

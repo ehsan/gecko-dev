@@ -215,9 +215,8 @@ class GlobalObject : public ::JSObject {
         return &v.toObject();
     }
 
-    RegExpStatics *getRegExpStatics() const {
-        JSObject &resObj = getSlot(REGEXP_STATICS).toObject();
-        return static_cast<RegExpStatics *>(resObj.getPrivate());
+    Value getRegExpStatics() const {
+        return getSlot(REGEXP_STATICS);
     }
 
     void clear(JSContext *cx);

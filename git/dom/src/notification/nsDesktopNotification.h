@@ -39,8 +39,7 @@
 
 #include "PCOMContentPermissionRequestChild.h"
 
-#include "nsDOMClassInfoID.h"
-#include "nsIPrincipal.h"
+#include "nsDOMClassInfo.h"
 #include "nsIJSContextStack.h"
 
 #include "nsIAlertsService.h"

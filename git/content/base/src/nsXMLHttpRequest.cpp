@@ -61,7 +61,7 @@
 #include "nsWeakPtr.h"
 #include "nsICharsetAlias.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMWindow.h"
 #include "nsIMIMEService.h"
@@ -76,6 +76,7 @@
 #include "nsEventDispatcher.h"
 #include "nsDOMJSUtils.h"
 #include "nsCOMArray.h"
+#include "nsDOMClassInfo.h"
 #include "nsIScriptableUConv.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIContentPolicy.h"
@@ -848,7 +849,7 @@ NS_IMETHODIMP nsXMLHttpRequest::GetResponseText(nsAString& aResponseText)
 
   nsCOMPtr<nsIDocument> document = do_QueryInterface(mResponseXML);
   if (mResponseCharset != document->GetDocumentCharacterSet()) {
-    mResponseCharset = document->GetDocumentCharacterSet();
+    mResponseCharset == document->GetDocumentCharacterSet();
     mResponseText.Truncate();
     mResponseBodyDecodedPos = 0;
 

@@ -48,7 +48,6 @@
 #include "gfx3DMatrix.h"
 #include "gfxColor.h"
 #include "gfxPattern.h"
-#include "nsTArray.h"
 
 #include "mozilla/gfx/2D.h"
 
@@ -578,13 +577,7 @@ public:
      * paint time.
      * This should never be set at the same time as CONTENT_OPAQUE.
      */
-    CONTENT_COMPONENT_ALPHA = 0x02,
-
-    /**
-     * If this is set then this layer is part of a preserve-3d group, and should
-     * be sorted with sibling layers that are also part of the same group.
-     */
-    CONTENT_PRESERVE_3D = 0x04
+    CONTENT_COMPONENT_ALPHA = 0x02
   };
   /**
    * CONSTRUCTION PHASE ONLY
@@ -1101,8 +1094,6 @@ public:
   }
 
   virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs);
-
-  void SortChildrenBy3DZOrder(nsTArray<Layer*>& aArray);
 
   // These getters can be used anytime.
 

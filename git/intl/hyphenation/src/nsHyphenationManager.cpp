@@ -177,12 +177,6 @@ nsHyphenationManager::LoadPatternList()
 void
 nsHyphenationManager::LoadPatternListFromOmnijar(Omnijar::Type aType)
 {
-  nsCString base;
-  nsresult rv = Omnijar::GetURIString(aType, base);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-
   nsZipArchive *zip = Omnijar::GetReader(aType);
   if (!zip) {
     return;
@@ -191,6 +185,12 @@ nsHyphenationManager::LoadPatternListFromOmnijar(Omnijar::Type aType)
   nsZipFind *find;
   zip->FindInit("hyphenation/hyph_*.dic", &find);
   if (!find) {
+    return;
+  }
+
+  nsCString base;
+  nsresult rv = Omnijar::GetURIString(aType, base);
+  if (NS_FAILED(rv)) {
     return;
   }
 
@@ -225,8 +225,6 @@ nsHyphenationManager::LoadPatternListFromOmnijar(Omnijar::Type aType)
       mPatternFiles.Put(localeAtom, uri);
     }
   }
-
-  delete find;
 }
 
 void

@@ -2082,9 +2082,9 @@ namespace js {
 bool
 GCHelperThread::init()
 {
-    if (!(wakeup = PR_NewCondVar(rt->gcLock)))
+    if (!(wakeup = PR_NewCondVar(runtime()->gcLock)))
         return false;
-    if (!(done = PR_NewCondVar(rt->gcLock)))
+    if (!(done = PR_NewCondVar(runtime()->gcLock)))
         return false;
 
     thread = PR_CreateThread(PR_USER_THREAD, threadMain, this, PR_PRIORITY_NORMAL,
@@ -2096,12 +2096,18 @@ GCHelperThread::init()
     return true;
 }
 
+inline JSRuntime *
+GCHelperThread::runtime()
+{
+    return reinterpret_cast<JSRuntime *>(reinterpret_cast<uintptr_t>(this) - offsetof(JSRuntime, gcHelperThread));
+}
+
 void
 GCHelperThread::finish()
 {
     PRThread *join = NULL;
     {
-        AutoLockGC lock(rt);
+        AutoLockGC lock(runtime());
         if (thread && state != SHUTDOWN) {
             /* The allocation should have been stopped during the last GC. */
             JS_ASSERT(state == IDLE || state == SWEEPING);
@@ -2131,6 +2137,7 @@ GCHelperThread::threadMain(void *arg)
 void
 GCHelperThread::threadLoop()
 {
+    JSRuntime *rt = runtime();
     AutoLockGC lock(rt);
 
     /*
@@ -2178,9 +2185,9 @@ GCHelperThread::threadLoop()
 bool
 GCHelperThread::prepareForBackgroundSweep(JSContext *cx)
 {
-    JS_ASSERT(cx->runtime == rt);
+    JS_ASSERT(cx->runtime == runtime());
     JS_ASSERT(state == IDLE);
-    size_t maxArenaLists = MAX_BACKGROUND_FINALIZE_KINDS * rt->compartments.length();
+    size_t maxArenaLists = MAX_BACKGROUND_FINALIZE_KINDS * runtime()->compartments.length();
     if (!finalizeVector.reserve(maxArenaLists))
         return false;
     context = cx;
@@ -2255,6 +2262,7 @@ GCHelperThread::doSweep()
      * Expire the chunks released during the GC so they will be available to
      * the rest of the system immediately.
      */
+    JSRuntime *rt = runtime();
     rt->gcChunkPool.expire(rt, shouldShrink());
 
     AutoUnlockGC unlock(rt);

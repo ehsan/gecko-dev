@@ -128,7 +128,6 @@ mozHunspell::Init()
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (obs) {
     obs->AddObserver(this, "profile-do-change", PR_TRUE);
-    obs->AddObserver(this, "profile-after-change", PR_TRUE);
   }
 
   mHunspellReporter = new NS_MEMORY_REPORTER_NAME(Hunspell);
@@ -594,8 +593,7 @@ NS_IMETHODIMP
 mozHunspell::Observe(nsISupports* aSubj, const char *aTopic,
                     const PRUnichar *aData)
 {
-  NS_ASSERTION(!strcmp(aTopic, "profile-do-change")
-               || !strcmp(aTopic, "profile-after-change"),
+  NS_ASSERTION(!strcmp(aTopic, "profile-do-change"),
                "Unexpected observer topic");
 
   LoadDictionaryList();
