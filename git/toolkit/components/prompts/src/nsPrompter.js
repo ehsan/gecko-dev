@@ -48,8 +48,6 @@ function Prompter() {
 }
 
 Prompter.prototype = {
-    classDescription : "Prompter",
-    contractID       : "@mozilla.org/prompter;1",
     classID          : Components.ID("{1c978d25-b37f-43a8-a2d6-0c7a239ead87}"),
     QueryInterface   : XPCOMUtils.generateQI([Ci.nsIPromptFactory, Ci.nsIPromptService, Ci.nsIPromptService2]),
 
@@ -202,18 +200,6 @@ let PromptUtils = {
         }
 
         return [buttonLabels[0], buttonLabels[1], buttonLabels[2], defaultButtonNum, isDelayEnabled];
-    },
-
-    // Returns true if some listener requested that the default action be prevented.
-    fireEvent : function (domWin, eventType) {
-        // XXX main use of DOMWillOpenModalDialog is so tabbrowser can focus
-        //     the tab opening the modal prompt. DOMModalDialogClosed is
-        //     unused (until bug 429287).
-        // XXX Maybe make these observer notifications instead?
-        //     oh, content can see these? That seems unfortunate. Esp. for auth.
-        let event = domWin.document.createEvent("Events");
-        event.initEvent(eventType, true, true);
-        return !domWin.dispatchEvent(event);
     },
 
     getAuthInfo : function (authInfo) {
@@ -384,12 +370,11 @@ ModalPrompter.prototype = {
         if (!domWin)
             domWin = Services.ww.activeWindow;
 
+        // XXX domWin may still be null here if there are _no_ windows open.
+
         // Note that we don't need to fire DOMWillOpenModalDialog and
         // DOMModalDialogClosed events here, wwatcher's OpenWindowJSInternal
         // will do that. Similarly for enterModalState / leaveModalState.
-
-        let winUtils = domWin.QueryInterface(Ci.nsIInterfaceRequestor)
-                             .getInterface(Ci.nsIDOMWindowUtils);
 
         Services.ww.openWindow(domWin, uri, "_blank", "centerscreen,chrome,modal,titlebar", args);
     },
@@ -695,8 +680,6 @@ ModalPrompter.prototype = {
 function AuthPromptAdapterFactory() {
 }
 AuthPromptAdapterFactory.prototype = {
-    classDescription : "AuthPromptAdapterFactory",
-    contractID       : "@mozilla.org/network/authprompt-adapter-factory;1",
     classID          : Components.ID("{6e134924-6c3a-4d86-81ac-69432dd971dc}"),
     QueryInterface   : XPCOMUtils.generateQI([Ci.nsIAuthPromptAdapterFactory]),
 
@@ -750,12 +733,7 @@ AuthPromptAdapter.prototype = {
 function EmbedPrompter() {
 }
 EmbedPrompter.prototype = new Prompter();
-EmbedPrompter.prototype.classDescription = "EmbedPrompter";
-EmbedPrompter.prototype.contractID       = "@mozilla.org/embedcomp/prompt-service;1"; // NS_PROMPTSERVICE_CONTRACTID
 EmbedPrompter.prototype.classID          = Components.ID("{7ad1b327-6dfa-46ec-9234-f2a620ea7e00}");
 
-
 var component = [Prompter, EmbedPrompter, AuthPromptAdapterFactory];
-function NSGetModule (compMgr, fileSpec) {
-    return XPCOMUtils.generateModule(component);
-}
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);

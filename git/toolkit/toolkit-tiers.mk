@@ -104,7 +104,7 @@ endif
 #
 
 ifdef MOZ_IPC
-tier_platform_dirs += ipc
+tier_platform_dirs += ipc js/ipc js/jetpack
 endif
 
 tier_platform_dirs += \
@@ -200,7 +200,7 @@ endif
 # "toolkit" - xpfe & toolkit
 #
 
-tier_platform_dirs += chrome profile
+tier_platform_dirs += profile
 
 # This must preceed xpfe
 ifdef MOZ_JPROF
@@ -269,6 +269,11 @@ endif
 
 ifdef MOZ_MAPINFO
 tier_platform_dirs	+= tools/codesighs
+endif
+
+ifdef MOZ_SERVICES_SYNC
+tier_platform_dirs += services/crypto
+tier_platform_dirs += services/sync
 endif
 
 ifdef ENABLE_TESTS

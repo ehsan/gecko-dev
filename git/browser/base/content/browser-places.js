@@ -765,7 +765,7 @@ HistoryMenu.prototype = {
 /**
  * Functions for handling events in the Bookmarks Toolbar and menu.
  */
-var BookmarksEventHandler = {  
+var BookmarksEventHandler = {
   /**
    * Handler for click event for an item in the bookmarks toolbar or menu.
    * Menus and submenus from the folder buttons bubble up to this handler.
@@ -775,7 +775,7 @@ var BookmarksEventHandler = {
    * @param aEvent
    *        DOMEvent for the click
    */
-  onClick: function BT_onClick(aEvent) {
+  onClick: function BEH_onClick(aEvent) {
     // Only handle middle-click or left-click with modifiers.
 #ifdef XP_MACOSX
     var modifKey = aEvent.metaKey || aEvent.shiftKey;
@@ -817,13 +817,13 @@ var BookmarksEventHandler = {
    * @param aEvent 
    *        DOMEvent for the command
    */
-  onCommand: function BM_onCommand(aEvent) {
+  onCommand: function BEH_onCommand(aEvent) {
     var target = aEvent.originalTarget;
     if (target._placesNode)
       PlacesUIUtils.openNodeWithEvent(target._placesNode, aEvent);
   },
 
-  fillInBHTooltip: function(aDocument, aEvent) {
+  fillInBHTooltip: function BEH_fillInBHTooltip(aDocument, aEvent) {
     var node;
     var cropped = false;
     var targetURI;
@@ -880,11 +880,84 @@ var BookmarksEventHandler = {
   }
 };
 
-/**
- * Drag and Drop handler for the Bookmarks menu in the top level menu bar.
- */
-let BookmarksMenuDropHandler = {
-  onDragOver: function BMDH_onDragOver(event) {
+
+// Handles special drag and drop functionality for Places menus that are not
+// part of a Places view (e.g. the bookmarks menu in the menubar).
+var PlacesMenuDNDHandler = {
+  _springLoadDelay: 350, // milliseconds
+  _loadTimer: null,
+
+  /**
+   * Called when the user enters the <menu> element during a drag.
+   * @param   event
+   *          The DragEnter event that spawned the opening. 
+   */
+  onDragEnter: function PMDH_onDragEnter(event) {
+    // Opening menus in a Places popup is handled by the view itself.
+    if (!this._isStaticContainer(event.target))
+      return;
+
+    this._loadTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+    this._loadTimer.initWithCallback(function() {
+      PlacesMenuDNDHandler._loadTimer = null;
+      event.target.lastChild.setAttribute("autoopened", "true");
+      event.target.lastChild.showPopup(event.target.lastChild);
+    }, this._springLoadDelay, Ci.nsITimer.TYPE_ONE_SHOT);
+    event.preventDefault();
+    event.stopPropagation();
+  },
+
+  /**
+   * Handles dragleave on the <menu> element.
+   * @returns true if the element is a container element (menu or 
+   *          menu-toolbarbutton), false otherwise.
+   */
+  onDragLeave: function PMDH_onDragLeave(event) {
+    // Closing menus in a Places popup is handled by the view itself.
+    if (!this._isStaticContainer(event.target))
+      return;
+
+    if (this._loadTimer) {
+      this._loadTimer.cancel();
+      this._loadTimer = null;
+    }
+    let closeTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+    closeTimer.initWithCallback(function() {
+      let node = PlacesControllerDragHelper.currentDropTarget;
+      let inHierarchy = false;
+      while (node && !inHierarchy) {
+        inHierarchy = node == event.target;
+        node = node.parentNode;
+      }
+      if (!inHierarchy && event.target.lastChild &&
+          event.target.lastChild.hasAttribute("autoopened")) {
+        event.target.lastChild.removeAttribute("autoopened");
+        event.target.lastChild.hidePopup();
+      }
+    }, this._springLoadDelay, Ci.nsITimer.TYPE_ONE_SHOT);
+  },
+
+  /**
+   * Determines if a XUL element represents a static container.
+   * @returns true if the element is a container element (menu or 
+   *`         menu-toolbarbutton), false otherwise.
+   */
+  _isStaticContainer: function PMDH__isContainer(node) {
+    let isMenu = node.localName == "menu" ||
+                 (node.localName == "toolbarbutton" &&
+                  node.getAttribute("type") == "menu");
+    let isStatic = !("_placesNode" in node) && node.lastChild &&
+                   node.lastChild.hasAttribute("placespopup") &&
+                   !node.parentNode.hasAttribute("placespopup");
+    return isMenu && isStatic;
+  },
+
+  /**
+   * Called when the user drags over the <menu> element.
+   * @param   event
+   *          The DragOver event. 
+   */
+  onDragOver: function PMDH_onDragOver(event) {
     let ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId,
                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
                                 Ci.nsITreeView.DROP_ON);
@@ -894,7 +967,12 @@ let BookmarksMenuDropHandler = {
     event.stopPropagation();
   },
 
-  onDrop: function BMDH_onDrop(event) {
+  /**
+   * Called when the user drops on the <menu> element.
+   * @param   event
+   *          The Drop event. 
+   */
+  onDrop: function PMDH_onDrop(event) {
     // Put the item at the end of bookmark menu.
     let ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId,
                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
@@ -904,107 +982,6 @@ let BookmarksMenuDropHandler = {
   }
 };
 
-/**
- * Handles special drag and drop functionality for menus on the Bookmarks 
- * Toolbar and Bookmarks Menu.
- */
-var PlacesMenuDNDController = {
-  _springLoadDelay: 350, // milliseconds
-
-  /**
-   * All Drag Timers set for the Places UI
-   */
-  _timers: { },
-  
-  /**
-   * Called when the user drags over the Bookmarks top level <menu> element.
-   * @param   event
-   *          The DragEnter event that spawned the opening. 
-   */
-  onBookmarksMenuDragEnter: function PMDC_onDragEnter(event) {
-    if ("loadTime" in this._timers) 
-      return;
-    
-    this._setDragTimer("loadTime", this._openBookmarksMenu, 
-                       this._springLoadDelay, [event]);
-  },
-  
-  /**
-   * Creates a timer that will fire during a drag and drop operation.
-   * @param   id
-   *          The identifier of the timer being set
-   * @param   callback
-   *          The function to call when the timer "fires"
-   * @param   delay
-   *          The time to wait before calling the callback function
-   * @param   args
-   *          An array of arguments to pass to the callback function
-   */
-  _setDragTimer: function PMDC__setDragTimer(id, callback, delay, args) {
-    if (!this._dragSupported)
-      return;
-
-    // Cancel this timer if it's already running.
-    if (id in this._timers)
-      this._timers[id].cancel();
-      
-    /**
-     * An object implementing nsITimerCallback that calls a user-supplied
-     * method with the specified args in the context of the supplied object.
-     */
-    function Callback(object, method, args) {
-      this._method = method;
-      this._args = args;
-      this._object = object;
-    }
-    Callback.prototype = {
-      notify: function C_notify(timer) {
-        this._method.apply(this._object, this._args);
-      }
-    };
-    
-    var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    timer.initWithCallback(new Callback(this, callback, args), delay, 
-                           timer.TYPE_ONE_SHOT);
-    this._timers[id] = timer;
-  },
-  
-  /**
-   * Determines if a XUL element represents a container in the Bookmarks system
-   * @returns true if the element is a container element (menu or 
-   *`         menu-toolbarbutton), false otherwise.
-   */
-  _isContainer: function PMDC__isContainer(node) {
-    return node.localName == "menu" ||
-           (node.localName == "toolbarbutton" &&
-            node.getAttribute("type") == "menu");
-  },
-  
-  /**
-   * Opens the Bookmarks Menu when it is dragged over. (This is special-cased, 
-   * since the toplevel Bookmarks <menu> is not a member of an existing places
-   * container, as folders on the personal toolbar or submenus are. 
-   * @param   event
-   *          The DragEnter event that spawned the opening. 
-   */
-  _openBookmarksMenu: function PMDC__openBookmarksMenu(event) {
-    if ("loadTime" in this._timers)
-      delete this._timers.loadTime;
-    if (event.target.id == "bookmarksMenu") {
-      // If this is the bookmarks menu, tell its menupopup child to show.
-      event.target.lastChild.setAttribute("autoopened", "true");
-      event.target.lastChild.showPopup(event.target.lastChild);
-    }  
-  },
-
-  // Whether or not drag and drop to menus is supported on this platform
-  // Dragging in menus is disabled on OS X due to various repainting issues.
-#ifdef XP_MACOSX
-  _dragSupported: false
-#else
-  _dragSupported: true
-#endif
-};
 
 var PlacesStarButton = {
   init: function PSB_init() {
@@ -1019,13 +996,7 @@ var PlacesStarButton = {
     PlacesUtils.bookmarks.removeObserver(this);
   },
 
-  QueryInterface: function PSB_QueryInterface(aIID) {
-    if (aIID.equals(Ci.nsINavBookmarkObserver) ||
-        aIID.equals(Ci.nsISupports))
-      return this;
-
-    throw Cr.NS_NOINTERFACE;
-  },
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsINavBookmarkObserver]),
 
   _starred: false,
   _batching: false,
@@ -1086,38 +1057,188 @@ var PlacesStarButton = {
       this.updateState();
   },
 
-  onItemVisited: function() { },
-  onItemMoved: function() { }
+  onItemVisited: function() {},
+  onItemMoved: function() {}
 };
 
-// This object handles the initlization and uninitlization of the bookmarks
+
+// This object handles the initialization and uninitialization of the bookmarks
 // toolbar.  updateState is called when the browser window is opened and
 // after closing the toolbar customization dialog.
 let PlacesToolbarHelper = {
   _place: "place:folder=TOOLBAR",
-  _cachedElt: null,
 
-  onBrowserWindowClose: function PTH_onBrowserWindowClose() {
-    if (this._cachedElt)
-      this._cachedElt._placesView.uninit();
+  get _viewElt() {
+    return document.getElementById("PlacesToolbar");
   },
 
-  updateState: function PTH_updateState() {
-    let currentElt = document.getElementById("PlacesToolbar");
-
-    // Bail out if the state has not changed.
-    if (currentElt == this._cachedElt)
+  init: function PTH_init() {
+    let viewElt = this._viewElt;
+    if (!viewElt || viewElt._placesView)
       return;
 
-    if (!this._cachedElt) {
-      // The toolbar has been added.
-      new PlacesToolbar(this._place);
-      this._cachedElt = currentElt;
+    // If the bookmarks toolbar item is hidden because the parent toolbar is
+    // collapsed or hidden (i.e. in a popup), spare the initialization.
+    let toolbar = viewElt.parentNode.parentNode;
+    if (toolbar.collapsed ||
+        getComputedStyle(toolbar, "").display == "none")
+      return;
+
+    new PlacesToolbar(this._place);
+  },
+
+  customizeStart: function PTH_customizeStart() {
+    let viewElt = this._viewElt;
+    if (viewElt && viewElt._placesView)
+      viewElt._placesView.uninit();
+  },
+
+  customizeDone: function PTH_customizeDone() {
+    this.init();
+  }
+};
+
+
+// Handles the bookmarks menu button shown when the main menubar is hidden.
+let BookmarksMenuButton = {
+  get button() {
+    return document.getElementById("bookmarks-menu-button");
+  },
+
+  get buttonContainer() {
+    return document.getElementById("bookmarks-menu-button-container");
+  },
+
+  get personalToolbar() {
+    delete this.personalToolbar;
+    return this.personalToolbar = document.getElementById("PersonalToolbar");
+  },
+
+  get bookmarksToolbarItem() {
+    return document.getElementById("personal-bookmarks");
+  },
+
+  init: function BMB_init() {
+    this.updatePosition();
+
+    // Any other stuff that does not regard the button itself should be
+    // handled in the onPopupShowing handler, so it does not hit Ts.
+  },
+
+  _popupInitialized: false,
+  _popupNeedsUpdating: true,
+  onPopupShowing: function BMB_onPopupShowing(event) {
+    if (!this._popupNeedsUpdating)
+      return;
+    this._popupNeedsUpdating = false;
+
+    let viewToolbar = document.getElementById("BMB_viewBookmarksToolbar");
+    if (!this._popupInitialized) {
+      // First popupshowing event, initialize immutable attributes.
+      this._popupInitialized = true;
+      // Update View bookmarks toolbar checkbox menuitem.
+      viewToolbar.setAttribute("toolbarindex",
+                               Array.indexOf(gNavToolbox.childNodes,
+                                             this.personalToolbar));
+
+      // Need to set the label on Unsorted Bookmarks menu.
+      let unsortedBookmarksElt =
+        document.getElementById("BMB_unsortedBookmarksFolderMenu");
+      unsortedBookmarksElt.label =
+        PlacesUtils.getString("UnsortedBookmarksFolderTitle");
+    }
+
+    // Update View Bookmarks Toolbar checkbox menuitem.
+    viewToolbar.setAttribute("checked", !this.personalToolbar.collapsed);
+
+    // Hide Bookmarks Toolbar menu if the button is next to the bookmarks
+    // toolbar item, show them otherwise.
+    let button = this.button;
+    document.getElementById("BMB_bookmarksToolbarFolderMenu").collapsed =
+      button && button.parentNode == this.bookmarksToolbarItem;
+  },
+
+  updatePosition: function BMB_updatePosition() {
+    this._popupNeedsUpdating = true;
+
+    let button = this.button;
+    if (!button)
+      return;
+
+    // If the toolbar containing bookmarks is visible, we want to move the
+    // button to bookmarksToolbarItem.
+    let bookmarksToolbarItem = this.bookmarksToolbarItem;
+    let bookmarksOnVisibleToolbar = bookmarksToolbarItem &&
+                                    !bookmarksToolbarItem.parentNode.collapsed &&
+                                    bookmarksToolbarItem.parentNode.getAttribute("autohide") != "true";
+
+    // If the container has been moved by the user to the toolbar containing
+    // bookmarks, we want to preserve the desired position.
+    let container = this.buttonContainer;
+    let containerNearBookmarks = container && bookmarksToolbarItem &&
+                                 container.parentNode == bookmarksToolbarItem.parentNode;
+
+    if (bookmarksOnVisibleToolbar && !containerNearBookmarks) {
+      if (button.parentNode != bookmarksToolbarItem) {
+        this._uninitView();
+        bookmarksToolbarItem.appendChild(button);
+      }
     }
     else {
-      // The toolbar has been removed.
-      this._cachedElt._placesView.uninit();
-      this._cachedElt = null;
+      if (container && button.parentNode != container) {
+        this._uninitView();
+        container.appendChild(button);
+      }
     }
+    this._updateStyle();
+  },
+
+  _updateStyle: function BMB__updateStyle() {
+    let button = this.button;
+    if (!button)
+      return;
+
+    let container = this.buttonContainer;
+    let containerOnPersonalToolbar = container &&
+                                     (container.parentNode == this.personalToolbar ||
+                                      container.parentNode.parentNode == this.personalToolbar);
+
+    if (button.parentNode == this.bookmarksToolbarItem ||
+        containerOnPersonalToolbar) {
+      button.classList.add("bookmark-item");
+      button.classList.remove("toolbarbutton-1");
+    }
+    else {
+      button.classList.remove("bookmark-item");
+      button.classList.add("toolbarbutton-1");
+    }
+  },
+
+  _uninitView: function BMB__uninitView() {
+    // When an element with a placesView attached is removed and re-inserted,
+    // XBL reapplies the binding causing any kind of issues and possible leaks,
+    // so kill current view and let popupshowing generate a new one.
+    let button = this.button;
+    if (button && button._placesView)
+      button._placesView.uninit();
+  },
+
+  customizeStart: function BMB_customizeStart() {
+    this._uninitView();
+    let button = this.button;
+    let container = this.buttonContainer;
+    if (button && container && button.parentNode != container) {
+      // Move button back to the container, so user can move or remove it.
+      container.appendChild(button);
+      this._updateStyle();
+    }
+  },
+
+  customizeChange: function BMB_customizeChange() {
+    this._updateStyle();
+  },
+
+  customizeDone: function BMB_customizeDone() {
+    this.updatePosition();
   }
 };

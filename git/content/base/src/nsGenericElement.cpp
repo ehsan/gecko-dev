@@ -72,8 +72,6 @@
 #include "nsDOMCID.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMCSSStyleDeclaration.h"
-#include "nsCSSDeclaration.h"
-#include "nsDOMCSSDeclaration.h"
 #include "nsDOMCSSAttrDeclaration.h"
 #include "nsINameSpaceManager.h"
 #include "nsContentList.h"
@@ -93,7 +91,6 @@
 
 #include "nsBindingManager.h"
 #include "nsXBLBinding.h"
-#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMViewCSS.h"
 #include "nsIXBLService.h"
 #include "nsPIDOMWindow.h"
@@ -847,7 +844,7 @@ nsIContent::GetDesiredIMEState()
   if (!doc) {
     return IME_STATUS_DISABLE;
   }
-  nsIPresShell* ps = doc->GetPrimaryShell();
+  nsIPresShell* ps = doc->GetShell();
   if (!ps) {
     return IME_STATUS_DISABLE;
   }
@@ -1404,27 +1401,40 @@ nsNSElementTearoff::GetClassList(nsIDOMDOMTokenList** aResult)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsNSElementTearoff::SetCapture(PRBool aRetargetToElement)
+void
+nsGenericElement::SetCapture(PRBool aRetargetToElement)
 {
   // If there is already an active capture, ignore this request. This would
   // occur if a splitter, frame resizer, etc had already captured and we don't
   // want to override those.
-  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(nsIPresShell::GetCapturingContent());
-  if (node)
-    return NS_OK;
+  if (nsIPresShell::GetCapturingContent())
+    return;
 
-  nsIPresShell::SetCapturingContent(mContent, CAPTURE_PREVENTDRAG |
+  nsIPresShell::SetCapturingContent(this, CAPTURE_PREVENTDRAG |
     (aRetargetToElement ? CAPTURE_RETARGETTOELEMENT : 0));
+}
+
+NS_IMETHODIMP
+nsNSElementTearoff::SetCapture(PRBool aRetargetToElement)
+{
+  mContent->SetCapture(aRetargetToElement);
+
   return NS_OK;
+}
+
+void
+nsGenericElement::ReleaseCapture()
+{
+  if (nsIPresShell::GetCapturingContent() == this) {
+    nsIPresShell::SetCapturingContent(nsnull, 0);
+  }
 }
 
 NS_IMETHODIMP
 nsNSElementTearoff::ReleaseCapture()
 {
-  if (nsIPresShell::GetCapturingContent() == mContent) {
-    nsIPresShell::SetCapturingContent(nsnull, 0);
-  }
+  mContent->ReleaseCapture();
+
   return NS_OK;
 }
 
@@ -3301,9 +3311,9 @@ nsGenericElement::SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
     // be in a document, if we're clearing animation effects on a target node
     // that's been detached since the previous animation sample.)
     if (doc) {
-      nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
+      nsCOMPtr<nsIPresShell> shell = doc->GetShell();
       if (shell) {
-        shell->RestyleForAnimation(this);
+        shell->RestyleForAnimation(this, eRestyle_Self);
       }
     }
   }
@@ -3621,7 +3631,7 @@ nsINode::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
   // A11y needs to be notified of content removals first, so accessibility
   // events can be fired before any changes occur
   if (aNotify && doc) {
-    nsIPresShell *presShell = doc->GetPrimaryShell();
+    nsIPresShell *presShell = doc->GetShell();
     if (presShell && presShell->IsAccessibilityActive()) {
       nsCOMPtr<nsIAccessibilityService> accService = 
         do_GetService("@mozilla.org/accessibilityService;1");
@@ -5378,7 +5388,7 @@ ParseSelectorList(nsINode* aNode,
   // It's not strictly necessary to have a prescontext here, but it's
   // a bit of an optimization for various stuff.
   *aPresContext = nsnull;
-  nsIPresShell* shell = doc->GetPrimaryShell();
+  nsIPresShell* shell = doc->GetShell();
   if (shell) {
     *aPresContext = shell->GetPresContext();
   }

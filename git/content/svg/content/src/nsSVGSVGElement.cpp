@@ -39,7 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsGkAtoms.h"
-#include "nsSVGLength.h"
+#include "DOMSVGLength.h"
 #include "nsSVGAngle.h"
 #include "nsCOMPtr.h"
 #include "nsIPresShell.h"
@@ -655,7 +655,8 @@ nsSVGSVGElement::CreateSVGNumber(nsIDOMSVGNumber **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGLength(nsIDOMSVGLength **_retval)
 {
-  return NS_NewSVGLength(reinterpret_cast<nsISVGLength**>(_retval));
+  NS_IF_ADDREF(*_retval = new DOMSVGLength());
+  return NS_OK;
 }
 
 /* nsIDOMSVGAngle createSVGAngle (); */
@@ -873,7 +874,7 @@ nsSVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
   // now dispatch the appropriate event if we are the root element
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
-    nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
+    nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
     if (presShell && IsRoot()) {
       PRBool scaling = (mPreviousScale != mCurrentScale);
       nsEventStatus status = nsEventStatus_eIgnore;

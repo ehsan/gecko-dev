@@ -111,6 +111,9 @@
 #include "mozAutoDocUpdate.h"
 #include "nsHtml5Module.h"
 #include "nsITextControlElement.h"
+#include "mozilla/dom/Element.h"
+
+using namespace mozilla::dom;
 
 #include "nsThreadUtils.h"
 
@@ -655,13 +658,11 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 {
   aInnerHTML.Truncate();
 
-  nsCOMPtr<nsIDocument> doc = GetOwnerDoc();
+  nsIDocument* doc = GetOwnerDoc();
   if (!doc) {
     return NS_OK; // We rely on the document for doing HTML conversion
   }
 
-  nsCOMPtr<nsIDOMNode> thisNode(do_QueryInterface(static_cast<nsIContent *>
-                                                             (this)));
   nsresult rv = NS_OK;
 
   nsAutoString contentType;
@@ -670,13 +671,15 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
   } else {
     doc->GetContentType(contentType);
   }
-  
-  nsCOMPtr<nsIDocumentEncoder> docEncoder;
-  docEncoder =
-    do_CreateInstance(PromiseFlatCString(
+
+  nsCOMPtr<nsIDocumentEncoder> docEncoder = doc->GetCachedEncoder();
+  if (!docEncoder) {
+    docEncoder =
+      do_CreateInstance(PromiseFlatCString(
         nsDependentCString(NS_DOC_ENCODER_CONTRACTID_BASE) +
         NS_ConvertUTF16toUTF8(contentType)
       ).get());
+  }
   if (!(docEncoder || doc->IsHTML())) {
     // This could be some type for which we create a synthetic document.  Try
     // again as XML
@@ -686,17 +689,19 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 
   NS_ENSURE_TRUE(docEncoder, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(doc);
-  rv = docEncoder->Init(domDoc, contentType,
-                        nsIDocumentEncoder::OutputEncodeBasicEntities |
-                        // Output DOM-standard newlines
-                        nsIDocumentEncoder::OutputLFLineBreak |
-                        // Don't do linebreaking that's not present in the source
-                        nsIDocumentEncoder::OutputRaw);
+  rv = docEncoder->NativeInit(doc, contentType,
+                              nsIDocumentEncoder::OutputEncodeBasicEntities |
+                              // Output DOM-standard newlines
+                              nsIDocumentEncoder::OutputLFLineBreak |
+                              // Don't do linebreaking that's not present in
+                              // the source
+                              nsIDocumentEncoder::OutputRaw);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  docEncoder->SetContainerNode(thisNode);
-  return docEncoder->EncodeToString(aInnerHTML);
+  docEncoder->SetNativeContainerNode(this);
+  rv = docEncoder->EncodeToString(aInnerHTML);
+  doc->SetCachedEncoder(docEncoder.forget());
+  return rv;
 }
 
 nsresult
@@ -784,7 +789,7 @@ nsGenericHTMLElement::ScrollIntoView(PRBool aTop, PRUint8 optional_argc)
   }
 
   // Get the presentation shell
-  nsCOMPtr<nsIPresShell> presShell = document->GetPrimaryShell();
+  nsCOMPtr<nsIPresShell> presShell = document->GetShell();
   if (!presShell) {
     return NS_OK;
   }
@@ -1444,7 +1449,7 @@ nsGenericHTMLElement::GetPresContext()
   nsIDocument* doc = GetDocument();
   if (doc) {
     // Get presentation shell 0
-    nsIPresShell *presShell = doc->GetPrimaryShell();
+    nsIPresShell *presShell = doc->GetShell();
     if (presShell) {
       return presShell->GetPresContext();
     }
@@ -1579,9 +1584,9 @@ nsGenericHTMLElement::ParseTableVAlignValue(const nsAString& aString,
   return aResult.ParseEnumValue(aString, kTableVAlignTable, PR_FALSE);
 }
 
-PRBool 
+PRBool
 nsGenericHTMLElement::ParseDivAlignValue(const nsAString& aString,
-                                         nsAttrValue& aResult) const
+                                         nsAttrValue& aResult)
 {
   return aResult.ParseEnumValue(aString, kDivAlignTable, PR_FALSE);
 }
@@ -2377,7 +2382,13 @@ nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm,
   mForm = nsnull;
 }
 
-NS_IMETHODIMP
+Element*
+nsGenericHTMLFormElement::GetFormElement()
+{
+  return mForm;
+}
+
+nsresult
 nsGenericHTMLFormElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
   NS_ENSURE_ARG_POINTER(aForm);

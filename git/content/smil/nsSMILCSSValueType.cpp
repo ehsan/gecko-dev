@@ -43,7 +43,6 @@
 #include "nsSMILParserUtils.h"
 #include "nsSMILValue.h"
 #include "nsCSSValue.h"
-#include "nsCSSDeclaration.h"
 #include "nsColor.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
@@ -327,7 +326,7 @@ GetPresContextForElement(nsIContent* aElem)
     // See bug 534975.
     return nsnull;
   }
-  nsIPresShell* shell = doc->GetPrimaryShell();
+  nsIPresShell* shell = doc->GetShell();
   return shell ? shell->GetPresContext() : nsnull;
 }
 

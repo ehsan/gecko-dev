@@ -58,10 +58,18 @@ public:
   // nsIDOMHTMLElement
   NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
+  virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
+
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 };
 
-NS_IMPL_NS_NEW_HTML_ELEMENT() // HTMLElement
+// Here, we expand 'NS_IMPL_NS_NEW_HTML_ELEMENT()' by hand.
+// (Calling the macro directly (with no args) produces compiler warnings.)
+nsGenericHTMLElement*
+NS_NewHTMLElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
+{
+  return new nsHTMLElement(aNodeInfo);
+}
 
 nsHTMLElement::nsHTMLElement(nsINodeInfo* aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
@@ -84,4 +92,23 @@ NS_INTERFACE_TABLE_HEAD(nsHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLElement)
+
+nsresult
+nsHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
+{
+  /**
+   * nsGenericHTMLElement::GetInnerHTML escapes < and > characters (at least).
+   * .innerHTML should return the HTML code for xmp and plaintext element.
+   *
+   * This code is a workaround until we implement a HTML5 Serializer
+   * with this behavior.
+   */
+  if (mNodeInfo->Equals(nsGkAtoms::xmp) ||
+      mNodeInfo->Equals(nsGkAtoms::plaintext)) {
+    nsContentUtils::GetNodeTextContent(this, PR_FALSE, aInnerHTML);
+    return NS_OK;
+  }
+
+  return nsGenericHTMLElement::GetInnerHTML(aInnerHTML);
+}
 

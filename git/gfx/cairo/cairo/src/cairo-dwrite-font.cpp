@@ -266,23 +266,23 @@ static cairo_status_t
 _cairo_dwrite_font_face_create_for_toy (cairo_toy_font_face_t   *toy_face,
 					cairo_font_face_t      **font_face)
 {
-    uint16_t *face_name;
+    WCHAR *face_name;
     int face_name_len;
-    cairo_status_t status;
 
     if (!DWriteFactory::Instance()) {
 	return (cairo_status_t)CAIRO_INT_STATUS_UNSUPPORTED;
     }
 
-    status = _cairo_utf8_to_utf16 (toy_face->family, -1,
-				   &face_name, &face_name_len);
+    face_name_len = MultiByteToWideChar(CP_UTF8, 0, toy_face->family, -1, NULL, 0);
+    face_name = new WCHAR[face_name_len];
+    MultiByteToWideChar(CP_UTF8, 0, toy_face->family, -1, face_name, face_name_len);
 
     IDWriteFontFamily *family = DWriteFactory::FindSystemFontFamily(face_name);
+    delete face_name;
     if (!family) {
 	*font_face = (cairo_font_face_t*)&_cairo_font_face_nil;
 	return CAIRO_STATUS_FONT_TYPE_MISMATCH;
     }
-    free (face_name);
 
     DWRITE_FONT_WEIGHT weight;
     switch (toy_face->weight) {
@@ -1268,11 +1268,8 @@ _cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
     if (op != CAIRO_OPERATOR_SOURCE && op != CAIRO_OPERATOR_OVER)
 	return CAIRO_INT_STATUS_UNSUPPORTED;
 
-    status = (cairo_int_status_t)_cairo_surface_clipper_set_clip (&dst->clipper, clip);
-    if (unlikely (status))
-	return status;
-
-    _cairo_d2d_begin_draw_state(dst);
+    _cairo_d2d_begin_draw_state (dst);
+    _cairo_d2d_set_clip (dst, clip);
 
     D2D1_TEXT_ANTIALIAS_MODE cleartype = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE;
 

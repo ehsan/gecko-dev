@@ -121,6 +121,7 @@
 #include "nsBlockFrame.h"
 #include "nsDisplayList.h"
 #include "nsIObjectLoadingContent.h"
+#include "nsExpirationTracker.h"
 #ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGEffects.h"
@@ -131,7 +132,6 @@
 using namespace mozilla;
 
 static NS_DEFINE_CID(kLookAndFeelCID,  NS_LOOKANDFEEL_CID);
-static NS_DEFINE_CID(kWidgetCID, NS_CHILD_CID);
 
 // Struct containing cached metrics for box-wrapped frames.
 struct nsBoxLayoutMetrics
@@ -837,7 +837,7 @@ public:
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("SelectionOverlay")
+  NS_DISPLAY_DECL_NAME("SelectionOverlay", TYPE_SELECTION_OVERLAY)
 private:
   PRInt16 mSelectionValue;
 };
@@ -1233,13 +1233,15 @@ DisplayDebugBorders(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
   // REVIEW: From nsContainerFrame::PaintChild
   if (nsFrame::GetShowFrameBorders() && !aFrame->GetRect().IsEmpty()) {
     aLists.Outlines()->AppendNewToTop(new (aBuilder)
-        nsDisplayGeneric(aFrame, PaintDebugBorder, "DebugBorder"));
+        nsDisplayGeneric(aFrame, PaintDebugBorder, "DebugBorder",
+                         nsDisplayItem::TYPE_DEBUG_BORDER));
   }
   // Draw a border around the current event target
   if (nsFrame::GetShowEventTargetFrameBorder() &&
       aFrame->PresContext()->PresShell()->GetDrawEventTargetFrame() == aFrame) {
     aLists.Outlines()->AppendNewToTop(new (aBuilder)
-        nsDisplayGeneric(aFrame, PaintEventTargetBorder, "EventTargetBorder"));
+        nsDisplayGeneric(aFrame, PaintEventTargetBorder, "EventTargetBorder",
+                         nsDisplayItem::TYPE_EVENT_TARGET_BORDER));
   }
 }
 #endif
@@ -1468,9 +1470,14 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
       dirty.Empty();
     }
     pseudoStackingContext = PR_TRUE;
+  } else if (aBuilder->GetSelectedFramesOnly() &&
+             aChild->IsLeaf() &&
+             !(aChild->GetStateBits() & NS_FRAME_SELECTED_CONTENT)) {
+    return NS_OK;
   }
 
-  if (aBuilder->GetPaintAllFrames()) {
+  if (aBuilder->GetSelectedFramesOnly() &&
+      (aChild->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
     dirty = aChild->GetOverflowRect();
   } else if (!(aChild->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)) {
     // No need to descend into aChild to catch placeholders for visible
@@ -3532,23 +3539,87 @@ nsPoint nsIFrame::GetOffsetTo(const nsIFrame* aOther) const
 {
   NS_PRECONDITION(aOther,
                   "Must have frame for destination coordinate system!");
+
+  NS_ASSERTION(PresContext() == aOther->PresContext(),
+               "GetOffsetTo called on frames in different documents");
+
+  //XXX sometime in the near future once we are confident that all GetOffsetTo
+  // callers pass frames that are really in the same doc we can get rid of this
+  // check.
+  if (PresContext() != aOther->PresContext()) {
+    return GetOffsetToCrossDoc(aOther);
+  }
+
   nsPoint offset(0, 0);
   const nsIFrame* f;
-  for (f = this; f != aOther && f;
-       f = nsLayoutUtils::GetCrossDocParentFrame(f, &offset)) {
+  for (f = this; f != aOther && f; f = f->GetParent()) {
     offset += f->GetPosition();
   }
 
   if (f != aOther) {
     // Looks like aOther wasn't an ancestor of |this|.  So now we have
-    // the root-document-relative position of |this| in |offset|.  Convert back
+    // the root-frame-relative position of |this| in |offset|.  Convert back
     // to the coordinates of aOther
-    nsPoint negativeOffset(0,0);
     while (aOther) {
       offset -= aOther->GetPosition();
-      aOther = nsLayoutUtils::GetCrossDocParentFrame(aOther, &negativeOffset);
+      aOther = aOther->GetParent();
     }
-    offset -= negativeOffset;
+  }
+
+  return offset;
+}
+
+nsPoint nsIFrame::GetOffsetToCrossDoc(const nsIFrame* aOther) const
+{
+  return GetOffsetToCrossDoc(aOther, PresContext()->AppUnitsPerDevPixel());
+}
+
+nsPoint
+nsIFrame::GetOffsetToCrossDoc(const nsIFrame* aOther, const PRInt32 aAPD) const
+{
+  NS_PRECONDITION(aOther,
+                  "Must have frame for destination coordinate system!");
+  NS_ASSERTION(PresContext()->GetRootPresContext() ==
+                 aOther->PresContext()->GetRootPresContext(),
+               "trying to get the offset between frames in different document "
+               "hierarchies?");
+
+  const nsIFrame* root = nsnull;
+  // offset will hold the final offset
+  // docOffset holds the currently accumulated offset at the current APD, it
+  // will be converted and added to offset when the current APD changes.
+  nsPoint offset(0, 0), docOffset(0, 0);
+  const nsIFrame* f = this;
+  PRInt32 currAPD = PresContext()->AppUnitsPerDevPixel();
+  while (f && f != aOther) {
+    docOffset += f->GetPosition();
+    nsIFrame* parent = f->GetParent();
+    if (parent) {
+      f = parent;
+    } else {
+      nsPoint newOffset(0, 0);
+      root = f;
+      f = nsLayoutUtils::GetCrossDocParentFrame(f, &newOffset);
+      PRInt32 newAPD = f ? f->PresContext()->AppUnitsPerDevPixel() : 0;
+      if (!f || newAPD != currAPD) {
+        // Convert docOffset to the right APD and add it to offset.
+        offset += docOffset.ConvertAppUnits(currAPD, aAPD);
+        docOffset.x = docOffset.y = 0;
+      }
+      currAPD = newAPD;
+      docOffset += newOffset;
+    }
+  }
+  if (f == aOther) {
+    offset += docOffset.ConvertAppUnits(currAPD, aAPD);
+  } else {
+    // Looks like aOther wasn't an ancestor of |this|.  So now we have
+    // the root-document-relative position of |this| in |offset|. Subtract the
+    // root-document-relative position of |aOther| from |offset|.
+    // This call won't try to recurse again because root is an ancestor of
+    // aOther.
+    nsPoint negOffset = aOther->GetOffsetToCrossDoc(root, aAPD);
+    offset -= negOffset;
   }
 
   return offset;
@@ -3645,13 +3716,13 @@ nsIFrame::AreAncestorViewsVisible() const
 }
 
 nsIWidget*
-nsIFrame::GetWindow() const
+nsIFrame::GetNearestWidget() const
 {
   return GetClosestView()->GetNearestWidget(nsnull);
 }
 
 nsIWidget*
-nsIFrame::GetWindowOffset(nsPoint& aOffset) const
+nsIFrame::GetNearestWidget(nsPoint& aOffset) const
 {
   nsPoint offsetToView;
   nsPoint offsetToWidget;
@@ -3671,6 +3742,101 @@ PRBool
 nsIFrame::IsLeaf() const
 {
   return PR_TRUE;
+}
+
+void
+nsIFrame::InvalidateLayer(const nsRect& aDamageRect, PRUint32 aDisplayItemKey)
+{
+  NS_ASSERTION(aDisplayItemKey > 0, "Need a key");
+
+  if (!FrameLayerBuilder::HasDedicatedLayer(this, aDisplayItemKey)) {
+    Invalidate(aDamageRect);
+    return;
+  }
+
+  InvalidateWithFlags(aDamageRect, INVALIDATE_NO_THEBES_LAYERS);
+}
+
+class LayerActivity {
+public:
+  LayerActivity(nsIFrame* aFrame) : mFrame(aFrame) {}
+  ~LayerActivity();
+  nsExpirationState* GetExpirationState() { return &mState; }
+
+  nsIFrame* mFrame;
+  nsExpirationState mState;
+};
+
+class LayerActivityTracker : public nsExpirationTracker<LayerActivity,4> {
+public:
+  // 75-100ms is a good timeout period. We use 4 generations of 25ms each.
+  enum { GENERATION_MS = 100 };
+  LayerActivityTracker()
+    : nsExpirationTracker<LayerActivity,4>(GENERATION_MS) {}
+  ~LayerActivityTracker() {
+    AgeAllGenerations();
+  }
+
+  virtual void NotifyExpired(LayerActivity* aObject);
+};
+
+static LayerActivityTracker* gLayerActivityTracker = nsnull;
+
+LayerActivity::~LayerActivity()
+{
+  if (mFrame) {
+    NS_ASSERTION(gLayerActivityTracker, "Should still have a tracker");
+    gLayerActivityTracker->RemoveObject(this);
+  }
+}
+
+static void DestroyLayerActivity(void* aPropertyValue)
+{
+  delete static_cast<LayerActivity*>(aPropertyValue);
+}
+
+NS_DECLARE_FRAME_PROPERTY(LayerActivityProperty, DestroyLayerActivity)
+
+void
+LayerActivityTracker::NotifyExpired(LayerActivity* aObject)
+{
+  RemoveObject(aObject);
+
+  nsIFrame* f = aObject->mFrame;
+  aObject->mFrame = nsnull;
+  f->Properties().Delete(LayerActivityProperty());
+  f->InvalidateOverflowRect();
+}
+
+void
+nsIFrame::MarkLayersActive()
+{
+  FrameProperties properties = Properties();
+  LayerActivity* layerActivity =
+    static_cast<LayerActivity*>(properties.Get(LayerActivityProperty()));
+  if (layerActivity) {
+    gLayerActivityTracker->MarkUsed(layerActivity);
+  } else {
+    if (!gLayerActivityTracker) {
+      gLayerActivityTracker = new LayerActivityTracker();
+    }
+    layerActivity = new LayerActivity(this);
+    gLayerActivityTracker->AddObject(layerActivity);
+    properties.Set(LayerActivityProperty(), layerActivity);
+  }
+}
+
+PRBool
+nsIFrame::AreLayersMarkedActive()
+{
+  return Properties().Get(LayerActivityProperty()) != nsnull;
+}
+
+/* static */ void
+nsFrame::ShutdownLayerActivityTimer()
+{
+  delete gLayerActivityTracker;
+  gLayerActivityTracker = nsnull;
 }
 
 void
@@ -3722,6 +3888,20 @@ nsIFrame::InvalidateInternalAfterResize(const nsRect& aDamageRect, nscoord aX,
    *
    * See bug #452496 for more details.
    */
+  if ((mState & NS_FRAME_HAS_CONTAINER_LAYER) &&
+      !(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
+    // XXX for now I'm going to assume this is in the local coordinate space
+    // This only matters for frames with transforms and retained layers,
+    // which can't happen right now since transforms trigger fallback
+    // rendering and the display items that trigger layers are nested inside
+    // the nsDisplayTransform
+    // XXX need to set INVALIDATE_NO_THEBES_LAYERS for certain kinds of
+    // invalidation, e.g. video update, 'opacity' change
+    FrameLayerBuilder::InvalidateThebesLayerContents(this,
+        aDamageRect + nsPoint(aX, aY));
+    // Don't need to invalidate any more Thebes layers
+    aFlags |= INVALIDATE_NO_THEBES_LAYERS;
+  }
   if ((mState & NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS) &&
       GetStyleDisplay()->HasTransform()) {
     nsRect newDamageRect;
@@ -3761,7 +3941,7 @@ nsIFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
 {
   NS_PRECONDITION(aOutAncestor, "Need a place to put the ancestor!");
 
-  /* Whether or not we're transformed, the matrix will be relative to our
+  /* If we're transformed, the matrix will be relative to our
    * cross-doc parent frame.
    */
   *aOutAncestor = nsLayoutUtils::GetCrossDocParentFrame(this);
@@ -3775,7 +3955,7 @@ nsIFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
      * coordinates to our parent.
      */
     NS_ASSERTION(*aOutAncestor, "Cannot transform the viewport frame!");
-    nsPoint delta = GetOffsetTo(*aOutAncestor);
+    nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
     PRInt32 scaleFactor = PresContext()->AppUnitsPerDevPixel();
 
     gfxMatrix result =
@@ -3814,7 +3994,7 @@ nsIFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
   /* Translate from this frame to our ancestor, if it exists.  That's the
    * entire transform, so we're done.
    */
-  nsPoint delta = GetOffsetTo(*aOutAncestor);
+  nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
   PRInt32 scaleFactor = PresContext()->AppUnitsPerDevPixel();
   return gfxMatrix().Translate
     (gfxPoint(NSAppUnitsToFloatPixels(delta.x, scaleFactor),
@@ -3836,14 +4016,56 @@ nsIFrame::InvalidateOverflowRect()
   Invalidate(GetOverflowRectRelativeToSelf());
 }
 
+NS_DECLARE_FRAME_PROPERTY(DeferInvalidatesProperty, nsIFrame::DestroyRegion)
+
 void
 nsIFrame::InvalidateRoot(const nsRect& aDamageRect, PRUint32 aFlags)
 {
+  NS_ASSERTION(nsLayoutUtils::GetDisplayRootFrame(this) == this,
+               "Can only call this on display roots");
+
+  if ((mState & NS_FRAME_HAS_CONTAINER_LAYER) &&
+      !(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
+    FrameLayerBuilder::InvalidateThebesLayerContents(this, aDamageRect);
+  }
+
   PRUint32 flags =
     (aFlags & INVALIDATE_IMMEDIATE) ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_NO_SYNC;
+
+  nsRect rect = aDamageRect;
+  nsRegion* excludeRegion = static_cast<nsRegion*>
+    (Properties().Get(DeferInvalidatesProperty()));
+  if (excludeRegion) {
+    flags = NS_VMREFRESH_DEFERRED;
+
+    if (aFlags & INVALIDATE_EXCLUDE_CURRENT_PAINT) {
+      nsRegion r;
+      r.Sub(rect, *excludeRegion);
+      if (r.IsEmpty())
+        return;
+      rect = r.GetBounds();
+    }
+  }
+
   nsIView* view = GetView();
   NS_ASSERTION(view, "This can only be called on frames with views");
-  view->GetViewManager()->UpdateView(view, aDamageRect, flags);
+  view->GetViewManager()->UpdateView(view, rect, flags);
+}
+
+void
+nsIFrame::BeginDeferringInvalidatesForDisplayRoot(const nsRegion& aExcludeRegion)
+{
+  NS_ASSERTION(nsLayoutUtils::GetDisplayRootFrame(this) == this,
+               "Can only call this on display roots");
+  Properties().Set(DeferInvalidatesProperty(), new nsRegion(aExcludeRegion));
+}
+
+void
+nsIFrame::EndDeferringInvalidatesForDisplayRoot()
+{
+  NS_ASSERTION(nsLayoutUtils::GetDisplayRootFrame(this) == this,
+               "Can only call this on display roots");
+  Properties().Delete(DeferInvalidatesProperty());
 }
 
 /**
@@ -4179,6 +4401,7 @@ nsFrame::List(FILE* out, PRInt32 aIndent) const
     fprintf(out, " [overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
             overflowArea.width, overflowArea.height);
   }
+  fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
   fputs("\n", out);
   return NS_OK;
 }
@@ -5514,10 +5737,10 @@ nsFrame::ChildIsDirty(nsIFrame* aChild)
 
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP
-nsFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsFrame::CreateAccessible()
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  return nsnull;
 }
 #endif
 
@@ -5632,7 +5855,30 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
                aOverflowArea->Contains(nsRect(nsPoint(0, 0), aNewSize)),
                "Computed overflow area must contain frame bounds");
 
+  // If we clip our children, clear accumulated overflow area. The
+  // children are actually clipped to the padding-box, but since the
+  // overflow area should include the entire border-box, just set it to
+  // the border-box here.
   const nsStyleDisplay *disp = GetStyleDisplay();
+  NS_ASSERTION((disp->mOverflowY == NS_STYLE_OVERFLOW_CLIP) ==
+               (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP),
+               "If one overflow is clip, the other should be too");
+  if (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP) {
+    // The contents are actually clipped to the padding area 
+    *aOverflowArea = nsRect(nsPoint(0, 0), aNewSize);
+  }
+
+  // Overflow area must always include the frame's top-left and bottom-right,
+  // even if the frame rect is empty.
+  // Pending a real fix for bug 426879, don't do this for inline frames
+  // with zero width.
+  if (aNewSize.width != 0 || !IsInlineFrame(this)) {
+    aOverflowArea->UnionRectIncludeEmpty(*aOverflowArea,
+                                         nsRect(nsPoint(0, 0), aNewSize));
+  }
+
+  // Note that NS_STYLE_OVERFLOW_CLIP doesn't clip the frame background,
+  // so we add theme background overflow here so it's not clipped.
   if (!IsBoxWrapped() && IsThemed(disp)) {
     nsRect r(nsPoint(0, 0), aNewSize);
     nsPresContext *presContext = PresContext();
@@ -5643,27 +5889,6 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
     }
   }
   
-  // Overflow area must always include the frame's top-left and bottom-right,
-  // even if the frame rect is empty.
-  // Pending a real fix for bug 426879, don't do this for inline frames
-  // with zero width.
-  if (aNewSize.width != 0 || !IsInlineFrame(this))
-    aOverflowArea->UnionRectIncludeEmpty(*aOverflowArea,
-                                         nsRect(nsPoint(0, 0), aNewSize));
-
-  PRBool geometricOverflow =
-    aOverflowArea->x < 0 || aOverflowArea->y < 0 ||
-    aOverflowArea->XMost() > aNewSize.width || aOverflowArea->YMost() > aNewSize.height;
-  // Clear geometric overflow area if we clip our children
-  NS_ASSERTION((disp->mOverflowY == NS_STYLE_OVERFLOW_CLIP) ==
-               (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP),
-               "If one overflow is clip, the other should be too");
-  if (geometricOverflow &&
-      disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP) {
-    *aOverflowArea = nsRect(nsPoint(0, 0), aNewSize);
-    geometricOverflow = PR_FALSE;
-  }
-
   PRBool hasOutlineOrEffects;
   *aOverflowArea = GetAdditionalOverflow(*aOverflowArea, aNewSize,
       &hasOutlineOrEffects);

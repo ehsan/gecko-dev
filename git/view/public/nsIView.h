@@ -63,8 +63,8 @@ enum nsViewVisibility {
 
 // IID for the nsIView interface
 #define NS_IVIEW_IID    \
-  { 0xe981334b, 0x756e, 0x417a, \
-    { 0xbf, 0x18, 0x47, 0x4a, 0x2d, 0xfe, 0xc3, 0x87 } }
+  { 0xfb9900df, 0x5956, 0x4175, \
+    { 0x83, 0xba, 0x05, 0x74, 0x31, 0x96, 0x61, 0xee } }
 
 // Public view flags are defined in this file
 #define NS_VIEW_FLAGS_PUBLIC              0x00FF
@@ -144,7 +144,8 @@ public:
 
   /**
    * Called to get the position of a view.
-   * The specified coordinates are in the parent view's coordinate space.
+   * The specified coordinates are relative to the parent view's origin, but
+   * are in appunits of this.
    * This is the (0, 0) origin of the coordinate space established by this view.
    * @param x out parameter for x position
    * @param y out parameter for y position
@@ -165,7 +166,8 @@ public:
   
   /**
    * Called to get the dimensions and position of the view's bounds.
-   * The view's bounds (x,y) are in the coordinate space of the parent view.
+   * The view's bounds (x,y) are relative to the origin of the parent view, but
+   * are in appunits of this.
    * The view's bounds (x,y) might not be the same as the view's position,
    * if the view has content above or to the left of its origin.
    * @param aBounds out parameter for bounds
@@ -176,6 +178,11 @@ public:
    * Get the offset between the coordinate systems of |this| and aOther.
    * Adding the return value to a point in the coordinate system of |this|
    * will transform the point to the coordinate system of aOther.
+   *
+   * The offset is expressed in appunits of |this|. So if you are getting the
+   * offset between views in different documents that might have different
+   * appunits per devpixel ratios you need to be careful how you use the
+   * result.
    *
    * If aOther is null, this will return the offset of |this| from the
    * root of the viewmanager tree.
@@ -188,12 +195,14 @@ public:
   nsPoint GetOffsetTo(const nsIView* aOther) const;
 
   /**
-   * Get the screen position of the view.
-   * @return the pixel position of the top-left of the view in screen
-   * coordinates.
+   * Get the offset between the origin of |this| and the origin of aWidget.
+   * Adding the return value to a point in the coordinate system of |this|
+   * will transform the point to the coordinate system of aWidget.
+   *
+   * The offset is expressed in appunits of |this|.
    */
-  nsIntPoint GetScreenPosition() const;
-  
+  nsPoint GetOffsetToWidget(nsIWidget* aWidget) const;
+
   /**
    * Called to query the visibility state of a view.
    * @result current visibility state
@@ -257,7 +266,7 @@ public:
    * Get the nearest widget in this view or a parent of this view and
    * the offset from the widget's origin to this view's origin
    * @param aOffset the offset from this view's origin to the widget's origin
-   * (usually positive)
+   * (usually positive) expressed in appunits of this.
    * @return the widget closest to this view; can be null because some view trees
    * don't have widgets at all (e.g., printing), but if any view in the view tree
    * has a widget, then it's safe to assume this will not return null
@@ -290,6 +299,26 @@ public:
                         PRBool aResetVisibility = PR_TRUE,
                         nsContentType aWindowType = eContentTypeInherit,
                         nsIWidget* aParentWidget = nsnull);
+
+  /**
+   * Attach/detach a top level widget from this view. When attached, the view
+   * updates the widget's device context and allows the view to begin receiving
+   * gecko events. The underlying base window associated with the widget will
+   * continues to receive events it expects.
+   *
+   * An attached widget will not be destroyed when the view is destroyed,
+   * allowing the recycling of a single top level widget over multiple views.
+   *
+   * @param aWidget The widget to attach to / detach from.
+   */
+  nsresult AttachToTopLevelWidget(nsIWidget* aWidget);
+  nsresult DetachFromTopLevelWidget();
+
+  /**
+   * Returns a flag indicating whether the view owns it's widget
+   * or is attached to an existing top level widget.
+   */
+  PRBool IsAttachedToTopLevel() const { return mWidgetIsTopLevel; }
 
   /**
    * In 4.0, the "cutout" nature of a view is queryable.
@@ -341,21 +370,9 @@ public:
 
   // This is an app unit offset to add when converting view coordinates to
   // widget coordinates.  It is the offset in view coordinates from widget
-  // top-left to view top-left.
-  nsPoint ViewToWidgetOffset() const {
-    nsIView* parent = reinterpret_cast<nsIView*>(mParent);
-    if (parent && parent->GetViewManager() != GetViewManager()) {
-      // The document root view's mViewToWidgetOffset is always (0,0).
-      // If it has a parent view, the parent view must be the inner view
-      // for an nsSubdocumentFrame; its top-left position in appunits
-      // is always positioned at that inner view's top-left, and its
-      // widget top-left is always positioned at that inner view's widget's
-      // top-left, so its ViewToWidgetOffset is actually the same as
-      // its parent's.
-      return parent->ViewToWidgetOffset();
-    }
-    return mViewToWidgetOffset;
-  }
+  // origin (unlike views, widgets can't extend above or to the left of their
+  // origin) to view origin expressed in appunits of this.
+  nsPoint ViewToWidgetOffset() const { return mViewToWidgetOffset; }
 
 protected:
   friend class nsWeakView;
@@ -367,12 +384,16 @@ protected:
   void              *mClientData;
   PRInt32           mZIndex;
   nsViewVisibility  mVis;
+  // position relative our parent view origin but in our appunits
   nscoord           mPosX, mPosY;
-  nsRect            mDimBounds; // relative to parent
+  // relative to parent, but in our appunits
+  nsRect            mDimBounds;
+  // in our appunits
   nsPoint           mViewToWidgetOffset;
   float             mOpacity;
   PRUint32          mVFlags;
   nsWeakView*       mDeletionObserver;
+  PRBool            mWidgetIsTopLevel;
 
   virtual ~nsIView() {}
 };

@@ -113,13 +113,8 @@ public:
   virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual nsAccessible* GetParent();
 
   virtual void InvalidateChildren();
-
-  // nsApplicationAccessible
-  virtual nsresult AddRootAccessible(nsIAccessible *aRootAccWrap);
-  virtual nsresult RemoveRootAccessible(nsIAccessible *aRootAccWrap);
 
 protected:
 

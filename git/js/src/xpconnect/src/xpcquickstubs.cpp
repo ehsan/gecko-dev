@@ -675,6 +675,16 @@ xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv,
     ThrowBadArg(cx, rv, ifaceName, memberName, 0);
 }
 
+JSBool
+xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
+{
+    return JS_ReportErrorFlagsAndNumber(cx,
+                                        JSREPORT_WARNING | JSREPORT_STRICT |
+                                        JSREPORT_STRICT_MODE_ERROR,
+                                        js_GetErrorMessage, NULL,
+                                        JSMSG_GETTER_ONLY);
+}
+
 xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
                                  StringificationBehavior nullBehavior,
                                  StringificationBehavior undefinedBehavior)
@@ -1048,7 +1058,7 @@ xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr)
 }
 
 JSBool
-xpc_qsStringToJsval(JSContext *cx, const nsAString &str, jsval *rval)
+xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval)
 {
     // From the T_DOMSTRING case in XPCConvert::NativeData2JS.
     if(str.IsVoid())
@@ -1057,10 +1067,18 @@ xpc_qsStringToJsval(JSContext *cx, const nsAString &str, jsval *rval)
         return JS_TRUE;
     }
 
-    jsval jsstr = XPCStringConvert::ReadableToJSVal(cx, str);
+    PRBool isShared = PR_FALSE;
+    jsval jsstr =
+        XPCStringConvert::ReadableToJSVal(cx, str, PR_TRUE, &isShared);
     if(!jsstr)
         return JS_FALSE;
     *rval = jsstr;
+    if (isShared)
+    {
+        // The string was shared but ReadableToJSVal didn't addref it.
+        // Move the ownership from str to jsstr.
+        str.ForgetSharedBuffer();
+    }
     return JS_TRUE;
 }
 

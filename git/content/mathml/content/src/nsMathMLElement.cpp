@@ -92,7 +92,7 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // Rebuild style data for the presshell, because style system
     // optimizations may have taken place assuming MathML was disabled.
     // (See nsRuleNode::CheckSpecifiedProperties.)
-    nsCOMPtr<nsIPresShell> shell = aDocument->GetPrimaryShell();
+    nsCOMPtr<nsIPresShell> shell = aDocument->GetShell();
     if (shell) {
       shell->GetPresContext()->PostRebuildAllStyleDataEvent(nsChangeHint(0));
     }
@@ -112,7 +112,7 @@ nsMathMLElement::ParseAttribute(PRInt32 aNamespaceID,
         aAttribute == nsGkAtoms::mathcolor_ ||
         aAttribute == nsGkAtoms::background ||
         aAttribute == nsGkAtoms::mathbackground_) {
-      return aResult.ParseColor(aValue, GetOwnerDoc());
+      return aResult.ParseColor(aValue);
     }
   }
 

@@ -282,7 +282,7 @@ nsXULPopupManager::GetFrameOfTypeForContent(nsIContent* aContent,
   if (aShouldFlush) {
     nsIDocument *document = aContent->GetCurrentDoc();
     if (document) {
-      nsCOMPtr<nsIPresShell> presShell = document->GetPrimaryShell();
+      nsCOMPtr<nsIPresShell> presShell = document->GetShell();
       if (presShell)
         presShell->FlushPendingNotifications(Flush_Frames);
     }
@@ -344,10 +344,11 @@ nsXULPopupManager::SetTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup)
       if (event) {
         nsIDocument* doc = aPopup->GetCurrentDoc();
         if (doc) {
-          nsIPresShell* presShell = doc->GetPrimaryShell();
-          if (presShell && presShell->GetPresContext()) {
+          nsIPresShell* presShell = doc->GetShell();
+          nsPresContext* presContext;
+          if (presShell && (presContext = presShell->GetPresContext())) {
             nsPresContext* rootDocPresContext =
-              presShell->GetPresContext()->GetRootPresContext();
+              presContext->GetRootPresContext();
             if (!rootDocPresContext)
               return;
             nsIFrame* rootDocumentRootFrame = rootDocPresContext->
@@ -362,12 +363,12 @@ nsXULPopupManager::SetTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup)
               mouseEvent->GetClientY(&clientPt.y);
 
               // XXX this doesn't handle IFRAMEs in transforms
-              nsPoint thisDocToRootDocOffset =
-                presShell->FrameManager()->GetRootFrame()->GetOffsetTo(rootDocumentRootFrame);
+              nsPoint thisDocToRootDocOffset = presShell->FrameManager()->
+                GetRootFrame()->GetOffsetToCrossDoc(rootDocumentRootFrame);
               // convert to device pixels
-              mCachedMousePoint.x = rootDocPresContext->AppUnitsToDevPixels(
+              mCachedMousePoint.x = presContext->AppUnitsToDevPixels(
                   nsPresContext::CSSPixelsToAppUnits(clientPt.x) + thisDocToRootDocOffset.x);
-              mCachedMousePoint.y = rootDocPresContext->AppUnitsToDevPixels(
+              mCachedMousePoint.y = presContext->AppUnitsToDevPixels(
                   nsPresContext::CSSPixelsToAppUnits(clientPt.y) + thisDocToRootDocOffset.y);
             }
             else if (rootDocumentRootFrame) {
@@ -545,7 +546,7 @@ CheckCaretDrawingState() {
     if (!focusedDoc)
       return;
 
-    nsIPresShell* presShell = focusedDoc->GetPrimaryShell();
+    nsIPresShell* presShell = focusedDoc->GetShell();
     if (!presShell)
       return;
 
@@ -2024,7 +2025,7 @@ GetPresContextFor(nsIContent* aContent)
 {
   nsIDocument *document = aContent->GetCurrentDoc();
   if (document) {
-    nsIPresShell* presShell = document->GetPrimaryShell();
+    nsIPresShell* presShell = document->GetShell();
     if (presShell)
       return presShell->GetPresContext();
   }

@@ -41,19 +41,17 @@
 #include "Layers.h"
 
 #include "gfxContext.h"
+#include "gfxCachedTempSurface.h"
 #include "nsAutoRef.h"
 #include "nsThreadUtils.h"
+
+class nsIWidget;
 
 namespace mozilla {
 namespace layers {
 
-class BasicThebesLayer;
-
 /**
  * This is a cairo/Thebes-only, main-thread-only implementation of layers.
- * Currently it only supports immediate mode but we will probably
- * extend it to support retained buffers. In other words, currently,
- * no buffers are retained between transactions.
  * 
  * In each transaction, the client sets up the layer tree and then during
  * the drawing phase, each ThebesLayer is painted directly into the target
@@ -63,18 +61,50 @@ class BasicThebesLayer;
 class THEBES_API BasicLayerManager : public LayerManager {
 public:
   /**
-   * Construct a BasicLayerManager which will render to aContext when
-   * BeginTransaction is called. This can be null, in which case
-   * transactions started with BeginTransaction will not do any painting.
+   * Construct a BasicLayerManager which will have no default
+   * target context. SetDefaultTarget or BeginTransactionWithTarget
+   * must be called for any rendering to happen. ThebesLayers will not
+   * be retained.
    */
-  BasicLayerManager(gfxContext* aContext);
+  BasicLayerManager();
+  /**
+   * Construct a BasicLayerManager which will have no default
+   * target context. SetDefaultTarget or BeginTransactionWithTarget
+   * must be called for any rendering to happen. ThebesLayers will be
+   * retained; that is, we will try to retain the visible contents of
+   * ThebesLayers as cairo surfaces. We create ThebesLayer buffers by
+   * creating similar surfaces to the default target context, or to
+   * aWidget's GetThebesSurface if there is no default target context, or
+   * to the passed-in context if there is no widget and no default
+   * target context.
+   * 
+   * This does not keep a strong reference to the widget, so the caller
+   * must ensure that the widget outlives the layer manager or call
+   * ClearWidget before the widget dies.
+   */
+  BasicLayerManager(nsIWidget* aWidget);
   virtual ~BasicLayerManager();
 
   /**
    * Set the default target context that will be used when BeginTransaction
    * is called. This can only be called outside a transaction.
+   * 
+   * aDoubleBuffering can request double-buffering for drawing to the
+   * default target. When BUFFERED, the layer manager avoids blitting
+   * temporary results to aContext and then overpainting them with final
+   * results, by using a temporary buffer when necessary. In BUFFERED
+   * mode we always completely overwrite the contents of aContext's
+   * destination surface (within the clip region) using OPERATOR_SOURCE.
    */
-  void SetDefaultTarget(gfxContext* aContext);
+  enum BufferMode {
+    BUFFER_NONE,
+    BUFFER_BUFFERED
+  };
+  void SetDefaultTarget(gfxContext* aContext, BufferMode aDoubleBuffering);
+  gfxContext* GetDefaultTarget() { return mDefaultTarget; }
+
+  nsIWidget* GetRetainerWidget() { return mWidget; }
+  void ClearRetainerWidget() { mWidget = nsnull; }
 
   virtual void BeginTransaction();
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
@@ -94,24 +124,42 @@ public:
 #ifdef DEBUG
   PRBool InConstruction() { return mPhase == PHASE_CONSTRUCTION; }
   PRBool InDrawing() { return mPhase == PHASE_DRAWING; }
+  PRBool InTransaction() { return mPhase != PHASE_NONE; }
 #endif
   gfxContext* GetTarget() { return mTarget; }
+  PRBool IsRetained() { return mWidget != nsnull; }
 
 private:
   // Paints aLayer to mTarget.
   void PaintLayer(Layer* aLayer,
                   DrawThebesLayerCallback aCallback,
-                  void* aCallbackData);
+                  void* aCallbackData,
+                  float aOpacity);
 
+  already_AddRefed<gfxContext> PushGroupWithCachedSurface(gfxContext *aTarget,
+                                                          gfxASurface::gfxContentType aContent,
+                                                          gfxPoint *aSavedOffset);
+  void PopGroupWithCachedSurface(gfxContext *aTarget,
+                                 const gfxPoint& aSavedOffset);
+
+  // Widget whose surface should be used as the basis for ThebesLayer
+  // buffers.
+  nsIWidget* mWidget;
   // The default context for BeginTransaction.
   nsRefPtr<gfxContext> mDefaultTarget;
   // The context to draw into.
   nsRefPtr<gfxContext> mTarget;
 
+  // Cached surface for double buffering
+  gfxCachedTempSurface mCachedSurface;
+
 #ifdef DEBUG
   enum TransactionPhase { PHASE_NONE, PHASE_CONSTRUCTION, PHASE_DRAWING };
   TransactionPhase mPhase;
 #endif
+
+  BufferMode   mDoubleBuffering;
+  PRPackedBool mUsingDefaultTarget;
 };
 
 }

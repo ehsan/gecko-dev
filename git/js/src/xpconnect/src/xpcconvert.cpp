@@ -113,7 +113,7 @@ static uint8 xpc_reflectable_flags[XPC_FLAG_COUNT] = {
     XPC_MK_FLAG(  0  ,  1  ,   0 ,  0 ), /* T_UTF8STRING        */
     XPC_MK_FLAG(  0  ,  1  ,   0 ,  0 ), /* T_CSTRING           */
     XPC_MK_FLAG(  0  ,  1  ,   0 ,  0 ), /* T_ASTRING           */
-    XPC_MK_FLAG(  0  ,  0  ,   0 ,  0 ), /* 26 - reserved       */
+    XPC_MK_FLAG(  1  ,  0  ,   1 ,  0 ), /* T_JSVAL             */
     XPC_MK_FLAG(  0  ,  0  ,   0 ,  0 ), /* 27 - reserved       */
     XPC_MK_FLAG(  0  ,  0  ,   0 ,  0 ), /* 28 - reserved       */
     XPC_MK_FLAG(  0  ,  0  ,   0 ,  0 ), /* 29 - reserved       */
@@ -292,6 +292,11 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
             *d = STRING_TO_JSVAL(str);
             break;
         }
+
+    case nsXPTType::T_JSVAL :
+        *d = *((jsval*)s);
+        break;
+
     default:
         if(!type.IsPointer())
         {
@@ -480,6 +485,7 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
                 }
                 break;
             }
+
         default:
             NS_ERROR("bad type");
             return JS_FALSE;
@@ -617,6 +623,9 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
             *((uint16*)d)  = (uint16) chars[0];
             break;
         }
+    case nsXPTType::T_JSVAL :
+        *((jsval*)d) = s;
+        break;
     default:
         if(!type.IsPointer())
         {
@@ -1382,7 +1391,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
 
                         jsval wrappedObjVal = OBJECT_TO_JSVAL(destObj);
                         AUTO_MARK_JSVAL(ccx, &wrappedObjVal);
-                        if(wrapper->NeedsChromeWrapper())
+                        if(wrapper->NeedsSOW())
                         {
                             using SystemOnlyWrapper::WrapObject;
                             if(!WrapObject(ccx, xpcscope->GetGlobalJSObject(),
@@ -1410,7 +1419,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
 
                 AUTO_MARK_JSVAL(ccx, &v);
                 return XPCCrossOriginWrapper::WrapObject(ccx, scope, &v) &&
-                       (!wrapper->NeedsChromeWrapper() ||
+                       (!wrapper->NeedsSOW() ||
                         SystemOnlyWrapper::WrapObject(ccx, xpcscope->GetGlobalJSObject(),
                                                       v, &v)) &&
                        CreateHolderIfNeeded(ccx, JSVAL_TO_OBJECT(v), d, dest);
@@ -1419,12 +1428,12 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             *d = v;
             if(allowNativeWrapper)
             {
-                if(wrapper->NeedsChromeWrapper())
+                if(wrapper->NeedsSOW())
                     if(!SystemOnlyWrapper::WrapObject(ccx,
                                                       xpcscope->GetGlobalJSObject(),
                                                       v, d))
                         return JS_FALSE;
-                if(wrapper->IsDoubleWrapper())
+                if(wrapper->NeedsCOW())
                     if(!ChromeObjectWrapper::WrapObject(ccx, xpcscope->GetGlobalJSObject(), v, d))
                         return JS_FALSE;
             }

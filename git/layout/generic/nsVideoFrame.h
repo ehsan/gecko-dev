@@ -52,6 +52,7 @@
 #include "ImageLayers.h"
 
 class nsPresContext;
+class nsDisplayItem;
 
 nsIFrame* NS_NewVideoFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 
@@ -92,7 +93,7 @@ public:
                     nsReflowStatus&          aStatus);
 
 #ifdef ACCESSIBILITY
-  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
+  virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
   virtual nsIAtom* GetType() const;
@@ -116,7 +117,8 @@ public:
 #endif
 
   already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                     LayerManager* aManager);
+                                     LayerManager* aManager,
+                                     nsDisplayItem* aItem);
 
 protected:
 

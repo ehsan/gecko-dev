@@ -148,11 +148,13 @@ NS_NewHTMLNOTUSEDElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
 }
 
 #define HTML_TAG(_tag, _classname) NS_NewHTML##_classname##Element,
+#define HTML_HTMLELEMENT_TAG(_tag) NS_NewHTMLElement,
 #define HTML_OTHER(_tag) NS_NewHTMLNOTUSEDElement,
 static const contentCreatorCallback sContentCreatorCallbacks[] = {
   NS_NewHTMLUnknownElement,
 #include "nsHTMLTagList.h"
 #undef HTML_TAG
+#undef HTML_HTMLELEMENT_TAG
 #undef HTML_OTHER
   NS_NewHTMLUnknownElement
 };
@@ -497,7 +499,6 @@ MaybeSetForm(nsGenericHTMLElement* aContent, nsHTMLTag aNodeType,
     case eHTMLTag_button:
     case eHTMLTag_fieldset:
     case eHTMLTag_label:
-    case eHTMLTag_legend:
     case eHTMLTag_object:
     case eHTMLTag_input:
     case eHTMLTag_select:

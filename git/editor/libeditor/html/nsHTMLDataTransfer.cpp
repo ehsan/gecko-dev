@@ -125,6 +125,9 @@
 #include "nsIPrefService.h"
 #include "nsIContentFilter.h"
 #include "nsEventDispatcher.h"
+#include "plbase64.h"
+#include "prmem.h"
+#include "nsStreamUtils.h"
 
 const PRUnichar nbsp = 160;
 
@@ -1402,60 +1405,25 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromTransferable(nsITransferable *transferable
       nsCOMPtr<nsIInputStream> imageStream(do_QueryInterface(genericDataObj));
       NS_ENSURE_TRUE(imageStream, NS_ERROR_FAILURE);
 
-      nsCOMPtr<nsIFile> fileToUse;
-      NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(fileToUse));
-
-      if (0 == nsCRT::strcmp(bestFlavor, kJPEGImageMime))
-        fileToUse->Append(NS_LITERAL_STRING("moz-screenshot.jpg"));
-      else if (0 == nsCRT::strcmp(bestFlavor, kPNGImageMime))
-        fileToUse->Append(NS_LITERAL_STRING("moz-screenshot.png"));
-      else if (0 == nsCRT::strcmp(bestFlavor, kGIFImageMime))
-        fileToUse->Append(NS_LITERAL_STRING("moz-screenshot.gif"));
-
-      nsCOMPtr<nsILocalFile> path = do_QueryInterface(fileToUse);
-      path->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
-
-      nsCOMPtr<nsIOutputStream> outputStream;
-      rv = NS_NewLocalFileOutputStream(getter_AddRefs(outputStream), fileToUse);
+      nsCString imageData;
+      rv = NS_ConsumeStream(imageStream, PR_UINT32_MAX, imageData);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      PRUint32 length;
-      imageStream->Available(&length);
+      char * base64 = PL_Base64Encode(imageData.get(), imageData.Length(), nsnull);
+      NS_ENSURE_TRUE(base64, NS_ERROR_OUT_OF_MEMORY);
 
-      nsCOMPtr<nsIOutputStream> bufferedOutputStream;
-      rv = NS_NewBufferedOutputStream(getter_AddRefs(bufferedOutputStream), outputStream, length);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      PRUint32 numWritten;
-      rv = bufferedOutputStream->WriteFrom(imageStream, length, &numWritten);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      // force the stream close before we try to insert the image
-      // into the document.
-      rv = bufferedOutputStream->Close();
-      NS_ENSURE_SUCCESS(rv, rv);
-      
-      nsCOMPtr<nsIURI> uri;
-      rv = NS_NewFileURI(getter_AddRefs(uri), fileToUse);
-      NS_ENSURE_SUCCESS(rv, rv);
-      nsCOMPtr<nsIURL> fileURL(do_QueryInterface(uri));
-      if (fileURL)
-      {
-        nsCAutoString urltext;
-        rv = fileURL->GetSpec(urltext);
-        if (NS_SUCCEEDED(rv) && !urltext.IsEmpty())
-        {
-          stuffToPaste.AssignLiteral("<IMG src=\"");
-          AppendUTF8toUTF16(urltext, stuffToPaste);
-          stuffToPaste.AppendLiteral("\" alt=\"\" >");
-          nsAutoEditBatch beginBatching(this);
-          rv = InsertHTMLWithContext(stuffToPaste, EmptyString(), EmptyString(), 
-                                     NS_LITERAL_STRING(kFileMime),
-                                     aSourceDoc,
-                                     aDestinationNode, aDestOffset,
-                                     aDoDeleteSelection);
-        }
-      }
+      stuffToPaste.AssignLiteral("<IMG src=\"data:");
+      AppendUTF8toUTF16(bestFlavor, stuffToPaste);
+      stuffToPaste.AppendLiteral(";base64,");
+      AppendUTF8toUTF16(base64, stuffToPaste);
+      stuffToPaste.AppendLiteral("\" alt=\"\" >");
+      nsAutoEditBatch beginBatching(this);
+      rv = InsertHTMLWithContext(stuffToPaste, EmptyString(), EmptyString(), 
+                                 NS_LITERAL_STRING(kFileMime),
+                                 aSourceDoc,
+                                 aDestinationNode, aDestOffset,
+                                 aDoDeleteSelection);
+      PR_Free(base64);
     }
   }
       
@@ -2705,10 +2673,15 @@ nsresult nsHTMLEditor::ParseFragment(const nsAString & aFragStr,
   nsCOMPtr<nsIFragmentContentSink> fragSink(do_QueryInterface(sink));
   NS_ENSURE_TRUE(fragSink, NS_ERROR_FAILURE);
 
-  // Allow style elements and attributes
   nsCOMPtr<nsIParanoidFragmentContentSink> paranoidSink(do_QueryInterface(sink));
   NS_ASSERTION(paranoidSink, "Our content sink is paranoid");
-  paranoidSink->AllowStyles();
+  if (bContext) {
+    // Allow comemnts for the context to catch our placeholder cookie
+    paranoidSink->AllowComments();
+  } else {
+    // Allow style elements and attributes for the actual content
+    paranoidSink->AllowStyles();
+  }
 
   fragSink->SetTargetDocument(aTargetDocument);
 

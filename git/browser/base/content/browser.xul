@@ -86,7 +86,6 @@
         windowtype="navigator:browser"
         screenX="4" screenY="4"
         browsingmode="normal"
-        toggletoolbar="true"
         persist="screenX screenY width height sizemode"> 
 
 # All JS files which are not content (only) dependent that browser.xul
@@ -126,6 +125,12 @@
                 accesskey="&openTabInNewWindow.accesskey;"
                 tbattr="tabbrowser-multiple"
                 oncommand="gBrowser.replaceTabWithWindow(TabContextMenu.contextTab);"/>
+      <menuitem id="context_pinTab" label="&pinTab.label;"
+                accesskey="&pinTab.accesskey;"
+                oncommand="gBrowser.pinTab(TabContextMenu.contextTab);"/>
+      <menuitem id="context_unpinTab" label="&unpinTab.label;" hidden="true"
+                accesskey="&unpinTab.accesskey;"
+                oncommand="gBrowser.unpinTab(TabContextMenu.contextTab);"/>
       <menuseparator/>
       <menuitem id="context_bookmarkTab"
                 label="&bookmarkThisTab.label;"
@@ -141,7 +146,6 @@
                 command="History:UndoCloseTab"/>
       <menuseparator/>
       <menuitem id="context_closeTab" label="&closeTab.label;" accesskey="&closeTab.accesskey;"
-                tbattr="tabbrowser-multiple"
                 oncommand="gBrowser.removeTab(TabContextMenu.contextTab);"/>
     </menupopup>
 
@@ -229,10 +233,35 @@
            ignorekeys="true"
            noautofocus="true"
            noautohide="true"
-           level="top"
-           aria-labelledby="inspectPagePanelTitle">
-      <tree id="inspector-tree" class="plain" seltype="single" treelines="true"
-            onselect="InspectorUI.onTreeSelected()" flex="1">
+           level="top">
+      <toolbar id="inspector-toolbar"
+               nowindowdrag="true">
+        <toolbarbutton id="inspector-inspect-toolbutton"
+                       label="&inspectButton.label;"
+                       accesskey="&inspectButton.accesskey;"
+                       class="toolbarbutton-text"
+                       command="Inspector:Inspect"/>
+        <toolbarbutton id="inspector-previous-toolbutton"
+                       label="&inspectPreviousButton.label;"
+                       accesskey="&inspectPreviousButton.accesskey;"
+                       class="toolbarbutton-text"
+                       command="Inspector:Previous"/>
+        <toolbarbutton id="inspector-next-toolbutton"
+                       label="&inspectNextButton.label;"
+                       accesskey="&inspectNextButton.accesskey;"
+                       class="toolbarbutton-text"
+                       command="Inspector:Next"/>
+        <toolbarbutton id="inspector-style-toolbutton"
+                       label="&inspectStyleButton.label;"
+                       accesskey="&inspectStyleButton.accesskey;"
+                       class="toolbarbutton-text"
+                       command="Inspector:Style"/>
+      </toolbar>
+      <tree id="inspector-tree" class="plain"
+            seltype="single"
+            treelines="true"
+            onselect="InspectorUI.onTreeSelected()"
+            flex="1">
         <treecols>
           <treecol id="colNodeName" label="nodeName" primary="true"
                    persist="width,hidden,ordinal" flex="1"/>
@@ -242,6 +271,28 @@
         </treecols>
         <treechildren id="inspector-tree-body"/>
       </tree>
+      <hbox align="end">
+        <spacer flex="1" />
+        <resizer dir="bottomend" />
+      </hbox>
+    </panel>
+
+    <panel id="inspector-style-panel"
+           hidden="true"
+           orient="vertical"
+           ignorekeys="true"
+           noautofocus="true"
+           noautohide="true"
+           level="top">
+        <toolbar id="inspector-style-toolbar"
+                 nowindowdrag="true">
+          <label>&inspectStylePanelTitle.label;</label>
+        </toolbar>
+        <listbox id="inspector-style-listbox" flex="1"/>
+        <hbox align="end">
+          <spacer flex="1" />
+          <resizer dir="bottomend" />
+        </hbox>
     </panel>
 
     <menupopup id="toolbar-context-menu"
@@ -388,24 +439,22 @@
             type="menu"
             label="&brandShortName;"
             style="-moz-user-focus: ignore;">
-      <menupopup>
+      <menupopup id="appmenu-popup">
         <menuitem id="appmenu_newNavigator"
                   label="&newNavigatorCmd.label;"
-                  key="key_newNavigator"
                   command="cmd_newNavigator"/>
         <menuseparator/>
         <menuitem id="appmenu_savePage"
                   label="&savePageCmd.label;"
-                  key="key_savePage"
                   command="Browser:SavePage"/>
         <menuitem id="appmenu_sendLink"
                   label="&sendPageCmd.label;"
                   command="Browser:SendLink"/>
-        <hbox flex="1">
+        <hbox flex="1" class="split-menuitem">
           <menuitem id="appmenu_print"
+                    class="split-menuitem-item"
                     flex="1"
                     label="&appMenuPrintCmd.label;"
-                    key="printKb"
                     command="cmd_print"/>
           <menu class="split-menuitem-menu">
             <menupopup>
@@ -420,7 +469,6 @@
         </hbox>
         <menuitem id="appmenu_find"
                   label="&findOnCmd.label;"
-                  key="key_find"
                   command="cmd_find"/>
         <menuseparator/>
         <menu id="appmenu_history"
@@ -492,9 +540,6 @@
                   label="&quitApplicationCmdWin.label;"
 #else
                   label="&quitApplicationCmd.label;"
-#ifdef XP_UNIX
-                  key="key_quitApplication"
-#endif
 #endif
                   command="cmd_quitApplication"/>
       </menupopup>
@@ -506,6 +551,12 @@
            defaultmode="icons" mode="icons"
 #ifdef WINCE
            defaulticonsize="small" iconsize="small"
+#endif
+#ifdef XP_WIN
+           tabsontop="true"
+#endif
+#ifdef XP_MACOSX
+           tabsontop="true"
 #endif
            persist="tabsontop">
     <!-- Menu -->
@@ -530,10 +581,10 @@
              fullscreentoolbar="true" mode="icons" customizable="true"
 #ifdef WINCE
              iconsize="small" defaulticonsize="small"
-             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,navigator-throbber,fullscreenflex,window-controls"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,bookmarks-menu-button-container,navigator-throbber,fullscreenflex,window-controls"
 #else
              iconsize="large"
-             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,fullscreenflex,window-controls"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,bookmarks-menu-button-container,fullscreenflex,window-controls"
 #endif
              context="toolbar-context-menu">
 
@@ -610,7 +661,8 @@
                  onfocus="document.getElementById('identity-box').style.MozUserFocus= 'normal'"
                  onblur="setTimeout(function() document.getElementById('identity-box').style.MozUserFocus = '', 0);">
           <box id="notification-popup-box" hidden="true" align="center">
-            <image id="geo-notification-icon"/>
+            <image id="geo-notification-icon" class="notification-anchor-icon"/>
+            <image id="addons-notification-icon" class="notification-anchor-icon"/>
           </box>
           <!-- Use onclick instead of normal popup= syntax since the popup
                code fires onmousedown, and hence eats our favicon drag events.
@@ -666,6 +718,73 @@
         <searchbar id="searchbar" flex="1"/>
       </toolbaritem>
 
+      <toolbaritem id="bookmarks-menu-button-container"
+                   class="chromeclass-toolbar-additional"
+                   removable="true">
+        <toolbarbutton id="bookmarks-menu-button"
+                       type="menu"
+                       class="toolbarbutton-1"
+                       label="&bookmarksMenuButton.label;"
+                       tooltiptext="&bookmarksMenuButton.tooltip;"
+                       ondragenter="PlacesMenuDNDHandler.onDragEnter(event);"
+                       ondragover="PlacesMenuDNDHandler.onDragOver(event);"
+                       ondragleave="PlacesMenuDNDHandler.onDragLeave(event);"
+                       ondrop="PlacesMenuDNDHandler.onDrop(event);">
+          <menupopup id="BMB_bookmarksPopup"
+                     placespopup="true"
+                     context="placesContext"
+                     openInTabs="children"
+                     oncommand="BookmarksEventHandler.onCommand(event);"
+                     onclick="BookmarksEventHandler.onClick(event);"
+                     onpopupshowing="BookmarksMenuButton.onPopupShowing(event);
+                                     if (!this.parentNode._placesView)
+                                       new PlacesMenu(event, 'place:folder=BOOKMARKS_MENU');"
+                     tooltip="bhTooltip" popupsinherittooltip="true">
+            <menuitem id="BMB_bookmarkAllTabs"
+                      label="&addCurPagesCmd.label;"
+                      command="Browser:BookmarkAllTabs"
+                      key="bookmarkAllTabsKb"/>
+            <menuitem id="BMB_bookmarksShowAll"
+                      label="&organizeBookmarks.label;"
+                      command="Browser:ShowAllBookmarks"
+                      key="manBookmarkKb"/>
+            <menuseparator/>
+            <menuitem id="BMB_viewBookmarksToolbar"
+                      type="checkbox"
+                      oncommand="onViewToolbarCommand(event)"
+                      label="&viewBookmarksToolbar.label;"/>
+            <menuitem id="BMB_viewBookmarksSidebar"
+                      label="&viewBookmarksSidebar.label;"
+                      type="checkbox"
+                      oncommand="toggleSidebar('viewBookmarksSidebar');"
+                      key="viewBookmarksSidebarKb">
+              <observes element="viewBookmarksSidebar" attribute="checked"/>
+            </menuitem>
+            <menuseparator/>
+            <menu id="BMB_bookmarksToolbarFolderMenu"
+                  class="menu-iconic bookmark-item"
+                  label="&personalbarCmd.label;"
+                  container="true">
+              <menupopup id="BMB_bookmarksToolbarFolderPopup"
+                         placespopup="true"
+                         context="placesContext"
+                         onpopupshowing="if (!this.parentNode._placesView)
+                                           new PlacesMenu(event, 'place:folder=TOOLBAR');"/>
+            </menu>
+            <menu id="BMB_unsortedBookmarksFolderMenu"
+                  class="menu-iconic bookmark-item"
+                  container="true">
+              <menupopup id="BMB_unsortedBookmarksFolderPopup"
+                         placespopup="true"
+                         context="placesContext"
+                         onpopupshowing="if (!this.parentNode._placesView)
+                                           new PlacesMenu(event, 'place:folder=UNFILED_BOOKMARKS');"/>
+            </menu>
+            <menuseparator/>
+          </menupopup>
+        </toolbarbutton>
+      </toolbaritem>
+
       <hbox id="fullscreenflex" flex="1" hidden="true" fullscreencontrol="true"/>
       <hbox id="window-controls" hidden="true" fullscreencontrol="true">
         <toolbarbutton id="minimize-button"
@@ -691,9 +810,7 @@
              context="toolbar-context-menu"
              defaultset="personal-bookmarks"
              toolbarname="&personalbarCmd.label;" accesskey="&personalbarCmd.accesskey;"
-#ifdef WINCE
              collapsed="true"
-#endif
              customizable="true">
       <toolbaritem flex="1" id="personal-bookmarks" title="&bookmarksItem.title;"
                    removable="true">
@@ -726,7 +843,7 @@
                                                    ._placesView._onChevronPopupShowing(event);">
               <menupopup id="PlacesChevronPopup"
                          placespopup="true"
-                         popupsinherittooltip="true"
+                         tooltip="bhTooltip" popupsinherittooltip="true"
                          context="placesContext"/>
             </toolbarbutton>
           </hbox>
@@ -746,7 +863,6 @@
 
       <tabs id="tabbrowser-tabs"
             class="tabbrowser-tabs"
-            context="tabContextMenu"
             tabbrowser="content"
             flex="1"
             setfocus="false"

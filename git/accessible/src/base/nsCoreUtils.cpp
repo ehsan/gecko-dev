@@ -107,7 +107,7 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
     return;
 
   nsIPresShell *presShell = nsnull;
-  presShell = document->GetPrimaryShell();
+  presShell = document->GetShell();
   if (!presShell)
     return;
 
@@ -163,16 +163,12 @@ nsCoreUtils::DispatchMouseEvent(PRUint32 aEventType,
   if (!frame)
     return PR_FALSE;
 
-  nsIFrame* rootFrame = aPresShell->GetRootFrame();
-  if (!rootFrame)
-    return PR_FALSE;
-
-  nsCOMPtr<nsIWidget> rootWidget = rootFrame->GetWindow();
-  if (!rootWidget)
-    return PR_FALSE;
-
   // Compute x and y coordinates.
-  nsPoint point = frame->GetOffsetToExternal(rootFrame);
+  nsPoint point;
+  nsCOMPtr<nsIWidget> widget = frame->GetNearestWidget(point);
+  if (!widget)
+    return PR_FALSE;
+
   nsSize size = frame->GetSize();
 
   nsPresContext* presContext = aPresShell->GetPresContext();
@@ -181,7 +177,7 @@ nsCoreUtils::DispatchMouseEvent(PRUint32 aEventType,
   PRInt32 y = presContext->AppUnitsToDevPixels(point.y + size.height / 2);
 
   // Fire mouse event.
-  DispatchMouseEvent(aEventType, x, y, aContent, frame, aPresShell, rootWidget);
+  DispatchMouseEvent(aEventType, x, y, aContent, frame, aPresShell, widget);
   return PR_TRUE;
 }
 
@@ -219,7 +215,7 @@ nsCoreUtils::GetAccessKeyFor(nsIContent *aContent)
   if (!doc)
     return 0;
 
-  nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
+  nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
   if (!presShell)
     return 0;
 

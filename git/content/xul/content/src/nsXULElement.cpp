@@ -122,7 +122,6 @@
 #include "nsRuleWalker.h"
 #include "nsIDOMViewCSS.h"
 #include "nsIDOMCSSStyleDeclaration.h"
-#include "nsCSSDeclaration.h"
 #include "nsCSSParser.h"
 #include "nsIListBoxObject.h"
 #include "nsContentUtils.h"
@@ -131,7 +130,6 @@
 #include "nsIDOMMutationEvent.h"
 #include "nsPIDOMWindow.h"
 #include "nsDOMAttributeMap.h"
-#include "nsDOMCSSDeclaration.h"
 #include "nsGkAtoms.h"
 #include "nsXULContentUtils.h"
 #include "nsNodeUtils.h"
@@ -1029,7 +1027,7 @@ nsXULElement::UnregisterAccessKey(const nsAString& aOldValue)
     //
     nsIDocument* doc = GetCurrentDoc();
     if (doc && !aOldValue.IsEmpty()) {
-        nsIPresShell *shell = doc->GetPrimaryShell();
+        nsIPresShell *shell = doc->GetShell();
 
         if (shell) {
             nsIContent *content = this;
@@ -1076,6 +1074,17 @@ nsXULElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
           RemoveBroadcaster(oldValue);
         }
     }
+    else if (aNamespaceID == kNameSpaceID_None &&
+             aValue &&
+             mNodeInfo->Equals(nsGkAtoms::window) &&
+             aName == nsGkAtoms::chromemargin) {
+      nsAttrValue attrValue;
+      nsIntMargin margins;
+      // Make sure the margin format is valid first
+      if (!attrValue.ParseIntMarginValue(*aValue)) {
+          return NS_ERROR_INVALID_ARG;
+      }
+    }
 
     return nsStyledElement::BeforeSetAttr(aNamespaceID, aName,
                                           aValue, aNotify);
@@ -1103,10 +1112,13 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         }
 
         // Hide chrome if needed
-        if (aName == nsGkAtoms::hidechrome &&
-            mNodeInfo->Equals(nsGkAtoms::window) &&
-            aValue) {
-            HideWindowChrome(aValue->EqualsLiteral("true"));
+        if (mNodeInfo->Equals(nsGkAtoms::window) && aValue) {
+          if (aName == nsGkAtoms::hidechrome) {
+              HideWindowChrome(aValue->EqualsLiteral("true"));
+          }
+          else if (aName == nsGkAtoms::chromemargin) {
+              SetChromeMargins(aValue);
+          }
         }
 
         // title, (in)activetitlebarcolor and drawintitlebar are settable on
@@ -1120,7 +1132,7 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                       aName == nsGkAtoms::inactivetitlebarcolor)) {
                 nscolor color = NS_RGBA(0, 0, 0, 0);
                 nsAttrValue attrValue;
-                attrValue.ParseColor(*aValue, document);
+                attrValue.ParseColor(*aValue);
                 attrValue.GetColorValue(color);
                 SetTitlebarColor(color, aName == nsGkAtoms::activetitlebarcolor);
             }
@@ -1368,9 +1380,13 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     }
 
     if (aNameSpaceID == kNameSpaceID_None) {
-        if (aName == nsGkAtoms::hidechrome &&
-            mNodeInfo->Equals(nsGkAtoms::window)) {
-            HideWindowChrome(PR_FALSE);
+        if (mNodeInfo->Equals(nsGkAtoms::window)) {
+            if (aName == nsGkAtoms::hidechrome) {
+                HideWindowChrome(PR_FALSE);
+            }
+            else if (aName == nsGkAtoms::chromemargin) {
+                ResetChromeMargins();
+            }
         }
 
         if (doc && doc->GetRootElement() == this) {
@@ -2024,7 +2040,6 @@ nsXULElement::SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner)
                                                     otherSlots->mFrameLoader);
 }
 
-
 NS_IMETHODIMP
 nsXULElement::GetParentTree(nsIDOMXULMultiSelectControlElement** aTreeElement)
 {
@@ -2082,7 +2097,7 @@ nsXULElement::ClickWithInputSource(PRUint16 aInputSource)
 
     nsCOMPtr<nsIDocument> doc = GetCurrentDoc(); // Strong just in case
     if (doc) {
-        nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
+        nsCOMPtr<nsIPresShell> shell = doc->GetShell();
         if (shell) {
             // strong ref to PresContext so events don't destroy it
             nsRefPtr<nsPresContext> context = shell->GetPresContext();
@@ -2338,7 +2353,7 @@ nsXULElement::HideWindowChrome(PRBool aShouldHide)
     if (!doc->IsRootDisplayDocument())
       return NS_OK;
 
-    nsIPresShell *shell = doc->GetPrimaryShell();
+    nsIPresShell *shell = doc->GetShell();
 
     if (shell) {
         nsIFrame* frame = GetPrimaryFrame();
@@ -2393,6 +2408,39 @@ nsXULElement::SetDrawsInTitlebar(PRBool aState)
     if (mainWidget) {
         mainWidget->SetDrawsInTitlebar(aState);
     }
+}
+
+void
+nsXULElement::SetChromeMargins(const nsAString* aValue)
+{
+    if (!aValue)
+        return;
+
+    nsIWidget* mainWidget = GetWindowWidget();
+    if (!mainWidget)
+        return;
+
+    // top, right, bottom, left - see nsAttrValue
+    nsAttrValue attrValue;
+    nsIntMargin margins;
+
+    nsAutoString data;
+    data.Assign(*aValue);
+    if (attrValue.ParseIntMarginValue(data) &&
+        attrValue.GetIntMarginValue(margins)) {
+        mainWidget->SetNonClientMargins(margins);
+    }
+}
+
+void
+nsXULElement::ResetChromeMargins()
+{
+    nsIWidget* mainWidget = GetWindowWidget();
+    if (!mainWidget)
+        return;
+    // See nsIWidget
+    nsIntMargin margins(-1,-1,-1,-1);
+    mainWidget->SetNonClientMargins(margins);
 }
 
 PRBool

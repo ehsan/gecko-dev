@@ -244,6 +244,9 @@ PluginInstanceParent::AnswerNPN_GetValue_NPNVnetscapeWindow(NativeWindowHandle* 
     XID id;
 #elif defined(XP_MACOSX)
     intptr_t id;
+#elif defined(ANDROID)
+#warning Need Android impl
+    int id;
 #else
 #warning Implement me
 #endif
@@ -1147,7 +1150,7 @@ PluginInstanceParent::SubclassPluginWindow(HWND aWnd)
         mPluginHWND = aWnd;
         mPluginWndProc = 
             (WNDPROC)::SetWindowLongPtrA(mPluginHWND, GWLP_WNDPROC,
-                         reinterpret_cast<LONG>(PluginWindowHookProc));
+                         reinterpret_cast<LONG_PTR>(PluginWindowHookProc));
         bool bRes = ::SetPropW(mPluginHWND, kPluginInstanceParentProperty, this);
         NS_ASSERTION(mPluginWndProc,
           "PluginInstanceParent::SubclassPluginWindow failed to set subclass!");
@@ -1161,7 +1164,7 @@ PluginInstanceParent::UnsubclassPluginWindow()
 {
     if (mPluginHWND && mPluginWndProc) {
         ::SetWindowLongPtrA(mPluginHWND, GWLP_WNDPROC,
-                            reinterpret_cast<LONG>(mPluginWndProc));
+                            reinterpret_cast<LONG_PTR>(mPluginWndProc));
 
         ::RemovePropW(mPluginHWND, kPluginInstanceParentProperty);
 
@@ -1296,7 +1299,7 @@ PluginInstanceParent::SharedSurfaceAfterPaint(NPEvent* npevent)
 #endif // defined(OS_WIN)
 
 bool
-PluginInstanceParent::AnswerPluginGotFocus()
+PluginInstanceParent::AnswerPluginFocusChange(const bool& gotFocus)
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 
@@ -1305,10 +1308,10 @@ PluginInstanceParent::AnswerPluginGotFocus()
     // focus. We forward the event down to widget so the dom/focus manager can
     // be updated.
 #if defined(OS_WIN)
-    ::SendMessage(mPluginHWND, gOOPPPluginFocusEvent, 0, 0);
+    ::SendMessage(mPluginHWND, gOOPPPluginFocusEvent, gotFocus ? 1 : 0, 0);
     return true;
 #else
-    NS_NOTREACHED("PluginInstanceParent::AnswerPluginGotFocus not implemented!");
+    NS_NOTREACHED("PluginInstanceParent::AnswerPluginFocusChange not implemented!");
     return false;
 #endif
 }

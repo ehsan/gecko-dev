@@ -842,14 +842,16 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP nsFileControlFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsFileControlFrame::CreateAccessible()
 {
   // Accessible object exists just to hold onto its children, for later shutdown
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
   if (!accService)
-    return NS_ERROR_FAILURE;
+    return nsnull;
 
-  return accService->CreateHTMLGenericAccessible(static_cast<nsIFrame*>(this), aAccessible);
+  return accService->CreateHyperTextAccessible(mContent,
+                                               PresContext()->PresShell());
 }
 #endif
 
@@ -861,6 +863,10 @@ nsFileControlFrame::GetFileFilterFromAccept() const
 
   if (accept.EqualsLiteral("image/*")) {
     return nsIFilePicker::filterImages;
+  } else if (accept.EqualsLiteral("audio/*")) {
+    return nsIFilePicker::filterAudio;
+  } else if (accept.EqualsLiteral("video/*")) {
+    return nsIFilePicker::filterVideo;
   }
 
   return 0;

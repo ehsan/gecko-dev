@@ -46,6 +46,7 @@
 #include "nsCOMPtr.h"
 #include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
+#include "BasicLayers.h"
 
 class nsIContent;
 class nsAutoRollup;
@@ -63,6 +64,9 @@ class gfxContext;
 class nsBaseWidget : public nsIWidget
 {
   friend class nsAutoRollup;
+
+protected:
+  typedef mozilla::layers::BasicLayerManager BasicLayerManager;
 
 public:
   nsBaseWidget();
@@ -116,6 +120,7 @@ public:
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
+  NS_IMETHOD              GetClientOffset(nsIntPoint &aPt);
   NS_IMETHOD              EnableDragDrop(PRBool aEnable);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual PRBool          HasPendingInputEvent();
@@ -127,6 +132,7 @@ public:
   virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
   virtual void            FreeNativeData(void * data, PRUint32 aDataType) {}
   NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
+  NS_IMETHOD              BeginMoveDrag(nsMouseEvent* aEvent);
   virtual nsresult        ActivateNativeMenuItemAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   virtual nsresult        ForceUpdateNativeMenuAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              ResetInputState() { return NS_OK; }
@@ -143,6 +149,12 @@ public:
   NS_IMETHOD              OnIMESelectionChange(void) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, PRBool aIsHorizontal, PRInt32 &aOverriddenDelta);
+  NS_IMETHOD              AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction, nsIDeviceContext *aContext);
+  virtual ViewWrapper*    GetAttachedViewPtr();
+  NS_IMETHOD              SetAttachedViewPtr(ViewWrapper* aViewWrapper);
+  NS_IMETHOD              ResizeClient(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
+  NS_IMETHOD              GetNonClientMargins(nsIntMargin &margins);
+  NS_IMETHOD              SetNonClientMargins(nsIntMargin &margins);
 
   /**
    * Use this when GetLayerManager() returns a BasicLayerManager
@@ -151,7 +163,8 @@ public:
    */
   class AutoLayerManagerSetup {
   public:
-    AutoLayerManagerSetup(nsBaseWidget* aWidget, gfxContext* aTarget);
+    AutoLayerManagerSetup(nsBaseWidget* aWidget, gfxContext* aTarget,
+                          BasicLayerManager::BufferMode aDoubleBuffering);
     ~AutoLayerManagerSetup();
   private:
     nsBaseWidget* mWidget;
@@ -195,7 +208,9 @@ protected:
 
 protected: 
   void*             mClientData;
+  ViewWrapper*      mViewWrapperPtr;
   EVENT_CALLBACK    mEventCallback;
+  EVENT_CALLBACK    mViewCallback;
   nsIDeviceContext* mContext;
   nsIToolkit*       mToolkit;
   nsRefPtr<LayerManager> mLayerManager;

@@ -65,6 +65,8 @@
 #include <QPinchGesture>
 #endif // QT version check
 
+#include "nsXULAppAPI.h"
+
 #include "prlink.h"
 
 #include "nsWindow.h"
@@ -98,6 +100,11 @@
 #include "gfxImageSurface.h"
 
 #include "nsIDOMSimpleGestureEvent.h" //Gesture support
+
+#include <QtOpenGL/QGLWidget>
+#define GLdouble_defined 1
+#include "Layers.h"
+#include "LayerManagerOGL.h"
 
 // imported in nsWidgetFactory.cpp
 PRBool gDisableNativeTheme = PR_FALSE;
@@ -758,9 +765,12 @@ nsWindow::GetNativeData(PRUint32 aDataType)
         break;
     }
 
-    case NS_NATIVE_SHELLWIDGET:
-        return (void *) GetViewWidget();
-
+    case NS_NATIVE_SHELLWIDGET: {
+        QWidget* widget = nsnull;
+        if (mWidget && mWidget->scene())
+            widget = mWidget->scene()->views()[0]->viewport();
+        return (void *) widget;
+    }
     default:
         NS_WARNING("nsWindow::GetNativeData called with bad value");
         return nsnull;
@@ -955,20 +965,6 @@ nsWindow::GetAttention(PRInt32 aCycleCount)
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-#ifdef MOZ_X11
-static already_AddRefed<gfxASurface>
-GetSurfaceForQPixmap(QPixmap* aDrawable)
-{
-    gfxASurface* result =
-        new gfxXlibSurface(aDrawable->x11Info().display(),
-                           aDrawable->handle(),
-                           (Visual*)aDrawable->x11Info().visual(),
-                           gfxIntSize(aDrawable->size().width(), aDrawable->size().height()));
-    NS_IF_ADDREF(result);
-    return result;
-}
-#endif
-
 nsEventStatus
 nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
 {
@@ -992,6 +988,19 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
 
     if (!mDirtyScrollArea.isEmpty())
         mDirtyScrollArea = QRegion();
+
+    nsEventStatus status;
+    nsIntRect rect(r.x(), r.y(), r.width(), r.height());
+
+    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+        nsPaintEvent event(PR_TRUE, NS_PAINT, this);
+        event.refPoint.x = r.x();
+        event.refPoint.y = r.y();
+        event.region = nsIntRegion(rect);
+        static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager())->
+            SetClippingRegion(event.region);
+        return DispatchEvent(&event);
+    }
 
     gfxQtPlatform::RenderMode renderMode = gfxQtPlatform::GetPlatform()->GetRenderMode();
     int depth = aPainter->device()->depth();
@@ -1018,15 +1027,12 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
         ctx->Translate(gfxPoint(-r.x(), -r.y()));
 
     nsPaintEvent event(PR_TRUE, NS_PAINT, this);
-
-    nsIntRect rect(r.x(), r.y(), r.width(), r.height());
     event.refPoint.x = r.x();
     event.refPoint.y = r.y();
     event.region = nsIntRegion(rect);
-
-    nsEventStatus status;
     {
-      AutoLayerManagerSetup setupLayerManager(this, ctx);
+      AutoLayerManagerSetup
+          setupLayerManager(this, ctx, BasicLayerManager::BUFFER_NONE);
       status = DispatchEvent(&event);
     }
 
@@ -1817,7 +1823,11 @@ nsWindow::NativeShow(PRBool aAction)
 {
     if (aAction) {
         QWidget *widget = GetViewWidget();
-        if (widget && !widget->isVisible())
+        // On e10s, we never want the child process or plugin process
+        // to go fullscreen because if we do the window because visible
+        // do to disabled Qt-Xembed
+        if ((XRE_GetProcessType() == GeckoProcessType_Default) &&
+            widget && !widget->isVisible())
             MakeFullScreen(mSizeMode == nsSizeMode_Fullscreen);
         mWidget->show();
 
@@ -1844,7 +1854,19 @@ nsWindow::GetHasTransparentBackground(PRBool& aTransparent)
 void
 nsWindow::GetToplevelWidget(MozQWidget **aWidget)
 {
-    *aWidget = mWidget;
+    MozQGraphicsView *view = static_cast<MozQGraphicsView*>(GetViewWidget());
+    if (view)
+        *aWidget = view->GetTopLevelWidget();
+}
+
+nsWindow *
+nsWindow::GetTopLevelNsWindow()
+{
+    MozQWidget *widget = nsnull;
+    GetToplevelWidget(&widget);
+    if (widget)
+        return widget->getReceiver();
+    return nsnull;
 }
 
 void *
@@ -2107,6 +2129,55 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
     }
 
     return widget;
+}
+
+PRBool
+nsWindow::IsAcceleratedQView(QGraphicsView *view)
+{
+    if (view && view->viewport()) {
+        QPaintEngine::Type type = view->viewport()->paintEngine()->type();
+        return (type == QPaintEngine::OpenGL || type == QPaintEngine::OpenGL2);
+    }
+    return PR_FALSE;
+}
+
+NS_IMETHODIMP
+nsWindow::SetAcceleratedRendering(PRBool aEnabled)
+{
+    if (mUseAcceleratedRendering == aEnabled)
+        return NS_OK;
+
+    mUseAcceleratedRendering = aEnabled;
+    mLayerManager = NULL;
+
+    QGraphicsView* view = static_cast<QGraphicsView*>(GetViewWidget());
+    if (view) {
+        if (aEnabled && !IsAcceleratedQView(view))
+            view->setViewport(new QGLWidget());
+        if (!aEnabled && IsAcceleratedQView(view))
+            view->setViewport(new QWidget());
+        view->viewport()->setAttribute(Qt::WA_PaintOnScreen, aEnabled);
+        view->viewport()->setAttribute(Qt::WA_NoSystemBackground, aEnabled);
+    }
+
+    return NS_OK;
+}
+
+
+mozilla::layers::LayerManager*
+nsWindow::GetLayerManager()
+{
+    nsWindow *topWindow = GetTopLevelNsWindow();
+    if (!topWindow)
+        return nsBaseWidget::GetLayerManager();
+
+    if (mUseAcceleratedRendering != topWindow->GetAcceleratedRendering()
+        && IsAcceleratedQView(static_cast<QGraphicsView*>(GetViewWidget()))) {
+        mLayerManager = NULL;
+        mUseAcceleratedRendering = topWindow->GetAcceleratedRendering();
+    }
+
+    return nsBaseWidget::GetLayerManager();
 }
 
 // return the gfxASurface for rendering to this widget

@@ -253,8 +253,8 @@ public:
    * @param aResult the resulting HTMLValue
    * @return whether the value was parsed
    */
-  PRBool ParseDivAlignValue(const nsAString& aString,
-                            nsAttrValue& aResult) const;
+  static PRBool ParseDivAlignValue(const nsAString& aString,
+                                   nsAttrValue& aResult);
 
   /**
    * Convert a table halign string to value (left/right/center/char/justify)
@@ -803,9 +803,11 @@ public:
   virtual void SaveSubtreeState();
 
   // nsIFormControl
-  NS_IMETHOD GetForm(nsIDOMHTMLFormElement** aForm);
+  virtual mozilla::dom::Element* GetFormElement();
   virtual void SetForm(nsIDOMHTMLFormElement* aForm);
   virtual void ClearForm(PRBool aRemoveFromForm, PRBool aNotify);
+
+  nsresult GetForm(nsIDOMHTMLFormElement** aForm);
 
   NS_IMETHOD SaveState()
   {
@@ -1316,7 +1318,12 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo,         \
   return NS_NewHTMLSharedElement(aNodeInfo, aFromParser);         \
 }
 
-NS_DECLARE_NS_NEW_HTML_ELEMENT() // HTMLElement
+// Here, we expand 'NS_DECLARE_NS_NEW_HTML_ELEMENT()' by hand.
+// (Calling the macro directly (with no args) produces compiler warnings.)
+nsGenericHTMLElement*
+NS_NewHTMLElement(nsINodeInfo *aNodeInfo,
+                  PRUint32 aFromParser = 0);
+
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Shared)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedList)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedObject)

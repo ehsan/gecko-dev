@@ -130,6 +130,7 @@ class nsIMIMEHeaderParam;
 class nsIObserver;
 class nsPresContext;
 class nsIChannel;
+struct nsIntMargin;
 
 #ifndef have_PrefChangedFunc_typedef
 typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
@@ -220,6 +221,11 @@ public:
    * checks for UniversalXPConnect in addition to aCapability.
    */
   static PRBool   IsCallerTrustedForCapability(const char* aCapability);
+
+  /**
+   * Returns the parent node of aChild crossing document boundaries.
+   */
+  static nsINode* GetCrossDocParentNode(nsINode* aChild);
 
   /**
    * Do not ever pass null pointers to this method.  If one of your
@@ -401,6 +407,16 @@ public:
    */
   static PRBool IsHTMLWhitespace(PRUnichar aChar);
 
+  /**
+   * Parse a margin string of format 'top, right, bottom, left' into
+   * an nsIntMargin.
+   *
+   * @param aString the string to parse
+   * @param aResult the resulting integer
+   * @return whether the value could be parsed
+   */
+  static PRBool ParseIntMarginValue(const nsAString& aString, nsIntMargin& aResult);
+
   static void Shutdown();
 
   /**
@@ -475,6 +491,8 @@ public:
 
   static imgILoader* GetImgLoader()
   {
+    if (!sImgLoaderInitialized)
+      InitImgLoader();
     return sImgLoader;
   }
 
@@ -1678,6 +1696,10 @@ private:
   // For old compatibility of RegisterPrefCallback
   static nsCOMArray<nsPrefOldCallback> *sPrefCallbackList;
 
+  static bool sImgLoaderInitialized;
+  static void InitImgLoader();
+
+  // The following two members are initialized lazily
   static imgILoader* sImgLoader;
   static imgICache* sImgCache;
 
@@ -1769,46 +1791,39 @@ public:
   // aPtr should be the pointer to the jsval we want to protect
   nsAutoGCRoot(jsval* aPtr, nsresult* aResult
                MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
-    mPtr(aPtr)
+    mPtr(aPtr), mRootType(RootType_JSVal)
   {
     MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
+    mResult = *aResult = AddJSGCRoot(aPtr, RootType_JSVal, "nsAutoGCRoot");
   }
 
   // aPtr should be the pointer to the JSObject* we want to protect
   nsAutoGCRoot(JSObject** aPtr, nsresult* aResult
                MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
-    mPtr(aPtr)
+    mPtr(aPtr), mRootType(RootType_Object)
   {
     MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
-  }
-
-  // aPtr should be the pointer to the thing we want to protect
-  nsAutoGCRoot(void* aPtr, nsresult* aResult
-               MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
-    mPtr(aPtr)
-  {
-    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
+    mResult = *aResult = AddJSGCRoot(aPtr, RootType_Object, "nsAutoGCRoot");
   }
 
   ~nsAutoGCRoot() {
     if (NS_SUCCEEDED(mResult)) {
-      RemoveJSGCRoot(mPtr);
+      RemoveJSGCRoot(mPtr, mRootType);
     }
   }
 
   static void Shutdown();
 
 private:
-  static nsresult AddJSGCRoot(void *aPtr, const char* aName);
-  static nsresult RemoveJSGCRoot(void *aPtr);
+  enum RootType { RootType_JSVal, RootType_Object };
+  static nsresult AddJSGCRoot(void *aPtr, RootType aRootType, const char* aName);
+  static nsresult RemoveJSGCRoot(void *aPtr, RootType aRootType);
 
   static nsIJSRuntimeService* sJSRuntimeService;
   static JSRuntime* sJSScriptRuntime;
 
   void* mPtr;
+  RootType mRootType;
   nsresult mResult;
   MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };

@@ -45,7 +45,7 @@
 #include "nsIAtom.h"
 #include "nsUnicharUtils.h"
 #include "nsICSSStyleRule.h"
-#include "nsCSSDeclaration.h"
+#include "mozilla/css/Declaration.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDocument.h"
 #include "nsTPtrArray.h"
@@ -55,6 +55,8 @@
 #ifdef MOZ_SVG
 #include "nsISVGValue.h"
 #endif
+
+namespace css = mozilla::css;
 
 #define MISC_STR_PTR(_cont) \
   reinterpret_cast<void*>((_cont)->mStringBits & NS_ATTRVALUE_POINTERVALUE_MASK)
@@ -91,6 +93,12 @@ nsAttrValue::nsAttrValue(nsISVGValue* aValue)
   SetTo(aValue);
 }
 #endif
+
+nsAttrValue::nsAttrValue(const nsIntMargin& aValue)
+    : mBits(0)
+{
+  SetTo(aValue);
+}
 
 nsAttrValue::~nsAttrValue()
 {
@@ -259,6 +267,12 @@ nsAttrValue::SetTo(const nsAttrValue& aOther)
       cont->mFloatValue = otherCont->mFloatValue;
       break;
     }
+    case eIntMarginValue:
+    {
+      if (otherCont->mIntMargin)
+        cont->mIntMargin = new nsIntMargin(*otherCont->mIntMargin);
+      break;
+    }
     default:
     {
       NS_NOTREACHED("unknown type stored in MiscContainer");
@@ -319,6 +333,16 @@ nsAttrValue::SetTo(nsISVGValue* aValue)
   }
 }
 #endif
+
+void
+nsAttrValue::SetTo(const nsIntMargin& aValue)
+{
+  if (EnsureEmptyMiscContainer()) {
+    MiscContainer* cont = GetMiscContainer();
+    cont->mIntMargin = new nsIntMargin(aValue);
+    cont->mType = eIntMarginValue;
+  }
+}
 
 void
 nsAttrValue::SwapValueWith(nsAttrValue& aOther)
@@ -403,7 +427,7 @@ nsAttrValue::ToString(nsAString& aResult) const
     {
       aResult.Truncate();
       MiscContainer *container = GetMiscContainer();
-      nsCSSDeclaration* decl = container->mCSSStyleRule->GetDeclaration();
+      css::Declaration *decl = container->mCSSStyleRule->GetDeclaration();
       if (decl) {
         decl->ToString(aResult);
       }
@@ -585,6 +609,10 @@ nsAttrValue::HashValue() const
       // XXX this is crappy, but oh well
       return cont->mFloatValue;
     }
+    case eIntMarginValue:
+    {
+      return NS_PTR_TO_INT32(cont->mIntMargin);
+    }
     default:
     {
       NS_NOTREACHED("unknown type stored in MiscContainer");
@@ -686,6 +714,10 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
     case eFloatValue:
     {
       return thisCont->mFloatValue == otherCont->mFloatValue;
+    }
+    case eIntMarginValue:
+    {
+      return thisCont->mIntMargin == otherCont->mIntMargin;
     }
     default:
     {
@@ -1138,7 +1170,7 @@ nsAttrValue::SetColorValue(nscolor aColor, const nsAString& aString)
 }
 
 PRBool
-nsAttrValue::ParseColor(const nsAString& aString, nsIDocument* aDocument)
+nsAttrValue::ParseColor(const nsAString& aString)
 {
   ResetIfSet();
 
@@ -1198,6 +1230,26 @@ PRBool nsAttrValue::ParseFloatValue(const nsAString& aString)
     nsAutoString serializedFloat;
     serializedFloat.AppendFloat(val);
     SetMiscAtomOrString(serializedFloat.Equals(aString) ? nsnull : &aString);
+    return PR_TRUE;
+  }
+
+  return PR_FALSE;
+}
+
+PRBool
+nsAttrValue::ParseIntMarginValue(const nsAString& aString)
+{
+  ResetIfSet();
+
+  nsIntMargin margins;
+  if (!nsContentUtils::ParseIntMarginValue(aString, margins))
+    return PR_FALSE;
+
+  if (EnsureEmptyMiscContainer()) {
+    MiscContainer* cont = GetMiscContainer();
+    cont->mIntMargin = new nsIntMargin(margins);
+    cont->mType = eIntMarginValue;
+    SetMiscAtomOrString(&aString);
     return PR_TRUE;
   }
 
@@ -1269,6 +1321,11 @@ nsAttrValue::EnsureEmptyMiscContainer()
         break;
       }
 #endif
+      case eIntMarginValue:
+      {
+        delete cont->mIntMargin;
+        break;
+      }
       default:
       {
         break;

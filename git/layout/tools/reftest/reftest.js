@@ -109,6 +109,8 @@ var gSlowestTestTime = 0;
 var gSlowestTestURL;
 var gClearingForAssertionCheck = false;
 
+var gDrawWindowFlags;
+
 const TYPE_REFTEST_EQUAL = '==';
 const TYPE_REFTEST_NOTEQUAL = '!=';
 const TYPE_LOAD = 'load';     // test without a reference (just test that it does
@@ -138,8 +140,9 @@ function AllocateCanvas()
         return gRecycledCanvases.shift();
 
     var canvas = document.createElementNS(XHTML_NS, "canvas");
-    canvas.setAttribute("width", windowElem.getAttribute("width"));
-    canvas.setAttribute("height", windowElem.getAttribute("height"));
+    var r = gBrowser.getBoundingClientRect();
+    canvas.setAttribute("width", Math.ceil(r.width));
+    canvas.setAttribute("height", Math.ceil(r.height));
 
     return canvas;
 }
@@ -360,8 +363,11 @@ function BuildConditionSandbox(aURL) {
       },
       _prefs:      prefs,
       getBoolPref: function(p) { return this._prefs.getBoolPref(p); },
-      getIntPref:  function(p) { return this._prefs.getIntPref(p) }
+      getIntPref:  function(p) { return this._prefs.getIntPref(p); }
     }
+
+    dump("REFTEST INFO | Dumping JSON representation of sandbox \n");
+    dump("REFTEST INFO | " + JSON.stringify(sandbox) + " \n");
 
     return sandbox;
 }
@@ -931,8 +937,44 @@ function UpdateCanvasCache(url, canvas)
     }
 }
 
+// Compute drawWindow flags lazily so the window is set up and can be
+// measured accurately
+function DoDrawWindow(ctx, win, x, y, w, h)
+{
+    if (typeof gDrawWindowFlags == "undefined") {
+        gDrawWindowFlags = ctx.DRAWWINDOW_DRAW_CARET |
+                           ctx.DRAWWINDOW_DRAW_VIEW;
+        var flags = "DRAWWINDOW_DRAW_CARET | DRAWWINDOW_DRAW_VIEW";
+        var r = gBrowser.getBoundingClientRect();
+        if (window.innerWidth >= r.right && window.innerHeight >= r.bottom) {
+            // We can use the window's retained layers
+            // because the window is big enough to display the entire browser element
+            gDrawWindowFlags |= ctx.DRAWWINDOW_USE_WIDGET_LAYERS;
+            flags += " | DRAWWINDOW_USE_WIDGET_LAYERS";
+        }
+        dump("REFTEST INFO | drawWindow flags = " + flags +
+             "; window.innerWidth/Height = " + window.innerWidth + "," +
+             window.innerHeight + "; browser.width/height = " +
+             r.width + "," + r.height + "\n");
+    }
+
+    var scrollX = 0;
+    var scrollY = 0;
+    if (!(gDrawWindowFlags & ctx.DRAWWINDOW_DRAW_VIEW)) {
+        scrollX = win.scrollX;
+        scrollY = win.scrollY;
+    }
+    ctx.drawWindow(win, scrollX + x, scrollY + y, w, h, "rgb(255,255,255)",
+                   gDrawWindowFlags);
+}
+
 function InitCurrentCanvasWithSnapshot()
 {
+    if (gURLs[0].type == TYPE_LOAD || gURLs[0].type == TYPE_SCRIPT) {
+        // We don't want to snapshot this kind of test
+        return;
+    }
+
     gCurrentCanvas = AllocateCanvas();
 
     /* XXX This needs to be rgb(255,255,255) because otherwise we get
@@ -946,12 +988,9 @@ function InitCurrentCanvasWithSnapshot()
     // window, so scale the drawing to show the zoom (making each canvas pixel be one
     // device pixel instead)
     ctx.scale(scale, scale);
-    ctx.drawWindow(win, win.scrollX, win.scrollY,
-                   Math.ceil(gCurrentCanvas.width / scale),
-                   Math.ceil(gCurrentCanvas.height / scale),
-                   "rgb(255,255,255)",
-                   ctx.DRAWWINDOW_DRAW_CARET |
-                   ctx.DRAWWINDOW_USE_WIDGET_LAYERS);
+    DoDrawWindow(ctx, win, 0, 0,
+                 Math.ceil(gCurrentCanvas.width / scale),
+                 Math.ceil(gCurrentCanvas.height / scale));
     ctx.restore();
 }
 
@@ -962,6 +1001,9 @@ function roundTo(x, fraction)
 
 function UpdateCurrentCanvasForEvent(event)
 {
+    if (!gCurrentCanvas)
+        return;
+
     var win = gBrowser.contentWindow;
     var ctx = gCurrentCanvas.getContext("2d");
     var scale = gBrowser.markupDocumentViewer.fullZoom;
@@ -978,10 +1020,7 @@ function UpdateCurrentCanvasForEvent(event)
         ctx.save();
         ctx.scale(scale, scale);
         ctx.translate(left, top);
-        ctx.drawWindow(win, left + win.scrollX, top + win.scrollY,
-                       right - left, bottom - top,
-                       "rgb(255,255,255)",
-                       ctx.DRAWWINDOW_DRAW_CARET);
+        DoDrawWindow(ctx, win, left, top, right - left, bottom - top);
         ctx.restore();
     }
 }

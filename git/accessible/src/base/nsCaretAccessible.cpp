@@ -330,7 +330,7 @@ nsCaretAccessible::GetCaretRect(nsIWidget **aOutWidget)
   }
 
   nsPoint offset;
-  *aOutWidget = frame->GetWindowOffset(offset);
+  *aOutWidget = frame->GetNearestWidget(offset);
   NS_ENSURE_TRUE(*aOutWidget, nsIntRect());
   rect.MoveBy(offset);
 
@@ -361,7 +361,7 @@ nsCaretAccessible::GetSelectionControllerForNode(nsIContent *aContent)
   if (!document)
     return nsnull;
 
-  nsIPresShell *presShell = document->GetPrimaryShell();
+  nsIPresShell *presShell = document->GetShell();
   if (!presShell)
     return nsnull;
 

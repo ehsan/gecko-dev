@@ -62,52 +62,75 @@ using namespace mozilla::gl;
 
 int LayerManagerOGLProgram::sCurrentProgramKey = 0;
 
-static void
-DumpLayerAndChildren(LayerOGL *l, int advance = 0)
-{
-  for (int i = 0; i < advance; i++)
-    fprintf(stderr, "  ");
-
-  fprintf(stderr, "%p: Layer type %d\n", l, l->GetType());
-
-  l = l->GetFirstChildOGL();
-  while (l) {
-    DumpLayerAndChildren(l, advance+1);
-    Layer *genl =  l->GetLayer()->GetNextSibling();
-    l = genl ? static_cast<LayerOGL*>(genl->ImplData()) : nsnull;
-  }
-}
-
 /**
  * LayerManagerOGL
  */
-LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget) 
+LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget)
   : mWidget(aWidget)
   , mBackBufferFBO(0)
   , mBackBufferTexture(0)
+  , mBackBufferSize(-1, -1)
   , mHasBGRA(0)
 {
 }
 
 LayerManagerOGL::~LayerManagerOGL()
 {
-  if (mGLContext)
-    mGLContext->MakeCurrent();
+  mRoot = nsnull;
+  CleanupResources();
+}
+
+void
+LayerManagerOGL::CleanupResources()
+{
+  if (!mGLContext)
+    return;
+
+  nsRefPtr<GLContext> ctx = mGLContext->GetSharedContext();
+  if (!ctx) {
+    ctx = mGLContext;
+  }
+  
+  ctx->MakeCurrent();
 
   for (unsigned int i = 0; i < mPrograms.Length(); ++i)
     delete mPrograms[i];
-
   mPrograms.Clear();
+
+  ctx->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
+
+  if (mBackBufferFBO) {
+    ctx->fDeleteFramebuffers(1, &mBackBufferFBO);
+    mBackBufferFBO = 0;
+  }
+
+  if (mBackBufferTexture) {
+    ctx->fDeleteTextures(1, &mBackBufferTexture);
+    mBackBufferTexture = 0;
+  }
+
+  if (mQuadVBO) {
+    ctx->fDeleteBuffers(1, &mQuadVBO);
+    mQuadVBO = 0;
+  }
+
+  mGLContext = nsnull;
 }
 
 PRBool
-LayerManagerOGL::Initialize()
+LayerManagerOGL::Initialize(GLContext *aExistingContext)
 {
-  mGLContext = sGLContextProvider.CreateForWindow(mWidget);
+  if (aExistingContext) {
+    mGLContext = aExistingContext;
+  } else {
+    if (mGLContext)
+      CleanupResources();
+    mGLContext = gl::GLContextProvider::CreateForWindow(mWidget);
 
-  if (!mGLContext) {
-    NS_WARNING("Failed to create LayerManagerOGL context");
-    return PR_FALSE;
+    if (!mGLContext) {
+      NS_WARNING("Failed to create LayerManagerOGL context");
+      return PR_FALSE;
+    }
   }
 
   MakeCurrent();
@@ -126,12 +149,14 @@ LayerManagerOGL::Initialize()
   // We unfortunately can't do generic initialization here, since the
   // concrete type actually matters.  This macro generates the
   // initialization using a concrete type and index.
-#define SHADER_PROGRAM(penum, ptype, vsstr, fsstr) do {                 \
+#define SHADER_PROGRAM(penum, ptype, vsstr, fsstr) do {                           \
     NS_ASSERTION(programIndex++ == penum, "out of order shader initialization!"); \
-    ptype *p = new ptype(mGLContext);                                   \
-    if (!p->Initialize(vsstr, fsstr))                                   \
-      return PR_FALSE;                                                  \
-    mPrograms.AppendElement(p);                                         \
+    ptype *p = new ptype(mGLContext);                                             \
+    if (!p->Initialize(vsstr, fsstr)) {                                           \
+      delete p;                                                                   \
+      return PR_FALSE;                                                            \
+    }                                                                             \
+    mPrograms.AppendElement(p);                                                   \
   } while (0)
 
 
@@ -320,12 +345,6 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
   mTarget = NULL;
 }
 
-void
-LayerManagerOGL::SetRoot(Layer *aLayer)
-{
-  mRootLayer = static_cast<LayerOGL*>(aLayer->ImplData());;
-}
-
 already_AddRefed<ThebesLayer>
 LayerManagerOGL::CreateThebesLayer()
 {
@@ -374,6 +393,12 @@ LayerManagerOGL::MakeCurrent()
   mGLContext->MakeCurrent();
 }
 
+LayerOGL*
+LayerManagerOGL::RootLayer() const
+{
+  return static_cast<LayerOGL*>(mRoot->ImplData());
+}
+
 void
 LayerManagerOGL::Render()
 {
@@ -403,7 +428,7 @@ LayerManagerOGL::Render()
   // helping us with anything -- we draw to a specific location in the
   // front buffer as it is.
 
-  const nsIntRect *clipRect = mRootLayer->GetLayer()->GetClipRect();
+  const nsIntRect *clipRect = mRoot->GetClipRect();
 
   if (clipRect) {
     mGLContext->fScissor(clipRect->x, clipRect->y,
@@ -420,12 +445,18 @@ LayerManagerOGL::Render()
   DEBUG_GL_ERROR_CHECK(mGLContext);
 
   // Render our layers.
-  mRootLayer->RenderLayer(mBackBufferFBO, nsIntPoint(0, 0));
+  RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO,
+                           nsIntPoint(0, 0));
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 
   if (mTarget) {
     CopyToTarget();
+    return;
+  }
+
+  if (mGLContext->IsDoubleBuffered()) {
+    mGLContext->SwapBuffers();
     return;
   }
 
@@ -509,13 +540,7 @@ LayerManagerOGL::Render()
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 
-  // XXX this is an intermediate workaround for windows that are
-  // double-buffered by default on GLX systems.  The swap is a no-op
-  // everywhere else (and for non-double-buffered GLX windows).  If
-  // the swap is actually performed, it implicitly glFlush()s.
-  if (!mGLContext->SwapBuffers()) {
-    mGLContext->fFlush();
-  } 
+  mGLContext->fFlush();
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 }
@@ -529,10 +554,20 @@ LayerManagerOGL::SetupPipeline(int aWidth, int aHeight)
   // Matrix to transform to viewport space ( <-1.0, 1.0> topleft, 
   // <1.0, -1.0> bottomright)
   gfx3DMatrix viewMatrix;
-  viewMatrix._11 = 2.0f / float(aWidth);
-  viewMatrix._22 = 2.0f / float(aHeight);
-  viewMatrix._41 = -1.0f;
-  viewMatrix._42 = -1.0f;
+  if (mGLContext->IsDoubleBuffered()) {
+    /* If it's double buffered, we don't have a frontbuffer FBO,
+     * so put in a Y-flip in this transform.
+     */
+    viewMatrix._11 = 2.0f / float(aWidth);
+    viewMatrix._22 = -2.0f / float(aHeight);
+    viewMatrix._41 = -1.0f;
+    viewMatrix._42 = 1.0f;
+  } else {
+    viewMatrix._11 = 2.0f / float(aWidth);
+    viewMatrix._22 = 2.0f / float(aHeight);
+    viewMatrix._41 = -1.0f;
+    viewMatrix._42 = -1.0f;
+  }
 
   SetLayerProgramProjectionMatrix(viewMatrix);
 }
@@ -540,6 +575,11 @@ LayerManagerOGL::SetupPipeline(int aWidth, int aHeight)
 void
 LayerManagerOGL::SetupBackBuffer(int aWidth, int aHeight)
 {
+  if (mGLContext->IsDoubleBuffered()) {
+    mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
+    return;
+  }
+
   // Do we have a FBO of the right size already?
   if (mBackBufferSize.width == aWidth &&
       mBackBufferSize.height == aHeight)
@@ -592,7 +632,8 @@ LayerManagerOGL::CopyToTarget()
 #ifdef USE_GLES2
   // GLES2 promises that binding to any custom FBO will attach 
   // to GL_COLOR_ATTACHMENT0 attachment point.
-  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mBackBufferFBO);
+  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER,
+                               mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO);
 #else
   mGLContext->fReadBuffer(LOCAL_GL_COLOR_ATTACHMENT0);
 #endif

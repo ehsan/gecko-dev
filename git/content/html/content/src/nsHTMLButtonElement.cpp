@@ -241,7 +241,7 @@ nsHTMLButtonElement::Click()
   nsCOMPtr<nsIDocument> doc = GetCurrentDoc();
 
   if (doc) {
-    nsIPresShell *shell = doc->GetPrimaryShell();
+    nsIPresShell *shell = doc->GetShell();
     if (shell) {
       nsRefPtr<nsPresContext> context = shell->GetPresContext();
       if (context) {
@@ -269,10 +269,6 @@ nsHTMLButtonElement::IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PR
 {
   if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
     return PR_TRUE;
-  }
-
-  if (aTabIndex && (sTabFocusModel & eTabFocus_formElementsMask) == 0) {
-    *aTabIndex = -1;
   }
 
   *aIsFocusable = 

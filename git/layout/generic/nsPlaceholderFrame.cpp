@@ -237,7 +237,8 @@ nsPlaceholderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
   
   return aLists.Outlines()->AppendNewToTop(new (aBuilder)
-      nsDisplayGeneric(this, PaintDebugPlaceholder, "DebugPlaceholder"));
+      nsDisplayGeneric(this, PaintDebugPlaceholder, "DebugPlaceholder",
+                       nsDisplayItem::TYPE_DEBUG_PLACEHOLDER));
 #else // DEBUG
   return NS_OK;
 #endif // DEBUG
@@ -276,6 +277,9 @@ nsPlaceholderFrame::List(FILE* out, PRInt32 aIndent) const
   }
   if (nsnull != mContent) {
     fprintf(out, " [content=%p]", static_cast<void*>(mContent));
+  }
+  if (nsnull != mStyleContext) {
+    fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
   }
   if (mOutOfFlowFrame) {
     fprintf(out, " outOfFlowFrame=");

@@ -375,13 +375,15 @@ const uint32 TT_INVALID = uint32(-1);
 typedef Queue<uint16> SlotList;
 
 class TypeMap : public Queue<TraceType> {
+    Oracle *oracle;
 public:
     TypeMap(nanojit::Allocator* alloc) : Queue<TraceType>(alloc) {}
     void set(unsigned stackSlots, unsigned ngslots,
              const TraceType* stackTypeMap, const TraceType* globalTypeMap);
-    JS_REQUIRES_STACK void captureTypes(JSContext* cx, JSObject* globalObj, SlotList& slots, unsigned callDepth);
+    JS_REQUIRES_STACK void captureTypes(JSContext* cx, JSObject* globalObj, SlotList& slots, unsigned callDepth,
+                                        bool speculate);
     JS_REQUIRES_STACK void captureMissingGlobalTypes(JSContext* cx, JSObject* globalObj, SlotList& slots,
-                                                     unsigned stackSlots);
+                                                     unsigned stackSlots, bool speculate);
     bool matches(TypeMap& other) const;
     void fromRaw(TraceType* other, unsigned numSlots);
 };
@@ -740,7 +742,7 @@ struct TreeFragment : public LinkableFragment
         return typeMap.data();
     }
 
-    JS_REQUIRES_STACK void initialize(JSContext* cx, SlotList *globalSlots);
+    JS_REQUIRES_STACK void initialize(JSContext* cx, SlotList *globalSlots, bool speculate);
     UnstableExit* removeUnstableExit(VMSideExit* exit);
 };
 
@@ -1237,8 +1239,6 @@ class TraceRecorder
     void forgetGuardedShapes();
 
     inline nanojit::LIns* map(nanojit::LIns *obj_ins);
-    JS_REQUIRES_STACK bool map_is_native(JSObjectMap* map, nanojit::LIns* map_ins,
-                                         nanojit::LIns*& ops_ins, size_t op_offset = 0);
     JS_REQUIRES_STACK AbortableRecordingStatus test_property_cache(JSObject* obj, nanojit::LIns* obj_ins,
                                                                      JSObject*& obj2, PCVal& pcval);
     JS_REQUIRES_STACK RecordingStatus guardPropertyCacheHit(nanojit::LIns* obj_ins,
@@ -1260,18 +1260,10 @@ class TraceRecorder
                                    nanojit::LIns*& dslots_ins);
     nanojit::LIns* stobj_get_slot(nanojit::LIns* obj_ins, unsigned slot,
                                   nanojit::LIns*& dslots_ins);
+    nanojit::LIns* stobj_get_parent(nanojit::LIns* obj_ins);
+    nanojit::LIns* stobj_get_private(nanojit::LIns* obj_ins);
 
-    nanojit::LIns* stobj_get_private(nanojit::LIns* obj_ins) {
-        return stobj_get_fslot(obj_ins, JSSLOT_PRIVATE);
-    }
-
-    nanojit::LIns* stobj_get_proto(nanojit::LIns* obj_ins) {
-        return stobj_get_fslot(obj_ins, JSSLOT_PROTO);
-    }
-
-    nanojit::LIns* stobj_get_parent(nanojit::LIns* obj_ins) {
-        return stobj_get_fslot(obj_ins, JSSLOT_PARENT);
-    }
+    nanojit::LIns* stobj_get_proto(nanojit::LIns* obj_ins);
 
     JS_REQUIRES_STACK AbortableRecordingStatus name(jsval*& vp, nanojit::LIns*& ins, NameResult& nr);
     JS_REQUIRES_STACK AbortableRecordingStatus prop(JSObject* obj, nanojit::LIns* obj_ins,
@@ -1432,7 +1424,7 @@ class TraceRecorder
     TraceRecorder(JSContext* cx, VMSideExit*, VMFragment*,
                   unsigned stackSlots, unsigned ngslots, TraceType* typeMap,
                   VMSideExit* expectedInnerExit, jsbytecode* outerTree,
-                  uint32 outerArgc, RecordReason reason);
+                  uint32 outerArgc, RecordReason reason, bool speculate);
 
     /* The destructor should only be called through finish*, not directly. */
     ~TraceRecorder();
@@ -1459,12 +1451,14 @@ public:
     startRecorder(JSContext*, VMSideExit*, VMFragment*,
                   unsigned stackSlots, unsigned ngslots, TraceType* typeMap,
                   VMSideExit* expectedInnerExit, jsbytecode* outerTree,
-                  uint32 outerArgc, RecordReason reason);
+                  uint32 outerArgc, RecordReason reason,
+                  bool speculate);
 
     /* Accessors. */
     VMFragment*         getFragment() const { return fragment; }
     TreeFragment*       getTree() const { return tree; }
     bool                outOfMemory() const { return traceMonitor->outOfMemory(); }
+    Oracle*             getOracle() const { return oracle; }
 
     /* Entry points / callbacks from the interpreter. */
     JS_REQUIRES_STACK AbortableRecordingStatus monitorRecording(JSOp op);

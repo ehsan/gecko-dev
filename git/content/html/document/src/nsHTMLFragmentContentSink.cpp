@@ -68,14 +68,14 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsCSSParser.h"
 #include "nsCSSProperty.h"
-#include "nsCSSDeclaration.h"
+#include "mozilla/css/Declaration.h"
 #include "nsICSSStyleRule.h"
 #include "nsUnicharInputStream.h"
 #include "nsCSSStyleSheet.h"
 #include "nsICSSRuleList.h"
-#include "nsCSSDeclaration.h"
-#include "nsCSSProperty.h"
 #include "nsIDOMCSSRule.h"
+
+namespace css = mozilla::css;
 
 //
 // XXX THIS IS TEMPORARY CODE
@@ -801,6 +801,7 @@ public:
 
   // nsIParanoidFragmentContentSink
   virtual void AllowStyles();
+  virtual void AllowComments();
 
 protected:
   nsresult NameFromType(const nsHTMLTag aTag,
@@ -814,6 +815,7 @@ protected:
   PRPackedBool mSkip; // used when we descend into <style> or <script>
   PRPackedBool mProcessStyle; // used when style is explicitly white-listed
   PRPackedBool mInStyle; // whether we're inside a style element
+  PRPackedBool mProcessComments; // used when comments are allowed
 
   // Use nsTHashTable as a hash set for our whitelists
   static nsTHashtable<nsISupportsHashKey>* sAllowedTags;
@@ -825,7 +827,7 @@ nsTHashtable<nsISupportsHashKey>* nsHTMLParanoidFragmentSink::sAllowedAttributes
 
 nsHTMLParanoidFragmentSink::nsHTMLParanoidFragmentSink(PRBool aAllContent):
   nsHTMLFragmentContentSink(aAllContent), mSkip(PR_FALSE),
-  mProcessStyle(PR_FALSE), mInStyle(PR_FALSE)
+  mProcessStyle(PR_FALSE), mInStyle(PR_FALSE), mProcessComments(PR_FALSE)
 {
 }
 
@@ -959,6 +961,12 @@ nsHTMLParanoidFragmentSink::AllowStyles()
   mProcessStyle = PR_TRUE;
 }
 
+void
+nsHTMLParanoidFragmentSink::AllowComments()
+{
+  mProcessComments = PR_TRUE;
+}
+
 // nsHTMLFragmentContentSink
 
 nsresult
@@ -998,7 +1006,10 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
       nsContentUtils::TrimCharsInSet(kWhitespace, aNode.GetValueAt(i));
 
     // check the attributes we allow that contain URIs
-    if (IsAttrURI(keyAtom)) {
+    // special case src attributes for img tags, because they can't
+    // run any dangerous code.
+    if (IsAttrURI(keyAtom) &&
+        !(nodeType == eHTMLTag_img && keyAtom == nsGkAtoms::src)) {
       if (!baseURI) {
         baseURI = aContent->GetBaseURI();
       }
@@ -1153,11 +1164,7 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
               if (NS_FAILED(rv))
                 continue;
               NS_ASSERTION(rule, "We should have a rule by now");
-              PRInt32 type;
-              rv = rule->GetType(type);
-              if (NS_FAILED(rv))
-                continue;
-              switch (type) {
+              switch (rule->GetType()) {
                 case nsICSSRule::UNKNOWN_RULE:
                 case nsICSSRule::CHARSET_RULE:
                 case nsICSSRule::IMPORT_RULE:
@@ -1208,7 +1215,7 @@ void
 nsHTMLParanoidFragmentSink::SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoString &aRuleText)
 {
   aRuleText.Truncate();
-  nsCSSDeclaration *style = aRule->GetDeclaration();
+  css::Declaration *style = aRule->GetDeclaration();
   if (style) {
     nsresult rv = style->RemoveProperty(eCSSProperty_binding);
     if (NS_SUCCEEDED(rv)) {
@@ -1251,6 +1258,8 @@ nsHTMLParanoidFragmentSink::AddLeaf(const nsIParserNode& aNode)
 NS_IMETHODIMP
 nsHTMLParanoidFragmentSink::AddComment(const nsIParserNode& aNode)
 {
+  if (mProcessComments)
+    return nsHTMLFragmentContentSink::AddComment(aNode);
   // no comments
   return NS_OK;
 }
