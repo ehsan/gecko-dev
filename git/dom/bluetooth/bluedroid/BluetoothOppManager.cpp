@@ -850,6 +850,8 @@ BluetoothOppManager::ServerDataHandler(UnixSocketRawData* aMessage)
     ExtractPacketHeaders(pktHeaders);
     ValidateFileName();
 
+    mPutPacketReceivedLength = 0;
+
     // When we cancel the transfer, delete the file and notify completion
     if (mAbortFlag) {
       ReplyToPut(mPutFinalFlag, false);

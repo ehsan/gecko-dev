@@ -14,6 +14,7 @@
 
 #include "BluetoothCommon.h"
 #include "BluetoothService.h"
+#include "BluetoothServiceBluedroid.h"
 #include "BluetoothSocket.h"
 #include "BluetoothUtils.h"
 

@@ -305,16 +305,17 @@ class LifoAlloc
 
     template <typename T>
     T *newArray(size_t count) {
+        void *mem = alloc(sizeof(T) * count);
+        if (!mem)
+            return nullptr;
         JS_STATIC_ASSERT(mozilla::IsPod<T>::value);
-        return newArrayUninitialized<T>(count);
+        return (T *) mem;
     }
 
     // Create an array with uninitialized elements of type |T|.
     // The caller is responsible for initialization.
     template <typename T>
     T *newArrayUninitialized(size_t count) {
-        if (count & mozilla::tl::MulOverflowMask<sizeof(T)>::value)
-            return nullptr;
         return static_cast<T *>(alloc(sizeof(T) * count));
     }
 
