@@ -1052,10 +1052,6 @@ pref("devtools.inspector.htmlPanelOpen", false);
 pref("devtools.inspector.sidebarOpen", false);
 pref("devtools.inspector.activeSidebar", "ruleview");
 
-// Enable the Layout View
-pref("devtools.layoutview.enabled", false);
-pref("devtools.layoutview.open", false);
-
 // Enable the Debugger
 pref("devtools.debugger.enabled", false);
 
