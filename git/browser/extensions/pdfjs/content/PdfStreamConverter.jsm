@@ -16,7 +16,7 @@
  */
 /* jshint esnext:true */
 /* globals Components, Services, XPCOMUtils, NetUtil, PrivateBrowsingUtils,
-           dump, NetworkManager, PdfJsTelemetry */
+           dump, NetworkManager, PdfJsTelemetry, DEFAULT_PREFERENCES */
 
 'use strict';
 
@@ -33,13 +33,15 @@ const PDF_CONTENT_TYPE = 'application/pdf';
 const PREF_PREFIX = 'pdfjs';
 const PDF_VIEWER_WEB_PAGE = 'resource://pdf.js/web/viewer.html';
 const MAX_DATABASE_LENGTH = 4096;
-const MAX_NUMBER_OF_PREFS = 50;
-const MAX_STRING_PREF_LENGTH = 128;
+const MAX_STRING_PREF_LENGTH = 4096;
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource://gre/modules/NetUtil.jsm');
 Cu.import('resource://pdf.js/network.js');
+
+// Load the default preferences.
+Cu.import('resource://pdf.js/default_preferences.js');
 
 XPCOMUtils.defineLazyModuleGetter(this, 'PrivateBrowsingUtils',
   'resource://gre/modules/PrivateBrowsingUtils.jsm');
@@ -451,60 +453,56 @@ ChromeActions.prototype = {
                                    .updateControlState(result, findPrevious);
   },
   setPreferences: function(prefs) {
-    var defaultBranch = Services.prefs.getDefaultBranch(PREF_PREFIX + '.');
-    var numberOfPrefs = 0;
-    var prefValue, prefName;
-    for (var key in prefs) {
-      if (++numberOfPrefs > MAX_NUMBER_OF_PREFS) {
-        log('setPreferences - Exceeded the maximum number of preferences ' +
-            'that is allowed to be set at once.');
-        break;
-      } else if (!defaultBranch.getPrefType(key)) {
-        continue;
-      }
+    var prefValue, defaultValue, prefName, prefType, defaultType;
+
+    for (var key in DEFAULT_PREFERENCES) {
       prefValue = prefs[key];
+      defaultValue = DEFAULT_PREFERENCES[key];
       prefName = (PREF_PREFIX + '.' + key);
-      switch (typeof prefValue) {
-        case 'boolean':
-          setBoolPref(prefName, prefValue);
-          break;
-        case 'number':
-          setIntPref(prefName, prefValue);
-          break;
-        case 'string':
-          if (prefValue.length > MAX_STRING_PREF_LENGTH) {
-            log('setPreferences - Exceeded the maximum allowed length ' +
-                'for a string preference.');
-          } else {
-            setStringPref(prefName, prefValue);
-          }
-          break;
+
+      if (prefValue === undefined || prefValue === defaultValue) {
+        Services.prefs.clearUserPref(prefName);
+      } else {
+        prefType = typeof prefValue;
+        defaultType = typeof defaultValue;
+
+        if (prefType !== defaultType) {
+          continue;
+        }
+        switch (defaultType) {
+          case 'boolean':
+            setBoolPref(prefName, prefValue);
+            break;
+          case 'number':
+            setIntPref(prefName, prefValue);
+            break;
+          case 'string':
+            // Protect against adding arbitrarily long strings in about:config.
+            if (prefValue.length <= MAX_STRING_PREF_LENGTH) {
+              setStringPref(prefName, prefValue);
+            }
+            break;
+        }
       }
     }
   },
-  getPreferences: function(prefs) {
-    var defaultBranch = Services.prefs.getDefaultBranch(PREF_PREFIX + '.');
-    var currentPrefs = {}, numberOfPrefs = 0;
-    var prefValue, prefName;
-    for (var key in prefs) {
-      if (++numberOfPrefs > MAX_NUMBER_OF_PREFS) {
-        log('getPreferences - Exceeded the maximum number of preferences ' +
-            'that is allowed to be fetched at once.');
-        break;
-      } else if (!defaultBranch.getPrefType(key)) {
-        continue;
-      }
-      prefValue = prefs[key];
+  getPreferences: function() {
+    var currentPrefs = {};
+    var defaultValue, prefName;
+
+    for (var key in DEFAULT_PREFERENCES) {
+      defaultValue = DEFAULT_PREFERENCES[key];
       prefName = (PREF_PREFIX + '.' + key);
-      switch (typeof prefValue) {
+
+      switch (typeof defaultValue) {
         case 'boolean':
-          currentPrefs[key] = getBoolPref(prefName, prefValue);
+          currentPrefs[key] = getBoolPref(prefName, defaultValue);
           break;
         case 'number':
-          currentPrefs[key] = getIntPref(prefName, prefValue);
+          currentPrefs[key] = getIntPref(prefName, defaultValue);
           break;
         case 'string':
-          currentPrefs[key] = getStringPref(prefName, prefValue);
+          currentPrefs[key] = getStringPref(prefName, defaultValue);
           break;
       }
     }
