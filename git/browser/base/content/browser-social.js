@@ -18,6 +18,11 @@ let SocialUI = {
     Services.obs.addObserver(this, "social:recommend-info-changed", false);
     Services.obs.addObserver(this, "social:frameworker-error", false);
     Services.obs.addObserver(this, "social:provider-set", false);
+#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
+    // this observer is necessary so things are also correctly updated
+    // when per-window PB isn't active
+    Services.obs.addObserver(this, "private-browsing", false);
+#endif
 
     Services.prefs.addObserver("social.sidebar.open", this, false);
     Services.prefs.addObserver("social.toast-notifications.enabled", this, false);
@@ -41,6 +46,9 @@ let SocialUI = {
     Services.obs.removeObserver(this, "social:recommend-info-changed");
     Services.obs.removeObserver(this, "social:frameworker-error");
     Services.obs.removeObserver(this, "social:provider-set");
+#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
+    Services.obs.removeObserver(this, "private-browsing");
+#endif
 
     Services.prefs.removeObserver("social.sidebar.open", this);
     Services.prefs.removeObserver("social.toast-notifications.enabled", this);
@@ -132,6 +140,14 @@ let SocialUI = {
             SocialToolbar.updateButton();
           }
           break;
+
+#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
+        case "private-browsing":
+          this._updateEnabledState();
+          this._updateActiveUI();
+          SocialToolbar.init();
+          break;
+#endif
       }
     } catch (e) {
       Components.utils.reportError(e + "\n" + e.stack);
@@ -157,8 +173,11 @@ let SocialUI = {
   _updateActiveUI: function SocialUI_updateActiveUI() {
     // The "active" UI isn't dependent on there being a provider, just on
     // social being "active" (but also chromeless/PB)
-    let enabled = Social.active && !this._chromeless &&
-                  !PrivateBrowsingUtils.isWindowPrivate(window);
+    let enabled = Social.active && !this._chromeless
+#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
+                  && !PrivateBrowsingUtils.isWindowPrivate(window)
+#endif
+        ;
     let broadcaster = document.getElementById("socialActiveBroadcaster");
     broadcaster.hidden = !enabled;
 
@@ -309,7 +328,11 @@ let SocialUI = {
 
   get enabled() {
     // Returns whether social is enabled *for this window*.
-    if (this._chromeless || PrivateBrowsingUtils.isWindowPrivate(window))
+    if (this._chromeless
+#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
+        || PrivateBrowsingUtils.isWindowPrivate(window)
+#endif
+       )
       return false;
     return !!(Social.active && Social.provider && Social.provider.enabled);
   },

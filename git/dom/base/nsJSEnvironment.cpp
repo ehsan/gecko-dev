@@ -1136,6 +1136,10 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime, bool aGCOnDestruction,
 
 nsJSContext::~nsJSContext()
 {
+#ifdef DEBUG
+  nsCycleCollector_DEBUG_wasFreed(static_cast<nsIScriptContext*>(this));
+#endif
+
   *mPrev = mNext;
   if (mNext) {
     mNext->mPrev = mPrev;

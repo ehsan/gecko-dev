@@ -4173,6 +4173,7 @@ panel[type="arrow"][popupid="click-to-play-plugins"] > .panel-arrowcontainer > .
   min-width: 0;
 }
 
+%ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
 #main-window[privatebrowsingmode=temporary] {
   background-image: url("chrome://browser/skin/privatebrowsing-mask.png");
   background-position: top right;
@@ -4200,4 +4201,5 @@ panel[type="arrow"][popupid="click-to-play-plugins"] > .panel-arrowcontainer > .
 #main-window[privatebrowsingmode=temporary]:-moz-window-inactive {
   background-color: -moz-mac-chrome-inactive;
 }
+%endif
 

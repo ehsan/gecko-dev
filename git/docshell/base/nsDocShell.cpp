@@ -194,8 +194,12 @@
 #include "mozilla/Telemetry.h"
 #include "nsISecurityUITelemetry.h"
 
+#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
 #include "nsIAppShellService.h"
 #include "nsAppShellCID.h"
+#else
+#include "nsIPrivateBrowsingService.h"
+#endif
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -2024,11 +2028,13 @@ nsDocShell::GetUsePrivateBrowsing(bool* aUsePrivateBrowsing)
 NS_IMETHODIMP
 nsDocShell::SetUsePrivateBrowsing(bool aUsePrivateBrowsing)
 {
+#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
     nsContentUtils::ReportToConsoleNonLocalized(
         NS_LITERAL_STRING("Only internal code is allowed to set the usePrivateBrowsing attribute"),
         nsIScriptError::warningFlag,
         "Internal API Used",
         mContentViewer ? mContentViewer->GetDocument() : nullptr);
+#endif
 
     return SetPrivateBrowsing(aUsePrivateBrowsing);
 }
@@ -2844,6 +2850,18 @@ nsDocShell::SetDocLoaderParent(nsDocLoader * aParent)
         NS_SUCCEEDED(parentAsLoadContext->GetUsePrivateBrowsing(&value)))
     {
         SetPrivateBrowsing(value);
+#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
+        // Belt and suspenders - we want to catch any instances where the flag
+        // we're propagating doesn't match the global state.
+        nsCOMPtr<nsIPrivateBrowsingService> pbs =
+                do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+        if (pbs) {
+            bool inPrivateBrowsing = false;
+            pbs->GetPrivateBrowsingEnabled(&inPrivateBrowsing);
+            NS_ASSERTION(inPrivateBrowsing == mInPrivateBrowsing,
+                         "Privacy status of parent docshell doesn't match global state!");
+        }
+#endif
     }
     
     nsCOMPtr<nsIURIContentListener> parentURIListener(do_GetInterface(parent));
