@@ -1592,7 +1592,8 @@ RasterImage::AddSourceData(const char *aBuffer, uint32_t aCount)
   // we'll queue up the data and write it out when we do.)
   if (!StoringSourceData() && mHasSize) {
     {
-      rv = WriteToDecoder(aBuffer, aCount, DECODE_SYNC);
+      AutoSetSyncDecode syncDecode(mDecoder);
+      rv = WriteToDecoder(aBuffer, aCount);
       CONTAINER_ENSURE_SUCCESS(rv);
     }
 
@@ -2136,7 +2137,7 @@ RasterImage::ShutdownDecoder(eShutdownIntent aIntent)
 
 // Writes the data to the decoder, updating the total number of bytes written.
 nsresult
-RasterImage::WriteToDecoder(const char *aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
+RasterImage::WriteToDecoder(const char *aBuffer, uint32_t aCount)
 {
   mDecodingMonitor.AssertCurrentThreadIn();
 
@@ -2146,7 +2147,7 @@ RasterImage::WriteToDecoder(const char *aBuffer, uint32_t aCount, DecodeStrategy
   // Write
   nsRefPtr<Decoder> kungFuDeathGrip = mDecoder;
   mInDecoder = true;
-  mDecoder->Write(aBuffer, aCount, aStrategy);
+  mDecoder->Write(aBuffer, aCount);
   mInDecoder = false;
 
   CONTAINER_ENSURE_SUCCESS(mDecoder->GetDecoderError());
@@ -2314,7 +2315,8 @@ RasterImage::RequestDecodeCore(RequestDecodeType aDecodeType)
   // to finish decoding.
   if (!mDecoded && !mInDecoder && mHasSourceData && aDecodeType == SYNCHRONOUS_NOTIFY_AND_SOME_DECODE) {
     PROFILER_LABEL_PRINTF("RasterImage", "DecodeABitOf", "%s", GetURIString().get());
-    DecodePool::Singleton()->DecodeABitOf(this, DECODE_SYNC);
+    AutoSetSyncDecode syncDecode(mDecoder);
+    DecodePool::Singleton()->DecodeABitOf(this);
     return NS_OK;
   }
 
@@ -2396,9 +2398,13 @@ RasterImage::SyncDecode()
     CONTAINER_ENSURE_SUCCESS(rv);
   }
 
-  // Write everything we have
-  rv = DecodeSomeData(mSourceData.Length() - mBytesDecoded, DECODE_SYNC);
-  CONTAINER_ENSURE_SUCCESS(rv);
+  {
+    AutoSetSyncDecode syncDecode(mDecoder);
+
+    // Write everything we have
+    rv = DecodeSomeData(mSourceData.Length() - mBytesDecoded);
+    CONTAINER_ENSURE_SUCCESS(rv);
+  }
 
   // When we're doing a sync decode, we want to get as much information from the
   // image as possible. We've send the decoder all of our data, so now's a good
@@ -2741,7 +2747,7 @@ RasterImage::RequestDiscard()
 
 // Flushes up to aMaxBytes to the decoder.
 nsresult
-RasterImage::DecodeSomeData(uint32_t aMaxBytes, DecodeStrategy aStrategy)
+RasterImage::DecodeSomeData(uint32_t aMaxBytes)
 {
   // We should have a decoder if we get here
   NS_ABORT_IF_FALSE(mDecoder, "trying to decode without decoder!");
@@ -2753,7 +2759,7 @@ RasterImage::DecodeSomeData(uint32_t aMaxBytes, DecodeStrategy aStrategy)
   // passing it a null buffer.
   if (mDecodeRequest->mAllocatedNewFrame) {
     mDecodeRequest->mAllocatedNewFrame = false;
-    nsresult rv = WriteToDecoder(nullptr, 0, aStrategy);
+    nsresult rv = WriteToDecoder(nullptr, 0);
     if (NS_FAILED(rv) || mDecoder->NeedsNewFrame()) {
       return rv;
     }
@@ -2769,8 +2775,7 @@ RasterImage::DecodeSomeData(uint32_t aMaxBytes, DecodeStrategy aStrategy)
   uint32_t bytesToDecode = std::min(aMaxBytes,
                                     mSourceData.Length() - mBytesDecoded);
   nsresult rv = WriteToDecoder(mSourceData.Elements() + mBytesDecoded,
-                               bytesToDecode,
-                               aStrategy);
+                               bytesToDecode);
 
   return rv;
 }
@@ -3191,7 +3196,7 @@ RasterImage::DecodePool::RequestDecode(RasterImage* aImg)
 }
 
 void
-RasterImage::DecodePool::DecodeABitOf(RasterImage* aImg, DecodeStrategy aStrategy)
+RasterImage::DecodePool::DecodeABitOf(RasterImage* aImg)
 {
   MOZ_ASSERT(NS_IsMainThread());
   aImg->mDecodingMonitor.AssertCurrentThreadIn();
@@ -3203,7 +3208,7 @@ RasterImage::DecodePool::DecodeABitOf(RasterImage* aImg, DecodeStrategy aStrateg
     }
   }
 
-  DecodeSomeOfImage(aImg, aStrategy);
+  DecodeSomeOfImage(aImg);
 
   aImg->FinishedSomeDecoding();
 
@@ -3271,7 +3276,7 @@ RasterImage::DecodePool::DecodeJob::Run()
     type = DECODE_TYPE_UNTIL_TIME;
   }
 
-  DecodePool::Singleton()->DecodeSomeOfImage(mImage, DECODE_ASYNC, type, mRequest->mBytesToDecode);
+  DecodePool::Singleton()->DecodeSomeOfImage(mImage, type, mRequest->mBytesToDecode);
 
   uint32_t bytesDecoded = mImage->mBytesDecoded - oldByteCount;
 
@@ -3316,9 +3321,7 @@ RasterImage::DecodePool::DecodeUntilSizeAvailable(RasterImage* aImg)
     }
   }
 
-  // We use DECODE_ASYNC here because we just want to get the size information
-  // here and defer the rest of the work.
-  nsresult rv = DecodeSomeOfImage(aImg, DECODE_ASYNC, DECODE_TYPE_UNTIL_SIZE);
+  nsresult rv = DecodeSomeOfImage(aImg, DECODE_TYPE_UNTIL_SIZE);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -3336,7 +3339,6 @@ RasterImage::DecodePool::DecodeUntilSizeAvailable(RasterImage* aImg)
 
 nsresult
 RasterImage::DecodePool::DecodeSomeOfImage(RasterImage* aImg,
-                                           DecodeStrategy aStrategy,
                                            DecodeType aDecodeType /* = DECODE_TYPE_UNTIL_TIME */,
                                            uint32_t bytesToDecode /* = 0 */)
 {
@@ -3356,7 +3358,7 @@ RasterImage::DecodePool::DecodeSomeOfImage(RasterImage* aImg,
 
   // If we're doing synchronous decodes, and we're waiting on a new frame for
   // this image, get it now.
-  if (aStrategy == DECODE_SYNC && aImg->mDecoder->NeedsNewFrame()) {
+  if (aImg->mDecoder->IsSynchronous() && aImg->mDecoder->NeedsNewFrame()) {
     MOZ_ASSERT(NS_IsMainThread());
 
     aImg->mDecoder->AllocateFrame();
@@ -3405,7 +3407,7 @@ RasterImage::DecodePool::DecodeSomeOfImage(RasterImage* aImg,
          (aImg->mDecodeRequest && aImg->mDecodeRequest->mAllocatedNewFrame)) {
     chunkCount++;
     uint32_t chunkSize = std::min(bytesToDecode, maxBytes);
-    nsresult rv = aImg->DecodeSomeData(chunkSize, aStrategy);
+    nsresult rv = aImg->DecodeSomeData(chunkSize);
     if (NS_FAILED(rv)) {
       aImg->DoError();
       return rv;
