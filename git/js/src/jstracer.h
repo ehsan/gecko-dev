@@ -288,7 +288,6 @@ class TraceRecorder : public avmplus::GCObject {
     nanojit::LIns*          rval_ins;
     nanojit::LIns*          inner_sp_ins;
     bool                    deepAborted;
-    bool                    applyingArguments;
     bool                    trashSelf;
     Queue<nanojit::Fragment*> whichTreesToTrash;
     Queue<jsbytecode*>      cfgMerges;
@@ -371,11 +370,8 @@ class TraceRecorder : public avmplus::GCObject {
     bool test_property_cache(JSObject* obj, nanojit::LIns* obj_ins, JSObject*& obj2,
                              jsuword& pcval);
     bool test_property_cache_direct_slot(JSObject* obj, nanojit::LIns* obj_ins, uint32& slot);
-    void stobj_set_slot(nanojit::LIns* obj_ins, unsigned slot, nanojit::LIns*& dslots_ins,
-                        nanojit::LIns* v_ins);
-    void stobj_set_dslot(nanojit::LIns *obj_ins, unsigned slot, nanojit::LIns*& dslots_ins,
-                         nanojit::LIns* v_ins, const char *name);
-
+    void stobj_set_slot(nanojit::LIns* obj_ins, unsigned slot,
+                        nanojit::LIns*& dslots_ins, nanojit::LIns* v_ins);
     nanojit::LIns* stobj_get_fslot(nanojit::LIns* obj_ins, unsigned slot);
     nanojit::LIns* stobj_get_slot(nanojit::LIns* obj_ins, unsigned slot,
                                   nanojit::LIns*& dslots_ins);
@@ -403,11 +399,9 @@ class TraceRecorder : public avmplus::GCObject {
                               ExitType exitType);
     bool guardElemOp(JSObject* obj, nanojit::LIns* obj_ins, jsid id, size_t op_offset, jsval* vp);
     void clearFrameSlotsFromCache();
-    bool guardShapelessCallee(jsval& callee);
-    bool getClassPrototype(JSObject* ctor, nanojit::LIns*& proto_ins);
-    bool newArray(JSObject* ctor, uint32 argc, jsval* argv, jsval* vp);
+    bool guardCallee(jsval& callee);
     bool interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc, bool constructing);
-    bool functionCall(bool constructing);
+    bool functionCall(bool constructing, uintN argc);
 
     void trackCfgMerges(jsbytecode* pc);
     void flipIf(jsbytecode* pc, bool& cond);
@@ -463,7 +457,8 @@ public:
     bool record_DefLocalFunSetSlot(uint32 slot, JSObject* obj);
     bool record_FastNativeCallComplete();
     bool record_IteratorNextComplete();
-
+    bool record_ApplyComplete(uintN argc);
+    
     nanojit::Fragment* getOuterToBlacklist() { return outerToBlacklist; }
     void deepAbort() { deepAborted = true; }
     bool wasDeepAborted() { return deepAborted; }

@@ -502,10 +502,7 @@ extern void js_InitJITStatsClass(JSContext *cx, JSObject *glob);
             break;
 
         case 'b':
-            if (++i == argc)
-                return usage();
-
-            gBranchLimit = atoi(argv[i]);
+            gBranchLimit = atoi(argv[++i]);
             gEnableBranchCallback = (gBranchLimit != 0);
             break;
 
