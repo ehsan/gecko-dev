@@ -28,6 +28,7 @@ private:
   {
     NS_ABORT_IF_FALSE(mNodeInfo->NodeType() == nsIDOMNode::TEXT_NODE,
                       "Bad NodeType in aNodeInfo");
+    SetIsDOMBinding();
   }
 
 public:

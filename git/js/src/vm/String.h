@@ -273,8 +273,8 @@ class JSString : public js::gc::Cell
      * Returns chars() if the string is already linear or flat. Otherwise
      * returns NULL if a new array of chars must be allocated.
      */
-    inline const jschar *maybeChars() const;
-    inline const jschar *maybeCharsZ() const;
+    inline const jschar *maybeChars();
+    inline const jschar *maybeCharsZ();
 
     /*
      * Fallible operations to get an array of chars non-destructively. These
@@ -431,9 +431,7 @@ class JSString : public js::gc::Cell
     js::gc::AllocKind getAllocKind() const { return tenuredGetAllocKind(); }
 
     static inline void writeBarrierPre(JSString *str);
-    static void writeBarrierPost(JSString *str, void *addr) {}
-    static void writeBarrierPostRelocate(JSString *str, void *addr) {}
-    static void writeBarrierPostRemove(JSString *str, void *addr) {}
+    static inline void writeBarrierPost(JSString *str, void *addr);
     static inline bool needWriteBarrierPre(JS::Zone *zone);
     static inline void readBarrier(JSString *str);
 
@@ -1058,7 +1056,7 @@ JSString::getCharsZ(JSContext *cx)
 }
 
 JS_ALWAYS_INLINE const jschar *
-JSString::maybeChars() const
+JSString::maybeChars()
 {
     if (isLinear())
         return asLinear().chars();
@@ -1066,7 +1064,7 @@ JSString::maybeChars() const
 }
 
 JS_ALWAYS_INLINE const jschar *
-JSString::maybeCharsZ() const
+JSString::maybeCharsZ()
 {
     if (isFlat())
         return asFlat().chars();

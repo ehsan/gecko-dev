@@ -15,6 +15,7 @@ namespace dom {
 HTMLSourceElement::HTMLSourceElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 HTMLSourceElement::~HTMLSourceElement()

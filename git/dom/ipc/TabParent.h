@@ -22,7 +22,6 @@
 #include "nsISecureBrowserUI.h"
 #include "nsITabParent.h"
 #include "nsWeakReference.h"
-#include "Units.h"
 
 struct gfxMatrix;
 struct JSContext;
@@ -153,7 +152,7 @@ public:
     virtual bool RecvGetDPI(float* aValue);
     virtual bool RecvGetDefaultScale(double* aValue);
     virtual bool RecvGetWidgetNativeData(WindowsHandle* aValue);
-    virtual bool RecvZoomToRect(const CSSRect& aRect);
+    virtual bool RecvZoomToRect(const gfxRect& aRect);
     virtual bool RecvUpdateZoomConstraints(const bool& aAllowZoom,
                                            const float& aMinZoom,
                                            const float& aMaxZoom);
@@ -322,7 +321,7 @@ private:
     // means that the touch events are relative to where the frame was at the
     // start of the touch. We need to look for a better solution to this
     // problem see bug 872911.
-    LayoutDeviceIntPoint mChildProcessOffsetAtTouchStart;
+    nsIntPoint mChildProcessOffsetAtTouchStart;
     // When true, we've initiated normal shutdown and notified our
     // managing PContent.
     bool mMarkedDestroying;

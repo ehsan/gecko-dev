@@ -297,6 +297,7 @@ HTMLTableElement::HTMLTableElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mTableInheritedAttributes(TABLE_ATTRS_DIRTY)
 {
+  SetIsDOMBinding();
 }
 
 HTMLTableElement::~HTMLTableElement()

@@ -10,6 +10,8 @@
 #include "ion/IonFrames.h"
 #include "mozilla/Casting.h"
 
+#include "jsscriptinlines.h"
+
 using namespace js;
 using namespace js::ion;
 

@@ -112,7 +112,6 @@ CPP_SOURCES += [
     'Probes.cpp',
     'Profilers.cpp',
     'PropertyKey.cpp',
-    'ProxyObject.cpp',
     'RegExp.cpp',
     'RegExpObject.cpp',
     'RegExpStatics.cpp',

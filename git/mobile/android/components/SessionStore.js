@@ -418,7 +418,6 @@ SessionStore.prototype = {
         this._restoreHistory(data, aBrowser.sessionHistory);
 
       delete aBrowser.__SS_restore;
-      aBrowser.removeAttribute("pending");
     }
 
     this.saveStateDelayed();
@@ -862,12 +861,10 @@ SessionStore.prototype = {
       if (window.BrowserApp.selectedTab == tab) {
         this._restoreHistory(tabData, tab.browser.sessionHistory);
         delete tab.browser.__SS_restore;
-        tab.browser.removeAttribute("pending");
       } else {
         // Make sure the browser has its session data for the delay reload
         tab.browser.__SS_data = tabData;
         tab.browser.__SS_restore = true;
-        tab.browser.setAttribute("pending", "true");
       }
 
       tab.browser.__SS_extdata = tabData.extData;

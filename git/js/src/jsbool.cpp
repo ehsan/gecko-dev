@@ -17,7 +17,6 @@
 #include "jsobj.h"
 
 #include "vm/GlobalObject.h"
-#include "vm/ProxyObject.h"
 #include "vm/StringBuffer.h"
 
 #include "jsboolinlines.h"
@@ -201,7 +200,7 @@ js::ToBooleanSlow(const Value &v)
 bool
 js::BooleanGetPrimitiveValueSlow(HandleObject wrappedBool, JSContext *cx)
 {
-    JS_ASSERT(wrappedBool->is<ProxyObject>());
+    JS_ASSERT(wrappedBool->isProxy());
     JSObject *obj = Wrapper::wrappedObject(wrappedBool);
     JS_ASSERT(obj);
     return obj->as<BooleanObject>().unbox();

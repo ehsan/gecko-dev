@@ -48,6 +48,7 @@ HTMLAudioElement::HTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : HTMLMediaElement(aNodeInfo),
     mTimerActivated(false)
 {
+  SetIsDOMBinding();
 }
 
 HTMLAudioElement::~HTMLAudioElement()

@@ -29,7 +29,9 @@ libs:: libs-xpcshell-tests
 libs-xpcshell-tests:
 	$(foreach dir,$(XPCSHELL_TESTS),$(_INSTALL_TESTS))
 ifndef NO_XPCSHELL_MANIFEST_CHECK #{
-	$(call py_action,xpccheck,$(topsrcdir) $(addprefix $(MOZILLA_DIR)/$(relativesrcdir)/,$(XPCSHELL_TESTS)))
+	$(PYTHON) $(MOZILLA_DIR)/build/xpccheck.py \
+	  $(topsrcdir) \
+	  $(addprefix $(MOZILLA_DIR)/$(relativesrcdir)/,$(XPCSHELL_TESTS))
 endif #} NO_XPCSHELL_MANIFEST_CHECK 
 
 ###########################################################################

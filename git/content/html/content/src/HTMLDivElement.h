@@ -19,6 +19,7 @@ public:
   HTMLDivElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLDivElement();
 

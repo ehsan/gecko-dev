@@ -10,8 +10,8 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLElement MOZ_FINAL : public nsGenericHTMLElement,
-                              public nsIDOMHTMLElement
+class HTMLElement : public nsGenericHTMLElement,
+                    public nsIDOMHTMLElement
 {
 public:
   HTMLElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -45,6 +45,7 @@ protected:
 HTMLElement::HTMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 HTMLElement::~HTMLElement()

@@ -23,8 +23,8 @@ namespace dom {
 class Element;
 class HTMLTemplateElement;
 
-class DocumentFragment MOZ_FINAL : public FragmentOrElement,
-                                   public nsIDOMDocumentFragment
+class DocumentFragment : public FragmentOrElement,
+                         public nsIDOMDocumentFragment
 {
 private:
   void Init()
@@ -34,6 +34,8 @@ private:
                       mNodeInfo->Equals(nsGkAtoms::documentFragmentNodeName,
                                         kNameSpaceID_None),
                       "Bad NodeType in aNodeInfo");
+
+    SetIsDOMBinding();
   }
 
 public:

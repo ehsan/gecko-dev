@@ -12,8 +12,7 @@ module.metadata = {
 function getTestNames (exports)
   Object.keys(exports).filter(name => /^test/.test(name))
 
-function isTestAsync (fn) fn.length > 1
-function isHelperAsync (fn) fn.length > 2
+function isAsync (fn) fn.length > 1
 
 /*
  * Takes an `exports` object of a test file and a function `beforeFn`
@@ -25,31 +24,31 @@ function isHelperAsync (fn) fn.length > 2
 function before (exports, beforeFn) {
   getTestNames(exports).map(name => {
     let testFn = exports[name];
-    if (!isTestAsync(testFn) && !isHelperAsync(beforeFn)) {
+    if (!isAsync(testFn) && !isAsync(beforeFn)) {
       exports[name] = function (assert) {
-        beforeFn(name, assert);
+        beforeFn(name);
         testFn(assert);
       };
     }
-    else if (isTestAsync(testFn) && !isHelperAsync(beforeFn)) {
+    else if (isAsync(testFn) && !isAsync(beforeFn)) {
       exports[name] = function (assert, done) {
-        beforeFn(name, assert);
+        beforeFn(name);
         testFn(assert, done);
-      };
+      }
     }
-    else if (!isTestAsync(testFn) && isHelperAsync(beforeFn)) {
+    else if (!isAsync(testFn) && isAsync(beforeFn)) {
       exports[name] = function (assert, done) {
-        beforeFn(name, assert, () => {
+        beforeFn(name, () => {
           testFn(assert);
           done();
         });
-      };
-    } else if (isTestAsync(testFn) && isHelperAsync(beforeFn)) {
+      }
+    } else if (isAsync(testFn) && isAsync(beforeFn)) {
       exports[name] = function (assert, done) {
-        beforeFn(name, assert, () => {
+        beforeFn(name, () => {
           testFn(assert, done);
         });
-      };
+      }
     }
   });
 }
@@ -65,31 +64,31 @@ exports.before = before;
 function after (exports, afterFn) {
   getTestNames(exports).map(name => {
     let testFn = exports[name];
-    if (!isTestAsync(testFn) && !isHelperAsync(afterFn)) {
+    if (!isAsync(testFn) && !isAsync(afterFn)) {
       exports[name] = function (assert) {
         testFn(assert);
-        afterFn(name, assert);
+        afterFn(name);
       };
     }
-    else if (isTestAsync(testFn) && !isHelperAsync(afterFn)) {
+    else if (isAsync(testFn) && !isAsync(afterFn)) {
       exports[name] = function (assert, done) {
         testFn(assert, () => {
-          afterFn(name, assert);
+          afterFn(name);
           done();
         });
-      };
+      }
     }
-    else if (!isTestAsync(testFn) && isHelperAsync(afterFn)) {
+    else if (!isAsync(testFn) && isAsync(afterFn)) {
       exports[name] = function (assert, done) {
         testFn(assert);
-        afterFn(name, assert, done);
-      };
-    } else if (isTestAsync(testFn) && isHelperAsync(afterFn)) {
+        afterFn(name, done);
+      }
+    } else if (isAsync(testFn) && isAsync(afterFn)) {
       exports[name] = function (assert, done) {
         testFn(assert, () => {
-          afterFn(name, assert, done);
+          afterFn(name, done);
         });
-      };
+      }
     }
   });
 }

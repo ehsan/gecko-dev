@@ -1806,7 +1806,7 @@ CodeGeneratorARM::visitAsmJSPassStackArg(LAsmJSPassStackArg *ins)
 
 
 bool
-CodeGeneratorARM::visitUDivOrMod(LUDivOrMod *ins)
+CodeGeneratorARM::visitAsmJSDivOrMod(LAsmJSDivOrMod *ins)
 {
     //Register remainder = ToRegister(ins->remainder());
     Register lhs = ToRegister(ins->lhs());

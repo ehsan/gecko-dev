@@ -8,7 +8,7 @@
 #include "nsIClassInfo.h"
 #include "nsISupportsImpl.h"
 
-#include <new>
+#include NEW_H
 
 /**
  * This header file provides macros which help you make your class implement

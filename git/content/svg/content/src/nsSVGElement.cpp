@@ -83,6 +83,7 @@ nsSVGEnumMapping nsSVGElement::sSVGUnitTypesMap[] = {
 nsSVGElement::nsSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGElementBase(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 JSObject*

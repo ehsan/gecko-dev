@@ -13,9 +13,8 @@
 namespace mozilla {
 namespace dom {
 
-class XMLStylesheetProcessingInstruction MOZ_FINAL
-: public ProcessingInstruction
-, public nsStyleLinkElement
+class XMLStylesheetProcessingInstruction : public ProcessingInstruction,
+                                           public nsStyleLinkElement
 {
 public:
   XMLStylesheetProcessingInstruction(already_AddRefed<nsINodeInfo> aNodeInfo,

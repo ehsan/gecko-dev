@@ -15,7 +15,7 @@
 #include "xpcpublic.h"
 #include "nsStringGlue.h"
 
-#define DOM_PROXY_OBJECT_SLOT js::PROXY_PRIVATE_SLOT
+#define DOM_PROXY_OBJECT_SLOT js::JSSLOT_PROXY_PRIVATE
 
 namespace mozilla {
 namespace dom {

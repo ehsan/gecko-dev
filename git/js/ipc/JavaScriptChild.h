@@ -27,21 +27,6 @@ class JavaScriptChild
 
     bool RecvDropObject(const ObjectId &objId);
 
-    bool AnswerPreventExtensions(const ObjectId &objId, ReturnStatus *rs);
-    bool AnswerGetPropertyDescriptor(const ObjectId &objId, const nsString &id,
-                                     const uint32_t &flags, ReturnStatus *rs,
-                                     PPropertyDescriptor *out);
-    bool AnswerGetOwnPropertyDescriptor(const ObjectId &objId,
-                                        const nsString &id,
-                                        const uint32_t &flags,
-                                        ReturnStatus *rs,
-                                        PPropertyDescriptor *out);
-    bool AnswerDefineProperty(const ObjectId &objId, const nsString &id,
-                              const PPropertyDescriptor &flags,
-                              ReturnStatus *rs);
-    bool AnswerDelete(const ObjectId &objId, const nsString &id,
-                      ReturnStatus *rs, bool *success);
-
     bool AnswerHas(const ObjectId &objId, const nsString &id,
                        ReturnStatus *rs, bool *bp);
     bool AnswerHasOwn(const ObjectId &objId, const nsString &id,
@@ -50,22 +35,52 @@ class JavaScriptChild
                        const nsString &id,
                        ReturnStatus *rs, JSVariant *result);
     bool AnswerSet(const ObjectId &objId, const ObjectId &receiverId,
-                   const nsString &id, const bool &strict,
-                   const JSVariant &value, ReturnStatus *rs, JSVariant *result);
+                       const nsString &id, const bool &strict,
+                       const JSVariant &value,
+                       ReturnStatus *rs, JSVariant *result);
+    bool AnswerCall(const ObjectId &objId,
+                        const nsTArray<JSParam> &argv,
+                        ReturnStatus *rs,
+                        JSVariant *result,
+                        nsTArray<JSParam> *outparams);
 
-    bool AnswerIsExtensible(const ObjectId &objId, ReturnStatus *rs,
-                            bool *result);
-    bool AnswerCall(const ObjectId &objId, const nsTArray<JSParam> &argv,
-                    ReturnStatus *rs, JSVariant *result,
-                    nsTArray<JSParam> *outparams);
-    bool AnswerObjectClassIs(const ObjectId &objId, const uint32_t &classValue,
+    bool AnswerInstanceOf(const ObjectId &objId,
+                          const JSIID &iid,
+                          ReturnStatus *rs,
+                          bool *instanceof);
+    bool AnswerGetPropertyDescriptor(const ObjectId &objId,
+                                     const nsString &id,
+                                     const uint32_t &flags,
+                                     ReturnStatus *rs,
+                                     PPropertyDescriptor *out);
+    bool AnswerGetOwnPropertyDescriptor(const ObjectId &objId,
+                                        const nsString &id,
+                                        const uint32_t &flags,
+                                        ReturnStatus *rs,
+                                        PPropertyDescriptor *out);
+    bool AnswerDefineProperty(const ObjectId &objId,
+                              const nsString &id,
+                              const PPropertyDescriptor &flags,
+                              ReturnStatus *rs);
+    bool AnswerGetPropertyNames(const ObjectId &objId,
+                                const uint32_t &flags,
+                                ReturnStatus *rs,
+                                nsTArray<nsString> *names);
+    bool AnswerKeys(const ObjectId &objId,
+                    ReturnStatus *rs,
+                    nsTArray<nsString> *names);
+    bool AnswerObjectClassIs(const ObjectId &objId,
+                             const uint32_t &classValue,
                              bool *result);
-    bool AnswerClassName(const ObjectId &objId, nsString *result);
-
-    bool AnswerGetPropertyNames(const ObjectId &objId, const uint32_t &flags,
-                                ReturnStatus *rs, nsTArray<nsString> *names);
-    bool AnswerInstanceOf(const ObjectId &objId, const JSIID &iid,
-                          ReturnStatus *rs, bool *instanceof);
+    bool AnswerClassName(const ObjectId &objId,
+                             nsString *result);
+    bool AnswerIsExtensible(const ObjectId &objId,
+                            ReturnStatus *rs,
+                            bool *result);
+    bool AnswerPreventExtensions(const ObjectId &objId,
+                                 ReturnStatus *rs);
+    bool AnswerDelete(const ObjectId &objId, const nsString &id,
+                      ReturnStatus *rs, bool *success);
 
   protected:
     JSObject *unwrap(JSContext *cx, ObjectId id);

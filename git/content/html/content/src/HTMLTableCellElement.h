@@ -16,13 +16,14 @@ namespace dom {
 
 class HTMLTableElement;
 
-class HTMLTableCellElement MOZ_FINAL : public nsGenericHTMLElement,
-                                       public nsIDOMHTMLTableCellElement
+class HTMLTableCellElement : public nsGenericHTMLElement,
+                             public nsIDOMHTMLTableCellElement
 {
 public:
   HTMLTableCellElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLTableCellElement();
 

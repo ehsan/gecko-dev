@@ -14,13 +14,14 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLLIElement MOZ_FINAL : public nsGenericHTMLElement,
-                                public nsIDOMHTMLLIElement
+class HTMLLIElement : public nsGenericHTMLElement,
+                      public nsIDOMHTMLLIElement
 {
 public:
   HTMLLIElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLLIElement();
 

@@ -837,7 +837,7 @@ GrallocDeprecatedTextureHostOGL::SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceA
 LayerRenderState
 GrallocDeprecatedTextureHostOGL::GetRenderState()
 {
-  if (mGraphicBuffer.get()) {
+  if (mBuffer && IsSurfaceDescriptorValid(*mBuffer)) {
 
     uint32_t flags = mFlags & NeedsYFlip ? LAYER_RENDER_STATE_Y_FLIPPED : 0;
 
@@ -854,10 +854,8 @@ GrallocDeprecatedTextureHostOGL::GetRenderState()
       flags |= LAYER_RENDER_STATE_FORMAT_RB_SWAP;
     }
 
-    nsIntSize bufferSize(mGraphicBuffer->getWidth(), mGraphicBuffer->getHeight());
-
     return LayerRenderState(mGraphicBuffer.get(),
-                            bufferSize,
+                            mBuffer->get_SurfaceDescriptorGralloc().size(),
                             flags);
   }
 

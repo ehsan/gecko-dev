@@ -15,6 +15,7 @@
 #include "vm/StringBuffer.h"
 
 #include "jsobjinlines.h"
+#include "jsstrinlines.h"
 
 using namespace js;
 using namespace js::types;
@@ -365,7 +366,7 @@ DefineAccessor(JSContext *cx, unsigned argc, Value *vp)
     if (!ValueToId<CanGC>(cx, args.handleAt(0), &id))
         return false;
 
-    RootedObject descObj(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
+    RootedObject descObj(cx, NewBuiltinClassInstance(cx, &ObjectClass));
     if (!descObj)
         return false;
 
@@ -420,7 +421,7 @@ obj_lookupGetter(JSContext *cx, unsigned argc, Value *vp)
     RootedObject obj(cx, ToObject(cx, args.thisv()));
     if (!obj)
         return JS_FALSE;
-    if (obj->is<ProxyObject>()) {
+    if (obj->isProxy()) {
         // The vanilla getter lookup code below requires that the object is
         // native. Handle proxies separately.
         args.rval().setUndefined();
@@ -456,7 +457,7 @@ obj_lookupSetter(JSContext *cx, unsigned argc, Value *vp)
     RootedObject obj(cx, ToObject(cx, args.thisv()));
     if (!obj)
         return JS_FALSE;
-    if (obj->is<ProxyObject>()) {
+    if (obj->isProxy()) {
         // The vanilla setter lookup code below requires that the object is
         // native. Handle proxies separately.
         args.rval().setUndefined();
@@ -612,7 +613,7 @@ obj_hasOwnProperty(JSContext *cx, unsigned argc, Value *vp)
     if (args.thisv().isObject() && ValueToId<NoGC>(cx, idValue, &id)) {
         JSObject *obj = &args.thisv().toObject(), *obj2;
         Shape *prop;
-        if (!obj->is<ProxyObject>() &&
+        if (!obj->isProxy() &&
             HasOwnProperty<NoGC>(cx, obj->getOps()->lookupGeneric, obj, id, &obj2, &prop))
         {
             args.rval().setBoolean(!!prop);
@@ -633,7 +634,7 @@ obj_hasOwnProperty(JSContext *cx, unsigned argc, Value *vp)
     /* Non-standard code for proxies. */
     RootedObject obj2(cx);
     RootedShape prop(cx);
-    if (obj->is<ProxyObject>()) {
+    if (obj->isProxy()) {
         bool has;
         if (!Proxy::hasOwn(cx, obj, idRoot, &has))
             return false;
@@ -702,7 +703,7 @@ obj_create(JSContext *cx, unsigned argc, Value *vp)
      * Use the callee's global as the parent of the new object to avoid dynamic
      * scoping (i.e., using the caller's global).
      */
-    RootedObject obj(cx, NewObjectWithGivenProto(cx, &JSObject::class_, proto, &args.callee().global()));
+    RootedObject obj(cx, NewObjectWithGivenProto(cx, &ObjectClass, proto, &args.callee().global()));
     if (!obj)
         return false;
 

@@ -66,8 +66,7 @@ var listener = {
 function setupChannel(url) {
   var ios = Components.classes["@mozilla.org/network/io-service;1"].
                        getService(Ci.nsIIOService);
-  var chan = ios.newChannel("http://localhost:" +
-                           httpserver.identity.primaryPort + url, "", null);
+  var chan = ios.newChannel("http://localhost:4444" + url, "", null);
   var httpChan = chan.QueryInterface(Components.interfaces.nsIHttpChannel);
   return httpChan;
 }
@@ -107,7 +106,7 @@ function handler(metadata, response) {
 function run_test() {
   // We use a custom handler so we can change the header to force sniffing.
   httpserver.registerPathHandler("/", handler);
-  httpserver.start(-1);
+  httpserver.start(4444);
   do_test_pending();
   try {
     runNext();

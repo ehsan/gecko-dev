@@ -3066,10 +3066,10 @@ static void GetFixedOrDynamicSlotOffset(HandleObject obj, uint32_t slot,
 static bool
 IsCacheableDOMProxy(JSObject *obj)
 {
-    if (!obj->is<ProxyObject>())
+    if (!obj->isProxy())
         return false;
 
-    BaseProxyHandler *handler = obj->as<ProxyObject>().handler();
+    BaseProxyHandler *handler = GetProxyHandler(obj);
 
     if (handler->family() != GetDOMProxyHandlerFamily())
         return false;
@@ -3101,7 +3101,7 @@ GenerateDOMProxyChecks(JSContext *cx, MacroAssembler &masm, Register object,
     //      1. The object is a DOMProxy.
     //      2. The object does not have expando properties, or has an expando
     //          which is known to not have the desired property.
-    Address handlerAddr(object, ProxyObject::offsetOfHandler());
+    Address handlerAddr(object, JSObject::getFixedSlotOffset(JSSLOT_PROXY_HANDLER));
     Address expandoAddr(object, JSObject::getFixedSlotOffset(GetDOMProxyExpandoSlot()));
 
     // Check that object is a DOMProxy.
@@ -5330,9 +5330,8 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
             } else {
                 kind = ICStub::GetProp_CallDOMProxyNative;
             }
-            Rooted<ProxyObject*> proxy(cx, &obj->as<ProxyObject>());
-            ICGetPropCallDOMProxyNativeCompiler
-                compiler(cx, kind, monitorStub, proxy, holder, callee, pc - script->code);
+            ICGetPropCallDOMProxyNativeCompiler compiler(cx, kind, monitorStub, obj, holder, callee,
+                                                            pc - script->code);
             newStub = compiler.getStub(compiler.getStubSpace(script));
         } else {
             ICGetProp_CallNative::Compiler compiler(cx, monitorStub, obj, holder, callee,
@@ -5351,8 +5350,7 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
         JS_ASSERT(obj == holder);
 
         IonSpew(IonSpew_BaselineIC, "  Generating GetProp(DOMProxyProxy) stub");
-        Rooted<ProxyObject*> proxy(cx, &obj->as<ProxyObject>());
-        ICGetProp_DOMProxyShadowed::Compiler compiler(cx, monitorStub, proxy, name,
+        ICGetProp_DOMProxyShadowed::Compiler compiler(cx, monitorStub, obj, name,
                                                       pc - script->code);
         ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
         if (!newStub)
@@ -5958,10 +5956,10 @@ ICGetPropCallDOMProxyNativeCompiler::generateStubCode(MacroAssembler &masm)
 ICStub *
 ICGetPropCallDOMProxyNativeCompiler::getStub(ICStubSpace *space)
 {
-    RootedShape shape(cx, proxy_->lastProperty());
+    RootedShape shape(cx, obj_->lastProperty());
     RootedShape holderShape(cx, holder_->lastProperty());
 
-    Value expandoSlot = proxy_->getFixedSlot(GetDOMProxyExpandoSlot());
+    Value expandoSlot = obj_->getFixedSlot(GetDOMProxyExpandoSlot());
     RootedShape expandoShape(cx, NULL);
     ExpandoAndGeneration *expandoAndGeneration;
     int32_t generation;
@@ -5981,12 +5979,12 @@ ICGetPropCallDOMProxyNativeCompiler::getStub(ICStubSpace *space)
 
     if (kind == ICStub::GetProp_CallDOMProxyNative) {
         return ICGetProp_CallDOMProxyNative::New(
-            space, getStubCode(), firstMonitorStub_, shape, proxy_->handler(),
+            space, getStubCode(), firstMonitorStub_, shape, GetProxyHandler(obj_),
             expandoShape, holder_, holderShape, getter_, pcOffset_);
     }
 
     return ICGetProp_CallDOMProxyWithGenerationNative::New(
-        space, getStubCode(), firstMonitorStub_, shape, proxy_->handler(),
+        space, getStubCode(), firstMonitorStub_, shape, GetProxyHandler(obj_),
         expandoAndGeneration, generation, expandoShape, holder_, holderShape, getter_,
         pcOffset_);
 }
@@ -5994,9 +5992,9 @@ ICGetPropCallDOMProxyNativeCompiler::getStub(ICStubSpace *space)
 ICStub *
 ICGetProp_DOMProxyShadowed::Compiler::getStub(ICStubSpace *space)
 {
-    RootedShape shape(cx, proxy_->lastProperty());
-    return ICGetProp_DOMProxyShadowed::New(space, getStubCode(), firstMonitorStub_, shape,
-                                           proxy_->handler(), name_, pcOffset_);
+    RootedShape shape(cx, obj_->lastProperty());
+    return ICGetProp_DOMProxyShadowed::New(space, getStubCode(), firstMonitorStub_,
+                                           shape, GetProxyHandler(obj_), name_, pcOffset_);
 }
 
 static bool
@@ -6289,7 +6287,7 @@ DoSetPropFallback(JSContext *cx, BaselineFrame *frame, ICSetProp_Fallback *stub,
     uint32_t oldSlots = obj->numDynamicSlots();
 
     if (op == JSOP_INITPROP && name != cx->names().proto) {
-        JS_ASSERT(obj->is<JSObject>());
+        JS_ASSERT(obj->isObject());
         if (!DefineNativeProperty(cx, obj, id, rhs, NULL, NULL, JSPROP_ENUMERATE, 0, 0, 0))
             return false;
     } else if (op == JSOP_SETNAME || op == JSOP_SETGNAME) {
@@ -8559,20 +8557,21 @@ ICGetPropCallDOMProxyNativeStub::ICGetPropCallDOMProxyNativeStub(Kind kind, IonC
 ICGetPropCallDOMProxyNativeCompiler::ICGetPropCallDOMProxyNativeCompiler(JSContext *cx,
                                                                          ICStub::Kind kind,
                                                                          ICStub *firstMonitorStub,
-                                                                         Handle<ProxyObject*> proxy,
+                                                                         HandleObject obj,
                                                                          HandleObject holder,
                                                                          HandleFunction getter,
                                                                          uint32_t pcOffset)
   : ICStubCompiler(cx, kind),
     firstMonitorStub_(firstMonitorStub),
-    proxy_(cx, proxy),
+    obj_(cx, obj),
     holder_(cx, holder),
     getter_(cx, getter),
     pcOffset_(pcOffset)
 {
     JS_ASSERT(kind == ICStub::GetProp_CallDOMProxyNative ||
               kind == ICStub::GetProp_CallDOMProxyWithGenerationNative);
-    JS_ASSERT(proxy_->handler()->family() == GetDOMProxyHandlerFamily());
+    JS_ASSERT(obj_->isProxy());
+    JS_ASSERT(GetProxyHandler(obj_)->family() == GetDOMProxyHandlerFamily());
 }
 
 ICGetProp_DOMProxyShadowed::ICGetProp_DOMProxyShadowed(IonCode *stubCode,

@@ -96,7 +96,6 @@
 #include "GeckoProfiler.h"
 
 #include "nsIDOMClientRect.h"
-#include "Units.h"
 
 #ifdef XP_MACOSX
 #import <ApplicationServices/ApplicationServices.h>
@@ -1525,7 +1524,7 @@ nsEventStateManager::IsRemoteTarget(nsIContent* target) {
   return false;
 }
 
-/*static*/ LayoutDeviceIntPoint
+/*static*/ nsIntPoint
 nsEventStateManager::GetChildProcessOffset(nsFrameLoader* aFrameLoader,
                                            const nsEvent& aEvent)
 {
@@ -1533,23 +1532,22 @@ nsEventStateManager::GetChildProcessOffset(nsFrameLoader* aFrameLoader,
   // 0,0.  Map the event coordinates to match that.
   nsIFrame* targetFrame = aFrameLoader->GetPrimaryFrameOfOwningContent();
   if (!targetFrame) {
-    return LayoutDeviceIntPoint();
+    return nsIntPoint();
   }
   nsPresContext* presContext = targetFrame->PresContext();
 
   // Find out how far we're offset from the nearest widget.
   nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(&aEvent,
                                                             targetFrame);
-  return LayoutDeviceIntPoint::FromAppUnitsToNearest(pt, presContext->AppUnitsPerDevPixel());
+  return pt.ToNearestPixels(presContext->AppUnitsPerDevPixel());
 }
 
 /*static*/ void
 nsEventStateManager::MapEventCoordinatesForChildProcess(
-  const LayoutDeviceIntPoint& aOffset, nsEvent* aEvent)
+  const nsIntPoint& aOffset, nsEvent* aEvent)
 {
-  nsIntPoint aOffsetIntPoint(aOffset.x, aOffset.y);
   if (aEvent->eventStructType != NS_TOUCH_EVENT) {
-    aEvent->refPoint = aOffsetIntPoint;
+    aEvent->refPoint = aOffset;
   } else {
     aEvent->refPoint = nsIntPoint();
     nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
@@ -1559,7 +1557,7 @@ nsEventStateManager::MapEventCoordinatesForChildProcess(
     for (uint32_t i = 0; i < touches.Length(); ++i) {
       nsIDOMTouch* touch = touches[i];
       if (touch) {
-        touch->mRefPoint += aOffsetIntPoint;
+        touch->mRefPoint += aOffset;
       }
     }
   }
@@ -1569,7 +1567,7 @@ nsEventStateManager::MapEventCoordinatesForChildProcess(
 nsEventStateManager::MapEventCoordinatesForChildProcess(nsFrameLoader* aFrameLoader,
                                                         nsEvent* aEvent)
 {
-  LayoutDeviceIntPoint offset = GetChildProcessOffset(aFrameLoader, *aEvent);
+  nsIntPoint offset = GetChildProcessOffset(aFrameLoader, *aEvent);
   MapEventCoordinatesForChildProcess(offset, aEvent);
 }
 

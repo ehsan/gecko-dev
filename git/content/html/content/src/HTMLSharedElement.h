@@ -22,18 +22,19 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLSharedElement MOZ_FINAL : public nsGenericHTMLElement,
-                                    public nsIDOMHTMLParamElement,
-                                    public nsIDOMHTMLBaseElement,
-                                    public nsIDOMHTMLDirectoryElement,
-                                    public nsIDOMHTMLQuoteElement,
-                                    public nsIDOMHTMLHeadElement,
-                                    public nsIDOMHTMLHtmlElement
+class HTMLSharedElement : public nsGenericHTMLElement,
+                          public nsIDOMHTMLParamElement,
+                          public nsIDOMHTMLBaseElement,
+                          public nsIDOMHTMLDirectoryElement,
+                          public nsIDOMHTMLQuoteElement,
+                          public nsIDOMHTMLHeadElement,
+                          public nsIDOMHTMLHtmlElement
 {
 public:
   HTMLSharedElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLSharedElement();
 

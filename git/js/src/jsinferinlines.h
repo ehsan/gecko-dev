@@ -461,7 +461,7 @@ GetClassForProtoKey(JSProtoKey key)
 {
     switch (key) {
       case JSProto_Object:
-        return &JSObject::class_;
+        return &ObjectClass;
       case JSProto_Array:
         return &ArrayObject::class_;
 

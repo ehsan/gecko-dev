@@ -6,6 +6,8 @@
 
 #include "ion/MoveResolver.h"
 
+#include "jsscriptinlines.h"
+
 using namespace js;
 using namespace js::ion;
 

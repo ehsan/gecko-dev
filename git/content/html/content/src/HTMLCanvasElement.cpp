@@ -144,6 +144,7 @@ HTMLCanvasElement::HTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mWriteOnly(false)
 {
+  SetIsDOMBinding();
 }
 
 HTMLCanvasElement::~HTMLCanvasElement()

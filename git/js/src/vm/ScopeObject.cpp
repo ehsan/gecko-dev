@@ -10,7 +10,6 @@
 #include "jsiter.h"
 
 #include "vm/GlobalObject.h"
-#include "vm/ProxyObject.h"
 #include "vm/ScopeObject.h"
 #include "vm/Shape.h"
 #include "vm/Xdr.h"
@@ -1549,38 +1548,36 @@ DebugScopeObject::create(JSContext *cx, ScopeObject &scope, HandleObject enclosi
         return NULL;
 
     JS_ASSERT(!enclosing->is<ScopeObject>());
+    SetProxyExtra(obj, ENCLOSING_EXTRA, ObjectValue(*enclosing));
+    SetProxyExtra(obj, SNAPSHOT_EXTRA, NullValue());
 
-    DebugScopeObject *debugScope = &obj->as<DebugScopeObject>();
-    debugScope->setExtra(ENCLOSING_EXTRA, ObjectValue(*enclosing));
-    debugScope->setExtra(SNAPSHOT_EXTRA, NullValue());
-
-    return debugScope;
+    return &obj->as<DebugScopeObject>();
 }
 
 ScopeObject &
 DebugScopeObject::scope() const
 {
-    return target()->as<ScopeObject>();
+    return GetProxyTargetObject(const_cast<DebugScopeObject*>(this))->as<ScopeObject>();
 }
 
 JSObject &
 DebugScopeObject::enclosingScope() const
 {
-    return extra(ENCLOSING_EXTRA).toObject();
+    return GetProxyExtra(const_cast<DebugScopeObject*>(this), ENCLOSING_EXTRA).toObject();
 }
 
 JSObject *
 DebugScopeObject::maybeSnapshot() const
 {
     JS_ASSERT(!scope().as<CallObject>().isForEval());
-    return extra(SNAPSHOT_EXTRA).toObjectOrNull();
+    return GetProxyExtra(const_cast<DebugScopeObject*>(this), SNAPSHOT_EXTRA).toObjectOrNull();
 }
 
 void
 DebugScopeObject::initSnapshot(JSObject &o)
 {
     JS_ASSERT(maybeSnapshot() == NULL);
-    setExtra(SNAPSHOT_EXTRA, ObjectValue(o));
+    SetProxyExtra(this, SNAPSHOT_EXTRA, ObjectValue(o));
 }
 
 bool
@@ -1591,10 +1588,10 @@ DebugScopeObject::isForDeclarative() const
 }
 
 bool
-js_IsDebugScopeSlow(ObjectProxyObject *proxy)
+js_IsDebugScopeSlow(JSObject *obj)
 {
-    JS_ASSERT(proxy->hasClass(&ObjectProxyObject::class_));
-    return proxy->handler() == &DebugScopeProxy::singleton;
+    return obj->getClass() == &ObjectProxyClass &&
+           GetProxyHandler(obj) == &DebugScopeProxy::singleton;
 }
 
 /*****************************************************************************/

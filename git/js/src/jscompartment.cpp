@@ -312,8 +312,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
     if (existing) {
         /* Is it possible to reuse |existing|? */
         if (!existing->getTaggedProto().isLazy() ||
-            // Note: don't use is<ObjectProxyObject>() here -- it also matches subclasses!
-            existing->getClass() != &ObjectProxyObject::class_ ||
+            existing->getClass() != &ObjectProxyClass ||
             existing->getParent() != global ||
             obj->isCallable())
         {
@@ -456,15 +455,15 @@ JSCompartment::markCrossCompartmentWrappers(JSTracer *trc)
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         Value v = e.front().value;
         if (e.front().key.kind == CrossCompartmentKey::ObjectWrapper) {
-            ProxyObject *wrapper = &v.toObject().as<ProxyObject>();
+            JSObject *wrapper = &v.toObject();
 
             /*
              * We have a cross-compartment wrapper. Its private pointer may
              * point into the compartment being collected, so we should mark it.
              */
-            Value referent = wrapper->private_();
+            Value referent = GetProxyPrivate(wrapper);
             MarkValueRoot(trc, &referent, "cross-compartment wrapper");
-            JS_ASSERT(referent == wrapper->private_());
+            JS_ASSERT(referent == GetProxyPrivate(wrapper));
         }
     }
 }

@@ -39,6 +39,7 @@ HTMLScriptElement::HTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
   : nsGenericHTMLElement(aNodeInfo)
   , nsScriptElement(aFromParser)
 {
+  SetIsDOMBinding();
   AddMutationObserver(this);
 }
 

@@ -1510,7 +1510,7 @@ public:
    */
   TextFrameIterator(nsSVGTextFrame2* aRoot, nsIContent* aSubtree)
     : mRootFrame(aRoot),
-      mSubtree(aRoot && aSubtree && aSubtree != aRoot->GetContent() ?
+      mSubtree(aSubtree && aSubtree != aRoot->GetContent() ?
                  aSubtree->GetPrimaryFrame() :
                  nullptr),
       mCurrentFrame(aRoot),
@@ -1605,10 +1605,6 @@ private:
    */
   void Init()
   {
-    if (!mRootFrame) {
-      return;
-    }
-
     mBaselines.AppendElement(mRootFrame->StyleSVGReset()->mDominantBaseline);
     Next();
   }
@@ -3023,7 +3019,8 @@ nsSVGTextFrame2::Init(nsIContent* aContent,
   NS_ASSERTION(aContent->IsSVG(nsGkAtoms::text), "Content is not an SVG text");
 
   nsSVGTextFrame2Base::Init(aContent, aParent, aPrevInFlow);
-  AddStateBits((aParent->GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) |
+  AddStateBits((aParent->GetStateBits() &
+                (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD)) |
                NS_FRAME_SVG_LAYOUT | NS_FRAME_IS_SVG_TEXT);
 
   mMutationObserver.StartObserving(this);
@@ -3082,7 +3079,7 @@ nsSVGTextFrame2::GetType() const
 void
 nsSVGTextFrame2::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  if (mState & NS_FRAME_IS_NONDISPLAY) {
+  if (mState & NS_STATE_SVG_NONDISPLAY_CHILD) {
     // We need this DidSetStyleContext override to handle cases like this:
     //
     //   <defs>
@@ -3113,9 +3110,9 @@ nsSVGTextFrame2::ReflowSVGNonDisplayText()
   MOZ_ASSERT(nsSVGUtils::AnyOuterSVGIsCallingReflowSVG(this),
              "only call ReflowSVGNonDisplayText when an outer SVG frame is "
              "under ReflowSVG");
-  MOZ_ASSERT(mState & NS_FRAME_IS_NONDISPLAY,
+  MOZ_ASSERT(mState & NS_STATE_SVG_NONDISPLAY_CHILD,
              "only call ReflowSVGNonDisplayText if the frame is "
-             "NS_FRAME_IS_NONDISPLAY");
+             "NS_STATE_SVG_NONDISPLAY_CHILD");
 
   // We had a style change, so we mark this frame as dirty so that the next
   // time it is painted, we reflow the anonymous block frame.
@@ -3141,37 +3138,36 @@ nsSVGTextFrame2::ScheduleReflowSVGNonDisplayText()
              "do not call ScheduleReflowSVGNonDisplayText when the outer SVG "
              "frame is under ReflowSVG");
 
-  // We need to find an ancestor frame that we can call FrameNeedsReflow
-  // on that will cause the document to be marked as needing relayout,
-  // and for that ancestor (or some further ancestor) to be marked as
-  // a root to reflow.  We choose the closest ancestor frame that is not
-  // NS_FRAME_IS_NONDISPLAY and which is either an outer SVG frame or a
-  // non-SVG frame.  (We don't consider displayed SVG frame ancestors toerh
-  // than nsSVGOuterSVGFrame, since calling FrameNeedsReflow on those other
-  // SVG frames would do a bunch of unnecessary work on the SVG frames up to
-  // the nsSVGOuterSVGFrame.)
+  nsSVGOuterSVGFrame* outerSVGFrame = nullptr;
 
-  nsIFrame* f = this;
+  nsIFrame* f = GetParent();
   while (f) {
-    if (!(f->GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+    if (f->GetStateBits() & NS_STATE_IS_OUTER_SVG) {
+      outerSVGFrame = static_cast<nsSVGOuterSVGFrame*>(f);
+      break;
+    }
+    if (!(f->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
+      // We don't need to set NS_FRAME_HAS_DIRTY_CHILDREN on non-display
+      // children in the path from the dirty nsSVGTextFrame2 up to the
+      // first display container frame, since ReflowSVGNonDisplayText
+      // does not check for it.
       if (NS_SUBTREE_DIRTY(f)) {
-        // This is a displayed frame, so if it is already dirty, we will be reflowed
-        // soon anyway.  No need to call FrameNeedsReflow again, then.
         return;
-      }
-      if (!f->IsFrameOfType(eSVG) ||
-          (f->GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
-        break;
       }
       f->AddStateBits(NS_FRAME_HAS_DIRTY_CHILDREN);
     }
     f = f->GetParent();
   }
 
-  MOZ_ASSERT(f, "should have found an ancestor frame to reflow");
+  NS_ABORT_IF_FALSE(outerSVGFrame &&
+                    outerSVGFrame->GetType() == nsGkAtoms::svgOuterSVGFrame,
+                    "Did not find nsSVGOuterSVGFrame!");
+  NS_ABORT_IF_FALSE(!(outerSVGFrame->GetStateBits() & NS_FRAME_IN_REFLOW),
+                    "should not call ScheduleReflowSVGNonDisplayText under "
+                    "nsSVGOuterSVGFrame::Reflow");
 
   PresContext()->PresShell()->FrameNeedsReflow(
-    f, nsIPresShell::eResize, NS_FRAME_HAS_DIRTY_CHILDREN);
+    outerSVGFrame, nsIPresShell::eResize, NS_FRAME_HAS_DIRTY_CHILDREN);
 }
 
 NS_IMPL_ISUPPORTS1(nsSVGTextFrame2::MutationObserver, nsIMutationObserver)
@@ -3260,7 +3256,7 @@ nsSVGTextFrame2::FindCloserFrameForSelection(
                                  nsPoint aPoint,
                                  nsIFrame::FrameWithDistance* aCurrentBestFrame)
 {
-  if (GetStateBits() & NS_FRAME_IS_NONDISPLAY) {
+  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) {
     return;
   }
 
@@ -3412,7 +3408,7 @@ nsSVGTextFrame2::PaintSVG(nsRenderingContext* aContext,
   gfxContext *gfx = aContext->ThebesContext();
   gfxMatrix initialMatrix = gfx->CurrentMatrix();
 
-  if (mState & NS_FRAME_IS_NONDISPLAY) {
+  if (mState & NS_STATE_SVG_NONDISPLAY_CHILD) {
     // If we are in a canvas DrawWindow call that used the
     // DRAWWINDOW_DO_NOT_FLUSH flag, then we may still have out
     // of date frames.  Just don't paint anything if they are
@@ -3443,7 +3439,7 @@ nsSVGTextFrame2::PaintSVG(nsRenderingContext* aContext,
   // Check if we need to draw anything.
   if (aDirtyRect) {
     NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
-                 (mState & NS_FRAME_IS_NONDISPLAY),
+                 (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
                  "Display lists handle dirty rect intersection test");
     nsRect dirtyRect(aDirtyRect->x, aDirtyRect->y,
                      aDirtyRect->width, aDirtyRect->height);
@@ -3533,7 +3529,7 @@ nsSVGTextFrame2::GetFrameForPoint(const nsPoint& aPoint)
 {
   NS_ASSERTION(GetFirstPrincipalChild(), "must have a child frame");
 
-  if (mState & NS_FRAME_IS_NONDISPLAY) {
+  if (mState & NS_STATE_SVG_NONDISPLAY_CHILD) {
     // Text frames inside <clipPath> will never have had ReflowSVG called on
     // them, so call UpdateGlyphPositioning to do this now.  (Text frames
     // inside <mask> and other non-display containers will never need to
@@ -3585,7 +3581,7 @@ nsSVGTextFrame2::ReflowSVG()
   NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
                "This call is probaby a wasteful mistake");
 
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                     "ReflowSVG mechanism not designed for this");
 
   if (!nsSVGUtils::NeedsReflowSVG(this)) {
@@ -3697,7 +3693,7 @@ nsSVGTextFrame2::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 gfxMatrix
 nsSVGTextFrame2::GetCanvasTM(uint32_t aFor)
 {
-  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
@@ -4738,12 +4734,6 @@ nsSVGTextFrame2::DoGlyphPositioning()
   mPositions.Clear();
   RemoveStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
 
-  nsIFrame* kid = GetFirstPrincipalChild();
-  if (kid && NS_SUBTREE_DIRTY(kid)) {
-    MOZ_ASSERT(false, "should have already reflowed the kid");
-    return;
-  }
-
   // Determine the positions of each character in app units.
   nsTArray<nsPoint> charPositions;
   DetermineCharPositions(charPositions);
@@ -4911,7 +4901,7 @@ nsSVGTextFrame2::ShouldRenderAsPath(nsRenderingContext* aContext,
 void
 nsSVGTextFrame2::ScheduleReflowSVG()
 {
-  if (mState & NS_FRAME_IS_NONDISPLAY) {
+  if (mState & NS_STATE_SVG_NONDISPLAY_CHILD) {
     ScheduleReflowSVGNonDisplayText();
   } else {
     nsSVGUtils::ScheduleReflowSVG(this);
@@ -4935,6 +4925,7 @@ nsSVGTextFrame2::UpdateGlyphPositioning()
   }
 
   if (mState & NS_STATE_SVG_POSITIONING_DIRTY) {
+    MOZ_ASSERT(!NS_SUBTREE_DIRTY(kid), "should have already reflowed the kid");
     DoGlyphPositioning();
   }
 }
@@ -4971,7 +4962,7 @@ nsSVGTextFrame2::DoReflow()
   // need to update mPositions.
   AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
 
-  if (mState & NS_FRAME_IS_NONDISPLAY) {
+  if (mState & NS_STATE_SVG_NONDISPLAY_CHILD) {
     // Normally, these dirty flags would be cleared in ReflowSVG(), but that
     // doesn't get called for non-display frames. We don't want to reflow our
     // descendants every time nsSVGTextFrame2::PaintSVG makes sure that we have
@@ -5077,7 +5068,7 @@ nsSVGTextFrame2::UpdateFontSizeScaleFactor()
   // get stuck with a font size scale factor based on whichever referencing
   // frame happens to reflow first.
   double contextScale = 1.0;
-  if (!(mState & NS_FRAME_IS_NONDISPLAY)) {
+  if (!(mState & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     gfxMatrix m(GetCanvasTM(FOR_OUTERSVG_TM));
     if (!m.IsSingular()) {
       contextScale = GetContextScale(m);

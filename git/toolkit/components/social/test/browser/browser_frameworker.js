@@ -3,11 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 function makeWorkerUrl(runner) {
-  let prefix =  "http://example.com/browser/toolkit/components/social/test/browser/echo.sjs?";
-  if (typeof runner == "function") {
-    runner = "let run=" + runner.toSource() + ";run();";
-  }
-  return prefix + encodeURI(runner);
+  return "data:application/javascript;charset=utf-8," + encodeURI("let run=" + runner.toSource()) + ";run();"
 }
 
 var getFrameWorkerHandle;
@@ -128,8 +124,7 @@ let tests = {
     }
     let worker = getFrameWorkerHandle(makeWorkerUrl(run), fakeWindow, "testPrototypes");
     worker.port.onmessage = function(e) {
-      if (e.data.topic == "hello") {
-        ok(e.data.data.somextrafunction, "have someextrafunction")
+      if (e.data.topic == "hello" && e.data.data.somextrafunction) {
         worker.terminate();
         cbnext();
       }
@@ -460,7 +455,7 @@ let tests = {
     let ioService = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService2);
     let oldManage = ioService.manageOfflineStatus;
     let oldOffline = ioService.offline;
-
+    
     ioService.manageOfflineStatus = false;
     let worker = getFrameWorkerHandle(makeWorkerUrl(run), undefined, "testNavigator");
     let expected_topic = "onoffline";
@@ -526,7 +521,7 @@ let tests = {
   },
 
   testEmptyWorker: function(cbnext) {
-    let worker = getFrameWorkerHandle(makeWorkerUrl(''),
+    let worker = getFrameWorkerHandle("data:application/javascript;charset=utf-8,",
                                       undefined, "testEmptyWorker");
     Services.obs.addObserver(function handleError(subj, topic, data) {
       Services.obs.removeObserver(handleError, "social:frameworker-error");

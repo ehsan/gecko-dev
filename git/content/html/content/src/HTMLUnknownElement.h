@@ -19,6 +19,7 @@ public:
   HTMLUnknownElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
     if (NodeInfo()->Equals(nsGkAtoms::bdi)) {
       SetHasDirAuto();
     }

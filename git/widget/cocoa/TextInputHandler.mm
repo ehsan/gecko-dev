@@ -777,10 +777,6 @@ TISInputSourceWrapper::InitKeyEvent(NSEvent *aNativeKeyEvent,
 
   nsCocoaUtils::InitInputEvent(aKeyEvent, aNativeKeyEvent);
 
-  // This is used only while dispatching the event (which is a synchronous
-  // call), so there is no need to retain and release this data.
-  aKeyEvent.mNativeKeyEvent = aNativeKeyEvent;
-
   aKeyEvent.refPoint = nsIntPoint(0, 0);
 
   // If a keyboard layout override is set, we also need to force the keyboard
@@ -1933,8 +1929,7 @@ TextInputHandler::DispatchKeyEventForFlagsChanged(NSEvent* aNativeEvent,
 }
 
 void
-TextInputHandler::InsertText(NSAttributedString* aAttrString,
-                             NSRange* aReplacementRange)
+TextInputHandler::InsertText(NSAttributedString *aAttrString)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
@@ -1946,13 +1941,10 @@ TextInputHandler::InsertText(NSAttributedString* aAttrString,
 
   PR_LOG(gLog, PR_LOG_ALWAYS,
     ("%p TextInputHandler::InsertText, aAttrString=\"%s\", "
-     "aReplacementRange=%p { location=%llu, length=%llu }, "
      "IsIMEComposing()=%s, IgnoreIMEComposition()=%s, "
      "keyevent=%p, keypressDispatched=%s",
-     this, GetCharacters([aAttrString string]), aReplacementRange,
-     aReplacementRange ? aReplacementRange->location : 0,
-     aReplacementRange ? aReplacementRange->length : 0,
-     TrueOrFalse(IsIMEComposing()), TrueOrFalse(IgnoreIMEComposition()),
+     this, GetCharacters([aAttrString string]), TrueOrFalse(IsIMEComposing()),
+     TrueOrFalse(IgnoreIMEComposition()),
      currentKeyEvent ? currentKeyEvent->mKeyEvent : nullptr,
      currentKeyEvent ?
        TrueOrFalse(currentKeyEvent->mKeyPressDispatched) : "N/A"));
@@ -1961,54 +1953,14 @@ TextInputHandler::InsertText(NSAttributedString* aAttrString,
     return;
   }
 
-  InputContext context = mWidget->GetInputContext();
-  bool isEditable = (context.mIMEState.mEnabled == IMEState::ENABLED ||
-                     context.mIMEState.mEnabled == IMEState::PASSWORD);
-  NSRange selectedRange = SelectedRange();
-
   nsAutoString str;
   nsCocoaUtils::GetStringForNSString([aAttrString string], str);
   if (!IsIMEComposing() && str.IsEmpty()) {
-    // nothing to do if there is no content which can be removed.
-    if (!isEditable) {
-      return;
-    }
-    // If replacement range is specified, we need to remove the range.
-    // Otherwise, we need to remove the selected range if it's not collapsed.
-    if (aReplacementRange && aReplacementRange->location != NSNotFound) {
-      // nothing to do since the range is collapsed.
-      if (aReplacementRange->length == 0) {
-        return;
-      }
-      // If the replacement range is different from current selected range,
-      // select the range.
-      if (!NSEqualRanges(selectedRange, *aReplacementRange)) {
-        NS_ENSURE_TRUE_VOID(SetSelection(*aReplacementRange));
-      }
-      selectedRange = SelectedRange();
-    }
-    NS_ENSURE_TRUE_VOID(selectedRange.location != NSNotFound);
-    if (selectedRange.length == 0) {
-      return; // nothing to do
-    }
-    // If this is caused by a key input, the keypress event which will be
-    // dispatched later should cause the delete.  Therefore, nothing to do here.
-    // Although, we're not sure if such case is actually possible.
-    if (!currentKeyEvent) {
-      return;
-    }
-    // Delete the selected range.
-    nsRefPtr<TextInputHandler> kungFuDeathGrip(this);
-    nsContentCommandEvent deleteCommandEvent(true, NS_CONTENT_COMMAND_DELETE,
-                                             mWidget);
-    DispatchEvent(deleteCommandEvent);
-    NS_ENSURE_TRUE_VOID(deleteCommandEvent.mSucceeded);
-    // Be aware! The widget might be destroyed here.
-    return;
+    return; // nothing to do
   }
 
   if (str.Length() != 1 || IsIMEComposing()) {
-    InsertTextAsCommittingComposition(aAttrString, aReplacementRange);
+    InsertTextAsCommittingComposition(aAttrString);
     return;
   }
 
@@ -2019,14 +1971,6 @@ TextInputHandler::InsertText(NSAttributedString* aAttrString,
   }
 
   nsRefPtr<nsChildView> kungFuDeathGrip(mWidget);
-
-  // If the replacement range is specified, select the range.  Then, the
-  // selection will be replaced by the later keypress event.
-  if (isEditable &&
-      aReplacementRange && aReplacementRange->location != NSNotFound &&
-      !NSEqualRanges(selectedRange, *aReplacementRange)) {
-    NS_ENSURE_TRUE_VOID(SetSelection(*aReplacementRange));
-  }
 
   // Dispatch keypress event with char instead of textEvent
   nsKeyEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
@@ -2293,15 +2237,15 @@ IMEInputHandler::GetCurrentTSMDocumentID()
  ******************************************************************************/
 
 void
-IMEInputHandler::NotifyIMEOfFocusChangeInGecko()
+IMEInputHandler::ResetIMEWindowLevel()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   PR_LOG(gLog, PR_LOG_ALWAYS,
-    ("%p IMEInputHandler::NotifyIMEOfFocusChangeInGecko, "
-     "Destroyed()=%s, IsFocused()=%s, inputContext=%p",
+    ("%p IMEInputHandler::ResetIMEWindowLevel, "
+     "Destroyed()=%s, IsFocused()=%s, GetCurrentTSMDocumentID()=%p",
      this, TrueOrFalse(Destroyed()), TrueOrFalse(IsFocused()),
-     mView ? [mView inputContext] : nullptr));
+     GetCurrentTSMDocumentID()));
 
   if (Destroyed()) {
     return;
@@ -2309,24 +2253,45 @@ IMEInputHandler::NotifyIMEOfFocusChangeInGecko()
 
   if (!IsFocused()) {
     // retry at next focus event
-    mPendingMethods |= kNotifyIMEOfFocusChangeInGecko;
+    mPendingMethods |= kResetIMEWindowLevel;
     return;
   }
 
-  MOZ_ASSERT(mView);
-  NSTextInputContext* inputContext = [mView inputContext];
-  NS_ENSURE_TRUE_VOID(inputContext);
+  TSMDocumentID doc = GetCurrentTSMDocumentID();
+  if (!doc) {
+    // retry
+    mPendingMethods |= kResetIMEWindowLevel;
+    NS_WARNING("Application is active but there is no active document");
+    ResetTimer();
+    return;
+  }
 
-  // When an <input> element on a XUL <panel> element gets focus from an <input>
-  // element on the opener window of the <panel> element, the owner window
-  // still has native focus.  Therefore, IMEs may store the opener window's
-  // level at this time because they don't know the actual focus is moved to
-  // different window.  If IMEs try to get the newest window level after the
-  // focus change, we return the window level of the XUL <panel>'s widget.
-  // Therefore, let's emulate the native focus change.  Then, IMEs can refresh
-  // the stored window level.
-  [inputContext deactivate];
-  [inputContext activate];
+  // When the focus of Gecko is on a text box of a popup panel, the actual
+  // focused view is the panel's parent view (mView). But the editor is
+  // displayed on the popuped widget's view (editorView).  So, their window
+  // level may be different.
+  NSView<mozView>* editorView = mWidget->GetEditorView();
+  if (!editorView) {
+    NS_ERROR("editorView is null");
+    return;
+  }
+
+  // We need to set the focused window level to TSMDocument. Then, the popup
+  // windows of IME (E.g., a candidate list window) will be over the focused
+  // view. See http://developer.apple.com/technotes/tn2005/tn2128.html#TNTAG1
+  NSInteger windowLevel = [[editorView window] level];
+  PR_LOG(gLog, PR_LOG_ALWAYS,
+    ("%p IMEInputHandler::ResetIMEWindowLevel, windowLevel=%s (%X)",
+     this, GetWindowLevelName(windowLevel), windowLevel));
+
+  // Chinese IMEs on 10.5 don't work fine if the level is NSNormalWindowLevel,
+  // then, we need to increment the value.
+  if (windowLevel == NSNormalWindowLevel)
+    windowLevel++;
+
+  ::TSMSetDocumentProperty(GetCurrentTSMDocumentID(),
+                           kTSMDocumentWindowLevelPropertyTag,
+                           sizeof(windowLevel), &windowLevel);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -2454,9 +2419,8 @@ IMEInputHandler::ExecutePendingMethods()
     DiscardIMEComposition();
   if (pendingMethods & kSyncASCIICapableOnly)
     SyncASCIICapableOnly();
-  if (pendingMethods & kNotifyIMEOfFocusChangeInGecko) {
-    NotifyIMEOfFocusChangeInGecko();
-  }
+  if (pendingMethods & kResetIMEWindowLevel)
+    ResetIMEWindowLevel();
 
   mIsInFocusProcessing = false;
 
@@ -2651,48 +2615,20 @@ IMEInputHandler::InitCompositionEvent(nsCompositionEvent& aCompositionEvent)
 
 void
 IMEInputHandler::InsertTextAsCommittingComposition(
-                   NSAttributedString* aAttrString,
-                   NSRange* aReplacementRange)
+                   NSAttributedString* aAttrString)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   PR_LOG(gLog, PR_LOG_ALWAYS,
     ("%p IMEInputHandler::InsertTextAsCommittingComposition, "
-     "aAttrString=\"%s\", aReplacementRange=%p { location=%llu, length=%llu }, "
-     "Destroyed()=%s, IsIMEComposing()=%s, "
+     "aAttrString=\"%s\", Destroyed()=%s, IsIMEComposing()=%s, "
      "mMarkedRange={ location=%llu, length=%llu }",
-     this, GetCharacters([aAttrString string]), aReplacementRange,
-     aReplacementRange ? aReplacementRange->location : 0,
-     aReplacementRange ? aReplacementRange->length : 0,
-     TrueOrFalse(Destroyed()), TrueOrFalse(IsIMEComposing()),
+     this, GetCharacters([aAttrString string]), TrueOrFalse(Destroyed()),
+     TrueOrFalse(IsIMEComposing()),
      mMarkedRange.location, mMarkedRange.length));
-
-  if (IgnoreIMECommit()) {
-    MOZ_CRASH("IMEInputHandler::InsertTextAsCommittingComposition() must not"
-              "be called while canceling the composition");
-  }
 
   if (Destroyed()) {
     return;
-  }
-
-  // First, commit current composition with the latest composition string if the
-  // replacement range is different from marked range.
-  if (IsIMEComposing() && aReplacementRange &&
-      aReplacementRange->location != NSNotFound &&
-      !NSEqualRanges(MarkedRange(), *aReplacementRange)) {
-    NSString* latestStr =
-      nsCocoaUtils::ToNSString(mLastDispatchedCompositionString);
-    NSAttributedString* attrLatestStr =
-      [[[NSAttributedString alloc] initWithString:latestStr] autorelease];
-    InsertTextAsCommittingComposition(attrLatestStr, nullptr);
-    if (Destroyed()) {
-      PR_LOG(gLog, PR_LOG_ALWAYS,
-        ("%p IMEInputHandler::InsertTextAsCommittingComposition, "
-         "destroyed by commiting composition for setting replacement range",
-         this));
-      return;
-    }
   }
 
   nsRefPtr<IMEInputHandler> kungFuDeathGrip(this);
@@ -2701,13 +2637,6 @@ IMEInputHandler::InsertTextAsCommittingComposition(
   nsCocoaUtils::GetStringForNSString([aAttrString string], str);
 
   if (!IsIMEComposing()) {
-    // If there is no selection and replacement range is specified, set the
-    // range as selection.
-    if (aReplacementRange && aReplacementRange->location != NSNotFound &&
-        !NSEqualRanges(SelectedRange(), *aReplacementRange)) {
-      NS_ENSURE_TRUE_VOID(SetSelection(*aReplacementRange));
-    }
-
     // XXXmnakano Probably, we shouldn't emulate composition in this case.
     // I think that we should just fire DOM3 textInput event if we implement it.
     nsCompositionEvent compStart(true, NS_COMPOSITION_START, mWidget);
@@ -2722,6 +2651,13 @@ IMEInputHandler::InsertTextAsCommittingComposition(
     }
 
     OnStartIMEComposition();
+  }
+
+  if (IgnoreIMECommit()) {
+    PR_LOG(gLog, PR_LOG_ALWAYS,
+      ("%p IMEInputHandler::InsertTextAsCommittingComposition, "
+       "IgnoreIMECommit()=%s", this, TrueOrFalse(IgnoreIMECommit())));
+    str.Truncate();
   }
 
   NSRange range = NSMakeRange(0, str.Length());
@@ -2755,23 +2691,18 @@ IMEInputHandler::InsertTextAsCommittingComposition(
 
 void
 IMEInputHandler::SetMarkedText(NSAttributedString* aAttrString,
-                               NSRange& aSelectedRange,
-                               NSRange* aReplacementRange)
+                               NSRange& aSelectedRange)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   PR_LOG(gLog, PR_LOG_ALWAYS,
     ("%p IMEInputHandler::SetMarkedText, "
      "aAttrString=\"%s\", aSelectedRange={ location=%llu, length=%llu }, "
-     "aReplacementRange=%p { location=%llu, length=%llu }, "
      "Destroyed()=%s, IgnoreIMEComposition()=%s, IsIMEComposing()=%s, "
      "mMarkedRange={ location=%llu, length=%llu }",
      this, GetCharacters([aAttrString string]),
-     aSelectedRange.location, aSelectedRange.length, aReplacementRange,
-     aReplacementRange ? aReplacementRange->location : 0,
-     aReplacementRange ? aReplacementRange->length : 0,
-     TrueOrFalse(Destroyed()), TrueOrFalse(IgnoreIMEComposition()),
-     TrueOrFalse(IsIMEComposing()),
+     aSelectedRange.location, aSelectedRange.length, TrueOrFalse(Destroyed()),
+     TrueOrFalse(IgnoreIMEComposition()), TrueOrFalse(IsIMEComposing()),
      mMarkedRange.location, mMarkedRange.length));
 
   if (Destroyed() || IgnoreIMEComposition()) {
@@ -2780,42 +2711,16 @@ IMEInputHandler::SetMarkedText(NSAttributedString* aAttrString,
 
   nsRefPtr<IMEInputHandler> kungFuDeathGrip(this);
 
-  // First, commit current composition with the latest composition string if the
-  // replacement range is different from marked range.
-  if (IsIMEComposing() && aReplacementRange &&
-      aReplacementRange->location != NSNotFound &&
-      !NSEqualRanges(MarkedRange(), *aReplacementRange)) {
-    NSString* latestStr =
-      nsCocoaUtils::ToNSString(mLastDispatchedCompositionString);
-    NSAttributedString* attrLatestStr =
-      [[[NSAttributedString alloc] initWithString:latestStr] autorelease];
-    bool ignoreIMECommit = mIgnoreIMECommit;
-    mIgnoreIMECommit = false;
-    InsertTextAsCommittingComposition(attrLatestStr, nullptr);
-    mIgnoreIMECommit = ignoreIMECommit;
-    if (Destroyed()) {
-      PR_LOG(gLog, PR_LOG_ALWAYS,
-        ("%p IMEInputHandler::SetMarkedText, "
-         "destroyed by commiting composition for setting replacement range",
-         this));
-      return;
-    }
-  }
-
   nsString str;
   nsCocoaUtils::GetStringForNSString([aAttrString string], str);
 
   mMarkedRange.length = str.Length();
 
   if (!IsIMEComposing() && !str.IsEmpty()) {
-    // If there is no selection and replacement range is specified, set the
-    // range as selection.
-    if (aReplacementRange && aReplacementRange->location != NSNotFound &&
-        !NSEqualRanges(SelectedRange(), *aReplacementRange)) {
-      NS_ENSURE_TRUE_VOID(SetSelection(*aReplacementRange));
-    }
-
-    mMarkedRange.location = SelectedRange().location;
+    nsQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT,
+                                  mWidget);
+    DispatchEvent(selection);
+    mMarkedRange.location = selection.mSucceeded ? selection.mReply.mOffset : 0;
 
     nsCompositionEvent compStart(true, NS_COMPOSITION_START, mWidget);
     InitCompositionEvent(compStart);
@@ -2889,20 +2794,14 @@ IMEInputHandler::ConversationIdentifier()
 }
 
 NSAttributedString*
-IMEInputHandler::GetAttributedSubstringFromRange(NSRange& aRange,
-                                                 NSRange* aActualRange)
+IMEInputHandler::GetAttributedSubstringFromRange(NSRange& aRange)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   PR_LOG(gLog, PR_LOG_ALWAYS,
     ("%p IMEInputHandler::GetAttributedSubstringFromRange, "
-     "aRange={ location=%llu, length=%llu }, aActualRange=%p, Destroyed()=%s",
-     this, aRange.location, aRange.length, aActualRange,
-     TrueOrFalse(Destroyed())));
-
-  if (aActualRange) {
-    *aActualRange = NSMakeRange(NSNotFound, 0);
-  }
+     "aRange={ location=%llu, length=%llu }, Destroyed()=%s",
+     this, aRange.location, aRange.length, TrueOrFalse(Destroyed())));
 
   if (Destroyed() || aRange.location == NSNotFound || aRange.length == 0) {
     return nil;
@@ -2917,12 +2816,11 @@ IMEInputHandler::GetAttributedSubstringFromRange(NSRange& aRange,
 
   PR_LOG(gLog, PR_LOG_ALWAYS,
     ("%p IMEInputHandler::GetAttributedSubstringFromRange, "
-     "textContent={ mSucceeded=%s, mReply={ mString=\"%s\", mOffset=%llu } }",
+     "textContent={ mSucceeded=%s, mReply.mString=\"%s\"",
      this, TrueOrFalse(textContent.mSucceeded),
-     NS_ConvertUTF16toUTF8(textContent.mReply.mString).get(),
-     textContent.mReply.mOffset));
+     NS_ConvertUTF16toUTF8(textContent.mReply.mString).get()));
 
-  if (!textContent.mSucceeded) {
+  if (!textContent.mSucceeded || textContent.mReply.mString.IsEmpty()) {
     return nil;
   }
 
@@ -2930,10 +2828,6 @@ IMEInputHandler::GetAttributedSubstringFromRange(NSRange& aRange,
   NSAttributedString* result =
     [[[NSAttributedString alloc] initWithString:nsstr
                                      attributes:nil] autorelease];
-  if (aActualRange) {
-    aActualRange->location = textContent.mReply.mOffset;
-    aActualRange->length = textContent.mReply.mString.Length();
-  }
   return result;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
@@ -2970,18 +2864,12 @@ IMEInputHandler::SelectedRange()
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   PR_LOG(gLog, PR_LOG_ALWAYS,
-    ("%p IMEInputHandler::SelectedRange, Destroyed()=%s, mSelectedRange={ "
-     "location=%llu, length=%llu }",
-     this, TrueOrFalse(Destroyed()), mSelectedRange.location,
-     mSelectedRange.length));
+    ("%p IMEInputHandler::SelectedRange, Destroyed()=%s",
+     this, TrueOrFalse(Destroyed())));
 
+  NSRange range = NSMakeRange(NSNotFound, 0);
   if (Destroyed()) {
-    return mSelectedRange;
-  }
-
-  if (mSelectedRange.location != NSNotFound) {
-    MOZ_ASSERT(mIMEHasFocus);
-    return mSelectedRange;
+    return range;
   }
 
   nsRefPtr<IMEInputHandler> kungFuDeathGrip(this);
@@ -2996,42 +2884,30 @@ IMEInputHandler::SelectedRange()
      selection.mReply.mString.Length()));
 
   if (!selection.mSucceeded) {
-    return mSelectedRange;
-  }
-
-  if (mIMEHasFocus) {
-    mSelectedRange.location = selection.mReply.mOffset;
-    mSelectedRange.length = selection.mReply.mString.Length();
-    return mSelectedRange;
+    return range;
   }
 
   return NSMakeRange(selection.mReply.mOffset,
                      selection.mReply.mString.Length());
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(mSelectedRange);
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakeRange(0, 0));
 }
 
 NSRect
-IMEInputHandler::FirstRectForCharacterRange(NSRange& aRange,
-                                            NSRange* aActualRange)
+IMEInputHandler::FirstRectForCharacterRange(NSRange& aRange)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   PR_LOG(gLog, PR_LOG_ALWAYS,
-    ("%p IMEInputHandler::FirstRectForCharacterRange, Destroyed()=%s, "
-     "aRange={ location=%llu, length=%llu }, aActualRange=%p }",
-     this, TrueOrFalse(Destroyed()), aRange.location, aRange.length,
-     aActualRange));
+    ("%p IMEInputHandler::FirstRectForCharacterRange, Destroyed()=%s"
+     "aRange={ location=%llu, length=%llu }",
+     this, TrueOrFalse(Destroyed()), aRange.location, aRange.length));
 
   // XXX this returns first character rect or caret rect, it is limitation of
   // now. We need more work for returns first line rect. But current
   // implementation is enough for IMEs.
 
-  NSRect rect = NSMakeRect(0.0, 0.0, 0.0, 0.0);
-  NSRange actualRange = NSMakeRange(NSNotFound, 0);
-  if (aActualRange) {
-    *aActualRange = actualRange;
-  }
+  NSRect rect;
   if (Destroyed() || aRange.location == NSNotFound) {
     return rect;
   }
@@ -3046,8 +2922,6 @@ IMEInputHandler::FirstRectForCharacterRange(NSRange& aRange,
     DispatchEvent(charRect);
     if (charRect.mSucceeded) {
       r = charRect.mReply.mRect;
-      actualRange.location = charRect.mReply.mOffset;
-      actualRange.length = charRect.mReply.mString.Length();
     } else {
       useCaretRect = true;
     }
@@ -3062,8 +2936,6 @@ IMEInputHandler::FirstRectForCharacterRange(NSRange& aRange,
     }
     r = caretRect.mReply.mRect;
     r.width = 0;
-    actualRange.location = caretRect.mReply.mOffset;
-    actualRange.length = 0;
   }
 
   nsIWidget* rootWidget = mWidget->GetTopLevelWidget();
@@ -3078,17 +2950,11 @@ IMEInputHandler::FirstRectForCharacterRange(NSRange& aRange,
   rect = [rootView convertRect:rect toView:nil];
   rect.origin = [rootWindow convertBaseToScreen:rect.origin];
 
-  if (aActualRange) {
-    *aActualRange = actualRange;
-  }
-
   PR_LOG(gLog, PR_LOG_ALWAYS,
     ("%p IMEInputHandler::FirstRectForCharacterRange, "
-     "useCaretRect=%s rect={ x=%f, y=%f, width=%f, height=%f }, "
-     "actualRange={ location=%llu, length=%llu }",
+     "useCaretRect=%s rect={ x=%f, y=%f, width=%f, height=%f }",
      this, TrueOrFalse(useCaretRect), rect.origin.x, rect.origin.y,
-     rect.size.width, rect.size.height, actualRange.location,
-     actualRange.length));
+     rect.size.width, rect.size.height));
 
   return rect;
 
@@ -3145,14 +3011,12 @@ IMEInputHandler::IMEInputHandler(nsChildView* aWidget,
   mPendingMethods(0), mIMECompositionString(nullptr),
   mIsIMEComposing(false), mIsIMEEnabled(true),
   mIsASCIICapableOnly(false), mIgnoreIMECommit(false),
-  mIsInFocusProcessing(false), mIMEHasFocus(false)
+  mIsInFocusProcessing(false)
 {
   InitStaticMembers();
 
   mMarkedRange.location = NSNotFound;
   mMarkedRange.length = 0;
-  mSelectedRange.location = NSNotFound;
-  mSelectedRange.length = 0;
 }
 
 IMEInputHandler::~IMEInputHandler()
@@ -3174,9 +3038,6 @@ IMEInputHandler::OnFocusChangeInGecko(bool aFocus)
      "sFocusedIMEHandler=%p",
      this, TrueOrFalse(aFocus), TrueOrFalse(Destroyed()), sFocusedIMEHandler));
 
-  mSelectedRange.location = NSNotFound; // Marking dirty
-  mIMEHasFocus = aFocus;
-
   // This is called when the native focus is changed and when the native focus
   // isn't changed but the focus is changed in Gecko.
   if (!aFocus) {
@@ -3188,9 +3049,11 @@ IMEInputHandler::OnFocusChangeInGecko(bool aFocus)
   sFocusedIMEHandler = this;
   mIsInFocusProcessing = true;
 
-  // We need to notify IME of focus change in Gecko as native focus change
-  // because the window level of the focused element in Gecko may be changed.
-  mPendingMethods |= kNotifyIMEOfFocusChangeInGecko;
+  // We need to reset the IME's window level by the current focused view of
+  // Gecko.  It may be different from mView.  However, we cannot get the
+  // new focused view here because the focus change process in Gecko hasn't
+  // been finished yet.  So, we should post the job to the todo list.
+  mPendingMethods |= kResetIMEWindowLevel;
   ResetTimer();
 }
 
@@ -3218,9 +3081,6 @@ IMEInputHandler::OnDestroyWidget(nsChildView* aDestroyingWidget)
     CancelIMEComposition();
     OnEndIMEComposition();
   }
-
-  mSelectedRange.location = NSNotFound; // Marking dirty
-  mIMEHasFocus = false;
 
   return true;
 }
@@ -4251,121 +4111,6 @@ TextInputHandlerBase::SynthesizeNativeKeyEvent(
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
-
-NSInteger
-TextInputHandlerBase::GetWindowLevel()
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  PR_LOG(gLog, PR_LOG_ALWAYS,
-    ("%p TextInputHandlerBase::GetWindowLevel, Destryoed()=%s",
-     this, TrueOrFalse(Destroyed())));
-
-  if (Destroyed()) {
-    return NSNormalWindowLevel;
-  }
-
-  // When an <input> element on a XUL <panel> is focused, the actual focused view
-  // is the panel's parent view (mView). But the editor is displayed on the
-  // popped-up widget's view (editorView).  We want the latter's window level.
-  NSView<mozView>* editorView = mWidget->GetEditorView();
-  NS_ENSURE_TRUE(editorView, NSNormalWindowLevel);
-  NSInteger windowLevel = [[editorView window] level];
-
-  PR_LOG(gLog, PR_LOG_ALWAYS,
-    ("%p TextInputHandlerBase::GetWindowLevel, windowLevel=%s (%X)",
-     this, GetWindowLevelName(windowLevel), windowLevel));
-
-  return windowLevel;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSNormalWindowLevel);
-}
-
-NS_IMETHODIMP
-TextInputHandlerBase::AttachNativeKeyEvent(nsKeyEvent& aKeyEvent)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  // Don't try to replace a native event if one already exists.
-  // OS X doesn't have an OS modifier, can't make a native event.
-  if (aKeyEvent.mNativeKeyEvent || aKeyEvent.modifiers & MODIFIER_OS) {
-    return NS_OK;
-  }
-
-  PR_LOG(gLog, PR_LOG_ALWAYS,
-    ("%p TextInputHandlerBase::AttachNativeKeyEvent, key=0x%X, char=0x%X, "
-     "mod=0x%X", this, aKeyEvent.keyCode, aKeyEvent.charCode,
-     aKeyEvent.modifiers));
-
-  NSEventType eventType;
-  if (aKeyEvent.message == NS_KEY_UP) {
-    eventType = NSKeyUp;
-  } else {
-    eventType = NSKeyDown;
-  }
-
-  static const uint32_t sModifierFlagMap[][2] = {
-    { MODIFIER_SHIFT,    NSShiftKeyMask },
-    { MODIFIER_CONTROL,  NSControlKeyMask },
-    { MODIFIER_ALT,      NSAlternateKeyMask },
-    { MODIFIER_ALTGRAPH, NSAlternateKeyMask },
-    { MODIFIER_META,     NSCommandKeyMask },
-    { MODIFIER_CAPSLOCK, NSAlphaShiftKeyMask },
-    { MODIFIER_NUMLOCK,  NSNumericPadKeyMask }
-  };
-
-  NSUInteger modifierFlags = 0;
-  for (uint32_t i = 0; i < ArrayLength(sModifierFlagMap); ++i) {
-    if (aKeyEvent.modifiers & sModifierFlagMap[i][0]) {
-      modifierFlags |= sModifierFlagMap[i][1];
-    }
-  }
-
-  NSInteger windowNumber = [[mView window] windowNumber];
-
-  NSString* characters;
-  if (aKeyEvent.charCode) {
-    characters = [NSString stringWithCharacters:
-      reinterpret_cast<const unichar*>(&(aKeyEvent.charCode)) length:1];
-  } else {
-    uint32_t cocoaCharCode =
-      nsCocoaUtils::ConvertGeckoKeyCodeToMacCharCode(aKeyEvent.keyCode);
-    characters = [NSString stringWithCharacters:
-      reinterpret_cast<const unichar*>(&cocoaCharCode) length:1];
-  }
-
-  aKeyEvent.mNativeKeyEvent =
-    [NSEvent     keyEventWithType:eventType
-                         location:NSMakePoint(0,0)
-                    modifierFlags:modifierFlags
-                        timestamp:0
-                     windowNumber:windowNumber
-                          context:[NSGraphicsContext currentContext]
-                       characters:characters
-      charactersIgnoringModifiers:characters
-                        isARepeat:NO
-                          keyCode:0]; // Native key code not currently needed
-
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
-
-bool
-TextInputHandlerBase::SetSelection(NSRange& aRange)
-{
-  MOZ_ASSERT(!Destroyed());
-
-  nsRefPtr<TextInputHandlerBase> kungFuDeathGrip(this);
-  nsSelectionEvent selectionEvent(true, NS_SELECTION_SET, mWidget);
-  selectionEvent.mOffset = aRange.location;
-  selectionEvent.mLength = aRange.length;
-  selectionEvent.mReversed = false;
-  selectionEvent.mExpandToClusterBoundary = false;
-  DispatchEvent(selectionEvent);
-  NS_ENSURE_TRUE(selectionEvent.mSucceeded, false);
-  return !Destroyed();
 }
 
 /* static */ bool

@@ -1093,7 +1093,7 @@ js::ObjectImpl::preventExtensions(JSContext *cx, Handle<ObjectImpl*> obj)
                "preventExtensions");
 #endif
 
-    if (Downcast(obj)->is<ProxyObject>()) {
+    if (obj->isProxy()) {
         RootedObject object(cx, obj->asObjectPtr());
         return js::Proxy::preventExtensions(cx, object);
     }

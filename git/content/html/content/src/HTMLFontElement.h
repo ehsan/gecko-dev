@@ -12,13 +12,14 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLFontElement MOZ_FINAL : public nsGenericHTMLElement,
-                                  public nsIDOMHTMLFontElement
+class HTMLFontElement : public nsGenericHTMLElement,
+                        public nsIDOMHTMLFontElement
 {
 public:
   HTMLFontElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLFontElement();
 

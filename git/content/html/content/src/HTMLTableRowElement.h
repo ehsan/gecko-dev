@@ -16,13 +16,14 @@ class nsContentList;
 namespace mozilla {
 namespace dom {
 
-class HTMLTableRowElement MOZ_FINAL : public nsGenericHTMLElement,
-                                      public nsIDOMHTMLTableRowElement
+class HTMLTableRowElement : public nsGenericHTMLElement,
+                            public nsIDOMHTMLTableRowElement
 {
 public:
   HTMLTableRowElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLTableRowElement, tr)

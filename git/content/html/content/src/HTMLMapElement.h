@@ -17,8 +17,8 @@ class nsContentList;
 namespace mozilla {
 namespace dom {
 
-class HTMLMapElement MOZ_FINAL : public nsGenericHTMLElement,
-                                 public nsIDOMHTMLMapElement
+class HTMLMapElement : public nsGenericHTMLElement,
+                       public nsIDOMHTMLMapElement
 {
 public:
   HTMLMapElement(already_AddRefed<nsINodeInfo> aNodeInfo);

@@ -415,10 +415,8 @@ void nsViewManager::ProcessPendingUpdatesForView(nsView* aView,
 #endif
       aView->SetForcedRepaint(false);
       SetPainting(false);
-      FlushDirtyRegionToWidget(aView);
-    } else {
-      FlushDirtyRegionToWidget(aView);
     }
+    FlushDirtyRegionToWidget(aView);
   }
 }
 

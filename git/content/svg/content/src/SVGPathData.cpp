@@ -801,7 +801,7 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
 
     // Set the angle of the mark at the start of this segment:
     if (aMarks->Length()) {
-      nsSVGMark &mark = aMarks->LastElement();
+      nsSVGMark &mark = aMarks->ElementAt(aMarks->Length() - 1);
       if (!IsMoveto(segType) && IsMoveto(prevSegType)) {
         // start of new subpath
         pathStartAngle = mark.angle = segStartAngle;
@@ -818,16 +818,14 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
 
     // Add the mark at the end of this segment, and set its position:
     if (!aMarks->AppendElement(nsSVGMark(static_cast<float>(segEnd.x),
-                                         static_cast<float>(segEnd.y),
-                                         0.0f,
-                                         nsSVGMark::eMid))) {
+                                         static_cast<float>(segEnd.y), 0))) {
       aMarks->Clear(); // OOM, so try to free some
       return;
     }
 
     if (segType == PATHSEG_CLOSEPATH &&
         prevSegType != PATHSEG_CLOSEPATH) {
-      aMarks->LastElement().angle =
+      aMarks->ElementAt(aMarks->Length() - 1).angle =
         //aMarks->ElementAt(pathStartIndex).angle =
         SVGContentUtils::AngleBisect(segEndAngle, pathStartAngle);
     }
@@ -839,12 +837,8 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
 
   NS_ABORT_IF_FALSE(i == mData.Length(), "Very, very bad - mData corrupt");
 
-  if (aMarks->Length()) {
-    if (prevSegType != PATHSEG_CLOSEPATH) {
-      aMarks->LastElement().angle = prevSegEndAngle;
-    }
-    aMarks->LastElement().type = nsSVGMark::eEnd;
-    aMarks->ElementAt(0).type = nsSVGMark::eStart;
-  }
+  if (aMarks->Length() &&
+      prevSegType != PATHSEG_CLOSEPATH)
+    aMarks->ElementAt(aMarks->Length() - 1).angle = prevSegEndAngle;
 }
 

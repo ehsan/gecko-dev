@@ -156,7 +156,7 @@ PropDesc::wrapInto(JSContext *cx, HandleObject obj, const jsid &id, jsid *wrappe
     desc->value_ = value;
     desc->get_ = get;
     desc->set_ = set;
-    return !obj->is<ProxyObject>() || desc->makeObject(cx);
+    return !obj->isProxy() || desc->makeObject(cx);
 }
 
 static ObjectElements emptyElementsHeader(0, 0);
@@ -524,7 +524,7 @@ js::ArrayBufferDelegate(JSContext *cx, Handle<ObjectImpl*> obj)
     MOZ_ASSERT(obj->hasClass(&ArrayBufferObject::class_));
     if (obj->getPrivate())
         return static_cast<JSObject *>(obj->getPrivate());
-    JSObject *delegate = NewObjectWithGivenProto(cx, &JSObject::class_, obj->getProto(), NULL);
+    JSObject *delegate = NewObjectWithGivenProto(cx, &ObjectClass, obj->getProto(), NULL);
     obj->setPrivateGCThing(delegate);
     return delegate;
 }
@@ -568,8 +568,9 @@ js::GetOwnProperty(JSContext *cx, Handle<ObjectImpl*> obj, PropertyId pid_, unsi
 
     Rooted<PropertyId> pid(cx, pid_);
 
-    if (Downcast(obj)->is<ProxyObject>())
+    if (static_cast<JSObject *>(obj.get())->isProxy()) {
         MOZ_ASSUME_UNREACHABLE("NYI: proxy [[GetOwnProperty]]");
+    }
 
     RootedShape shape(cx, obj->nativeLookup(cx, pid));
     if (!shape) {
@@ -661,8 +662,9 @@ js::GetProperty(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> rece
     do {
         MOZ_ASSERT(obj);
 
-        if (Downcast(current)->is<ProxyObject>())
+        if (Downcast(current)->isProxy()) {
             MOZ_ASSUME_UNREACHABLE("NYI: proxy [[GetP]]");
+        }
 
         AutoPropDescRooter desc(cx);
         if (!GetOwnProperty(cx, current, pid, resolveFlags, &desc.getPropDesc()))
@@ -723,8 +725,9 @@ js::GetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> recei
     do {
         MOZ_ASSERT(current);
 
-        if (Downcast(current)->is<ProxyObject>())
+        if (Downcast(current)->isProxy()) {
             MOZ_ASSUME_UNREACHABLE("NYI: proxy [[GetP]]");
+        }
 
         PropDesc desc;
         if (!GetOwnElement(cx, current, index, resolveFlags, &desc))
@@ -785,8 +788,9 @@ js::HasElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, unsigned 
     do {
         MOZ_ASSERT(current);
 
-        if (Downcast(current)->is<ProxyObject>())
+        if (Downcast(current)->isProxy()) {
             MOZ_ASSUME_UNREACHABLE("NYI: proxy [[HasProperty]]");
+        }
 
         PropDesc prop;
         if (!GetOwnElement(cx, current, index, resolveFlags, &prop))
@@ -948,8 +952,9 @@ js::SetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> recei
     do {
         MOZ_ASSERT(current);
 
-        if (Downcast(current)->is<ProxyObject>())
+        if (Downcast(current)->isProxy()) {
             MOZ_ASSUME_UNREACHABLE("NYI: proxy [[SetP]]");
+        }
 
         PropDesc ownDesc;
         if (!GetOwnElement(cx, current, index, resolveFlags, &ownDesc))

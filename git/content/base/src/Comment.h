@@ -13,14 +13,15 @@
 namespace mozilla {
 namespace dom {
 
-class Comment MOZ_FINAL : public nsGenericDOMDataNode,
-                          public nsIDOMComment
+class Comment : public nsGenericDOMDataNode,
+                public nsIDOMComment
 {
 private:
   void Init()
   {
     NS_ABORT_IF_FALSE(mNodeInfo->NodeType() == nsIDOMNode::COMMENT_NODE,
                       "Bad NodeType in aNodeInfo");
+    SetIsDOMBinding();
   }
 
 public:

@@ -9,7 +9,7 @@
 #define xptiprivate_h___
 
 #include "nscore.h"
-#include <new>
+#include NEW_H
 #include "nsISupports.h"
 
 // this after nsISupports, to pick up IID

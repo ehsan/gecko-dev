@@ -759,12 +759,9 @@ var Input = {
   },
 
   activateContextMenu: function activateContextMenu(aMessage) {
-    if (Utils.MozBuildApp === 'mobile/android') {
-      let vp = Utils.getViewport(Utils.win) || { zoom: 1.0 };
+    if (Utils.MozBuildApp === 'mobile/android')
       Services.obs.notifyObservers(null, 'Gesture:LongPress',
-                                   JSON.stringify({x: aMessage.x / vp.zoom,
-                                                   y: aMessage.y / vp.zoom}));
-    }
+                                   JSON.stringify({x: aMessage.x, y: aMessage.y}));
   },
 
   setEditState: function setEditState(aEditState) {
@@ -785,8 +782,6 @@ var Input = {
       B: ['movePrevious', 'Button'],
       c: ['moveNext', 'Combobox'],
       C: ['movePrevious', 'Combobox'],
-      d: ['moveNext', 'Landmark'],
-      D: ['movePrevious', 'Landmark'],
       e: ['moveNext', 'Entry'],
       E: ['movePrevious', 'Entry'],
       f: ['moveNext', 'FormElement'],

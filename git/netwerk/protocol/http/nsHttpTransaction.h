@@ -25,6 +25,7 @@
 
 //-----------------------------------------------------------------------------
 
+class nsHttpTransaction;
 class nsHttpRequestHead;
 class nsHttpResponseHead;
 class nsHttpChunkedDecoder;

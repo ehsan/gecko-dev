@@ -9,7 +9,7 @@
 #include "nscore.h"
 #include "pldhash.h"
 #include "nsDebug.h"
-#include <new>
+#include NEW_H
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/fallible.h"
 

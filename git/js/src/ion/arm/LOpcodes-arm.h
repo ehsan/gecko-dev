@@ -20,7 +20,7 @@
     _(ModMaskI)                 \
     _(PowHalfD)                 \
     _(UInt32ToDouble)           \
-    _(UDivOrMod)                \
+    _(AsmJSDivOrMod)            \
     _(AsmJSLoadFuncPtr)
 
 

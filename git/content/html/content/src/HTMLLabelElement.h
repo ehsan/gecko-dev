@@ -16,14 +16,15 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLLabelElement MOZ_FINAL : public nsGenericHTMLFormElement,
-                                   public nsIDOMHTMLLabelElement
+class HTMLLabelElement : public nsGenericHTMLFormElement,
+                         public nsIDOMHTMLLabelElement
 {
 public:
   HTMLLabelElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLFormElement(aNodeInfo),
       mHandlingEvent(false)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLLabelElement();
 

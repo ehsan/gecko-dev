@@ -332,12 +332,7 @@ var SelectionHandler = {
 
       // Get rect of editor
       let editorBounds = this._domWinUtils.sendQueryContentEvent(this._domWinUtils.QUERY_EDITOR_RECT, 0, 0, 0, 0);
-      // the return value from sendQueryContentEvent is in LayoutDevice pixels and we want CSS pixels, so
-      // divide by the pixel ratio
-      let editorRect = new Rect(editorBounds.left / window.devicePixelRatio,
-                                editorBounds.top / window.devicePixelRatio,
-                                editorBounds.width / window.devicePixelRatio,
-                                editorBounds.height / window.devicePixelRatio);
+      let editorRect = new Rect(editorBounds.left, editorBounds.top, editorBounds.width, editorBounds.height);
 
       // Use intersection of the text rect and the editor rect
       let rect = new Rect(textBounds.left, textBounds.top, textBounds.width, textBounds.height);
@@ -503,10 +498,8 @@ var SelectionHandler = {
       // The left and top properties returned are relative to the client area
       // of the window, so we don't need to account for a sub-frame offset.
       let cursor = this._domWinUtils.sendQueryContentEvent(this._domWinUtils.QUERY_CARET_RECT, this._targetElement.selectionEnd, 0, 0, 0);
-      // the return value from sendQueryContentEvent is in LayoutDevice pixels and we want CSS pixels, so
-      // divide by the pixel ratio
-      let x = cursor.left / window.devicePixelRatio;
-      let y = (cursor.top + cursor.height) / window.devicePixelRatio;
+      let x = cursor.left;
+      let y = cursor.top + cursor.height;
       positions = [{ handle: this.HANDLE_TYPE_MIDDLE,
                      left: x + scrollX.value,
                      top: y + scrollY.value,

@@ -44,7 +44,7 @@ protected:
     , mInUse(false)
     , mInUse2(false)
   {
-    AddStateBits(NS_FRAME_IS_NONDISPLAY);
+    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
   }
 
 public:
@@ -94,7 +94,6 @@ private:
   // stuff needed for callback
   nsSVGPathGeometryFrame *mMarkedFrame;
   float mStrokeWidth, mX, mY, mAutoAngle;
-  bool mIsStart;  // whether the callback is for a marker-start marker
 
   // nsSVGContainerFrame methods:
   virtual gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE;

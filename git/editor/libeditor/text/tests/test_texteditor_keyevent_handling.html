@@ -185,17 +185,15 @@ function runTests()
     reset("");
     synthesizeKey("VK_DELETE", { });
     // Linux: native handler
-    // Mac: cmd_deleteCharForward
     check(aDescription + "Delete",
-          true, true, !aIsReadonly || kIsLinux || kIsMac);
+          true, true, !aIsReadonly || kIsLinux);
 
     reset("");
     // Win: cmd_cutOrDelete
     // Linux: cmd_cut
-    // Mac: cmd_deleteCharForward
     synthesizeKey("VK_DELETE", { shiftKey: true });
     check(aDescription + "Shift+Delete",
-          true, true, true);
+          true, true, kIsWin || kIsLinux);
 
     reset("");
     synthesizeKey("VK_DELETE", { ctrlKey: true });

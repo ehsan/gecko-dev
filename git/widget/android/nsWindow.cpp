@@ -2367,9 +2367,7 @@ nsWindow::NotifyIMEOfTextChange(uint32_t aStart,
 nsIMEUpdatePreference
 nsWindow::GetIMEUpdatePreference()
 {
-    int8_t notifications = (nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE |
-                            nsIMEUpdatePreference::NOTIFY_TEXT_CHANGE);
-    return nsIMEUpdatePreference(notifications, true);
+    return nsIMEUpdatePreference(true, true);
 }
 
 void

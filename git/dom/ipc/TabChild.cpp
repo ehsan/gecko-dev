@@ -325,9 +325,9 @@ TabChild::Observe(nsISupports *aSubject,
     nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aSubject));
     nsCOMPtr<nsITabChild> tabChild(GetTabChildFrom(docShell));
     if (tabChild == this) {
-      CSSRect rect;
+      gfxRect rect;
       sscanf(NS_ConvertUTF16toUTF8(aData).get(),
-             "{\"x\":%f,\"y\":%f,\"w\":%f,\"h\":%f}",
+             "{\"x\":%lf,\"y\":%lf,\"w\":%lf,\"h\":%lf}",
              &rect.x, &rect.y, &rect.width, &rect.height);
       SendZoomToRect(rect);
     }

@@ -6,7 +6,7 @@
 #define nsCppSharedAllocator_h__
 
 #include "nsMemory.h"     // for |nsMemory|
-#include <new>					// to allow placement |new|
+#include NEW_H					// to allow placement |new|
 
 
   // under MSVC shut off copious warnings about unused in-lines

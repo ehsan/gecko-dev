@@ -18,6 +18,7 @@ HTMLFrameElement::HTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                                    FromParser aFromParser)
   : nsGenericHTMLFrameElement(aNodeInfo, aFromParser)
 {
+  SetIsDOMBinding();
 }
 
 HTMLFrameElement::~HTMLFrameElement()

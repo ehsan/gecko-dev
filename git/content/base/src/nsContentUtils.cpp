@@ -4532,8 +4532,7 @@ nsContentUtils::DOMEventToNativeKeyEvent(nsIDOMKeyEvent* aKeyEvent,
   aKeyEvent->GetShiftKey(&aNativeEvent->shiftKey);
   aKeyEvent->GetMetaKey(&aNativeEvent->metaKey);
 
-  aNativeEvent->mGeckoEvent =
-    static_cast<nsKeyEvent*>(GetNativeEvent(aKeyEvent));
+  aNativeEvent->nativeEvent = GetNativeEvent(aKeyEvent);
 
   return true;
 }
