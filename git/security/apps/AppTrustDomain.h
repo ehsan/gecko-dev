@@ -21,7 +21,6 @@ public:
   SECStatus SetTrustedRoot(AppTrustedRoot trustedRoot);
 
   SECStatus GetCertTrust(insanity::pkix::EndEntityOrCA endEntityOrCA,
-                         SECOidTag policy,
                          const CERTCertificate* candidateCert,
                  /*out*/ TrustLevel* trustLevel) MOZ_OVERRIDE;
   SECStatus FindPotentialIssuers(const SECItem* encodedIssuerName,

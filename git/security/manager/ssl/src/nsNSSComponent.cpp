@@ -1242,7 +1242,7 @@ nsNSSComponent::ShutdownNSS()
 #endif
     SSL_ClearSessionCache();
     UnloadLoadableRoots();
-#ifndef MOZ_NO_EV_CERTS
+#ifndef NSS_NO_LIBPKIX
     CleanupIdentityInfo();
 #endif
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("evaporating psm resources\n"));
@@ -1809,6 +1809,7 @@ nsNSSComponent::IsNSSInitialized(bool* initialized)
 
 SharedCertVerifier::~SharedCertVerifier() { }
 
+//#ifndef NSS_NO_LIBPKIX
 TemporaryRef<SharedCertVerifier>
 nsNSSComponent::GetDefaultCertVerifier()
 {

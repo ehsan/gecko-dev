@@ -14,7 +14,7 @@
 #include "MediaDecoderReader.h"
 #include "OggCodecState.h"
 #include "OggDecoder.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 #include "VideoUtils.h"
 #include <algorithm>
 

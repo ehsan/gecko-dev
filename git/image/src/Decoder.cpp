@@ -155,7 +155,7 @@ Decoder::Finish(RasterImage::eShutdownIntent aShutdownIntent)
       }
     }
 
-    bool usable = !HasDecoderError();
+    bool usable = true;
     if (aShutdownIntent != RasterImage::eShutdownIntent_NotNeeded && !HasDecoderError()) {
       // If we only have a data error, we're usable if we have at least one complete frame.
       if (GetCompleteFrameCount() == 0) {

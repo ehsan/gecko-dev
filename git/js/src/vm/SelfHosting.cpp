@@ -299,7 +299,7 @@ static bool
 intrinsic_ForkJoinNumWorkers(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setInt32(cx->runtime()->threadPool.numWorkers());
+    args.rval().setInt32(cx->runtime()->threadPool.numWorkers() + 1);
     return true;
 }
 

@@ -112,15 +112,13 @@ AppTrustDomain::FindPotentialIssuers(const SECItem* encodedIssuerName,
 
 SECStatus
 AppTrustDomain::GetCertTrust(EndEntityOrCA endEntityOrCA,
-                             SECOidTag policy,
                              const CERTCertificate* candidateCert,
                      /*out*/ TrustLevel* trustLevel)
 {
-  MOZ_ASSERT(policy == SEC_OID_X509_ANY_POLICY);
   MOZ_ASSERT(candidateCert);
   MOZ_ASSERT(trustLevel);
   MOZ_ASSERT(mTrustedRoot);
-  if (!candidateCert || !trustLevel || policy != SEC_OID_X509_ANY_POLICY) {
+  if (!candidateCert || !trustLevel) {
     PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return SECFailure;
   }

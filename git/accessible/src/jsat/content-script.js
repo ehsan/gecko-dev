@@ -400,8 +400,6 @@ addMessageListener(
       eventManager = new EventManager(this);
     }
     eventManager.start();
-
-    sendAsyncMessage('AccessFu:ContentStarted');
   });
 
 addMessageListener(

@@ -268,7 +268,6 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     UNSAFE_OP(InstanceOf)
     CUSTOM_OP(InterruptCheck)
     SAFE_OP(ForkJoinContext)
-    SAFE_OP(ForkJoinGetSlice)
     SAFE_OP(NewPar)
     SAFE_OP(NewDenseArrayPar)
     SAFE_OP(NewCallObjectPar)

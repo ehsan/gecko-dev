@@ -20,6 +20,7 @@
 #include "nsStubMutationObserver.h"
 #include "nsSVGUtils.h"
 #include "nsTHashtable.h"
+#include "nsTraceRefcnt.h"
 #include "nsURIHashKey.h"
 
 class nsIAtom;

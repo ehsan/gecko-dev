@@ -455,7 +455,7 @@ bool
 BaselineCompiler::emitStackCheck(bool earlyCheck)
 {
     Label skipCall;
-    uintptr_t *limitAddr = &cx->runtime()->mainThread.jitStackLimit;
+    uintptr_t *limitAddr = &cx->runtime()->mainThread.ionStackLimit;
     uint32_t slotsSize = script->nslots() * sizeof(Value);
     uint32_t tolerance = earlyCheck ? slotsSize : 0;
 

@@ -219,18 +219,18 @@ Components.utils.import('resource://gre/modules/ctypes.jsm');
 
 // =================== DevTools ====================
 
-let developerHUD;
+let devtoolsWidgetPanel;
 SettingsListener.observe('devtools.overlay', false, (value) => {
   if (value) {
-    if (!developerHUD) {
+    if (!devtoolsWidgetPanel) {
       let scope = {};
       Services.scriptloader.loadSubScript('chrome://b2g/content/devtools.js', scope);
-      developerHUD = scope.developerHUD;
+      devtoolsWidgetPanel = scope.devtoolsWidgetPanel;
     }
-    developerHUD.init();
+    devtoolsWidgetPanel.init();
   } else {
-    if (developerHUD) {
-      developerHUD.uninit();
+    if (devtoolsWidgetPanel) {
+      devtoolsWidgetPanel.uninit();
     }
   }
 });

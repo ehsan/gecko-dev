@@ -2310,15 +2310,3 @@ CodeGeneratorARM::visitNegF(LNegF *ins)
     masm.ma_vneg_f32(input, ToFloatRegister(ins->output()));
     return true;
 }
-
-bool
-CodeGeneratorARM::visitForkJoinGetSlice(LForkJoinGetSlice *ins)
-{
-    MOZ_ASSUME_UNREACHABLE("NYI");
-}
-
-JitCode *
-JitRuntime::generateForkJoinGetSliceStub(JSContext *cx)
-{
-    MOZ_ASSUME_UNREACHABLE("NYI");
-}

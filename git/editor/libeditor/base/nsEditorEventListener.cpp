@@ -21,7 +21,7 @@
 #include "nsIController.h"              // for nsIController
 #include "nsID.h"
 #include "nsIDOMDOMStringList.h"        // for nsIDOMDOMStringList
-#include "mozilla/dom/DataTransfer.h"
+#include "nsIDOMDataTransfer.h"         // for nsIDOMDataTransfer
 #include "nsIDOMDocument.h"             // for nsIDOMDocument
 #include "nsIDOMDragEvent.h"            // for nsIDOMDragEvent
 #include "nsIDOMElement.h"              // for nsIDOMElement

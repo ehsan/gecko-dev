@@ -11,19 +11,11 @@
 
 namespace mozilla { namespace psm {
 
-#ifndef MOZ_NO_EV_CERTS
-void EnsureIdentityInfoLoaded();
-void CleanupIdentityInfo();
-SECStatus GetFirstEVPolicy(CERTCertificate* cert, SECOidTag& outOidTag);
-
-// CertIsAuthoritativeForEVPolicy does NOT evaluate whether the cert is trusted
-// or distrusted.
-bool CertIsAuthoritativeForEVPolicy(const CERTCertificate* cert,
-                                    SECOidTag policyOidTag);
-#endif
-
 #ifndef NSS_NO_LIBPKIX
+void EnsureIdentityInfoLoaded();
+SECStatus GetFirstEVPolicy(CERTCertificate *cert, SECOidTag &outOidTag);
 CERTCertList* GetRootsForOid(SECOidTag oid_tag);
+void CleanupIdentityInfo();
 #endif
 
 } } // namespace mozilla::psm

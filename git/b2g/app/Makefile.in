@@ -26,6 +26,7 @@ LIBS += \
   -lsuspend \
   $(NULL)
 endif
+OS_LDFLAGS += -Wl,--export-dynamic
 endif
 
 STL_FLAGS=

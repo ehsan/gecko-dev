@@ -433,15 +433,6 @@ this.Logger = {
       str += ' (' + stateStrings.item(0) + ')';
     }
 
-    if (aEvent.eventType == Events.VIRTUALCURSOR_CHANGED) {
-      let event = aEvent.QueryInterface(
-        Ci.nsIAccessibleVirtualCursorChangeEvent);
-      let pivot = aEvent.accessible.QueryInterface(
-        Ci.nsIAccessibleDocument).virtualCursor;
-      str += ' (' + this.accessibleToString(event.oldAccessible) + ' -> ' +
-	this.accessibleToString(pivot.position) + ')';
-    }
-
     return str;
   },
 

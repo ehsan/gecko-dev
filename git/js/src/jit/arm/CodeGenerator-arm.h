@@ -170,9 +170,8 @@ class CodeGeneratorARM : public CodeGeneratorShared
     bool visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins);
     bool visitAsmJSLoadFuncPtr(LAsmJSLoadFuncPtr *ins);
     bool visitAsmJSLoadFFIFunc(LAsmJSLoadFFIFunc *ins);
-    bool visitAsmJSPassStackArg(LAsmJSPassStackArg *ins);
 
-    bool visitForkJoinGetSlice(LForkJoinGetSlice *ins);
+    bool visitAsmJSPassStackArg(LAsmJSPassStackArg *ins);
 
     bool generateInvalidateEpilogue();
   protected:

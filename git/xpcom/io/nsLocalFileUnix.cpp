@@ -70,7 +70,7 @@ static nsresult MacErrorMapper(OSErr inErr);
 #endif
 
 #include "nsNativeCharsetUtils.h"
-#include "nsTraceRefcnt.h"
+#include "nsTraceRefcntImpl.h"
 #include "nsHashKeys.h"
 
 using namespace mozilla;
@@ -1737,13 +1737,13 @@ nsLocalFile::Load(PRLibrary **_retval)
         return NS_ERROR_INVALID_ARG;
 
 #ifdef NS_BUILD_REFCNT_LOGGING
-    nsTraceRefcnt::SetActivityIsLegal(false);
+    nsTraceRefcntImpl::SetActivityIsLegal(false);
 #endif
 
     *_retval = PR_LoadLibrary(mPath.get());
 
 #ifdef NS_BUILD_REFCNT_LOGGING
-    nsTraceRefcnt::SetActivityIsLegal(true);
+    nsTraceRefcntImpl::SetActivityIsLegal(true);
 #endif
 
     if (!*_retval)
