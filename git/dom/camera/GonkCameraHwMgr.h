@@ -43,6 +43,12 @@ class GonkCameraHardware : public GonkNativeWindowNewFrameCallback
 protected:
   GonkCameraHardware(mozilla::nsGonkCameraControl* aTarget, uint32_t aCameraId, const sp<Camera>& aCamera);
   virtual ~GonkCameraHardware();
+
+  // Initialize the AOSP camera interface.
+  //
+  // Return values:
+  //  - NS_OK on success;
+  //  - NS_ERROR_NOT_INITIALIZED if the interface could not be initialized.
   virtual nsresult Init();
 
 public:
@@ -76,6 +82,15 @@ public:
     OFFSET_SENSOR_ORIENTATION
   };
   virtual int      GetSensorOrientation(uint32_t aType = RAW_SENSOR_ORIENTATION);
+
+  /**
+   * MIN_UNDEQUEUED_BUFFERS has increased to 4 since Android JB. For FFOS, more
+   * than 3 gralloc buffers are necessary between ImageHost and GonkBufferQueue
+   * for consuming preview stream. To keep the stability for older platform, we
+   * set MIN_UNDEQUEUED_BUFFERS to 4 only in Android KK base.
+   * See also bug 988704.
+   */
+  enum { MIN_UNDEQUEUED_BUFFERS = 4};
 
   virtual int      AutoFocus();
   virtual int      CancelAutoFocus();

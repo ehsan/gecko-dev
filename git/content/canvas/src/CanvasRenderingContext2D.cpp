@@ -70,6 +70,7 @@
 #include "mozilla/Alignment.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/CheckedInt.h"
+#include "mozilla/DebugOnly.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ImageData.h"
 #include "mozilla/dom/PBrowserParent.h"
@@ -415,12 +416,12 @@ CanvasGradient::AddColorStop(float offset, const nsAString& colorstr, ErrorResul
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasGradient, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(CanvasGradient, Release)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(CanvasGradient, mContext)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(CanvasGradient, mContext)
 
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasPattern, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(CanvasPattern, Release)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(CanvasPattern, mContext)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(CanvasPattern, mContext)
 
 class CanvasRenderingContext2DUserData : public LayerUserData {
 public:
@@ -483,6 +484,12 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(CanvasRenderingContext2D)
     ImplCycleCollectionUnlink(tmp->mStyleStack[i].gradientStyles[Style::STROKE]);
     ImplCycleCollectionUnlink(tmp->mStyleStack[i].gradientStyles[Style::FILL]);
   }
+  for (size_t x = 0 ; x < tmp->mHitRegionsOptions.Length(); x++) {
+    RegionInfo& info = tmp->mHitRegionsOptions[x];
+    if (info.mElement) {
+      ImplCycleCollectionUnlink(info.mElement);
+    }
+  }
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -493,6 +500,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(CanvasRenderingContext2D)
     ImplCycleCollectionTraverse(cb, tmp->mStyleStack[i].patternStyles[Style::FILL], "Fill CanvasPattern");
     ImplCycleCollectionTraverse(cb, tmp->mStyleStack[i].gradientStyles[Style::STROKE], "Stroke CanvasGradient");
     ImplCycleCollectionTraverse(cb, tmp->mStyleStack[i].gradientStyles[Style::FILL], "Fill CanvasGradient");
+  }
+  for (size_t x = 0 ; x < tmp->mHitRegionsOptions.Length(); x++) {
+    RegionInfo& info = tmp->mHitRegionsOptions[x];
+    if (info.mElement) {
+      ImplCycleCollectionTraverse(cb, info.mElement, "Hit region fallback element");
+    }
   }
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -606,15 +619,6 @@ CanvasRenderingContext2D::ParseColor(const nsAString& aString,
   return true;
 }
 
-#ifdef ACCESSIBILITY
-PLDHashOperator
-CanvasRenderingContext2D::RemoveHitRegionProperty(RegionInfo* aEntry, void*)
-{
-  aEntry->mElement->DeleteProperty(nsGkAtoms::hitregion);
-  return PL_DHASH_NEXT;
-}
-#endif
-
 nsresult
 CanvasRenderingContext2D::Reset()
 {
@@ -632,10 +636,7 @@ CanvasRenderingContext2D::Reset()
   mStream = nullptr;
 
   // reset hit regions
-#ifdef ACCESSIBILITY
-  mHitRegionsOptions.EnumerateEntries(RemoveHitRegionProperty, nullptr);
-#endif
-  mHitRegionsOptions.Clear();
+  mHitRegionsOptions.ClearAndRetainStorage();
 
   // Since the target changes the backing texture will change, and this will
   // no longer be valid.
@@ -825,7 +826,7 @@ CanvasRenderingContext2D::RemoveDemotableContext(CanvasRenderingContext2D* conte
 }
 
 bool
-CheckSizeForSkiaGL(IntSize size) {
+CanvasRenderingContext2D::CheckSizeForSkiaGL(IntSize size) {
   MOZ_ASSERT(NS_IsMainThread());
 
   int minsize = Preferences::GetInt("gfx.canvas.min-size-for-skia-gl", 128);
@@ -852,6 +853,11 @@ CheckSizeForSkiaGL(IntSize size) {
   // Cache the number of pixels on the primary screen
   static int32_t gScreenPixels = -1;
   if (gScreenPixels < 0) {
+    // Default to historical mobile screen size of 980x480.  In addition,
+    // allow skia use up to this size even if the screen is smaller.  A lot
+    // content expects this size to work well.
+    gScreenPixels = 980 * 480;
+
     nsCOMPtr<nsIScreenManager> screenManager =
       do_GetService("@mozilla.org/gfx/screenmanager;1");
     if (screenManager) {
@@ -861,13 +867,33 @@ CheckSizeForSkiaGL(IntSize size) {
         int32_t x, y, width, height;
         primaryScreen->GetRect(&x, &y, &width, &height);
 
-        gScreenPixels = width * height;
+        gScreenPixels = std::max(gScreenPixels, width * height);
       }
     }
   }
 
+  // On high DPI devices the screen pixels may be scaled up.  Make
+  // sure to apply that scaling here as well if we are hooked up
+  // to a widget.
+  static double gDefaultScale = 0.0;
+  if (gDefaultScale < 1.0) {
+    nsIPresShell* ps = GetPresShell();
+    if (ps) {
+      nsIFrame* frame = ps->GetRootFrame();
+      if (frame) {
+        nsIWidget* widget = frame->GetNearestWidget();
+        if (widget) {
+          gDefaultScale = widget->GetDefaultScale().scale;
+        }
+      }
+    }
+  }
+
+  double scale = gDefaultScale > 0 ? gDefaultScale : 1.0;
+  int32_t threshold = ceil(scale * scale * gScreenPixels);
+
   // screen size acts as max threshold
-  return gScreenPixels < 0 || (size.width * size.height) <= gScreenPixels;
+  return threshold < 0 || (size.width * size.height) <= threshold;
 }
 
 void
@@ -1095,6 +1121,17 @@ CanvasRenderingContext2D::GetImageBuffer(uint8_t** aImageBuffer,
 
   *aImageBuffer = SurfaceToPackedBGRA(data);
   *aFormat = imgIEncoder::INPUT_FORMAT_HOSTARGB;
+}
+
+nsString CanvasRenderingContext2D::GetHitRegion(const mozilla::gfx::Point& aPoint)
+{
+  for (size_t x = 0 ; x < mHitRegionsOptions.Length(); x++) {
+    RegionInfo& info = mHitRegionsOptions[x];
+    if (info.mPath->ContainsPoint(aPoint, Matrix())) {
+      return info.mId;
+    }
+  }
+  return nsString();
 }
 
 NS_IMETHODIMP
@@ -1335,7 +1372,7 @@ CanvasRenderingContext2D::GetMozCurrentTransformInverse(JSContext* cx,
   Matrix ctm = mTarget->GetTransform();
 
   if (!ctm.Invert()) {
-    double NaN = JSVAL_TO_DOUBLE(JS_GetNaNValue(cx));
+    double NaN = JS_GetNaNValue(cx).toDouble();
     ctm = Matrix(NaN, NaN, NaN, NaN, NaN, NaN);
   }
 
@@ -1365,7 +1402,7 @@ CanvasRenderingContext2D::SetStyleFromUnion(const StringOrCanvasGradientOrCanvas
     return;
   }
 
-  MOZ_ASSUME_UNREACHABLE("Invalid union value");
+  MOZ_ASSERT_UNREACHABLE("Invalid union value");
 }
 
 void
@@ -1465,7 +1502,13 @@ CanvasRenderingContext2D::CreatePattern(const HTMLImageOrCanvasOrVideoElement& e
       return pat.forget();
     }
   } else if (element.IsHTMLImageElement()) {
-    htmlElement = &element.GetAsHTMLImageElement();
+    HTMLImageElement* img = &element.GetAsHTMLImageElement();
+    if (img->IntrinsicState().HasState(NS_EVENT_STATE_BROKEN)) {
+      error.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
+      return nullptr;
+    }
+
+    htmlElement = img;
   } else {
     htmlElement = &element.GetAsHTMLVideoElement();
   }
@@ -1837,7 +1880,10 @@ bool CanvasRenderingContext2D::DrawCustomFocusRing(mozilla::dom::Element& aEleme
     nsCOMPtr<nsIDOMElement> focusedElement;
     fm->GetFocusedElement(getter_AddRefs(focusedElement));
     if (SameCOMIdentity(aElement.AsDOMNode(), focusedElement)) {
-      return true;
+      nsPIDOMWindow *window = aElement.OwnerDoc()->GetWindow();
+      if (window) {
+        return window->ShouldShowFocusRing();
+      }
     }
   }
 
@@ -2268,13 +2314,14 @@ CanvasRenderingContext2D::SetFont(const nsAString& font,
                      fontStyle->mFont.sizeAdjust,
                      fontStyle->mFont.systemFont,
                      printerFont,
+                     fontStyle->mFont.variant == NS_STYLE_FONT_VARIANT_SMALL_CAPS,
                      fontStyle->mFont.languageOverride);
 
   fontStyle->mFont.AddFontFeaturesToStyle(&style);
 
   nsPresContext *c = presShell->GetPresContext();
   CurrentState().fontGroup =
-      gfxPlatform::GetPlatform()->CreateFontGroup(fontStyle->mFont.name,
+      gfxPlatform::GetPlatform()->CreateFontGroup(fontStyle->mFont.fontlist,
                                                   &style,
                                                   c->GetUserFontSet());
   NS_ASSERTION(CurrentState().fontGroup, "Could not get font group");
@@ -2416,22 +2463,6 @@ CanvasRenderingContext2D::MeasureText(const nsAString& rawText,
 void
 CanvasRenderingContext2D::AddHitRegion(const HitRegionOptions& options, ErrorResult& error)
 {
-  // remove old hit region first
-  RemoveHitRegion(options.mId);
-
-  // for now, we require a fallback element
-  if (options.mControl == NULL) {
-    error.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-    return;
-  }
-
-  // check if the control is a descendant of our canvas
-  HTMLCanvasElement* canvas = GetCanvas();
-  bool isDescendant = true;
-  if (!canvas || !nsContentUtils::ContentIsDescendantOf(options.mControl, canvas)) {
-    isDescendant = false;
-  }
-
   // check if the path is valid
   EnsureUserSpacePath(CanvasWindingRule::Nonzero);
   if(!mPath) {
@@ -2447,35 +2478,66 @@ CanvasRenderingContext2D::AddHitRegion(const HitRegionOptions& options, ErrorRes
     return;
   }
 
-#ifdef ACCESSIBILITY
-  if (isDescendant) {
-    nsRect* nsBounds = new nsRect();
-    gfxRect rect(bounds.x, bounds.y, bounds.width, bounds.height);
-    *nsBounds = nsLayoutUtils::RoundGfxRectToAppRect(rect, AppUnitsPerCSSPixel());
-    options.mControl->DeleteProperty(nsGkAtoms::hitregion);
-    options.mControl->SetProperty(nsGkAtoms::hitregion, nsBounds,
-                                  nsINode::DeleteProperty<nsRect>);
-  }
-#endif
+  // remove old hit region first
+  RemoveHitRegion(options.mId);
 
-  // finally, add the region to the list if it has an ID
-  if (options.mId.Length() != 0) {
-    mHitRegionsOptions.PutEntry(options.mId)->mElement = options.mControl;
+  if (options.mControl) {
+    // also remove regions with this control
+    for (size_t x = 0; x < mHitRegionsOptions.Length(); x++) {
+      RegionInfo& info = mHitRegionsOptions[x];
+      if (info.mElement == options.mControl) {
+        mHitRegionsOptions.RemoveElementAt(x);
+        break;
+      }
+    }
+#ifdef ACCESSIBILITY
+  options.mControl->SetProperty(nsGkAtoms::hitregion, new bool(true),
+                                nsINode::DeleteProperty<bool>);
+#endif
   }
+  
+  // finally, add the region to the list
+  RegionInfo info;
+  info.mId = options.mId;
+  info.mElement = options.mControl;
+  RefPtr<PathBuilder> pathBuilder = mPath->TransformedCopyToBuilder(mTarget->GetTransform());
+  info.mPath = pathBuilder->Finish();
+
+  mHitRegionsOptions.InsertElementAt(0, info);
 }
 
 void
 CanvasRenderingContext2D::RemoveHitRegion(const nsAString& id)
 {
-  RegionInfo* info = mHitRegionsOptions.GetEntry(id);
-  if (!info) {
-    return;
+  if (id.Length() == 0) {
+     return;
+   }
+
+  for (size_t x = 0; x < mHitRegionsOptions.Length(); x++) {
+    RegionInfo& info = mHitRegionsOptions[x];
+    if (info.mId == id) {
+      mHitRegionsOptions.RemoveElementAt(x);
+
+      return;
+    }
+  }
+}
+
+bool
+CanvasRenderingContext2D::GetHitRegionRect(Element* aElement, nsRect& aRect)
+{
+  for (unsigned int x = 0; x < mHitRegionsOptions.Length(); x++) {
+    RegionInfo& info = mHitRegionsOptions[x];
+    if (info.mElement == aElement) {
+      mgfx::Rect bounds(info.mPath->GetBounds());
+      gfxRect rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      aRect = nsLayoutUtils::RoundGfxRectToAppRect(rect, AppUnitsPerCSSPixel());
+
+      return true;
+    }
   }
 
-#ifdef ACCESSIBILITY
-  info->mElement->DeleteProperty(nsGkAtoms::hitregion);
-#endif
-  mHitRegionsOptions.RemoveEntry(id);
+  return false;
 }
 
 /**
@@ -2936,7 +2998,7 @@ gfxFontGroup *CanvasRenderingContext2D::GetCurrentFontStyle()
       gfxFontStyle style;
       style.size = kDefaultFontSize;
       CurrentState().fontGroup =
-        gfxPlatform::GetPlatform()->CreateFontGroup(NS_LITERAL_STRING("sans-serif"),
+        gfxPlatform::GetPlatform()->CreateFontGroup(FontFamilyList(eFamily_sans_serif),
                                                     &style,
                                                     nullptr);
       if (CurrentState().fontGroup) {
@@ -3067,10 +3129,14 @@ CanvasRenderingContext2D::SetMozDashOffset(double mozDashOffset)
 void
 CanvasRenderingContext2D::SetLineDash(const Sequence<double>& aSegments)
 {
-  FallibleTArray<mozilla::gfx::Float>& dash = CurrentState().dash;
-  dash.Clear();
+  FallibleTArray<mozilla::gfx::Float> dash;
 
   for (uint32_t x = 0; x < aSegments.Length(); x++) {
+    if (aSegments[x] < 0.0) {
+      // Pattern elements must be finite "numbers" >= 0, with "finite"
+      // taken care of by WebIDL
+      return;
+    }
     dash.AppendElement(aSegments[x]);
   }
   if (aSegments.Length() % 2) { // If the number of elements is odd, concatenate again
@@ -3078,6 +3144,8 @@ CanvasRenderingContext2D::SetLineDash(const Sequence<double>& aSegments)
       dash.AppendElement(aSegments[x]);
     }
   }
+
+  CurrentState().dash = dash;
 }
 
 void
@@ -3660,8 +3728,13 @@ CanvasRenderingContext2D::AsyncDrawXULElement(nsXULElement& elem,
 
   PBrowserParent *child = frameloader->GetRemoteBrowser();
   if (!child) {
-    nsCOMPtr<nsIDOMWindow> window =
-      do_GetInterface(frameloader->GetExistingDocShell());
+    nsIDocShell* docShell = frameLoader->GetExistingDocShell();
+    if (!docShell) {
+      error.Throw(NS_ERROR_FAILURE);
+      return;
+    }
+
+    nsCOMPtr<nsIDOMWindow> window = docShell->GetWindow();
     if (!window) {
       error.Throw(NS_ERROR_FAILURE);
       return;
@@ -3934,7 +4007,9 @@ void
 CanvasRenderingContext2D::PutImageData(ImageData& imageData, double dx,
                                        double dy, ErrorResult& error)
 {
-  dom::Uint8ClampedArray arr(imageData.GetDataObject());
+  dom::Uint8ClampedArray arr;
+  DebugOnly<bool> inited = arr.Init(imageData.GetDataObject());
+  MOZ_ASSERT(inited);
 
   error = PutImageData_explicit(JS_DoubleToInt32(dx), JS_DoubleToInt32(dy),
                                 imageData.Width(), imageData.Height(),
@@ -3948,7 +4023,9 @@ CanvasRenderingContext2D::PutImageData(ImageData& imageData, double dx,
                                        double dirtyHeight,
                                        ErrorResult& error)
 {
-  dom::Uint8ClampedArray arr(imageData.GetDataObject());
+  dom::Uint8ClampedArray arr;
+  DebugOnly<bool> inited = arr.Init(imageData.GetDataObject());
+  MOZ_ASSERT(inited);
 
   error = PutImageData_explicit(JS_DoubleToInt32(dx), JS_DoubleToInt32(dy),
                                 imageData.Width(), imageData.Height(),
@@ -3969,7 +4046,7 @@ CanvasRenderingContext2D::PutImageData_explicit(int32_t x, int32_t y, uint32_t w
                                                 int32_t dirtyWidth, int32_t dirtyHeight)
 {
   if (w == 0 || h == 0) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
   IntRect dirtyRect;
@@ -4023,7 +4100,7 @@ CanvasRenderingContext2D::PutImageData_explicit(int32_t x, int32_t y, uint32_t w
 
   uint32_t len = w * h * 4;
   if (dataLen != len) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
   nsRefPtr<gfxImageSurface> imgsurf = new gfxImageSurface(gfxIntSize(w, h),
@@ -4225,6 +4302,7 @@ CanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
   }
 
   data.mSize = nsIntSize(mWidth, mHeight);
+  data.mHasAlpha = !mOpaque;
 
   canvasLayer->Initialize(data);
   uint32_t flags = mOpaque ? Layer::CONTENT_OPAQUE : 0;
@@ -4256,7 +4334,7 @@ CanvasRenderingContext2D::ShouldForceInactiveLayer(LayerManager *aManager)
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasPath, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(CanvasPath, Release)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(CanvasPath, mParent)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(CanvasPath, mParent)
 
 CanvasPath::CanvasPath(nsISupports* aParent)
   : mParent(aParent)
@@ -4363,6 +4441,8 @@ CanvasPath::ArcTo(double x1, double y1, double x2, double y2, double radius,
     return;
   }
 
+  EnsurePathBuilder();
+
   // Current point in user space!
   Point p0 = mPathBuilder->CurrentPoint();
   Point p1(x1, y1);
@@ -4437,6 +4517,8 @@ CanvasPath::Arc(double x, double y, double radius,
     error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return;
   }
+
+  EnsurePathBuilder();
 
   ArcToBezier(this, Point(x, y), Size(radius, radius), startAngle, endAngle, anticlockwise);
 }

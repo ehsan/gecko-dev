@@ -18,7 +18,7 @@ blacklane.com: did not receive HSTS header
 braintreegateway.com: did not receive HSTS header
 browserid.org: did not receive HSTS header
 business.medbank.com.mt: did not receive HSTS header
-calyxinstitute.org: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-aurora-l64-hsts-000000000000/getHSTSPreloadList.js :: processStsHeader :: line 125"  data: no]
+calyxinstitute.org: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-cen-l64-hsts-000000000000000/getHSTSPreloadList.js :: processStsHeader :: line 125"  data: no]
 carlolly.co.uk: did not receive HSTS header
 cert.se: max-age too low: 2628001
 checkout.google.com: did not receive HSTS header (error ignored - included regardless)
@@ -69,7 +69,7 @@ ledgerscope.net: did not receive HSTS header
 liberty.lavabit.com: could not connect to host
 lifeguard.aecom.com: did not receive HSTS header
 lists.mayfirst.org: did not receive HSTS header
-lumi.do: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-aurora-l64-hsts-000000000000/getHSTSPreloadList.js :: processStsHeader :: line 125"  data: no]
+lumi.do: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-cen-l64-hsts-000000000000000/getHSTSPreloadList.js :: processStsHeader :: line 125"  data: no]
 mail.google.com: did not receive HSTS header (error ignored - included regardless)
 market.android.com: did not receive HSTS header (error ignored - included regardless)
 mobilethreat.net: could not connect to host
@@ -123,13 +123,13 @@ wallet.google.com: did not receive HSTS header (error ignored - included regardl
 waveapps.com: max-age too low: 0
 webmail.mayfirst.org: did not receive HSTS header
 whonix.org: did not receive HSTS header
-www.calyxinstitute.org: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-aurora-l64-hsts-000000000000/getHSTSPreloadList.js :: processStsHeader :: line 125"  data: no]
+www.calyxinstitute.org: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-cen-l64-hsts-000000000000000/getHSTSPreloadList.js :: processStsHeader :: line 125"  data: no]
 www.cueup.com: did not receive HSTS header
 www.developer.mydigipass.com: could not connect to host
 www.elanex.biz: did not receive HSTS header
 www.gmail.com: did not receive HSTS header (error ignored - included regardless)
 www.googlemail.com: did not receive HSTS header (error ignored - included regardless)
-www.gov.uk: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-aurora-l64-hsts-000000000000/getHSTSPreloadList.js :: processStsHeader :: line 125"  data: no]
+www.gov.uk: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-cen-l64-hsts-000000000000000/getHSTSPreloadList.js :: processStsHeader :: line 125"  data: no]
 www.greplin.com: could not connect to host
 www.intercom.io: did not receive HSTS header
 www.jitsi.org: did not receive HSTS header
@@ -139,7 +139,7 @@ www.logentries.com: did not receive HSTS header
 www.moneybookers.com: did not receive HSTS header
 www.neonisi.com: could not connect to host
 www.paycheckrecords.com: max-age too low: 86400
-www.paypal.com: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-aurora-l64-hsts-000000000000/getHSTSPreloadList.js :: processStsHeader :: line 125"  data: no]
+www.paypal.com: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-cen-l64-hsts-000000000000000/getHSTSPreloadList.js :: processStsHeader :: line 125"  data: no]
 www.roddis.net: did not receive HSTS header
 www.sandbox.mydigipass.com: could not connect to host
 www.surfeasy.com: did not receive HSTS header

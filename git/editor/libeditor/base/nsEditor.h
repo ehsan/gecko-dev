@@ -8,6 +8,7 @@
 
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc.
 #include "mozilla/TypedEnum.h"          // for MOZ_BEGIN_ENUM_CLASS, etc.
+#include "mozilla/dom/Text.h"
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsCOMArray.h"                 // for nsCOMArray
 #include "nsCOMPtr.h"                   // for already_AddRefed, nsCOMPtr
@@ -67,6 +68,7 @@ class nsString;
 class nsTransactionManager;
 
 namespace mozilla {
+class ErrorResult;
 class TextComposition;
 
 namespace dom {
@@ -74,6 +76,7 @@ class DataTransfer;
 class Element;
 class EventTarget;
 class Selection;
+class Text;
 }  // namespace dom
 }  // namespace mozilla
 
@@ -195,6 +198,10 @@ public:
                                nsCOMPtr<nsIDOMNode> *aInOutNode, 
                                int32_t *aInOutOffset,
                                nsIDOMDocument *aDoc);
+  nsresult InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert,
+                                      nsINode* aTextNode,
+                                      int32_t aOffset,
+                                      bool aSuppressIME = false);
   nsresult InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
                                       nsIDOMCharacterData *aTextNode, 
                                       int32_t aOffset,
@@ -206,6 +213,8 @@ public:
 
   /* helper routines for node/parent manipulations */
   nsresult DeleteNode(nsINode* aNode);
+  nsresult InsertNode(nsIContent* aContent, nsINode* aParent,
+                      int32_t aPosition);
   nsresult ReplaceContainer(nsINode* inNode,
                             mozilla::dom::Element** outNode,
                             const nsAString& aNodeType,
@@ -238,10 +247,9 @@ public:
   /* Method to replace certain CreateElementNS() calls. 
      Arguments:
       nsString& aTag          - tag you want
-      nsIContent** aContent   - returned Content that was created with above namespace.
   */
-  nsresult CreateHTMLContent(const nsAString& aTag,
-                             mozilla::dom::Element** aContent);
+  already_AddRefed<mozilla::dom::Element>
+    CreateHTMLContent(const nsAString& aTag, mozilla::ErrorResult& rv);
 
   // IME event handlers
   virtual nsresult BeginIMEComposition(mozilla::WidgetCompositionEvent* aEvent);
@@ -256,28 +264,28 @@ protected:
 
   /** create a transaction for setting aAttribute to aValue on aElement
     */
-  NS_IMETHOD CreateTxnForSetAttribute(mozilla::dom::Element *aElement,
+  NS_IMETHOD CreateTxnForSetAttribute(nsIDOMElement *aElement,
                                       const nsAString &  aAttribute,
                                       const nsAString &  aValue,
                                       ChangeAttributeTxn ** aTxn);
 
   /** create a transaction for removing aAttribute on aElement
     */
-  NS_IMETHOD CreateTxnForRemoveAttribute(mozilla::dom::Element *aElement,
+  NS_IMETHOD CreateTxnForRemoveAttribute(nsIDOMElement *aElement,
                                          const nsAString &  aAttribute,
                                          ChangeAttributeTxn ** aTxn);
 
   /** create a transaction for creating a new child node of aParent of type aTag.
     */
   NS_IMETHOD CreateTxnForCreateElement(const nsAString & aTag,
-                                       nsINode         *aParent,
+                                       nsIDOMNode      *aParent,
                                        int32_t         aPosition,
                                        CreateElementTxn ** aTxn);
 
   /** create a transaction for inserting aNode as a child of aParent.
     */
-  NS_IMETHOD CreateTxnForInsertElement(nsINode    * aNode,
-                                       nsINode    * aParent,
+  NS_IMETHOD CreateTxnForInsertElement(nsIDOMNode * aNode,
+                                       nsIDOMNode * aParent,
                                        int32_t      aOffset,
                                        InsertElementTxn ** aTxn);
 
@@ -323,6 +331,13 @@ protected:
                         uint32_t             aOffset,
                         uint32_t             aLength);
 
+  inline nsresult DeleteText(mozilla::dom::Text* aText, uint32_t aOffset,
+                             uint32_t aLength)
+  {
+    return DeleteText(static_cast<nsIDOMCharacterData*>(GetAsDOMNode(aText)),
+                      aOffset, aLength);
+  }
+
 //  NS_IMETHOD DeleteRange(nsIDOMRange *aRange);
 
   nsresult CreateTxnForDeleteText(nsIDOMCharacterData* aElement,
@@ -335,12 +350,12 @@ protected:
                                        EDirection           aDirection,
                                        DeleteTextTxn**      aTxn);
 	
-  NS_IMETHOD CreateTxnForSplitNode(nsINode *aNode,
+  NS_IMETHOD CreateTxnForSplitNode(nsIDOMNode *aNode,
                                    uint32_t    aOffset,
                                    SplitElementTxn **aTxn);
 
-  NS_IMETHOD CreateTxnForJoinNode(nsINode  *aLeftNode,
-                                  nsINode  *aRightNode,
+  NS_IMETHOD CreateTxnForJoinNode(nsIDOMNode  *aLeftNode,
+                                  nsIDOMNode  *aRightNode,
                                   JoinElementTxn **aTxn);
 
   /**
@@ -585,14 +600,15 @@ public:
   bool IsDescendantOfEditorRoot(nsINode* aNode);
 
   /** returns true if aNode is a container */
-  virtual bool IsContainer(nsIDOMNode *aNode);
+  virtual bool IsContainer(nsINode* aNode);
+  virtual bool IsContainer(nsIDOMNode* aNode);
 
   /** returns true if aNode is an editable node */
   bool IsEditable(nsIDOMNode *aNode);
-  virtual bool IsEditable(nsIContent *aNode);
+  virtual bool IsEditable(nsINode* aNode);
 
   /** returns true if aNode is a MozEditorBogus node */
-  bool IsMozEditorBogusNode(nsIContent *aNode);
+  bool IsMozEditorBogusNode(nsINode* aNode);
 
   /** counts number of editable child nodes */
   uint32_t CountEditableChildren(nsINode* aNode);

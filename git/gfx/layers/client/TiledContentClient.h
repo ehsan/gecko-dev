@@ -254,9 +254,11 @@ struct BasicTiledLayerPaintData {
   ParentLayerPoint mLastScrollOffset;
 
   /*
-   * The transform matrix to go from Screen units to ParentLayer units.
+   * The transform matrix to go from the display port layer's ParentLayer
+   * units to this layer's LayoutDevice units. The "display port layer" is
+   * the closest ancestor layer with a displayport.
    */
-  gfx3DMatrix mTransformParentLayerToLayoutDevice;
+  gfx3DMatrix mTransformDisplayPortToLayoutDevice;
 
   /*
    * The critical displayport of the content from the nearest ancestor layer
@@ -483,7 +485,7 @@ public:
 
   virtual TextureInfo GetTextureInfo() const MOZ_OVERRIDE
   {
-    return TextureInfo(BUFFER_TILED);
+    return TextureInfo(CompositableType::BUFFER_TILED);
   }
 
   virtual void ClearCachedResources() MOZ_OVERRIDE;

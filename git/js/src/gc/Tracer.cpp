@@ -508,7 +508,7 @@ GCMarker::markDelayedChildren(ArenaHeader *aheader)
         bool always = aheader->allocatedDuringIncremental;
         aheader->markOverflow = 0;
 
-        for (CellIterUnderGC i(aheader); !i.done(); i.next()) {
+        for (ArenaCellIterUnderGC i(aheader); !i.done(); i.next()) {
             Cell *t = i.getCell();
             if (always || t->isMarked()) {
                 t->markIfUnmarked();
@@ -531,8 +531,8 @@ bool
 GCMarker::markDelayedChildren(SliceBudget &budget)
 {
     gcstats::MaybeAutoPhase ap;
-    if (runtime()->gcIncrementalState == MARK)
-        ap.construct(runtime()->gcStats, gcstats::PHASE_MARK_DELAYED);
+    if (runtime()->gc.incrementalState == MARK)
+        ap.construct(runtime()->gc.stats, gcstats::PHASE_MARK_DELAYED);
 
     JS_ASSERT(unmarkedArenaStackTop);
     do {
@@ -638,7 +638,20 @@ GCMarker::appendGrayRoot(void *thing, JSGCTraceKind kind)
 
     Zone *zone = static_cast<Cell *>(thing)->tenuredZone();
     if (zone->isCollecting()) {
-        zone->maybeAlive = true;
+        // See the comment on SetMaybeAliveFlag to see why we only do this for
+        // objects and scripts. We rely on gray root buffering for this to work,
+        // but we only need to worry about uncollected dead compartments during
+        // incremental GCs (when we do gray root buffering).
+        switch (kind) {
+          case JSTRACE_OBJECT:
+            static_cast<JSObject *>(thing)->compartment()->maybeAlive = true;
+            break;
+          case JSTRACE_SCRIPT:
+            static_cast<JSScript *>(thing)->compartment()->maybeAlive = true;
+            break;
+          default:
+            break;
+        }
         if (!zone->gcGrayRoots.append(root)) {
             resetBufferedGrayRoots();
             grayBufferState = GRAY_BUFFER_FAILED;
@@ -669,6 +682,6 @@ js::SetMarkStackLimit(JSRuntime *rt, size_t limit)
 {
     JS_ASSERT(!rt->isHeapBusy());
     AutoStopVerifyingBarriers pauseVerification(rt, false);
-    rt->gcMarker.setMaxCapacity(limit);
+    rt->gc.marker.setMaxCapacity(limit);
 }
 

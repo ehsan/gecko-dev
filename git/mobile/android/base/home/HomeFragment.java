@@ -6,19 +6,24 @@
 package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.EditBookmarkDialog;
+import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.ReaderModeUtils;
+import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.favicons.Favicons;
+import org.mozilla.gecko.home.TopSitesGridView.TopSitesGridContextMenuInfo;
+import org.mozilla.gecko.util.Clipboard;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.gecko.widget.ButtonToast;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -132,6 +137,16 @@ abstract class HomeFragment extends Fragment {
         // the frequency of use for various actions.
         Telemetry.sendUIEvent(TelemetryContract.Event.ACTION, TelemetryContract.Method.CONTEXT_MENU, getResources().getResourceEntryName(itemId));
 
+        if (itemId == R.id.home_copyurl) {
+            if (info.url == null) {
+                Log.e(LOGTAG, "Can't copy address because URL is null");
+                return false;
+            }
+
+            Clipboard.setText(info.url);
+            return true;
+        }
+
         if (itemId == R.id.home_share) {
             if (info.url == null) {
                 Log.e(LOGTAG, "Can't share because URL is null");
@@ -164,8 +179,10 @@ abstract class HomeFragment extends Fragment {
             }
 
             int flags = Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_BACKGROUND;
-            if (item.getItemId() == R.id.home_open_private_tab)
+            final boolean isPrivate = (item.getItemId() == R.id.home_open_private_tab);
+            if (isPrivate) {
                 flags |= Tabs.LOADURL_PRIVATE;
+            }
 
             Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, TelemetryContract.Method.CONTEXT_MENU);
 
@@ -173,8 +190,27 @@ abstract class HomeFragment extends Fragment {
 
             // Some pinned site items have "user-entered" urls. URLs entered in the PinSiteDialog are wrapped in
             // a special URI until we can get a valid URL. If the url is a user-entered url, decode the URL before loading it.
-            Tabs.getInstance().loadUrl(decodeUserEnteredUrl(url), flags);
-            Toast.makeText(context, R.string.new_tab_opened, Toast.LENGTH_SHORT).show();
+            final Tab newTab = Tabs.getInstance().loadUrl(decodeUserEnteredUrl(url), flags);
+            final int newTabId = newTab.getId(); // We don't want to hold a reference to the Tab.
+
+            final String message = isPrivate ?
+                    getResources().getString(R.string.new_private_tab_opened) :
+                    getResources().getString(R.string.new_tab_opened);
+            final String buttonMessage = getResources().getString(R.string.switch_button_message);
+            final GeckoApp geckoApp = (GeckoApp) context;
+            geckoApp.getButtonToast().show(false,
+                    message,
+                    buttonMessage,
+                    R.drawable.switch_button_icon,
+                    new ButtonToast.ToastListener() {
+                        @Override
+                        public void onButtonClicked() {
+                            Tabs.getInstance().selectTab(newTabId);
+                        }
+
+                        @Override
+                        public void onToastHidden(ButtonToast.ReasonHidden reason) { }
+                    });
             return true;
         }
 
@@ -191,19 +227,13 @@ abstract class HomeFragment extends Fragment {
         }
 
         if (itemId == R.id.home_remove) {
-            // Prioritize removing a history entry over a bookmark in the case of a combined item.
-            if (info.hasHistoryId()) {
-                new RemoveHistoryTask(context, info.historyId).execute();
+            if (info instanceof TopSitesGridContextMenuInfo) {
+                (new RemoveItemByUrlTask(context, info.url, info.position)).execute();
                 return true;
             }
 
-            if (info.hasBookmarkId()) {
-                new RemoveBookmarkTask(context, info.bookmarkId).execute();
-                return true;
-            }
-
-            if (info.isInReadingList()) {
-                (new RemoveReadingListItemTask(context, info.readingListItemId, info.url)).execute();
+            if (info.isInReadingList() || info.hasBookmarkId() || info.hasHistoryId()) {
+                (new RemoveItemByUrlTask(context, info.url)).execute();
                 return true;
             }
         }
@@ -271,75 +301,51 @@ abstract class HomeFragment extends Fragment {
         mIsLoaded = true;
     }
 
-    private static class RemoveBookmarkTask extends UiAsyncTask<Void, Void, Void> {
+    private static class RemoveItemByUrlTask extends UiAsyncTask<Void, Void, Void> {
         private final Context mContext;
-        private final int mId;
-
-        public RemoveBookmarkTask(Context context, int id) {
-            super(ThreadUtils.getBackgroundHandler());
-
-            mContext = context;
-            mId = id;
-        }
-
-        @Override
-        public Void doInBackground(Void... params) {
-            ContentResolver cr = mContext.getContentResolver();
-            BrowserDB.removeBookmark(cr, mId);
-            return null;
-        }
-
-        @Override
-        public void onPostExecute(Void result) {
-            Toast.makeText(mContext, R.string.bookmark_removed, Toast.LENGTH_SHORT).show();
-        }
-    }
-
-
-    private static class RemoveReadingListItemTask extends UiAsyncTask<Void, Void, Void> {
-        private final int mId;
         private final String mUrl;
-        private final Context mContext;
+        private final int mPosition;
 
-        public RemoveReadingListItemTask(Context context, int id, String url) {
+        /**
+         * Remove bookmark/history/reading list item by url.
+         */
+        public RemoveItemByUrlTask(Context context, String url) {
+            this(context, url, -1);
+        }
+
+        /**
+         * Remove bookmark/history/reading list item by url, and also unpin the
+         * Top Sites grid item at index <code>position</code>.
+         */
+        public RemoveItemByUrlTask(Context context, String url, int position) {
             super(ThreadUtils.getBackgroundHandler());
-            mId = id;
-            mUrl = url;
+
             mContext = context;
+            mUrl = url;
+            mPosition = position;
         }
 
         @Override
         public Void doInBackground(Void... params) {
             ContentResolver cr = mContext.getContentResolver();
-            BrowserDB.removeReadingListItem(cr, mId);
 
+            if (mPosition > -1) {
+                BrowserDB.unpinSite(cr, mPosition);
+            }
+
+            BrowserDB.removeBookmarksWithURL(cr, mUrl);
+            BrowserDB.removeHistoryEntry(cr, mUrl);
+
+            BrowserDB.removeReadingListItemWithURL(cr, mUrl);
             GeckoEvent e = GeckoEvent.createBroadcastEvent("Reader:Remove", mUrl);
             GeckoAppShell.sendEventToGecko(e);
 
             return null;
         }
-    }
-
-    private static class RemoveHistoryTask extends UiAsyncTask<Void, Void, Void> {
-        private final Context mContext;
-        private final int mId;
-
-        public RemoveHistoryTask(Context context, int id) {
-            super(ThreadUtils.getBackgroundHandler());
-
-            mContext = context;
-            mId = id;
-        }
-
-        @Override
-        public Void doInBackground(Void... params) {
-            BrowserDB.removeHistoryEntry(mContext.getContentResolver(), mId);
-            return null;
-        }
 
         @Override
         public void onPostExecute(Void result) {
-            Toast.makeText(mContext, R.string.history_removed, Toast.LENGTH_SHORT).show();
+            Toast.makeText(mContext, R.string.page_removed, Toast.LENGTH_SHORT).show();
         }
     }
 }

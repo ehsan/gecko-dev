@@ -40,33 +40,6 @@ function getIntPref(prefName, def) {
   }
 }
 
-function exposeAll(obj) {
-  // Filter for Objects and Arrays.
-  if (typeof obj !== "object" || !obj)
-    return;
-
-  // Recursively expose our children.
-  Object.keys(obj).forEach(function(key) {
-    exposeAll(obj[key]);
-  });
-
-  // If we're not an Array, generate an __exposedProps__ object for ourselves.
-  if (obj instanceof Array)
-    return;
-  var exposed = {};
-  Object.keys(obj).forEach(function(key) {
-    exposed[key] = 'rw';
-  });
-  obj.__exposedProps__ = exposed;
-}
-
-function defineAndExpose(obj, name, value) {
-  obj[name] = value;
-  if (!('__exposedProps__' in obj))
-    obj.__exposedProps__ = {};
-  obj.__exposedProps__[name] = 'r';
-}
-
 function visibilityChangeHandler(e) {
   // The visibilitychange event's target is the document.
   let win = e.target.defaultView;
@@ -100,6 +73,7 @@ function BrowserElementParent(frameLoader, hasRemoteFrame, isPendingFrame) {
   debug("Creating new BrowserElementParent object for " + frameLoader);
   this._domRequestCounter = 0;
   this._pendingDOMRequests = {};
+  this._pendingSetInputMethodActive = [];
   this._hasRemoteFrame = hasRemoteFrame;
   this._nextPaintListeners = [];
 
@@ -254,9 +228,9 @@ BrowserElementParent.prototype = {
       "hello": this._recvHello,
       "contextmenu": this._fireCtxMenuEvent,
       "locationchange": this._fireEventFromMsg,
-      "loadstart": this._fireEventFromMsg,
-      "loadend": this._fireEventFromMsg,
-      "titlechange": this._fireEventFromMsg,
+      "loadstart": this._fireProfiledEventFromMsg,
+      "loadend": this._fireProfiledEventFromMsg,
+      "titlechange": this._fireProfiledEventFromMsg,
       "iconchange": this._fireEventFromMsg,
       "manifestchange": this._fireEventFromMsg,
       "metachange": this._fireEventFromMsg,
@@ -267,8 +241,8 @@ BrowserElementParent.prototype = {
       "securitychange": this._fireEventFromMsg,
       "error": this._fireEventFromMsg,
       "scroll": this._fireEventFromMsg,
-      "firstpaint": this._fireEventFromMsg,
-      "documentfirstpaint": this._fireEventFromMsg,
+      "firstpaint": this._fireProfiledEventFromMsg,
+      "documentfirstpaint": this._fireProfiledEventFromMsg,
       "nextpaint": this._recvNextPaint,
       "keyevent": this._fireKeyEvent,
       "showmodalprompt": this._handleShowModalPrompt,
@@ -333,17 +307,15 @@ BrowserElementParent.prototype = {
 
       evt = this._createEvent('usernameandpasswordrequired', detail,
                               /* cancelable */ true);
-      defineAndExpose(evt.detail, 'authenticate', function(username, password) {
+      Cu.exportFunction(function(username, password) {
         if (callbackCalled)
           return;
         callbackCalled = true;
         callback(true, username, password);
-      });
+      }, evt.detail, { defineAs: 'authenticate' });
     }
 
-    defineAndExpose(evt.detail, 'cancel', function() {
-      cancelCallback();
-    });
+    Cu.exportFunction(cancelCallback, evt.detail, { defineAs: 'cancel' });
 
     this._frameElement.dispatchEvent(evt);
 
@@ -371,6 +343,11 @@ BrowserElementParent.prototype = {
 
     this._ready = true;
 
+    // Handle pending SetInputMethodActive request.
+    while (this._pendingSetInputMethodActive.length > 0) {
+      this._setInputMethodActive(this._pendingSetInputMethodActive.shift());
+    }
+
     // Inform our child if our owner element's document is invisible.  Note
     // that we must do so here, rather than in the BrowserElementParent
     // constructor, because the BrowserElementChild may not be initialized when
@@ -396,15 +373,25 @@ BrowserElementParent.prototype = {
 
     if (detail.contextmenu) {
       var self = this;
-      defineAndExpose(evt.detail, 'contextMenuItemSelected', function(id) {
+      Cu.exportFunction(function(id) {
         self._sendAsyncMsg('fire-ctx-callback', {menuitem: id});
-      });
+      }, evt.detail, { defineAs: 'contextMenuItemSelected' });
     }
 
     // The embedder may have default actions on context menu events, so
     // we fire a context menu event even if the child didn't define a
     // custom context menu
     return !this._frameElement.dispatchEvent(evt);
+  },
+
+  /**
+   * add profiler marker for each event fired.
+   */
+  _fireProfiledEventFromMsg: function(data) {
+    if (Services.profiler !== undefined) {
+      Services.profiler.AddMarker(data.json.msg_name);
+    }
+    this._fireEventFromMsg(data);
   },
 
   /**
@@ -466,9 +453,7 @@ BrowserElementParent.prototype = {
       self._sendAsyncMsg('unblock-modal-prompt', data);
     }
 
-    defineAndExpose(evt.detail, 'unblock', function() {
-      sendUnblockMsg();
-    });
+    Cu.exportFunction(sendUnblockMsg, evt.detail, { defineAs: 'unblock' });
 
     this._frameElement.dispatchEvent(evt);
 
@@ -483,7 +468,7 @@ BrowserElementParent.prototype = {
     // This will have to change if we ever want to send a CustomEvent with null
     // detail.  For now, it's OK.
     if (detail !== undefined && detail !== null) {
-      exposeAll(detail);
+      detail = Cu.cloneInto(detail, this._window);
       return new this._window.CustomEvent('mozbrowser' + evtName,
                                           { bubbles: true,
                                             cancelable: cancelable,
@@ -714,6 +699,12 @@ BrowserElementParent.prototype = {
                                  Cr.NS_ERROR_INVALID_ARG);
     }
 
+    // Wait until browserElementChild is initialized.
+    if (!this._ready) {
+      this._pendingSetInputMethodActive.push(isActive);
+      return;
+    }
+
     let req = Services.DOMRequest.createRequest(this._window);
 
     // Deactivate the old input method if needed.
@@ -723,35 +714,17 @@ BrowserElementParent.prototype = {
         // we should simply set it to null directly.
         activeInputFrame = null;
         this._sendSetInputMethodActiveDOMRequest(req, isActive);
-      } else {
-        let reqOld = XPCNativeWrapper.unwrap(activeInputFrame)
-                                     .setInputMethodActive(false);
-
-        // We wan't to continue regardless whether this req succeeded
-        reqOld.onsuccess = reqOld.onerror = function() {
-          let setActive = function() {
-            activeInputFrame = null;
-            this._sendSetInputMethodActiveDOMRequest(req, isActive);
-          }.bind(this);
-
-          if (this._ready) {
-            setActive();
-            return;
-          }
-
-          // Wait for the hello event from BrowserElementChild
-          let onReady = function(aMsg) {
-            if (this._isAlive() && (aMsg.data.msg_name === 'hello')) {
-              setActive();
-
-              this._mm.removeMessageListener('browser-element-api:call',
-                onReady);
-            }
-          }.bind(this);
-
-          this._mm.addMessageListener('browser-element-api:call', onReady);
-        }.bind(this);
+        return req;
       }
+
+      let reqOld = XPCNativeWrapper.unwrap(activeInputFrame)
+                                   .setInputMethodActive(false);
+
+      // We wan't to continue regardless whether this req succeeded
+      reqOld.onsuccess = reqOld.onerror = function() {
+        activeInputFrame = null;
+        this._sendSetInputMethodActiveDOMRequest(req, isActive);
+      }.bind(this);
     } else {
       this._sendSetInputMethodActiveDOMRequest(req, isActive);
     }

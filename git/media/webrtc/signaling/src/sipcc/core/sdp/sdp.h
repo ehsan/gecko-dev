@@ -539,6 +539,7 @@ typedef enum sdp_srtp_crypto_suite_t_ {
 
 #define SDP_DEFAULT_PACKETIZATION_MODE_VALUE 0 /* max packetization mode for H.264 */
 #define SDP_MAX_PACKETIZATION_MODE_VALUE 2 /* max packetization mode for H.264 */
+#define SDP_INVALID_PACKETIZATION_MODE_VALUE 255
 
 #define SDP_MAX_LEVEL_ASYMMETRY_ALLOWED_VALUE 1 /* max level asymmetry allowed value for H.264 */
 #define SDP_DEFAULT_LEVEL_ASYMMETRY_ALLOWED_VALUE 1 /* default level asymmetry allowed value for H.264 */
@@ -1258,6 +1259,8 @@ extern tinybool sdp_attr_get_simple_boolean(void *sdp_ptr,
 extern sdp_result_e sdp_attr_set_simple_boolean(void *sdp_ptr,
                    sdp_attr_e attr_type, u16 level, u8 cap_num,
                    u16 inst_num, u32 bool_parm);
+extern tinybool sdp_attr_is_present (void *sdp_ptr, sdp_attr_e attr_type,
+                                     u16 level, u8 cap_num);
 extern const char* sdp_attr_get_maxprate(void *sdp_ptr, u16 level,
                                          u16 inst_num);
 extern sdp_result_e sdp_attr_set_maxprate(void *sdp_ptr, u16 level,

@@ -25,15 +25,17 @@
 #include "nsRect.h"                     // for nsIntRect
 #include "gfx2DGlue.h"
 
-using namespace mozilla::gfx;
-
 namespace mozilla {
 namespace layers {
+
+using namespace mozilla::gfx;
 
 void
 ClientThebesLayer::PaintThebes()
 {
-  PROFILER_LABEL("ClientThebesLayer", "PaintThebes");
+  PROFILER_LABEL("ClientThebesLayer", "PaintThebes",
+    js::ProfileEntry::Category::GRAPHICS);
+
   NS_ASSERTION(ClientManager()->InDrawing(),
                "Can only draw in drawing phase");
   

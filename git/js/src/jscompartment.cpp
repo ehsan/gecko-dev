@@ -65,7 +65,9 @@ JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options =
     debugScriptMap(nullptr),
     debugScopes(nullptr),
     enumerators(nullptr),
-    compartmentStats(nullptr)
+    compartmentStats(nullptr),
+    scheduledForDestruction(false),
+    maybeAlive(true)
 #ifdef JS_ION
     , jitCompartment_(nullptr)
 #endif
@@ -225,12 +227,11 @@ JSCompartment::checkWrapperMapAfterMovingGC()
      * wrapperMap that points into the nursery, and that the hash table entries
      * are discoverable.
      */
-    JS::shadow::Runtime *rt = JS::shadow::Runtime::asShadowRuntime(runtimeFromMainThread());
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         CrossCompartmentKey key = e.front().key();
-        JS_ASSERT(!IsInsideNursery(rt, key.debugger));
-        JS_ASSERT(!IsInsideNursery(rt, key.wrapped));
-        JS_ASSERT(!IsInsideNursery(rt, e.front().value().get().toGCThing()));
+        JS_ASSERT(!IsInsideNursery(key.debugger));
+        JS_ASSERT(!IsInsideNursery(key.wrapped));
+        JS_ASSERT(!IsInsideNursery(static_cast<Cell *>(e.front().value().get().toGCThing())));
 
         WrapperMap::Ptr ptr = crossCompartmentWrappers.lookup(key);
         JS_ASSERT(ptr.found() && &*ptr == &e.front());
@@ -249,16 +250,15 @@ JSCompartment::putWrapper(JSContext *cx, const CrossCompartmentKey &wrapped, con
     JS_ASSERT(!IsPoisonedPtr(wrapper.toGCThing()));
     JS_ASSERT_IF(wrapped.kind == CrossCompartmentKey::StringWrapper, wrapper.isString());
     JS_ASSERT_IF(wrapped.kind != CrossCompartmentKey::StringWrapper, wrapper.isObject());
-    bool success = crossCompartmentWrappers.put(wrapped, wrapper);
+    bool success = crossCompartmentWrappers.put(wrapped, ReadBarriered<Value>(wrapper));
 
 #ifdef JSGC_GENERATIONAL
     /* There's no point allocating wrappers in the nursery since we will tenure them anyway. */
-    Nursery &nursery = cx->nursery();
-    JS_ASSERT(!nursery.isInside(wrapper.toGCThing()));
+    JS_ASSERT(!IsInsideNursery(static_cast<gc::Cell *>(wrapper.toGCThing())));
 
-    if (success && (nursery.isInside(wrapped.wrapped) || nursery.isInside(wrapped.debugger))) {
+    if (success && (IsInsideNursery(wrapped.wrapped) || IsInsideNursery(wrapped.debugger))) {
         WrapperMapRef ref(&crossCompartmentWrappers, wrapped);
-        cx->runtime()->gcStoreBuffer.putGeneric(ref);
+        cx->runtime()->gc.storeBuffer.putGeneric(ref);
     }
 #endif
 
@@ -284,7 +284,7 @@ JSCompartment::wrap(JSContext *cx, JSString **strp)
 
     /* Check the cache. */
     RootedValue key(cx, StringValue(str));
-    if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(key)) {
+    if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(CrossCompartmentKey(key))) {
         *strp = p->value().get().toString();
         return true;
     }
@@ -307,7 +307,7 @@ JSCompartment::wrap(JSContext *cx, JSString **strp)
 
     if (!copy)
         return false;
-    if (!putWrapper(cx, key, StringValue(copy)))
+    if (!putWrapper(cx, CrossCompartmentKey(key), StringValue(copy)))
         return false;
 
     *strp = copy;
@@ -396,7 +396,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
 
     // If we already have a wrapper for this value, use it.
     RootedValue key(cx, ObjectValue(*obj));
-    if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(key)) {
+    if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(CrossCompartmentKey(key))) {
         obj.set(&p->value().get().toObject());
         JS_ASSERT(obj->is<CrossCompartmentWrapperObject>());
         JS_ASSERT(obj->getParent() == global);
@@ -425,7 +425,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
     // map is always directly wrapped by the value.
     JS_ASSERT(Wrapper::wrappedObject(obj) == &key.get().toObject());
 
-    return putWrapper(cx, key, ObjectValue(*obj));
+    return putWrapper(cx, CrossCompartmentKey(key), ObjectValue(*obj));
 }
 
 bool
@@ -495,6 +495,41 @@ JSCompartment::wrap(JSContext *cx, AutoIdVector &props)
     return true;
 }
 
+bool
+JSCompartment::wrap(JSContext *cx, MutableHandle<PropDesc> desc)
+{
+    if (desc.isUndefined())
+        return true;
+
+    JSCompartment *comp = cx->compartment();
+
+    if (desc.hasValue()) {
+        RootedValue value(cx, desc.value());
+        if (!comp->wrap(cx, &value))
+            return false;
+        desc.setValue(value);
+    }
+    if (desc.hasGet()) {
+        RootedValue get(cx, desc.getterValue());
+        if (!comp->wrap(cx, &get))
+            return false;
+        desc.setGetter(get);
+    }
+    if (desc.hasSet()) {
+        RootedValue set(cx, desc.setterValue());
+        if (!comp->wrap(cx, &set))
+            return false;
+        desc.setSetter(set);
+    }
+    if (desc.descriptorValue().isObject()) {
+        RootedObject descObj(cx, &desc.descriptorValue().toObject());
+        if (!comp->wrap(cx, &descObj))
+            return false;
+        desc.setDescriptorObject(descObj);
+    }
+    return true;
+}
+
 /*
  * This method marks pointers that cross compartment boundaries. It should be
  * called only for per-compartment GCs, since full GCs naturally follow pointers
@@ -557,7 +592,7 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
     JSRuntime *rt = runtimeFromMainThread();
 
     {
-        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_TABLES);
+        gcstats::AutoPhase ap(rt->gc.stats, gcstats::PHASE_SWEEP_TABLES);
 
         /* Remove dead references held weakly by the compartment. */
 
@@ -569,12 +604,12 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
         savedStacks_.sweep(rt);
 
         if (global_ && IsObjectAboutToBeFinalized(global_.unsafeGet()))
-            global_ = nullptr;
+            global_.set(nullptr);
 
         if (selfHostingScriptSource &&
             IsObjectAboutToBeFinalized((JSObject **) selfHostingScriptSource.unsafeGet()))
         {
-            selfHostingScriptSource = nullptr;
+            selfHostingScriptSource.set(nullptr);
         }
 
 #ifdef JS_ION
@@ -616,8 +651,8 @@ JSCompartment::sweepCrossCompartmentWrappers()
 {
     JSRuntime *rt = runtimeFromMainThread();
 
-    gcstats::AutoPhase ap1(rt->gcStats, gcstats::PHASE_SWEEP_TABLES);
-    gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_SWEEP_TABLES_WRAPPER);
+    gcstats::AutoPhase ap1(rt->gc.stats, gcstats::PHASE_SWEEP_TABLES);
+    gcstats::AutoPhase ap2(rt->gc.stats, gcstats::PHASE_SWEEP_TABLES_WRAPPER);
 
     /* Remove dead wrappers from the table. */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
@@ -645,9 +680,7 @@ JSCompartment::purge()
 void
 JSCompartment::clearTables()
 {
-    global_ = nullptr;
-
-    regExps.clearTables();
+    global_.set(nullptr);
 
     // No scripts should have run in this compartment. This is used when
     // merging a compartment that has been used off thread into another
@@ -660,6 +693,7 @@ JSCompartment::clearTables()
     JS_ASSERT(!debugScopes);
     JS_ASSERT(!gcWeakMapList);
     JS_ASSERT(enumerators->next() == enumerators);
+    JS_ASSERT(regExps.empty());
 
     types.clearTables();
     if (baseShapes.initialized())
@@ -722,7 +756,7 @@ CreateLazyScriptsForCompartment(JSContext *cx)
     // which do not have an uncompiled enclosing script. The last condition is
     // so that we don't compile lazy scripts whose enclosing scripts failed to
     // compile, indicating that the lazy script did not escape the script.
-    for (gc::CellIter i(cx->zone(), gc::FINALIZE_LAZY_SCRIPT); !i.done(); i.next()) {
+    for (gc::ZoneCellIter i(cx->zone(), gc::FINALIZE_LAZY_SCRIPT); !i.done(); i.next()) {
         LazyScript *lazy = i.get<LazyScript>();
         JSFunction *fun = lazy->functionNonDelazifying();
         if (fun->compartment() == cx->compartment() &&
@@ -895,7 +929,7 @@ JSCompartment::removeDebuggeeUnderGC(FreeOp *fop,
 void
 JSCompartment::clearBreakpointsIn(FreeOp *fop, js::Debugger *dbg, JSObject *handler)
 {
-    for (gc::CellIter i(zone(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
+    for (gc::ZoneCellIter i(zone(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
         if (script->compartment() == this && script->hasAnyBreakpointsOrStepMode())
             script->clearBreakpointsIn(fop, dbg, handler);
@@ -906,7 +940,7 @@ void
 JSCompartment::clearTraps(FreeOp *fop)
 {
     MinorGC(fop->runtime(), JS::gcreason::EVICT_NURSERY);
-    for (gc::CellIter i(zone(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
+    for (gc::ZoneCellIter i(zone(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
         if (script->compartment() == this && script->hasAnyBreakpointsOrStepMode())
             script->clearTraps(fop);

@@ -5,6 +5,7 @@
 
 #include "mozilla/layers/CanvasClient.h"
 #include "ClientCanvasLayer.h"          // for ClientCanvasLayer
+#include "CompositorChild.h"            // for CompositorChild
 #include "GLContext.h"                  // for GLContext
 #include "GLScreenBuffer.h"             // for GLScreenBuffer
 #include "SurfaceStream.h"              // for SurfaceStream
@@ -43,7 +44,7 @@ CanvasClient::CreateCanvasClient(CanvasClientType aType,
 #endif
   if (aType == CanvasClientGLContext &&
       aForwarder->GetCompositorBackendType() == LayersBackend::LAYERS_OPENGL) {
-    aFlags |= TEXTURE_DEALLOCATE_CLIENT;
+    aFlags |= TextureFlags::DEALLOCATE_CLIENT;
     return new CanvasClientSurfaceStream(aForwarder, aFlags);
   }
   return new CanvasClient2D(aForwarder, aFlags);
@@ -52,9 +53,10 @@ CanvasClient::CreateCanvasClient(CanvasClientType aType,
 void
 CanvasClient2D::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
 {
+  AutoRemoveTexture autoRemove(this);
   if (mBuffer &&
       (mBuffer->IsImmutable() || mBuffer->GetSize() != aSize)) {
-    GetForwarder()->RemoveTextureFromCompositable(this, mBuffer);
+    autoRemove.mTexture = mBuffer;
     mBuffer = nullptr;
   }
 
@@ -66,20 +68,30 @@ CanvasClient2D::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
                                                 : gfxContentType::COLOR_ALPHA;
     gfxImageFormat format
       = gfxPlatform::GetPlatform()->OptimalFormatForContent(contentType);
-    uint32_t flags = TEXTURE_FLAGS_DEFAULT;
-    if (mTextureFlags & TEXTURE_NEEDS_Y_FLIP) {
-      flags |= TEXTURE_NEEDS_Y_FLIP;
+    TextureFlags flags = TextureFlags::DEFAULT;
+    if (mTextureFlags & TextureFlags::NEEDS_Y_FLIP) {
+      flags |= TextureFlags::NEEDS_Y_FLIP;
     }
-    mBuffer = CreateBufferTextureClient(gfx::ImageFormatToSurfaceFormat(format),
-                                        flags,
-                                        gfxPlatform::GetPlatform()->GetPreferredCanvasBackend());
+
+    gfx::SurfaceFormat surfaceFormat = gfx::ImageFormatToSurfaceFormat(format);
+    if (aLayer->IsGLLayer()) {
+      // We want a cairo backend here as we don't want to be copying into
+      // an accelerated backend and we like LockBits to work. This is currently
+      // the most effective way to make this work.
+      mBuffer = CreateBufferTextureClient(surfaceFormat, flags, BackendType::CAIRO);
+    } else {
+      // XXX - We should use CreateTextureClientForDrawing, but we first need
+      // to use double buffering.
+      mBuffer = CreateBufferTextureClient(surfaceFormat, flags,
+        gfxPlatform::GetPlatform()->GetPreferredCanvasBackend());
+    }
     MOZ_ASSERT(mBuffer->CanExposeDrawTarget());
     mBuffer->AllocateForSurface(aSize);
 
     bufferCreated = true;
   }
 
-  if (!mBuffer->Lock(OPEN_WRITE_ONLY)) {
+  if (!mBuffer->Lock(OpenMode::OPEN_WRITE_ONLY)) {
     mBuffer = nullptr;
     return;
   }
@@ -159,8 +171,19 @@ CanvasClientSurfaceStream::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     }
 
     if (grallocTextureClient->GetIPDLActor()) {
-      GetForwarder()->UseTexture(this, grallocTextureClient);
+      UseTexture(grallocTextureClient);
     }
+
+    if (mBuffer && CompositorChild::ChildProcessHasCompositor()) {
+      // remove old buffer from CompositableHost
+      RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker();
+      // Hold TextureClient until transaction complete.
+      tracker->SetTextureClient(mBuffer);
+      mBuffer->SetRemoveFromCompositableTracker(tracker);
+      // RemoveTextureFromCompositableAsync() expects CompositorChild's presence.
+      GetForwarder()->RemoveTextureFromCompositableAsync(tracker, this, mBuffer);
+    }
+    mBuffer = grallocTextureClient;
 #else
     printf_stderr("isCrossProcess, but not MOZ_WIDGET_GONK! Someone needs to write some code!");
     MOZ_ASSERT(false);

@@ -7,6 +7,7 @@
 #include "MediaBufferDecoder.h"
 #include "BufferDecoder.h"
 #include "mozilla/dom/AudioContextBinding.h"
+#include "mozilla/dom/ScriptSettings.h"
 #include <speex/speex_resampler.h>
 #include "nsXPCOMCIDInternal.h"
 #include "nsComponentManagerUtils.h"
@@ -18,7 +19,6 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptError.h"
 #include "nsMimeTypes.h"
-#include "nsCxPusher.h"
 #include "WebAudioUtils.h"
 
 namespace mozilla {
@@ -120,12 +120,11 @@ private:
       mDecodeJob.OnFailure(aErrorCode);
     } else {
       // Take extra care to cleanup on the main thread
-      NS_DispatchToMainThread(NS_NewRunnableMethod(this, &MediaDecodeTask::Cleanup),
-                              NS_DISPATCH_NORMAL);
+      NS_DispatchToMainThread(NS_NewRunnableMethod(this, &MediaDecodeTask::Cleanup));
 
       nsCOMPtr<nsIRunnable> event =
         new ReportResultTask(mDecodeJob, &WebAudioDecodeJob::OnFailure, aErrorCode);
-      NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
+      NS_DispatchToMainThread(event);
     }
   }
 
@@ -400,11 +399,15 @@ WebAudioDecodeJob::AllocateBuffer()
   MOZ_ASSERT(!mOutput);
   MOZ_ASSERT(NS_IsMainThread());
 
-  // First, get a JSContext
-  AutoPushJSContext cx(mContext->GetJSContext());
-  if (!cx) {
+  // We need the global for the context so that we can enter its compartment.
+  JSObject* global = mContext->GetGlobalJSObject();
+  if (NS_WARN_IF(!global)) {
     return false;
   }
+
+  AutoJSAPI jsapi;
+  JSContext* cx = jsapi.cx();
+  JSAutoCompartment ac(cx, global);
 
   // Now create the AudioBuffer
   ErrorResult rv;
@@ -415,7 +418,7 @@ WebAudioDecodeJob::AllocateBuffer()
   }
 
   for (uint32_t i = 0; i < mChannelBuffers.Length(); ++i) {
-    mOutput->SetRawChannelContents(cx, i, mChannelBuffers[i]);
+    mOutput->SetRawChannelContents(i, mChannelBuffers[i]);
   }
 
   return true;
@@ -434,7 +437,7 @@ MediaBufferDecoder::AsyncDecodeMedia(const char* aContentType, uint8_t* aBuffer,
       new ReportResultTask(aDecodeJob,
                            &WebAudioDecodeJob::OnFailure,
                            WebAudioDecodeJob::UnknownContent);
-    NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
+    NS_DispatchToMainThread(event);
     return;
   }
 
@@ -443,7 +446,7 @@ MediaBufferDecoder::AsyncDecodeMedia(const char* aContentType, uint8_t* aBuffer,
       new ReportResultTask(aDecodeJob,
                            &WebAudioDecodeJob::OnFailure,
                            WebAudioDecodeJob::UnknownError);
-    NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
+    NS_DispatchToMainThread(event);
     return;
   }
 
@@ -456,7 +459,7 @@ MediaBufferDecoder::AsyncDecodeMedia(const char* aContentType, uint8_t* aBuffer,
       new ReportResultTask(aDecodeJob,
                            &WebAudioDecodeJob::OnFailure,
                            WebAudioDecodeJob::UnknownError);
-    NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
+    NS_DispatchToMainThread(event);
   } else {
     mThreadPool->Dispatch(task, nsIThreadPool::DISPATCH_NORMAL);
   }
@@ -575,6 +578,12 @@ WebAudioDecodeJob::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
     amount += mChannelBuffers[i].SizeOfExcludingThis(aMallocSizeOf);
   }
   return amount;
+}
+
+size_t
+WebAudioDecodeJob::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+{
+  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
 
 }

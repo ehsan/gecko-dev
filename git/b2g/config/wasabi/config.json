@@ -20,10 +20,10 @@
     ],
     "env": {
         "VARIANT": "user",
-        "MOZILLA_OFFICIAL": "1"
+        "MOZILLA_OFFICIAL": "1",
+        "MOZ_TELEMETRY_REPORTING": "1"
     },
     "b2g_manifest": "wasabi.xml",
-    "b2g_manifest_branch": "master",
     "b2g_manifest_intree": true,
     "additional_source_tarballs": ["backup-wasabi.tar.gz"],
     "gecko_l10n_root": "https://hg.mozilla.org/l10n-central",

@@ -48,6 +48,12 @@ PRLogModuleInfo* gMediaStreamGraphLog;
 #endif
 
 /**
+ * We make the initial mCurrentTime nonzero so that zero times can have
+ * special meaning if necessary.
+ */
+static const int32_t INITIAL_CURRENT_TIME = 1;
+
+/**
  * The singleton graph instance.
  */
 static MediaStreamGraphImpl* gGraph;
@@ -77,6 +83,7 @@ MediaStreamGraphImpl::FinishStream(MediaStream* aStream)
     return;
   STREAM_LOG(PR_LOG_DEBUG, ("MediaStream %p will finish", aStream));
   aStream->mFinished = true;
+  aStream->mBuffer.AdvanceKnownTracksTime(STREAM_TIME_MAX);
   // Force at least one more iteration of the control loop, since we rely
   // on UpdateCurrentTime to notify our listeners once the stream end
   // has been reached.
@@ -206,7 +213,9 @@ MediaStreamGraphImpl::ExtractPendingInput(SourceMediaStream* aStream,
         aStream->mUpdateTracks.RemoveElementAt(i);
       }
     }
-    aStream->mBuffer.AdvanceKnownTracksTime(aStream->mUpdateKnownTracksTime);
+    if (!aStream->mFinished) {
+      aStream->mBuffer.AdvanceKnownTracksTime(aStream->mUpdateKnownTracksTime);
+    }
   }
   if (aStream->mBuffer.GetEnd() > 0) {
     aStream->mHasCurrentData = true;
@@ -351,8 +360,8 @@ MediaStreamGraphImpl::UpdateCurrentTime()
   if (mRealtime) {
     TimeStamp now = TimeStamp::Now();
     prevCurrentTime = mCurrentTime;
-    nextCurrentTime =
-      SecondsToMediaTime((now - mCurrentTimeStamp).ToSeconds()) + mCurrentTime;
+    nextCurrentTime = INITIAL_CURRENT_TIME +
+      SecondsToMediaTime((now - mInitialTimeStamp).ToSeconds());
 
     mCurrentTimeStamp = now;
     STREAM_LOG(PR_LOG_DEBUG+1, ("Updating current time to %f (real %f, mStateComputedTime %f)",
@@ -369,6 +378,11 @@ MediaStreamGraphImpl::UpdateCurrentTime()
 
   if (mStateComputedTime < nextCurrentTime) {
     STREAM_LOG(PR_LOG_WARNING, ("Media graph global underrun detected"));
+    if (mRealtime) {
+      // Adjust mInitialTimeStamp to remove the missed time.
+      mInitialTimeStamp += TimeDuration::
+        FromSeconds(MediaTimeToSeconds(nextCurrentTime - mStateComputedTime));
+    }
     nextCurrentTime = mStateComputedTime;
   }
 
@@ -1051,7 +1065,7 @@ MediaStreamGraphImpl::PlayVideo(MediaStream* aStream)
 
     nsCOMPtr<nsIRunnable> event =
       NS_NewRunnableMethod(output, &VideoFrameContainer::Invalidate);
-    NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
+    NS_DispatchToMainThread(event);
   }
   if (!aStream->mNotifiedFinished) {
     aStream->mLastPlayedVideoFrame = *frame;
@@ -2275,11 +2289,13 @@ SourceMediaStream::ResampleAudioToGraphSampleRate(TrackData* aTrackData, MediaSe
     return;
   }
   AudioSegment* segment = static_cast<AudioSegment*>(aSegment);
-  if (!aTrackData->mResampler) {
-    int channels = segment->ChannelCount();
+  int channels = segment->ChannelCount();
 
-    // If this segment is just silence, we delay instanciating the resampler.
-    if (channels) {
+  // If this segment is just silence, we delay instanciating the resampler.
+  if (channels) {
+    if (aTrackData->mResampler) {
+      MOZ_ASSERT(aTrackData->mResamplerChannelCount == segment->ChannelCount());
+    } else {
       SpeexResamplerState* state = speex_resampler_init(channels,
                                                         aTrackData->mInputRate,
                                                         GraphImpl()->AudioSampleRate(),
@@ -2289,6 +2305,9 @@ SourceMediaStream::ResampleAudioToGraphSampleRate(TrackData* aTrackData, MediaSe
         return;
       }
       aTrackData->mResampler.own(state);
+#ifdef DEBUG
+      aTrackData->mResamplerChannelCount = channels;
+#endif
     }
   }
   segment->ResampleChunks(aTrackData->mResampler);
@@ -2409,6 +2428,7 @@ void
 SourceMediaStream::AdvanceKnownTracksTime(StreamTime aKnownTime)
 {
   MutexAutoLock lock(mMutex);
+  MOZ_ASSERT(aKnownTime >= mUpdateKnownTracksTime);
   mUpdateKnownTracksTime = aKnownTime;
   if (!mDestroyed) {
     GraphImpl()->EnsureNextIteration();
@@ -2502,7 +2522,7 @@ MediaInputPort::GetNextInputInterval(GraphTime aTime)
   for (;;) {
     if (!mDest->mBlocked.GetAt(t, &end))
       break;
-    if (end == GRAPH_TIME_MAX)
+    if (end >= GRAPH_TIME_MAX)
       return result;
     t = end;
   }
@@ -2625,12 +2645,6 @@ ProcessedMediaStream::DestroyImpl()
   MediaStream::DestroyImpl();
   GraphImpl()->SetStreamOrderDirty();
 }
-
-/**
- * We make the initial mCurrentTime nonzero so that zero times can have
- * special meaning if necessary.
- */
-static const int32_t INITIAL_CURRENT_TIME = 1;
 
 MediaStreamGraphImpl::MediaStreamGraphImpl(bool aRealtime, TrackRate aSampleRate)
   : mCurrentTime(INITIAL_CURRENT_TIME)

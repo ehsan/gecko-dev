@@ -5,7 +5,6 @@
 import sys
 import os
 import optparse
-import webbrowser
 import time
 
 from copy import copy
@@ -264,10 +263,11 @@ parser_groups = (
                                  cmds=['test', 'run', 'xpi', 'testex',
                                        'testpkgs', 'testall'])),
         (("", "--e10s",), dict(dest="enable_e10s",
-                               help="enable out-of-process Jetpacks",
+                               help="enable remote windows",
                                action="store_true",
                                default=False,
-                               cmds=['test', 'run', 'testex', 'testpkgs'])),
+                               cmds=['test', 'run', 'testex', 'testpkgs', 
+                                     'testaddons', 'testcfx', 'testall'])),
         (("", "--logfile",), dict(dest="logfile",
                                   help="log console output to file",
                                   metavar=None,
@@ -814,9 +814,6 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
         mydir = os.path.dirname(os.path.abspath(__file__))
         app_extension_dir = os.path.join(mydir, "../../app-extension")
 
-    if target_cfg.get('preferences'):
-        harness_options['preferences'] = target_cfg.get('preferences')
-
     # Do not add entries for SDK modules
     harness_options['manifest'] = manifest.get_harness_options_manifest(False)
 
@@ -902,6 +899,8 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
         if options.addons is not None:
             options.addons = options.addons.split(",")
 
+        enable_e10s = options.enable_e10s or target_cfg.get('e10s', False)
+
         try:
             retval = run_app(harness_root_dir=app_extension_dir,
                              manifest_rdf=manifest_rdf,
@@ -924,7 +923,8 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
                              is_running_tests=(command == "test"),
                              overload_modules=options.overload_modules,
                              bundle_sdk=options.bundle_sdk,
-                             pkgdir=options.pkgdir)
+                             pkgdir=options.pkgdir,
+                             enable_e10s=enable_e10s)
         except ValueError, e:
             print ""
             print "A given cfx option has an inappropriate value:"

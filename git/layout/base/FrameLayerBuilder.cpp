@@ -1472,6 +1472,11 @@ ContainerState::CreateOrRecycleThebesLayer(const nsIFrame* aAnimatedGeometryRoot
     if (!FuzzyEqual(data->mXScale, mParameters.mXScale, 0.00001f) ||
         !FuzzyEqual(data->mYScale, mParameters.mYScale, 0.00001f) ||
         data->mAppUnitsPerDevPixel != mAppUnitsPerDevPixel) {
+#ifdef MOZ_DUMP_PAINTING
+    if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
+      printf_stderr("Recycled layer %p changed scale\n", layer.get());
+    }
+#endif
       InvalidateEntireThebesLayer(layer, aAnimatedGeometryRoot);
 #ifndef MOZ_ANDROID_OMTC
       didResetScrollPositionForLayerPixelAlignment = true;
@@ -1669,6 +1674,10 @@ ContainerState::FindOpaqueBackgroundColorFor(int32_t aThebesLayerIndex)
           break;
       }
 
+      if (item->IsInvisibleInRect(appUnitRect)) {
+        continue;
+      }
+
       nscolor color;
       if (item->IsUniform(mBuilder, &color) && NS_GET_A(color) == 255)
         return color;
@@ -1835,6 +1844,9 @@ AddTransformedBoundsToRegion(const nsIntRegion& aRegion,
                              nsIntRegion* aDest)
 {
   nsIntRect bounds = aRegion.GetBounds();
+  if (bounds.IsEmpty()) {
+    return;
+  }
   gfxRect transformed =
     aTransform.TransformBounds(gfxRect(bounds.x, bounds.y, bounds.width, bounds.height));
   transformed.RoundOut();
@@ -1975,6 +1987,15 @@ ContainerState::PopThebesLayerData()
     if (userData->mForcedBackgroundColor != backgroundColor) {
       // Invalidate the entire target ThebesLayer since we're changing
       // the background color
+#ifdef MOZ_DUMP_PAINTING
+      if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
+        printf_stderr("Forced background color has changed from #%08X to #%08X on layer %p\n",
+                      userData->mForcedBackgroundColor, backgroundColor, data->mLayer);
+        nsAutoCString str;
+        AppendToString(str, data->mLayer->GetValidRegion());
+        printf_stderr("Invalidating layer %p: %s\n", data->mLayer, str.get());
+      }
+#endif
       data->mLayer->InvalidateRegion(data->mLayer->GetValidRegion());
     }
     userData->mForcedBackgroundColor = backgroundColor;
@@ -2228,7 +2249,7 @@ ContainerState::FindThebesLayerFor(nsDisplayItem* aItem,
     ThebesLayerData* data = mThebesLayerDataStack[i];
     // Give up if there is content drawn above (in z-order) this layer that
     // intersects aItem's visible region; aItem must be placed in a
-    // layer this layer.
+    // layer above this layer.
     if (data->DrawAboveRegionIntersects(aVisibleRect)) {
       ++i;
       break;
@@ -2293,7 +2314,7 @@ static void
 DumpPaintedImage(nsDisplayItem* aItem, gfxASurface* aSurf)
 {
   nsCString string(aItem->Name());
-  string.Append("-");
+  string.Append('-');
   string.AppendInt((uint64_t)aItem);
   fprintf_stderr(gfxUtils::sDumpPaintFile, "array[\"%s\"]=\"", string.BeginReading());
   aSurf->DumpAsDataURL(gfxUtils::sDumpPaintFile);
@@ -2399,7 +2420,8 @@ void
 ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
                                     uint32_t aFlags)
 {
-  PROFILER_LABEL("ContainerState", "ProcessDisplayItems");
+  PROFILER_LABEL("ContainerState", "ProcessDisplayItems",
+    js::ProfileEntry::Category::GRAPHICS);
 
   const nsIFrame* lastAnimatedGeometryRoot = mContainerReferenceFrame;
   nsPoint topLeft(0,0);
@@ -3098,7 +3120,9 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
     // Set any matrix entries close to integers to be those exact integers.
     // This protects against floating-point inaccuracies causing problems
     // in the checks below.
-    transform.NudgeToIntegers();
+    // We use the fixed epsilon version here because we don't want the nudging
+    // to depend on the scroll position.
+    transform.NudgeToIntegersFixedEpsilon();
   }
   gfxMatrix transform2d;
   if (aContainerFrame &&
@@ -3753,7 +3777,8 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
                                    const nsIntRegion& aRegionToInvalidate,
                                    void* aCallbackData)
 {
-  PROFILER_LABEL("gfx", "DrawThebesLayer");
+  PROFILER_LABEL("FrameLayerBuilder", "DrawThebesLayer",
+    js::ProfileEntry::Category::GRAPHICS);
 
   nsDisplayListBuilder* builder = static_cast<nsDisplayListBuilder*>
     (aCallbackData);
@@ -3838,6 +3863,14 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
   }
 
   if (presContext->GetPaintFlashing()) {
+    gfxContextAutoSaveRestore save(aContext);
+    if (shouldDrawRectsSeparately) {
+      if (aClip == DrawRegionClip::DRAW_SNAPPED) {
+        gfxUtils::ClipToRegionSnapped(aContext, aRegionToDraw);
+      } else if (aClip == DrawRegionClip::DRAW) {
+        gfxUtils::ClipToRegion(aContext, aRegionToDraw);
+      }
+    }
     FlashPaint(aContext);
   }
 

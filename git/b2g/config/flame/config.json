@@ -26,10 +26,11 @@
     ],
     "env": {
         "VARIANT": "user",
-        "MOZILLA_OFFICIAL": "1"
+        "MOZILLA_OFFICIAL": "1",
+        "MOZ_TELEMETRY_REPORTING": "1",
+        "B2G_UPDATE_CHANNEL": "nightly"
     },
     "b2g_manifest": "flame.xml",
-    "b2g_manifest_branch": "master",
     "b2g_manifest_intree": true,
     "additional_source_tarballs": ["backup-flame.tar.xz"],
     "gecko_l10n_root": "https://hg.mozilla.org/l10n-central",

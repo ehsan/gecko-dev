@@ -9,6 +9,7 @@
 
 #include "mozilla/MemoryReporting.h"
 
+#include "builtin/RegExp.h"
 #include "builtin/TypedObject.h"
 #include "gc/Zone.h"
 #include "vm/GlobalObject.h"
@@ -74,15 +75,15 @@ struct CrossCompartmentKey
 
     CrossCompartmentKey()
       : kind(ObjectWrapper), debugger(nullptr), wrapped(nullptr) {}
-    CrossCompartmentKey(JSObject *wrapped)
+    explicit CrossCompartmentKey(JSObject *wrapped)
       : kind(ObjectWrapper), debugger(nullptr), wrapped(wrapped) {}
-    CrossCompartmentKey(JSString *wrapped)
+    explicit CrossCompartmentKey(JSString *wrapped)
       : kind(StringWrapper), debugger(nullptr), wrapped(wrapped) {}
-    CrossCompartmentKey(Value wrapped)
+    explicit CrossCompartmentKey(Value wrapped)
       : kind(wrapped.isString() ? StringWrapper : ObjectWrapper),
         debugger(nullptr),
         wrapped((js::gc::Cell *)wrapped.toGCThing()) {}
-    CrossCompartmentKey(const RootedValue &wrapped)
+    explicit CrossCompartmentKey(const RootedValue &wrapped)
       : kind(wrapped.get().isString() ? StringWrapper : ObjectWrapper),
         debugger(nullptr),
         wrapped((js::gc::Cell *)wrapped.get().toGCThing()) {}
@@ -141,7 +142,7 @@ struct JSCompartment
     friend struct JSRuntime;
     friend struct JSContext;
     friend class js::ExclusiveContext;
-    js::ReadBarriered<js::GlobalObject> global_;
+    js::ReadBarrieredGlobalObject global_;
 
     unsigned                     enterCompartmentDepth;
 
@@ -265,7 +266,7 @@ struct JSCompartment
      * Lazily initialized script source object to use for scripts cloned
      * from the self-hosting global.
      */
-    js::ReadBarriered<js::ScriptSourceObject> selfHostingScriptSource;
+    js::ReadBarrieredScriptSourceObject selfHostingScriptSource;
 
     /* During GC, stores the index of this compartment in rt->compartments. */
     unsigned                     gcIndex;
@@ -317,11 +318,12 @@ struct JSCompartment
     bool wrap(JSContext *cx, js::StrictPropertyOp *op);
     bool wrap(JSContext *cx, JS::MutableHandle<js::PropertyDescriptor> desc);
     bool wrap(JSContext *cx, js::AutoIdVector &props);
+    bool wrap(JSContext *cx, JS::MutableHandle<js::PropDesc> desc);
 
     bool putWrapper(JSContext *cx, const js::CrossCompartmentKey& wrapped, const js::Value& wrapper);
 
     js::WrapperMap::Ptr lookupWrapper(const js::Value& wrapped) {
-        return crossCompartmentWrappers.lookup(wrapped);
+        return crossCompartmentWrappers.lookup(js::CrossCompartmentKey(wrapped));
     }
 
     void removeWrapper(js::WrapperMap::Ptr p) {
@@ -329,7 +331,7 @@ struct JSCompartment
     }
 
     struct WrapperEnum : public js::WrapperMap::Enum {
-        WrapperEnum(JSCompartment *c) : js::WrapperMap::Enum(c->crossCompartmentWrappers) {}
+        explicit WrapperEnum(JSCompartment *c) : js::WrapperMap::Enum(c->crossCompartmentWrappers) {}
     };
 
     void trace(JSTracer *trc);
@@ -446,6 +448,11 @@ struct JSCompartment
     /* Used by memory reporters and invalid otherwise. */
     void               *compartmentStats;
 
+    // These flags help us to discover if a compartment that shouldn't be alive
+    // manages to outlive a GC.
+    bool scheduledForDestruction;
+    bool maybeAlive;
+
 #ifdef JS_ION
   private:
     js::jit::JitCompartment *jitCompartment_;
@@ -540,8 +547,8 @@ ExclusiveContext::global() const
 class AssertCompartmentUnchanged
 {
   public:
-    AssertCompartmentUnchanged(JSContext *cx
-                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    explicit AssertCompartmentUnchanged(JSContext *cx
+                                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : cx(cx), oldCompartment(cx->compartment())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;

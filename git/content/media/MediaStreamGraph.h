@@ -737,8 +737,7 @@ public:
   /**
    * Indicate that this stream should enter the "finished" state. All tracks
    * must have been ended via EndTrack. The finish time of the stream is
-   * when all tracks have ended and when latest time sent to
-   * AdvanceKnownTracksTime() has been reached.
+   * when all tracks have ended.
    */
   void FinishWithLockHeld();
   void Finish()
@@ -801,6 +800,9 @@ public:
     // Resampler if the rate of the input track does not match the
     // MediaStreamGraph's.
     nsAutoRef<SpeexResamplerState> mResampler;
+#ifdef DEBUG
+    int mResamplerChannelCount;
+#endif
     TrackTicks mStart;
     // Each time the track updates are flushed to the media graph thread,
     // this is cleared.

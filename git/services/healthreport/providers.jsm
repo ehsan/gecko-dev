@@ -1022,6 +1022,26 @@ DailyCrashesMeasurement2.prototype = Object.freeze({
   },
 });
 
+function DailyCrashesMeasurement3() {
+  Metrics.Measurement.call(this);
+}
+
+DailyCrashesMeasurement3.prototype = Object.freeze({
+  __proto__: Metrics.Measurement.prototype,
+
+  name: "crashes",
+  version: 3,
+
+  fields: {
+    "main-crash": DAILY_LAST_NUMERIC_FIELD,
+    "main-hang": DAILY_LAST_NUMERIC_FIELD,
+    "content-crash": DAILY_LAST_NUMERIC_FIELD,
+    "content-hang": DAILY_LAST_NUMERIC_FIELD,
+    "plugin-crash": DAILY_LAST_NUMERIC_FIELD,
+    "plugin-hang": DAILY_LAST_NUMERIC_FIELD,
+  },
+});
+
 this.CrashesProvider = function () {
   Metrics.Provider.call(this);
 
@@ -1037,6 +1057,7 @@ CrashesProvider.prototype = Object.freeze({
   measurementTypes: [
     DailyCrashesMeasurement1,
     DailyCrashesMeasurement2,
+    DailyCrashesMeasurement3,
   ],
 
   pullOnly: true,
@@ -1048,11 +1069,9 @@ CrashesProvider.prototype = Object.freeze({
   _populateCrashCounts: function () {
     this._log.info("Grabbing crash counts from crash manager.");
     let crashCounts = yield this._manager.getCrashCountsByDay();
-    let fields = {
-      "main-crash": "mainCrash",
-    };
 
-    let m = this.getMeasurement("crashes", 2);
+    let m = this.getMeasurement("crashes", 3);
+    let fields = DailyCrashesMeasurement3.prototype.fields;
 
     for (let [day, types] of crashCounts) {
       let date = Metrics.daysToDate(day);
@@ -1062,7 +1081,7 @@ CrashesProvider.prototype = Object.freeze({
           continue;
         }
 
-        yield m.setDailyLastNumeric(fields[type], count, date);
+        yield m.setDailyLastNumeric(type, count, date);
       }
     }
   },

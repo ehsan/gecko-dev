@@ -64,7 +64,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=995943
     return new Promise(function(resolve) { SpecialPowers.popPrefEnv(resolve); });
   }
 
+  var gGoCount = 0;
   function go() {
+    debug("Invoking go for window with id: " + window.getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID);
+    is(++gGoCount, 1, "Should only call go once!");
     checkLoadFileURI('http://example.com', false).then(
       pushPrefs.bind(null, [['capability.policy.policynames', ' somepolicy '],
                             ['capability.policy.somepolicy.checkloaduri.enabled', 'AlLAcCeSs'],
@@ -80,7 +83,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=995943
                             ['capability.policy.someotherpolicy.sites', 'http://example.net ']]))
     .then(checkLoadFileURI.bind(null, 'http://example.org', true))
     .then(checkLoadFileURI.bind(null, 'http://example.com', false))
-    .then(checkLoadFileURI.bind(null, 'https://example.com', true))
     .then(checkLoadFileURI.bind(null, 'http://example.net', false))
     .then(pushPrefs.bind(null, [['capability.policy.someotherpolicy.checkloaduri.enabled', 'allAccess']]))
     .then(checkLoadFileURI.bind(null, 'http://example.net', true))

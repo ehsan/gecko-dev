@@ -168,6 +168,9 @@ class RefTest(object):
     # Ensure that telemetry is disabled, so we don't connect to the telemetry
     # server in the middle of the tests.
     prefs['toolkit.telemetry.enabled'] = False
+    # Likewise for safebrowsing.
+    prefs['browser.safebrowsing.enabled'] = False
+    prefs['browser.safebrowsing.malware.enabled'] = False
 
     if options.e10s:
       prefs['browser.tabs.remote.autostart'] = True
@@ -367,7 +370,7 @@ class ReftestOptions(OptionParser):
     self.automation.addCommonOptions(self)
     self.add_option("--appname",
                     action = "store", type = "string", dest = "app",
-                    default = os.path.join(SCRIPT_DIRECTORY, automation.DEFAULT_APP),
+                    default = os.path.join(SCRIPT_DIRECTORY, self.automation.DEFAULT_APP),
                     help = "absolute path to application, overriding default")
     self.add_option("--extra-profile-file",
                     action = "append", dest = "extraProfileFiles",

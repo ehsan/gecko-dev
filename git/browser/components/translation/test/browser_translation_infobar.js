@@ -4,7 +4,11 @@
 
 // tests the translation infobar, using a fake 'Translation' implementation.
 
-Components.utils.import("resource:///modules/translation/Translation.jsm");
+let tmp = {};
+Cu.import("resource:///modules/translation/Translation.jsm", tmp);
+let {Translation} = tmp;
+
+const kShowUIPref = "browser.translation.ui.show";
 
 function waitForCondition(condition, nextTest, errorMsg) {
   var tries = 0;
@@ -61,9 +65,14 @@ function showTranslationUI(aDetectedLanguage) {
   return ui.notificationBox.getNotificationWithValue("translation");
 }
 
+function hasTranslationInfoBar() {
+  return !!gBrowser.getNotificationBox().getNotificationWithValue("translation");
+}
+
 function test() {
   waitForExplicitFinish();
 
+  Services.prefs.setBoolPref(kShowUIPref, true);
   let tab = gBrowser.addTab();
   gBrowser.selectedTab = tab;
   tab.linkedBrowser.addEventListener("load", function onload() {
@@ -71,6 +80,7 @@ function test() {
     TranslationStub.browser = gBrowser.selectedBrowser;
     registerCleanupFunction(function () {
       gBrowser.removeTab(tab);
+      Services.prefs.clearUserPref(kShowUIPref);
     });
     run_tests(() => {
       finish();
@@ -183,18 +193,23 @@ function run_tests(aFinishCallback) {
   info("Reopen to check the 'Not Now' button closes the notification.");
   notif = showTranslationUI("fr");
   let notificationBox = gBrowser.getNotificationBox();
-  ok(!!notificationBox.getNotificationWithValue("translation"), "there's a 'translate' notification");
+  is(hasTranslationInfoBar(), true, "there's a 'translate' notification");
   notif._getAnonElt("notNow").click();
-  ok(!notificationBox.getNotificationWithValue("translation"), "no 'translate' notification after clicking 'not now'");
+  is(hasTranslationInfoBar(), false, "no 'translate' notification after clicking 'not now'");
+
+  info("Reopen to check the url bar icon closes the notification.");
+  notif = showTranslationUI("fr");
+  is(hasTranslationInfoBar(), true, "there's a 'translate' notification");
+  PopupNotifications.getNotification("translate").anchorElement.click();
+  is(hasTranslationInfoBar(), false, "no 'translate' notification after clicking the url bar icon");
 
   info("Check that clicking the url bar icon reopens the info bar");
   checkURLBarIcon();
   // Clicking the anchor element causes a 'showing' event to be sent
   // asynchronously to our callback that will then show the infobar.
   PopupNotifications.getNotification("translate").anchorElement.click();
-  waitForCondition(() => !!notificationBox.getNotificationWithValue("translation"), () => {
-    ok(!!notificationBox.getNotificationWithValue("translation"),
-       "there's a 'translate' notification");
+  waitForCondition(hasTranslationInfoBar, () => {
+    ok(hasTranslationInfoBar(), "there's a 'translate' notification");
     aFinishCallback();
   }, "timeout waiting for the info bar to reappear");
 }

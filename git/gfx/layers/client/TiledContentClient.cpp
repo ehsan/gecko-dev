@@ -93,7 +93,7 @@ TiledContentClient::TiledContentClient(ClientTiledThebesLayer* aThebesLayer,
   mLowPrecisionTiledBuffer = ClientTiledLayerBuffer(aThebesLayer, this, aManager,
                                                     &mSharedFrameMetricsHelper);
 
-  mLowPrecisionTiledBuffer.SetResolution(gfxPrefs::LowPrecisionResolution()/1000.f);
+  mLowPrecisionTiledBuffer.SetResolution(gfxPrefs::LowPrecisionResolution());
 }
 
 void
@@ -241,7 +241,11 @@ bool
 SharedFrameMetricsHelper::AboutToCheckerboard(const FrameMetrics& aContentMetrics,
                                               const FrameMetrics& aCompositorMetrics)
 {
-  return !aContentMetrics.mDisplayPort.Contains(aCompositorMetrics.CalculateCompositedRectInCssPixels() - aCompositorMetrics.GetScrollOffset());
+  CSSRect painted =
+        (aContentMetrics.mCriticalDisplayPort.IsEmpty() ? aContentMetrics.mDisplayPort : aContentMetrics.mCriticalDisplayPort)
+        + aContentMetrics.GetScrollOffset();
+  CSSRect showing = CSSRect(aCompositorMetrics.GetScrollOffset(), aCompositorMetrics.CalculateBoundedCompositedSizeInCssPixels());
+  return !painted.Contains(showing);
 }
 
 ClientTiledLayerBuffer::ClientTiledLayerBuffer(ClientTiledThebesLayer* aThebesLayer,
@@ -443,13 +447,13 @@ TileClient::ValidateBackBufferFromFront(const nsIntRegion& aDirtyRegion,
         return;
       }
 
-      if (!mFrontBuffer->Lock(OPEN_READ)) {
+      if (!mFrontBuffer->Lock(OpenMode::OPEN_READ)) {
         NS_WARNING("Failed to lock the tile's front buffer");
         return;
       }
       TextureClientAutoUnlock autoFront(mFrontBuffer);
 
-      if (!mBackBuffer->Lock(OPEN_WRITE)) {
+      if (!mBackBuffer->Lock(OpenMode::OPEN_WRITE)) {
         NS_WARNING("Failed to lock the tile's back buffer");
         return;
       }
@@ -654,7 +658,9 @@ ClientTiledLayerBuffer::PaintThebes(const nsIntRegion& aNewValidRegion,
 
     const nsIntRect bounds = aPaintRegion.GetBounds();
     {
-      PROFILER_LABEL("ClientTiledLayerBuffer", "PaintThebesSingleBufferAlloc");
+      PROFILER_LABEL("ClientTiledLayerBuffer", "PaintThebesSingleBufferAlloc",
+        js::ProfileEntry::Category::GRAPHICS);
+
       gfxImageFormat format =
         gfxPlatform::GetPlatform()->OptimalFormatForContent(
           GetContentType());
@@ -682,7 +688,8 @@ ClientTiledLayerBuffer::PaintThebes(const nsIntRegion& aNewValidRegion,
     }
     start = PR_IntervalNow();
 #endif
-    PROFILER_LABEL("ClientTiledLayerBuffer", "PaintThebesSingleBufferDraw");
+    PROFILER_LABEL("ClientTiledLayerBuffer", "PaintThebesSingleBufferDraw",
+      js::ProfileEntry::Category::GRAPHICS);
 
     mCallback(mThebesLayer, ctxt, aPaintRegion, DrawRegionClip::CLIP_NONE, nsIntRegion(), mCallbackData);
   }
@@ -702,7 +709,9 @@ ClientTiledLayerBuffer::PaintThebes(const nsIntRegion& aNewValidRegion,
   start = PR_IntervalNow();
 #endif
 
-  PROFILER_LABEL("ClientTiledLayerBuffer", "PaintThebesUpdate");
+  PROFILER_LABEL("ClientTiledLayerBuffer", "PaintThebesUpdate",
+    js::ProfileEntry::Category::GRAPHICS);
+
   Update(aNewValidRegion, aPaintRegion);
 
 #ifdef GFX_TILEDLAYER_PREF_WARNINGS
@@ -723,7 +732,8 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
                                     const nsIntPoint& aTileOrigin,
                                     const nsIntRegion& aDirtyRegion)
 {
-  PROFILER_LABEL("ClientTiledLayerBuffer", "ValidateTile");
+  PROFILER_LABEL("ClientTiledLayerBuffer", "ValidateTile",
+    js::ProfileEntry::Category::GRAPHICS);
 
 #ifdef GFX_TILEDLAYER_PREF_WARNINGS
   if (aDirtyRegion.IsComplex()) {
@@ -753,7 +763,7 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
                         mManager->GetTexturePool(gfxPlatform::GetPlatform()->Optimal2DFormatForContent(GetContentType())),
                         &createdTextureClient, !usingSinglePaintBuffer);
 
-  if (!backBuffer->Lock(OPEN_READ_WRITE)) {
+  if (!backBuffer->Lock(OpenMode::OPEN_READ_WRITE)) {
     NS_WARNING("Failed to lock tile TextureClient for updating.");
     aTile.DiscardFrontBuffer();
     return aTile;
@@ -884,16 +894,17 @@ TransformCompositionBounds(const ParentLayerRect& aCompositionBounds,
                            const CSSToParentLayerScale& aZoom,
                            const ParentLayerPoint& aScrollOffset,
                            const CSSToParentLayerScale& aResolution,
-                           const gfx3DMatrix& aTransformParentLayerToLayoutDevice)
+                           const gfx3DMatrix& aTransformDisplayPortToLayoutDevice)
 {
-  // Transform the current composition bounds into ParentLayer coordinates
-  // by compensating for the difference in resolution and subtracting the
+  // Transform the composition bounds from the space of the displayport ancestor
+  // layer into the LayoutDevice space of this layer. Do this by
+  // compensating for the difference in resolution and subtracting the
   // old composition bounds origin.
   ParentLayerRect offsetViewportRect = (aCompositionBounds / aZoom) * aResolution;
   offsetViewportRect.MoveBy(-aScrollOffset);
 
   gfxRect transformedViewport =
-    aTransformParentLayerToLayoutDevice.TransformBounds(
+    aTransformDisplayPortToLayoutDevice.TransformBounds(
       gfxRect(offsetViewportRect.x, offsetViewportRect.y,
               offsetViewportRect.width, offsetViewportRect.height));
 
@@ -957,18 +968,17 @@ ClientTiledLayerBuffer::ComputeProgressiveUpdateRegion(const nsIntRegion& aInval
     // non-low-precision paint, as in that situation, we're about to override
     // front-end's page/viewport metrics.
     if (!aPaintData->mFirstPaint || drawingLowPrecision) {
-      PROFILER_LABEL("ContentClient", "Abort painting");
+      PROFILER_LABEL("ClientTiledLayerBuffer", "ComputeProgressiveUpdateRegion",
+        js::ProfileEntry::Category::GRAPHICS);
+
       aRegionToPaint.SetEmpty();
       return aIsRepeated;
     }
   }
 
-  // Transform the composition bounds, which is in the ParentLayer coordinates
-  // of the nearest ContainerLayer with a valid displayport to LayoutDevice
-  // coordinates relative to this layer.
   LayoutDeviceRect transformedCompositionBounds =
     TransformCompositionBounds(compositionBounds, zoom, aPaintData->mScrollOffset,
-                               aPaintData->mResolution, aPaintData->mTransformParentLayerToLayoutDevice);
+                               aPaintData->mResolution, aPaintData->mTransformDisplayPortToLayoutDevice);
 
   // Paint tiles that have stale content or that intersected with the screen
   // at the time of issuing the draw command in a single transaction first.

@@ -90,7 +90,7 @@ pref("network.http.pipelining", true);
 pref("network.http.pipelining.ssl", true);
 pref("network.http.proxy.pipelining", true);
 pref("network.http.pipelining.maxrequests" , 6);
-pref("network.http.keep-alive.timeout", 600);
+pref("network.http.keep-alive.timeout", 109);
 pref("network.http.max-connections", 20);
 pref("network.http.max-persistent-connections-per-server", 6);
 pref("network.http.max-persistent-connections-per-proxy", 20);
@@ -103,9 +103,9 @@ pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  16384);
 
 // predictive actions
-pref("network.seer.enabled", false);
-pref("network.seer.max-db-size", 2097152); // bytes
-pref("network.seer.preserve", 50); // percentage of seer data to keep when cleaning up
+pref("network.predictor.enabled", false);
+pref("network.predictor.max-db-size", 2097152); // bytes
+pref("network.predictor.preserve", 50); // percentage of predictor data to keep when cleaning up
 
 /* history max results display */
 pref("browser.display.history.maxresults", 100);
@@ -276,7 +276,11 @@ pref("browser.search.official", true);
 #endif
 
 // Control media casting feature
+#ifdef RELEASE_BUILD
 pref("browser.casting.enabled", false);
+#else
+pref("browser.casting.enabled", true);
+#endif
 
 // Enable sparse localization by setting a few package locale overrides
 pref("chrome.override_package.global", "browser");
@@ -466,7 +470,7 @@ pref("breakpad.reportURL", "https://crash-stats.mozilla.com/report/index/");
 pref("app.support.baseURL", "http://support.mozilla.org/1/mobile/%VERSION%/%OS%/%LOCALE%/");
 // Used to submit data to input from about:feedback
 pref("app.feedback.postURL", "https://input.mozilla.org/%LOCALE%/feedback");
-pref("app.privacyURL", "https://www.mozilla.org/legal/privacy/firefox.html");
+pref("app.privacyURL", "https://www.mozilla.org/privacy/firefox/");
 pref("app.creditsURL", "http://www.mozilla.org/credits/");
 pref("app.channelURL", "http://www.mozilla.org/%LOCALE%/firefox/channel/");
 #if MOZ_UPDATE_CHANNEL == aurora
@@ -551,7 +555,7 @@ pref("layers.offmainthreadcomposition.enabled", true);
 pref("layers.async-video.enabled", true);
 pref("layers.progressive-paint", true);
 pref("layers.low-precision-buffer", true);
-pref("layers.low-precision-resolution", 250);
+pref("layers.low-precision-resolution", "0.25");
 // We want to limit layers for two reasons:
 // 1) We can't scroll smoothly if we have to many draw calls
 // 2) Pages that have too many layers consume too much memory and crash.

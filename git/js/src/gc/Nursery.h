@@ -34,6 +34,7 @@ void SetGCZeal(JSRuntime *, uint8_t, uint32_t);
 
 namespace gc {
 class Cell;
+class Collector;
 class MinorCollectionTracer;
 } /* namespace gc */
 
@@ -60,6 +61,8 @@ class Nursery
     explicit Nursery(JSRuntime *rt)
       : runtime_(rt),
         position_(0),
+        heapStart_(0),
+        heapEnd_(0),
         currentStart_(0),
         currentEnd_(0),
         currentChunk_(0),
@@ -76,9 +79,13 @@ class Nursery
     /* Return true if no allocations have been made since the last collection. */
     bool isEmpty() const;
 
-    template <typename T>
-    MOZ_ALWAYS_INLINE bool isInside(const T *p) const {
-        return gc::IsInsideNursery((JS::shadow::Runtime *)runtime_, p);
+    /*
+     * Check whether an arbitrary pointer is within the nursery. This is
+     * slower than IsInsideNursery(Cell*), but works on all types of pointers.
+     */
+    MOZ_ALWAYS_INLINE bool isInside(gc::Cell *cellp) const MOZ_DELETE;
+    MOZ_ALWAYS_INLINE bool isInside(const void *p) const {
+        return uintptr_t(p) >= heapStart_ && uintptr_t(p) < heapEnd_;
     }
 
     /*
@@ -103,9 +110,6 @@ class Nursery
 
     /* Free a slots array. */
     void freeSlots(JSContext *cx, HeapSlot *slots);
-
-    /* Add a slots to our tracking list if it is out-of-line. */
-    void notifyInitialSlots(gc::Cell *cell, HeapSlot *slots);
 
     typedef Vector<types::TypeObject *, 0, SystemAllocPolicy> TypeObjectList;
 
@@ -141,14 +145,17 @@ class Nursery
     }
 
     MOZ_ALWAYS_INLINE uintptr_t start() const {
-        JS_ASSERT(runtime_);
-        return ((JS::shadow::Runtime *)runtime_)->gcNurseryStart_;
+        return heapStart_;
     }
 
     MOZ_ALWAYS_INLINE uintptr_t heapEnd() const {
-        JS_ASSERT(runtime_);
-        return ((JS::shadow::Runtime *)runtime_)->gcNurseryEnd_;
+        return heapEnd_;
     }
+
+#ifdef JS_GC_ZEAL
+    void enterZealMode();
+    void leaveZealMode();
+#endif
 
   private:
     /*
@@ -160,6 +167,10 @@ class Nursery
 
     /* Pointer to the first unallocated byte in the nursery. */
     uintptr_t position_;
+
+    /* Pointer to first and last address of the total nursery allocation. */
+    uintptr_t heapStart_;
+    uintptr_t heapEnd_;
 
     /* Pointer to the logical start of the Nursery. */
     uintptr_t currentStart_;
@@ -203,6 +214,7 @@ class Nursery
 
     MOZ_ALWAYS_INLINE void initChunk(int chunkno) {
         NurseryChunkLayout &c = chunk(chunkno);
+        c.trailer.storeBuffer = JS::shadow::Runtime::asShadowRuntime(runtime())->gcStoreBufferPtr();
         c.trailer.location = gc::ChunkLocationNursery;
         c.trailer.runtime = runtime();
     }
@@ -216,27 +228,11 @@ class Nursery
         initChunk(chunkno);
     }
 
-    void updateDecommittedRegion() {
-#ifndef JS_GC_ZEAL
-        if (numActiveChunks_ < NumNurseryChunks) {
-            // Bug 994054: madvise on MacOS is too slow to make this
-            //             optimization worthwhile.
-# ifndef XP_MACOSX
-            uintptr_t decommitStart = chunk(numActiveChunks_).start();
-            JS_ASSERT(decommitStart == AlignBytes(decommitStart, 1 << 20));
-            gc::MarkPagesUnused(runtime(), (void *)decommitStart, heapEnd() - decommitStart);
-# endif
-        }
-#endif
-    }
+    void updateDecommittedRegion();
 
     MOZ_ALWAYS_INLINE uintptr_t allocationEnd() const {
         JS_ASSERT(numActiveChunks_ > 0);
         return chunk(numActiveChunks_ - 1).end();
-    }
-
-    MOZ_ALWAYS_INLINE bool isFullyGrown() const {
-        return numActiveChunks_ == NumNurseryChunks;
     }
 
     MOZ_ALWAYS_INLINE uintptr_t currentEnd() const {
@@ -286,13 +282,13 @@ class Nursery
                                       uint32_t nelems);
 
     /* Free malloced pointers owned by freed things in the nursery. */
-    void freeHugeSlots(JSRuntime *rt);
+    void freeHugeSlots();
 
     /*
      * Frees all non-live nursery-allocated things at the end of a minor
      * collection.
      */
-    void sweep(JSRuntime *rt);
+    void sweep();
 
     /* Change the allocable space provided by the nursery. */
     void growAllocableSpace();
@@ -300,30 +296,8 @@ class Nursery
 
     static void MinorGCCallback(JSTracer *trc, void **thingp, JSGCTraceKind kind);
 
-#ifdef JS_GC_ZEAL
-    /*
-     * In debug and zeal builds, these bytes indicate the state of an unused
-     * segment of nursery-allocated memory.
-     */
-    void enterZealMode() {
-        if (isEnabled())
-            numActiveChunks_ = NumNurseryChunks;
-    }
-    void leaveZealMode() {
-        if (isEnabled()) {
-            JS_ASSERT(isEmpty());
-            setCurrentChunk(0);
-            currentStart_ = start();
-        }
-    }
-#else
-    void enterZealMode() {}
-    void leaveZealMode() {}
-#endif
-
     friend class gc::MinorCollectionTracer;
     friend class jit::MacroAssembler;
-    friend void SetGCZeal(JSRuntime *, uint8_t, uint32_t);
 };
 
 } /* namespace js */

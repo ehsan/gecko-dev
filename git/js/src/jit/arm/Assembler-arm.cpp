@@ -1255,11 +1255,11 @@ VFPRegister::isMissing()
 bool
 Assembler::oom() const
 {
-    return m_buffer.oom() ||
-        !enoughMemory_ ||
-        jumpRelocations_.oom() ||
-        dataRelocations_.oom() ||
-        preBarriers_.oom();
+    return AssemblerShared::oom() ||
+           m_buffer.oom() ||
+           jumpRelocations_.oom() ||
+           dataRelocations_.oom() ||
+           preBarriers_.oom();
 }
 
 bool
@@ -1567,7 +1567,7 @@ class PoolHintData {
     static const uint32_t expectedOnes = 0xfu;
 
   public:
-    void init(uint32_t index_, Assembler::Condition cond_, LoadType lt, const Register &destReg_) {
+    void init(uint32_t index_, Assembler::Condition cond_, LoadType lt, Register destReg_) {
         index = index_;
         JS_ASSERT(index == index_);
         cond = cond_ >> 28;

@@ -28,7 +28,6 @@
 
 using namespace mozilla::dom;
 using mozilla::ErrorResult;
-using mozilla::dom::telephony::kOutgoingPlaceholderCallIndex;
 
 class Telephony::Listener : public nsITelephonyListener
 {
@@ -77,15 +76,15 @@ public:
   NS_IMETHODIMP
   NotifyDialError(const nsAString& aError)
   {
-    mPromise->MaybeReject(aError);
+    mPromise->MaybeRejectBrokenly(aError);
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  NotifyDialSuccess()
+  NotifyDialSuccess(uint32_t aCallIndex)
   {
     nsRefPtr<TelephonyCall> call =
-      mTelephony->CreateNewDialingCall(mServiceId, mNumber);
+      mTelephony->CreateNewDialingCall(mServiceId, mNumber, aCallIndex);
 
     mPromise->MaybeResolve(call);
     return NS_OK;
@@ -126,9 +125,9 @@ Telephony::Shutdown()
   if (mListener) {
     mListener->Disconnect();
 
-    if (mProvider) {
-      mProvider->UnregisterListener(mListener);
-      mProvider = nullptr;
+    if (mService) {
+      mService->UnregisterListener(mListener);
+      mService = nullptr;
     }
 
     mListener = nullptr;
@@ -147,8 +146,8 @@ Telephony::Create(nsPIDOMWindow* aOwner, ErrorResult& aRv)
 {
   NS_ASSERTION(aOwner, "Null owner!");
 
-  nsCOMPtr<nsITelephonyProvider> ril =
-    do_GetService(TELEPHONY_PROVIDER_CONTRACTID);
+  nsCOMPtr<nsITelephonyService> ril =
+    do_GetService(TELEPHONY_SERVICE_CONTRACTID);
   if (!ril) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;
@@ -168,7 +167,7 @@ Telephony::Create(nsPIDOMWindow* aOwner, ErrorResult& aRv)
 
   nsRefPtr<Telephony> telephony = new Telephony(aOwner);
 
-  telephony->mProvider = ril;
+  telephony->mService = ril;
   telephony->mListener = new Listener(telephony);
   telephony->mCallsList = new CallsList(telephony);
   telephony->mGroup = TelephonyCallGroup::Create(telephony);
@@ -205,9 +204,9 @@ Telephony::IsValidServiceId(uint32_t aServiceId)
 // static
 bool
 Telephony::IsActiveState(uint16_t aCallState) {
-  return aCallState == nsITelephonyProvider::CALL_STATE_DIALING ||
-      aCallState == nsITelephonyProvider::CALL_STATE_ALERTING ||
-      aCallState == nsITelephonyProvider::CALL_STATE_CONNECTED;
+  return aCallState == nsITelephonyService::CALL_STATE_DIALING ||
+      aCallState == nsITelephonyService::CALL_STATE_ALERTING ||
+      aCallState == nsITelephonyService::CALL_STATE_CONNECTED;
 }
 
 uint32_t
@@ -217,7 +216,7 @@ Telephony::ProvidedOrDefaultServiceId(const Optional<uint32_t>& aServiceId)
     return aServiceId.Value();
   } else {
     uint32_t serviceId = 0;
-    mProvider->GetDefaultServiceId(&serviceId);
+    mService->GetDefaultServiceId(&serviceId);
     return serviceId;
   }
 }
@@ -227,8 +226,8 @@ Telephony::HasDialingCall()
 {
   for (uint32_t i = 0; i < mCalls.Length(); i++) {
     const nsRefPtr<TelephonyCall>& call = mCalls[i];
-    if (call->CallState() > nsITelephonyProvider::CALL_STATE_UNKNOWN &&
-        call->CallState() < nsITelephonyProvider::CALL_STATE_CONNECTED) {
+    if (call->CallState() > nsITelephonyService::CALL_STATE_UNKNOWN &&
+        call->CallState() < nsITelephonyService::CALL_STATE_CONNECTED) {
       return true;
     }
   }
@@ -256,21 +255,21 @@ Telephony::DialInternal(uint32_t aServiceId, const nsAString& aNumber,
   nsRefPtr<Promise> promise = new Promise(global);
 
   if (!IsValidNumber(aNumber) || !IsValidServiceId(aServiceId)) {
-    promise->MaybeReject(NS_LITERAL_STRING("InvalidAccessError"));
+    promise->MaybeReject(NS_ERROR_DOM_INVALID_ACCESS_ERR);
     return promise.forget();
   }
 
   // We only support one outgoing call at a time.
   if (HasDialingCall()) {
-    promise->MaybeReject(NS_LITERAL_STRING("InvalidStateError"));
+    promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
     return promise.forget();
   }
 
   nsCOMPtr<nsITelephonyCallback> callback =
     new Callback(this, promise, aServiceId, aNumber);
-  nsresult rv = mProvider->Dial(aServiceId, aNumber, aIsEmergency, callback);
+  nsresult rv = mService->Dial(aServiceId, aNumber, aIsEmergency, callback);
   if (NS_FAILED(rv)) {
-    promise->MaybeReject(NS_LITERAL_STRING("InvalidStateError"));
+    promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
     return promise.forget();
   }
 
@@ -278,11 +277,12 @@ Telephony::DialInternal(uint32_t aServiceId, const nsAString& aNumber,
 }
 
 already_AddRefed<TelephonyCall>
-Telephony::CreateNewDialingCall(uint32_t aServiceId, const nsAString& aNumber)
+Telephony::CreateNewDialingCall(uint32_t aServiceId, const nsAString& aNumber,
+                                uint32_t aCallIndex)
 {
   nsRefPtr<TelephonyCall> call =
     TelephonyCall::Create(this, aServiceId, aNumber,
-                          nsITelephonyProvider::CALL_STATE_DIALING);
+                          nsITelephonyService::CALL_STATE_DIALING, aCallIndex);
   NS_ASSERTION(call, "This should never fail!");
 
   NS_ASSERTION(mCalls.Contains(call), "Should have auto-added new call!");
@@ -317,26 +317,6 @@ Telephony::GetCall(uint32_t aServiceId, uint32_t aCallIndex)
         tempCall->CallIndex() == aCallIndex) {
       call = tempCall;
       break;
-    }
-  }
-
-  return call.forget();
-}
-
-already_AddRefed<TelephonyCall>
-Telephony::GetOutgoingCall()
-{
-  nsRefPtr<TelephonyCall> call;
-
-  for (uint32_t i = 0; i < mCalls.Length(); i++) {
-    nsRefPtr<TelephonyCall>& tempCall = mCalls[i];
-    if (tempCall->CallIndex() == kOutgoingPlaceholderCallIndex) {
-      NS_ASSERTION(!call, "More than one outgoing call not supported!");
-      NS_ASSERTION(tempCall->CallState() == nsITelephonyProvider::CALL_STATE_DIALING,
-                   "Something really wrong here!");
-
-      call = tempCall;
-      // No break. We will search entire list to ensure only one outgoing call.
     }
   }
 
@@ -418,7 +398,7 @@ Telephony::StartTone(const nsAString& aDTMFChar,
     return;
   }
 
-  aRv = mProvider->StartTone(serviceId, aDTMFChar);
+  aRv = mService->StartTone(serviceId, aDTMFChar);
 }
 
 void
@@ -431,14 +411,14 @@ Telephony::StopTone(const Optional<uint32_t>& aServiceId, ErrorResult& aRv)
     return;
   }
 
-  aRv = mProvider->StopTone(serviceId);
+  aRv = mService->StopTone(serviceId);
 }
 
 bool
 Telephony::GetMuted(ErrorResult& aRv) const
 {
   bool muted = false;
-  aRv = mProvider->GetMicrophoneMuted(&muted);
+  aRv = mService->GetMicrophoneMuted(&muted);
 
   return muted;
 }
@@ -446,14 +426,14 @@ Telephony::GetMuted(ErrorResult& aRv) const
 void
 Telephony::SetMuted(bool aMuted, ErrorResult& aRv)
 {
-  aRv = mProvider->SetMicrophoneMuted(aMuted);
+  aRv = mService->SetMicrophoneMuted(aMuted);
 }
 
 bool
 Telephony::GetSpeakerEnabled(ErrorResult& aRv) const
 {
   bool enabled = false;
-  aRv = mProvider->GetSpeakerEnabled(&enabled);
+  aRv = mService->GetSpeakerEnabled(&enabled);
 
   return enabled;
 }
@@ -461,7 +441,7 @@ Telephony::GetSpeakerEnabled(ErrorResult& aRv) const
 void
 Telephony::SetSpeakerEnabled(bool aEnabled, ErrorResult& aRv)
 {
-  aRv = mProvider->SetSpeakerEnabled(aEnabled);
+  aRv = mService->SetSpeakerEnabled(aEnabled);
 }
 
 void
@@ -469,7 +449,7 @@ Telephony::GetActive(Nullable<OwningTelephonyCallOrTelephonyCallGroup>& aValue)
 {
   if (mActiveCall) {
     aValue.SetValue().SetAsTelephonyCall() = mActiveCall;
-  } else if (mGroup->CallState() == nsITelephonyProvider::CALL_STATE_CONNECTED) {
+  } else if (mGroup->CallState() == nsITelephonyService::CALL_STATE_CONNECTED) {
     aValue.SetValue().SetAsTelephonyCallGroup() = mGroup;
   } else {
     aValue.SetNull();
@@ -506,32 +486,19 @@ Telephony::EventListenerAdded(nsIAtom* aType)
 NS_IMETHODIMP
 Telephony::CallStateChanged(uint32_t aServiceId, uint32_t aCallIndex,
                             uint16_t aCallState, const nsAString& aNumber,
-                            bool aIsActive, bool aIsOutgoing, bool aIsEmergency,
+                            bool aIsOutgoing, bool aIsEmergency,
                             bool aIsConference, bool aIsSwitchable, bool aIsMergeable)
 {
   nsRefPtr<TelephonyCall> modifiedCall
       = GetCallFromEverywhere(aServiceId, aCallIndex);
 
-  // Try to use the outgoing call if we don't find the modified call.
-  if (!modifiedCall) {
-    nsRefPtr<TelephonyCall> outgoingCall = GetOutgoingCall();
-
-    // If the call state isn't incoming but we do have an outgoing call then
-    // we must be seeing a status update for our outgoing call.
-    if (outgoingCall &&
-        aCallState != nsITelephonyProvider::CALL_STATE_INCOMING) {
-      outgoingCall->UpdateCallIndex(aCallIndex);
-      outgoingCall->UpdateEmergency(aIsEmergency);
-      modifiedCall.swap(outgoingCall);
-    }
-  }
-
   if (modifiedCall) {
+    modifiedCall->UpdateEmergency(aIsEmergency);
     modifiedCall->UpdateSwitchable(aIsSwitchable);
     modifiedCall->UpdateMergeable(aIsMergeable);
 
     if (!aIsConference) {
-      UpdateActiveCall(modifiedCall, aIsActive);
+      UpdateActiveCall(modifiedCall, IsActiveState(aCallState));
     }
 
     if (modifiedCall->CallState() != aCallState) {
@@ -563,7 +530,7 @@ Telephony::CallStateChanged(uint32_t aServiceId, uint32_t aCallIndex,
 
   // Do nothing since we didn't know anything about it before now and it's
   // ended already.
-  if (aCallState == nsITelephonyProvider::CALL_STATE_DISCONNECTED) {
+  if (aCallState == nsITelephonyService::CALL_STATE_DISCONNECTED) {
     return NS_OK;
   }
 
@@ -578,7 +545,7 @@ Telephony::CallStateChanged(uint32_t aServiceId, uint32_t aCallIndex,
                                mCalls.Contains(call),
                "Should have auto-added new call!");
 
-  if (aCallState == nsITelephonyProvider::CALL_STATE_INCOMING) {
+  if (aCallState == nsITelephonyService::CALL_STATE_INCOMING) {
     nsresult rv = DispatchCallEvent(NS_LITERAL_STRING("incoming"), call);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -604,7 +571,7 @@ Telephony::EnumerateCallStateComplete()
     NS_WARNING("Failed to notify calls changed!");
   }
 
-  if (NS_FAILED(mProvider->RegisterListener(mListener))) {
+  if (NS_FAILED(mService->RegisterListener(mListener))) {
     NS_WARNING("Failed to register listener!");
   }
   return NS_OK;
@@ -613,7 +580,7 @@ Telephony::EnumerateCallStateComplete()
 NS_IMETHODIMP
 Telephony::EnumerateCallState(uint32_t aServiceId, uint32_t aCallIndex,
                               uint16_t aCallState, const nsAString& aNumber,
-                              bool aIsActive, bool aIsOutgoing, bool aIsEmergency,
+                              bool aIsOutgoing, bool aIsEmergency,
                               bool aIsConference, bool aIsSwitchable, bool aIsMergeable)
 {
   nsRefPtr<TelephonyCall> call;
@@ -653,10 +620,10 @@ Telephony::SupplementaryServiceNotification(uint32_t aServiceId,
 
   nsresult rv;
   switch (aNotification) {
-    case nsITelephonyProvider::NOTIFICATION_REMOTE_HELD:
+    case nsITelephonyService::NOTIFICATION_REMOTE_HELD:
       rv = DispatchCallEvent(NS_LITERAL_STRING("remoteheld"), associatedCall);
       break;
-    case nsITelephonyProvider::NOTIFICATION_REMOTE_RESUMED:
+    case nsITelephonyService::NOTIFICATION_REMOTE_RESUMED:
       rv = DispatchCallEvent(NS_LITERAL_STRING("remoteresumed"), associatedCall);
       break;
     default:

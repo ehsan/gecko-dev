@@ -15,6 +15,7 @@
 #include "mozilla/css/Loader.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ShadowRoot.h"
+#include "mozilla/Preferences.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
@@ -120,6 +121,21 @@ nsStyleLinkElement::SetLineNumber(uint32_t aLineNumber)
   mLineNumber = aLineNumber;
 }
 
+/* static */ bool
+nsStyleLinkElement::IsImportEnabled()
+{
+  static bool sAdded = false;
+  static bool sImportEnabled;
+  if (!sAdded) {
+    // This part runs only once because of the static flag.
+    Preferences::AddBoolVarCache(&sImportEnabled,
+                                 "dom.webcomponents.enabled",
+                                 false);
+    sAdded = true;
+  }
+  return sImportEnabled;
+}
+
 static uint32_t ToLinkMask(const nsAString& aLink)
 { 
   if (aLink.EqualsLiteral("prefetch"))
@@ -132,6 +148,8 @@ static uint32_t ToLinkMask(const nsAString& aLink)
     return nsStyleLinkElement::eNEXT;
   else if (aLink.EqualsLiteral("alternate"))
     return nsStyleLinkElement::eALTERNATE;
+  else if (aLink.EqualsLiteral("import") && nsStyleLinkElement::IsImportEnabled())
+    return nsStyleLinkElement::eHTMLIMPORT;
   else 
     return 0;
 }
@@ -299,11 +317,16 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument* aOldDocument,
 
   Element* oldScopeElement = GetScopeElement(mStyleSheet);
 
-  if (mStyleSheet && aOldDocument) {
-    // We're removing the link element from the document, unload the
-    // stylesheet.  We want to do this even if updates are disabled, since
-    // otherwise a sheet with a stale linking element pointer will be hanging
-    // around -- not good!
+  if (mStyleSheet && (aOldDocument || aOldShadowRoot)) {
+    MOZ_ASSERT(!(aOldDocument && aOldShadowRoot),
+               "ShadowRoot content is never in document, thus "
+               "there should not be a old document and old "
+               "ShadowRoot simultaneously.");
+
+    // We're removing the link element from the document or shadow tree,
+    // unload the stylesheet.  We want to do this even if updates are
+    // disabled, since otherwise a sheet with a stale linking element pointer
+    // will be hanging around -- not good!
     if (aOldShadowRoot) {
       aOldShadowRoot->RemoveSheet(mStyleSheet);
     } else {
@@ -324,8 +347,7 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument* aOldDocument,
     return NS_OK;
   }
 
-  nsCOMPtr<nsIDocument> doc = thisContent->GetDocument();
-
+  nsCOMPtr<nsIDocument> doc = thisContent->GetCrossShadowCurrentDoc();
   if (!doc || !doc->CSSLoader()->GetEnabled()) {
     return NS_OK;
   }

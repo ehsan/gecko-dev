@@ -69,14 +69,6 @@ AddRegion(nsIntRegion& aDest, const nsIntRegion& aSource)
   aDest.SimplifyOutward(20);
 }
 
-static nsIntRegion
-TransformRegion(const nsIntRegion& aRegion, const gfx3DMatrix& aTransform)
-{
-  nsIntRegion result;
-  AddTransformedRegion(result, aRegion, aTransform);
-  return result;
-}
-
 /**
  * Walks over this layer, and all descendant layers.
  * If any of these are a ContainerLayer that reports invalidations to a PresShell,
@@ -110,6 +102,8 @@ struct LayerPropertiesBase : public LayerProperties
     , mMaskLayer(nullptr)
     , mVisibleRegion(aLayer->GetVisibleRegion())
     , mInvalidRegion(aLayer->GetInvalidRegion())
+    , mPostXScale(aLayer->GetPostXScale())
+    , mPostYScale(aLayer->GetPostYScale())
     , mOpacity(aLayer->GetLocalOpacity())
     , mUseClipRect(!!aLayer->GetClipRect())
   {
@@ -144,7 +138,9 @@ struct LayerPropertiesBase : public LayerProperties
   {
     gfx3DMatrix transform;
     gfx::To3DMatrix(mLayer->GetTransform(), transform);
-    bool transformChanged = !mTransform.FuzzyEqual(transform);
+    bool transformChanged = !mTransform.FuzzyEqual(transform) ||
+                            mLayer->GetPostXScale() != mPostXScale ||
+                            mLayer->GetPostYScale() != mPostYScale;
     Layer* otherMask = mLayer->GetMaskLayer();
     const nsIntRect* otherClip = mLayer->GetClipRect();
     nsIntRegion result;
@@ -167,13 +163,6 @@ struct LayerPropertiesBase : public LayerProperties
         return result;
       }
     }
-
-    nsIntRegion visible;
-    visible.Xor(mVisibleRegion, mLayer->GetVisibleRegion());
-    if (!visible.IsEmpty()) {
-      aGeometryChanged = true;
-    }
-    AddTransformedRegion(result, visible, mTransform);
 
     AddRegion(result, ComputeChangeInternal(aCallback, aGeometryChanged));
     AddTransformedRegion(result, mLayer->GetInvalidRegion(), mTransform);
@@ -218,6 +207,8 @@ struct LayerPropertiesBase : public LayerProperties
   nsIntRegion mVisibleRegion;
   nsIntRegion mInvalidRegion;
   gfx3DMatrix mTransform;
+  float mPostXScale;
+  float mPostYScale;
   float mOpacity;
   nsIntRect mClipRect;
   bool mUseClipRect;
@@ -227,6 +218,8 @@ struct ContainerLayerProperties : public LayerPropertiesBase
 {
   ContainerLayerProperties(ContainerLayer* aLayer)
     : LayerPropertiesBase(aLayer)
+    , mPreXScale(aLayer->GetPreXScale())
+    , mPreYScale(aLayer->GetPreYScale())
   {
     for (Layer* child = aLayer->GetFirstChild(); child; child = child->GetNextSibling()) {
       mChildren.AppendElement(CloneLayerTreePropertiesInternal(child));
@@ -238,6 +231,21 @@ struct ContainerLayerProperties : public LayerPropertiesBase
   {
     ContainerLayer* container = mLayer->AsContainerLayer();
     nsIntRegion result;
+
+    if (mPreXScale != container->GetPreXScale() ||
+        mPreYScale != container->GetPreYScale()) {
+      aGeometryChanged = true;
+      result = OldTransformedBounds();
+      AddRegion(result, NewTransformedBounds());
+
+      // If we don't have to generate invalidations separately for child
+      // layers then we can just stop here since we've already invalidated the entire
+      // old and new bounds.
+      if (!aCallback) {
+        ClearInvalidations(mLayer);
+        return result;
+      }
+    }
 
     // A low frame rate is especially visible to users when scrolling, so we
     // particularly want to avoid unnecessary invalidation at that time. For us
@@ -309,11 +317,14 @@ struct ContainerLayerProperties : public LayerPropertiesBase
 
     gfx3DMatrix transform;
     gfx::To3DMatrix(mLayer->GetTransform(), transform);
-    return TransformRegion(result, transform);
+    result.Transform(transform);
+    return result;
   }
 
   // The old list of children:
   nsAutoTArray<nsAutoPtr<LayerPropertiesBase>,1> mChildren;
+  float mPreXScale;
+  float mPreYScale;
 };
 
 struct ColorLayerProperties : public LayerPropertiesBase

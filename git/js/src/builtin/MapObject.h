@@ -22,7 +22,7 @@ namespace js {
  * All values except ropes are hashable as-is.
  */
 class HashableValue {
-    EncapsulatedValue value;
+    PreBarrieredValue value;
 
   public:
     struct Hasher {
@@ -59,6 +59,8 @@ class AutoHashableValueRooter : private AutoGCRooter
     operator const HashableValue & () {
         return value;
     }
+
+    Value get() const { return value.get(); }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
     void trace(JSTracer *trc);

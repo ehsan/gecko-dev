@@ -27,8 +27,8 @@ class MOZ_STACK_CLASS WrapperOptions : public ProxyOptions {
                        proto_()
     {}
 
-    WrapperOptions(JSContext *cx) : ProxyOptions(false, nullptr),
-                                    proto_()
+    explicit WrapperOptions(JSContext *cx) : ProxyOptions(false, nullptr),
+                                             proto_()
     {
         proto_.construct(cx);
     }
@@ -103,7 +103,7 @@ WrapperOptions::proto() const
 class JS_FRIEND_API(CrossCompartmentWrapper) : public Wrapper
 {
   public:
-    CrossCompartmentWrapper(unsigned flags, bool hasPrototype = false);
+    explicit CrossCompartmentWrapper(unsigned flags, bool hasPrototype = false);
 
     virtual ~CrossCompartmentWrapper();
 
@@ -167,7 +167,7 @@ template <class Base>
 class JS_FRIEND_API(SecurityWrapper) : public Base
 {
   public:
-    SecurityWrapper(unsigned flags);
+    explicit SecurityWrapper(unsigned flags);
 
     virtual bool isExtensible(JSContext *cx, HandleObject wrapper, bool *extensible) MOZ_OVERRIDE;
     virtual bool preventExtensions(JSContext *cx, HandleObject wrapper) MOZ_OVERRIDE;
@@ -303,34 +303,6 @@ RemapAllWrappersForObject(JSContext *cx, JSObject *oldTarget,
 JS_FRIEND_API(bool)
 RecomputeWrappers(JSContext *cx, const CompartmentFilter &sourceFilter,
                   const CompartmentFilter &targetFilter);
-
-/*
- * This auto class should be used around any code, such as brain transplants,
- * that may touch dead zones. Brain transplants can cause problems
- * because they operate on all compartments, whether live or dead. A brain
- * transplant can cause a formerly dead object to be "reanimated" by causing a
- * read or write barrier to be invoked on it during the transplant. In this way,
- * a zone becomes a zombie, kept alive by repeatedly consuming
- * (transplanted) brains.
- *
- * To work around this issue, we observe when mark bits are set on objects in
- * dead zones. If this happens during a brain transplant, we do a full,
- * non-incremental GC at the end of the brain transplant. This will clean up any
- * objects that were improperly marked.
- */
-struct JS_FRIEND_API(AutoMaybeTouchDeadZones)
-{
-    // The version that takes an object just uses it for its runtime.
-    AutoMaybeTouchDeadZones(JSContext *cx);
-    AutoMaybeTouchDeadZones(JSObject *obj);
-    ~AutoMaybeTouchDeadZones();
-
-  private:
-    JSRuntime *runtime;
-    unsigned markCount;
-    bool inIncremental;
-    bool manipulatingDeadZones;
-};
 
 } /* namespace js */
 

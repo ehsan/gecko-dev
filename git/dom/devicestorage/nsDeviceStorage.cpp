@@ -315,9 +315,9 @@ DeviceStorageTypeChecker::Check(const nsAString& aType, nsIFile* aFile)
   }
 
   nsAutoString extensionMatch;
-  extensionMatch.AssignLiteral("*");
+  extensionMatch.Assign('*');
   extensionMatch.Append(Substring(path, dotIdx));
-  extensionMatch.AppendLiteral(";");
+  extensionMatch.Append(';');
 
   if (aType.EqualsLiteral(DEVICESTORAGE_PICTURES)) {
     return CaseInsensitiveFindInReadable(extensionMatch, mPicturesExtensions);
@@ -358,9 +358,9 @@ DeviceStorageTypeChecker::GetTypeFromFileName(const nsAString& aFileName,
   }
 
   nsAutoString extensionMatch;
-  extensionMatch.AssignLiteral("*");
+  extensionMatch.Assign('*');
   extensionMatch.Append(Substring(aFileName, dotIdx));
-  extensionMatch.AppendLiteral(";");
+  extensionMatch.Append(';');
 
   if (CaseInsensitiveFindInReadable(extensionMatch, mPicturesExtensions)) {
     aType.AssignLiteral(DEVICESTORAGE_PICTURES);
@@ -802,13 +802,13 @@ DeviceStorageFile::GetFullPath(nsAString &aFullPath)
 {
   aFullPath.Truncate();
   if (!mStorageName.EqualsLiteral("")) {
-    aFullPath.AppendLiteral("/");
+    aFullPath.Append('/');
     aFullPath.Append(mStorageName);
-    aFullPath.AppendLiteral("/");
+    aFullPath.Append('/');
   }
   if (!mRootDir.EqualsLiteral("")) {
     aFullPath.Append(mRootDir);
-    aFullPath.AppendLiteral("/");
+    aFullPath.Append('/');
   }
   aFullPath.Append(mPath);
 }
@@ -3100,6 +3100,7 @@ NS_IMPL_RELEASE_INHERITED(nsDOMDeviceStorage, DOMEventTargetHelper)
 
 nsDOMDeviceStorage::nsDOMDeviceStorage(nsPIDOMWindow* aWindow)
   : DOMEventTargetHelper(aWindow)
+  , mIsShareable(false)
   , mIsWatchingFile(false)
   , mAllowedToWatchFile(false)
 {
@@ -3127,6 +3128,27 @@ nsDOMDeviceStorage::Init(nsPIDOMWindow* aWindow, const nsAString &aType,
   }
   if (!mStorageName.IsEmpty()) {
     RegisterForSDCardChanges(this);
+
+#ifdef MOZ_WIDGET_GONK
+    if (DeviceStorageTypeChecker::IsVolumeBased(mStorageType)) {
+      nsCOMPtr<nsIVolumeService> vs = do_GetService(NS_VOLUMESERVICE_CONTRACTID);
+      if (NS_WARN_IF(!vs)) {
+        return NS_ERROR_FAILURE;
+      }
+      nsresult rv;
+      nsCOMPtr<nsIVolume> vol;
+      rv = vs->GetVolumeByName(mStorageName, getter_AddRefs(vol));
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return rv;
+      }
+      bool isFake;
+      rv = vol->GetIsFake(&isFake);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return rv;
+      }
+      mIsShareable = !isFake;
+    }
+#endif
   }
 
   // Grab the principal of the document
@@ -3140,7 +3162,7 @@ nsDOMDeviceStorage::Init(nsPIDOMWindow* aWindow, const nsAString &aType,
   // if the caller has the "webapps-manage" permission.
   if (aType.EqualsLiteral(DEVICESTORAGE_APPS)) {
     nsCOMPtr<nsIPermissionManager> permissionManager
-      = do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+      = services::GetPermissionManager();
     NS_ENSURE_TRUE(permissionManager, NS_ERROR_FAILURE);
 
     uint32_t permission;
@@ -3418,7 +3440,7 @@ nsDOMDeviceStorage::Add(nsIDOMBlob* aBlob, ErrorResult& aRv)
 
   nsAutoCString path;
   path.Assign(nsDependentCString(buffer));
-  path.Append(".");
+  path.Append('.');
   path.Append(extension);
 
   return AddNamed(aBlob, NS_ConvertASCIItoUTF16(path), aRv);
@@ -3911,6 +3933,26 @@ nsDOMDeviceStorage::Default()
   nsString defaultStorageName;
   GetDefaultStorageName(mStorageType, defaultStorageName);
   return mStorageName.Equals(defaultStorageName);
+}
+
+bool
+nsDOMDeviceStorage::CanBeFormatted()
+{
+  // Currently, any volume which can be shared can also be formatted.
+  return mIsShareable;
+}
+
+bool
+nsDOMDeviceStorage::CanBeMounted()
+{
+  // Currently, any volume which can be shared can also be mounted/unmounted.
+  return mIsShareable;
+}
+
+bool
+nsDOMDeviceStorage::CanBeShared()
+{
+  return mIsShareable;
 }
 
 already_AddRefed<Promise>
