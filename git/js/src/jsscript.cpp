@@ -739,6 +739,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
              * aren't preserved by XDR. So this can be simple.
              */
             CompileOptions options(cx);
+            options.setOriginPrincipals(xdr->originPrincipals());
             ss->initFromOptions(cx, options);
             sourceObject = ScriptSourceObject::create(cx, ss);
             if (!sourceObject ||
@@ -1795,6 +1796,9 @@ ScriptSource::~ScriptSource()
       default:
         break;
     }
+
+    if (originPrincipals_)
+        JS_DropPrincipals(TlsPerThreadData.get()->runtimeFromMainThread(), originPrincipals_);
 }
 
 void
@@ -1990,7 +1994,9 @@ ScriptSource::initFromOptions(ExclusiveContext *cx, const ReadOnlyCompileOptions
     JS_ASSERT(!filename_);
     JS_ASSERT(!introducerFilename_);
 
-    mutedErrors_ = options.mutedErrors();
+    originPrincipals_ = options.originPrincipals(cx);
+    if (originPrincipals_)
+        JS_HoldPrincipals(originPrincipals_);
 
     introductionType_ = options.introductionType;
     setIntroductionOffset(options.introductionOffset);
@@ -2858,7 +2864,7 @@ js_GetScriptLineExtent(JSScript *script)
 void
 js::DescribeScriptedCallerForCompilation(JSContext *cx, MutableHandleScript maybeScript,
                                          const char **file, unsigned *linenop,
-                                         uint32_t *pcOffset, bool *mutedErrors,
+                                         uint32_t *pcOffset, JSPrincipals **origin,
                                          LineOption opt)
 {
     if (opt == CALLED_FROM_JSOP_EVAL) {
@@ -2871,7 +2877,7 @@ js::DescribeScriptedCallerForCompilation(JSContext *cx, MutableHandleScript mayb
         *linenop = GET_UINT16(pc + (JSOp(*pc) == JSOP_EVAL ? JSOP_EVAL_LENGTH
                                                            : JSOP_SPREADEVAL_LENGTH));
         *pcOffset = pc - maybeScript->code();
-        *mutedErrors = maybeScript->mutedErrors();
+        *origin = maybeScript->originPrincipals();
         return;
     }
 
@@ -2882,13 +2888,13 @@ js::DescribeScriptedCallerForCompilation(JSContext *cx, MutableHandleScript mayb
         *file = nullptr;
         *linenop = 0;
         *pcOffset = 0;
-        *mutedErrors = false;
+        *origin = cx->compartment()->principals;
         return;
     }
 
     *file = iter.scriptFilename();
     *linenop = iter.computeLine();
-    *mutedErrors = iter.mutedErrors();
+    *origin = iter.originPrincipals();
 
     // These values are only used for introducer fields which are debugging
     // information and can be safely left null for asm.js frames.
@@ -3032,7 +3038,7 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
     /* Now that all fallible allocation is complete, create the GC thing. */
 
     CompileOptions options(cx);
-    options.setMutedErrors(src->mutedErrors())
+    options.setOriginPrincipals(src->originPrincipals())
            .setCompileAndGo(src->compileAndGo())
            .setSelfHostingMode(src->selfHosted())
            .setNoScriptRval(src->noScriptRval())

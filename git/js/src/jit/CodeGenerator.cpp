@@ -4376,18 +4376,18 @@ CodeGenerator::visitNeuterCheck(LNeuterCheck *lir)
     Register obj = ToRegister(lir->object());
     Register temp = ToRegister(lir->temp());
 
-    Label inlineObject;
+    Label notOwned;
     masm.loadObjClass(obj, temp);
-    masm.branchPtr(Assembler::Equal, temp, ImmPtr(&InlineOpaqueTypedObject::class_), &inlineObject);
+    masm.branchPtr(Assembler::Equal, temp, ImmPtr(&InlineOpaqueTypedObject::class_), &notOwned);
 
-    masm.extractObject(Address(obj, OutlineTypedObject::offsetOfOwnerSlot()), temp);
+    masm.extractObject(Address(obj, OwnedTypedObject::offsetOfOwnerSlot()), temp);
     masm.unboxInt32(Address(temp, ArrayBufferObject::flagsOffset()), temp);
 
     Imm32 flag(ArrayBufferObject::neuteredFlag());
     if (!bailoutTest32(Assembler::NonZero, temp, flag, lir->snapshot()))
         return false;
 
-    masm.bind(&inlineObject);
+    masm.bind(&notOwned);
 
     return true;
 }
@@ -4415,14 +4415,14 @@ CodeGenerator::visitTypedObjectElements(LTypedObjectElements *lir)
     Register obj = ToRegister(lir->object());
     Register out = ToRegister(lir->output());
 
-    Label inlineObject, done;
+    Label notOwned, done;
     masm.loadObjClass(obj, out);
-    masm.branchPtr(Assembler::Equal, out, ImmPtr(&InlineOpaqueTypedObject::class_), &inlineObject);
+    masm.branchPtr(Assembler::Equal, out, ImmPtr(&InlineOpaqueTypedObject::class_), &notOwned);
 
-    masm.loadPtr(Address(obj, OutlineTypedObject::offsetOfDataSlot()), out);
+    masm.loadPtr(Address(obj, OwnedTypedObject::offsetOfDataSlot()), out);
     masm.jump(&done);
 
-    masm.bind(&inlineObject);
+    masm.bind(&notOwned);
     masm.computeEffectiveAddress(Address(obj, InlineOpaqueTypedObject::offsetOfDataStart()), out);
     masm.bind(&done);
 
@@ -4463,17 +4463,17 @@ CodeGenerator::visitSetTypedObjectOffset(LSetTypedObjectOffset *lir)
     // }
 
     // temp0 = typedObj->byteOffset;
-    masm.unboxInt32(Address(object, OutlineTypedObject::offsetOfByteOffsetSlot()), temp0);
+    masm.unboxInt32(Address(object, OwnedTypedObject::offsetOfByteOffsetSlot()), temp0);
 
     // temp0 -= offset;
     masm.subPtr(offset, temp0);
 
     // obj->pointer -= temp0;
-    masm.subPtr(temp0, Address(object, OutlineTypedObject::offsetOfDataSlot()));
+    masm.subPtr(temp0, Address(object, OwnedTypedObject::offsetOfDataSlot()));
 
     // obj->byteOffset = offset;
     masm.storeValue(JSVAL_TYPE_INT32, offset,
-                    Address(object, OutlineTypedObject::offsetOfByteOffsetSlot()));
+                    Address(object, OwnedTypedObject::offsetOfByteOffsetSlot()));
 
     return true;
 }

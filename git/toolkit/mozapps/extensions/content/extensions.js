@@ -437,19 +437,16 @@ var gEventManager = {
       contextMenu.setAttribute("addontype", addon.type);
 
       var menuSep = document.getElementById("addonitem-menuseparator");
-      var countMenuItemsBeforeSep = 0;
+      var countEnabledMenuCmds = 0;
       for (let child of contextMenu.children) {
-        if (child == menuSep) {
-          break;
-        }
         if (child.nodeName == "menuitem" &&
           gViewController.isCommandEnabled(child.command)) {
-            countMenuItemsBeforeSep++;
+            countEnabledMenuCmds++;
         }
       }
 
-      // Hide the separator if there are no visible menu items before it
-      menuSep.hidden = (countMenuItemsBeforeSep == 0);
+      // with only one menu item, we hide the menu separator
+      menuSep.hidden = (countEnabledMenuCmds <= 1);
 
     }, false);
   },

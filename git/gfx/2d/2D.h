@@ -992,7 +992,7 @@ public:
   inline void ConcatTransform(const Matrix &aTransform)
     { SetTransform(aTransform * Matrix(GetTransform())); }
 
-  SurfaceFormat GetFormat() const { return mFormat; }
+  SurfaceFormat GetFormat() { return mFormat; }
 
   /** Tries to get a native surface for a DrawTarget, this may fail if the
    * draw target cannot convert to this surface type.

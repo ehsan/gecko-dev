@@ -710,10 +710,11 @@ WebGLContext::UnbindFakeBlackTextures()
     gl->fActiveTexture(LOCAL_GL_TEXTURE0 + mActiveTexture);
 }
 
-WebGLContext::FakeBlackTexture::FakeBlackTexture(GLContext *gl, TexTarget target, GLenum format)
+WebGLContext::FakeBlackTexture::FakeBlackTexture(GLContext *gl, GLenum target, GLenum format)
     : mGL(gl)
     , mGLName(0)
 {
+  MOZ_ASSERT(target == LOCAL_GL_TEXTURE_2D || target == LOCAL_GL_TEXTURE_CUBE_MAP);
   MOZ_ASSERT(format == LOCAL_GL_RGB || format == LOCAL_GL_RGBA);
 
   mGL->MakeCurrent();
@@ -723,7 +724,7 @@ WebGLContext::FakeBlackTexture::FakeBlackTexture(GLContext *gl, TexTarget target
                    : LOCAL_GL_TEXTURE_BINDING_CUBE_MAP,
                    &formerBinding);
   gl->fGenTextures(1, &mGLName);
-  gl->fBindTexture(target.get(), mGLName);
+  gl->fBindTexture(target, mGLName);
 
   // we allocate our zeros on the heap, and we overallocate (16 bytes instead of 4)
   // to minimize the risk of running into a driver bug in texImage2D, as it is
@@ -731,7 +732,7 @@ WebGLContext::FakeBlackTexture::FakeBlackTexture(GLContext *gl, TexTarget target
   // that texImage2D expects.
   void* zeros = calloc(1, 16);
   if (target == LOCAL_GL_TEXTURE_2D) {
-      gl->fTexImage2D(target.get(), 0, format, 1, 1,
+      gl->fTexImage2D(target, 0, format, 1, 1,
                       0, format, LOCAL_GL_UNSIGNED_BYTE, zeros);
   } else {
       for (GLuint i = 0; i < 6; ++i) {
@@ -741,7 +742,7 @@ WebGLContext::FakeBlackTexture::FakeBlackTexture(GLContext *gl, TexTarget target
   }
   free(zeros);
 
-  gl->fBindTexture(target.get(), formerBinding);
+  gl->fBindTexture(target, formerBinding);
 }
 
 WebGLContext::FakeBlackTexture::~FakeBlackTexture()

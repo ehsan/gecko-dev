@@ -551,12 +551,8 @@ nsSVGEffects::GetEffectProperties(nsIFrame *aFrame)
   EffectProperties result;
   const nsStyleSVGReset *style = aFrame->StyleSVGReset();
   result.mFilter = GetOrCreateFilterProperty(aFrame);
-  if (style->mClipPath.GetType() == NS_STYLE_CLIP_PATH_URL) {
-    result.mClipPath =
-      GetPaintingProperty(style->mClipPath.GetURL(), aFrame, ClipPathProperty());
-  } else {
-    result.mClipPath = nullptr;
-  }
+  result.mClipPath =
+    GetPaintingProperty(style->mClipPath, aFrame, ClipPathProperty());
   result.mMask =
     GetPaintingProperty(style->mMask, aFrame, MaskProperty());
   return result;

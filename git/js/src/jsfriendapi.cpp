@@ -264,10 +264,10 @@ JS_GetScriptPrincipals(JSScript *script)
     return script->principals();
 }
 
-JS_FRIEND_API(bool)
-JS_ScriptHasMutedErrors(JSScript *script)
+JS_FRIEND_API(JSPrincipals *)
+JS_GetScriptOriginPrincipals(JSScript *script)
 {
-    return script->mutedErrors();
+    return script->originPrincipals();
 }
 
 JS_FRIEND_API(bool)
@@ -1434,8 +1434,8 @@ js::IsInRequest(JSContext *cx)
 }
 
 bool
-js::HasObjectMovedOpIfRequired(JSObject *obj) {
-    return obj->is<GlobalObject>() || !!GetObjectClass(obj)->ext.objectMovedOp;
+js::HasObjectMovedOp(JSObject *obj) {
+    return !!GetObjectClass(obj)->ext.objectMovedOp;
 }
 #endif
 

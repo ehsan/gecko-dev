@@ -14,12 +14,6 @@
 #include "nsSVGContainerFrame.h"
 #include "nsSVGUtils.h"
 
-namespace mozilla {
-namespace gfx {
-class DrawTarget;
-}
-}
-
 class gfxContext;
 class gfxPattern;
 class nsStyleContext;
@@ -31,8 +25,6 @@ typedef nsSVGContainerFrame nsSVGPaintServerFrameBase;
 class nsSVGPaintServerFrame : public nsSVGPaintServerFrameBase
 {
 protected:
-  typedef mozilla::gfx::DrawTarget DrawTarget;
-
   explicit nsSVGPaintServerFrame(nsStyleContext* aContext)
     : nsSVGPaintServerFrameBase(aContext)
   {
@@ -52,11 +44,19 @@ public:
    */
   virtual already_AddRefed<gfxPattern>
     GetPaintServerPattern(nsIFrame *aSource,
-                          const DrawTarget* aDrawTarget,
                           const gfxMatrix& aContextMatrix,
                           nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                           float aOpacity,
                           const gfxRect *aOverrideBounds = nullptr) = 0;
+
+  /**
+   * Configure paint server prior to rendering
+   * @return false to skip rendering
+   */
+  virtual bool SetupPaintServer(gfxContext *aContext,
+                                nsIFrame *aSource,
+                                nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
+                                float aOpacity);
 
   // nsIFrame methods:
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,

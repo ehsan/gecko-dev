@@ -29,8 +29,7 @@ using namespace mozilla::layers;
 namespace android {
 
 GonkNativeWindow::GonkNativeWindow(int bufferCount) :
-    GonkConsumerBase(new GonkBufferQueue(true), false),
-    mNewFrameCallback(nullptr)
+    GonkConsumerBase(new GonkBufferQueue(true), false)
 {
     mConsumer->setMaxAcquiredBufferCount(bufferCount);
 }

@@ -152,8 +152,7 @@ nsSVGIntegrationUtils::UsingEffectsForFrame(const nsIFrame* aFrame)
   // checking the SDL prefs here, since we don't know if we're being called for
   // painting or hit-testing anyway.
   const nsStyleSVGReset *style = aFrame->StyleSVGReset();
-  return (style->HasFilters() ||
-          style->mClipPath.GetType() != NS_STYLE_CLIP_PATH_NONE || style->mMask);
+  return (style->HasFilters() || style->mClipPath || style->mMask);
 }
 
 // For non-SVG frames, this gives the offset to the frame's "user space".
@@ -695,7 +694,6 @@ nsSVGIntegrationUtils::DrawableFromPaintServer(nsIFrame*         aFrame,
                                                nsIFrame*         aTarget,
                                                const nsSize&     aPaintServerSize,
                                                const gfxIntSize& aRenderSize,
-                                               const DrawTarget* aDrawTarget,
                                                const gfxMatrix&  aContextMatrix,
                                                uint32_t          aFlags)
 {
@@ -716,9 +714,8 @@ nsSVGIntegrationUtils::DrawableFromPaintServer(nsIFrame*         aFrame,
                            aPaintServerSize.width, aPaintServerSize.height);
     overrideBounds.ScaleInverse(aFrame->PresContext()->AppUnitsPerDevPixel());
     nsRefPtr<gfxPattern> pattern =
-    server->GetPaintServerPattern(aTarget, aDrawTarget,
-                                  aContextMatrix, &nsStyleSVG::mFill, 1.0,
-                                  &overrideBounds);
+      server->GetPaintServerPattern(aTarget, aContextMatrix,
+                                    &nsStyleSVG::mFill, 1.0, &overrideBounds);
 
     if (!pattern)
       return nullptr;
