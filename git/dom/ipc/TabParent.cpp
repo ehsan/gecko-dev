@@ -179,11 +179,7 @@ private:
 
         MOZ_ASSERT(mFD);
 
-        PRStatus prrc;
-        prrc = PR_Close(mFD);
-        if (prrc != PR_SUCCESS) {
-          NS_ERROR("PR_Close() failed.");
-        }
+        PR_Close(mFD);
         mFD = nullptr;
     }
 };

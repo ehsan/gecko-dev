@@ -551,6 +551,8 @@ static LifoAlloc *IonAlloc() {
 #endif
 }
 
+namespace {
+
 // Superclass of all constraints generated during Ion compilation. These may
 // be allocated off the main thread, using the current Ion context's allocator.
 class CompilerConstraint
@@ -573,6 +575,8 @@ class CompilerConstraint
     // compilation. Returns true if the assumption originally made still holds.
     virtual bool generateTypeConstraint(JSContext *cx, RecompileInfo recompileInfo) = 0;
 };
+
+} // anonymous namespace
 
 class types::CompilerConstraintList
 {

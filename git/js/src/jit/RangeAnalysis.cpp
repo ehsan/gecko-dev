@@ -2497,14 +2497,6 @@ MLoadElementHole::collectRangeInfoPreTrunc()
 }
 
 void
-MDiv::collectRangeInfoPreTrunc()
-{
-    Range lhsRange(lhs());
-    if (lhsRange.isFiniteNonNegative())
-        canBeNegativeDividend_ = false;
-}
-
-void
 MMod::collectRangeInfoPreTrunc()
 {
     Range lhsRange(lhs());

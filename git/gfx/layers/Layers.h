@@ -1734,11 +1734,6 @@ public:
   virtual void Initialize(const Data& aData) = 0;
 
   /**
-   * Check the data is owned by this layer is still valid for rendering
-   */
-  virtual bool IsDataValid(const Data& aData) { return true; }
-
-  /**
    * Notify this CanvasLayer that the canvas surface contents have
    * changed (or will change) before the next transaction.
    */

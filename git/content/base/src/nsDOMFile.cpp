@@ -648,7 +648,9 @@ class nsDOMMemoryFileDataOwnerMemoryReporter MOZ_FINAL
   : public MemoryMultiReporter
 {
 public:
-  nsDOMMemoryFileDataOwnerMemoryReporter() {}
+  nsDOMMemoryFileDataOwnerMemoryReporter()
+    : MemoryMultiReporter("dom-memory-file-data-owner")
+  {}
 
   NS_IMETHOD CollectReports(nsIMemoryReporterCallback *aCallback,
                             nsISupports *aClosure)

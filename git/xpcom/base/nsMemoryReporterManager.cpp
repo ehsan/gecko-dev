@@ -799,7 +799,9 @@ namespace dmd {
 class DMDReporter MOZ_FINAL : public MemoryMultiReporter
 {
 public:
-  DMDReporter() {}
+  DMDReporter()
+    : MemoryMultiReporter("dmd")
+  {}
 
   NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
                             nsISupports* aData)
