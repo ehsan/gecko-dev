@@ -25,9 +25,9 @@ interface PeerConnectionImpl  {
                   nsISupports thread);
   /* JSEP calls */
   [Throws]
-  void createOffer(optional RTCOfferOptions options);
+  void createOffer(optional MediaConstraintsInternal constraints);
   [Throws]
-  void createAnswer();
+  void createAnswer(optional MediaConstraintsInternal constraints);
   [Throws]
   void setLocalDescription(long action, DOMString sdp);
   [Throws]
@@ -40,7 +40,8 @@ interface PeerConnectionImpl  {
 
   /* Adds the stream created by GetUserMedia */
   [Throws]
-  void addStream(MediaStream stream);
+  void addStream(MediaStream stream,
+                 optional MediaConstraintsInternal constraints);
   [Throws]
   void removeStream(MediaStream stream);
   [Throws]
@@ -59,9 +60,6 @@ interface PeerConnectionImpl  {
 
   /* Puts the SIPCC engine back to 'kIdle', shuts down threads, deletes state */
   void close();
-
-  /* Notify DOM window if this plugin crash is ours */
-  boolean pluginCrash(unsigned long pluginId);
 
   /* Attributes */
   readonly attribute DOMString fingerprint;

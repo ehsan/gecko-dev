@@ -80,26 +80,27 @@ uint16_t kBogusSrflxPort(1001);
 
 namespace sipcc {
 
-// We can't use webidl bindings here because it uses nsString,
-// so we pass options in using SipccOfferOptions instead
+// We can't use mozilla/dom/MediaConstraintsBinding.h here because it uses
+// nsString, so we pass constraints in using MediaConstraintsExternal instead
 
-  class OfferOptions : public mozilla::SipccOfferOptions {
+class MediaConstraints : public MediaConstraintsExternal {
 public:
-  void setInt32Option(const char *namePtr, int32_t value) {
-    auto &member = getMember(namePtr);
+  void setBooleanConstraint(const char *namePtr, bool value, bool mandatory) {
+    cc_boolean_constraint_t &member (getMember(namePtr));
     member.was_passed = true;
     member.value = value;
+    member.mandatory = mandatory;
   }
 private:
-  cc_int32_option_t &getMember(const char *namePtr) {
+  cc_boolean_constraint_t &getMember(const char *namePtr) {
     if (strcmp(namePtr, "OfferToReceiveAudio") == 0) {
-        return mOptions.offer_to_receive_audio;
+        return mConstraints.offer_to_receive_audio;
     }
     if (strcmp(namePtr, "OfferToReceiveVideo") == 0) {
-        return mOptions.offer_to_receive_video;
+        return mConstraints.offer_to_receive_video;
     }
     MOZ_ASSERT(false);
-    return mOptions.offer_to_receive_video;
+    return mConstraints.moz_dont_offer_datachannel;
   }
 };
 }
@@ -732,29 +733,30 @@ class PCDispatchWrapper : public nsSupportsWeakReference
     return rv;
   }
 
-  NS_IMETHODIMP CreateOffer(const SipccOfferOptions& aOptions) {
+  NS_IMETHODIMP CreateOffer(const MediaConstraintsExternal& aConstraints) {
     nsresult rv;
 
     if (NS_IsMainThread()) {
-      rv = pc_->CreateOffer(aOptions);
+      rv = pc_->CreateOffer(aConstraints);
     } else {
       gMainThread->Dispatch(
         WrapRunnableRet(this, &PCDispatchWrapper::CreateOffer,
-          aOptions, &rv),
+          aConstraints, &rv),
         NS_DISPATCH_SYNC);
     }
 
     return rv;
   }
 
-  NS_IMETHODIMP CreateAnswer() {
+  NS_IMETHODIMP CreateAnswer(const MediaConstraintsExternal& aConstraints) {
     nsresult rv;
 
     if (NS_IsMainThread()) {
-      rv = pc_->CreateAnswer();
+      rv = pc_->CreateAnswer(aConstraints);
     } else {
       gMainThread->Dispatch(
-        WrapRunnableRet(this, &PCDispatchWrapper::CreateAnswer, &rv),
+        WrapRunnableRet(this, &PCDispatchWrapper::CreateAnswer,
+          aConstraints, &rv),
         NS_DISPATCH_SYNC);
     }
 
@@ -806,14 +808,16 @@ class PCDispatchWrapper : public nsSupportsWeakReference
     return rv;
   }
 
-  NS_IMETHODIMP AddStream(DOMMediaStream *aMediaStream) {
+  NS_IMETHODIMP AddStream(DOMMediaStream *aMediaStream,
+    const MediaConstraintsExternal& aConstraints) {
     nsresult rv;
 
     if (NS_IsMainThread()) {
-      rv = pc_->AddStream(*aMediaStream);
+      rv = pc_->AddStream(*aMediaStream, aConstraints);
     } else {
       gMainThread->Dispatch(
-        WrapRunnableRet(this, &PCDispatchWrapper::AddStream, aMediaStream, &rv),
+        WrapRunnableRet(this, &PCDispatchWrapper::AddStream,
+          aMediaStream, aConstraints, &rv),
         NS_DISPATCH_SYNC);
     }
 
@@ -1080,7 +1084,14 @@ class SignalingAgent {
   void AddStream(uint32_t hint =
          DOMMediaStream::HINT_CONTENTS_AUDIO |
          DOMMediaStream::HINT_CONTENTS_VIDEO,
-       MediaStream *stream = nullptr) {
+       MediaStream *stream = nullptr,
+       sipcc::MediaConstraints *constraints = nullptr
+       ) {
+
+    sipcc::MediaConstraints noConstraints;
+    if (!constraints) {
+      constraints = &noConstraints;
+    }
 
     nsRefPtr<DOMMediaStream> domMediaStream;
     if (stream) {
@@ -1090,7 +1101,7 @@ class SignalingAgent {
     }
 
     domMediaStream->SetHintContents(hint);
-    ASSERT_EQ(pc->AddStream(domMediaStream), NS_OK);
+    ASSERT_EQ(pc->AddStream(domMediaStream, *constraints), NS_OK);
     domMediaStream_ = domMediaStream;
   }
 
@@ -1102,7 +1113,7 @@ class SignalingAgent {
     ASSERT_EQ(pc->RemoveStream(domMediaStream_), NS_OK);
   }
 
-  void CreateOffer(sipcc::OfferOptions& options,
+  void CreateOffer(sipcc::MediaConstraints& constraints,
                    uint32_t offerFlags, uint32_t sdpCheck,
                    PCImplSignalingState endState =
                      PCImplSignalingState::SignalingStable) {
@@ -1129,7 +1140,7 @@ class SignalingAgent {
 
     // Now call CreateOffer as JS would
     pObserver->state = TestObserver::stateNoResponse;
-    ASSERT_EQ(pc->CreateOffer(options), NS_OK);
+    ASSERT_EQ(pc->CreateOffer(constraints), NS_OK);
     ASSERT_TRUE_WAIT(pObserver->state != TestObserver::stateNoResponse,
                      kDefaultTimeout);
     ASSERT_EQ(pObserver->state, TestObserver::stateSuccess);
@@ -1138,7 +1149,7 @@ class SignalingAgent {
     offer_ = pObserver->lastString;
   }
 
-void CreateAnswer(std::string offer,
+void CreateAnswer(sipcc::MediaConstraints& constraints, std::string offer,
                     uint32_t offerAnswerFlags,
                     uint32_t sdpCheck = DONT_CHECK_AUDIO|
                                         DONT_CHECK_VIDEO|
@@ -1158,7 +1169,7 @@ void CreateAnswer(std::string offer,
     // Decide if streams are disabled for offer or answer
     // then perform SDP checking based on which stream disabled
     pObserver->state = TestObserver::stateNoResponse;
-    ASSERT_EQ(pc->CreateAnswer(), NS_OK);
+    ASSERT_EQ(pc->CreateAnswer(constraints), NS_OK);
     ASSERT_TRUE_WAIT(pObserver->state != TestObserver::stateNoResponse,
                      kDefaultTimeout);
     ASSERT_EQ(pObserver->state, TestObserver::stateSuccess);
@@ -1173,7 +1184,7 @@ void CreateAnswer(std::string offer,
   // unique among all streams in the PeerConnection. This is not
   // generally true, and will need significant revision once
   // multiple streams are supported.
-  void CreateOfferRemoveStream(sipcc::OfferOptions& options,
+  void CreateOfferRemoveStream(sipcc::MediaConstraints& constraints,
                                uint32_t hints, uint32_t sdpCheck) {
 
     domMediaStream_->SetHintContents(hints);
@@ -1186,7 +1197,7 @@ void CreateAnswer(std::string offer,
 
     // Now call CreateOffer as JS would
     pObserver->state = TestObserver::stateNoResponse;
-    ASSERT_EQ(pc->CreateOffer(options), NS_OK);
+    ASSERT_EQ(pc->CreateOffer(constraints), NS_OK);
     ASSERT_TRUE_WAIT(pObserver->state != TestObserver::stateNoResponse,
                      kDefaultTimeout);
     ASSERT_TRUE(pObserver->state == TestObserver::stateSuccess);
@@ -1639,27 +1650,29 @@ public:
   static void TearDownTestCase() {
   }
 
-  void CreateOffer(sipcc::OfferOptions& options,
+  void CreateOffer(sipcc::MediaConstraints& constraints,
                    uint32_t offerFlags, uint32_t sdpCheck) {
     EnsureInit();
-    a1_->CreateOffer(options, offerFlags, sdpCheck);
+    a1_->CreateOffer(constraints, offerFlags, sdpCheck);
   }
 
-  void CreateSetOffer(sipcc::OfferOptions& options, uint32_t sdpCheck) {
+  void CreateSetOffer(sipcc::MediaConstraints& constraints, uint32_t sdpCheck) {
     EnsureInit();
-    a1_->CreateOffer(options, OFFER_AV, sdpCheck);
+    a1_->CreateOffer(constraints, OFFER_AV, sdpCheck);
     a1_->SetLocal(TestObserver::OFFER, a1_->offer());
   }
 
-  void OfferAnswer(sipcc::OfferOptions& options,
+  void OfferAnswer(sipcc::MediaConstraints& aconstraints,
+                   sipcc::MediaConstraints& bconstraints,
                    uint32_t offerAnswerFlags,
                    bool finishAfterAnswer, uint32_t offerSdpCheck,
                    uint32_t answerSdpCheck) {
     EnsureInit();
-    a1_->CreateOffer(options, offerAnswerFlags, offerSdpCheck);
+    a1_->CreateOffer(aconstraints, offerAnswerFlags, offerSdpCheck);
     a1_->SetLocal(TestObserver::OFFER, a1_->offer());
     a2_->SetRemote(TestObserver::OFFER, a1_->offer());
-    a2_->CreateAnswer(a1_->offer(), offerAnswerFlags, answerSdpCheck);
+    a2_->CreateAnswer(bconstraints, a1_->offer(),
+                     offerAnswerFlags, answerSdpCheck);
     if(true == finishAfterAnswer) {
         a2_->SetLocal(TestObserver::ANSWER, a2_->answer());
         a1_->SetRemote(TestObserver::ANSWER, a2_->answer());
@@ -1669,13 +1682,15 @@ public:
     }
   }
 
-  void OfferModifiedAnswer(sipcc::OfferOptions& options,
+  void OfferModifiedAnswer(sipcc::MediaConstraints& aconstraints,
+                           sipcc::MediaConstraints& bconstraints,
                            uint32_t offerSdpCheck, uint32_t answerSdpCheck) {
     EnsureInit();
-    a1_->CreateOffer(options, OFFER_AUDIO, offerSdpCheck);
+    a1_->CreateOffer(aconstraints, OFFER_AUDIO, offerSdpCheck);
     a1_->SetLocal(TestObserver::OFFER, a1_->offer());
     a2_->SetRemote(TestObserver::OFFER, a1_->offer());
-    a2_->CreateAnswer(a1_->offer(), OFFER_AUDIO | ANSWER_AUDIO, answerSdpCheck);
+    a2_->CreateAnswer(bconstraints, a1_->offer(), OFFER_AUDIO | ANSWER_AUDIO,
+                     answerSdpCheck);
     a2_->SetLocal(TestObserver::ANSWER, a2_->answer());
     ParsedSDP sdpWrapper(a2_->answer());
     sdpWrapper.ReplaceLine("m=audio", "m=audio 65375 RTP/SAVPF 109 8 101\r\n");
@@ -1687,14 +1702,15 @@ public:
     ASSERT_TRUE_WAIT(a2_->IceCompleted() == true, kDefaultTimeout);
   }
 
-  void OfferAnswerTrickle(sipcc::OfferOptions& options,
+  void OfferAnswerTrickle(sipcc::MediaConstraints& aconstraints,
+                          sipcc::MediaConstraints& bconstraints,
                           uint32_t offerSdpCheck, uint32_t answerSdpCheck) {
     EnsureInit();
-    a1_->CreateOffer(options, OFFER_AV, offerSdpCheck);
+    a1_->CreateOffer(aconstraints, OFFER_AV, offerSdpCheck);
     a1_->SetLocal(TestObserver::OFFER, a1_->offer());
     ParsedSDP a1_offer(a1_->offer());
     a2_->SetRemote(TestObserver::OFFER, a1_offer.sdp_without_ice_);
-    a2_->CreateAnswer(a1_offer.sdp_without_ice_,
+    a2_->CreateAnswer(bconstraints, a1_offer.sdp_without_ice_,
                      OFFER_AV|ANSWER_AV, answerSdpCheck);
     a2_->SetLocal(TestObserver::ANSWER, a2_->answer());
     ParsedSDP a2_answer(a2_->answer());
@@ -1707,14 +1723,15 @@ public:
   }
 
 
-  void OfferAnswerTrickleChrome(sipcc::OfferOptions& options,
+  void OfferAnswerTrickleChrome(sipcc::MediaConstraints& aconstraints,
+                          sipcc::MediaConstraints& bconstraints,
                           uint32_t offerSdpCheck, uint32_t answerSdpCheck) {
     EnsureInit();
-    a1_->CreateOffer(options, OFFER_AV, offerSdpCheck);
+    a1_->CreateOffer(aconstraints, OFFER_AV, offerSdpCheck);
     a1_->SetLocal(TestObserver::OFFER, a1_->offer());
     ParsedSDP a1_offer(a1_->offer());
     a2_->SetRemote(TestObserver::OFFER, a1_offer.sdp_without_ice_);
-    a2_->CreateAnswer(a1_offer.sdp_without_ice_,
+    a2_->CreateAnswer(bconstraints, a1_offer.sdp_without_ice_,
                      OFFER_AV|ANSWER_AV, answerSdpCheck);
     a2_->SetLocal(TestObserver::ANSWER, a2_->answer());
     ParsedSDP a2_answer(a2_->answer());
@@ -1726,27 +1743,27 @@ public:
     ASSERT_TRUE_WAIT(a2_->IceCompleted() == true, kDefaultTimeout);
   }
 
-  void CreateOfferRemoveStream(sipcc::OfferOptions& options,
+  void CreateOfferRemoveStream(sipcc::MediaConstraints& constraints,
                                uint32_t hints, uint32_t sdpCheck) {
     EnsureInit();
-    sipcc::OfferOptions aoptions;
-    aoptions.setInt32Option("OfferToReceiveAudio", true);
-    aoptions.setInt32Option("OfferToReceiveVideo", true);
-    a1_->CreateOffer(aoptions, OFFER_AV, SHOULD_SENDRECV_AV );
-    a1_->CreateOfferRemoveStream(options, hints, sdpCheck);
+    sipcc::MediaConstraints aconstraints;
+    aconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+    aconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+    a1_->CreateOffer(aconstraints, OFFER_AV, SHOULD_SENDRECV_AV );
+    a1_->CreateOfferRemoveStream(constraints, hints, sdpCheck);
   }
 
-  void CreateOfferAudioOnly(sipcc::OfferOptions& options,
+  void CreateOfferAudioOnly(sipcc::MediaConstraints& constraints,
                             uint32_t sdpCheck) {
     EnsureInit();
-    a1_->CreateOffer(options, OFFER_AUDIO, sdpCheck);
+    a1_->CreateOffer(constraints, OFFER_AUDIO, sdpCheck);
   }
 
-  void CreateOfferAddCandidate(sipcc::OfferOptions& options,
+  void CreateOfferAddCandidate(sipcc::MediaConstraints& constraints,
                                const char * candidate, const char * mid,
                                unsigned short level, uint32_t sdpCheck) {
     EnsureInit();
-    a1_->CreateOffer(options, OFFER_AV, sdpCheck);
+    a1_->CreateOffer(constraints, OFFER_AV, sdpCheck);
     a1_->AddIceCandidate(candidate, mid, level, true);
   }
 
@@ -1785,9 +1802,9 @@ public:
                   uint32_t rtcpFbFlags,
                   VideoSessionConduit::FrameRequestType frameRequestMethod) {
     EnsureInit();
-    sipcc::OfferOptions options;
+    sipcc::MediaConstraints constraints;
 
-    a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+    a1_->CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
     a1_->SetLocal(TestObserver::OFFER, a1_->offer());
 
     ParsedSDP sdpWrapper(a1_->offer());
@@ -1810,7 +1827,7 @@ public:
     CheckRtcpFbSdp(sdpWrapper.getSdp(), feedback);
 
     a2_->SetRemote(TestObserver::OFFER, sdpWrapper.getSdp());
-    a2_->CreateAnswer(sdpWrapper.getSdp(), OFFER_AV | ANSWER_AV);
+    a2_->CreateAnswer(constraints, sdpWrapper.getSdp(), OFFER_AV | ANSWER_AV);
 
     CheckRtcpFbSdp(a2_->answer(), feedback);
 
@@ -1952,285 +1969,310 @@ TEST_F(SignalingTest, JustInit)
 
 TEST_F(SignalingTest, CreateSetOffer)
 {
-  sipcc::OfferOptions options;
-  CreateSetOffer(options, SHOULD_SENDRECV_AV);
+  sipcc::MediaConstraints constraints;
+  CreateSetOffer(constraints, SHOULD_SENDRECV_AV);
 }
 
-TEST_F(SignalingTest, CreateOfferAudioVideoOptionUndefined)
+TEST_F(SignalingTest, CreateOfferAudioVideoConstraintUndefined)
 {
-  sipcc::OfferOptions options;
-  CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+  sipcc::MediaConstraints constraints;
+  CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
 }
 
 TEST_F(SignalingTest, CreateOfferNoVideoStreamRecvVideo)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  CreateOffer(options, OFFER_AUDIO,
+  sipcc::MediaConstraints constraints;
+  constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  constraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  CreateOffer(constraints, OFFER_AUDIO,
               SHOULD_SENDRECV_AUDIO | SHOULD_RECV_VIDEO);
 }
 
 TEST_F(SignalingTest, CreateOfferNoAudioStreamRecvAudio)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  CreateOffer(options, OFFER_VIDEO,
+  sipcc::MediaConstraints constraints;
+  constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  constraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  CreateOffer(constraints, OFFER_VIDEO,
               SHOULD_RECV_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
 TEST_F(SignalingTest, CreateOfferNoVideoStream)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", false);
-  CreateOffer(options, OFFER_AUDIO,
+  sipcc::MediaConstraints constraints;
+  constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  constraints.setBooleanConstraint("OfferToReceiveVideo", false, false);
+  CreateOffer(constraints, OFFER_AUDIO,
               SHOULD_SENDRECV_AUDIO | SHOULD_OMIT_VIDEO);
 }
 
 TEST_F(SignalingTest, CreateOfferNoAudioStream)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", false);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  CreateOffer(options, OFFER_VIDEO,
+  sipcc::MediaConstraints constraints;
+  constraints.setBooleanConstraint("OfferToReceiveAudio", false, false);
+  constraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  CreateOffer(constraints, OFFER_VIDEO,
               SHOULD_OMIT_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
 TEST_F(SignalingTest, CreateOfferDontReceiveAudio)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", false);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  CreateOffer(options, OFFER_AV,
+  sipcc::MediaConstraints constraints;
+  constraints.setBooleanConstraint("OfferToReceiveAudio", false, false);
+  constraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  CreateOffer(constraints, OFFER_AV,
               SHOULD_SEND_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
 TEST_F(SignalingTest, CreateOfferDontReceiveVideo)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", false);
-  CreateOffer(options, OFFER_AV,
+  sipcc::MediaConstraints constraints;
+  constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  constraints.setBooleanConstraint("OfferToReceiveVideo", false, false);
+  CreateOffer(constraints, OFFER_AV,
               SHOULD_SENDRECV_AUDIO | SHOULD_SEND_VIDEO);
 }
 
 // XXX Disabled pending resolution of Bug 840728
 TEST_F(SignalingTest, DISABLED_CreateOfferRemoveAudioStream)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  CreateOfferRemoveStream(options, DOMMediaStream::HINT_CONTENTS_AUDIO,
+  sipcc::MediaConstraints constraints;
+  constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  constraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  CreateOfferRemoveStream(constraints, DOMMediaStream::HINT_CONTENTS_AUDIO,
               SHOULD_RECV_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
 // XXX Disabled pending resolution of Bug 840728
 TEST_F(SignalingTest, DISABLED_CreateOfferDontReceiveAudioRemoveAudioStream)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", false);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  CreateOfferRemoveStream(options, DOMMediaStream::HINT_CONTENTS_AUDIO,
+  sipcc::MediaConstraints constraints;
+  constraints.setBooleanConstraint("OfferToReceiveAudio", false, false);
+  constraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  CreateOfferRemoveStream(constraints, DOMMediaStream::HINT_CONTENTS_AUDIO,
               SHOULD_SENDRECV_VIDEO);
 }
 
 // XXX Disabled pending resolution of Bug 840728
 TEST_F(SignalingTest, DISABLED_CreateOfferDontReceiveVideoRemoveVideoStream)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", false);
-  CreateOfferRemoveStream(options, DOMMediaStream::HINT_CONTENTS_VIDEO,
+  sipcc::MediaConstraints constraints;
+  constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  constraints.setBooleanConstraint("OfferToReceiveVideo", false, false);
+  CreateOfferRemoveStream(constraints, DOMMediaStream::HINT_CONTENTS_VIDEO,
               SHOULD_SENDRECV_AUDIO);
 }
 
 TEST_F(SignalingTest, OfferAnswerNothingDisabled)
 {
-  sipcc::OfferOptions options;
-  OfferAnswer(options, OFFER_AV | ANSWER_AV, false,
+  sipcc::MediaConstraints constraints;
+  OfferAnswer(constraints, constraints, OFFER_AV | ANSWER_AV, false,
               SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AV);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest, DISABLED_OfferAnswerDontReceiveAudioOnOffer)
+TEST_F(SignalingTest, OfferAnswerDontReceiveAudioOnOffer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", false);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_AV | ANSWER_AV,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", false, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_AV,
               false, SHOULD_SEND_AUDIO | SHOULD_SENDRECV_VIDEO,
               SHOULD_RECV_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest, DISABLED_OfferAnswerDontReceiveVideoOnOffer)
+TEST_F(SignalingTest, OfferAnswerDontReceiveVideoOnOffer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", false);
-  OfferAnswer(options, OFFER_AV | ANSWER_AV,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", false, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_AV,
               false, SHOULD_SENDRECV_AUDIO | SHOULD_SEND_VIDEO,
               SHOULD_SENDRECV_AUDIO | SHOULD_RECV_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest, DISABLED_OfferAnswerDontReceiveAudioOnAnswer)
+TEST_F(SignalingTest, OfferAnswerDontReceiveAudioOnAnswer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_AV | ANSWER_AV,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", false, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_AV,
               false, SHOULD_SENDRECV_AV,
               SHOULD_SEND_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest, DISABLED_OfferAnswerDontReceiveVideoOnAnswer)
+TEST_F(SignalingTest, OfferAnswerDontReceiveVideoOnAnswer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_AV | ANSWER_AV,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", false, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_AV,
               false, SHOULD_SENDRECV_AV,
               SHOULD_SENDRECV_AUDIO | SHOULD_SEND_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnOfferRecvAudio)
+TEST_F(SignalingTest, OfferAnswerDontAddAudioStreamOnOfferRecvAudio)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_VIDEO | ANSWER_AV,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_VIDEO | ANSWER_AV,
               false, SHOULD_RECV_AUDIO | SHOULD_SENDRECV_VIDEO,
               SHOULD_SEND_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnOffer)
+TEST_F(SignalingTest, OfferAnswerDontAddAudioStreamOnOffer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", false);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_VIDEO | ANSWER_AV,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", false, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_VIDEO | ANSWER_AV,
               false, SHOULD_OMIT_AUDIO | SHOULD_SENDRECV_VIDEO,
               SHOULD_OMIT_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnOfferRecvVideo)
+TEST_F(SignalingTest, OfferAnswerDontAddVideoStreamOnOfferRecvVideo)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_AUDIO | ANSWER_AV,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AUDIO | ANSWER_AV,
               false, SHOULD_SENDRECV_AUDIO | SHOULD_RECV_VIDEO,
               SHOULD_SENDRECV_AUDIO | SHOULD_SEND_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnOffer)
+TEST_F(SignalingTest, OfferAnswerDontAddVideoStreamOnOffer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", false);
-  OfferAnswer(options, OFFER_AUDIO | ANSWER_AV,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", false, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AUDIO | ANSWER_AV,
               false, SHOULD_SENDRECV_AUDIO | SHOULD_OMIT_VIDEO,
               SHOULD_SENDRECV_AUDIO | SHOULD_OMIT_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnAnswer)
+TEST_F(SignalingTest, OfferAnswerDontAddAudioStreamOnAnswer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_AV | ANSWER_VIDEO,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_VIDEO,
               false, SHOULD_SENDRECV_AV,
               SHOULD_RECV_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnAnswer)
+TEST_F(SignalingTest, OfferAnswerDontAddVideoStreamOnAnswer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_AV | ANSWER_AUDIO,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_AUDIO,
               false, SHOULD_SENDRECV_AV,
               SHOULD_SENDRECV_AUDIO | SHOULD_RECV_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest,
-       DISABLED_OfferAnswerDontAddVideoStreamOnAnswerDontReceiveVideoOnAnswer)
+TEST_F(SignalingTest, OfferAnswerDontAddVideoStreamOnAnswerDontReceiveVideoOnAnswer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_AV | ANSWER_AUDIO,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", false, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_AUDIO,
               false, SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AUDIO );
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest,
-       DISABLED_OfferAnswerDontAddAudioStreamOnAnswerDontReceiveAudioOnAnswer)
+TEST_F(SignalingTest, OfferAnswerDontAddAudioStreamOnAnswerDontReceiveAudioOnAnswer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_AV | ANSWER_VIDEO,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", false, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_VIDEO,
               false, SHOULD_SENDRECV_AV,
               SHOULD_REJECT_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest,
-       DISABLED_OfferAnswerDontAddAudioStreamOnOfferDontReceiveAudioOnOffer)
+TEST_F(SignalingTest, OfferAnswerDontAddAudioStreamOnOfferDontReceiveAudioOnOffer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", false);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_VIDEO | ANSWER_AV,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", false, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_VIDEO | ANSWER_AV,
               false, SHOULD_SENDRECV_VIDEO, SHOULD_SENDRECV_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest,
-       DISABLED_OfferAnswerDontAddVideoStreamOnOfferDontReceiveVideoOnOffer)
+TEST_F(SignalingTest, OfferAnswerDontAddVideoStreamOnOfferDontReceiveVideoOnOffer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", false);
-  OfferAnswer(options, OFFER_AUDIO | ANSWER_AV,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", false, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AUDIO | ANSWER_AV,
               false, SHOULD_SENDRECV_AUDIO | SHOULD_OMIT_VIDEO,
               SHOULD_SENDRECV_AUDIO | SHOULD_OMIT_VIDEO);
 }
 
-// XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_F(SignalingTest,
-  DISABLED_OfferAnswerDontReceiveAudioNoAudioStreamOnOfferDontReceiveVideoOnAnswer)
+TEST_F(SignalingTest, OfferAnswerDontReceiveAudioNoAudioStreamOnOfferDontReceiveVideoOnAnswer)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", false);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_VIDEO | ANSWER_AV,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", false, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", false, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_VIDEO | ANSWER_AV,
               false, SHOULD_SENDRECV_VIDEO, SHOULD_SEND_VIDEO);
 }
 
 TEST_F(SignalingTest, CreateOfferAddCandidate)
 {
-  sipcc::OfferOptions options;
-  CreateOfferAddCandidate(options, strSampleCandidate.c_str(),
+  sipcc::MediaConstraints constraints;
+  CreateOfferAddCandidate(constraints, strSampleCandidate.c_str(),
                           strSampleMid.c_str(), nSamplelevel,
                           SHOULD_SENDRECV_AV);
 }
 
 TEST_F(SignalingTest, AddIceCandidateEarly)
 {
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   AddIceCandidateEarly(strSampleCandidate.c_str(),
                        strSampleMid.c_str(), nSamplelevel);
 }
@@ -2239,55 +2281,58 @@ TEST_F(SignalingTest, AddIceCandidateEarly)
 // through what actually needs to be tested here.
 TEST_F(SignalingTest, DISABLED_OfferAnswerReNegotiateOfferAnswerDontReceiveVideoNoVideoStream)
 {
-  sipcc::OfferOptions aoptions;
-  aoptions.setInt32Option("OfferToReceiveAudio", true);
-  aoptions.setInt32Option("OfferToReceiveVideo", true);
+  sipcc::MediaConstraints aconstraints;
+  aconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  aconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
 
-  sipcc::OfferOptions boptions;
-  boptions.setInt32Option("OfferToReceiveAudio", true);
-  boptions.setInt32Option("OfferToReceiveVideo", false);
+  sipcc::MediaConstraints bconstraints;
+  bconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  bconstraints.setBooleanConstraint("OfferToReceiveVideo", false, false);
 
-  OfferAnswer(aoptions, OFFER_AV | ANSWER_AV,
+  OfferAnswer(aconstraints, aconstraints, OFFER_AV | ANSWER_AV,
               false, SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AV);
-  OfferAnswer(boptions, OFFER_AUDIO | ANSWER_AV,
+  OfferAnswer(bconstraints, bconstraints, OFFER_AUDIO | ANSWER_AV,
               false, SHOULD_SENDRECV_AUDIO | SHOULD_SEND_VIDEO,
               SHOULD_SENDRECV_AUDIO | SHOULD_INACTIVE_VIDEO);
 }
 
-TEST_F(SignalingTest, OfferAnswerDontAddAudioStreamOnAnswerNoOptions)
+TEST_F(SignalingTest, OfferAnswerDontAddAudioStreamOnAnswerNoConstraints)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_AV | ANSWER_VIDEO,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_VIDEO,
               false, SHOULD_SENDRECV_AV,
               SHOULD_RECV_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-TEST_F(SignalingTest, OfferAnswerDontAddVideoStreamOnAnswerNoOptions)
+TEST_F(SignalingTest, OfferAnswerDontAddVideoStreamOnAnswerNoConstraints)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_AV | ANSWER_AUDIO,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_AUDIO,
               false, SHOULD_SENDRECV_AV,
               SHOULD_SENDRECV_AUDIO | SHOULD_RECV_VIDEO);
 }
 
-TEST_F(SignalingTest, OfferAnswerDontAddAudioVideoStreamsOnAnswerNoOptions)
+TEST_F(SignalingTest, OfferAnswerDontAddAudioVideoStreamsOnAnswerNoConstraints)
 {
-  sipcc::OfferOptions options;
-  options.setInt32Option("OfferToReceiveAudio", true);
-  options.setInt32Option("OfferToReceiveVideo", true);
-  OfferAnswer(options, OFFER_AV | ANSWER_NONE,
+  sipcc::MediaConstraints offerconstraints;
+  offerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  offerconstraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  sipcc::MediaConstraints answerconstraints;
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_NONE,
               false, SHOULD_SENDRECV_AV,
               SHOULD_RECV_AUDIO | SHOULD_RECV_VIDEO);
 }
 
 TEST_F(SignalingTest, FullCall)
 {
-  sipcc::OfferOptions options;
-  OfferAnswer(options, OFFER_AV | ANSWER_AV,
+  sipcc::MediaConstraints constraints;
+  OfferAnswer(constraints, constraints, OFFER_AV | ANSWER_AV,
               true, SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AV);
 
   // Wait for some data to get written
@@ -2315,8 +2360,8 @@ TEST_F(SignalingTest, FullCall)
 
 TEST_F(SignalingTest, FullCallAudioOnly)
 {
-  sipcc::OfferOptions options;
-  OfferAnswer(options, OFFER_AUDIO | ANSWER_AUDIO,
+  sipcc::MediaConstraints constraints;
+  OfferAnswer(constraints, constraints, OFFER_AUDIO | ANSWER_AUDIO,
               true, SHOULD_SENDRECV_AUDIO, SHOULD_SENDRECV_AUDIO);
 
   // Wait for some data to get written
@@ -2332,15 +2377,13 @@ TEST_F(SignalingTest, FullCallAudioOnly)
   ASSERT_GE(a2_->GetPacketsReceived(0), 40);
 }
 
-// FIXME -- reject offered stream by .stop()ing the MST that was offered instead,
-// or by setting .active property to false on the created RTPReceiver object.
-TEST_F(SignalingTest, DISABLED_FullCallAnswererRejectsVideo)
+TEST_F(SignalingTest, FullCallAnswererRejectsVideo)
 {
-  sipcc::OfferOptions offeroptions;
-  sipcc::OfferOptions answeroptions;
-  answeroptions.setInt32Option("offerToReceiveAudio", true);
-  answeroptions.setInt32Option("offerToReceiveVideo", false);
-  OfferAnswer(offeroptions, OFFER_AV | ANSWER_AUDIO,
+  sipcc::MediaConstraints offerconstraints;
+  sipcc::MediaConstraints answerconstraints;
+  answerconstraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  answerconstraints.setBooleanConstraint("OfferToReceiveVideo", false, false);
+  OfferAnswer(offerconstraints, answerconstraints, OFFER_AV | ANSWER_AUDIO,
               true, SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AUDIO);
 
   // Wait for some data to get written
@@ -2358,8 +2401,8 @@ TEST_F(SignalingTest, DISABLED_FullCallAnswererRejectsVideo)
 
 TEST_F(SignalingTest, FullCallVideoOnly)
 {
-  sipcc::OfferOptions options;
-  OfferAnswer(options, OFFER_VIDEO | ANSWER_VIDEO,
+  sipcc::MediaConstraints constraints;
+  OfferAnswer(constraints, constraints, OFFER_VIDEO | ANSWER_VIDEO,
               true, SHOULD_SENDRECV_VIDEO, SHOULD_SENDRECV_VIDEO);
 
   // If we could check for video packets, we would wait for some to be written
@@ -2383,16 +2426,18 @@ TEST_F(SignalingTest, FullCallVideoOnly)
 
 TEST_F(SignalingTest, OfferModifiedAnswer)
 {
-  sipcc::OfferOptions options;
-  OfferModifiedAnswer(options, SHOULD_SENDRECV_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  OfferModifiedAnswer(constraints, constraints, SHOULD_SENDRECV_AUDIO,
+                      SHOULD_SENDRECV_AUDIO);
   a1_->CloseSendStreams();
   a2_->CloseReceiveStreams();
 }
 
 TEST_F(SignalingTest, FullCallTrickle)
 {
-  sipcc::OfferOptions options;
-  OfferAnswerTrickle(options, SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AV);
+  sipcc::MediaConstraints constraints;
+  OfferAnswerTrickle(constraints, constraints,
+                     SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AV);
 
   std::cerr << "ICE handshake completed" << std::endl;
 
@@ -2409,8 +2454,8 @@ TEST_F(SignalingTest, FullCallTrickle)
 // Offer answer with trickle but with chrome-style candidates
 TEST_F(SignalingTest, FullCallTrickleChrome)
 {
-  sipcc::OfferOptions options;
-  OfferAnswerTrickleChrome(options,
+  sipcc::MediaConstraints constraints;
+  OfferAnswerTrickleChrome(constraints, constraints,
                            SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AV);
 
   std::cerr << "ICE handshake completed" << std::endl;
@@ -2430,15 +2475,15 @@ TEST_F(SignalingTest, AudioOnlyG711Call)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   const std::string& offer(strG711SdpOffer);
 
   std::cout << "Setting offer to:" << std::endl << indent(offer) << std::endl;
   a2_->SetRemote(TestObserver::OFFER, offer);
 
   std::cout << "Creating answer:" << std::endl;
-  a2_->CreateAnswer(offer, OFFER_AUDIO | ANSWER_AUDIO,
-                    DONT_CHECK_AUDIO | DONT_CHECK_VIDEO | DONT_CHECK_DATA);
+  a2_->CreateAnswer(constraints, offer, OFFER_AUDIO | ANSWER_AUDIO,
+                   DONT_CHECK_AUDIO | DONT_CHECK_VIDEO | DONT_CHECK_DATA);
 
   std::string answer = a2_->answer();
 
@@ -2462,6 +2507,7 @@ TEST_F(SignalingTest, IncomingOfferIceLite)
 {
   EnsureInit();
 
+  sipcc::MediaConstraints constraints;
   std::string offer =
     "v=0\r\n"
     "o=- 1936463 1936463 IN IP4 148.147.200.251\r\n"
@@ -2488,7 +2534,7 @@ TEST_F(SignalingTest, IncomingOfferIceLite)
   a2_->SetRemote(TestObserver::OFFER, offer);
 
   std::cout << "Creating answer:" << std::endl;
-  a2_->CreateAnswer(offer, OFFER_AUDIO | ANSWER_AUDIO);
+  a2_->CreateAnswer(constraints, offer, OFFER_AUDIO | ANSWER_AUDIO);
   a2_->SetLocal(TestObserver::ANSWER, a2_->answer());
 
   ASSERT_EQ(a2_->pc->media()->ice_ctx()->GetControlling(),
@@ -2499,6 +2545,8 @@ TEST_F(SignalingTest, IncomingOfferIceLite)
 TEST_F(SignalingTest, ChromeOfferAnswer)
 {
   EnsureInit();
+
+  sipcc::MediaConstraints constraints;
 
   // This is captured SDP from an early interop attempt with Chrome.
   std::string offer =
@@ -2569,7 +2617,7 @@ TEST_F(SignalingTest, ChromeOfferAnswer)
   a2_->SetRemote(TestObserver::OFFER, offer);
 
   std::cout << "Creating answer:" << std::endl;
-  a2_->CreateAnswer(offer, OFFER_AUDIO | ANSWER_AUDIO);
+  a2_->CreateAnswer(constraints, offer, OFFER_AUDIO | ANSWER_AUDIO);
 
   std::string answer = a2_->answer();
 }
@@ -2578,6 +2626,10 @@ TEST_F(SignalingTest, ChromeOfferAnswer)
 TEST_F(SignalingTest, FullChromeHandshake)
 {
   EnsureInit();
+
+  sipcc::MediaConstraints constraints;
+  constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  constraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
 
   std::string offer = "v=0\r\n"
       "o=- 3835809413 2 IN IP4 127.0.0.1\r\n"
@@ -2637,7 +2689,7 @@ TEST_F(SignalingTest, FullChromeHandshake)
   a2_->SetRemote(TestObserver::OFFER, offer);
 
   std::cout << "Creating answer:" << std::endl;
-  a2_->CreateAnswer(offer, OFFER_AUDIO | ANSWER_AUDIO);
+  a2_->CreateAnswer(constraints, offer, OFFER_AUDIO | ANSWER_AUDIO);
 
   std::cout << "Setting answer" << std::endl;
   a2_->SetLocal(TestObserver::ANSWER, a2_->answer());
@@ -2651,6 +2703,7 @@ TEST_F(SignalingTest, DISABLED_OfferAllDynamicTypes)
 {
   EnsureInit();
 
+  sipcc::MediaConstraints constraints;
   std::string offer;
   for (int i = 96; i < 128; i++)
   {
@@ -2682,7 +2735,7 @@ TEST_F(SignalingTest, DISABLED_OfferAllDynamicTypes)
       a2_->SetRemote(TestObserver::OFFER, offer);
 
       //std::cout << "Creating answer:" << std::endl;
-      a2_->CreateAnswer(offer, OFFER_AUDIO | ANSWER_AUDIO);
+      a2_->CreateAnswer(constraints, offer, OFFER_AUDIO | ANSWER_AUDIO);
 
       std::string answer = a2_->answer();
 
@@ -2693,8 +2746,8 @@ TEST_F(SignalingTest, DISABLED_OfferAllDynamicTypes)
 
 TEST_F(SignalingTest, OfferAnswerCheckDescriptions)
 {
-  sipcc::OfferOptions options;
-  OfferAnswer(options, OFFER_AV | ANSWER_AV, true,
+  sipcc::MediaConstraints constraints;
+  OfferAnswer(constraints, constraints, OFFER_AV | ANSWER_AV, true,
               SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AV);
 
   std::cout << "Caller's Local Description: " << std::endl
@@ -2716,8 +2769,8 @@ TEST_F(SignalingTest, OfferAnswerCheckDescriptions)
 
 TEST_F(SignalingTest, CheckTrickleSdpChange)
 {
-  sipcc::OfferOptions options;
-  OfferAnswerTrickle(options,
+  sipcc::MediaConstraints constraints;
+  OfferAnswerTrickle(constraints, constraints,
                      SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AV);
   std::cerr << "ICE handshake completed" << std::endl;
 
@@ -2760,6 +2813,7 @@ TEST_F(SignalingTest, ipAddrAnyOffer)
 {
   EnsureInit();
 
+  sipcc::MediaConstraints constraints;
   std::string offer =
     "v=0\r\n"
     "o=- 1 1 IN IP4 127.0.0.1\r\n"
@@ -2777,7 +2831,7 @@ TEST_F(SignalingTest, ipAddrAnyOffer)
 
     a2_->SetRemote(TestObserver::OFFER, offer);
     ASSERT_TRUE(a2_->pObserver->state == TestObserver::stateSuccess);
-    a2_->CreateAnswer(offer, OFFER_AUDIO | ANSWER_AUDIO);
+    a2_->CreateAnswer(constraints, offer, OFFER_AUDIO | ANSWER_AUDIO);
     ASSERT_TRUE(a2_->pObserver->state == TestObserver::stateSuccess);
     std::string answer = a2_->answer();
     ASSERT_NE(answer.find("a=sendrecv"), std::string::npos);
@@ -2850,8 +2904,8 @@ TEST_F(SignalingTest, SetLocalAnswerInStable)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
-  CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
 
   // The signaling state will remain "stable" because the
   // SetLocalDescription call fails.
@@ -2873,8 +2927,8 @@ TEST_F(SignalingTest, SetRemoteAnswerInStable) {
 }
 
 TEST_F(SignalingTest, SetLocalAnswerInHaveLocalOffer) {
-  sipcc::OfferOptions options;
-  CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
   ASSERT_EQ(a1_->pObserver->lastStatusCode,
             sipcc::PeerConnectionImpl::kNoError);
@@ -2888,8 +2942,8 @@ TEST_F(SignalingTest, SetLocalAnswerInHaveLocalOffer) {
 }
 
 TEST_F(SignalingTest, SetRemoteOfferInHaveLocalOffer) {
-  sipcc::OfferOptions options;
-  CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
   ASSERT_EQ(a1_->pObserver->lastStatusCode,
             sipcc::PeerConnectionImpl::kNoError);
@@ -2903,8 +2957,8 @@ TEST_F(SignalingTest, SetRemoteOfferInHaveLocalOffer) {
 }
 
 TEST_F(SignalingTest, SetLocalOfferInHaveRemoteOffer) {
-  sipcc::OfferOptions options;
-  CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a2_->SetRemote(TestObserver::OFFER, a1_->offer());
   ASSERT_EQ(a2_->pObserver->lastStatusCode,
             sipcc::PeerConnectionImpl::kNoError);
@@ -2918,8 +2972,8 @@ TEST_F(SignalingTest, SetLocalOfferInHaveRemoteOffer) {
 }
 
 TEST_F(SignalingTest, SetRemoteAnswerInHaveRemoteOffer) {
-  sipcc::OfferOptions options;
-  CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a2_->SetRemote(TestObserver::OFFER, a1_->offer());
   ASSERT_EQ(a2_->pObserver->lastStatusCode,
             sipcc::PeerConnectionImpl::kNoError);
@@ -2934,8 +2988,8 @@ TEST_F(SignalingTest, SetRemoteAnswerInHaveRemoteOffer) {
 
 // Disabled until the spec adds a failure callback to addStream
 TEST_F(SignalingTest, DISABLED_AddStreamInHaveLocalOffer) {
-  sipcc::OfferOptions options;
-  CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
   ASSERT_EQ(a1_->pObserver->lastStatusCode,
             sipcc::PeerConnectionImpl::kNoError);
@@ -2946,8 +3000,8 @@ TEST_F(SignalingTest, DISABLED_AddStreamInHaveLocalOffer) {
 
 // Disabled until the spec adds a failure callback to removeStream
 TEST_F(SignalingTest, DISABLED_RemoveStreamInHaveLocalOffer) {
-  sipcc::OfferOptions options;
-  CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
   ASSERT_EQ(a1_->pObserver->lastStatusCode,
             sipcc::PeerConnectionImpl::kNoError);
@@ -2957,8 +3011,8 @@ TEST_F(SignalingTest, DISABLED_RemoveStreamInHaveLocalOffer) {
 }
 
 TEST_F(SignalingTest, AddCandidateInHaveLocalOffer) {
-  sipcc::OfferOptions options;
-  CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
   ASSERT_EQ(a1_->pObserver->lastStatusCode,
             sipcc::PeerConnectionImpl::kNoError);
@@ -2970,8 +3024,8 @@ TEST_F(SignalingTest, AddCandidateInHaveLocalOffer) {
 
 TEST_F(SignalingAgentTest, CreateOffer) {
   CreateAgent();
-  sipcc::OfferOptions options;
-  agent(0)->CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  agent(0)->CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   PR_Sleep(20000);
 }
 
@@ -2985,8 +3039,8 @@ TEST_F(SignalingAgentTest, CreateOfferTrickleTestServer) {
       TestStunServer::GetInstance()->port(),
       false);
 
-  sipcc::OfferOptions options;
-  agent(0)->CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  agent(0)->CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
 
   // Verify that the bogus addr is not there.
   ASSERT_FALSE(agent(0)->OfferContains(kBogusSrflxAddress));
@@ -3014,8 +3068,8 @@ TEST_F(SignalingAgentTest, CreateOfferSetLocalTrickleTestServer) {
       TestStunServer::GetInstance()->port(),
       false);
 
-  sipcc::OfferOptions options;
-  agent(0)->CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  sipcc::MediaConstraints constraints;
+  agent(0)->CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
 
   // Verify that the bogus addr is not there.
   ASSERT_FALSE(agent(0)->OfferContains(kBogusSrflxAddress));
@@ -3056,7 +3110,8 @@ TEST_F(SignalingAgentTest, CreateAnswerSetLocalTrickleTestServer) {
   ASSERT_EQ(agent(0)->pObserver->lastStatusCode,
             sipcc::PeerConnectionImpl::kNoError);
 
-  agent(0)->CreateAnswer(offer, ANSWER_AUDIO, DONT_CHECK_AUDIO);
+  sipcc::MediaConstraints constraints;
+  agent(0)->CreateAnswer(constraints, offer, ANSWER_AUDIO, DONT_CHECK_AUDIO);
 
   // Verify that the bogus addr is not there.
   ASSERT_FALSE(agent(0)->AnswerContains(kBogusSrflxAddress));
@@ -3107,7 +3162,7 @@ TEST_F(SignalingTest, missingUfrag)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   std::string offer =
     "v=0\r\n"
     "o=Mozilla-SIPUA 2208 0 IN IP4 0.0.0.0\r\n"
@@ -3149,7 +3204,7 @@ TEST_F(SignalingTest, missingUfrag)
 
   // Need to create an offer, since that's currently required by our
   // FSM. This may change in the future.
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
   a1_->SetLocal(TestObserver::OFFER, offer, true);
   // We now detect the missing ICE parameters at SetRemoteDescription
   a2_->SetRemote(TestObserver::OFFER, offer, true,
@@ -3161,16 +3216,16 @@ TEST_F(SignalingTest, AudioOnlyCalleeNoRtcpMux)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
 
-  a1_->CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  a1_->CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer(), false);
   ParsedSDP sdpWrapper(a1_->offer());
   sdpWrapper.DeleteLine("a=rtcp-mux");
   std::cout << "Modified SDP " << std::endl
             << indent(sdpWrapper.getSdp()) << std::endl;
   a2_->SetRemote(TestObserver::OFFER, sdpWrapper.getSdp(), false);
-  a2_->CreateAnswer(sdpWrapper.getSdp(),
+  a2_->CreateAnswer(constraints, sdpWrapper.getSdp(),
     OFFER_AUDIO | ANSWER_AUDIO);
   a2_->SetLocal(TestObserver::ANSWER, a2_->answer(), false);
   a1_->SetRemote(TestObserver::ANSWER, a2_->answer(), false);
@@ -3205,16 +3260,16 @@ TEST_F(SignalingTest, FullCallAudioNoMuxVideoMux)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
 
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer(), false);
   ParsedSDP sdpWrapper(a1_->offer());
   sdpWrapper.DeleteLine("a=rtcp-mux");
   std::cout << "Modified SDP " << std::endl
             << indent(sdpWrapper.getSdp()) << std::endl;
   a2_->SetRemote(TestObserver::OFFER, sdpWrapper.getSdp(), false);
-  a2_->CreateAnswer(sdpWrapper.getSdp(), OFFER_AV | ANSWER_AV);
+  a2_->CreateAnswer(constraints, sdpWrapper.getSdp(), OFFER_AV | ANSWER_AV);
   a2_->SetLocal(TestObserver::ANSWER, a2_->answer(), false);
   a1_->SetRemote(TestObserver::ANSWER, a2_->answer(), false);
 
@@ -3260,8 +3315,8 @@ TEST_F(SignalingTest, FullCallAudioNoMuxVideoMux)
 TEST_F(SignalingTest, RtcpFbInOffer)
 {
   EnsureInit();
-  sipcc::OfferOptions options;
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+  sipcc::MediaConstraints constraints;
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
   const char *expected[] = { "nack", "nack pli", "ccm fir" };
   CheckRtcpFbSdp(a1_->offer(), ARRAY_TO_SET(std::string, expected));
 }
@@ -3336,10 +3391,10 @@ TEST_F(SignalingTest, AudioCallForceDtlsRoles)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   size_t match;
 
-  a1_->CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  a1_->CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
 
   // By default the offer should give actpass
   std::string offer(a1_->offer());
@@ -3354,7 +3409,7 @@ TEST_F(SignalingTest, AudioCallForceDtlsRoles)
 
   a1_->SetLocal(TestObserver::OFFER, offer.c_str(), false);
   a2_->SetRemote(TestObserver::OFFER, offer.c_str(), false);
-  a2_->CreateAnswer(offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
+  a2_->CreateAnswer(constraints, offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
 
   // Now the answer should contain a=setup:active
   std::string answer(a2_->answer());
@@ -3386,10 +3441,10 @@ TEST_F(SignalingTest, AudioCallReverseDtlsRoles)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   size_t match;
 
-  a1_->CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  a1_->CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
 
   // By default the offer should give actpass
   std::string offer(a1_->offer());
@@ -3404,7 +3459,7 @@ TEST_F(SignalingTest, AudioCallReverseDtlsRoles)
 
   a1_->SetLocal(TestObserver::OFFER, offer.c_str(), false);
   a2_->SetRemote(TestObserver::OFFER, offer.c_str(), false);
-  a2_->CreateAnswer(offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
+  a2_->CreateAnswer(constraints, offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
 
   // Now the answer should contain a=setup:passive
   std::string answer(a2_->answer());
@@ -3437,10 +3492,10 @@ TEST_F(SignalingTest, AudioCallMismatchDtlsRoles)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   size_t match;
 
-  a1_->CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  a1_->CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
 
   // By default the offer should give actpass
   std::string offer(a1_->offer());
@@ -3448,7 +3503,7 @@ TEST_F(SignalingTest, AudioCallMismatchDtlsRoles)
   ASSERT_NE(match, std::string::npos);
   a1_->SetLocal(TestObserver::OFFER, offer.c_str(), false);
   a2_->SetRemote(TestObserver::OFFER, offer.c_str(), false);
-  a2_->CreateAnswer(offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
+  a2_->CreateAnswer(constraints, offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
 
   // Now the answer should contain a=setup:active
   std::string answer(a2_->answer());
@@ -3487,10 +3542,10 @@ TEST_F(SignalingTest, AudioCallGarbageSetup)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   size_t match;
 
-  a1_->CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  a1_->CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
 
   // By default the offer should give actpass
   std::string offer(a1_->offer());
@@ -3504,7 +3559,7 @@ TEST_F(SignalingTest, AudioCallGarbageSetup)
 
   a1_->SetLocal(TestObserver::OFFER, offer.c_str(), false);
   a2_->SetRemote(TestObserver::OFFER, offer.c_str(), false);
-  a2_->CreateAnswer(offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
+  a2_->CreateAnswer(constraints, offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
 
   // Now the answer should contain a=setup:active
   std::string answer(a2_->answer());
@@ -3536,10 +3591,10 @@ TEST_F(SignalingTest, AudioCallOfferNoSetupOrConnection)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   size_t match;
 
-  a1_->CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  a1_->CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
 
   // By default the offer should give setup:actpass
   std::string offer(a1_->offer());
@@ -3552,7 +3607,7 @@ TEST_F(SignalingTest, AudioCallOfferNoSetupOrConnection)
 
   a1_->SetLocal(TestObserver::OFFER, offer.c_str(), false);
   a2_->SetRemote(TestObserver::OFFER, offer.c_str(), false);
-  a2_->CreateAnswer(offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
+  a2_->CreateAnswer(constraints, offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
 
   // Now the answer should contain a=setup:active
   std::string answer(a2_->answer());
@@ -3585,10 +3640,10 @@ TEST_F(SignalingTest, AudioCallAnswerNoSetupOrConnection)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   size_t match;
 
-  a1_->CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+  a1_->CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
 
   // By default the offer should give setup:actpass
   std::string offer(a1_->offer());
@@ -3597,7 +3652,7 @@ TEST_F(SignalingTest, AudioCallAnswerNoSetupOrConnection)
 
   a1_->SetLocal(TestObserver::OFFER, offer.c_str(), false);
   a2_->SetRemote(TestObserver::OFFER, offer.c_str(), false);
-  a2_->CreateAnswer(offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
+  a2_->CreateAnswer(constraints, offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
 
   // Now the answer should contain a=setup:active
   std::string answer(a2_->answer());
@@ -3632,8 +3687,8 @@ TEST_F(SignalingTest, FullCallRealTrickle)
 {
   wait_for_gather_ = false;
 
-  sipcc::OfferOptions options;
-  OfferAnswer(options, OFFER_AV | ANSWER_AV,
+  sipcc::MediaConstraints constraints;
+  OfferAnswer(constraints, constraints, OFFER_AV | ANSWER_AV,
               true, SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AV);
 
   // Wait for some data to get written
@@ -3651,8 +3706,8 @@ TEST_F(SignalingTest, FullCallRealTrickleTestServer)
   wait_for_gather_ = false;
   SetTestStunServer();
 
-  sipcc::OfferOptions options;
-  OfferAnswer(options, OFFER_AV | ANSWER_AV,
+  sipcc::MediaConstraints constraints;
+  OfferAnswer(constraints, constraints, OFFER_AV | ANSWER_AV,
               true, SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AV);
 
   TestStunServer::GetInstance()->SetActive(true);
@@ -3671,7 +3726,7 @@ TEST_F(SignalingTest, hugeSdp)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   std::string offer =
     "v=0\r\n"
     "o=- 1109973417102828257 2 IN IP4 127.0.0.1\r\n"
@@ -3763,12 +3818,12 @@ TEST_F(SignalingTest, hugeSdp)
     "a=ssrc:54724160 mslabel:1PBxet5BYh0oYodwsvNM4k6KiO2eWCX40VIP\r\n"
     "a=ssrc:54724160 label:1PBxet5BYh0oYodwsvNM4k6KiO2eWCX40VIPv0\r\n";
 
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
   a1_->SetLocal(TestObserver::OFFER, offer, true);
 
   a2_->SetRemote(TestObserver::OFFER, offer, true);
   ASSERT_GE(a2_->getRemoteDescription().length(), 4096U);
-  a2_->CreateAnswer(offer, OFFER_AV);
+  a2_->CreateAnswer(constraints, offer, OFFER_AV);
 }
 
 // Test max_fs and max_fr prefs have proper impact on SDP offer
@@ -3776,7 +3831,7 @@ TEST_F(SignalingTest, MaxFsFrInOffer)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
 
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   ASSERT_TRUE(prefs);
@@ -3784,7 +3839,7 @@ TEST_F(SignalingTest, MaxFsFrInOffer)
 
   SetMaxFsFr(prefs, 300, 30);
 
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_CHECK_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_CHECK_AV);
 
   // Verify that SDP contains correct max-fs and max-fr
   CheckMaxFsFrSdp(a1_->offer(), 120, 300, 30);
@@ -3795,7 +3850,7 @@ TEST_F(SignalingTest, MaxFsFrInAnswer)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
 
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   ASSERT_TRUE(prefs);
@@ -3804,7 +3859,7 @@ TEST_F(SignalingTest, MaxFsFrInAnswer)
   // We don't want max_fs and max_fr prefs impact SDP at this moment
   SetMaxFsFr(prefs, 0, 0);
 
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_CHECK_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_CHECK_AV);
 
   // SDP should not contain max-fs and max-fr here
   CheckMaxFsFrSdp(a1_->offer(), 120, 0, 0);
@@ -3813,7 +3868,7 @@ TEST_F(SignalingTest, MaxFsFrInAnswer)
 
   SetMaxFsFr(prefs, 600, 60);
 
-  a2_->CreateAnswer(a1_->offer(), OFFER_AV | ANSWER_AV);
+  a2_->CreateAnswer(constraints, a1_->offer(), OFFER_AV | ANSWER_AV);
 
   // Verify that SDP contains correct max-fs and max-fr
   CheckMaxFsFrSdp(a2_->answer(), 120, 600, 60);
@@ -3824,7 +3879,7 @@ TEST_F(SignalingTest, MaxFsFrCalleeCodec)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
 
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   ASSERT_TRUE(prefs);
@@ -3833,7 +3888,7 @@ TEST_F(SignalingTest, MaxFsFrCalleeCodec)
   // We don't want max_fs and max_fr prefs impact SDP at this moment
   SetMaxFsFr(prefs, 0, 0);
 
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_CHECK_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_CHECK_AV);
 
   ParsedSDP sdpWrapper(a1_->offer());
 
@@ -3849,7 +3904,7 @@ TEST_F(SignalingTest, MaxFsFrCalleeCodec)
   a1_->SetLocal(TestObserver::OFFER, sdpWrapper.getSdp());
   a2_->SetRemote(TestObserver::OFFER, sdpWrapper.getSdp());
 
-  a2_->CreateAnswer(sdpWrapper.getSdp(), OFFER_AV | ANSWER_AV);
+  a2_->CreateAnswer(constraints, sdpWrapper.getSdp(), OFFER_AV | ANSWER_AV);
 
   // SDP should not contain max-fs and max-fr here
   CheckMaxFsFrSdp(a2_->answer(), 120, 0, 0);
@@ -3880,7 +3935,7 @@ TEST_F(SignalingTest, MaxFsFrCallerCodec)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
 
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   ASSERT_TRUE(prefs);
@@ -3889,11 +3944,11 @@ TEST_F(SignalingTest, MaxFsFrCallerCodec)
   // We don't want max_fs and max_fr prefs impact SDP at this moment
   SetMaxFsFr(prefs, 0, 0);
 
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_CHECK_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_CHECK_AV);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
   a2_->SetRemote(TestObserver::OFFER, a1_->offer());
 
-  a2_->CreateAnswer(a1_->offer(), OFFER_AV | ANSWER_AV);
+  a2_->CreateAnswer(constraints, a1_->offer(), OFFER_AV | ANSWER_AV);
 
   ParsedSDP sdpWrapper(a2_->answer());
 
@@ -3931,9 +3986,9 @@ TEST_F(SignalingTest, MaxFsFrCallerCodec)
 TEST_F(SignalingTest, ValidateMultipleVideoCodecsInOffer)
 {
   EnsureInit();
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
 
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
   std::string offer = a1_->offer();
 
   ASSERT_NE(offer.find("RTP/SAVPF 120 126 97"), std::string::npos);
@@ -3958,10 +4013,10 @@ TEST_F(SignalingTest, RemoveVP8FromOfferWithP1First)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   size_t match;
 
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
 
   // Remove VP8 from offer
   std::string offer = a1_->offer();
@@ -3979,8 +4034,8 @@ TEST_F(SignalingTest, RemoveVP8FromOfferWithP1First)
 
   a1_->SetLocal(TestObserver::OFFER, sdpWrapper.getSdp());
   a2_->SetRemote(TestObserver::OFFER, sdpWrapper.getSdp(), false);
-  a2_->CreateAnswer(sdpWrapper.getSdp(),
-                    OFFER_AV|ANSWER_AV, SHOULD_SENDRECV_AV);
+  a2_->CreateAnswer(constraints, sdpWrapper.getSdp(),
+                   OFFER_AV|ANSWER_AV, SHOULD_SENDRECV_AV);
 
   std::string answer(a2_->answer());
 
@@ -4002,10 +4057,10 @@ TEST_F(SignalingTest, OfferWithH264BeforeVP8)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   size_t match;
 
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
 
   // Swap VP8 and P1 in offer
   std::string offer = a1_->offer();
@@ -4039,7 +4094,8 @@ TEST_F(SignalingTest, OfferWithH264BeforeVP8)
 
   a1_->SetLocal(TestObserver::OFFER, offer);
   a2_->SetRemote(TestObserver::OFFER, offer, false);
-  a2_->CreateAnswer(offer, OFFER_AV|ANSWER_AV, SHOULD_SENDRECV_AV);
+  a2_->CreateAnswer(constraints, offer,
+                   OFFER_AV|ANSWER_AV, SHOULD_SENDRECV_AV);
 
   std::string answer(a2_->answer());
 
@@ -4061,10 +4117,10 @@ TEST_F(SignalingTest, OfferWithOnlyH264P0)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
   size_t match;
 
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
 
   // Remove VP8 from offer
   std::string offer = a1_->offer();
@@ -4090,7 +4146,8 @@ TEST_F(SignalingTest, OfferWithOnlyH264P0)
 
   a1_->SetLocal(TestObserver::OFFER, offer);
   a2_->SetRemote(TestObserver::OFFER, offer, false);
-  a2_->CreateAnswer(offer, OFFER_AV|ANSWER_AV, SHOULD_SENDRECV_AV);
+  a2_->CreateAnswer(constraints, offer,
+                   OFFER_AV|ANSWER_AV, SHOULD_SENDRECV_AV);
 
   std::string answer(a2_->answer());
 
@@ -4113,12 +4170,13 @@ TEST_F(SignalingTest, AnswerWithoutVP8)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
+  sipcc::MediaConstraints constraints;
 
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
   a2_->SetRemote(TestObserver::OFFER, a1_->offer(), false);
-  a2_->CreateAnswer(a1_->offer(), OFFER_AV|ANSWER_AV, SHOULD_SENDRECV_AV);
+  a2_->CreateAnswer(constraints, a1_->offer(),
+                   OFFER_AV|ANSWER_AV, SHOULD_SENDRECV_AV);
 
   std::string answer(a2_->answer());
 
@@ -4162,11 +4220,12 @@ TEST_F(SignalingTest, UseNonPrefferedPayloadTypeOnAnswer)
 {
   EnsureInit();
 
-  sipcc::OfferOptions options;
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
+  sipcc::MediaConstraints constraints;
+  a1_->CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
   a2_->SetRemote(TestObserver::OFFER, a1_->offer(), false);
-  a2_->CreateAnswer(a1_->offer(), OFFER_AV|ANSWER_AV, SHOULD_SENDRECV_AV);
+  a2_->CreateAnswer(constraints, a1_->offer(),
+                   OFFER_AV|ANSWER_AV, SHOULD_SENDRECV_AV);
 
   std::string answer(a2_->answer());
 

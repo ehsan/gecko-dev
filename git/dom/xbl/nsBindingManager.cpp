@@ -46,10 +46,10 @@
 #include "nsIScriptContext.h"
 #include "xpcpublic.h"
 #include "jswrapper.h"
+#include "nsCxPusher.h"
 
 #include "nsThreadUtils.h"
 #include "mozilla/dom/NodeListBinding.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -638,9 +638,21 @@ nsBindingManager::GetBindingImplementation(nsIContent* aContent, REFNSIID aIID,
 
       // We have never made a wrapper for this implementation.
       // Create an XPC wrapper for the script object and hand it back.
-      AutoJSAPI jsapi;
-      jsapi.Init();
-      JSContext* cx = jsapi.cx();
+
+      nsIDocument* doc = aContent->OwnerDoc();
+
+      nsCOMPtr<nsIScriptGlobalObject> global =
+        do_QueryInterface(doc->GetWindow());
+      if (!global)
+        return NS_NOINTERFACE;
+
+      nsIScriptContext *context = global->GetContext();
+      if (!context)
+        return NS_NOINTERFACE;
+
+      AutoPushJSContext cx(context->GetNativeContext());
+      if (!cx)
+        return NS_NOINTERFACE;
 
       nsIXPConnect *xpConnect = nsContentUtils::XPConnect();
 
@@ -654,7 +666,8 @@ nsBindingManager::GetBindingImplementation(nsIContent* aContent, REFNSIID aIID,
       // because they're chrome-only and no Xrays are involved.
       //
       // If there's no separate XBL scope, or if the reflector itself lives in
-      // the XBL scope, we'll end up with the global of the reflector.
+      // the XBL scope, we'll end up with the global of the reflector, and this
+      // will all be a no-op.
       JS::Rooted<JSObject*> xblScope(cx, xpc::GetXBLScopeOrGlobal(cx, jsobj));
       JSAutoCompartment ac(cx, xblScope);
       bool ok = JS_WrapObject(cx, &jsobj);

@@ -1274,10 +1274,6 @@ public:
     void branchValueIsNurseryObject(Condition cond, ValueOperand value, Register temp,
                                     Label *label);
 #endif
-
-    void loadAsmJSActivation(Register dest) {
-        loadPtr(Address(GlobalReg, AsmJSActivationGlobalDataOffset), dest);
-    }
 };
 
 typedef MacroAssemblerMIPSCompat MacroAssemblerSpecific;

@@ -936,12 +936,8 @@ nsJSContext::InitContext()
 nsresult
 nsJSContext::SetProperty(JS::Handle<JSObject*> aTarget, const char* aPropName, nsISupports* aArgs)
 {
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(GetGlobalObject()))) {
-    return NS_ERROR_FAILURE;
-  }
-  MOZ_ASSERT(jsapi.cx() == mContext,
-             "AutoJSAPI should have found our own JSContext*");
+  nsCxPusher pusher;
+  pusher.Push(mContext);
 
   JS::AutoValueVector args(mContext);
 

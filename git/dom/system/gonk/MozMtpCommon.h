@@ -28,7 +28,6 @@
 namespace android {
   class MOZ_EXPORT MtpServer;
   class MOZ_EXPORT MtpStorage;
-  class MOZ_EXPORT MtpStringBuffer;
   class MOZ_EXPORT MtpDatabase;
   class MOZ_EXPORT MtpDataPacket;
   class MOZ_EXPORT MtpProperty;
@@ -40,7 +39,6 @@ namespace android {
 #include <MtpProperty.h>
 #include <MtpServer.h>
 #include <MtpStorage.h>
-#include <MtpStringBuffer.h>
 #include <MtpTypes.h>
 
 #endif // mozilla_system_mtpcommon_h__

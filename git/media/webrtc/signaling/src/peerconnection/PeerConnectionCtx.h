@@ -29,15 +29,15 @@ namespace dom {
 class WebrtcGlobalInformation;
 }
 
-// Unit-test helper, because cc_media_options_t is hard to forward-declare
+// Unit-test helper, because cc_media_constraints_t is hard to forward-declare
 
-class SipccOfferOptions {
+class MediaConstraintsExternal {
 public:
-  SipccOfferOptions();
-  SipccOfferOptions(const dom::RTCOfferOptions &aOther);
-  cc_media_options_t* build() const;
+  MediaConstraintsExternal();
+  MediaConstraintsExternal(const dom::MediaConstraintsInternal &aOther);
+  cc_media_constraints_t* build() const;
 protected:
-  cc_media_options_t mOptions;
+  cc_media_constraints_t mConstraints;
 };
 }
 

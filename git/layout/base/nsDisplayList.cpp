@@ -2807,12 +2807,11 @@ nsDisplayBoxShadowOuter::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilde
                                                    const nsDisplayItemGeometry* aGeometry,
                                                    nsRegion* aInvalidRegion)
 {
-  const nsDisplayBoxShadowOuterGeometry* geometry =
-    static_cast<const nsDisplayBoxShadowOuterGeometry*>(aGeometry);
+  const nsDisplayItemGenericGeometry* geometry =
+    static_cast<const nsDisplayItemGenericGeometry*>(aGeometry);
   bool snap;
   if (!geometry->mBounds.IsEqualInterior(GetBounds(aBuilder, &snap)) ||
-      !geometry->mBorderRect.IsEqualInterior(GetBorderRect()) ||
-      mOpacity != geometry->mOpacity) {
+      !geometry->mBorderRect.IsEqualInterior(GetBorderRect())) {
     nsRegion oldShadow, newShadow;
     nscoord dontCare[8];
     bool hasBorderRadius = mFrame->GetBorderRadii(dontCare);

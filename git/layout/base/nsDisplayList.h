@@ -2362,11 +2362,6 @@ public:
     return true;
   }
 
-  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
-  {
-    return new nsDisplayBoxShadowOuterGeometry(this, aBuilder, mOpacity);
-  }
-
   nsRect GetBoundsInternal();
 
 private:

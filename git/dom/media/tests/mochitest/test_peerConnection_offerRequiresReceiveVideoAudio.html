@@ -1,4 +1,4 @@
-<!DOCTYPE HTML>
+﻿<!DOCTYPE HTML>
 <html>
 <head>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -18,10 +18,10 @@
 
   runNetworkTest(function() {
     var test = new PeerConnectionTest();
-    test.setOfferOptions({
-      offerToReceiveVideo: true,
-      offerToReceiveAudio: true
-    });
+    test.setOfferConstraints({ mandatory: {
+      OfferToReceiveVideo: true,
+      OfferToReceiveAudio: true
+    }});
     test.run();
   });
 </script>

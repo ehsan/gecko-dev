@@ -33,6 +33,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaBuffer.h>
+#include <media/stagefright/MediaBufferGroup.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
@@ -96,6 +97,8 @@ private:
     size_t mNALLengthSize;
 
     bool mStarted;
+
+    MediaBufferGroup *mGroup;
 
     MediaBuffer *mBuffer;
 
@@ -2389,6 +2392,7 @@ MPEG4Source::MPEG4Source(
       mIsAVC(false),
       mNALLengthSize(0),
       mStarted(false),
+      mGroup(NULL),
       mBuffer(NULL),
       mWantsNALFragments(false),
       mSrcBuffer(NULL) {
@@ -2455,8 +2459,12 @@ status_t MPEG4Source::start(MetaData *params) {
         mWantsNALFragments = false;
     }
 
+    mGroup = new MediaBufferGroup;
+
     int32_t max_size;
     CHECK(mFormat->findInt32(kKeyMaxInputSize, &max_size));
+
+    mGroup->add_buffer(new MediaBuffer(max_size));
 
     mSrcBuffer = new uint8_t[max_size];
 
@@ -2477,6 +2485,9 @@ status_t MPEG4Source::stop() {
 
     delete[] mSrcBuffer;
     mSrcBuffer = NULL;
+
+    delete mGroup;
+    mGroup = NULL;
 
     mStarted = false;
     mCurrentSampleIndex = 0;
@@ -3158,10 +3169,12 @@ status_t MPEG4Source::read(
             return err;
         }
 
-        int32_t max_size;
-        CHECK(mFormat->findInt32(kKeyMaxInputSize, &max_size));
-        mBuffer = new MediaBuffer(max_size);
-        assert(mBuffer);
+        err = mGroup->acquire_buffer(&mBuffer);
+
+        if (err != OK) {
+            CHECK(mBuffer == NULL);
+            return err;
+        }
     }
 
     if (!mIsAVC || mWantsNALFragments) {
@@ -3426,10 +3439,13 @@ status_t MPEG4Source::fragmentedRead(
         mCurrentTime += smpl->duration;
         isSyncSample = (mCurrentSampleIndex == 0); // XXX
 
-        int32_t max_size;
-        CHECK(mFormat->findInt32(kKeyMaxInputSize, &max_size));
-        mBuffer = new MediaBuffer(max_size);
-        assert(mBuffer);
+        status_t err = mGroup->acquire_buffer(&mBuffer);
+
+        if (err != OK) {
+            CHECK(mBuffer == NULL);
+            ALOGV("acquire_buffer returned %d", err);
+            return err;
+        }
     }
 
     const Sample *smpl = &mCurrentSamples[mCurrentSampleIndex];
@@ -3438,7 +3454,7 @@ status_t MPEG4Source::fragmentedRead(
     if (smpl->encryptedsizes.size()) {
         // store clear/encrypted lengths in metadata
         bufmeta->setData(kKeyPlainSizes, 0,
-                smpl->clearsizes.array(), smpl->clearsizes.size() * 2);
+                smpl->clearsizes.array(), smpl->clearsizes.size() * 4);
         bufmeta->setData(kKeyEncryptedSizes, 0,
                 smpl->encryptedsizes.array(), smpl->encryptedsizes.size() * 4);
         bufmeta->setData(kKeyCryptoIV, 0, smpl->iv, 16); // use 16 or the actual size?

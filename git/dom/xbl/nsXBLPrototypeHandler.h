@@ -13,6 +13,7 @@
 #include "nsAutoPtr.h"
 #include "nsXBLEventHandler.h"
 #include "nsIWeakReference.h"
+#include "nsIScriptGlobalObject.h"
 #include "nsCycleCollectionParticipant.h"
 #include "js/TypeDecls.h"
 
@@ -27,7 +28,6 @@ class nsXBLPrototypeBinding;
 
 namespace mozilla {
 namespace dom {
-class AutoJSAPI;
 class EventTarget;
 }
 }
@@ -166,7 +166,8 @@ protected:
                             bool aIgnoreShiftKey = false);
   nsresult DispatchXBLCommand(mozilla::dom::EventTarget* aTarget, nsIDOMEvent* aEvent);
   nsresult DispatchXULKeyCommand(nsIDOMEvent* aEvent);
-  nsresult EnsureEventHandler(mozilla::dom::AutoJSAPI& jsapi, nsIAtom* aName,
+  nsresult EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
+                              nsIScriptContext *aBoundContext, nsIAtom *aName,
                               JS::MutableHandle<JSObject*> aHandler);
   static int32_t KeyToMask(int32_t key);
   static int32_t AccelKeyMask();

@@ -192,31 +192,21 @@ public:
                                    unsigned int* packetsSent,
                                    uint64_t* bytesSent) = 0;
 
-  virtual uint64_t CodecPluginID() = 0;
-
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaSessionConduit)
 
 };
 
 // Abstract base classes for external encoder/decoder.
-class CodecPluginID
+class VideoEncoder
 {
 public:
-  virtual ~CodecPluginID() {}
-
-  virtual const uint64_t PluginID() = 0;
+  virtual ~VideoEncoder() {};
 };
 
-class VideoEncoder : public CodecPluginID
+class VideoDecoder
 {
 public:
-  virtual ~VideoEncoder() {}
-};
-
-class VideoDecoder : public CodecPluginID
-{
-public:
-  virtual ~VideoDecoder() {}
+  virtual ~VideoDecoder() {};
 };
 
 /**
