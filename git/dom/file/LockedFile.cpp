@@ -349,9 +349,9 @@ NS_IMPL_RELEASE_INHERITED(LockedFile, nsDOMEventTargetHelper)
 
 DOMCI_DATA(LockedFile, LockedFile)
 
-NS_IMPL_EVENT_HANDLER(LockedFile, complete)
-NS_IMPL_EVENT_HANDLER(LockedFile, abort)
-NS_IMPL_EVENT_HANDLER(LockedFile, error)
+NS_IMPL_EVENT_HANDLER(LockedFile, complete);
+NS_IMPL_EVENT_HANDLER(LockedFile, abort);
+NS_IMPL_EVENT_HANDLER(LockedFile, error);
 
 nsresult
 LockedFile::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
@@ -662,9 +662,7 @@ LockedFile::Append(const jsval& aValue,
 }
 
 NS_IMETHODIMP
-LockedFile::Truncate(PRUint64 aLocation,
-                     PRUint8 aOptionalArgCount,
-                     nsIDOMFileRequest** _retval)
+LockedFile::Truncate(nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -684,17 +682,11 @@ LockedFile::Truncate(PRUint64 aLocation,
   nsRefPtr<FileRequest> fileRequest = GenerateFileRequest();
   NS_ENSURE_TRUE(fileRequest, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
-  PRUint64 location = aOptionalArgCount ? aLocation : mLocation;
-
   nsRefPtr<TruncateHelper> helper =
-    new TruncateHelper(this, fileRequest, location);
+    new TruncateHelper(this, fileRequest, mLocation);
 
   nsresult rv = helper->Enqueue();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
-
-  if (aOptionalArgCount) {
-    mLocation = aLocation;
-  }
 
   fileRequest.forget(_retval);
   return NS_OK;
