@@ -1975,11 +1975,11 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
 
         nsCOMPtr<nsIDOMWindow> currentWin(do_GetInterface(currentInner));
         rv = WrapNative(cx, currentWin, &NS_GET_IID(nsIDOMWindow),
-                        true, argv[0]);
+                        true, argv.handleAt(0));
 
         for (size_t i = 1; i < argc; ++i) {
-          argv[i].set(args[i - 1]);
-          if (!JS_WrapValue(cx, argv[i]))
+          argv[i] = args[i - 1];
+          if (!JS_WrapValue(cx, argv.handleAt(i)))
             return NS_ERROR_FAILURE;
         }
 

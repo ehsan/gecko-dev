@@ -6,18 +6,6 @@
 
 "use strict";
 
-const Debugger = require("Debugger");
-const Services = require("Services");
-const { Cc, Ci, Cu, components } = require("chrome");
-const { ActorPool } = require("devtools/server/actors/common");
-const { DebuggerServer } = require("devtools/server/main");
-const DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
-const { dbg_assert, dumpn } = DevToolsUtils;
-const { SourceMapConsumer, SourceMapGenerator } = require("source-map");
-const { all, defer, resolve } = promise;
-
-Cu.import("resource://gre/modules/NetUtil.jsm");
-
 let B2G_ID = "{3c2e2abc-06d4-11e1-ac3b-374f68613e61}";
 
 let TYPED_ARRAY_CLASSES = ["Uint8Array", "Uint8ClampedArray", "Uint16Array",
@@ -50,7 +38,7 @@ function mapURIToAddonID(uri, id) {
     return addonManager.mapURIToAddonID(uri, id);
   }
   catch (e) {
-    DevToolsUtils.reportException("mapURIToAddonID", e);
+    DevtoolsUtils.reportException("mapURIToAddonID", e);
     return false;
   }
 }
@@ -324,8 +312,6 @@ BreakpointStore.prototype = {
     }
   },
 };
-
-exports.BreakpointStore = BreakpointStore;
 
 /**
  * Manages pushing event loops and automatically pops and exits them in the
@@ -2412,7 +2398,6 @@ ThreadActor.prototype.requestTypes = {
   "prototypesAndProperties": ThreadActor.prototype.onPrototypesAndProperties
 };
 
-exports.ThreadActor = ThreadActor;
 
 /**
  * Creates a PauseActor.
@@ -3476,7 +3461,6 @@ ObjectActor.prototype.requestTypes = {
   "scope": ObjectActor.prototype.onScope,
 };
 
-exports.ObjectActor = ObjectActor;
 
 /**
  * Functions for adding information to ObjectActor grips for the purpose of
@@ -4252,7 +4236,6 @@ LongStringActor.prototype.requestTypes = {
   "release": LongStringActor.prototype.onRelease
 };
 
-exports.LongStringActor = LongStringActor;
 
 /**
  * Creates an actor for the specified stack frame.
@@ -4664,8 +4647,6 @@ EnvironmentActor.prototype.requestTypes = {
   "bindings": EnvironmentActor.prototype.onBindings
 };
 
-exports.EnvironmentActor = EnvironmentActor;
-
 /**
  * Override the toString method in order to get more meaningful script output
  * for debugging the debugger.
@@ -4766,8 +4747,6 @@ update(ChromeDebuggerActor.prototype, {
     }
   }
 });
-
-exports.ChromeDebuggerActor = ChromeDebuggerActor;
 
 /**
  * Creates an actor for handling add-on debugging. AddonThreadActor is
@@ -4943,8 +4922,6 @@ AddonThreadActor.prototype.requestTypes = Object.create(ThreadActor.prototype.re
 update(AddonThreadActor.prototype.requestTypes, {
   "attach": AddonThreadActor.prototype.onAttach
 });
-
-exports.AddonThreadActor = AddonThreadActor;
 
 /**
  * Manages the sources for a thread. Handles source maps, locations in the
@@ -5308,8 +5285,6 @@ ThreadSources.prototype = {
   }
 };
 
-exports.ThreadSources = ThreadSources;
-
 // Utility functions.
 
 // TODO bug 863089: use Debugger.Script.prototype.getOffsetColumn when it is
@@ -5418,7 +5393,7 @@ function fetch(aURL, aOptions={ loadFromCache: true }) {
     case "resource":
       try {
         NetUtil.asyncFetch(url, function onFetch(aStream, aStatus, aRequest) {
-          if (!components.isSuccessCode(aStatus)) {
+          if (!Components.isSuccessCode(aStatus)) {
             deferred.reject(new Error("Request failed with status code = "
                                       + aStatus
                                       + " after NetUtil.asyncFetch for url = "
@@ -5449,7 +5424,7 @@ function fetch(aURL, aOptions={ loadFromCache: true }) {
       let chunks = [];
       let streamListener = {
         onStartRequest: function(aRequest, aContext, aStatusCode) {
-          if (!components.isSuccessCode(aStatusCode)) {
+          if (!Components.isSuccessCode(aStatusCode)) {
             deferred.reject(new Error("Request failed with status code = "
                                       + aStatusCode
                                       + " in onStartRequest handler for url = "
@@ -5460,7 +5435,7 @@ function fetch(aURL, aOptions={ loadFromCache: true }) {
           chunks.push(NetUtil.readInputStreamToString(aStream, aCount));
         },
         onStopRequest: function(aRequest, aContext, aStatusCode) {
-          if (!components.isSuccessCode(aStatusCode)) {
+          if (!Components.isSuccessCode(aStatusCode)) {
             deferred.reject(new Error("Request failed with status code = "
                                       + aStatusCode
                                       + " in onStopRequest handler for url = "
@@ -5624,16 +5599,4 @@ function makeDebuggeeValueIfNeeded(obj, value) {
 function getInnerId(window) {
   return window.QueryInterface(Ci.nsIInterfaceRequestor).
                 getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
-};
-
-exports.register = function(handle) {
-  ThreadActor.breakpointStore = new BreakpointStore();
-  ThreadSources._blackBoxedSources = new Set(["self-hosted"]);
-  ThreadSources._prettyPrintedSources = new Map();
-};
-
-exports.unregister = function(handle) {
-  ThreadActor.breakpointStore = null;
-  ThreadSources._blackBoxedSources.clear();
-  ThreadSources._prettyPrintedSources.clear();
 };

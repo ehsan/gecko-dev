@@ -631,8 +631,9 @@ HandleException(ResumeFromException *rfe)
                 if (invalidated)
                     popSPSFrame = ionScript->hasSPSInstrumentation();
 
-                // Don't pop an SPS frame for inlined frames, since they are not instrumented.
-                if (frames.more())
+                // If inline-frames are not profiled, then don't pop an SPS frame
+                // for them.
+                if (frames.more() && !js_JitOptions.profileInlineFrames)
                     popSPSFrame = false;
 
                 // When profiling, each frame popped needs a notification that
@@ -1338,8 +1339,7 @@ SnapshotIterator::SnapshotIterator(IonScript *ionScript, SnapshotOffset snapshot
              ionScript->recoversSize()),
     fp_(fp),
     machine_(machine),
-    ionScript_(ionScript),
-    instructionResults_(nullptr)
+    ionScript_(ionScript)
 {
     JS_ASSERT(snapshotOffset < ionScript->snapshotsListSize());
 }
@@ -1354,8 +1354,7 @@ SnapshotIterator::SnapshotIterator(const JitFrameIterator &iter)
              iter.ionScript()->recoversSize()),
     fp_(iter.jsFrame()),
     machine_(iter.machineState()),
-    ionScript_(iter.ionScript()),
-    instructionResults_(nullptr)
+    ionScript_(iter.ionScript())
 {
 }
 
@@ -1363,8 +1362,7 @@ SnapshotIterator::SnapshotIterator()
   : snapshot_(nullptr, 0, 0, 0),
     recover_(snapshot_, nullptr, 0),
     fp_(nullptr),
-    ionScript_(nullptr),
-    instructionResults_(nullptr)
+    ionScript_(nullptr)
 {
 }
 
@@ -1428,9 +1426,6 @@ SnapshotIterator::allocationReadable(const RValueAllocation &alloc)
       case RValueAllocation::UNTYPED_STACK:
         return hasStack(alloc.stackOffset());
 #endif
-
-      case RValueAllocation::RECOVER_INSTRUCTION:
-        return hasInstructionResult(alloc.index());
 
       default:
         return true;
@@ -1537,9 +1532,6 @@ SnapshotIterator::allocationValue(const RValueAllocation &alloc)
       }
 #endif
 
-      case RValueAllocation::RECOVER_INSTRUCTION:
-        return fromInstructionResult(alloc.index());
-
       default:
         MOZ_ASSUME_UNREACHABLE("huh?");
     }
@@ -1554,7 +1546,7 @@ SnapshotIterator::resumePoint() const
 uint32_t
 SnapshotIterator::numAllocations() const
 {
-    return instruction()->numOperands();
+    return resumePoint()->numOperands();
 }
 
 uint32_t
@@ -1571,43 +1563,6 @@ SnapshotIterator::skipInstruction()
     for (size_t i = 0; i < numOperands; i++)
         skip();
     nextInstruction();
-}
-
-bool
-SnapshotIterator::initIntructionResults(AutoValueVector &results)
-{
-    MOZ_ASSERT(recover_.numInstructionsRead() == 1);
-
-    // The last instruction will always be a resume point, no need to allocate
-    // space for it.
-    if (recover_.numInstructions() == 1)
-        return true;
-
-    MOZ_ASSERT(recover_.numInstructions() > 1);
-    size_t numResults = recover_.numInstructions() - 1;
-    if (!results.reserve(numResults))
-        return false;
-
-    for (size_t i = 0; i < numResults; i++)
-        results.infallibleAppend(MagicValue(JS_ION_BAILOUT));
-
-    instructionResults_ = &results;
-    return true;
-}
-
-void
-SnapshotIterator::storeInstructionResult(Value v)
-{
-    uint32_t currIns = recover_.numInstructionsRead() - 1;
-    MOZ_ASSERT((*instructionResults_)[currIns].isMagic(JS_ION_BAILOUT));
-    (*instructionResults_)[currIns].set(v);
-}
-
-Value
-SnapshotIterator::fromInstructionResult(uint32_t index) const
-{
-    MOZ_ASSERT(!(*instructionResults_)[index].isMagic(JS_ION_BAILOUT));
-    return (*instructionResults_)[index];
 }
 
 void

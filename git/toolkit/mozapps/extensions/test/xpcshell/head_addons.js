@@ -399,25 +399,6 @@ function startupManager(aAppChanged) {
 }
 
 /**
- * Helper to spin the event loop until a promise resolves or rejects
- */
-function loopUntilPromise(aPromise) {
-  let done = false;
-  aPromise.then(
-    () => done = true,
-    err => {
-      do_report_unexpected_exception(err);
-      done = true;
-    });
-
-  let thr = Services.tm.mainThread;
-
-  while (!done) {
-    thr.processNextEvent(true);
-  }
-}
-
-/**
  * Restarts the add-on manager as if the host application was restarted.
  *
  * @param  aNewVersion
@@ -426,58 +407,51 @@ function loopUntilPromise(aPromise) {
  *         the application version has changed.
  */
 function restartManager(aNewVersion) {
-  loopUntilPromise(promiseRestartManager(aNewVersion));
-}
-
-function promiseRestartManager(aNewVersion) {
-  return promiseShutdownManager()
-    .then(null, err => do_report_unexpected_exception(err))
-    .then(() => {
-      if (aNewVersion) {
-        gAppInfo.version = aNewVersion;
-        startupManager(true);
-      }
-      else {
-        startupManager(false);
-      }
-    });
+  shutdownManager();
+  if (aNewVersion) {
+    gAppInfo.version = aNewVersion;
+    startupManager(true);
+  }
+  else {
+    startupManager(false);
+  }
 }
 
 function shutdownManager() {
-  loopUntilPromise(promiseShutdownManager());
-}
+  if (!gInternalManager)
+    return;
 
-function promiseShutdownManager() {
-  if (!gInternalManager) {
-    return Promise.resolve(false);
+  let shutdownDone = false;
+
+  Services.obs.notifyObservers(null, "quit-application-granted", null);
+  MockAsyncShutdown.hook().then(
+    () => shutdownDone = true,
+    err => shutdownDone = true);
+
+  let thr = Services.tm.mainThread;
+
+  // Wait until we observe the shutdown notifications
+  while (!shutdownDone) {
+    thr.processNextEvent(true);
   }
 
-  let hookErr = null;
-  Services.obs.notifyObservers(null, "quit-application-granted", null);
-  return MockAsyncShutdown.hook()
-    .then(null, err => hookErr = err)
-    .then( () => {
-      gInternalManager = null;
+  gInternalManager = null;
 
-      // Load the add-ons list as it was after application shutdown
-      loadAddonsList();
+  // Load the add-ons list as it was after application shutdown
+  loadAddonsList();
 
-      // Clear any crash report annotations
-      gAppInfo.annotations = {};
+  // Clear any crash report annotations
+  gAppInfo.annotations = {};
 
-      // Force the XPIProvider provider to reload to better
-      // simulate real-world usage.
-      let XPIscope = Components.utils.import("resource://gre/modules/addons/XPIProvider.jsm");
-      // This would be cleaner if I could get it as the rejection reason from
-      // the AddonManagerInternal.shutdown() promise
-      gXPISaveError = XPIscope.XPIProvider._shutdownError;
-      do_print("gXPISaveError set to: " + gXPISaveError);
-      AddonManagerPrivate.unregisterProvider(XPIscope.XPIProvider);
-      Components.utils.unload("resource://gre/modules/addons/XPIProvider.jsm");
-      if (hookErr) {
-        throw hookErr;
-      }
-    });
+  // Force the XPIProvider provider to reload to better
+  // simulate real-world usage.
+  let XPIscope = Components.utils.import("resource://gre/modules/addons/XPIProvider.jsm");
+  // This would be cleaner if I could get it as the rejection reason from
+  // the AddonManagerInternal.shutdown() promise
+  gXPISaveError = XPIscope.XPIProvider._shutdownError;
+  do_print("gXPISaveError set to: " + gXPISaveError);
+  AddonManagerPrivate.unregisterProvider(XPIscope.XPIProvider);
+  Components.utils.unload("resource://gre/modules/addons/XPIProvider.jsm");
 }
 
 function loadAddonsList() {

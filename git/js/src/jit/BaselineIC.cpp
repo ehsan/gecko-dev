@@ -5002,8 +5002,7 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub_
 
     JS_ASSERT(op == JSOP_SETELEM ||
               op == JSOP_INITELEM ||
-              op == JSOP_INITELEM_ARRAY ||
-              op == JSOP_INITELEM_INC);
+              op == JSOP_INITELEM_ARRAY);
 
     RootedObject obj(cx, ToObjectFromStack(cx, objv));
     if (!obj)
@@ -5024,9 +5023,6 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub_
             return false;
     } else if (op == JSOP_INITELEM_ARRAY) {
         JS_ASSERT(uint32_t(index.toInt32()) == GET_UINT24(pc));
-        if (!InitArrayElemOperation(cx, pc, obj, index.toInt32(), rhs))
-            return false;
-    } else if (op == JSOP_INITELEM_INC) {
         if (!InitArrayElemOperation(cx, pc, obj, index.toInt32(), rhs))
             return false;
     } else {

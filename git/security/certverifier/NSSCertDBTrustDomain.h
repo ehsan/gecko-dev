@@ -79,14 +79,9 @@ public:
                        /*optional*/ const SECItem* stapledOCSPResponse);
 
 private:
-  enum EncodedResponseSource {
-    ResponseIsFromNetwork = 1,
-    ResponseWasStapled = 2
-  };
-  static const PRTime ServerFailureDelay = 5 * 60 * PR_USEC_PER_SEC;
   SECStatus VerifyAndMaybeCacheEncodedOCSPResponse(
     const CERTCertificate* cert, CERTCertificate* issuerCert, PRTime time,
-    const SECItem* encodedResponse, EncodedResponseSource responseSource);
+    const SECItem* encodedResponse);
 
   const SECTrustType mCertDBTrustType;
   const OCSPFetching mOCSPFetching;

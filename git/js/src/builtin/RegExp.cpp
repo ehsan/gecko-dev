@@ -199,9 +199,7 @@ static bool
 CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
 {
     if (args.length() == 0) {
-        RegExpStatics *res = cx->global()->getRegExpStatics(cx);
-        if (!res)
-            return false;
+        RegExpStatics *res = cx->global()->getRegExpStatics();
         Rooted<JSAtom*> empty(cx, cx->runtime()->emptyString);
         RegExpObject *reobj = builder.build(empty, res->getFlags());
         if (!reobj)
@@ -286,9 +284,7 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
     if (!js::RegExpShared::checkSyntax(cx, nullptr, escapedSourceStr))
         return false;
 
-    RegExpStatics *res = cx->global()->getRegExpStatics(cx);
-    if (!res)
-        return false;
+    RegExpStatics *res = cx->global()->getRegExpStatics();
     RegExpObject *reobj = builder.build(escapedSourceStr, RegExpFlag(flags | res->getFlags()));
     if (!reobj)
         return false;
@@ -391,9 +387,7 @@ static const JSFunctionSpec regexp_methods[] = {
     name(JSContext *cx, unsigned argc, Value *vp)                               \
     {                                                                           \
         CallArgs args = CallArgsFromVp(argc, vp);                               \
-        RegExpStatics *res = cx->global()->getRegExpStatics(cx);                \
-        if (!res)                                                               \
-            return false;                                                       \
+        RegExpStatics *res = cx->global()->getRegExpStatics();                  \
         code;                                                                   \
     }
 
@@ -419,9 +413,7 @@ DEFINE_STATIC_GETTER(static_paren9_getter,       return res->createParen(cx, 9, 
     static bool                                                                 \
     name(JSContext *cx, unsigned argc, Value *vp)                               \
     {                                                                           \
-        RegExpStatics *res = cx->global()->getRegExpStatics(cx);                \
-        if (!res)                                                               \
-            return false;                                                       \
+        RegExpStatics *res = cx->global()->getRegExpStatics();                  \
         code;                                                                   \
         return true;                                                            \
     }
@@ -430,9 +422,7 @@ static bool
 static_input_setter(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    RegExpStatics *res = cx->global()->getRegExpStatics(cx);
-    if (!res)
-        return false;
+    RegExpStatics *res = cx->global()->getRegExpStatics();
 
     RootedString str(cx, ToString<CanGC>(cx, args.get(0)));
     if (!str)
@@ -447,9 +437,7 @@ static bool
 static_multiline_setter(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    RegExpStatics *res = cx->global()->getRegExpStatics(cx);
-    if (!res)
-        return false;
+    RegExpStatics *res = cx->global()->getRegExpStatics();
 
     bool b = ToBoolean(args.get(0));
     res->setMultiline(cx, b);
@@ -533,14 +521,9 @@ js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string,
     if (!reobj->getShared(cx, &re))
         return RegExpRunStatus_Error;
 
-    RegExpStatics *res;
-    if (staticsUpdate == UpdateRegExpStatics) {
-        res = cx->global()->getRegExpStatics(cx);
-        if (!res)
-            return RegExpRunStatus_Error;
-    } else {
-        res = nullptr;
-    }
+    RegExpStatics *res = (staticsUpdate == UpdateRegExpStatics)
+                         ? cx->global()->getRegExpStatics()
+                         : nullptr;
 
     /* Step 3. */
     Rooted<JSLinearString*> input(cx, string->ensureLinear(cx));

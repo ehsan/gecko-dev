@@ -2303,8 +2303,7 @@ LIRGenerator::visitTypeBarrier(MTypeBarrier *ins)
     }
 
     // Handle typebarrier with specific TypeObject/SingleObjects.
-    if (inputType == MIRType_Object && !types->hasType(types::Type::AnyObjectType()) &&
-        ins->barrierKind() != BarrierKind::TypeTagOnly)
+    if (inputType == MIRType_Object && !types->hasType(types::Type::AnyObjectType()))
     {
         LDefinition tmp = needTemp ? temp() : LDefinition::BogusTemp();
         LTypeBarrierO *barrier = new(alloc()) LTypeBarrierO(useRegister(ins->getOperand(0)), tmp);
@@ -3598,9 +3597,6 @@ SpewResumePoint(MBasicBlock *block, MInstruction *ins, MResumePoint *resumePoint
 bool
 LIRGenerator::visitInstruction(MInstruction *ins)
 {
-    if (ins->isRecoveredOnBailout())
-        return true;
-
     if (!gen->ensureBallast())
         return false;
     if (!ins->accept(this))

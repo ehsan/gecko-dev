@@ -5735,10 +5735,7 @@ JS_NewRegExpObject(JSContext *cx, HandleObject obj, char *bytes, size_t length, 
     if (!chars)
         return nullptr;
 
-    RegExpStatics *res = obj->as<GlobalObject>().getRegExpStatics(cx);
-    if (!res)
-        return nullptr;
-
+    RegExpStatics *res = obj->as<GlobalObject>().getRegExpStatics();
     RegExpObject *reobj = RegExpObject::create(cx, res, chars, length,
                                                RegExpFlag(flags), nullptr);
     js_free(chars);
@@ -5751,42 +5748,29 @@ JS_NewUCRegExpObject(JSContext *cx, HandleObject obj, jschar *chars, size_t leng
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    RegExpStatics *res = obj->as<GlobalObject>().getRegExpStatics(cx);
-    if (!res)
-        return nullptr;
-
+    RegExpStatics *res = obj->as<GlobalObject>().getRegExpStatics();
     return RegExpObject::create(cx, res, chars, length,
                                 RegExpFlag(flags), nullptr);
 }
 
-JS_PUBLIC_API(bool)
+JS_PUBLIC_API(void)
 JS_SetRegExpInput(JSContext *cx, HandleObject obj, HandleString input, bool multiline)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, input);
 
-    RegExpStatics *res = obj->as<GlobalObject>().getRegExpStatics(cx);
-    if (!res)
-        return false;
-
-    res->reset(cx, input, !!multiline);
-    return true;
+    obj->as<GlobalObject>().getRegExpStatics()->reset(cx, input, !!multiline);
 }
 
-JS_PUBLIC_API(bool)
+JS_PUBLIC_API(void)
 JS_ClearRegExpStatics(JSContext *cx, HandleObject obj)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     JS_ASSERT(obj);
 
-    RegExpStatics *res = obj->as<GlobalObject>().getRegExpStatics(cx);
-    if (!res)
-        return false;
-
-    res->clear();
-    return true;
+    obj->as<GlobalObject>().getRegExpStatics()->clear();
 }
 
 JS_PUBLIC_API(bool)
@@ -5796,9 +5780,7 @@ JS_ExecuteRegExp(JSContext *cx, HandleObject obj, HandleObject reobj, jschar *ch
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
 
-    RegExpStatics *res = obj->as<GlobalObject>().getRegExpStatics(cx);
-    if (!res)
-        return false;
+    RegExpStatics *res = obj->as<GlobalObject>().getRegExpStatics();
 
     return ExecuteRegExpLegacy(cx, res, reobj->as<RegExpObject>(), NullPtr(), chars, length, indexp,
                                test, rval);

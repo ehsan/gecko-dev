@@ -46,7 +46,7 @@ function testBug601955_3() {
 }
 
 function done() {
-  gBrowser.removeTab(window.gBrowser.tabs[1]);
+  gBrowser.removeTab(window.gBrowser.tabs[0]);
 
   Services.prefs.clearUserPref("browser.sessionstore.interval");
 
