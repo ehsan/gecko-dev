@@ -499,10 +499,13 @@ gfxWindowsFont::GetOrMakeFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aSty
     if (style.sizeAdjust == 0.0)
         style.size = ROUND(style.size);
 
-    nsRefPtr<gfxFont> font = aFontEntry->FindOrMakeFont(&style, aNeedsBold);
-    if (!font)
-        return nsnull;
-
+    nsRefPtr<gfxFont> font = gfxFontCache::GetCache()->Lookup(aFontEntry->Name(), &style);
+    if (!font) {
+        font = new gfxWindowsFont(aFontEntry, &style);
+        if (!font)
+            return nsnull;
+        gfxFontCache::GetCache()->AddNew(font);
+    }
     gfxFont *f = nsnull;
     font.swap(f);
     return static_cast<gfxWindowsFont *>(f);
