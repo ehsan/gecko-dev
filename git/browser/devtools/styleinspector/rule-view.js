@@ -1440,6 +1440,10 @@ CssRuleView.prototype = {
 
     this.clear();
 
+    if (this._elementStyle) {
+      delete this._elementStyle;
+    }
+
     this._viewedElement = aElement;
     if (!this._viewedElement) {
       this._showEmpty();
@@ -1450,11 +1454,11 @@ CssRuleView.prototype = {
       this.pageStyle, this.showUserAgentStyles);
 
     return this._elementStyle.init().then(() => {
-      if (this._viewedElement === aElement) {
-        return this._populate();
-      }
+      return this._populate();
     }).then(() => {
-      if (this._viewedElement === aElement) {
+      // A new node may already be selected, in which this._elementStyle will
+      // be null.
+      if (this._elementStyle) {
         this._elementStyle.onChanged = () => {
           this._changed();
         };
