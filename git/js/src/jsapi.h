@@ -290,7 +290,7 @@ class AutoHashMapRooter : protected AutoGCRooter
         return map.sizeOfIncludingThis(mallocSizeOf);
     }
 
-    uint32_t generation() const {
+    unsigned generation() const {
         return map.generation();
     }
 
@@ -405,7 +405,7 @@ class AutoHashSetRooter : protected AutoGCRooter
         return set.sizeOfIncludingThis(mallocSizeOf);
     }
 
-    uint32_t generation() const {
+    unsigned generation() const {
         return set.generation();
     }
 

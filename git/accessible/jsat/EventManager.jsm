@@ -29,9 +29,8 @@ XPCOMUtils.defineLazyModuleGetter(this, 'States',
 
 this.EXPORTED_SYMBOLS = ['EventManager'];
 
-this.EventManager = function EventManager(aContentScope, aContentControl) {
+this.EventManager = function EventManager(aContentScope) {
   this.contentScope = aContentScope;
-  this.contentControl = aContentControl;
   this.addEventListener = this.contentScope.addEventListener.bind(
     this.contentScope);
   this.removeEventListener = this.contentScope.removeEventListener.bind(
@@ -100,7 +99,7 @@ this.EventManager.prototype = {
       {
         let attempts = 0;
         let delta = aEvent.deltaX || aEvent.deltaY;
-        this.contentControl.autoMove(
+        this.contentScope.contentControl.autoMove(
          null,
          { moveMethod: delta > 0 ? 'moveNext' : 'movePrevious',
            onScreenOnly: true, noOpIfOnScreen: true, delay: 500 });
@@ -184,7 +183,7 @@ this.EventManager.prototype = {
       }
       case Events.SCROLLING_START:
       {
-        this.contentControl.autoMove(aEvent.accessible);
+        this.contentScope.contentControl.autoMove(aEvent.accessible);
         break;
       }
       case Events.TEXT_CARET_MOVED:
@@ -255,7 +254,7 @@ this.EventManager.prototype = {
           if (vc.position &&
             (Utils.getState(vc.position).contains(States.DEFUNCT) ||
               Utils.isInSubtree(vc.position, aEvent.accessible))) {
-            this.contentControl.autoMove(
+            this.contentScope.contentControl.autoMove(
               evt.targetPrevSibling || evt.targetParent,
               { moveToFocused: true, delay: 500 });
           }
@@ -280,19 +279,19 @@ this.EventManager.prototype = {
         let acc = aEvent.accessible;
         let doc = aEvent.accessibleDocument;
         if (acc.role != Roles.DOCUMENT && doc.role != Roles.CHROME_WINDOW) {
-         this.contentControl.autoMove(acc);
+         this.contentScope.contentControl.autoMove(acc);
        }
        break;
       }
       case Events.DOCUMENT_LOAD_COMPLETE:
       {
-        this.contentControl.autoMove(
+        this.contentScope.contentControl.autoMove(
           aEvent.accessible, { delay: 500 });
         break;
       }
       case Events.VALUE_CHANGE:
       {
-        let position = this.contentControl.vc.position;
+        let position = this.contentScope.contentControl.vc.position;
         let target = aEvent.accessible;
         if (position === target ||
             Utils.getEmbeddedControl(position) === target) {

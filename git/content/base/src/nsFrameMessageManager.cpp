@@ -14,7 +14,6 @@
 #include "nsError.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
-#include "jsfriendapi.h"
 #include "nsJSUtils.h"
 #include "nsJSPrincipals.h"
 #include "nsNetUtil.h"
@@ -430,6 +429,9 @@ nsFrameMessageManager::LoadFrameScript(const nsAString& aURL,
                                        bool aAllowDelayedLoad,
                                        bool aRunInGlobalScope)
 {
+  // FIXME: Bug 673569 is currently disabled.
+  aRunInGlobalScope = true;
+
   if (aAllowDelayedLoad) {
     if (IsGlobal() || IsBroadcaster()) {
       // Cache for future windows or frames
@@ -1433,33 +1435,35 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL,
 
   AutoSafeJSContext cx;
   JS::Rooted<JSScript*> script(cx);
+  JS::Rooted<JSObject*> funobj(cx);
 
   nsFrameScriptObjectExecutorHolder* holder = sCachedScripts->Get(aURL);
   if (holder && holder->WillRunInGlobalScope() == aRunInGlobalScope) {
     script = holder->mScript;
+    funobj = holder->mFunction;
   } else {
     // Don't put anything in the cache if we already have an entry
     // with a different WillRunInGlobalScope() value.
     bool shouldCache = !holder;
     TryCacheLoadAndCompileScript(aURL, aRunInGlobalScope,
-                                 shouldCache, &script);
+                                 shouldCache, &script, &funobj);
   }
 
   JS::Rooted<JSObject*> global(cx, mGlobal->GetJSObject());
   if (global) {
     JSAutoCompartment ac(cx, global);
     bool ok = true;
-    if (script) {
-      if (aRunInGlobalScope) {
-        ok = JS::CloneAndExecuteScript(cx, global, script);
-      } else {
-        JS::Rooted<JSObject*> scope(cx);
-        ok = js::ExecuteInGlobalAndReturnScope(cx, global, script, &scope);
-        if (ok){
-          // Force the scope to stay alive.
-          mAnonymousGlobalScopes.AppendElement(scope);
-        }
+    if (funobj) {
+      JS::Rooted<JSObject*> method(cx, JS_CloneFunctionObject(cx, funobj, global));
+      if (!method) {
+        return;
       }
+      JS::Rooted<JS::Value> rval(cx);
+      JS::Rooted<JS::Value> methodVal(cx, JS::ObjectValue(*method));
+      ok = JS_CallFunctionValue(cx, global, methodVal,
+                                JS::HandleValueArray::empty(), &rval);
+    } else if (script) {
+      ok = JS::CloneAndExecuteScript(cx, global, script);
     }
 
     if (!ok) {
@@ -1472,7 +1476,8 @@ void
 nsFrameScriptExecutor::TryCacheLoadAndCompileScript(const nsAString& aURL,
                                                     bool aRunInGlobalScope,
                                                     bool aShouldCache,
-                                                    JS::MutableHandle<JSScript*> aScriptp)
+                                                    JS::MutableHandle<JSScript*> aScriptp,
+                                                    JS::MutableHandle<JSObject*> aFunp)
 {
   nsCString url = NS_ConvertUTF16toUTF8(aURL);
   nsCOMPtr<nsIURI> uri;
@@ -1526,22 +1531,30 @@ nsFrameScriptExecutor::TryCacheLoadAndCompileScript(const nsAString& aURL,
       JSAutoCompartment ac(cx, global);
       JS::CompileOptions options(cx);
       options.setFileAndLine(url.get(), 1);
-      options.setNoScriptRval(true);
       JS::Rooted<JSScript*> script(cx);
-
+      JS::Rooted<JSObject*> funobj(cx);
       if (aRunInGlobalScope) {
+        options.setNoScriptRval(true);
         if (!JS::Compile(cx, JS::NullPtr(), options, srcBuf, &script)) {
           return;
         }
       } else {
-        // We can't clone compile-and-go scripts.
-        options.setCompileAndGo(false);
-        if (!JS::Compile(cx, JS::NullPtr(), options, srcBuf, &script)) {
+        JS::Rooted<JSFunction *> fun(cx);
+        if (!JS::CompileFunction(cx, JS::NullPtr(), options,
+                                 nullptr, 0, nullptr, /* name, nargs, args */
+                                 srcBuf, &fun))
+        {
           return;
         }
+        funobj = JS_GetFunctionObject(fun);
+      }
+
+      if (!script && !funobj) {
+        return;
       }
 
       aScriptp.set(script);
+      aFunp.set(funobj);
 
       nsAutoCString scheme;
       uri->GetScheme(scheme);
@@ -1551,7 +1564,9 @@ nsFrameScriptExecutor::TryCacheLoadAndCompileScript(const nsAString& aURL,
 
         // Root the object also for caching.
         if (script) {
-          holder = new nsFrameScriptObjectExecutorHolder(cx, script, aRunInGlobalScope);
+          holder = new nsFrameScriptObjectExecutorHolder(cx, script);
+        } else {
+          holder = new nsFrameScriptObjectExecutorHolder(cx, funobj);
         }
         sCachedScripts->Put(aURL, holder);
       }
@@ -1565,7 +1580,8 @@ nsFrameScriptExecutor::TryCacheLoadAndCompileScript(const nsAString& aURL,
 {
   AutoSafeJSContext cx;
   JS::Rooted<JSScript*> script(cx);
-  TryCacheLoadAndCompileScript(aURL, aRunInGlobalScope, true, &script);
+  JS::Rooted<JSObject*> funobj(cx);
+  TryCacheLoadAndCompileScript(aURL, aRunInGlobalScope, true, &script, &funobj);
 }
 
 bool

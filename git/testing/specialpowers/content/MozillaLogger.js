@@ -2,8 +2,6 @@
  * MozillaLogger, a base class logger that just logs to stdout.
  */
 
-"use strict";
-
 function MozillaLogger(aPath) {
 }
 
@@ -89,7 +87,7 @@ MozillaFileLogger.prototype = {
     this._foStream = Components.classes["@mozilla.org/network/file-output-stream;1"].
                                      createInstance(Components.interfaces.nsIFileOutputStream);
     this._foStream.init(this._file, PR_WRITE_ONLY | PR_CREATE_FILE | PR_APPEND,
-                                     436 /* 0664 */, 0);
+                                     0664, 0);
   },
 
   getLogCallback : function() {

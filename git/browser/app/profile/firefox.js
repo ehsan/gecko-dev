@@ -1519,7 +1519,6 @@ pref("loop.enabled", false);
 #endif
 
 pref("loop.server", "https://loop.services.mozilla.com");
-pref("loop.seenToS", "unseen");
 pref("loop.do_not_disturb", false);
 pref("loop.ringtone", "chrome://browser/content/loop/shared/sounds/Firefox-Long.ogg");
 

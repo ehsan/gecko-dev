@@ -83,9 +83,8 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
  * if aChange has nsChangeHint_SyncFrameView.
  * Calls DoApplyRenderingChangeToTree on all aFrame's out-of-flow descendants
  * (following placeholders), if aChange has nsChangeHint_RepaintFrame.
- * aFrame should be some combination of nsChangeHint_SyncFrameView,
- * nsChangeHint_RepaintFrame, nsChangeHint_UpdateOpacityLayer and
- * nsChangeHint_SchedulePaint, nothing else.
+ * aFrame should be some combination of nsChangeHint_SyncFrameView and
+ * nsChangeHint_RepaintFrame and nsChangeHint_UpdateOpacityLayer, nothing else.
 */
 static void
 SyncViewsAndInvalidateDescendants(nsIFrame* aFrame,
@@ -95,8 +94,7 @@ SyncViewsAndInvalidateDescendants(nsIFrame* aFrame,
                   "should only be called within ApplyRenderingChangeToTree");
   NS_ASSERTION(aChange == (aChange & (nsChangeHint_RepaintFrame |
                                       nsChangeHint_SyncFrameView |
-                                      nsChangeHint_UpdateOpacityLayer |
-                                      nsChangeHint_SchedulePaint)),
+                                      nsChangeHint_UpdateOpacityLayer)),
                "Invalid change flag");
 
   nsView* view = aFrame->GetView();
@@ -186,8 +184,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
     SyncViewsAndInvalidateDescendants(aFrame,
       nsChangeHint(aChange & (nsChangeHint_RepaintFrame |
                               nsChangeHint_SyncFrameView |
-                              nsChangeHint_UpdateOpacityLayer |
-                              nsChangeHint_SchedulePaint)));
+                              nsChangeHint_UpdateOpacityLayer)));
     // This must be set to true if the rendering change needs to
     // invalidate content.  If it's false, a composite-only paint
     // (empty transaction) will be scheduled.
@@ -263,9 +260,6 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
       for ( ; childFrame; childFrame = childFrame->GetNextSibling()) {
         ActiveLayerTracker::NotifyRestyle(childFrame, eCSSProperty_transform);
       }
-    }
-    if (aChange & nsChangeHint_SchedulePaint) {
-      needInvalidatingPaint = true;
     }
     aFrame->SchedulePaint(needInvalidatingPaint ?
                           nsIFrame::PAINT_DEFAULT :
@@ -741,7 +735,7 @@ RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
 
       if (hint & (nsChangeHint_RepaintFrame | nsChangeHint_SyncFrameView |
                   nsChangeHint_UpdateOpacityLayer | nsChangeHint_UpdateTransformLayer |
-                  nsChangeHint_ChildrenOnlyTransform | nsChangeHint_SchedulePaint)) {
+                  nsChangeHint_ChildrenOnlyTransform)) {
         ApplyRenderingChangeToTree(mPresContext, frame, hint);
       }
       if ((hint & nsChangeHint_RecomputePosition) && !didReflowThisFrame) {

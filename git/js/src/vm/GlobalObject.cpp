@@ -235,9 +235,7 @@ GlobalObject::create(JSContext *cx, const Class *clasp)
 
     cx->compartment()->initGlobal(*global);
 
-    if (!global->setQualifiedVarObj(cx))
-        return nullptr;
-    if (!global->setUnqualifiedVarObj(cx))
+    if (!global->setVarObj(cx))
         return nullptr;
     if (!global->setDelegate(cx))
         return nullptr;

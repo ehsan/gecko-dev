@@ -39,7 +39,6 @@ let snapshotFormatters = {
     if (data.vendor)
       version += " (" + data.vendor + ")";
     $("version-box").textContent = version;
-    $("multiprocess-box").textContent = data.numRemoteWindows + "/" + data.numTotalWindows;
   },
 
 #ifdef MOZ_CRASHREPORTER

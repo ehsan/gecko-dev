@@ -9,8 +9,8 @@
 #include "nsCharSeparatedTokenizer.h"
 #include "mozilla/Preferences.h"
 
-#ifdef MOZ_ANDROID_OMX
-#include "AndroidMediaPluginHost.h"
+#ifdef MOZ_MEDIA_PLUGINS
+#include "MediaPluginHost.h"
 #endif
 
 #include "OggDecoder.h"
@@ -31,11 +31,11 @@
 #include "GStreamerDecoder.h"
 #include "GStreamerReader.h"
 #endif
-#ifdef MOZ_ANDROID_OMX
-#include "AndroidMediaPluginHost.h"
-#include "AndroidMediaDecoder.h"
-#include "AndroidMediaReader.h"
-#include "AndroidMediaPluginHost.h"
+#ifdef MOZ_MEDIA_PLUGINS
+#include "MediaPluginHost.h"
+#include "MediaPluginDecoder.h"
+#include "MediaPluginReader.h"
+#include "MediaPluginHost.h"
 #endif
 #ifdef MOZ_OMX_DECODER
 #include "MediaOmxDecoder.h"
@@ -283,11 +283,11 @@ bool DecoderTraits::DecoderWaitsForOnConnected(const nsACString& aMimeType) {
 #endif
 }
 
-#ifdef MOZ_ANDROID_OMX
+#ifdef MOZ_MEDIA_PLUGINS
 static bool
-IsAndroidMediaType(const nsACString& aType)
+IsMediaPluginsType(const nsACString& aType)
 {
-  if (!MediaDecoder::IsAndroidMediaEnabled()) {
+  if (!MediaDecoder::IsMediaPluginsEnabled()) {
     return false;
   }
 
@@ -451,9 +451,9 @@ DecoderTraits::CanHandleMediaType(const char* aMIMEType,
     result = CANPLAY_MAYBE;
   }
 #endif
-#ifdef MOZ_ANDROID_OMX
-  if (MediaDecoder::IsAndroidMediaEnabled() &&
-      GetAndroidMediaPluginHost()->FindDecoder(nsDependentCString(aMIMEType), &codecList))
+#ifdef MOZ_MEDIA_PLUGINS
+  if (MediaDecoder::IsMediaPluginsEnabled() &&
+      GetMediaPluginHost()->FindDecoder(nsDependentCString(aMIMEType), &codecList))
     result = CANPLAY_MAYBE;
 #endif
 #ifdef NECKO_PROTOCOL_rtsp
@@ -547,10 +547,10 @@ InstantiateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
     return decoder.forget();
   }
 #endif
-#ifdef MOZ_ANDROID_OMX
-  if (MediaDecoder::IsAndroidMediaEnabled() &&
-      GetAndroidMediaPluginHost()->FindDecoder(aType, nullptr)) {
-    decoder = new AndroidMediaDecoder(aType);
+#ifdef MOZ_MEDIA_PLUGINS
+  if (MediaDecoder::IsMediaPluginsEnabled() &&
+      GetMediaPluginHost()->FindDecoder(aType, nullptr)) {
+    decoder = new MediaPluginDecoder(aType);
     return decoder.forget();
   }
 #endif
@@ -630,10 +630,10 @@ MediaDecoderReader* DecoderTraits::CreateReader(const nsACString& aType, Abstrac
     decoderReader = new MediaOmxReader(aDecoder);
   } else
 #endif
-#ifdef MOZ_ANDROID_OMX
-  if (MediaDecoder::IsAndroidMediaEnabled() &&
-      GetAndroidMediaPluginHost()->FindDecoder(aType, nullptr)) {
-    decoderReader = new AndroidMediaReader(aDecoder, aType);
+#ifdef MOZ_MEDIA_PLUGINS
+  if (MediaDecoder::IsMediaPluginsEnabled() &&
+      GetMediaPluginHost()->FindDecoder(aType, nullptr)) {
+    decoderReader = new MediaPluginReader(aDecoder, aType);
   } else
 #endif
 #ifdef MOZ_WEBM
@@ -679,8 +679,8 @@ bool DecoderTraits::IsSupportedInVideoDocument(const nsACString& aType)
 #ifdef MOZ_GSTREAMER
     IsGStreamerSupportedType(aType) ||
 #endif
-#ifdef MOZ_ANDROID_OMX
-    (MediaDecoder::IsAndroidMediaEnabled() && IsAndroidMediaType(aType)) ||
+#ifdef MOZ_MEDIA_PLUGINS
+    (MediaDecoder::IsMediaPluginsEnabled() && IsMediaPluginsType(aType)) ||
 #endif
 #ifdef MOZ_FMP4
     IsMP4SupportedType(aType) ||

@@ -584,12 +584,19 @@ SpeechRecognition::Observe(nsISupports* aSubject, const char* aTopic,
 void
 SpeechRecognition::ProcessTestEventRequest(nsISupports* aSubject, const nsAString& aEventName)
 {
-  if (aEventName.EqualsLiteral("EVENT_ABORT")) {
+  if (aEventName.EqualsLiteral("EVENT_START")) {
+    ErrorResult err;
+    Start(err);
+  } else if (aEventName.EqualsLiteral("EVENT_STOP")) {
+    Stop();
+  } else if (aEventName.EqualsLiteral("EVENT_ABORT")) {
     Abort();
   } else if (aEventName.EqualsLiteral("EVENT_AUDIO_ERROR")) {
     DispatchError(SpeechRecognition::EVENT_AUDIO_ERROR,
                   SpeechRecognitionErrorCode::Audio_capture, // TODO different codes?
                   NS_LITERAL_STRING("AUDIO_ERROR test event"));
+  } else if (aEventName.EqualsLiteral("EVENT_AUDIO_DATA")) {
+    StartRecording(static_cast<DOMMediaStream*>(aSubject));
   } else {
     NS_ASSERTION(mTestConfig.mFakeRecognitionService,
                  "Got request for fake recognition service event, but "
@@ -686,7 +693,7 @@ SpeechRecognition::SetServiceURI(const nsAString& aArg, ErrorResult& aRv)
 }
 
 void
-SpeechRecognition::Start(const Optional<NonNull<DOMMediaStream>>& aStream, ErrorResult& aRv)
+SpeechRecognition::Start(ErrorResult& aRv)
 {
   if (mCurrentState != STATE_IDLE) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
@@ -706,9 +713,7 @@ SpeechRecognition::Start(const Optional<NonNull<DOMMediaStream>>& aStream, Error
   MediaStreamConstraints constraints;
   constraints.mAudio.SetAsBoolean() = true;
 
-  if (aStream.WasPassed()) {
-    StartRecording(&aStream.Value());
-  } else {
+  if (!mTestConfig.mFakeFSMEvents) {
     MediaManager* manager = MediaManager::Get();
     manager->GetUserMedia(false,
                           GetOwner(),

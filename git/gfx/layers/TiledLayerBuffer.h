@@ -30,9 +30,18 @@ namespace layers {
 #define ENABLE_TILING_LOG 0
 
 #if ENABLE_TILING_LOG
-#  define TILING_LOG(...) printf_stderr(__VA_ARGS__);
+#  define TILING_LOG(_args) printf_stderr _args ;
+#  define TILING_LOG_OBJ(_args, obj) \
+    { \
+    std::stringstream ss; \
+    AppendToString(ss, obj); \
+    nsAutoCString tmpstr; \
+    tmpstr = ss.str().c_str(); \
+    printf_stderr _args ; \
+    }
 #else
-#  define TILING_LOG(...)
+#  define TILING_LOG(_args)
+#  define TILING_LOG_OBJ(_args, obj)
 #endif
 
 // An abstract implementation of a tile buffer. This code covers the logic of

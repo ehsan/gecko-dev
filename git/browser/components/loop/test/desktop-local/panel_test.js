@@ -48,7 +48,7 @@ describe("loop.panel", function() {
         return "en-US";
       },
       setLoopCharPref: sandbox.stub(),
-      getLoopCharPref: sandbox.stub().returns("unseen")
+      getLoopCharPref: sandbox.stub()
     };
 
     document.mozL10n.initialize(navigator.mozLoop);

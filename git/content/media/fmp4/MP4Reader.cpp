@@ -39,7 +39,7 @@ namespace mozilla {
 // Uncomment to enable verbose per-sample logging.
 //#define LOG_SAMPLE_DECODE 1
 
-#ifdef PR_LOGGING
+#ifdef LOG_SAMPLE_DECODE
 static const char*
 TrackTypeToStr(TrackType aTrack)
 {
@@ -351,8 +351,9 @@ MP4Reader::Decode(TrackType aTrack)
       if (!compressed) {
         // EOS, or error. Let the state machine know there are no more
         // frames coming.
-        LOG("Draining %s", TrackTypeToStr(aTrack));
-        data.mDecoder->Drain();
+#ifdef LOG_SAMPLE_DECODE
+        LOG("PopSample %s nullptr", TrackTypeToStr(aTrack));
+#endif
         return false;
       } else {
 #ifdef LOG_SAMPLE_DECODE
