@@ -1630,7 +1630,7 @@ public:
     {
         JS_ASSERT(js::GetObjectClass(obj)->flags & JSCLASS_XPCONNECT_GLOBAL);
 
-        const js::Value &v = js::GetSlot(obj, JSCLASS_GLOBAL_SLOT_COUNT);
+        const js::Value &v = js::GetObjectSlot(obj, JSCLASS_GLOBAL_SLOT_COUNT);
         return v.isUndefined()
                ? nsnull
                : static_cast<XPCWrappedNativeScope *>(v.toPrivate());
