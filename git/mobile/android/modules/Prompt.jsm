@@ -179,11 +179,12 @@ Prompt.prototype = {
       if (item.disabled)
         obj.disabled = true;
 
-      if (item.selected) {
-        if (!this.msg.choiceMode) {
-          this.msg.choiceMode = "single";
+      if (item.selected || hasSelected || this.msg.multiple) {
+        if (!this.msg.selected) {
+          this.msg.selected = new Array(this.msg.listitems.length);
+          hasSelected = true;
         }
-        obj.selected = item.selected;
+        this.msg.selected[this.msg.listitems.length] = item.selected;
       }
 
       if (item.header)
@@ -206,7 +207,7 @@ Prompt.prototype = {
   },
 
   setMultiChoiceItems: function(aItems) {
-    this.msg.choiceMode = "multiple";
+    this.msg.multiple = true;
     return this._setListItems(aItems);
   },
 

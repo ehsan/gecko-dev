@@ -186,9 +186,6 @@ let gPermissionObject = {
 
   "desktop-notification": {},
 
-  "camera": {},
-  "microphone": {},
-
   "popup": {
     getDefault: function () {
       return Services.prefs.getBoolPref("dom.disable_open_during_load") ?

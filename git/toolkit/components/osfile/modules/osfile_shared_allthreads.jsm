@@ -1238,15 +1238,12 @@ exports.normalizeToPointer = normalizeToPointer;
  * codes provided by subclasses of |OS.Shared.Error|.
  *
  * @param {string} operation The operation that failed.
- * @param {string=} path The path of the file on which the operation failed,
- * or nothing if there was no file involved in the failure.
  *
  * @constructor
  */
-function OSError(operation, path = "") {
+function OSError(operation) {
   Error.call(this);
   this.operation = operation;
-  this.path = path;
 }
 exports.OSError = OSError;
 

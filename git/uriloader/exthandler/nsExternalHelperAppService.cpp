@@ -126,6 +126,9 @@
 using namespace mozilla;
 using namespace mozilla::ipc;
 
+// Buffer file writes in 32kb chunks
+#define BUFFERED_OUTPUT_SIZE (1024 * 32)
+
 // Download Folder location constants
 #define NS_PREF_DOWNLOAD_DIR        "browser.download.dir"
 #define NS_PREF_DOWNLOAD_FOLDERLIST "browser.download.folderList"

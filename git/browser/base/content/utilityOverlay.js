@@ -559,10 +559,7 @@ function openHealthReport()
  */
 function openFeedbackPage()
 {
-  var url = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
-                      .getService(Components.interfaces.nsIURLFormatter)
-                      .formatURLPref("app.feedback.baseURL");
-  openUILinkIn(url, "tab");
+  openUILinkIn("https://input.mozilla.org/feedback", "tab");
 }
 
 function buildHelpMenu()

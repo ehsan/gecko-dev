@@ -26,6 +26,7 @@ import android.widget.ListView;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -636,6 +637,18 @@ public class GeckoMenu extends ListView
         }
     }
 
+    public void refresh() {
+        for (Iterator<GeckoMenuItem> i = mPrimaryActionItems.keySet().iterator(); i.hasNext();) {
+            GeckoMenuItem item = i.next();
+            item.refreshIfChanged();
+        }
+
+        for (Iterator<GeckoMenuItem> i = mSecondaryActionItems.keySet().iterator(); i.hasNext();) {
+            GeckoMenuItem item = i.next();
+            item.refreshIfChanged();
+        }
+    }
+
     // Adapter to bind menu items to the list.
     private class MenuItemsAdapter extends BaseAdapter {
         private static final int VIEW_TYPE_DEFAULT = 0;
@@ -734,8 +747,11 @@ public class GeckoMenu extends ListView
 
         @Override
         public boolean areAllItemsEnabled() {
-            // Setting this to true is a workaround to fix disappearing
-            // dividers in the menu (bug 963249).
+            for (GeckoMenuItem item : mItems) {
+                 if (!item.isEnabled())
+                     return false;
+            }
+
             return true;
         }
 

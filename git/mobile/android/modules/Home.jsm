@@ -156,9 +156,12 @@ let HomeBanner = (function () {
   });
 })();
 
-function Panel(id, options) {
-  this.id = id;
-  this.title = options.title;
+function Panel(options) {
+  if ("id" in options)
+    this.id = options.id;
+
+  if ("title" in options)
+    this.title = options.title;
 
   if ("layout" in options)
     this.layout = options.layout;
@@ -167,101 +170,30 @@ function Panel(id, options) {
     this.views = options.views;
 }
 
-// We need this function to have access to the HomePanels
-// private members without leaking it outside Home.jsm.
-let handlePanelsGet;
-
 let HomePanels = (function () {
-  // Holds the current set of registered panels that can be
-  // installed, updated, uninstalled, or unregistered. It maps
-  // panel ids with the functions that dynamically generate
-  // their respective panel options. This is used to retrieve
-  // the current list of available panels in the system.
-  // See HomePanels:Get handler.
-  let _registeredPanels = {};
+  // Holds the currrent set of registered panels.
+  let _panels = {};
 
-  // Valid layouts for a panel.
-  let Layout = Object.freeze({
-    FRAME: "frame"
-  });
-
-  // Valid types of views for a dataset.
-  let View = Object.freeze({
-    LIST: "list",
-    GRID: "grid"
-  });
-
-  // Valid item types for a panel view.
-  let Item = Object.freeze({
-    ARTICLE: "article",
-    IMAGE: "image"
-  });
-
-  // Valid item handlers for a panel view.
-  let ItemHandler = Object.freeze({
-    BROWSER: "browser",
-    INTENT: "intent"
-  });
-
-  let _generatePanel = function(id) {
-    let panel = new Panel(id, _registeredPanels[id]());
-
-    if (!panel.id || !panel.title) {
-      throw "Home.panels: Can't create a home panel without an id and title!";
-    }
-
-    if (!panel.layout) {
-      // Use FRAME layout by default
-      panel.layout = Layout.FRAME;
-    } else if (!_valueExists(Layout, panel.layout)) {
-      throw "Home.panels: Invalid layout for panel: panel.id = " + panel.id + ", panel.layout =" + panel.layout;
-    }
-
-    for (let view of panel.views) {
-      if (!_valueExists(View, view.type)) {
-        throw "Home.panels: Invalid view type: panel.id = " + panel.id + ", view.type = " + view.type;
-      }
-
-      if (!view.itemType) {
-        if (view.type == View.LIST) {
-          // Use ARTICLE item type by default in LIST views
-          view.itemType = Item.ARTICLE;
-        } else if (view.type == View.GRID) {
-          // Use IMAGE item type by default in GRID views
-          view.itemType = Item.IMAGE;
-        }
-      } else if (!_valueExists(Item, view.itemType)) {
-        throw "Home.panels: Invalid item type: panel.id = " + panel.id + ", view.itemType = " + view.itemType;
-      }
-
-      if (!view.itemHandler) {
-        // Use BROWSER item handler by default
-        view.itemHandler = ItemHandler.BROWSER;
-      } else if (!_valueExists(ItemHandler, view.itemHandler)) {
-        throw "Home.panels: Invalid item handler: panel.id = " + panel.id + ", view.itemHandler = " + view.itemHandler;
-      }
-
-      if (!view.dataset) {
-        throw "Home.panels: No dataset provided for view: panel.id = " + panel.id + ", view.type = " + view.type;
-      }
-    }
-
-    return panel;
+  let _panelToJSON = function(panel) {
+    return {
+      id: panel.id,
+      title: panel.title,
+      layout: panel.layout,
+      views: panel.views
+    };
   };
 
-  handlePanelsGet = function(data) {
+  let _handleGet = function(data) {
     let requestId = data.requestId;
     let ids = data.ids || null;
 
     let panels = [];
-    for (let id in _registeredPanels) {
+    for (let id in _panels) {
+      let panel = _panels[id];
+
       // Null ids means we want to fetch all available panels
-      if (ids == null || ids.indexOf(id) >= 0) {
-        try {
-          panels.push(_generatePanel(id));
-        } catch(e) {
-          Cu.reportError("Home.panels: Invalid options, panel.id = " + id + ": " + e);
-        }
+      if (ids == null || ids.indexOf(panel.id) >= 0) {
+        panels.push(_panelToJSON(panel));
       }
     }
 
@@ -283,34 +215,87 @@ let HomePanels = (function () {
   };
 
   let _assertPanelExists = function(id) {
-    if (!(id in _registeredPanels)) {
+    if (!(id in _panels)) {
       throw "Home.panels: Panel doesn't exist: id = " + id;
     }
   };
 
   return Object.freeze({
-    Layout: Layout,
-    View: View,
-    Item: Item,
-    ItemHandler: ItemHandler,
+    // Valid layouts for a panel.
+    Layout: Object.freeze({
+      FRAME: "frame"
+    }),
 
-    register: function(id, optionsCallback) {
+    // Valid types of views for a dataset.
+    View: Object.freeze({
+      LIST: "list",
+      GRID: "grid"
+    }),
+
+    // Valid item types for a panel view.
+    Item: Object.freeze({
+      ARTICLE: "article",
+      IMAGE: "image"
+    }),
+
+    // Valid item handlers for a panel view.
+    ItemHandler: Object.freeze({
+      BROWSER: "browser",
+      INTENT: "intent"
+    }),
+
+    register: function(options) {
+      let panel = new Panel(options);
+
       // Bail if the panel already exists
-      if (id in _registeredPanels) {
-        throw "Home.panels: Panel already exists: id = " + id;
+      if (panel.id in _panels) {
+        throw "Home.panels: Panel already exists: id = " + panel.id;
       }
 
-      if (!optionsCallback || typeof optionsCallback !== "function") {
-        throw "Home.panels: Panel callback must be a function: id = " + id;
+      if (!panel.id || !panel.title) {
+        throw "Home.panels: Can't create a home panel without an id and title!";
       }
 
-      _registeredPanels[id] = optionsCallback;
+      if (!_valueExists(this.Layout, panel.layout)) {
+        throw "Home.panels: Invalid layout for panel: panel.id = " + panel.id + ", panel.layout =" + panel.layout;
+      }
+
+      for (let view of panel.views) {
+        if (!_valueExists(this.View, view.type)) {
+          throw "Home.panels: Invalid view type: panel.id = " + panel.id + ", view.type = " + view.type;
+        }
+
+        if (!view.itemType) {
+          if (view.type == this.View.LIST) {
+            // Use ARTICLE item type by default in LIST views
+            view.itemType = this.Item.ARTICLE;
+          } else if (view.type == this.View.GRID) {
+            // Use IMAGE item type by default in GRID views
+            view.itemType = this.Item.IMAGE;
+          }
+        } else if (!_valueExists(this.Item, view.itemType)) {
+          throw "Home.panels: Invalid item type: panel.id = " + panel.id + ", view.itemType = " + view.itemType;
+        }
+
+        if (!view.itemHandler) {
+          // Use BROWSER item handler by default
+          view.itemHandler = this.ItemHandler.BROWSER;
+        } else if (!_valueExists(this.ItemHandler, view.itemHandler)) {
+          throw "Home.panels: Invalid item handler: panel.id = " + panel.id + ", view.itemHandler = " + view.itemHandler;
+        }
+
+        if (!view.dataset) {
+          throw "Home.panels: No dataset provided for view: panel.id = " + panel.id + ", view.type = " + view.type;
+        }
+      }
+
+      _panels[panel.id] = panel;
     },
 
     unregister: function(id) {
       _assertPanelExists(id);
 
-      delete _registeredPanels[id];
+      delete _panels[id];
     },
 
     install: function(id) {
@@ -318,7 +303,7 @@ let HomePanels = (function () {
 
       sendMessageToJava({
         type: "HomePanels:Install",
-        panel: _generatePanel(id)
+        panel: _panelToJSON(_panels[id])
       });
     },
 
@@ -336,7 +321,7 @@ let HomePanels = (function () {
 
       sendMessageToJava({
         type: "HomePanels:Update",
-        panel: _generatePanel(id)
+        panel: _panelToJSON(_panels[id])
       });
     }
   });
@@ -351,7 +336,7 @@ this.Home = Object.freeze({
   observe: function(subject, topic, data) {
     switch(topic) {
       case "HomePanels:Get":
-        handlePanelsGet(JSON.parse(data));
+        HomePanels._handleGet(JSON.parse(data));
         break;
     }
   }

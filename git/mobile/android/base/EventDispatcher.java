@@ -106,17 +106,13 @@ public final class EventDispatcher {
         try {
             response.put(GUID, message.getString(GUID));
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(message.getString("type") + ":Return", response.toString()));
-        } catch (Exception ex) {
-            Log.e(LOGTAG, "Unable to send response", ex);
-        }
+        } catch(Exception ex) { }
     }
 
     public static void sendError(JSONObject message, JSONObject error) {
         try {
             error.put(GUID, message.getString(GUID));
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(message.getString("type") + ":Error", error.toString()));
-        } catch (Exception ex) {
-            Log.e(LOGTAG, "Unable to send error", ex);
-        }
+        } catch(Exception ex) { }
     }
 }

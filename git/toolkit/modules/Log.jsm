@@ -457,8 +457,8 @@ Appender.prototype = {
  */
 
 function DumpAppender(formatter) {
-  Appender.call(this, formatter);
   this._name = "DumpAppender";
+  Appender.call(this, formatter);
 }
 DumpAppender.prototype = {
   __proto__: Appender.prototype,
@@ -474,8 +474,8 @@ DumpAppender.prototype = {
  */
 
 function ConsoleAppender(formatter) {
-  Appender.call(this, formatter);
   this._name = "ConsoleAppender";
+  Appender.call(this, formatter);
 }
 ConsoleAppender.prototype = {
   __proto__: Appender.prototype,
@@ -499,8 +499,8 @@ ConsoleAppender.prototype = {
  * e.g. write it to disk asynchronously.
  */
 function StorageStreamAppender(formatter) {
-  Appender.call(this, formatter);
   this._name = "StorageStreamAppender";
+  Appender.call(this, formatter);
 }
 
 StorageStreamAppender.prototype = {
@@ -581,7 +581,6 @@ StorageStreamAppender.prototype = {
  * Writes output to file using OS.File.
  */
 function FileAppender(path, formatter) {
-  Appender.call(this, formatter);
   this._name = "FileAppender";
   this._encoder = new TextEncoder();
   this._path = path;
@@ -590,6 +589,7 @@ function FileAppender(path, formatter) {
 
   // This is a promise exposed for testing/debugging the logger itself.
   this._lastWritePromise = null;
+  Appender.call(this, formatter);
 }
 
 FileAppender.prototype = {
@@ -654,11 +654,11 @@ FileAppender.prototype = {
  * will be discarded, and subsequent writes will be appended to a new log file.
  */
 function BoundedFileAppender(path, formatter, maxSize=2*ONE_MEGABYTE) {
-  FileAppender.call(this, path, formatter);
   this._name = "BoundedFileAppender";
   this._size = 0;
   this._maxSize = maxSize;
   this._closeFilePromise = null;
+  FileAppender.call(this, path, formatter);
 }
 
 BoundedFileAppender.prototype = {

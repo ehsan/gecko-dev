@@ -25,15 +25,10 @@ let clone = SharedAll.clone;
  * Code shared by implementations of File.
  *
  * @param {*} fd An OS-specific file handle.
- * @param {string} path File path of the file handle, used for error-reporting.
  * @constructor
  */
-let AbstractFile = function AbstractFile(fd, path) {
+let AbstractFile = function AbstractFile(fd) {
   this._fd = fd;
-  if (!path) {
-    throw new TypeError("path is expected");
-  }
-  this._path = path;
 };
 
 AbstractFile.prototype = {
@@ -46,7 +41,7 @@ AbstractFile.prototype = {
     if (this._fd) {
       return this._fd;
     }
-    throw OS.File.Error.closed("accessing file", this._path);
+    throw OS.File.Error.closed();
   },
   /**
    * Read bytes from this file to a new buffer.
@@ -188,7 +183,7 @@ AbstractFile.openUnique = function openUnique(path, options = {}) {
         // keep trying ...
       }
     }
-    throw OS.File.Error.exists("could not find an unused file name.", path);
+    throw OS.File.Error.exists("could not find an unused file name.");
   }
 };
 
@@ -400,7 +395,7 @@ AbstractFile.writeAtomic =
   }
   let noOverwrite = options.noOverwrite;
   if (noOverwrite && OS.File.exists(path)) {
-    throw OS.File.Error.exists("writeAtomic", path);
+    throw OS.File.Error.exists("writeAtomic");
   }
 
   if (typeof buffer == "string") {

@@ -19,7 +19,6 @@
 #include "nsIDOMNavigatorUserMedia.h"
 #include "nsXULAppAPI.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/dom/MediaStreamTrackBinding.h"
 #include "prlog.h"
@@ -103,16 +102,12 @@ public:
   bool CapturingVideo()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-    return mVideoSource && !mStopped &&
-           (!mVideoSource->IsFake() ||
-            Preferences::GetBool("media.navigator.permission.fake"));
+    return mVideoSource && !mVideoSource->IsFake() && !mStopped;
   }
   bool CapturingAudio()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-    return mAudioSource && !mStopped &&
-           (!mAudioSource->IsFake() ||
-            Preferences::GetBool("media.navigator.permission.fake"));
+    return mAudioSource && !mAudioSource->IsFake() && !mStopped;
   }
 
   void SetStopped()

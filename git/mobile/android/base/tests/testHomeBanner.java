@@ -22,10 +22,6 @@ public class testHomeBanner extends UITest {
 
         // These test methods depend on being run in this order.
         addBannerTest();
-
-        // Make sure the banner hides when the user starts interacting with the url bar.
-        hideOnToolbarFocusTest();
-
         // TODO: API doesn't actually support this but it used to work due to how the banner was
         // part of TopSitesPanel's lifecycle
         // removeBannerTest();
@@ -98,18 +94,6 @@ public class testHomeBanner extends UITest {
         eventExpecter.blockForEvent();
 
         mAboutHome.assertBannerNotVisible();
-    }
-
-    private void hideOnToolbarFocusTest() {
-        NavigationHelper.enterAndLoadUrl("about:home");
-        mAboutHome.assertVisible()
-                  .assertBannerVisible();
-
-        mToolbar.enterEditingMode();
-        mAboutHome.assertBannerNotVisible();
-
-        mToolbar.dismissEditingMode();
-        mAboutHome.assertBannerVisible();
     }
 
     /**

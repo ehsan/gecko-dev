@@ -66,6 +66,7 @@ class PanelItemView extends LinearLayout {
         if (hasImageUrl) {
             Picasso.with(getContext())
                    .load(imageUrl)
+                   .error(R.drawable.favicon)
                    .into(mImage);
         }
     }
