@@ -19,26 +19,23 @@ var testRan = 0;
 // should not be changed.
 const tests = [
   // Those three first case are the case of a media loaded in a media element.
-  // All three should be sniffed.
+  // The first two should be sniffeed.
   { contentType: "",
     expectedContentType: "application/ogg",
-    flags: Ci.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS | Ci.nsIChannel.LOAD_MEDIA_SNIFFER_OVERRIDES_CONTENT_TYPE },
+    flags: Ci.nsIChannel.LOAD_TREAT_APPLICATION_OCTET_STREAM_AS_UNKNOWN },
   { contentType: "application/octet-stream",
     expectedContentType: "application/ogg",
-    flags: Ci.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS | Ci.nsIChannel.LOAD_MEDIA_SNIFFER_OVERRIDES_CONTENT_TYPE },
+    flags: Ci.nsIChannel.LOAD_TREAT_APPLICATION_OCTET_STREAM_AS_UNKNOWN },
   { contentType: "application/something",
-    expectedContentType: "application/ogg",
-    flags: Ci.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS | Ci.nsIChannel.LOAD_MEDIA_SNIFFER_OVERRIDES_CONTENT_TYPE },
-  // This last cases test the case of a channel opened while allowing content
+    expectedContentType: "application/something",
+    flags: Ci.nsIChannel.LOAD_TREAT_APPLICATION_OCTET_STREAM_AS_UNKNOWN },
+  // This last case tests the case of a channel opened while allowing content
   // sniffers to override the content-type, like in the docshell.
   { contentType: "application/octet-stream",
     expectedContentType: "application/ogg",
     flags: Ci.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS },
   { contentType: "",
     expectedContentType: "application/ogg",
-    flags: Ci.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS },
-  { contentType: "application/something",
-    expectedContentType: "application/something",
     flags: Ci.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS },
 ];
 

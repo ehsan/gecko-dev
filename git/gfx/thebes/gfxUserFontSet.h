@@ -156,11 +156,9 @@ public:
 };
 
 class gfxProxyFontEntry;
-class gfxOTSContext;
 
 class gfxUserFontSet {
     friend class gfxProxyFontEntry;
-    friend class gfxOTSContext;
 
 public:
 
@@ -519,7 +517,6 @@ class gfxProxyFontEntry : public gfxFontEntry {
     friend class gfxUserFontSet;
     friend class nsUserFontSet;
     friend class nsFontFaceLoader;
-    friend class gfxOTSContext;
 
 public:
     enum LoadStatus {
@@ -578,6 +575,8 @@ protected:
                            const nsAString&   aOriginalName,
                            FallibleTArray<uint8_t>* aMetadata,
                            uint32_t           aMetaOrigLen);
+
+    static bool OTSMessage(void *aUserData, const char *format, ...);
 
     // note that code depends on the ordering of these values!
     enum LoadingState {

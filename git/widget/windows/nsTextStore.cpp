@@ -3037,26 +3037,22 @@ nsTextStore::RecordCompositionStartAction(ITfCompositionView* pComposition,
   action->mSelectionStart = start;
   action->mSelectionLength = length;
 
-  Selection& currentSel = CurrentSelection();
-  if (currentSel.IsDirty()) {
-    PR_LOG(sTextStoreLog, PR_LOG_ERROR,
-           ("TSF: 0x%p   nsTextStore::RecordCompositionStartAction() FAILED "
-            "due to CurrentSelection() failure", this));
-    action->mAdjustSelection = true;
-  } else if (currentSel.MinOffset() != start ||
-             currentSel.MaxOffset() != start + length) {
-    // If new composition range is different from current selection range,
-    // we need to set selection before dispatching compositionstart event.
-    action->mAdjustSelection = true;
-  } else {
-    // We shouldn't dispatch selection set event before dispatching
-    // compositionstart event because it may cause put caret different
-    // position in HTML editor since generated flat text content and offset in
-    // it are lossy data of HTML contents.
+  if (aPreserveSelection) {
     action->mAdjustSelection = false;
+  } else {
+    Selection& currentSel = CurrentSelection();
+    if (currentSel.IsDirty()) {
+      PR_LOG(sTextStoreLog, PR_LOG_ERROR,
+             ("TSF: 0x%p   nsTextStore::RecordCompositionStartAction() FAILED "
+              "due to CurrentSelection() failure", this));
+      action->mAdjustSelection = true;
+    } else {
+      action->mAdjustSelection = currentSel.MinOffset() != start ||
+                                 currentSel.MaxOffset() != start + length;
+    }
   }
 
-  lockedContent.StartComposition(pComposition, *action, aPreserveSelection);
+  lockedContent.StartComposition(pComposition, *action);
 
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
          ("TSF: 0x%p   nsTextStore::RecordCompositionStartAction() succeeded: "
@@ -4297,8 +4293,7 @@ nsTextStore::Content::ReplaceTextWith(LONG aStart, LONG aLength,
 
 void
 nsTextStore::Content::StartComposition(ITfCompositionView* aCompositionView,
-                                       const PendingAction& aCompStart,
-                                       bool aPreserveSelection)
+                                       const PendingAction& aCompStart)
 {
   MOZ_ASSERT(mInitialized);
   MOZ_ASSERT(aCompositionView);
@@ -4308,7 +4303,7 @@ nsTextStore::Content::StartComposition(ITfCompositionView* aCompositionView,
   mComposition.Start(aCompositionView, aCompStart.mSelectionStart,
     GetSubstring(static_cast<uint32_t>(aCompStart.mSelectionStart),
                  static_cast<uint32_t>(aCompStart.mSelectionLength)));
-  if (!aPreserveSelection) {
+  if (aCompStart.mAdjustSelection) {
     mSelection.SetSelection(mComposition.mStart, mComposition.mString.Length(),
                             false);
   }

@@ -190,9 +190,7 @@
 
     // No confirmation needed when an app is installed
     function() {
-      SpecialPowers.autoConfirmAppInstall(() => {
-        SpecialPowers.autoConfirmAppUninstall(runTest);
-      });
+      SpecialPowers.autoConfirmAppInstall(runTest);
     },
 
     // Installing the app

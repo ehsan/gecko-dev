@@ -705,11 +705,23 @@ WebappsActor.prototype = {
 
     let manifestURL = aRequest.manifestURL;
     if (!manifestURL) {
-      return Promise.resolve({ error: "missingParameter",
-                         message: "missing parameter manifestURL" });
+      return { error: "missingParameter",
+               message: "missing parameter manifestURL" };
     }
 
-    return DOMApplicationRegistry.uninstall(manifestURL);
+    let deferred = promise.defer();
+    let reg = DOMApplicationRegistry;
+    reg.uninstall(
+      manifestURL,
+      function onsuccess() {
+        deferred.resolve({});
+      },
+      function onfailure(reason) {
+        deferred.resolve({ error: reason });
+      }
+    );
+
+    return deferred.promise;
   },
 
   _findManifestByURL: function wa__findManifestByURL(aManifestURL) {

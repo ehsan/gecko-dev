@@ -10,5 +10,4 @@ function run(arr, func) {
     f({mode:"compile"});
     f({mode:"seq"});
  }
-if (getBuildConfiguration().parallelJS)
-  run(range(0, 1024), function (i) { var a = []; a.length = i; });
+run(range(0, 1024), function (i) { var a = []; a.length = i; });
