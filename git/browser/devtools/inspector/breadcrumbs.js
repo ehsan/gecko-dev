@@ -692,10 +692,8 @@ HTMLBreadcrumbs.prototype = {
 
       // Make sure the selected node and its neighbours are visible.
       this.scroll();
-      return resolveNextTick().then(() => {
-        this.inspector.emit("breadcrumbs-updated", this.selection.nodeFront);
-        doneUpdating();
-      });
+      this.inspector.emit("breadcrumbs-updated", this.selection.nodeFront);
+      doneUpdating();
     }).then(null, err => {
       doneUpdating(this.selection.nodeFront);
       this.selectionGuardEnd(err);

@@ -289,8 +289,6 @@ OmxDecoder::OmxDecoder(MediaResource *aResource,
                        AbstractMediaDecoder *aDecoder) :
   mDecoder(aDecoder),
   mResource(aResource),
-  mDisplayWidth(0),
-  mDisplayHeight(0),
   mVideoWidth(0),
   mVideoHeight(0),
   mVideoColorFormat(0),
@@ -635,16 +633,6 @@ bool OmxDecoder::SetVideoFormat() {
     return false;
   }
 
-  if (!mVideoTrack.get() || !mVideoTrack->getFormat()->findInt32(kKeyDisplayWidth, &mDisplayWidth)) {
-    mDisplayWidth = mVideoWidth;
-    NS_WARNING("display width not available, assuming width");
-  }
-
-  if (!mVideoTrack.get() || !mVideoTrack->getFormat()->findInt32(kKeyDisplayHeight, &mDisplayHeight)) {
-    mDisplayHeight = mVideoHeight;
-    NS_WARNING("display height not available, assuming height");
-  }
-
   if (!mVideoSource->getFormat()->findInt32(kKeyStride, &mVideoStride)) {
     mVideoStride = mVideoWidth;
     NS_WARNING("stride not available, assuming width");
@@ -660,9 +648,9 @@ bool OmxDecoder::SetVideoFormat() {
     NS_WARNING("rotation not available, assuming 0");
   }
 
-  LOG(PR_LOG_DEBUG, "display width: %d display height %d width: %d height: %d component: %s format: %d stride: %d sliceHeight: %d rotation: %d",
-      mDisplayWidth, mDisplayHeight, mVideoWidth, mVideoHeight, componentName,
-      mVideoColorFormat, mVideoStride, mVideoSliceHeight, mVideoRotation);
+  LOG(PR_LOG_DEBUG, "width: %d height: %d component: %s format: %d stride: %d sliceHeight: %d rotation: %d",
+      mVideoWidth, mVideoHeight, componentName, mVideoColorFormat,
+      mVideoStride, mVideoSliceHeight, mVideoRotation);
 
   return true;
 }

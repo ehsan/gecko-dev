@@ -15,7 +15,8 @@ namespace mozilla {
 // January 1, 1970.
 #define iso_time_offset 2082844800
 
-FragmentBuffer::FragmentBuffer(uint32_t aTrackType, uint32_t aFragDuration)
+FragmentBuffer::FragmentBuffer(uint32_t aTrackType, uint32_t aFragDuration,
+                               TrackMetadataBase* aMetadata)
   : mTrackType(aTrackType)
   , mFragDuration(aFragDuration)
   , mMediaStartTime(0)
@@ -24,6 +25,13 @@ FragmentBuffer::FragmentBuffer(uint32_t aTrackType, uint32_t aFragDuration)
   , mEOS(false)
 {
   mFragArray.AppendElement();
+  if (mTrackType == Audio_Track) {
+    nsRefPtr<AACTrackMetadata> audMeta = static_cast<AACTrackMetadata*>(aMetadata);
+    MOZ_ASSERT(audMeta);
+  } else {
+    nsRefPtr<AVCTrackMetadata> vidMeta = static_cast<AVCTrackMetadata*>(aMetadata);
+    MOZ_ASSERT(vidMeta);
+  }
   MOZ_COUNT_CTOR(FragmentBuffer);
 }
 
@@ -61,11 +69,10 @@ FragmentBuffer::AddFrame(EncodedFrame* aFrame)
   }
 
   EncodedFrame::FrameType type = aFrame->GetFrameType();
-  if (type == EncodedFrame::AAC_CSD || type == EncodedFrame::AVC_CSD ||
-      type == EncodedFrame::AMR_AUDIO_CSD) {
+  if (type == EncodedFrame::AAC_CSD || type == EncodedFrame::AVC_CSD) {
     mCSDFrame = aFrame;
-    // Use CSD's timestamp as the start time. Encoder should send CSD frame first
-    // and then data frames.
+    // Ue CSD's timestamp as the start time. Encoder should send CSD frame first
+    // and data frames.
     mMediaStartTime = aFrame->GetTimeStamp();
     mFragmentNumber = 1;
     return NS_OK;
@@ -80,7 +87,7 @@ FragmentBuffer::AddFrame(EncodedFrame* aFrame)
   mFragArray.LastElement().AppendElement(aFrame);
 
   // check if current fragment is reach the fragment duration.
-  if ((aFrame->GetTimeStamp() - mMediaStartTime) >= (mFragDuration * mFragmentNumber)) {
+  if ((aFrame->GetTimeStamp() - mMediaStartTime) > (mFragDuration * mFragmentNumber)) {
     mFragArray.AppendElement();
     mFragmentNumber++;
   }
@@ -150,16 +157,21 @@ ISOControl::GetNextTrackID()
 }
 
 uint32_t
-ISOControl::GetTrackID(TrackMetadataBase::MetadataKind aKind)
+ISOControl::GetTrackID(uint32_t aTrackType)
 {
+  TrackMetadataBase::MetadataKind kind;
+  if (aTrackType == Audio_Track) {
+    kind = TrackMetadataBase::METADATA_AAC;
+  } else {
+    kind = TrackMetadataBase::METADATA_AVC;
+  }
+
   for (uint32_t i = 0; i < mMetaArray.Length(); i++) {
-    if (mMetaArray[i]->GetKind() == aKind) {
+    if (mMetaArray[i]->GetKind() == kind) {
       return (i + 1);
     }
   }
 
-  // Track ID shouldn't be 0. It must be something wrong here.
-  MOZ_ASSERT(0);
   return 0;
 }
 
@@ -175,11 +187,11 @@ ISOControl::SetMetadata(TrackMetadataBase* aTrackMeta)
 }
 
 nsresult
-ISOControl::GetAudioMetadata(nsRefPtr<AudioTrackMetadata>& aAudMeta)
+ISOControl::GetAudioMetadata(nsRefPtr<AACTrackMetadata>& aAudMeta)
 {
   for (uint32_t i = 0; i < mMetaArray.Length() ; i++) {
     if (mMetaArray[i]->GetKind() == TrackMetadataBase::METADATA_AAC) {
-      aAudMeta = static_cast<AudioTrackMetadata*>(mMetaArray[i].get());
+      aAudMeta = static_cast<AACTrackMetadata*>(mMetaArray[i].get());
       return NS_OK;
     }
   }
@@ -187,21 +199,22 @@ ISOControl::GetAudioMetadata(nsRefPtr<AudioTrackMetadata>& aAudMeta)
 }
 
 nsresult
-ISOControl::GetVideoMetadata(nsRefPtr<VideoTrackMetadata>& aVidMeta)
+ISOControl::GetVideoMetadata(nsRefPtr<AVCTrackMetadata>& aVidMeta)
 {
   for (uint32_t i = 0; i < mMetaArray.Length() ; i++) {
     if (mMetaArray[i]->GetKind() == TrackMetadataBase::METADATA_AVC) {
-      aVidMeta = static_cast<VideoTrackMetadata*>(mMetaArray[i].get());
+      aVidMeta = static_cast<AVCTrackMetadata*>(mMetaArray[i].get());
       return NS_OK;
     }
   }
+
   return NS_ERROR_FAILURE;
 }
 
 bool
 ISOControl::HasAudioTrack()
 {
-  nsRefPtr<AudioTrackMetadata> audMeta;
+  nsRefPtr<AACTrackMetadata> audMeta;
   GetAudioMetadata(audMeta);
   return audMeta;
 }
@@ -209,7 +222,7 @@ ISOControl::HasAudioTrack()
 bool
 ISOControl::HasVideoTrack()
 {
-  nsRefPtr<VideoTrackMetadata> vidMeta;
+  nsRefPtr<AVCTrackMetadata> vidMeta;
   GetVideoMetadata(vidMeta);
   return vidMeta;
 }

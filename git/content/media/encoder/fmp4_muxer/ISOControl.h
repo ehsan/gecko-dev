@@ -29,7 +29,8 @@ public:
   // aTrackType: it could be Audio_Track or Video_Track.
   // aFragDuration: it is the fragment duration. (microsecond per unit)
   //                Audio and video have the same fragment duration.
-  FragmentBuffer(uint32_t aTrackType, uint32_t aFragDuration);
+  FragmentBuffer(uint32_t aTrackType, uint32_t aFragDuration,
+                 TrackMetadataBase* aMetadata);
   ~FragmentBuffer();
 
   // Get samples of first fragment, that will swap all the elements in the
@@ -190,13 +191,11 @@ public:
   uint32_t GetMuxingType() { return mMuxingType; }
 
   nsresult SetMetadata(TrackMetadataBase* aTrackMeta);
-  nsresult GetAudioMetadata(nsRefPtr<AudioTrackMetadata>& aAudMeta);
-  nsresult GetVideoMetadata(nsRefPtr<VideoTrackMetadata>& aVidMeta);
+  nsresult GetAudioMetadata(nsRefPtr<AACTrackMetadata>& aAudMeta);
+  nsresult GetVideoMetadata(nsRefPtr<AVCTrackMetadata>& aVidMeta);
 
-  // Track ID is the Metadata index in mMetaArray. It allows only 1 audio
-  // track and 1 video track in this muxer. In this muxer, it is prohibt to have
-  // mutiple audio track or video track in the same file.
-  uint32_t GetTrackID(TrackMetadataBase::MetadataKind aKind);
+  // Track ID is the Metadata index in mMetaArray.
+  uint32_t GetTrackID(uint32_t aTrackType);
   uint32_t GetNextTrackID();
 
   bool HasAudioTrack();

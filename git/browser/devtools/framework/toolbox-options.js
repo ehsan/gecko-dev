@@ -5,9 +5,11 @@
 "use strict";
 
 const {Cu, Cc, Ci} = require("chrome");
-const EventEmitter = require("devtools/toolkit/event-emitter");
-const {Promise: promise} = require("resource://gre/modules/Promise.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+let promise = require("sdk/core/promise");
+let EventEmitter = require("devtools/toolkit/event-emitter");
+
+Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 

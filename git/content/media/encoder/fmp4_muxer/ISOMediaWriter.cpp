@@ -99,9 +99,7 @@ ISOMediaWriter::WriteEncodedTrack(const EncodedFrameContainer& aData,
     nsRefPtr<EncodedFrame> frame(aData.GetEncodedFrames()[i]);
     EncodedFrame::FrameType type = frame->GetFrameType();
     if (type == EncodedFrame::AAC_AUDIO_FRAME ||
-        type == EncodedFrame::AAC_CSD ||
-        type == EncodedFrame::AMR_AUDIO_FRAME ||
-        type == EncodedFrame::AMR_AUDIO_CSD) {
+        type == EncodedFrame::AAC_CSD) {
       frag = mAudioFragmentBuffer;
     } else if (type == EncodedFrame::AVC_I_FRAME ||
                type == EncodedFrame::AVC_P_FRAME ||
@@ -206,16 +204,19 @@ ISOMediaWriter::GetContainerData(nsTArray<nsTArray<uint8_t>>* aOutputBufs,
 nsresult
 ISOMediaWriter::SetMetadata(TrackMetadataBase* aMetadata)
 {
-  if (aMetadata->GetKind() == TrackMetadataBase::METADATA_AAC ||
-      aMetadata->GetKind() == TrackMetadataBase::METADATA_AMR) {
+  if (aMetadata->GetKind() == TrackMetadataBase::METADATA_AAC ) {
     mControl->SetMetadata(aMetadata);
-    mAudioFragmentBuffer = new FragmentBuffer(Audio_Track, FRAG_DURATION);
+    mAudioFragmentBuffer = new FragmentBuffer(Audio_Track,
+                                              FRAG_DURATION,
+                                              aMetadata);
     mControl->SetFragment(mAudioFragmentBuffer);
     return NS_OK;
   }
   if (aMetadata->GetKind() == TrackMetadataBase::METADATA_AVC) {
     mControl->SetMetadata(aMetadata);
-    mVideoFragmentBuffer = new FragmentBuffer(Video_Track, FRAG_DURATION);
+    mVideoFragmentBuffer = new FragmentBuffer(Video_Track,
+                                              FRAG_DURATION,
+                                              aMetadata);
     mControl->SetFragment(mVideoFragmentBuffer);
     return NS_OK;
   }

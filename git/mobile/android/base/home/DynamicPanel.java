@@ -175,7 +175,7 @@ public class DynamicPanel extends HomeFragment {
             bundle.putParcelable(DATASET_REQUEST, request);
 
             // Ensure one loader per dataset
-            final int loaderId = generateLoaderId(request.getDatasetId());
+            final int loaderId = generateLoaderId(request.datasetId);
             getLoaderManager().restartLoader(loaderId, bundle, mLoaderCallbacks);
         }
 
@@ -218,12 +218,12 @@ public class DynamicPanel extends HomeFragment {
             final String[] selectionArgs;
 
             // Null represents the root filter
-            if (mRequest.getFilter() == null) {
+            if (mRequest.filter == null) {
                 selection = DBUtils.concatenateWhere(HomeItems.DATASET_ID + " = ?", HomeItems.FILTER + " IS NULL");
-                selectionArgs = new String[] { mRequest.getDatasetId() };
+                selectionArgs = new String[] { mRequest.datasetId };
             } else {
                 selection = DBUtils.concatenateWhere(HomeItems.DATASET_ID + " = ?", HomeItems.FILTER + " = ?");
-                selectionArgs = new String[] { mRequest.getDatasetId(), mRequest.getFilter() };
+                selectionArgs = new String[] { mRequest.datasetId, mRequest.filter };
             }
 
             // XXX: You can use CONTENT_FAKE_URI for development to pull items from fake_home_items.json.
@@ -256,7 +256,7 @@ public class DynamicPanel extends HomeFragment {
             final DatasetRequest request = getRequestFromLoader(loader);
             Log.d(LOGTAG, "Resetting loader for request: " + request);
             if (mLayout != null) {
-                mLayout.releaseDataset(request.getDatasetId());
+                mLayout.releaseDataset(request.datasetId);
             }
         }
 

@@ -65,9 +65,10 @@ OmxVideoTrackEncoder::GetMetadata()
   }
 
   nsRefPtr<AVCTrackMetadata> meta = new AVCTrackMetadata();
-  meta->mWidth = mFrameWidth;
-  meta->mHeight = mFrameHeight;
-  meta->mFrameRate = ENCODER_CONFIG_FRAME_RATE;
+  meta->Width = mFrameWidth;
+  meta->Height = mFrameHeight;
+  meta->FrameRate = ENCODER_CONFIG_FRAME_RATE;
+  meta->VideoFrequency = 90000; // Hz
   return meta.forget();
 }
 
@@ -190,10 +191,10 @@ OmxAudioTrackEncoder::GetMetadata()
   }
 
   nsRefPtr<AACTrackMetadata> meta = new AACTrackMetadata();
-  meta->mChannels = mChannels;
-  meta->mSampleRate = mSamplingRate;
-  meta->mFrameSize = OMXCodecWrapper::kAACFrameSize;
-  meta->mFrameDuration = OMXCodecWrapper::kAACFrameDuration;
+  meta->Channels = mChannels;
+  meta->SampleRate = mSamplingRate;
+  meta->FrameSize = OMXCodecWrapper::kAACFrameSize;
+  meta->FrameDuration = OMXCodecWrapper::kAACFrameDuration;
 
   return meta.forget();
 }

@@ -9,7 +9,7 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-    "resource://gre/modules/Promise.jsm");
+    "resource://gre/modules/commonjs/sdk/core/promise.js");
 
 
 do_get_profile();

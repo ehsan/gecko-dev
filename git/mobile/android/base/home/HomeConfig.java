@@ -583,20 +583,17 @@ public final class HomeConfig {
         private final String mDatasetId;
         private final ItemType mItemType;
         private final ItemHandler mItemHandler;
-        private final String mBackImageUrl;
 
         private static final String JSON_KEY_TYPE = "type";
         private static final String JSON_KEY_DATASET = "dataset";
         private static final String JSON_KEY_ITEM_TYPE = "itemType";
         private static final String JSON_KEY_ITEM_HANDLER = "itemHandler";
-        private static final String JSON_KEY_BACK_IMAGE_URL = "backImageUrl";
 
         public ViewConfig(JSONObject json) throws JSONException, IllegalArgumentException {
             mType = ViewType.fromId(json.getString(JSON_KEY_TYPE));
             mDatasetId = json.getString(JSON_KEY_DATASET);
             mItemType = ItemType.fromId(json.getString(JSON_KEY_ITEM_TYPE));
             mItemHandler = ItemHandler.fromId(json.getString(JSON_KEY_ITEM_HANDLER));
-            mBackImageUrl = json.optString(JSON_KEY_BACK_IMAGE_URL, null);
 
             validate();
         }
@@ -607,7 +604,6 @@ public final class HomeConfig {
             mDatasetId = in.readString();
             mItemType = (ItemType) in.readParcelable(getClass().getClassLoader());
             mItemHandler = (ItemHandler) in.readParcelable(getClass().getClassLoader());
-            mBackImageUrl = in.readString();
 
             validate();
         }
@@ -617,18 +613,15 @@ public final class HomeConfig {
             mDatasetId = viewConfig.mDatasetId;
             mItemType = viewConfig.mItemType;
             mItemHandler = viewConfig.mItemHandler;
-            mBackImageUrl = viewConfig.mBackImageUrl;
 
             validate();
         }
 
-        public ViewConfig(ViewType type, String datasetId, ItemType itemType,
-                          ItemHandler itemHandler, String backImageUrl) {
+        public ViewConfig(ViewType type, String datasetId, ItemType itemType, ItemHandler itemHandler) {
             mType = type;
             mDatasetId = datasetId;
             mItemType = itemType;
             mItemHandler = itemHandler;
-            mBackImageUrl = backImageUrl;
 
             validate();
         }
@@ -667,10 +660,6 @@ public final class HomeConfig {
             return mItemHandler;
         }
 
-        public String getBackImageUrl() {
-            return mBackImageUrl;
-        }
-
         public JSONObject toJSON() throws JSONException {
             final JSONObject json = new JSONObject();
 
@@ -678,10 +667,6 @@ public final class HomeConfig {
             json.put(JSON_KEY_DATASET, mDatasetId);
             json.put(JSON_KEY_ITEM_TYPE, mItemType.toString());
             json.put(JSON_KEY_ITEM_HANDLER, mItemHandler.toString());
-
-            if (!TextUtils.isEmpty(mBackImageUrl)) {
-                json.put(JSON_KEY_BACK_IMAGE_URL, mBackImageUrl);
-            }
 
             return json;
         }
@@ -697,7 +682,6 @@ public final class HomeConfig {
             dest.writeString(mDatasetId);
             dest.writeParcelable(mItemType, 0);
             dest.writeParcelable(mItemHandler, 0);
-            dest.writeString(mBackImageUrl);
         }
 
         public static final Creator<ViewConfig> CREATOR = new Creator<ViewConfig>() {

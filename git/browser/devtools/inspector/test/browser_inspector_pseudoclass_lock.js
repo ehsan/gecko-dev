@@ -51,8 +51,7 @@ function createDocument()
 function selectNode(aInspector)
 {
   inspector = aInspector;
-
-  waitForView("ruleview", () => {
+  inspector.sidebar.once("ruleview-ready", function() {
     ruleview = inspector.sidebar.getWindowForTab("ruleview").ruleview.view;
     inspector.sidebar.select("ruleview");
     inspector.selection.setNode(div, "test");
