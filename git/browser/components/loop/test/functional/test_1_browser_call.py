@@ -53,7 +53,7 @@ class Test1BrowserCall(MarionetteTestCase):
         button.click()
 
         # switch to the frame
-        frame = self.marionette.find_element(By.ID, "loop-panel-iframe")
+        frame = self.marionette.find_element(By.ID, "loop")
         self.marionette.switch_to_frame(frame)
 
     def load_and_verify_standalone_ui(self, url):

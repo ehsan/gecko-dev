@@ -124,10 +124,10 @@ let gConversationWindowData = new Map();
  */
 let MozLoopServiceInternal = {
   conversationContexts: new Map(),
-  pushURLs: new Map(),
 
   mocks: {
     pushHandler: undefined,
+    webSocket: undefined,
   },
 
   /**
@@ -325,199 +325,101 @@ let MozLoopServiceInternal = {
   },
 
   /**
-   * Create a notification channel between the LoopServer and this client
-   * via a PushServer. Once created, any subsequent changes in the pushURL
-   * assigned by the PushServer will be communicated to the LoopServer.
-   * with the Loop server. It will return early if already registered.
+   * Get endpoints with the push server and register for notifications.
+   * This should only be called from promiseRegisteredWithServers to prevent reentrancy.
    *
-   * @param {String} channelID Unique identifier for the notification channel
-   *                 registered with the PushServer.
    * @param {LOOP_SESSION_TYPE} sessionType
-   * @param {String} serviceType Either 'calls' or 'rooms'.
-   * @param {Function} onNotification Callback function that will be associated
-   *                   with this channel from the PushServer.
-   * @returns {Promise} A promise that is resolved with no params on completion, or
-   *                    rejected with an error code or string.
+   * @return {Promise} resolves with all push endpoints
+   *                   rejects if any of the push registrations failed
    */
-  createNotificationChannel: function(channelID, sessionType, serviceType, onNotification) {
-    log.debug("createNotificationChannel", channelID, sessionType, serviceType);
-    // Wrap the push notification registration callback in a Promise.
-    return new Promise((resolve, reject) => {
-      let onRegistered = (error, pushURL, channelID) => {
-        log.debug("createNotificationChannel onRegistered:", error, pushURL, channelID);
-        if (error) {
-          reject(Error(error));
-        } else {
-          resolve(this.registerWithLoopServer(sessionType, serviceType, pushURL));
+  promiseRegisteredWithPushServer: function(sessionType) {
+    if (!this.deferredRegistrations.has(sessionType)) {
+      return Promise.reject(new Error("promiseRegisteredWithPushServer must be called while there is a " +
+                            "deferred in deferredRegistrations in order to prevent reentrancy"));
+    }
+    // Wrap push notification registration call-back in a Promise.
+    function registerForNotification(channelID, onNotification) {
+      log.debug("registerForNotification", channelID);
+      return new Promise((resolve, reject) => {
+        function onRegistered(error, pushUrl) {
+          log.debug("registerForNotification onRegistered:", error, pushUrl);
+          if (error) {
+            reject(Error(error));
+          } else {
+            resolve(pushUrl);
+          }
         }
-      }
 
-      this.pushHandler.register(channelID, onRegistered, onNotification);
-    });
+        // If we're already registered, resolve with the existing push URL
+        let pushURL = MozLoopServiceInternal.pushHandler.registeredChannels[channelID];
+        if (pushURL) {
+          log.debug("Using the existing push endpoint for channelID:", channelID);
+          resolve(pushURL);
+          return;
+        }
+
+        MozLoopServiceInternal.pushHandler.register(channelID, onRegistered, onNotification);
+      });
+    }
+
+    let options = this.mocks.webSocket ? { mockWebSocket: this.mocks.webSocket } : {};
+    this.pushHandler.initialize(options);
+
+    if (sessionType == LOOP_SESSION_TYPE.GUEST) {
+      let callsRegGuest = registerForNotification(MozLoopService.channelIDs.callsGuest,
+                                                  LoopCalls.onNotification);
+
+      let roomsRegGuest = registerForNotification(MozLoopService.channelIDs.roomsGuest,
+                                                  roomsPushNotification);
+      return Promise.all([callsRegGuest, roomsRegGuest]);
+    } else if (sessionType == LOOP_SESSION_TYPE.FXA) {
+      let callsRegFxA = registerForNotification(MozLoopService.channelIDs.callsFxA,
+                                                LoopCalls.onNotification);
+
+      let roomsRegFxA = registerForNotification(MozLoopService.channelIDs.roomsFxA,
+                                                roomsPushNotification);
+      return Promise.all([callsRegFxA, roomsRegFxA]);
+    }
+
+    return Promise.reject(new Error("promiseRegisteredWithPushServer: Invalid sessionType"));
   },
 
   /**
-   * Starts registration of Loop with the PushServer and the LoopServer.
-   * Successful PushServer registration will automatically trigger the registration
-   * of the PushURL returned by the PushServer with the LoopServer. If the registration
-   * chain has already been set up, this function will simply resolve.
+   * Starts registration of Loop with the push server, and then will register
+   * with the Loop server. It will return early if already registered.
    *
    * @param {LOOP_SESSION_TYPE} sessionType
    * @returns {Promise} a promise that is resolved with no params on completion, or
    *          rejected with an error code or string.
    */
   promiseRegisteredWithServers: function(sessionType = LOOP_SESSION_TYPE.GUEST) {
-    if (sessionType !== LOOP_SESSION_TYPE.GUEST && sessionType !== LOOP_SESSION_TYPE.FXA) {
-      return Promise.reject(new Error("promiseRegisteredWithServers: Invalid sessionType"));
-    }
-
     if (this.deferredRegistrations.has(sessionType)) {
-      log.debug("promiseRegisteredWithServers: registration already completed or in progress:",
-                sessionType);
-      return this.deferredRegistrations.get(sessionType);
+      log.debug("promiseRegisteredWithServers: registration already completed or in progress:", sessionType);
+      return this.deferredRegistrations.get(sessionType).promise;
     }
 
-    let options = this.mocks.webSocket ? { mockWebSocket: this.mocks.webSocket } : {};
-    this.pushHandler.initialize(options); // This can be called more than once.
-
-    let callsID = sessionType == LOOP_SESSION_TYPE.GUEST ?
-          MozLoopService.channelIDs.callsGuest :
-          MozLoopService.channelIDs.callsFxA,
-        roomsID = sessionType == LOOP_SESSION_TYPE.GUEST ?
-          MozLoopService.channelIDs.roomsGuest :
-          MozLoopService.channelIDs.roomsFxA;
-
-    let regPromise = this.createNotificationChannel(
-      callsID, sessionType, "calls", LoopCalls.onNotification).then(() => {
-        return this.createNotificationChannel(
-          roomsID, sessionType, "rooms", roomsPushNotification)});
-
+    let result = null;
+    let deferred = Promise.defer();
     log.debug("assigning to deferredRegistrations for sessionType:", sessionType);
-    this.deferredRegistrations.set(sessionType, regPromise);
+    this.deferredRegistrations.set(sessionType, deferred);
 
-    // Do not return the new Promise generated by this catch() invocation.
-    // This will be called along with any other onReject function attached to regPromise.
-    regPromise.catch((error) => {
-      log.error("Failed to register with Loop server with sessionType ", sessionType, error);
+    // We grab the promise early in case one of the callers below delete it from the map.
+    result = deferred.promise;
+
+    this.promiseRegisteredWithPushServer(sessionType).then(() => {
+      return this.registerWithLoopServer(sessionType);
+    }).then(() => {
+      deferred.resolve("registered to status:" + sessionType);
+      // No need to clear the promise here, everything was good, so we don't need
+      // to re-register.
+    }, error => {
+      log.error("Failed to register with Loop server with sessionType " + sessionType, error);
+      deferred.reject(error);
       this.deferredRegistrations.delete(sessionType);
       log.debug("Cleared deferredRegistration for sessionType:", sessionType);
     });
 
-    return regPromise;
-  },
-
-  /**
-   * Registers with the Loop server either as a guest or a FxA user.
-   *
-   * @private
-   * @param {LOOP_SESSION_TYPE} sessionType The type of session e.g. guest or FxA
-   * @param {String} serviceType: "rooms" or "calls"
-   * @param {Boolean} [retry=true] Whether to retry if authentication fails.
-   * @return {Promise} resolves to pushURL or rejects with an Error
-   */
-  registerWithLoopServer: function(sessionType, serviceType, pushURL, retry = true) {
-    log.debug("registerWithLoopServer with sessionType:", sessionType, serviceType, retry);
-    if (!pushURL || !sessionType || !serviceType) {
-      return Promise.reject(new Error("Invalid or missing parameters for registerWithLoopServer"));
-    }
-
-    let pushURLs = this.pushURLs.get(sessionType);
-
-    // Create a blank URL record set if none exists for this sessionType.
-    if (!pushURLs) {
-      pushURLs = {calls: undefined, rooms: undefined};
-      this.pushURLs.set(sessionType, pushURLs);
-    }
-
-    if (pushURLs[serviceType] == pushURL) {
-      return Promise.resolve(pushURL);
-    }
-
-    let newURLs = {calls: pushURLs.calls,
-                   rooms: pushURLs.rooms};
-    newURLs[serviceType] = pushURL;
-
-    return this.hawkRequestInternal(sessionType, "/registration", "POST",
-                                    {simplePushURLs: newURLs}).then(
-      (response) => {
-        // If this failed we got an invalid token.
-        if (!this.storeSessionToken(sessionType, response.headers)) {
-          throw new Error("session-token-wrong-size");
-        }
-
-        // Record the new push URL
-        pushURLs[serviceType] = pushURL;
-        log.debug("Successfully registered with server for sessionType", sessionType);
-        this.clearError("registration");
-        return pushURL;
-      }, (error) => {
-        // There's other errors than invalid auth token, but we should only do the reset
-        // as a last resort.
-        if (error.code === 401) {
-          // Authorization failed, invalid token, we need to try again with a new token.
-          // XXX (pkerr) - Why is there a retry here? This will not clear up a hawk session
-          // token problem at this level.
-          if (retry) {
-            return this.registerWithLoopServer(sessionType, serviceType, pushURL, false);
-          }
-        }
-
-        log.error("Failed to register with the loop server. Error: ", error);
-        throw error;
-      }
-    );
-  },
-
-  /**
-   * Unregisters from the Loop server either as a guest or a FxA user.
-   *
-   * This is normally only wanted for FxA users as we normally want to keep the
-   * guest session with the device.
-   *
-   * NOTE: It is the responsibiliy of the caller the clear the session token
-   * after all of the notification classes: calls and rooms, for either
-   * Guest or FxA have been unregistered with the LoopServer.
-   *
-   * @param {LOOP_SESSION_TYPE} sessionType The type of session e.g. guest or FxA
-   * @return {Promise} resolving when the unregistration request finishes
-   */
-  unregisterFromLoopServer: function(sessionType) {
-    let prefType = Services.prefs.getPrefType(this.getSessionTokenPrefName(sessionType));
-    if (prefType == Services.prefs.PREF_INVALID) {
-      log.debug("already unregistered from LoopServer", sessionType);
-      return Promise.resolve("already unregistered");
-    }
-
-    let error,
-        pushURLs = this.pushURLs.get(sessionType),
-        callsPushURL = pushURLs ? pushURLs.calls : null,
-        roomsPushURL = pushURLs ? pushURLs.rooms : null;
-    this.pushURLs.delete(sessionType);
-
-    let unregister = (sessionType, pushURL) => {
-      if (!pushURL) {
-        return Promise.resolve("no pushURL of this type to unregister");
-      }
-
-      let unregisterURL = "/registration?simplePushURL=" + encodeURIComponent(pushURL);
-      return this.hawkRequestInternal(sessionType, unregisterURL, "DELETE").then(
-        () => {
-          log.debug("Successfully unregistered from server for sessionType = ", sessionType);
-          return "unregistered sessionType " + sessionType;
-        },
-        error => {
-          if (error.code === 401) {
-            // Authorization failed, invalid token. This is fine since it may mean we already logged out.
-            log.debug("already unregistered - invalid token", sessionType);
-            return "already unregistered, sessionType = " + sessionType;
-          }
-
-          log.error("Failed to unregister with the loop server. Error: ", error);
-          throw error;
-        });
-    }
-
-    return Promise.all([unregister(sessionType, callsPushURL), unregister(sessionType, roomsPushURL)]);
+    return result;
   },
 
   /**
@@ -538,7 +440,6 @@ let MozLoopServiceInternal = {
    *        rejected with this JSON-parsed response.
    */
   hawkRequestInternal: function(sessionType, path, method, payloadObj, retryOn401 = true) {
-    log.debug("hawkRequestInternal: ", sessionType, path, method);
     if (!gHawkClient) {
       gHawkClient = new HawkClient(this.loopServerUri);
     }
@@ -572,17 +473,15 @@ let MozLoopServiceInternal = {
 
     let handle401Error = (error) => {
       if (sessionType === LOOP_SESSION_TYPE.FXA) {
-        return MozLoopService.logOutFromFxA().then(() => {
+        MozLoopService.logOutFromFxA().then(() => {
           // Set a user-visible error after logOutFromFxA clears existing ones.
           this.setError("login", error);
-          throw error;
         });
       } else if (this.urlExpiryTimeIsInFuture()) {
         // If there are no Guest URLs in the future, don't use setError to notify the user since
         // there isn't a need for a Guest registration at this time.
         this.setError("registration", error);
       }
-      throw error;
     };
 
     return gHawkClient.request(path, method, credentials, payloadObj).then(
@@ -600,11 +499,12 @@ let MozLoopServiceInternal = {
               return this.hawkRequestInternal(sessionType, path, method, payloadObj, false);
             },
             () => {
-              return handle401Error(error); //Process the original error that triggered the retry.
+              handle401Error(error); //Process the original error that triggered the retry.
+              throw error;
             }
           );
         }
-        return handle401Error(error);
+        handle401Error(error);
       }
       throw error;
     });
@@ -659,6 +559,7 @@ let MozLoopServiceInternal = {
         break;
       default:
         throw new Error("Unknown LOOP_SESSION_TYPE");
+        break;
     }
     return "loop.hawk-session-token" + suffix;
   },
@@ -700,6 +601,112 @@ let MozLoopServiceInternal = {
   clearSessionToken: function(sessionType) {
     Services.prefs.clearUserPref(this.getSessionTokenPrefName(sessionType));
     log.debug("Cleared hawk session token for sessionType", sessionType);
+  },
+
+  /**
+   * Registers with the Loop server either as a guest or a FxA user. This method should only be
+   * called by promiseRegisteredWithServers since it prevents calling this while a registration is
+   * already in progress.
+   *
+   * @private
+   * @param {LOOP_SESSION_TYPE} sessionType The type of session e.g. guest or FxA
+   * @param {Boolean} [retry=true] Whether to retry if authentication fails.
+   * @return {Promise}
+   */
+  registerWithLoopServer: function(sessionType, retry = true) {
+    log.debug("registerWithLoopServer with sessionType:", sessionType);
+
+    let callsPushURL, roomsPushURL;
+    if (sessionType == LOOP_SESSION_TYPE.FXA) {
+      callsPushURL = this.pushHandler.registeredChannels[MozLoopService.channelIDs.callsFxA];
+      roomsPushURL = this.pushHandler.registeredChannels[MozLoopService.channelIDs.roomsFxA];
+    } else if (sessionType == LOOP_SESSION_TYPE.GUEST) {
+      callsPushURL = this.pushHandler.registeredChannels[MozLoopService.channelIDs.callsGuest];
+      roomsPushURL = this.pushHandler.registeredChannels[MozLoopService.channelIDs.roomsGuest];
+    }
+
+    if (!callsPushURL || !roomsPushURL) {
+      return Promise.reject(new Error("Invalid sessionType or missing push URLs for registerWithLoopServer: " + sessionType));
+    }
+
+    // create a registration payload with a backwards compatible attribute (simplePushURL)
+    // that will register only the calls notification.
+    let msg = {
+        simplePushURL: callsPushURL,
+        simplePushURLs: {
+          calls: callsPushURL,
+          rooms: roomsPushURL,
+        },
+    };
+    return this.hawkRequestInternal(sessionType, "/registration", "POST", msg, false)
+      .then((response) => {
+        // If this failed we got an invalid token.
+        if (!this.storeSessionToken(sessionType, response.headers)) {
+          return Promise.reject(new Error("session-token-wrong-size"));
+        }
+
+        log.debug("Successfully registered with server for sessionType", sessionType);
+        this.clearError("registration");
+        return undefined;
+      }, (error) => {
+        // There's other errors than invalid auth token, but we should only do the reset
+        // as a last resort.
+        if (error.code === 401) {
+          // Authorization failed, invalid token, we need to try again with a new token.
+          if (retry) {
+            return this.registerWithLoopServer(sessionType, false);
+          }
+        }
+
+        log.error("Failed to register with the loop server. Error: ", error);
+        let deferred = Promise.defer();
+        deferred.promise.then(() => {
+          log.debug("registration retry succeeded");
+        },
+        error => {
+          log.debug("registration retry failed");
+        });
+        this.setError("registration", error, () => MozLoopService.delayedInitialize(deferred));
+        throw error;
+      }
+    );
+  },
+
+  /**
+   * Unregisters from the Loop server either as a guest or a FxA user.
+   *
+   * This is normally only wanted for FxA users as we normally want to keep the
+   * guest session with the device.
+   *
+   * NOTE: It is the responsibiliy of the caller the clear the session token
+   * after all of the notification classes: calls and rooms, for either
+   * Guest or FxA have been unregistered with the LoopServer.
+   *
+   * @param {LOOP_SESSION_TYPE} sessionType The type of session e.g. guest or FxA
+   * @param {String} pushURL The push URL previously given by the push server.
+   *                         This may not be necessary to unregister in the future.
+   * @return {Promise} resolving when the unregistration request finishes
+   */
+  unregisterFromLoopServer: function(sessionType, pushURL) {
+    let prefType = Services.prefs.getPrefType(this.getSessionTokenPrefName(sessionType));
+    if (prefType == Services.prefs.PREF_INVALID) {
+      return Promise.resolve("already unregistered");
+    }
+
+    let unregisterURL = "/registration?simplePushURL=" + encodeURIComponent(pushURL);
+    return this.hawkRequestInternal(sessionType, unregisterURL, "DELETE")
+      .then(() => {
+        log.debug("Successfully unregistered from server for sessionType", sessionType);
+      },
+      error => {
+        if (error.code === 401) {
+          // Authorization failed, invalid token. This is fine since it may mean we already logged out.
+          return;
+        }
+
+        log.error("Failed to unregister with the loop server. Error: ", error);
+        throw error;
+      });
   },
 
   /**
@@ -1284,6 +1291,21 @@ this.MozLoopService = {
   },
 
   /**
+   * Returns a new non-global id
+   *
+   * @param {Function} notUnique [optional] This function will be
+   *                   applied to test the generated id for uniqueness
+   *                   in the callers domain.
+   */
+  generateLocalID: function(notUnique = ((id) => {return false})) {
+    do {
+      var id = Date.now().toString(36) + Math.floor((Math.random() * 4096)).toString(16);
+    }
+    while (notUnique(id));
+    return id;
+  },
+
+  /**
    * Retrieves MozLoopService "do not disturb" value.
    *
    * @return {Boolean}
@@ -1472,21 +1494,24 @@ this.MozLoopService = {
    */
   logOutFromFxA: Task.async(function*() {
     log.debug("logOutFromFxA");
+    let pushHandler = MozLoopServiceInternal.pushHandler;
+    let callsPushUrl = pushHandler.registeredChannels[MozLoopService.channelIDs.callsFxA];
+    let roomsPushUrl = pushHandler.registeredChannels[MozLoopService.channelIDs.roomsFxA];
     try {
-      yield MozLoopServiceInternal.unregisterFromLoopServer(LOOP_SESSION_TYPE.FXA);
-    }
-    catch (err) {
-      throw err
-    }
-    finally {
+      if (callsPushUrl) {
+        yield MozLoopServiceInternal.unregisterFromLoopServer(LOOP_SESSION_TYPE.FXA, callsPushUrl);
+      }
+      if (roomsPushUrl) {
+        yield MozLoopServiceInternal.unregisterFromLoopServer(LOOP_SESSION_TYPE.FXA, roomsPushUrl);
+      }
+    } catch (error) {
+      throw error;
+    } finally {
       MozLoopServiceInternal.clearSessionToken(LOOP_SESSION_TYPE.FXA);
+
       MozLoopServiceInternal.fxAOAuthTokenData = null;
       MozLoopServiceInternal.fxAOAuthProfile = null;
       MozLoopServiceInternal.deferredRegistrations.delete(LOOP_SESSION_TYPE.FXA);
-      // Unregister with PushHandler so these push channels will not get re-registered
-      // if the connection is re-established by the PushHandler.
-      MozLoopServiceInternal.pushHandler.unregister(MozLoopService.channelIDs.callsFxA);
-      MozLoopServiceInternal.pushHandler.unregister(MozLoopService.channelIDs.roomsFxA);
 
       // Reset the client since the initial promiseFxAOAuthParameters() call is
       // what creates a new session.

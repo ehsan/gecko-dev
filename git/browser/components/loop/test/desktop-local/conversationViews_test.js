@@ -444,19 +444,9 @@ describe("loop.conversationViews", function () {
           {contactName: loop.conversationViews._getContactDisplayName(contact)});
       });
 
-    it("should show 'something went wrong' when the reason is 'setup'",
+    it("should show 'contact unavailable' when the reason is 'setup'",
       function () {
         store.setStoreState({callStateReason: "setup"});
-
-        view = mountTestComponent({contact: contact});
-
-        sinon.assert.calledWithExactly(document.mozL10n.get,
-          "generic_failure_title");
-      });
-
-    it("should show 'contact unavailable' when the reason is 'user-unknown'",
-      function () {
-        store.setStoreState({callStateReason: "user-unknown"});
 
         view = mountTestComponent({contact: contact});
 

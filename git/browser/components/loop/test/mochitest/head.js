@@ -14,7 +14,6 @@ const {LoopRooms} = Cu.import("resource:///modules/loop/LoopRooms.jsm", {});
 // if offline mode is requested multiple times in a test run.
 const WAS_OFFLINE = Services.io.offline;
 
-
 var gMozLoopAPI;
 
 function promiseGetMozLoopAPI() {
@@ -115,6 +114,7 @@ function* resetFxA() {
   global.gHawkClient = null;
   global.gFxAOAuthClientPromise = null;
   global.gFxAOAuthClient = null;
+  MozLoopServiceInternal.deferredRegistrations.delete(LOOP_SESSION_TYPE.FXA);
   MozLoopServiceInternal.fxAOAuthProfile = null;
   MozLoopServiceInternal.fxAOAuthTokenData = null;
   const fxASessionPref = MozLoopServiceInternal.getSessionTokenPrefName(LOOP_SESSION_TYPE.FXA);
@@ -189,7 +189,7 @@ let mockPushHandler = {
   // This sets the registration result to be returned when initialize
   // is called. By default, it is equivalent to success.
   registrationResult: null,
-  registrationPushURLs: {},
+  registrationPushURL: null,
   notificationCallback: {},
   registeredChannels: {},
 
@@ -200,24 +200,12 @@ let mockPushHandler = {
     if ("mockWebSocket" in options) {
       this._mockWebSocket = options.mockWebSocket;
     }
-    this.registrationPushURLs[MozLoopService.channelIDs.callsGuest] =
-      "https://localhost/pushUrl/guest-calls";
-    this.registrationPushURLs[MozLoopService.channelIDs.roomsGuest] =
-      "https://localhost/pushUrl/guest-rooms";
-    this.registrationPushURLs[MozLoopService.channelIDs.callsFxA] =
-      "https://localhost/pushUrl/fxa-calls";
-    this.registrationPushURLs[MozLoopService.channelIDs.roomsFxA] =
-      "https://localhost/pushUrl/fxa-rooms";
   },
 
   register: function(channelId, registerCallback, notificationCallback) {
     this.notificationCallback[channelId] = notificationCallback;
-    this.registeredChannels[channelId] = this.registrationPushURLs[channelId];
-    setTimeout(registerCallback(this.registrationResult, this.registeredChannels[channelId], channelId), 0);
-  },
-
-  unregister: function(channelID) {
-    return;
+    this.registeredChannels[channelId] = this.registrationPushURL;
+    setTimeout(registerCallback(this.registrationResult, this.registrationPushURL, channelId), 0);
   },
 
   /**

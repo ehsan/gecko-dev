@@ -771,7 +771,7 @@ loop.conversationViews = (function(mozL10n) {
         this.props.store.getStoreState("callStateReason");
 
       if (callStateReason === "reject" || callStateReason === "busy" ||
-          callStateReason === "user-unknown") {
+          callStateReason === "setup") {
         var contactDisplayName = _getContactDisplayName(this.props.contact);
         if (contactDisplayName.length) {
           return mozL10n.get(

@@ -27,9 +27,6 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
-  "resource://gre/modules/PlacesUtils.jsm");
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Constants
 
@@ -403,24 +400,6 @@ const EXPIRATION_QUERIES = {
   },
 };
 
-/**
- * Sends a bookmarks notification through the given observers.
- *
- * @param observers
- *        array of nsINavBookmarkObserver objects.
- * @param notification
- *        the notification name.
- * @param args
- *        array of arguments to pass to the notification.
- */
-function notify(observers, notification, args = []) {
-  for (let observer of observers) {
-    try {
-      observer[notification](...args);
-    } catch (ex) {}
-  }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// nsPlacesExpiration definition
 
@@ -451,6 +430,9 @@ function nsPlacesExpiration()
     return db;
   });
 
+  XPCOMUtils.defineLazyServiceGetter(this, "_hsn",
+                                     "@mozilla.org/browser/nav-history-service;1",
+                                     "nsPIPlacesHistoryListenersNotifier");
   XPCOMUtils.defineLazyServiceGetter(this, "_sys",
                                      "@mozilla.org/system-info;1",
                                      "nsIPropertyBag2");
@@ -644,15 +626,9 @@ nsPlacesExpiration.prototype = {
       let guid = row.getResultByName("guid");
       let visitDate = row.getResultByName("visit_date");
       let wholeEntry = row.getResultByName("whole_entry");
-      let reason = Ci.nsINavHistoryObserver.REASON_EXPIRED;
-      let observers = PlacesUtils.history.getObservers();
-
       // Dispatch expiration notifications to history.
-      if (wholeEntry) {
-        notify(observers, "onDeleteURI", [uri, guid, reason]);
-      } else {
-        notify(observers, "onDeleteVisits", [uri, visitDate, guid, reason, 0]);
-      }
+      this._hsn.notifyOnPageExpired(uri, visitDate, wholeEntry, guid,
+                                    Ci.nsINavHistoryObserver.REASON_EXPIRED, 0);
     }
   },
 

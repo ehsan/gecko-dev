@@ -40,14 +40,10 @@ add_test(function test_register_success() {
   loopServer.registerPathHandler("/registration", (request, response) => {
     let body = CommonUtils.readBytesFromInputStream(request.bodyInputStream);
     let data = JSON.parse(body);
-    if (data.simplePushURLs.calls) {
-      Assert.equal(data.simplePushURLs.calls, kEndPointUrl,
-                   "Should send correct calls push url");
-    }
-    if (data.simplePushURLs.rooms) {
-      Assert.equal(data.simplePushURLs.rooms, kEndPointUrl,
-                   "Should send correct rooms push url");
-    }
+    Assert.equal(data.simplePushURLs.calls, kEndPointUrl,
+                 "Should send correct calls push url");
+    Assert.equal(data.simplePushURLs.rooms, kEndPointUrl,
+                 "Should send correct rooms push url");
 
     response.setStatusLine(null, 200, "OK");
     response.processAsync();
