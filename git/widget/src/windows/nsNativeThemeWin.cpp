@@ -893,10 +893,12 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
               SP_GRIPPERHOR : SP_GRIPPERVERT;
       if (!aFrame)
         aState = TS_NORMAL;
-      else if (IsDisabled(aFrame->GetParent()))
+      else if (IsDisabled(aFrame))
         aState = TS_DISABLED;
       else {
-        PRInt32 eventState = GetContentState(aFrame->GetParent(), aWidgetType);
+        // XXXdwh The gripper needs to get a hover attribute set on it, since it
+        // never goes into :hover.
+        PRInt32 eventState = GetContentState(aFrame, aWidgetType);
         if (eventState & NS_EVENT_STATE_ACTIVE) // Hover is not also a requirement for
                                                 // the gripper, since the drag is not canceled
                                                 // when you move outside the gripper.
