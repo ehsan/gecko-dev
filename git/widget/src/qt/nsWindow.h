@@ -200,7 +200,6 @@ public:
 
     NS_IMETHODIMP      SetIMEEnabled(PRUint32 aState);
     NS_IMETHODIMP      GetIMEEnabled(PRUint32* aState);
-    NS_IMETHOD         SetAcceleratedRendering(PRBool aEnabled);
 
     //
     // utility methods
@@ -315,7 +314,6 @@ protected:
 
     void               ThemeChanged(void);
 
-    virtual LayerManager* GetLayerManager();
     gfxASurface*       GetThebesSurface();
 
 private:

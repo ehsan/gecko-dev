@@ -2979,8 +2979,6 @@ function openHomeDialog(aURL)
       str.data = aURL;
       gPrefService.setComplexValue("browser.startup.homepage",
                                    Components.interfaces.nsISupportsString, str);
-      var homeButton = document.getElementById("home-button");
-      homeButton.setAttribute("tooltiptext", aURL);
     } catch (ex) {
       dump("Failed to set the home page.\n"+ex+"\n");
     }
@@ -3233,32 +3231,8 @@ const BrowserSearch = {
 
     if (hidden)
       browser.hiddenEngines = engines;
-    else {
-      browser.engines = engines;
-      if (browser == gBrowser.selectedBrowser)
-        this.updateSearchButton();
-    }
-  },
-
-  /**
-   * Update the browser UI to show whether or not additional engines are
-   * available when a page is loaded or the user switches tabs to a page that
-   * has search engines.
-   */
-  updateSearchButton: function() {
-    var searchBar = this.searchBar;
-
-    // The search bar binding might not be applied even though the element is
-    // in the document (e.g. when the navigation toolbar is hidden), so check
-    // for .searchButton specifically.
-    if (!searchBar || !searchBar.searchButton)
-      return;
-
-    var engines = gBrowser.selectedBrowser.engines;
-    if (engines && engines.length > 0)
-      searchBar.searchButton.setAttribute("addengines", "true");
     else
-      searchBar.searchButton.removeAttribute("addengines");
+      browser.engines = engines;
   },
 
   /**
@@ -4010,7 +3984,6 @@ var XULBrowserWindow = {
   defaultStatus: "",
   jsStatus: "",
   jsDefaultStatus: "",
-  overLink: "",
   startTime: 0,
   statusText: "",
   isBusy: false,
@@ -4029,7 +4002,7 @@ var XULBrowserWindow = {
 
   get statusMeter () {
     delete this.statusMeter;
-    return this.statusMeter = document.getElementById("statusbar-icon");
+    return this.statusMeter = document.getElementById("urlbar-progress");
   },
   get stopCommand () {
     delete this.stopCommand;
@@ -4093,16 +4066,16 @@ var XULBrowserWindow = {
     this.updateStatusField();
   },
 
-  setOverLink: function (link, b) {
+  setOverLink: function (link) {
     // Encode bidirectional formatting characters.
     // (RFC 3987 sections 3.2 and 4.1 paragraph 6)
-    this.overLink = link.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
-                                 encodeURIComponent);
-    this.updateStatusField();
+    link = link.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
+                        encodeURIComponent);
+    gURLBar.setOverLink(link);
   },
 
   updateStatusField: function () {
-    var text = this.overLink || this.status || this.jsStatus || this.jsDefaultStatus || this.defaultStatus;
+    var text = this.status || this.jsStatus || this.jsDefaultStatus || this.defaultStatus;
 
     // check the current value so we don't trigger an attribute change
     // and cause needless (slow!) UI updates
@@ -4165,7 +4138,7 @@ var XULBrowserWindow = {
           this._progressCollapseTimer = 0;
         }
         else
-          this.statusMeter.parentNode.collapsed = false;
+          this.statusMeter.collapsed = false;
 
         // XXX: This needs to be based on window activity...
         this.stopCommand.removeAttribute("disabled");
@@ -4229,7 +4202,7 @@ var XULBrowserWindow = {
 
         // Turn the progress meter and throbber off.
         this._progressCollapseTimer = setTimeout(function (self) {
-          self.statusMeter.parentNode.collapsed = true;
+          self.statusMeter.collapsed = true;
           self._progressCollapseTimer = 0;
         }, 100, this);
 
@@ -4366,7 +4339,6 @@ var XULBrowserWindow = {
 
   asyncUpdateUI: function () {
     FeedHandler.updateFeeds();
-    BrowserSearch.updateSearchButton();
   },
 
   onStatusChange: function (aWebProgress, aRequest, aStatus, aMessage) {
@@ -5001,7 +4973,10 @@ var gHomeButton = {
     if (homeButton) {
       var homePage = this.getHomePage();
       homePage = homePage.replace(/\|/g,', ');
-      homeButton.setAttribute("tooltiptext", homePage);
+      if (homePage.toLowerCase() == "about:home")
+        homeButton.setAttribute("tooltiptext", homeButton.getAttribute("aboutHomeOverrideTooltip"));
+      else
+        homeButton.setAttribute("tooltiptext", homePage);
     }
   },
 

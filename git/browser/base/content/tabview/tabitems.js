@@ -831,8 +831,8 @@ let TabItems = {
   unlink: function TabItems_unlink(tab) {
     try {
       Utils.assertThrow(tab, "tab");
-      Utils.assertThrow(!tab.pinned, "shouldn't be an app tab");
       Utils.assertThrow(tab.tabItem, "should already be linked");
+      // note that it's ok to unlink an app tab; see .handleTabUnpin
 
       this.unregister(tab.tabItem);
       tab.tabItem._sendToSubscribers("close");
@@ -849,6 +849,19 @@ let TabItems = {
     } catch(e) {
       Utils.log(e);
     }
+  },
+
+  // ----------
+  // when a tab becomes pinned, destroy its TabItem
+  handleTabPin: function TabItems_handleTabPin(xulTab) {
+    this.unlink(xulTab);
+  },
+
+  // ----------
+  // when a tab becomes unpinned, create a TabItem for it
+  handleTabUnpin: function TabItems_handleTabUnpin(xulTab) {
+    this.link(xulTab);
+    this.update(xulTab);
   },
 
   // ----------
@@ -993,7 +1006,10 @@ let TabItems = {
           if (groupItem) {
             groupItem.add(item);
 
-            if (item.tab == gBrowser.selectedTab)
+            // if it matches the selected tab or no active tab and the browser 
+            // tab is hidden, the active group item would be set.
+            if (item.tab == gBrowser.selectedTab || 
+                (!GroupItems.getActiveGroupItem() && !item.tab.hidden))
               GroupItems.setActiveGroupItem(item.parent);
           }
         }

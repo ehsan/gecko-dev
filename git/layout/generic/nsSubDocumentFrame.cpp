@@ -42,6 +42,11 @@
  * as <frame>, <iframe>, and some <object>s
  */
 
+#ifdef MOZ_IPC
+#include "mozilla/layout/RenderFrameParent.h"
+using mozilla::layout::RenderFrameParent;
+#endif
+
 #include "nsSubDocumentFrame.h"
 #include "nsCOMPtr.h"
 #include "nsGenericHTMLElement.h"
@@ -166,7 +171,6 @@ nsSubDocumentFrame::Init(nsIContent*     aContent,
     rv = nsHTMLContainerFrame::CreateViewForFrame(this, PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-  nsIView* view = GetView();
 
   // Set the primary frame now so that
   // DocumentViewerImpl::FindContainerView called by ShowViewer below
@@ -256,9 +260,32 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
-  
+
   if (!mInnerView)
     return NS_OK;
+
+#ifdef MOZ_IPC
+  nsFrameLoader* frameLoader = FrameLoader();
+  if (frameLoader) {
+    RenderFrameParent* rfp = frameLoader->GetCurrentRemoteFrame();
+    if (rfp) {
+      // We're the subdoc for <browser remote="true"> and it has
+      // painted content.  Display its shadow layer tree.
+      nsDisplayList shadowTree;
+      shadowTree.AppendToTop(
+        new (aBuilder) nsDisplayRemote(aBuilder, this, rfp));
+
+      // Clip the shadow layers to subdoc bounds
+      nsPoint offset = GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
+      nsRect bounds = mInnerView->GetBounds() + offset;
+
+      return aLists.Content()->AppendNewToTop(
+        new (aBuilder) nsDisplayClip(aBuilder, this, &shadowTree,
+                                     bounds));
+    }
+  }
+#endif
+
   nsIView* subdocView = mInnerView->GetFirstChild();
   if (!subdocView)
     return NS_OK;

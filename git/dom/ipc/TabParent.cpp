@@ -36,13 +36,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/dom/ExternalHelperAppParent.h"
 #include "TabParent.h"
 
+#include "mozilla/dom/ContentParent.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/ipc/DocumentRendererShmemParent.h"
 #include "mozilla/ipc/DocumentRendererNativeIDParent.h"
-#include "mozilla/dom/ContentParent.h"
+#include "mozilla/layout/RenderFrameParent.h"
 
 #include "nsIURI.h"
 #include "nsFocusManager.h"
@@ -63,7 +63,7 @@
 #include "nsNetUtil.h"
 #include "jsarray.h"
 #include "nsContentUtils.h"
-#include "nsGeolocationOOP.h"
+#include "nsContentPermissionHelper.h"
 #include "nsIDOMNSHTMLFrameElement.h"
 #include "nsIDialogCreator.h"
 #include "nsThreadUtils.h"
@@ -77,10 +77,9 @@
 using namespace mozilla;
 #endif
 
-using mozilla::ipc::DocumentRendererParent;
-using mozilla::ipc::DocumentRendererShmemParent;
-using mozilla::ipc::DocumentRendererNativeIDParent;
-using mozilla::dom::ContentParent;
+using namespace mozilla::dom;
+using namespace mozilla::ipc;
+using namespace mozilla::layout;
 
 // The flags passed by the webProgress notifications are 16 bits shifted
 // from the ones registered by webProgressListeners.
@@ -437,9 +436,16 @@ TabParent::LoadURL(nsIURI* aURI)
 }
 
 void
-TabParent::Move(PRUint32 x, PRUint32 y, PRUint32 width, PRUint32 height)
+TabParent::Show(const nsIntSize& size)
 {
-    unused << SendMove(x, y, width, height);
+    // sigh
+    unused << SendShow(size);
+}
+
+void
+TabParent::Move(const nsIntSize& size)
+{
+    unused << SendMove(size);
 }
 
 void
@@ -527,11 +533,7 @@ TabParent::DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDParent* act
 PContentPermissionRequestParent*
 TabParent::AllocPContentPermissionRequest(const nsCString& type, const IPC::URI& uri)
 {
-  if (type.Equals(NS_LITERAL_CSTRING("geolocation"))) {
-    return new GeolocationRequestParent(mFrameElement, uri);
-  }
-
-  return nsnull;
+  return new ContentPermissionRequestParent(type, mFrameElement, uri);
 }
   
 bool
@@ -795,6 +797,20 @@ TabParent::HandleDelayedDialogs()
   }
 }
 
+PRenderFrameParent*
+TabParent::AllocPRenderFrame()
+{
+  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
+  return new RenderFrameParent(frameLoader);
+}
+
+bool
+TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
+{
+  delete aFrame;
+  return true;
+}
+
 PRBool
 TabParent::ShouldDelayDialogs()
 {
@@ -810,26 +826,6 @@ TabParent::GetFrameLoader() const
 {
   nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner = do_QueryInterface(mFrameElement);
   return frameLoaderOwner ? frameLoaderOwner->GetFrameLoader() : nsnull;
-}
-
-PExternalHelperAppParent*
-TabParent::AllocPExternalHelperApp(const IPC::URI& uri,
-                                   const nsCString& aMimeContentType,
-                                   const bool& aForceSave,
-                                   const PRInt64& aContentLength)
-{
-  ExternalHelperAppParent *parent = new ExternalHelperAppParent(uri, aContentLength);
-  parent->AddRef();
-  parent->Init(this, aMimeContentType, aForceSave);
-  return parent;
-}
-
-bool
-TabParent::DeallocPExternalHelperApp(PExternalHelperAppParent* aService)
-{
-  ExternalHelperAppParent *parent = static_cast<ExternalHelperAppParent *>(aService);
-  parent->Release();
-  return true;
 }
 
 } // namespace tabs

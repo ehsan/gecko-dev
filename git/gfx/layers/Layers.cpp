@@ -41,6 +41,8 @@
 #include "ImageLayers.h"
 #include "Layers.h"
 #include "gfxPlatform.h"
+
+using namespace mozilla::layers;
  
 #ifdef MOZ_LAYERS_HAVE_LOG
 FILE*
@@ -53,7 +55,7 @@ FILEOrDefault(FILE* aFile)
 namespace {
 
 // XXX pretty general utilities, could centralize
- 
+
 nsACString&
 AppendToString(nsACString& s, const gfxPattern::GraphicsFilter& f,
                const char* pfx="", const char* sfx="")
@@ -110,6 +112,15 @@ AppendToString(nsACString& s, const gfx3DMatrix& m,
 }
 
 nsACString&
+AppendToString(nsACString& s, const nsIntPoint& p,
+               const char* pfx="", const char* sfx="")
+{
+  s += pfx;
+  s += nsPrintfCString(128, "(x=%d, y=%d)", p.x, p.y);
+  return s += sfx;
+}
+
+nsACString&
 AppendToString(nsACString& s, const nsIntRect& r,
                const char* pfx="", const char* sfx="")
 {
@@ -132,6 +143,26 @@ AppendToString(nsACString& s, const nsIntRegion& r,
     AppendToString(s, *sr) += "; ";
   s += ">";
 
+  return s += sfx;
+}
+
+nsACString&
+AppendToString(nsACString& s, const nsIntSize& sz,
+               const char* pfx="", const char* sfx="")
+{
+  s += pfx;
+  s += nsPrintfCString(128, "(w=%d, h=%d)", sz.width, sz.height);
+  return s += sfx;
+}
+
+nsACString&
+AppendToString(nsACString& s, const FrameMetrics& m,
+               const char* pfx="", const char* sfx="")
+{
+  s += pfx;
+  AppendToString(s, m.mViewportSize, "{ viewport=");
+  AppendToString(s, m.mViewportScrollOffset, " viewportScroll=");
+  AppendToString(s, m.mDisplayPort, " displayport=", " }");
   return s += sfx;
 }
 
@@ -262,6 +293,14 @@ ThebesLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 }
 
 nsACString&
+ContainerLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{
+  Layer::PrintInfo(aTo, aPrefix);
+  return mFrameMetrics.IsDefault() ?
+    aTo : AppendToString(aTo, mFrameMetrics, " [metrics=", "]");
+}
+
+nsACString&
 ColorLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   Layer::PrintInfo(aTo, aPrefix);
@@ -377,6 +416,10 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
 
 nsACString&
 ThebesLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{ return aTo; }
+
+nsACString&
+ContainerLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 { return aTo; }
 
 nsACString&
