@@ -46,13 +46,11 @@ function setupAutoCompletion(ctx, walker) {
       if (popup && popup.isOpen) {
         if (!privates.get(ed).suggestionInsertedOnce) {
           privates.get(ed).insertingSuggestion = true;
-          let {label, preLabel, text} = popup.getItemAtIndex(0);
+          let {label, preLabel} = popup.getItemAtIndex(0);
           let cur = ed.getCursor();
-          ed.replaceText(text.slice(preLabel.length), cur, cur);
+          ed.replaceText(label.slice(preLabel.length), cur, cur);
         }
         popup.hidePopup();
-        // This event is used in tests
-        ed.emit("popup-hidden");
         return;
       }
 
@@ -137,17 +135,17 @@ function cycleSuggestions(ed, reverse) {
     }
     if (popup.itemCount == 1)
       popup.hidePopup();
-    ed.replaceText(firstItem.text.slice(firstItem.preLabel.length), cur, cur);
+    ed.replaceText(firstItem.label.slice(firstItem.preLabel.length), cur, cur);
   } else {
     let fromCur = {
       line: cur.line,
-      ch  : cur.ch - popup.selectedItem.text.length
+      ch  : cur.ch - popup.selectedItem.label.length
     };
     if (reverse)
       popup.selectPreviousItem();
     else
       popup.selectNextItem();
-    ed.replaceText(popup.selectedItem.text, fromCur, cur);
+    ed.replaceText(popup.selectedItem.label, fromCur, cur);
   }
   // This event is used in tests.
   ed.emit("suggestion-entered");

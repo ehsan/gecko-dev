@@ -253,8 +253,6 @@ nsUXThemeData::sThemeId = LookAndFeel::eWindowsTheme_Generic;
 
 bool
 nsUXThemeData::sIsDefaultWindowsTheme = false;
-bool
-nsUXThemeData::sIsHighContrastOn = false;
 
 // static
 LookAndFeel::WindowsTheme
@@ -267,11 +265,6 @@ nsUXThemeData::GetNativeThemeId()
 bool nsUXThemeData::IsDefaultWindowTheme()
 {
   return sIsDefaultWindowsTheme;
-}
-
-bool nsUXThemeData::IsHighContrastOn()
-{
-  return sIsHighContrastOn;
 }
 
 // static
@@ -299,14 +292,6 @@ nsUXThemeData::UpdateNativeThemeInfo()
     return;
   }
 
-  HIGHCONTRAST highContrastInfo;
-  highContrastInfo.cbSize = sizeof(HIGHCONTRAST);
-  if (SystemParametersInfo(SPI_GETHIGHCONTRAST, 0, &highContrastInfo, 0)) {
-    sIsHighContrastOn = ((highContrastInfo.dwFlags & HCF_HIGHCONTRASTON) != 0);
-  } else {
-    sIsHighContrastOn = false;
-  }
-
   WCHAR themeFileName[MAX_PATH + 1];
   WCHAR themeColor[MAX_PATH + 1];
   if (FAILED(GetCurrentThemeName(themeFileName,
@@ -332,16 +317,9 @@ nsUXThemeData::UpdateNativeThemeInfo()
   if (theme == WINTHEME_UNRECOGNIZED)
     return;
 
-  // We're using the default theme if we're using any of Aero, Aero Lite, or
-  // luna. However, on Win8, GetCurrentThemeName (see above) returns
-  // AeroLite.msstyles for the 4 builtin highcontrast themes as well. Those
-  // themes "don't count" as default themes, so we specifically check for high
-  // contrast mode in that situation.
-  if (!(IsWin8OrLater() && sIsHighContrastOn) &&
-      (theme == WINTHEME_AERO || theme == WINTHEME_AERO_LITE || theme == WINTHEME_LUNA)) {
+  if (theme == WINTHEME_AERO || theme == WINTHEME_AERO_LITE || theme == WINTHEME_LUNA)
     sIsDefaultWindowsTheme = true;
-  }
-
+  
   if (theme != WINTHEME_LUNA) {
     switch(theme) {
       case WINTHEME_AERO:

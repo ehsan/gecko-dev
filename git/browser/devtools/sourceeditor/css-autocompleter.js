@@ -126,14 +126,12 @@ CSSCompleter.prototype = {
         if ("media".startsWith(this.completing)) {
           return Promise.resolve([{
             label: "media",
-            preLabel: this.completing,
-            text: "media"
+            preLabel: this.completing
           }]);
         } else if ("keyframes".startsWith(this.completing)) {
           return Promise.resolve([{
-            label: "keyframes",
-            preLabel: this.completing,
-            text: "keyframes"
+            label: "keyrames",
+            preLabel: this.completing
           }]);
         }
     }
@@ -787,7 +785,6 @@ CSSCompleter.prototype = {
       completion.push({
         label: value[0],
         preLabel: query,
-        text: value[0],
         score: value[1]
       });
       if (completion.length > this.maxEntries - 1)
@@ -811,11 +808,9 @@ CSSCompleter.prototype = {
     for (; i < length && count < this.maxEntries; i++) {
       if (propertyNames[i].startsWith(startProp)) {
         count++;
-        let propName = propertyNames[i];
         finalList.push({
           preLabel: startProp,
-          label: propName,
-          text: propName + ": "
+          label: propertyNames[i]
         });
       } else if (propertyNames[i] > startProp) {
         // We have crossed all possible matches alphabetically.
@@ -845,11 +840,9 @@ CSSCompleter.prototype = {
     for (; i < length && count < this.maxEntries; i++) {
       if (list[i].startsWith(startValue)) {
         count++;
-        let value = list[i];
         finalList.push({
           preLabel: startValue,
-          label: value,
-          text: value
+          label: list[i]
         });
       } else if (list[i] > startValue) {
         // We have crossed all possible matches alphabetically.
