@@ -145,7 +145,8 @@ public:
     MOZ_ASSERT(!NS_IsMainThread());
     MOZ_ASSERT(!mShuttingDownOnIOThread);
 
-    Close(); // will also remove fd from I/O loop
+    RemoveWatchers(READ_WATCHER | WRITE_WATCHER);
+
     mShuttingDownOnIOThread = true;
   }
 

@@ -16,11 +16,10 @@ class JSObject;
 struct JSContext;
 
 class nsPIDOMWindow;
+class nsIDOMMozVoicemailStatus;
 
 namespace mozilla {
 namespace dom {
-
-class MozVoicemailStatus;
 
 class Voicemail MOZ_FINAL : public DOMEventTargetHelper
 {
@@ -51,7 +50,7 @@ public:
   virtual JSObject*
   WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
-  already_AddRefed<MozVoicemailStatus>
+  already_AddRefed<nsIDOMMozVoicemailStatus>
   GetStatus(const Optional<uint32_t>& aServiceId, ErrorResult& aRv) const;
 
   void

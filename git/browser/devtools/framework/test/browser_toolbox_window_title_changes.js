@@ -8,6 +8,8 @@ let Services = temp.Services;
 temp = null;
 
 function test() {
+  waitForExplicitFinish();
+
   const URL_1 = "data:text/plain;charset=UTF-8,abcde";
   const URL_2 = "data:text/plain;charset=UTF-8,12345";
 
@@ -19,7 +21,7 @@ function test() {
 
   let toolbox;
 
-  addTab(URL_1).then(function () {
+  addTab(URL_1, function () {
     let target = TargetFactory.forTab(gBrowser.selectedTab);
     gDevTools.showToolbox(target, null, Toolbox.HostType.BOTTOM)
       .then(function (aToolbox) { toolbox = aToolbox; })

@@ -17,6 +17,8 @@ function test() {
 
   let toolbox, iframe, target, tab;
 
+  waitForExplicitFinish();
+
   gBrowser.selectedTab = gBrowser.addTab();
   target = TargetFactory.forTab(gBrowser.selectedTab);
 

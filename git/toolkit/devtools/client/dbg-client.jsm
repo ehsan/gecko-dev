@@ -447,7 +447,7 @@ DebuggerClient.prototype = {
     if (this._clients.has(aTabActor)) {
       let cachedTab = this._clients.get(aTabActor);
       let cachedResponse = {
-        cacheDisabled: cachedTab.cacheDisabled,
+        cacheEnabled: cachedTab.cacheEnabled,
         javascriptEnabled: cachedTab.javascriptEnabled,
         traits: cachedTab.traits,
       };
@@ -1256,7 +1256,7 @@ function TabClient(aClient, aForm) {
   this._actor = aForm.from;
   this._threadActor = aForm.threadActor;
   this.javascriptEnabled = aForm.javascriptEnabled;
-  this.cacheDisabled = aForm.cacheDisabled;
+  this.cacheEnabled = aForm.cacheEnabled;
   this.thread = null;
   this.request = this.client.request;
   this.traits = aForm.traits || {};

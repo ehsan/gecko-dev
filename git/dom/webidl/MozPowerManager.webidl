@@ -6,16 +6,6 @@
 interface MozWakeLockListener;
 
 /**
-  * The reason for the factory reset.
-  * "normal" : simple factory reset.
-  * "wipe"   : will also attempt to wipe all user storage areas.
-  */
-enum FactoryResetReason {
-    "normal",
-    "wipe"
-};
-
-/**
  * This interface implements navigator.mozPower
  */
 interface MozPowerManager
@@ -24,7 +14,7 @@ interface MozPowerManager
     void    powerOff();
     [Throws]
     void    reboot();
-    void    factoryReset(optional FactoryResetReason reason = "normal");
+    void    factoryReset();
 
     /**
      * The listeners are notified when a resource changes its lock state to:

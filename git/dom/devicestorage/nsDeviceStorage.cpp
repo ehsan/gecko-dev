@@ -29,7 +29,6 @@
 #include "mozilla/Scoped.h"
 #include "mozilla/Services.h"
 
-#include "nsArrayUtils.h"
 #include "nsAutoPtr.h"
 #include "nsGlobalWindow.h"
 #include "nsServiceManagerUtils.h"
@@ -3347,19 +3346,7 @@ nsDOMDeviceStorage::GetOrderedVolumeNames(
 #ifdef MOZ_WIDGET_GONK
   nsCOMPtr<nsIVolumeService> vs = do_GetService(NS_VOLUMESERVICE_CONTRACTID);
   if (vs) {
-    nsCOMPtr<nsIArray> volNames;
-    vs->GetVolumeNames(getter_AddRefs(volNames));
-    uint32_t length = -1;
-    volNames->GetLength(&length);
-    for (uint32_t i = 0; i < length; i++) {
-      nsCOMPtr<nsISupportsString> str = do_QueryElementAt(volNames, i);
-      if (str) {
-        nsAutoString s;
-        if (NS_SUCCEEDED(str->GetData(s)) && !s.IsEmpty()) {
-          aVolumeNames.AppendElement(s);
-        }
-      }
-    }
+    vs->GetVolumeNames(aVolumeNames);
 
     // If the volume sdcard exists, then we want it to be first.
 

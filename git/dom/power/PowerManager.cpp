@@ -78,9 +78,9 @@ PowerManager::Reboot(ErrorResult& aRv)
 }
 
 void
-PowerManager::FactoryReset(mozilla::dom::FactoryResetReason& aReason)
+PowerManager::FactoryReset()
 {
-  hal::FactoryReset(aReason);
+  hal::FactoryReset();
 }
 
 void
