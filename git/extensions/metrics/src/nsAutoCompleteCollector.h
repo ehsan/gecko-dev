@@ -1,12 +1,11 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=8 et :
- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at:
+ * the License. You may obtain a copy of the License at
  * http://www.mozilla.org/MPL/
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
@@ -14,14 +13,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Code.
+ * The Original Code is the Metrics extension.
  *
- * The Initial Developer of the Original Code is
- *   The Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2010
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *  Brian Ryner <bryner@brianryner.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,45 +36,35 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "X11Util.h"
+// nsAutoCompleteCollector listens for autocomplete events using the
+// observer service notification "autocomplete-text-entered".  The
+// AutoCompleteInput is examined to determine the autocomplete index,
+// and the length of typed and completed text.  The text itself is not logged.
+// This data, along with the hashed id of the AutoCompleteInput, is logged
+// to the MetricsService in a <uielement action="autocomplete"> event.
 
-namespace mozilla {
+#ifndef nsAutoCompleteCollector_h_
+#define nsAutoCompleteCollector_h_
 
-ScopedXErrorHandler::ErrorEvent* ScopedXErrorHandler::sXErrorPtr;
+#include "nsIMetricsCollector.h"
+#include "nsIObserver.h"
 
-int
-ScopedXErrorHandler::ErrorHandler(Display *, XErrorEvent *ev)
+class nsAutoCompleteCollector : public nsIMetricsCollector,
+                                public nsIObserver
 {
-    sXErrorPtr->mError = *ev;
-    return 0;
-}
+ public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIMETRICSCOLLECTOR
+  NS_DECL_NSIOBSERVER
 
+  nsAutoCompleteCollector();
 
-ScopedXErrorHandler::ScopedXErrorHandler()
-{
-    // let sXErrorPtr point to this object's mXError object, but don't reset this mXError object!
-    // think of the case of nested ScopedXErrorHandler's.
-    mOldXErrorPtr = sXErrorPtr;
-    sXErrorPtr = &mXError;
-    mOldErrorHandler = XSetErrorHandler(ErrorHandler);
-}
+ private:
+  ~nsAutoCompleteCollector();
+};
 
-ScopedXErrorHandler::~ScopedXErrorHandler()
-{
-    sXErrorPtr = mOldXErrorPtr;
-    XSetErrorHandler(mOldErrorHandler);
-}
+#define NS_AUTOCOMPLETECOLLECTOR_CLASSNAME "AutoComplete Collector"
+#define NS_AUTOCOMPLETECOLLECTOR_CID \
+{ 0x62cb877d, 0x5c8a, 0x44ca, {0xab, 0xcd, 0x1c, 0xaa, 0x76, 0x7c, 0xf4, 0xd4}}
 
-bool
-ScopedXErrorHandler::SyncAndGetError(Display *dpy, XErrorEvent *ev)
-{
-    XSync(dpy, False);
-    bool retval = mXError.mError.error_code != 0;
-    if (ev)
-        *ev = mXError.mError;
-    mXError = ErrorEvent(); // reset
-    return retval;
-}
-
-
-} // namespace mozilla
+#endif  // nsAutoCompleteCollector_h_
