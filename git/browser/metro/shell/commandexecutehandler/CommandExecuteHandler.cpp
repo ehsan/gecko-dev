@@ -33,17 +33,9 @@
 // Pulled from desktop browser's shell
 #define APP_REG_NAME L"Firefox"
 
-// If we have a restart request, attempt to wait up to RESTART_WAIT_TIMEOUT
-// until the previous instance closes.  We don't want to wait too long
-// because the browser could appear to randomly start for the user. We want
-// it to also be long enough so the browser has time to close.
-#define RESTART_WAIT_PER_RETRY 50
-#define RESTART_WAIT_TIMEOUT 38000
-
 static const WCHAR* kFirefoxExe = L"firefox.exe";
 static const WCHAR* kMetroFirefoxExe = L"firefox.exe";
 static const WCHAR* kDefaultMetroBrowserIDPathKey = L"FirefoxURL";
-static const WCHAR* kMetroRestartCmdLine = L"--metro-restart";
 
 static bool GetDefaultBrowserPath(CStringW& aPathBuffer);
 
@@ -103,7 +95,6 @@ public:
     mTargetIsDefaultBrowser(false),
     mTargetIsBrowser(false),
     mIsDesktopRequest(true),
-    mIsRestartMetroRequest(false),
     mRequestMet(false)
   {
   }
@@ -149,12 +140,7 @@ public:
   IFACEMETHODIMP SetParameters(PCWSTR aParameters)
   {
     Log(L"SetParameters: '%s'", aParameters);
-
-    if (_wcsicmp(aParameters, kMetroRestartCmdLine) == 0) {
-      mIsRestartMetroRequest = true;
-    } else {
-      mParameters = aParameters;
-    }
+    mParameters = aParameters;
     return S_OK;
   }
 
@@ -415,7 +401,6 @@ private:
   bool mTargetIsBrowser;
   DWORD mKeyState;
   bool mIsDesktopRequest;
-  bool mIsRestartMetroRequest;
   bool mRequestMet;
 };
 
@@ -451,15 +436,20 @@ static bool GetDefaultBrowserPath(CStringW& aPathBuffer)
  * @aPathBuffer Buffer to fill
  * @aCharLength Length of buffer to fill in characters
  */
-template <size_t N>
-static bool GetDefaultBrowserAppModelID(WCHAR (&aIDBuffer)[N])
+static bool GetDefaultBrowserAppModelID(WCHAR* aIDBuffer,
+                                        long aCharLength)
 {
+  if (!aIDBuffer || aCharLength <= 0)
+    return false;
+
+  memset(aIDBuffer, 0, (sizeof(WCHAR)*aCharLength));
+
   HKEY key;
   if (RegOpenKeyExW(HKEY_CLASSES_ROOT, kDefaultMetroBrowserIDPathKey,
                     0, KEY_READ, &key) != ERROR_SUCCESS) {
     return false;
   }
-  DWORD len = sizeof(aIDBuffer);
+  DWORD len = aCharLength * sizeof(WCHAR);
   memset(aIDBuffer, 0, len);
   if (RegQueryValueExW(key, L"AppUserModelID", nullptr, nullptr,
                        (LPBYTE)aIDBuffer, &len) != ERROR_SUCCESS || !len) {
@@ -627,84 +617,16 @@ private:
   bool* mFlag;
 };
 
-static HRESULT
-PrepareActivationManager(CComPtr<IApplicationActivationManager> &activateMgr)
-{
-  HRESULT hr = activateMgr.CoCreateInstance(CLSID_ApplicationActivationManager, NULL, CLSCTX_LOCAL_SERVER);
-  if (FAILED(hr)) {
-    Log(L"CoCreateInstance failed, launching on desktop.");
-    return E_FAIL;
-  }
-
-  // Hand off focus rights to the out-of-process activation server. Without
-  // this the metro interface won't launch.
-  hr = CoAllowSetForegroundWindow(activateMgr, nullptr);
-  if (FAILED(hr)) {
-    Log(L"CoAllowSetForegroundWindow result %X", hr);
-    return E_FAIL;
-  }
-
-  return S_OK;
-}
-
-DWORD WINAPI
-DelayedExecuteThread(LPVOID param)
-{
-  Log(L"Starting delayed execute thread...");
-  bool &bRequestMet(*(bool*)param);
-  AutoSetRequestMet asrm(&bRequestMet);
-
-  CoInitialize(NULL);
-
-  CComPtr<IApplicationActivationManager> activateMgr;
-  if (FAILED(PrepareActivationManager(activateMgr))) {
-      Log(L"Warning: Could not prepare activation manager");
-  }
-
-  size_t currentWaitTime = 0;
-  while(currentWaitTime < RESTART_WAIT_TIMEOUT) {
-    if (!IsImmersiveProcessRunning(kMetroFirefoxExe))
-      break;
-    currentWaitTime += RESTART_WAIT_PER_RETRY;
-    Sleep(RESTART_WAIT_PER_RETRY);
-  }
-
-  Log(L"Done waiting, getting app ID");
-  // Activate the application as long as we can obtian the appModelID
-  WCHAR appModelID[256];
-  if (GetDefaultBrowserAppModelID(appModelID)) {
-    Log(L"Activating application");
-    DWORD processID;
-    HRESULT hr = activateMgr->ActivateApplication(appModelID, L"", AO_NOSPLASHSCREEN, &processID);
-    if (SUCCEEDED(hr)) {
-      Log(L"Activate application succeeded");
-    } else {
-      Log(L"Activate application failed! (%x)", hr);
-    }
-  }
-
-  CoUninitialize();
-  return 0;
-}
-
 IFACEMETHODIMP CExecuteCommandVerb::Execute()
 {
   Log(L"Execute()");
 
-  if (!mTarget.GetLength()) {
-    // We shut down when this flips to true
-    mRequestMet = true;
-    return E_FAIL;
-  }
-
-  if (mIsRestartMetroRequest) {
-    HANDLE thread = CreateThread(NULL, 0, DelayedExecuteThread, &mRequestMet, 0, NULL);
-    CloseHandle(thread);
-    return S_OK;
-  }
-
   // We shut down when this flips to true
   AutoSetRequestMet asrm(&mRequestMet);
+
+  if (!mTarget.GetLength()) {
+    return E_FAIL;
+  }
 
   // Launch on the desktop
   if (mIsDesktopRequest) {
@@ -712,25 +634,39 @@ IFACEMETHODIMP CExecuteCommandVerb::Execute()
     return S_OK;
   }
 
-  CComPtr<IApplicationActivationManager> activateMgr;
-  if (!PrepareActivationManager(activateMgr)) {
-      LaunchDesktopBrowser();
-      return S_OK;
+  // Launch into Metro
+  IApplicationActivationManager* activateMgr = nullptr;
+  DWORD processID;
+  if (FAILED(CoCreateInstance(CLSID_ApplicationActivationManager, nullptr,
+                              CLSCTX_LOCAL_SERVER,
+                              IID_IApplicationActivationManager,
+                              (void**)&activateMgr))) {
+    Log(L"CoCreateInstance failed, launching on desktop.");
+    LaunchDesktopBrowser();
+    return S_OK;
   }
-
+  
   HRESULT hr;
   WCHAR appModelID[256];
-  if (!GetDefaultBrowserAppModelID(appModelID)) {
+  if (!GetDefaultBrowserAppModelID(appModelID, (sizeof(appModelID)/sizeof(WCHAR)))) {
     Log(L"GetDefaultBrowserAppModelID failed, launching on desktop.");
+    activateMgr->Release();
     LaunchDesktopBrowser();
     return S_OK;
   }
 
+  // Hand off focus rights to the out-of-process activation server. Without
+  // this the metro interface won't launch.
+  hr = CoAllowSetForegroundWindow(activateMgr, nullptr);
+  if (FAILED(hr)) {
+    Log(L"CoAllowSetForegroundWindow result %X", hr);
+    activateMgr->Release();
+    return false;
+  }
+
   Log(L"Metro Launch: verb:%s appid:%s params:%s", mVerb, appModelID, mTarget); 
 
-
   // shortcuts to the application
-  DWORD processID;
   if (mTargetIsDefaultBrowser) {
     hr = activateMgr->ActivateApplication(appModelID, L"", AO_NONE, &processID);
     Log(L"ActivateApplication result %X", hr);
@@ -743,6 +679,7 @@ IFACEMETHODIMP CExecuteCommandVerb::Execute()
     hr = activateMgr->ActivateForProtocol(appModelID, mShellItemArray, &processID);
     Log(L"ActivateForProtocol result %X", hr);
   }
+  activateMgr->Release();
   return S_OK;
 }
 
