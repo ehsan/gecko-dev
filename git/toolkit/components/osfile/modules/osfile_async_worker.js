@@ -286,9 +286,6 @@ if (this.Components) {
                              options
                             );
    },
-   removeDir: function(path, options) {
-     return File.removeDir(Type.path.fromMsg(path), options);
-   },
    new_DirectoryIterator: function new_DirectoryIterator(path, options) {
      let directoryPath = Type.path.fromMsg(path);
      let iterator = new File.DirectoryIterator(directoryPath, options);

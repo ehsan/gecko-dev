@@ -142,19 +142,30 @@ public:
 
   /**
    * If a displacement will overscroll the axis, this returns the amount and in
-   * what direction. Similar to GetExcess() but takes a displacement to apply.
+   * what direction. Similar to getExcess() but takes a displacement to apply.
    */
   float DisplacementWillOverscrollAmount(float aDisplacement);
 
   /**
-   * If a scale will overscroll the axis, this returns the amount and in what
-   * direction. Similar to GetExcess() but takes a displacement to apply.
+   * Gets the overscroll state of the axis given a scaling of the page. That is
+   * to say, if the given scale is applied, this will tell you whether or not
+   * it will overscroll, and in what direction.
    *
    * |aFocus| is the point at which the scale is focused at. We will offset the
    * scroll offset in such a way that it remains in the same place on the page
    * relative.
    */
-  float ScaleWillOverscrollAmount(float aScale, float aFocus);
+  Overscroll ScaleWillOverscroll(ScreenToScreenScale aScale, float aFocus);
+
+  /**
+   * If a scale will overscroll the axis, this returns the amount and in what
+   * direction. Similar to getExcess() but takes a displacement to apply.
+   *
+   * |aFocus| is the point at which the scale is focused at. We will offset the
+   * scroll offset in such a way that it remains in the same place on the page
+   * relative.
+   */
+  float ScaleWillOverscrollAmount(ScreenToScreenScale aScale, float aFocus);
 
   /**
    * Checks if an axis will overscroll in both directions by computing the
@@ -163,7 +174,7 @@ public:
    *
    * This gets called by ScaleWillOverscroll().
    */
-  bool ScaleWillOverscrollBothSides(float aScale);
+  bool ScaleWillOverscrollBothSides(ScreenToScreenScale aScale);
 
   float GetOrigin();
   float GetCompositionLength();
