@@ -111,7 +111,6 @@ function nsUnknownContentTypeDialog() {
   // Initialize data properties.
   this.mLauncher = null;
   this.mContext  = null;
-  this.mReason   = null;
   this.chosenApp = null;
   this.givenDefaultApp = false;
   this.updateSelf = true;
@@ -140,7 +139,6 @@ nsUnknownContentTypeDialog.prototype = {
   show: function(aLauncher, aContext, aReason)  {
     this.mLauncher = aLauncher;
     this.mContext  = aContext;
-    this.mReason   = aReason;
 
     const nsITimer = Components.interfaces.nsITimer;
     this._showTimer = Components.classes["@mozilla.org/timer;1"]

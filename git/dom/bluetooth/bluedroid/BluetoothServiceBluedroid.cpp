@@ -341,9 +341,7 @@ AdapterPropertiesCallback(bt_status_t aStatus, int aNumProperties,
   InfallibleTArray<BluetoothNamedValue> props;
 
   for (int i = 0; i < aNumProperties; i++) {
-    bt_property_t p;
-    // See Bug 989976, consider aProperties address is not aligned
-    memcpy(&p, &aProperties[i], sizeof(p));
+    bt_property_t p = aProperties[i];
 
     if (p.type == BT_PROPERTY_BDADDR) {
       BdAddressTypeToString((bt_bdaddr_t*)p.val, sAdapterBdAddress);

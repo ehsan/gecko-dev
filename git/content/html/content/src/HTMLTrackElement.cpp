@@ -95,7 +95,8 @@ NS_IMPL_ADDREF_INHERITED(HTMLTrackElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLTrackElement, Element)
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(HTMLTrackElement, nsGenericHTMLElement,
-                                   mTrack, mMediaParent, mListener)
+                                   mTrack, mChannel, mMediaParent,
+                                   mListener)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLTrackElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
@@ -367,12 +368,6 @@ HTMLTrackElement::DispatchTrustedEvent(const nsAString& aName)
   }
   nsContentUtils::DispatchTrustedEvent(doc, static_cast<nsIContent*>(this),
                                        aName, false, false);
-}
-
-void
-HTMLTrackElement::DropChannel()
-{
-  mChannel = nullptr;
 }
 
 } // namespace dom

@@ -112,7 +112,7 @@ ValueHasISupportsPrivate(JS::Handle<JS::Value> v)
     return false;
   }
 
-  const DOMJSClass* domClass = GetDOMClass(&v.toObject());
+  const DOMClass* domClass = GetDOMClass(&v.toObject());
   if (domClass) {
     return domClass->mDOMObjectIsISupports;
   }

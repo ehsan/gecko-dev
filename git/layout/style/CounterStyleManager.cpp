@@ -933,8 +933,6 @@ BuiltinCounterStyle::GetInitialCounterText(CounterValue aOrdinal,
 
 class DependentBuiltinCounterStyle MOZ_FINAL : public BuiltinCounterStyle
 {
-private:
-  ~DependentBuiltinCounterStyle() {}
 public:
   DependentBuiltinCounterStyle(int32_t aStyle, CounterStyleManager* aManager)
     : BuiltinCounterStyle(aStyle), 
@@ -980,8 +978,6 @@ DependentBuiltinCounterStyle::GetFallback()
 
 class CustomCounterStyle MOZ_FINAL : public CounterStyle
 {
-private:
-  ~CustomCounterStyle() {}
 public:
   CustomCounterStyle(CounterStyleManager* aManager,
                      nsCSSCounterStyleRule* aRule)

@@ -167,26 +167,24 @@ public:
    * bits of mFlags to be used by derived classes.
    */
 
-  typedef uint32_t FlagsType;
-
-  FlagsType GetFlags() const
+  uint32_t GetFlags() const
   {
     return mFlags & ~kWrapperFlagsMask;
   }
 
-  bool HasFlag(FlagsType aFlag) const
+  bool HasFlag(uint32_t aFlag) const
   {
     MOZ_ASSERT((aFlag & kWrapperFlagsMask) == 0, "Bad flag mask");
     return !!(mFlags & aFlag);
   }
 
-  void SetFlags(FlagsType aFlagsToSet)
+  void SetFlags(uint32_t aFlagsToSet)
   {
     MOZ_ASSERT((aFlagsToSet & kWrapperFlagsMask) == 0, "Bad flag mask");
     mFlags |= aFlagsToSet;
   }
 
-  void UnsetFlags(FlagsType aFlagsToUnset)
+  void UnsetFlags(uint32_t aFlagsToUnset)
   {
     MOZ_ASSERT((aFlagsToUnset & kWrapperFlagsMask) == 0, "Bad flag mask");
     mFlags &= ~aFlagsToUnset;
@@ -253,24 +251,24 @@ private:
 
   void TraceWrapperJSObject(JSTracer* aTrc, const char* aName);
 
-  FlagsType GetWrapperFlags() const
+  uint32_t GetWrapperFlags() const
   {
     return mFlags & kWrapperFlagsMask;
   }
 
-  bool HasWrapperFlag(FlagsType aFlag) const
+  bool HasWrapperFlag(uint32_t aFlag) const
   {
     MOZ_ASSERT((aFlag & ~kWrapperFlagsMask) == 0, "Bad wrapper flag bits");
     return !!(mFlags & aFlag);
   }
 
-  void SetWrapperFlags(FlagsType aFlagsToSet)
+  void SetWrapperFlags(uint32_t aFlagsToSet)
   {
     MOZ_ASSERT((aFlagsToSet & ~kWrapperFlagsMask) == 0, "Bad wrapper flag bits");
     mFlags |= aFlagsToSet;
   }
 
-  void UnsetWrapperFlags(FlagsType aFlagsToUnset)
+  void UnsetWrapperFlags(uint32_t aFlagsToUnset)
   {
     MOZ_ASSERT((aFlagsToUnset & ~kWrapperFlagsMask) == 0, "Bad wrapper flag bits");
     mFlags &= ~aFlagsToUnset;
@@ -306,7 +304,7 @@ private:
   enum { kWrapperFlagsMask = (WRAPPER_BIT_PRESERVED | WRAPPER_IS_DOM_BINDING) };
 
   JS::Heap<JSObject*> mWrapper;
-  FlagsType           mFlags;
+  uint32_t            mFlags;
 };
 
 enum { WRAPPER_CACHE_FLAGS_BITS_USED = 2 };

@@ -15,7 +15,7 @@
 #include "nsIFrame.h"
 
 class nsContainerFrame;
-struct nsHTMLReflowState;
+class nsHTMLReflowState;
 class nsPresContext;
 
 /**

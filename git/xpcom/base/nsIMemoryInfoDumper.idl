@@ -44,7 +44,7 @@ interface nsIDumpGCAndCCLogsCallback : nsISupports
   void onFinish();
 };
 
-[scriptable, builtinclass, uuid(48541b74-47ee-4a62-9557-7f4b809bda5c)]
+[scriptable, builtinclass, uuid(a156fda4-aea0-4da2-9daa-9858430fade9)]
 interface nsIMemoryInfoDumper : nsISupports
 {
   /**
@@ -52,12 +52,6 @@ interface nsIMemoryInfoDumper : nsISupports
    * processes.  If a file of the given name exists, it will be overwritten.
    *
    * @param aFilename The output file.
-   *
-   * @param aFinishDumping The callback called on completion.
-   *
-   * @param aFinishDumpingData The environment for the callback.
-   *
-   * @param aAnonymize Should the reports be anonymized?
    *
    * Sample output:
    *
@@ -129,8 +123,7 @@ interface nsIMemoryInfoDumper : nsISupports
    */
   void dumpMemoryReportsToNamedFile(in AString aFilename,
                                     in nsIFinishDumpingCallback aFinishDumping,
-                                    in nsISupports aFinishDumpingData,
-                                    in boolean aAnonymize);
+                                    in nsISupports aFinishDumpingData);
 
   /**
    * Similar to dumpMemoryReportsToNamedFile, this method dumps gzipped memory
@@ -151,16 +144,13 @@ interface nsIMemoryInfoDumper : nsISupports
    *   processes.  For example, the implementation may set |aIdentifier| to the
    *   number of seconds since the epoch.
    *
-   * @param aAnonymize Should the reports be anonymized?
-   *
    * @param aMinimizeMemoryUsage indicates whether we should run a series of
    *   gc/cc's in an attempt to reduce our memory usage before collecting our
    *   memory report.
    */
   void dumpMemoryInfoToTempDir(
     in AString aIdentifier,
-    in boolean aAnonymize,
-    in boolean aMinimizeMemoryUsage);
+    in bool aMinimizeMemoryUsage);
 
   /**
    * Dump GC and CC logs to files in the OS's temp directory (or in

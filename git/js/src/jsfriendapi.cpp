@@ -449,7 +449,7 @@ js::RunningWithTrustedPrincipals(JSContext *cx)
     return cx->runningWithTrustedPrincipals();
 }
 
-JS_FRIEND_API(JSFunction *)
+JS_FRIEND_API(JSScript *)
 js::GetOutermostEnclosingFunctionOfScriptedCaller(JSContext *cx)
 {
     ScriptFrameIter iter(cx);
@@ -459,12 +459,13 @@ js::GetOutermostEnclosingFunctionOfScriptedCaller(JSContext *cx)
     if (!iter.isFunctionFrame())
         return nullptr;
 
-    RootedFunction curr(cx, iter.callee());
-    for (StaticScopeIter<NoGC> i(curr); !i.done(); i++) {
+    RootedFunction scriptedCaller(cx, iter.callee());
+    RootedScript outermost(cx, scriptedCaller->nonLazyScript());
+    for (StaticScopeIter<NoGC> i(scriptedCaller); !i.done(); i++) {
         if (i.type() == StaticScopeIter<NoGC>::FUNCTION)
-            curr = &i.fun();
+            outermost = i.funScript();
     }
-    return curr;
+    return outermost;
 }
 
 JS_FRIEND_API(JSFunction *)

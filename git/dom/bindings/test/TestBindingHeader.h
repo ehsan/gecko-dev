@@ -572,7 +572,6 @@ public:
   void PassUnion13(JSContext*, const ObjectOrLongOrNull& arg);
   void PassUnion14(JSContext*, const ObjectOrLongOrNull& arg);
   void PassUnionWithCallback(const EventHandlerNonNullOrNullOrLong& arg);
-  void PassUnionWithByteString(const ByteStringOrLong&);
 #endif
   void PassNullableUnion(JSContext*, const Nullable<ObjectOrLong>&);
   void PassOptionalUnion(JSContext*, const Optional<ObjectOrLong>&);

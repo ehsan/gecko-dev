@@ -209,9 +209,9 @@ namespace jit {
 
 namespace types {
 
-struct TypeZone;
+class TypeZone;
 class TypeSet;
-struct TypeObjectKey;
+class TypeObjectKey;
 
 /*
  * Information about a single concrete type. We pack this into a single word,
@@ -1400,7 +1400,7 @@ struct TypeObjectKey
 // during generation of baseline caches.
 class HeapTypeSetKey
 {
-    friend struct TypeObjectKey;
+    friend class TypeObjectKey;
 
     // Object and property being accessed.
     TypeObjectKey *object_;

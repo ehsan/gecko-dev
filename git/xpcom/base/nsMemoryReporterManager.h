@@ -193,7 +193,6 @@ private:
   struct GetReportsState
   {
     uint32_t                             mGeneration;
-    bool                                 mAnonymize;
     nsCOMPtr<nsITimer>                   mTimer;
     uint32_t                             mNumChildProcesses;
     uint32_t                             mNumChildProcessesCompleted;
@@ -204,7 +203,7 @@ private:
     nsCOMPtr<nsISupports>                mFinishReportingData;
     nsString                             mDMDDumpIdent;
 
-    GetReportsState(uint32_t aGeneration, bool aAnonymize, nsITimer* aTimer,
+    GetReportsState(uint32_t aGeneration, nsITimer* aTimer,
                     uint32_t aNumChildProcesses,
                     nsIHandleReportCallback* aHandleReport,
                     nsISupports* aHandleReportData,
@@ -212,7 +211,6 @@ private:
                     nsISupports* aFinishReportingData,
                     const nsAString& aDMDDumpIdent)
       : mGeneration(aGeneration)
-      , mAnonymize(aAnonymize)
       , mTimer(aTimer)
       , mNumChildProcesses(aNumChildProcesses)
       , mNumChildProcessesCompleted(0)

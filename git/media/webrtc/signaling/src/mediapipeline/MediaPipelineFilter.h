@@ -16,7 +16,7 @@
 #include <set>
 
 namespace webrtc {
-struct RTPHeader;
+class RTPHeader;
 }
 
 namespace mozilla {

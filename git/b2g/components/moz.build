@@ -16,7 +16,6 @@ EXTRA_COMPONENTS += [
     'InterAppCommUIGlue.js',
     'MailtoProtocolHandler.js',
     'MobileIdentityUIGlue.js',
-    'OMAContentHandler.js',
     'PaymentGlue.js',
     'ProcessGlobal.js',
     'SmsProtocolHandler.js',

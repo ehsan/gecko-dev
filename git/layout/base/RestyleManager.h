@@ -107,7 +107,7 @@ public:
                           nsStyleChangeList* aChangeList,
                           nsChangeHint aMinChange,
                           RestyleTracker& aRestyleTracker,
-                          nsRestyleHint aRestyleHint);
+                          bool aRestyleDescendants);
 
 #ifdef DEBUG
   /**
@@ -241,12 +241,9 @@ private:
                       nsIFrame*       aPrimaryFrame,
                       nsChangeHint    aMinHint,
                       RestyleTracker& aRestyleTracker,
-                      nsRestyleHint   aRestyleHint);
+                      bool            aRestyleDescendants);
 
   void StyleChangeReflow(nsIFrame* aFrame, nsChangeHint aHint);
-
-  // Recursively add all the given frame and all children to the tracker.
-  void AddSubtreeToOverflowTracker(nsIFrame* aFrame);
 
   // Returns true if this function managed to successfully move a frame, and
   // false if it could not process the position change, and a reflow should

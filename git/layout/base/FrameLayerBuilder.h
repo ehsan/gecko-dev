@@ -47,8 +47,6 @@ enum LayerState {
 };
 
 class RefCountedRegion {
-private:
-  ~RefCountedRegion() {}
 public:
   NS_INLINE_DECL_REFCOUNTING(RefCountedRegion)
 

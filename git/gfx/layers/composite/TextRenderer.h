@@ -17,8 +17,6 @@ class Compositor;
 
 class TextRenderer
 {
-  ~TextRenderer();
-
 public:
   NS_INLINE_DECL_REFCOUNTING(TextRenderer)
 
@@ -26,6 +24,8 @@ public:
     : mCompositor(aCompositor)
   {
   }
+
+  ~TextRenderer();
 
   void RenderText(const std::string& aText, const gfx::IntPoint& aOrigin,
                   const gfx::Matrix4x4& aTransform, uint32_t aTextSize,

@@ -4132,7 +4132,7 @@ BindNameIC::attachNonGlobal(JSContext *cx, HandleScript outerScript, IonScript *
 }
 
 static bool
-IsCacheableNonGlobalScopeChain(JSObject *scopeChain, JSObject *holder)
+IsCacheableScopeChain(JSObject *scopeChain, JSObject *holder)
 {
     while (true) {
         if (!IsCacheableNonGlobalScope(scopeChain)) {
@@ -4175,7 +4175,7 @@ BindNameIC::update(JSContext *cx, size_t cacheIndex, HandleObject scopeChain)
         if (scopeChain->is<GlobalObject>()) {
             if (!cache.attachGlobal(cx, outerScript, ion, scopeChain))
                 return nullptr;
-        } else if (IsCacheableNonGlobalScopeChain(scopeChain, holder)) {
+        } else if (IsCacheableScopeChain(scopeChain, holder)) {
             if (!cache.attachNonGlobal(cx, outerScript, ion, scopeChain, holder))
                 return nullptr;
         } else {
@@ -4203,7 +4203,7 @@ NameIC::attachReadSlot(JSContext *cx, HandleScript outerScript, IonScript *ion,
     GenerateScopeChainGuards(masm, scopeChain, holderBase, scratchReg, &failures,
                              /* skipLastGuard = */true);
 
-    // GenerateScopeChain leaves the last scope chain in scratchReg, even though it
+    // GenerateScopeChain leaves the last scope chain in scrachReg, even though it
     // doesn't generate the extra guard.
     GenerateReadSlot(cx, ion, masm, attacher, holderBase, holder, shape, scratchReg,
                      outputReg(), failures.used() ? &failures : nullptr);
@@ -4212,25 +4212,7 @@ NameIC::attachReadSlot(JSContext *cx, HandleScript outerScript, IonScript *ion,
 }
 
 static bool
-IsCacheableScopeChain(JSObject *scopeChain, JSObject *obj)
-{
-    JSObject *obj2 = scopeChain;
-    while (obj2) {
-        if (!IsCacheableNonGlobalScope(obj2) && !obj2->is<GlobalObject>())
-            return false;
-
-        // Stop once we hit the global or target obj.
-        if (obj2->is<GlobalObject>() || obj2 == obj)
-            break;
-
-        obj2 = obj2->enclosingScope();
-    }
-
-    return obj == obj2;
-}
-
-static bool
-IsCacheableNameReadSlot(HandleObject scopeChain, HandleObject obj,
+IsCacheableNameReadSlot(JSContext *cx, HandleObject scopeChain, HandleObject obj,
                         HandleObject holder, HandleShape shape, jsbytecode *pc,
                         const TypedOrValueRegister &output)
 {
@@ -4253,31 +4235,31 @@ IsCacheableNameReadSlot(HandleObject scopeChain, HandleObject obj,
         return false;
     }
 
-    return IsCacheableScopeChain(scopeChain, obj);
+    RootedObject obj2(cx, scopeChain);
+    while (obj2) {
+        if (!IsCacheableNonGlobalScope(obj2) && !obj2->is<GlobalObject>())
+            return false;
+
+        // Stop once we hit the global or target obj.
+        if (obj2->is<GlobalObject>() || obj2 == obj)
+            break;
+
+        obj2 = obj2->enclosingScope();
+    }
+
+    return obj == obj2;
 }
 
 bool
 NameIC::attachCallGetter(JSContext *cx, HandleScript outerScript, IonScript *ion,
-                         HandleObject scopeChain, HandleObject obj, HandleObject holder,
-                         HandleShape shape, void *returnAddr)
+                         HandleObject obj, HandleObject holder, HandleShape shape,
+                         void *returnAddr)
 {
     MacroAssembler masm(cx, ion, outerScript, profilerLeavePc_);
+
     RepatchStubAppender attacher(*this);
-
-    Label failures;
-    Register scratchReg = outputReg().valueReg().scratchReg();
-
-    // Don't guard the base of the proto chain the name was found on. It will be guarded
-    // by GenerateCallGetter().
-    masm.mov(scopeChainReg(), scratchReg);
-    GenerateScopeChainGuards(masm, scopeChain, obj, scratchReg, &failures,
-                             /* skipLastGuard = */true);
-
-    // GenerateScopeChain leaves the last scope chain in scratchReg, even though it
-    // doesn't generate the extra guard.
     if (!GenerateCallGetter(cx, ion, masm, attacher, obj, name(), holder, shape, liveRegs_,
-                            scratchReg, outputReg(), returnAddr,
-                            failures.used() ? &failures : nullptr))
+                            scopeChainReg(), outputReg(), returnAddr))
     {
          return false;
     }
@@ -4287,15 +4269,12 @@ NameIC::attachCallGetter(JSContext *cx, HandleScript outerScript, IonScript *ion
 }
 
 static bool
-IsCacheableNameCallGetter(HandleObject scopeChain, HandleObject obj, HandleObject holder,
-                          HandleShape shape)
+IsCacheableNameCallGetter(JSObject *scopeChain, JSObject *obj, JSObject *holder, Shape *shape)
 {
-    if (!shape)
-        return false;
-    if (!obj->is<GlobalObject>())
+    if (obj != scopeChain)
         return false;
 
-    if (!IsCacheableScopeChain(scopeChain, obj))
+    if (!obj->is<GlobalObject>())
         return false;
 
     return IsCacheableGetPropCallNative(obj, holder, shape) ||
@@ -4324,11 +4303,11 @@ NameIC::update(JSContext *cx, size_t cacheIndex, HandleObject scopeChain,
         return false;
 
     if (cache.canAttachStub()) {
-        if (IsCacheableNameReadSlot(scopeChain, obj, holder, shape, pc, cache.outputReg())) {
+        if (IsCacheableNameReadSlot(cx, scopeChain, obj, holder, shape, pc, cache.outputReg())) {
             if (!cache.attachReadSlot(cx, outerScript, ion, scopeChain, obj, holder, shape))
                 return false;
         } else if (IsCacheableNameCallGetter(scopeChain, obj, holder, shape)) {
-            if (!cache.attachCallGetter(cx, outerScript, ion, scopeChain, obj, holder, shape, returnAddr))
+            if (!cache.attachCallGetter(cx, outerScript, ion, obj, holder, shape, returnAddr))
                 return false;
         }
     }

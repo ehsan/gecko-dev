@@ -42,7 +42,8 @@ CanvasClient::CreateCanvasClient(CanvasClientType aType,
     return new CanvasClient2D(aForwarder, aFlags);
   }
 #endif
-  if (aType == CanvasClientGLContext) {
+  if (aType == CanvasClientGLContext &&
+      aForwarder->GetCompositorBackendType() == LayersBackend::LAYERS_OPENGL) {
     aFlags |= TextureFlags::DEALLOCATE_CLIENT;
     return new CanvasClientSurfaceStream(aForwarder, aFlags);
   }
@@ -155,54 +156,55 @@ CanvasClientSurfaceStream::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     stream = screen->Stream();
   }
 
-#ifdef MOZ_WIDGET_GONK
-  SharedSurface* surf = stream->SwapConsumer();
-  if (!surf) {
-    printf_stderr("surf is null post-SwapConsumer!\n");
-    return;
-  }
-
-  if (surf->Type() != SharedSurfaceType::Gralloc) {
-    printf_stderr("Unexpected non-Gralloc SharedSurface in IPC path!");
-    MOZ_ASSERT(false);
-    return;
-  }
-
-  SharedSurface_Gralloc* grallocSurf = SharedSurface_Gralloc::Cast(surf);
-
-  RefPtr<GrallocTextureClientOGL> grallocTextureClient =
-    static_cast<GrallocTextureClientOGL*>(grallocSurf->GetTextureClient());
-
-  // If IPDLActor is null means this TextureClient didn't AddTextureClient yet
-  if (!grallocTextureClient->GetIPDLActor()) {
-    grallocTextureClient->SetTextureFlags(mTextureInfo.mTextureFlags);
-    AddTextureClient(grallocTextureClient);
-  }
-
-  if (grallocTextureClient->GetIPDLActor()) {
-    UseTexture(grallocTextureClient);
-  }
-
-  if (mBuffer) {
-    // remove old buffer from CompositableHost
-    RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker();
-    // Hold TextureClient until transaction complete.
-    tracker->SetTextureClient(mBuffer);
-    mBuffer->SetRemoveFromCompositableTracker(tracker);
-    // RemoveTextureFromCompositableAsync() expects CompositorChild's presence.
-    GetForwarder()->RemoveTextureFromCompositableAsync(tracker, this, mBuffer);
-  }
-  mBuffer = grallocTextureClient;
-#else
   bool isCrossProcess = !(XRE_GetProcessType() == GeckoProcessType_Default);
+  bool bufferCreated = false;
   if (isCrossProcess) {
+#ifdef MOZ_WIDGET_GONK
+    SharedSurface* surf = stream->SwapConsumer();
+    if (!surf) {
+      printf_stderr("surf is null post-SwapConsumer!\n");
+      return;
+    }
+
+    if (surf->Type() != SharedSurfaceType::Gralloc) {
+      printf_stderr("Unexpected non-Gralloc SharedSurface in IPC path!");
+      MOZ_ASSERT(false);
+      return;
+    }
+
+    SharedSurface_Gralloc* grallocSurf = SharedSurface_Gralloc::Cast(surf);
+
+    RefPtr<GrallocTextureClientOGL> grallocTextureClient =
+      static_cast<GrallocTextureClientOGL*>(grallocSurf->GetTextureClient());
+
+    // If IPDLActor is null means this TextureClient didn't AddTextureClient yet
+    if (!grallocTextureClient->GetIPDLActor()) {
+      grallocTextureClient->SetTextureFlags(mTextureInfo.mTextureFlags);
+      AddTextureClient(grallocTextureClient);
+    }
+
+    if (grallocTextureClient->GetIPDLActor()) {
+      UseTexture(grallocTextureClient);
+    }
+
+    if (mBuffer && CompositorChild::ChildProcessHasCompositor()) {
+      // remove old buffer from CompositableHost
+      RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker();
+      // Hold TextureClient until transaction complete.
+      tracker->SetTextureClient(mBuffer);
+      mBuffer->SetRemoveFromCompositableTracker(tracker);
+      // RemoveTextureFromCompositableAsync() expects CompositorChild's presence.
+      GetForwarder()->RemoveTextureFromCompositableAsync(tracker, this, mBuffer);
+    }
+    mBuffer = grallocTextureClient;
+#else
     printf_stderr("isCrossProcess, but not MOZ_WIDGET_GONK! Someone needs to write some code!");
     MOZ_ASSERT(false);
+#endif
   } else {
-    bool bufferCreated = false;
     if (!mBuffer) {
-      StreamTextureClient* textureClient =
-        new StreamTextureClient(mTextureInfo.mTextureFlags);
+      StreamTextureClientOGL* textureClient =
+        new StreamTextureClientOGL(mTextureInfo.mTextureFlags);
       textureClient->InitWith(stream);
       mBuffer = textureClient;
       bufferCreated = true;
@@ -213,11 +215,9 @@ CanvasClientSurfaceStream::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     }
 
     if (mBuffer) {
-      GetForwarder()->UpdatedTexture(this, mBuffer, nullptr);
       GetForwarder()->UseTexture(this, mBuffer);
     }
   }
-#endif
 
   aLayer->Painted();
 }

@@ -20,10 +20,10 @@ namespace js {
 
 class ExclusiveContext;
 namespace frontend {
-    template <typename ParseHandler> class Parser;
+    template <typename ParseHandler> struct Parser;
     template <typename ParseHandler> struct ParseContext;
     class FullParseHandler;
-    class ParseNode;
+    struct ParseNode;
 }
 
 typedef frontend::Parser<frontend::FullParseHandler> AsmJSParser;

@@ -106,6 +106,7 @@ UNIFIED_SOURCES += [
     '../ucvlatin/nsMacIcelandicToUnicode.cpp',
     '../ucvlatin/nsMacRomanianToUnicode.cpp',
     '../ucvlatin/nsMacTurkishToUnicode.cpp',
+    '../ucvlatin/nsTCVN5712ToUnicode.cpp',
     '../ucvlatin/nsTIS620ToUnicode.cpp',
     '../ucvlatin/nsUnicodeToARMSCII8.cpp',
     '../ucvlatin/nsUnicodeToAscii.cpp',
@@ -153,11 +154,16 @@ UNIFIED_SOURCES += [
     '../ucvlatin/nsUnicodeToMacIcelandic.cpp',
     '../ucvlatin/nsUnicodeToMacRomanian.cpp',
     '../ucvlatin/nsUnicodeToMacTurkish.cpp',
+    '../ucvlatin/nsUnicodeToTCVN5712.cpp',
     '../ucvlatin/nsUnicodeToTIS620.cpp',
     '../ucvlatin/nsUnicodeToUserDefined.cpp',
     '../ucvlatin/nsUnicodeToUTF16.cpp',
+    '../ucvlatin/nsUnicodeToVISCII.cpp',
+    '../ucvlatin/nsUnicodeToVPS.cpp',
     '../ucvlatin/nsUserDefinedToUnicode.cpp',
     '../ucvlatin/nsUTF16ToUnicode.cpp',
+    '../ucvlatin/nsVISCIIToUnicode.cpp',
+    '../ucvlatin/nsVPSToUnicode.cpp',
 ]
 
 UNIFIED_SOURCES += [
@@ -166,6 +172,11 @@ UNIFIED_SOURCES += [
     '../ucvtw/nsUnicodeToBIG5.cpp',
     '../ucvtw/nsUnicodeToBIG5HKSCS.cpp',
     '../ucvtw/nsUnicodeToHKSCS.cpp',
+]
+
+UNIFIED_SOURCES += [
+    '../ucvtw2/nsEUCTWToUnicode.cpp',
+    '../ucvtw2/nsUnicodeToEUCTW.cpp',
 ]
 
 UNIFIED_SOURCES += [
@@ -191,6 +202,7 @@ LOCAL_INCLUDES += [
     '../ucvko',
     '../ucvlatin',
     '../ucvtw',
+    '../ucvtw2',
     '../util',
 ]
 

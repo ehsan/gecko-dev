@@ -27,7 +27,7 @@ class ErrorResult;
 
 namespace dom {
 class nsIContentParent;
-struct IDBOpenDBOptions;
+class IDBOpenDBOptions;
 
 namespace indexedDB {
 

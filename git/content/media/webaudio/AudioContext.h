@@ -249,7 +249,7 @@ private:
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
   NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                            nsISupports* aData, bool aAnonymize);
+                            nsISupports* aData);
 
   friend struct ::mozilla::WebAudioDecodeJob;
 

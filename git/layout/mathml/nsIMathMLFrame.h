@@ -11,7 +11,7 @@
 
 struct nsPresentationData;
 struct nsEmbellishData;
-class nsHTMLReflowMetrics;
+struct nsHTMLReflowMetrics;
 class nsRenderingContext;
 class nsIFrame;
 

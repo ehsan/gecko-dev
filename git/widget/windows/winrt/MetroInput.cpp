@@ -890,7 +890,6 @@ MetroInput::OnPointerExited(UI::Core::ICoreWindow* aSender,
     WidgetMouseEvent* event =
       new WidgetMouseEvent(true, NS_MOUSE_EXIT, mWidget.Get(),
                            WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
-    event->exit = WidgetMouseEvent::eTopLevel;
     UpdateInputLevel(LEVEL_PRECISE);
     InitGeckoMouseEventFromPointerPoint(event, currentPoint.Get());
     DispatchAsyncEventIgnoreStatus(event);

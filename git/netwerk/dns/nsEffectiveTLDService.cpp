@@ -111,7 +111,7 @@ MOZ_DEFINE_MALLOC_SIZE_OF(EffectiveTLDServiceMallocSizeOf)
 
 NS_IMETHODIMP
 nsEffectiveTLDService::CollectReports(nsIHandleReportCallback* aHandleReport,
-                                      nsISupports* aData, bool aAnonymize)
+                                      nsISupports* aData)
 {
   return MOZ_COLLECT_REPORT(
     "explicit/xpcom/effective-TLD-service", KIND_HEAP, UNITS_BYTES,

@@ -1,3 +1,4 @@
+
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -44,7 +45,7 @@ class SavedFrame : public JSObject {
     struct Lookup;
     struct HashPolicy;
 
-    typedef HashSet<js::ReadBarriered<SavedFrame *>,
+    typedef HashSet<SavedFrame *,
                     HashPolicy,
                     SystemAllocPolicy> Set;
 
@@ -81,7 +82,7 @@ class SavedFrame : public JSObject {
 
 struct SavedFrame::Lookup {
     Lookup(JSAtom *source, size_t line, size_t column, JSAtom *functionDisplayName,
-           SavedFrame *parent, JSPrincipals *principals)
+           Handle<SavedFrame*> parent, JSPrincipals *principals)
         : source(source),
           line(line),
           column(column),
@@ -92,12 +93,12 @@ struct SavedFrame::Lookup {
         JS_ASSERT(source);
     }
 
-    JSAtom       *source;
-    size_t       line;
-    size_t       column;
-    JSAtom       *functionDisplayName;
-    SavedFrame   *parent;
-    JSPrincipals *principals;
+    JSAtom              *source;
+    size_t              line;
+    size_t              column;
+    JSAtom              *functionDisplayName;
+    Handle<SavedFrame*> parent;
+    JSPrincipals        *principals;
 };
 
 struct SavedFrame::HashPolicy
@@ -109,7 +110,7 @@ struct SavedFrame::HashPolicy
     static HashNumber hash(const Lookup &lookup);
     static bool       match(SavedFrame *existing, const Lookup &lookup);
 
-    typedef ReadBarriered<SavedFrame*> Key;
+    typedef SavedFrame* Key;
     static void rekey(Key &key, const Key &newKey);
 };
 
@@ -136,49 +137,6 @@ class SavedStacks {
     // be accessed through this method.
     JSObject   *getOrCreateSavedFramePrototype(JSContext *cx);
     SavedFrame *createFrameFromLookup(JSContext *cx, SavedFrame::Lookup &lookup);
-
-    // Cache for memoizing PCToLineNumber lookups.
-
-    struct PCKey {
-        PCKey(JSScript *script, jsbytecode *pc) : script(script), pc(pc) { }
-
-        PreBarrieredScript script;
-        jsbytecode         *pc;
-    };
-
-    struct LocationValue {
-        LocationValue() : source(nullptr), line(0), column(0) { }
-        LocationValue(JSAtom *source, size_t line, size_t column)
-            : source(source),
-              line(line),
-              column(column)
-        { }
-
-        ReadBarrieredAtom source;
-        size_t            line;
-        size_t            column;
-    };
-
-    struct PCLocationHasher : public DefaultHasher<PCKey> {
-        typedef PointerHasher<JSScript *, 3>   ScriptPtrHasher;
-        typedef PointerHasher<jsbytecode *, 3> BytecodePtrHasher;
-
-        static HashNumber hash(const PCKey &key) {
-            return mozilla::AddToHash(ScriptPtrHasher::hash(key.script),
-                                      BytecodePtrHasher::hash(key.pc));
-        }
-
-        static bool match(const PCKey &l, const PCKey &k) {
-            return l.script == k.script && l.pc == k.pc;
-        }
-    };
-
-    typedef HashMap<PCKey, LocationValue, PCLocationHasher, SystemAllocPolicy> PCLocationMap;
-
-    PCLocationMap pcLocationMap;
-
-    void sweepPCLocationMap();
-    bool getLocation(JSContext *cx, JSScript *script, jsbytecode *pc, LocationValue *locationp);
 };
 
 bool SavedStacksMetadataCallback(JSContext *cx, JSObject **pmetadata);

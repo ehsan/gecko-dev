@@ -12,8 +12,8 @@
 
 namespace mozilla {
 
-struct VideoTrackConstraintsN;
-struct AudioTrackConstraintsN;
+class VideoTrackConstraintsN;
+class AudioTrackConstraintsN;
 
 /**
  * Abstract interface for managing audio and video devices. Each platform
@@ -24,7 +24,7 @@ struct AudioTrackConstraintsN;
  */
 class MediaEngineVideoSource;
 class MediaEngineAudioSource;
-class MediaEnginePrefs;
+struct MediaEnginePrefs;
 
 enum MediaEngineState {
   kAllocated,

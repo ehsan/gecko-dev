@@ -194,8 +194,6 @@ DeviceStorageUsedSpaceCache::SetUsedSizes(const nsAString& aStorageName,
 
 class GlobalDirs
 {
-private:
-  ~GlobalDirs() {}
 public:
   NS_INLINE_DECL_REFCOUNTING(GlobalDirs)
 #if !defined(MOZ_WIDGET_GONK)

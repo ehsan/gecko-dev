@@ -17,13 +17,13 @@ namespace js {
 class GCMarker;
 class ObjectImpl;
 namespace gc {
-struct ArenaHeader;
+class ArenaHeader;
 }
 namespace jit {
 class JitCode;
 }
 namespace types {
-struct TypeObject;
+class TypeObject;
 }
 
 static const size_t NON_INCREMENTAL_MARK_STACK_BASE_CAPACITY = 4096;

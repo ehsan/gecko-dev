@@ -344,6 +344,9 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString &url,
         script = JS_GetFunctionScript(cx, function);
     }
 
+    loader->NoteSubScript(script, targetObj);
+
+
     bool ok = false;
     if (function) {
         ok = JS_CallFunction(cx, targetObj, function, JS::HandleValueArray::empty(),

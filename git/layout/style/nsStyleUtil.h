@@ -19,7 +19,7 @@ class nsIPrincipal;
 class nsIURI;
 struct gfxFontFeature;
 struct gfxAlternateValue;
-struct nsCSSValueList;
+class nsCSSValueList;
 
 // Style utility functions
 class nsStyleUtil {

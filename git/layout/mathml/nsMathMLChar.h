@@ -20,9 +20,9 @@ class nsDisplayListBuilder;
 class nsDisplayListSet;
 class nsPresContext;
 class nsRenderingContext;
-struct nsBoundingMetrics;
+class nsBoundingMetrics;
 class nsStyleContext;
-struct nsFont;
+class nsFont;
 
 // Hints for Stretch() to indicate criteria for stretching
 enum {

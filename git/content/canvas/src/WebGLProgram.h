@@ -19,7 +19,7 @@
 namespace mozilla {
 
 class WebGLShader;
-struct WebGLUniformInfo;
+class WebGLUniformInfo;
 
 typedef nsDataHashtable<nsCStringHashKey, nsCString> CStringMap;
 typedef nsDataHashtable<nsCStringHashKey, WebGLUniformInfo> CStringToUniformInfoMap;

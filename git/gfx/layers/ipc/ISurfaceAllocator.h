@@ -210,7 +210,7 @@ public:
   }
 
   NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                            nsISupports* aData, bool aAnonymize)
+                            nsISupports* aData)
   {
     return MOZ_COLLECT_REPORT(
       "explicit/gfx/heap-textures", KIND_HEAP, UNITS_BYTES, sAmount,

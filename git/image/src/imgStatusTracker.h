@@ -108,8 +108,6 @@ enum {
 
 class imgStatusTracker : public mozilla::SupportsWeakPtr<imgStatusTracker>
 {
-  virtual ~imgStatusTracker();
-
 public:
   MOZ_DECLARE_REFCOUNTED_TYPENAME(imgStatusTracker)
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(imgStatusTracker)
@@ -118,6 +116,7 @@ public:
   // imgRequestProxys in SyncNotify() and EmulateRequestFinished(), and must be
   // alive as long as this instance is, because we hold a weak reference to it.
   imgStatusTracker(mozilla::image::Image* aImage);
+  virtual ~imgStatusTracker();
 
   // Image-setter, for imgStatusTrackers created by imgRequest::Init, which
   // are created before their Image is created.  This method should only

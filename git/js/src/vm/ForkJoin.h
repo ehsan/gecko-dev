@@ -347,7 +347,7 @@ struct ParallelBailoutRecord {
                   jsbytecode *pc);
 };
 
-class ForkJoinShared;
+struct ForkJoinShared;
 
 class ForkJoinContext : public ThreadSafeContext
 {

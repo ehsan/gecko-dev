@@ -18,7 +18,7 @@
 class nsIRequest;
 class PendingDBLookup;
 class PendingLookup;
-struct PRLogModuleInfo;
+class PRLogModuleInfo;
 
 class ApplicationReputationService MOZ_FINAL :
   public nsIApplicationReputationService {

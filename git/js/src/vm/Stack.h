@@ -33,7 +33,7 @@ class SPSProfiler;
 class InterpreterFrame;
 class StaticBlockObject;
 
-class ScopeCoordinate;
+struct ScopeCoordinate;
 
 // VM stack layout
 //

@@ -249,7 +249,7 @@ void set_tls_stack_top(void* stackTop);
 // (if used for profiling) the program counter and stack pointer for
 // the thread that created it.
 
-struct PseudoStack;
+class PseudoStack;
 class ThreadProfile;
 
 // TickSample captures the information collected for each sample.

@@ -11,7 +11,13 @@ var ignoreIndirectCalls = {
     "__conv" : true,
     "__convf" : true,
     "prerrortable.c:callback_newtable" : true,
-    "mozalloc_oom.cpp:void (* gAbortHandler)(size_t)" : true
+    "mozalloc_oom.cpp:void (* gAbortHandler)(size_t)" : true,
+
+    // I don't know why these are getting truncated
+    "nsTraceRefcnt.cpp:void (* leakyLogAddRef)(void*": true,
+    "nsTraceRefcnt.cpp:void (* leakyLogAddRef)(void*, int, int)": true,
+    "nsTraceRefcnt.cpp:void (* leakyLogRelease)(void*": true,
+    "nsTraceRefcnt.cpp:void (* leakyLogRelease)(void*, int, int)": true,
 };
 
 function indirectCallCannotGC(fullCaller, fullVariable)

@@ -18,7 +18,7 @@ namespace mozilla {
 namespace dom {
 
 class GlobalObject;
-struct DOMPointInit;
+class DOMPointInit;
 
 class DOMPointReadOnly : public nsWrapperCache
 {

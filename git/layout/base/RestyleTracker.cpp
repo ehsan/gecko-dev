@@ -119,7 +119,8 @@ RestyleTracker::ProcessOneRestyle(Element* aElement,
   nsIFrame* primaryFrame = aElement->GetPrimaryFrame();
   if (aRestyleHint & (eRestyle_Self | eRestyle_Subtree)) {
     mRestyleManager->RestyleElement(aElement, primaryFrame, aChangeHint,
-                                    *this, aRestyleHint);
+                                    *this,
+                                    (aRestyleHint & eRestyle_Subtree) != 0);
   } else if (aChangeHint &&
              (primaryFrame ||
               (aChangeHint & nsChangeHint_ReconstructFrame))) {

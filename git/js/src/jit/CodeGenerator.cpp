@@ -8814,7 +8814,7 @@ CodeGenerator::emitAssertRangeD(const Range *r, FloatRegister input, FloatRegist
     // assembler interfaces to make rounding instructions available.
 
     if (!r->hasInt32Bounds() && !r->canBeInfiniteOrNaN() &&
-        r->exponent() < FloatingPoint<double>::kExponentBias)
+        r->exponent() < FloatingPoint<double>::ExponentBias)
     {
         // Check the bounds implied by the maximum exponent.
         Label exponentLoOk;

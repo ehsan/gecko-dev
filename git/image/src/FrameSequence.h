@@ -138,9 +138,9 @@ private:
  */
 class FrameSequence
 {
-  ~FrameSequence();
-
 public:
+
+  ~FrameSequence();
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(FrameSequence)
 

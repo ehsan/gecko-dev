@@ -310,6 +310,7 @@ mozJSComponentLoader::mozJSComponentLoader()
       mModules(32),
       mImports(32),
       mInProgressImports(32),
+      mThisObjects(32),
       mInitialized(false),
       mReuseLoaderGlobal(false)
 {
@@ -577,11 +578,10 @@ mozJSComponentLoader::FindTargetObject(JSContext* aCx,
 
     RootedObject targetObject(aCx);
     if (mReuseLoaderGlobal) {
-        JSFunction *fun = js::GetOutermostEnclosingFunctionOfScriptedCaller(aCx);
-        if (fun) {
-            JSObject *funParent = js::GetObjectParent(JS_GetFunctionObject(fun));
-            if (JS_GetClass(funParent) == &kFakeBackstagePassJSClass)
-                targetObject = funParent;
+        JSScript* script =
+            js::GetOutermostEnclosingFunctionOfScriptedCaller(aCx);
+        if (script) {
+            targetObject = mThisObjects.Get(script);
         }
     }
 
@@ -595,6 +595,18 @@ mozJSComponentLoader::FindTargetObject(JSContext* aCx,
 
     aTargetObject.set(targetObject);
     return NS_OK;
+}
+
+void
+mozJSComponentLoader::NoteSubScript(HandleScript aScript, HandleObject aThisObject)
+{
+  if (!mInitialized && NS_FAILED(ReallyInit())) {
+      MOZ_CRASH();
+  }
+
+  if (js::GetObjectJSClass(aThisObject) == &kFakeBackstagePassJSClass) {
+    mThisObjects.Put(aScript, aThisObject);
+  }
 }
 
 /* static */ size_t
@@ -623,6 +635,7 @@ mozJSComponentLoader::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
     amount += mModules.SizeOfExcludingThis(DataEntrySizeOfExcludingThis, aMallocSizeOf);
     amount += mImports.SizeOfExcludingThis(ClassEntrySizeOfExcludingThis, aMallocSizeOf);
     amount += mInProgressImports.SizeOfExcludingThis(DataEntrySizeOfExcludingThis, aMallocSizeOf);
+    amount += mThisObjects.SizeOfExcludingThis(nullptr, aMallocSizeOf);
 
     return amount;
 }
@@ -1035,6 +1048,16 @@ mozJSComponentLoader::ObjectForLocation(ComponentLoaderInfo &aInfo,
 
     aTableScript.set(tableScript);
 
+    if (js::GetObjectJSClass(obj) == &kFakeBackstagePassJSClass) {
+        MOZ_ASSERT(mReuseLoaderGlobal);
+        // tableScript stays in the table until shutdown.  It is rooted by
+        // virtue of the fact that aTableScript is a handle to
+        // ModuleEntry::thisObjectKey, which is a PersistentRootedScript.  Since
+        // ModuleEntries are never dynamically unloaded when mReuseLoaderGlobal
+        // is true, this prevents it from being collected and another script
+        // getting the same address.
+        mThisObjects.Put(tableScript, obj);
+    }
     bool ok = false;
 
     {
@@ -1056,6 +1079,7 @@ mozJSComponentLoader::ObjectForLocation(ComponentLoaderInfo &aInfo,
         }
         aObject.set(nullptr);
         aTableScript.set(nullptr);
+        mThisObjects.Remove(tableScript);
         return NS_ERROR_FAILURE;
     }
 
@@ -1064,6 +1088,7 @@ mozJSComponentLoader::ObjectForLocation(ComponentLoaderInfo &aInfo,
     if (!*aLocation) {
         aObject.set(nullptr);
         aTableScript.set(nullptr);
+        mThisObjects.Remove(tableScript);
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
@@ -1099,6 +1124,7 @@ mozJSComponentLoader::UnloadModules()
 
     mInProgressImports.Clear();
     mImports.Clear();
+    mThisObjects.Clear();
 
     mModules.Enumerate(ClearModules, nullptr);
 
