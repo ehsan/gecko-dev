@@ -4554,7 +4554,7 @@ nsContentUtils::GetLocalizedEllipsis()
 }
 
 //static
-WidgetEvent*
+nsEvent*
 nsContentUtils::GetNativeEvent(nsIDOMEvent* aDOMEvent)
 {
   return aDOMEvent ? aDOMEvent->GetInternalNSEvent() : nullptr;

@@ -707,7 +707,7 @@ HTMLFormElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 }
 
 nsresult
-HTMLFormElement::DoSubmitOrReset(WidgetEvent* aEvent,
+HTMLFormElement::DoSubmitOrReset(nsEvent* aEvent,
                                  int32_t aMessage)
 {
   // Make sure the presentation is up-to-date
@@ -759,7 +759,7 @@ HTMLFormElement::DoReset()
   }
 
 nsresult
-HTMLFormElement::DoSubmit(WidgetEvent* aEvent)
+HTMLFormElement::DoSubmit(nsEvent* aEvent)
 {
   NS_ASSERTION(GetCurrentDoc(), "Should never get here without a current doc");
 
@@ -814,7 +814,7 @@ HTMLFormElement::DoSubmit(WidgetEvent* aEvent)
 
 nsresult
 HTMLFormElement::BuildSubmission(nsFormSubmission** aFormSubmission, 
-                                 WidgetEvent* aEvent)
+                                 nsEvent* aEvent)
 {
   NS_ASSERTION(!mPendingSubmission, "tried to build two submissions!");
 

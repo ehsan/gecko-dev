@@ -191,31 +191,51 @@ class UsingStmt(Node):
         self.type = cxxTypeSpec
 
 # "singletons"
-class PrettyPrinted:
+class ASYNC:
+    pretty = 'async'
     @classmethod
     def __hash__(cls): return hash(cls.pretty)
     @classmethod
     def __str__(cls):  return cls.pretty
-    
-class ASYNC(PrettyPrinted):
-    pretty = 'async'
-class INTR(PrettyPrinted):
+class INTR:
     pretty = 'intr'
-class SYNC(PrettyPrinted):
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
+class SYNC:
     pretty = 'sync'
-class URGENT(PrettyPrinted):
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
+class URGENT:
     pretty = 'urgent'
-class RPC(PrettyPrinted):
-    pretty = 'rpc'
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
 
-class INOUT(PrettyPrinted):
+class INOUT:
     pretty = 'inout'
-class IN(PrettyPrinted):
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
+class IN:
     pretty = 'in'
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
     @staticmethod
     def prettySS(cls, ss): return _prettyTable['in'][ss.pretty]
-class OUT(PrettyPrinted):
+class OUT:
     pretty = 'out'
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
     @staticmethod
     def prettySS(ss): return _prettyTable['out'][ss.pretty]
 
@@ -223,12 +243,10 @@ _prettyTable = {
     IN  : { 'async': 'AsyncRecv',
             'sync': 'SyncRecv',
             'intr': 'IntrAnswer',
-            'rpc': 'RPCAnswer',
             'urgent': 'UrgentAnswer' },
     OUT : { 'async': 'AsyncSend',
             'sync': 'SyncSend',
             'intr': 'IntrCall',
-            'rpc': 'RPCCall',
             'urgent': 'UrgentCall' }
     # inout doesn't make sense here
 }

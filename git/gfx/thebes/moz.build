@@ -7,8 +7,6 @@
 MODULE = 'thebes'
 
 EXPORTS += [
-    'DrawMode.h',
-    'GraphicsFilter.h',
     'RoundedRect.h',
     'gfx2DGlue.h',
     'gfx3DMatrix.h',

@@ -25,7 +25,7 @@ ICCompare_Int32::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Directly compare the int32 payload of R0 and R1.
     Assembler::Condition cond = JSOpToCondition(op, /* signed = */true);
-    masm.mov(ImmWord(0), ScratchReg);
+    masm.xorl(ScratchReg, ScratchReg);
     masm.cmpl(R0.valueReg(), R1.valueReg());
     masm.setCC(cond, ScratchReg);
 

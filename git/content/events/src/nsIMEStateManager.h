@@ -90,7 +90,7 @@ public:
    */
   static void DispatchCompositionEvent(nsINode* aEventTargetNode,
                                        nsPresContext* aPresContext,
-                                       mozilla::WidgetEvent* aEvent,
+                                       nsEvent* aEvent,
                                        nsEventStatus* aStatus,
                                        nsDispatchingCallback* aCallBack);
 

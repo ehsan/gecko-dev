@@ -32,6 +32,7 @@ public:
 
     bool HasEverBeenBound() { return mHasEverBeenBound; }
     void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
+    GLuint GLName() const { return mGLName; }
 
     bool Initialized() const { return mInitialized; }
     void SetInitialized(bool aInitialized) { mInitialized = aInitialized; }
@@ -48,12 +49,6 @@ public:
         return Context();
     }
 
-    void BindRenderbuffer() const;
-    void RenderbufferStorage(GLenum internalFormat, GLsizei width, GLsizei height) const;
-    void FramebufferRenderbuffer(GLenum attachment) const;
-    // Only handles a subset of `pname`s.
-    GLint GetRenderbufferParameter(GLenum target, GLenum pname) const;
-
     virtual JSObject* WrapObject(JSContext *cx,
                                  JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
@@ -61,8 +56,8 @@ public:
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLRenderbuffer)
 
 protected:
-    GLuint mPrimaryRB;
-    GLuint mSecondaryRB;
+
+    GLuint mGLName;
     GLenum mInternalFormat;
     GLenum mInternalFormatForGL;
     bool mHasEverBeenBound;

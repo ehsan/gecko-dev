@@ -783,18 +783,16 @@ function test() {
   function testAsyncSetup(test, callback) {
     info("START " + test.desc);
 
-    inspector.on("inspector-updated", function BIMET_updated(event, name) {
-      if (name === "inspector-panel") {
-        inspector.off("inspector-updated", BIMET_updated);
-
-        test.before();
-        test.execute(function() {
-          test.after();
-          undoRedo(test, callback);
-        });
-      }
+    inspector.once("inspector-updated", function BIMET_testAsyncSetupNewNode() {
+      test.before();
+      test.execute(function() {
+        test.after();
+        undoRedo(test, callback);
+      });
     });
-    executeSoon(test.setup);
+    executeSoon(function BIMET_setNode2() {
+      test.setup();
+    });
   }
 
   function undoRedo(test, callback) {

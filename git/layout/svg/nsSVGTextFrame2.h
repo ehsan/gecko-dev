@@ -7,6 +7,7 @@
 #define NS_SVGTEXTFRAME2_H
 
 #include "mozilla/Attributes.h"
+#include "gfxFont.h"
 #include "gfxMatrix.h"
 #include "gfxRect.h"
 #include "gfxSVGGlyphs.h"
@@ -520,10 +521,10 @@ private:
   gfxFloat GetOffsetScale(nsIFrame* aTextPathFrame);
   gfxFloat GetStartOffset(nsIFrame* aTextPathFrame);
 
-  DrawMode SetupCairoState(gfxContext* aContext,
-                           nsIFrame* aFrame,
-                           gfxTextContextPaint* aOuterContextPaint,
-                           gfxTextContextPaint** aThisContextPaint);
+  gfxFont::DrawMode SetupCairoState(gfxContext* aContext,
+                                    nsIFrame* aFrame,
+                                    gfxTextContextPaint* aOuterContextPaint,
+                                    gfxTextContextPaint** aThisContextPaint);
 
   /**
    * Sets up the stroke style for |aFrame| in |aContext| and stores stroke

@@ -58,7 +58,6 @@
 #include "ImageContainer.h"
 #include "nsStyleSet.h"
 #include "nsBlockFrame.h"
-#include "nsStyleStructInlines.h"
 
 #include "mozilla/Preferences.h"
 
@@ -1598,7 +1597,7 @@ nsImageFrame::GetAnchorHREFTargetAndNode(nsIURI** aHref, nsString& aTarget,
 }
 
 NS_IMETHODIMP  
-nsImageFrame::GetContentForEvent(WidgetEvent* aEvent,
+nsImageFrame::GetContentForEvent(nsEvent* aEvent,
                                  nsIContent** aContent)
 {
   NS_ENSURE_ARG_POINTER(aContent);
@@ -1640,15 +1639,14 @@ nsImageFrame::GetContentForEvent(WidgetEvent* aEvent,
 // XXX what should clicks on transparent pixels do?
 NS_IMETHODIMP
 nsImageFrame::HandleEvent(nsPresContext* aPresContext,
-                          WidgetGUIEvent* aEvent,
+                          nsGUIEvent* aEvent,
                           nsEventStatus* aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
 
   if ((aEvent->eventStructType == NS_MOUSE_EVENT &&
        aEvent->message == NS_MOUSE_BUTTON_UP && 
-       static_cast<WidgetMouseEvent*>(aEvent)->button ==
-         WidgetMouseEvent::eLeftButton) ||
+       static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton) ||
       aEvent->message == NS_MOUSE_MOVE) {
     nsImageMap* map = GetImageMap();
     bool isServerMap = IsServerImageMap();

@@ -15,6 +15,14 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
 
+XPCOMUtils.defineLazyGetter(Services, "DOMRequest", function() {
+  return Cc["@mozilla.org/dom/dom-request-service;1"].getService(Ci.nsIDOMRequestService);
+});
+
+XPCOMUtils.defineLazyServiceGetter(this, "pm",
+                                   "@mozilla.org/permissionmanager;1",
+                                   "nsIPermissionManager");
+
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
                                    "nsIMessageSender");
@@ -724,7 +732,7 @@ ContactManager.prototype = {
     // Shortcut for ALLOW_ACTION so we avoid a parent roundtrip
     let type = "contacts-" + access;
     let permValue =
-      Services.perms.testExactPermissionFromPrincipal(this._window.document.nodePrincipal, type);
+      pm.testExactPermissionFromPrincipal(this._window.document.nodePrincipal, type);
     if (permValue == Ci.nsIPermissionManager.ALLOW_ACTION) {
       aAllowCallback();
       return;

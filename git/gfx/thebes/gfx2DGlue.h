@@ -64,25 +64,25 @@ inline IntSize ToIntSize(const gfxIntSize &aSize)
   return IntSize(aSize.width, aSize.height);
 }
 
-inline Filter ToFilter(GraphicsFilter aFilter)
+inline Filter ToFilter(gfxPattern::GraphicsFilter aFilter)
 {
   switch (aFilter) {
-  case GraphicsFilter::FILTER_NEAREST:
+  case gfxPattern::FILTER_NEAREST:
     return FILTER_POINT;
-  case GraphicsFilter::FILTER_GOOD:
+  case gfxPattern::FILTER_GOOD:
     return FILTER_GOOD;
   default:
     return FILTER_LINEAR;
   }
 }
 
-inline GraphicsFilter ThebesFilter(Filter aFilter)
+inline gfxPattern::GraphicsFilter ThebesFilter(Filter aFilter)
 {
   switch (aFilter) {
   case FILTER_POINT:
-    return GraphicsFilter::FILTER_NEAREST;
+    return gfxPattern::FILTER_NEAREST;
   default:
-    return GraphicsFilter::FILTER_BEST;
+    return gfxPattern::FILTER_BEST;
   }
 }
 

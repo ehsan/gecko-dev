@@ -423,4 +423,7 @@ typedef WidgetWheelEvent                WheelEvent;
 
 } // namespace mozilla
 
+// TODO: Remove following typedefs
+typedef mozilla::WidgetMouseEvent       nsMouseEvent;
+
 #endif // mozilla_MouseEvents_h__

@@ -8,6 +8,7 @@ MODULE = 'content'
 
 EXPORTS += [
     'HTMLPropertiesCollection.h',
+    'nsClientRect.h',
     'nsGenericHTMLElement.h',
     'nsHTMLDNSPrefetch.h',
 ]
@@ -141,6 +142,7 @@ CPP_SOURCES += [
     'TimeRanges.cpp',
     'UndoManager.cpp',
     'ValidityState.cpp',
+    'nsClientRect.cpp',
     'nsDOMStringMap.cpp',
     'nsFormSubmission.cpp',
     'nsGenericHTMLElement.cpp',

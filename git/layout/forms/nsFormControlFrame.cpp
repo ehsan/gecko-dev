@@ -134,8 +134,8 @@ nsFormControlFrame::SetFocus(bool aOn, bool aRepaint)
 
 NS_METHOD
 nsFormControlFrame::HandleEvent(nsPresContext* aPresContext, 
-                                WidgetGUIEvent* aEvent,
-                                nsEventStatus* aEventStatus)
+                                          nsGUIEvent* aEvent,
+                                          nsEventStatus* aEventStatus)
 {
   // Check for user-input:none style
   const nsStyleUserInterface* uiStyle = StyleUserInterface();

@@ -137,7 +137,6 @@ reserved = set((
         'protocol',
         'recv',
         'returns',
-        'rpc',
         'send',
         'spawns',
         'start',
@@ -608,7 +607,6 @@ def p_OptionalSendSemanticsQual(p):
 def p_SendSemanticsQual(p):
     """SendSemanticsQual : ASYNC
                          | INTR
-                         | RPC
                          | URGENT
                          | SYNC"""
     s = p[1]
@@ -616,7 +614,6 @@ def p_SendSemanticsQual(p):
     elif 'intr' == s: p[0] =   INTR
     elif 'sync' == s: p[0] =   SYNC
     elif 'urgent' == s: p[0] = URGENT
-    elif 'rpc' == s: p[0] =    RPC
     else:
         assert 0
 

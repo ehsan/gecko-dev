@@ -15,8 +15,6 @@
 #include "nsIDOMHTMLInputElement.h"
 #include "nsTextNode.h"
 
-using namespace mozilla;
-
 nsGfxButtonControlFrame::nsGfxButtonControlFrame(nsStyleContext* aContext):
   nsHTMLButtonControlFrame(aContext)
 {
@@ -218,8 +216,8 @@ nsGfxButtonControlFrame::GetContentInsertionFrame()
 
 NS_IMETHODIMP
 nsGfxButtonControlFrame::HandleEvent(nsPresContext* aPresContext, 
-                                     WidgetGUIEvent* aEvent,
-                                     nsEventStatus* aEventStatus)
+                                      nsGUIEvent*     aEvent,
+                                      nsEventStatus*  aEventStatus)
 {
   // Override the HandleEvent to prevent the nsFrame::HandleEvent
   // from being called. The nsFrame::HandleEvent causes the button label

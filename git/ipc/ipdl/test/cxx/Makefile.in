@@ -21,7 +21,6 @@ IPDLTESTS = \
   TestInterruptErrorCleanup \
   TestInterruptRaces \
   TestInterruptShutdownRace \
-  TestRPC \
   TestRaceDeferral \
   TestRacyReentry  \
   TestRacyInterruptReplies  \

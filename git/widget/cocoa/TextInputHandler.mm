@@ -257,7 +257,7 @@ GetNativeKeyEventType(NSEvent* aNativeEvent)
 }
 
 static const char*
-GetGeckoKeyEventType(const WidgetEvent& aEvent)
+GetGeckoKeyEventType(const nsEvent &aEvent)
 {
   switch (aEvent.message) {
     case NS_KEY_DOWN:    return "NS_KEY_DOWN";
@@ -1467,9 +1467,9 @@ TextInputHandler::HandleKeyDownEvent(NSEvent* aNativeEvent)
       [aNativeEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
     if (modifierFlags == NSControlKeyMask &&
         [[aNativeEvent charactersIgnoringModifiers] isEqualToString:@" "]) {
-      WidgetMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, [mView widget],
-                                        WidgetMouseEvent::eReal,
-                                        WidgetMouseEvent::eContextMenuKey);
+      nsMouseEvent contextMenuEvent(true, NS_CONTEXTMENU,
+                                    [mView widget], nsMouseEvent::eReal,
+                                    nsMouseEvent::eContextMenuKey);
       contextMenuEvent.modifiers = 0;
 
       bool cmEventHandled = DispatchEvent(contextMenuEvent);
@@ -4175,7 +4175,7 @@ TextInputHandlerBase::OnDestroyWidget(nsChildView* aDestroyingWidget)
 }
 
 bool
-TextInputHandlerBase::DispatchEvent(WidgetGUIEvent& aEvent)
+TextInputHandlerBase::DispatchEvent(nsGUIEvent& aEvent)
 {
   if (aEvent.message == NS_KEY_PRESS) {
     WidgetInputEvent& inputEvent = static_cast<WidgetInputEvent&>(aEvent);

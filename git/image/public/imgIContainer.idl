@@ -11,7 +11,7 @@
 #include "gfxContext.h"
 #include "gfxMatrix.h"
 #include "gfxRect.h"
-#include "GraphicsFilter.h"
+#include "gfxPattern.h"
 #include "gfxASurface.h"
 #include "nsRect.h"
 #include "nsSize.h"
@@ -45,7 +45,7 @@ native gfxImageFormat(gfxASurface::gfxImageFormat);
 [ptr] native gfxContext(gfxContext);
 [ref] native gfxMatrix(gfxMatrix);
 [ref] native gfxRect(gfxRect);
-native gfxGraphicsFilter(GraphicsFilter);
+native gfxGraphicsFilter(gfxPattern::GraphicsFilter);
 [ref] native nsIntRect(nsIntRect);
 [ref] native nsIntSize(nsIntSize);
 native nsSize(nsSize);

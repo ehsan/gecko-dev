@@ -28,7 +28,6 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsBlockFrame.h"
 #include "mozilla/AutoRestore.h"
-#include "nsIFrameInlines.h"
 #include <algorithm>
 
 #ifdef DEBUG
@@ -1393,7 +1392,10 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
   }
 
   // Take the next-in-flow out of the parent's child list
-  DebugOnly<nsresult> rv = StealFrame(aPresContext, aNextInFlow);
+#ifdef DEBUG
+  nsresult rv =
+#endif
+    StealFrame(aPresContext, aNextInFlow);
   NS_ASSERTION(NS_SUCCEEDED(rv), "StealFrame failure");
 
 #ifdef DEBUG

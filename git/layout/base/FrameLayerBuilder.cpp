@@ -19,7 +19,6 @@
 #include "nsPrintfCString.h"
 #include "LayerTreeInvalidation.h"
 #include "nsSVGIntegrationUtils.h"
-#include "ImageContainer.h"
 
 #include "GeckoProfiler.h"
 #include "mozilla/gfx/Tools.h"
