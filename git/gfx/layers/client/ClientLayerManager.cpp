@@ -203,7 +203,7 @@ ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   mForwarder->BeginTransaction(targetBounds, mTargetRotation, orientation);
 
   // If we're drawing on behalf of a context with async pan/zoom
-  // enabled, then the entire buffer of painted layers might be
+  // enabled, then the entire buffer of thebes layers might be
   // composited (including resampling) asynchronously before we get
   // a chance to repaint, so we have to ensure that it's all valid
   // and not rotated.
@@ -233,7 +233,7 @@ ClientLayerManager::BeginTransaction()
 }
 
 bool
-ClientLayerManager::EndTransactionInternal(DrawPaintedLayerCallback aCallback,
+ClientLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
                                            void* aCallbackData,
                                            EndTransactionFlags)
 {
@@ -257,8 +257,8 @@ ClientLayerManager::EndTransactionInternal(DrawPaintedLayerCallback aCallback,
   // properties.
   GetRoot()->ApplyPendingUpdatesToSubtree();
     
-  mPaintedLayerCallback = aCallback;
-  mPaintedLayerCallbackData = aCallbackData;
+  mThebesLayerCallback = aCallback;
+  mThebesLayerCallbackData = aCallbackData;
 
   GetRoot()->ComputeEffectiveTransforms(Matrix4x4());
 
@@ -267,8 +267,8 @@ ClientLayerManager::EndTransactionInternal(DrawPaintedLayerCallback aCallback,
     GetRoot()->Mutated();
   }
   
-  mPaintedLayerCallback = nullptr;
-  mPaintedLayerCallbackData = nullptr;
+  mThebesLayerCallback = nullptr;
+  mThebesLayerCallbackData = nullptr;
 
   // Go back to the construction phase if the transaction isn't complete.
   // Layout will update the layer tree and call EndTransaction().
@@ -285,7 +285,7 @@ ClientLayerManager::EndTransactionInternal(DrawPaintedLayerCallback aCallback,
 }
 
 void
-ClientLayerManager::EndTransaction(DrawPaintedLayerCallback aCallback,
+ClientLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
                                    void* aCallbackData,
                                    EndTransactionFlags aFlags)
 {

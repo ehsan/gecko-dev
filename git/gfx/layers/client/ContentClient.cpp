@@ -676,7 +676,7 @@ ContentClientIncremental::NotifyBufferCreated(ContentType aType, TextureFlags aF
 }
 
 RotatedContentBuffer::PaintState
-ContentClientIncremental::BeginPaintBuffer(PaintedLayer* aLayer,
+ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
                                            uint32_t aFlags)
 {
   mTextureInfo.mDeprecatedTextureHostFlags = DeprecatedTextureHostFlags::DEFAULT;

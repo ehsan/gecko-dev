@@ -39,6 +39,15 @@ function LoaderWithHookedConsole(module) {
   }
 }
 
+function deactivate(callback) {
+  if (pbUtils.isGlobalPBSupported) {
+    if (callback)
+      pb.once('stop', callback);
+    pb.deactivate();
+  }
+}
+exports.deactivate = deactivate;
+
 exports.pb = pb;
 exports.pbUtils = pbUtils;
 exports.LoaderWithHookedConsole = LoaderWithHookedConsole;

@@ -201,7 +201,6 @@ exports["test content to host messaging"] = function* (assert) {
 
 
 exports["test direct messaging"] = function* (assert) {
-  let message;
   const url = "data:text/html,<script>new " + function() {
     var n = 0;
     window.addEventListener("message", (event) => {
@@ -232,13 +231,13 @@ exports["test direct messaging"] = function* (assert) {
   assert.deepEqual(e1.data, {n: 1}, "received message from window#1");
   assert.deepEqual(e2.data, {n: 1}, "received message from window#2");
 
-  message = wait(f1, "message");
+  let message = wait(f1, "message");
   e1.source.postMessage("inc", e1.origin);
   e1.source.postMessage("print", e1.origin);
   const e3 = yield message;
   assert.deepEqual(e3.data, {n: 2}, "state changed in window#1");
 
-  message = wait(f1, "message");
+  let message = wait(f1, "message");
   e2.source.postMessage("print", e2.origin);
   yield message;
   assert.deepEqual(e2.data, {n:1}, "window#2 didn't received inc message");
@@ -247,6 +246,7 @@ exports["test direct messaging"] = function* (assert) {
   t1.destroy();
 
   yield wait(t1, "detach");
+
 };
 
 require("sdk/test").run(exports);

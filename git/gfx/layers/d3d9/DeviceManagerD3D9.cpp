@@ -5,7 +5,7 @@
 
 #include "DeviceManagerD3D9.h"
 #include "LayerManagerD3D9Shaders.h"
-#include "PaintedLayerD3D9.h"
+#include "ThebesLayerD3D9.h"
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 #include "nsPrintfCString.h"

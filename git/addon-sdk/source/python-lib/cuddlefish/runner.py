@@ -18,7 +18,6 @@ from cuddlefish.prefs import DEFAULT_FIREFOX_PREFS
 from cuddlefish.prefs import DEFAULT_THUNDERBIRD_PREFS
 from cuddlefish.prefs import DEFAULT_FENNEC_PREFS
 from cuddlefish.prefs import DEFAULT_NO_CONNECTIONS_PREFS
-from cuddlefish.prefs import DEFAULT_TEST_PREFS
 
 # Used to remove noise from ADB output
 CLEANUP_ADB = re.compile(r'^(I|E)/(stdout|stderr|GeckoConsole)\s*\(\s*\d+\):\s*(.*)$')
@@ -105,6 +104,30 @@ class FennecProfile(mozrunner.Profile):
     preferences = {}
     names = ['fennec']
 
+class FennecRunner(mozrunner.Runner):
+    profile_class = FennecProfile
+
+    names = ['fennec']
+
+    __DARWIN_PATH = '/Applications/Fennec.app/Contents/MacOS/fennec'
+
+    def __init__(self, binary=None, **kwargs):
+        if sys.platform == 'darwin' and binary and binary.endswith('.app'):
+            # Assume it's a Fennec app dir.
+            binary = os.path.join(binary, 'Contents/MacOS/fennec')
+
+        self.__real_binary = binary
+
+        mozrunner.Runner.__init__(self, **kwargs)
+
+    def find_binary(self):
+        if not self.__real_binary:
+            if sys.platform == 'darwin':
+                if os.path.exists(self.__DARWIN_PATH):
+                    return self.__DARWIN_PATH
+            self.__real_binary = mozrunner.Runner.find_binary(self)
+        return self.__real_binary
+
 FENNEC_REMOTE_PATH = '/mnt/sdcard/jetpack-profile'
 
 class RemoteFennecRunner(mozrunner.Runner):
@@ -144,11 +167,11 @@ class RemoteFennecRunner(mozrunner.Runner):
         # or use name given as cfx `--mobile-app` argument.
         intents = self.getIntentNames()
         if not intents:
-            raise ValueError("Unable to find any Firefox "
+            raise ValueError("Unable to found any Firefox "
                              "application on your device.")
         elif mobile_app_name:
             if not mobile_app_name in intents:
-                raise ValueError("Unable to find Firefox application "
+                raise ValueError("Unable to found Firefox application "
                                  "with intent name '%s'\n"
                                  "Available ones are: %s" %
                                  (mobile_app_name, ", ".join(intents)))
@@ -389,7 +412,7 @@ def run_app(harness_root_dir, manifest_rdf, harness_options,
             app_type, binary=None, profiledir=None, verbose=False,
             parseable=False, enforce_timeouts=False,
             logfile=None, addons=None, args=None, extra_environment={},
-            norun=None, noquit=None,
+            norun=None,
             used_files=None, enable_mobile=False,
             mobile_app_name=None,
             env_root=None,
@@ -410,9 +433,6 @@ def run_app(harness_root_dir, manifest_rdf, harness_options,
     cmdargs = []
     preferences = dict(DEFAULT_COMMON_PREFS)
 
-    if is_running_tests:
-      preferences.update(DEFAULT_TEST_PREFS)
-
     if no_connections:
       preferences.update(DEFAULT_NO_CONNECTIONS_PREFS)
 
@@ -420,7 +440,7 @@ def run_app(harness_root_dir, manifest_rdf, harness_options,
         preferences['browser.tabs.remote.autostart'] = True
 
     # For now, only allow running on Mobile with --force-mobile argument
-    if app_type in ["fennec-on-device"] and not enable_mobile:
+    if app_type in ["fennec", "fennec-on-device"] and not enable_mobile:
         print """
   WARNING: Firefox Mobile support is still experimental.
   If you would like to run an addon on this platform, use --force-mobile flag:
@@ -434,6 +454,10 @@ def run_app(harness_root_dir, manifest_rdf, harness_options,
         runner_class = RemoteFennecRunner
         # We pass the intent name through command arguments
         cmdargs.append(mobile_app_name)
+    elif enable_mobile or app_type == "fennec":
+        profile_class = FennecProfile
+        preferences.update(DEFAULT_FENNEC_PREFS)
+        runner_class = FennecRunner
     elif app_type == "xulrunner":
         profile_class = XulrunnerAppProfile
         runner_class = XulrunnerAppRunner
@@ -739,8 +763,7 @@ def run_app(harness_root_dir, manifest_rdf, harness_options,
                     raise Timeout("Test run exceeded timeout (%ds)." %
                                   RUN_TIMEOUT, test_name, parseable)
     except:
-        if not noquit:
-            runner.stop()
+        runner.stop()
         raise
     else:
         runner.wait(10)

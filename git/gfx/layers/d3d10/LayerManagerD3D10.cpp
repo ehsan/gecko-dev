@@ -15,7 +15,7 @@
 #include "dxgi.h"
 
 #include "ContainerLayerD3D10.h"
-#include "PaintedLayerD3D10.h"
+#include "ThebesLayerD3D10.h"
 #include "ColorLayerD3D10.h"
 #include "CanvasLayerD3D10.h"
 #include "ReadbackLayerD3D10.h"
@@ -354,7 +354,7 @@ LayerManagerD3D10::EndEmptyTransaction(EndTransactionFlags aFlags)
 }
 
 void
-LayerManagerD3D10::EndTransaction(DrawPaintedLayerCallback aCallback,
+LayerManagerD3D10::EndTransaction(DrawThebesLayerCallback aCallback,
                                   void* aCallbackData,
                                   EndTransactionFlags aFlags)
 {
@@ -392,10 +392,10 @@ LayerManagerD3D10::EndTransaction(DrawPaintedLayerCallback aCallback,
   mTarget = nullptr;
 }
 
-already_AddRefed<PaintedLayer>
-LayerManagerD3D10::CreatePaintedLayer()
+already_AddRefed<ThebesLayer>
+LayerManagerD3D10::CreateThebesLayer()
 {
-  nsRefPtr<PaintedLayer> layer = new PaintedLayerD3D10(this);
+  nsRefPtr<ThebesLayer> layer = new ThebesLayerD3D10(this);
   return layer.forget();
 }
 

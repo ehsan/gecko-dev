@@ -18,7 +18,6 @@ const ORIGINAL_SDK_LOG_LEVEL = prefs.get(SDK_LOG_LEVEL_PREF);
 
 exports.testPlainTextConsole = function(assert) {
   let prints = [];
-  let tbLines;
   function print(message) {
     prints.push(message);
   }
@@ -81,15 +80,15 @@ exports.testPlainTextConsole = function(assert) {
   assert.equal(lastPrint(), "console.log: " + name + ": testing {}\n",
                    "PlainTextConsole.log() must stringify custom bad toString.");
 
+
   con.exception(new Error("blah"));
 
-  assert.equal(prints[0], "console.error: " + name + ": \n", "prints[0] is correct");
-  tbLines = prints[1].split("\n");
-  assert.equal(tbLines[0], "  Message: Error: blah", "tbLines[0] is correct");
-  assert.equal(tbLines[1], "  Stack:", "tbLines[1] is correct");
-  let lineNumber = prints[1].match(module.uri + ":(\\d+)")[1];
-  assert.equal(lineNumber, "84", "line number is correct")
-  assert.ok(prints[1].indexOf(module.uri + ":84") !== -1, "line number is correct");
+
+  assert.equal(prints[0], "console.error: " + name + ": \n");
+  let tbLines = prints[1].split("\n");
+  assert.equal(tbLines[0], "  Message: Error: blah");
+  assert.equal(tbLines[1], "  Stack:");
+  assert.ok(prints[1].indexOf(module.uri + ":84") !== -1);
   prints = []
 
   try {
@@ -99,14 +98,14 @@ exports.testPlainTextConsole = function(assert) {
   catch(e) {
     con.exception(e);
   }
-  assert.equal(prints[0], "console.error: " + name + ": \n", "prints[0] is correct");
-  assert.equal(prints[1], "  Error creating URI (invalid URL scheme?)\n", "prints[1] is correct");
+  assert.equal(prints[0], "console.error: " + name + ": \n");
+  assert.equal(prints[1], "  Error creating URI (invalid URL scheme?)\n");
   prints = [];
 
   con.trace();
-  tbLines = prints[0].split("\n");
-  assert.equal(tbLines[0], "console.trace: " + name + ": ", "contains correct console.trace");
-  assert.ok(tbLines[1].indexOf("_ain-text-console.js 106") == 0);
+  let tbLines = prints[0].split("\n");
+  assert.equal(tbLines[0], "console.trace: " + name + ": ");
+  assert.ok(tbLines[1].indexOf("_ain-text-console.js 105") == 0);
   prints = [];
 
   // Whether or not console methods should print at the various log levels,
@@ -168,7 +167,6 @@ exports.testPlainTextConsole = function(assert) {
 
 exports.testPlainTextConsoleBoundMethods = function(assert) {
   let prints = [];
-  let tbLines;
   function print(message) {
     prints.push(message);
   }
@@ -209,26 +207,24 @@ exports.testPlainTextConsoleBoundMethods = function(assert) {
   debug('testing', 1, [2, 3, 4]);
   assert.equal(prints[0], "console.debug: " + name + ": \n",
                    "PlainTextConsole.debug() must work.");
-  assert.equal(prints[1], "  testing\n", "prints[1] is correct");
-  assert.equal(prints[2], "  1\n", "prints[2] is correct");
-  assert.equal(prints[3],
-               "Array\n    - 0 = 2\n    - 1 = 3\n    - 2 = 4\n    - length = 3\n",
-               "prints[3] is correct");
+  assert.equal(prints[1], "  testing\n")
+  assert.equal(prints[2], "  1\n")
+  assert.equal(prints[3], "Array\n    - 0 = 2\n    - 1 = 3\n    - 2 = 4\n    - length = 3\n");
   prints = [];
 
   exception(new Error("blah"));
 
-  assert.equal(prints[0], "console.error: " + name + ": \n", "prints[0] is correct");
-  tbLines = prints[1].split("\n");
-  assert.equal(tbLines[0], "  Message: Error: blah", "tbLines[0] is correct");
-  assert.equal(tbLines[1], "  Stack:", "tbLines[1] is correct");
-  assert.ok(prints[1].indexOf(module.uri + ":219") !== -1, "correct line number");
+  assert.equal(prints[0], "console.error: " + name + ": \n");
+  let tbLines = prints[1].split("\n");
+  assert.equal(tbLines[0], "  Message: Error: blah");
+  assert.equal(tbLines[1], "  Stack:");
+  assert.ok(prints[1].indexOf(module.uri + ":215") !== -1);
   prints = []
 
   trace();
-  tbLines = prints[0].split("\n");
-  assert.equal(tbLines[0], "console.trace: " + name + ": ", "console.trace is correct");
-  assert.ok(tbLines[1].indexOf("_ain-text-console.js 228") === 0, "correct line number");
+  let tbLines = prints[0].split("\n");
+  assert.equal(tbLines[0], "console.trace: " + name + ": ");
+  assert.ok(tbLines[1].indexOf("_ain-text-console.js 224") === 0);
   prints = [];
 
   restorePrefs();
@@ -275,4 +271,4 @@ function restorePrefs() {
     prefs.reset(SDK_LOG_LEVEL_PREF);
 }
 
-require("sdk/test").run(exports);
+require("test").run(exports);

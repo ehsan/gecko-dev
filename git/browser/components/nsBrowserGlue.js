@@ -2163,11 +2163,7 @@ let DefaultBrowserCheck = {
       claimAllTypes = (parseFloat(version) < 6.2);
     } catch (ex) { }
 #endif
-    try {
-      ShellService.setDefaultBrowser(claimAllTypes, false);
-    } catch (ex) {
-      Cu.reportError(ex);
-    }
+    ShellService.setDefaultBrowser(claimAllTypes, false);
     this.closePrompt();
   },
 

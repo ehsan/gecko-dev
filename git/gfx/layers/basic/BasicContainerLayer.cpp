@@ -115,7 +115,7 @@ BasicContainerLayer::ChildrenPartitionVisibleRegion(const nsIntRect& aInRect)
 }
 
 void
-BasicContainerLayer::Validate(LayerManager::DrawPaintedLayerCallback aCallback,
+BasicContainerLayer::Validate(LayerManager::DrawThebesLayerCallback aCallback,
                               void* aCallbackData,
                               ReadbackProcessor* aReadback)
 {

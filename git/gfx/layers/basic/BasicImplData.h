@@ -21,7 +21,7 @@ class SurfaceDescriptor;
  * This is the ImplData for all Basic layers. It also exposes methods
  * private to the Basic implementation that are common to all Basic layer types.
  * In particular, there is an internal Paint() method that we can use
- * to paint the contents of non-PaintedLayers.
+ * to paint the contents of non-Thebes layers.
  *
  * The class hierarchy for Basic layers is like this:
  *                                 BasicImplData
@@ -31,9 +31,9 @@ class SurfaceDescriptor;
  *  |    |                          |   |   |
  *  |    +-> BasicContainerLayer <--+   |   |
  *  |                                   |   |
- *  +-> PaintedLayer                     |   |
+ *  +-> ThebesLayer                     |   |
  *  |    |                              |   |
- *  |    +-> BasicPaintedLayer <---------+   |
+ *  |    +-> BasicThebesLayer <---------+   |
  *  |                                       |
  *  +-> ImageLayer                          |
  *       |                                  |
@@ -64,17 +64,17 @@ public:
                      Layer* aMaskLayer) {}
 
   /**
-   * Like Paint() but called for PaintedLayers with the additional parameters
+   * Like Paint() but called for ThebesLayers with the additional parameters
    * they need.
    * If mClipToVisibleRegion is set, then the layer must clip to its
    * effective visible region (snapped or unsnapped, it doesn't matter).
    */
   virtual void PaintThebes(gfxContext* aContext,
                            Layer* aMasklayer,
-                           LayerManager::DrawPaintedLayerCallback aCallback,
+                           LayerManager::DrawThebesLayerCallback aCallback,
                            void* aCallbackData) {}
 
-  virtual void Validate(LayerManager::DrawPaintedLayerCallback aCallback,
+  virtual void Validate(LayerManager::DrawThebesLayerCallback aCallback,
                         void* aCallbackData,
                         ReadbackProcessor* aReadback) {}
 

@@ -3,7 +3,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "Hal.h"
-#include "HalLog.h"
 
 using namespace mozilla::hal;
 
@@ -16,9 +15,9 @@ SetProcessPriority(int aPid,
                    ProcessCPUPriority aCPUPriority,
                    uint32_t aBackgroundLRU)
 {
-  HAL_LOG("FallbackProcessPriority - SetProcessPriority(%d, %s, %u)\n",
-          aPid, ProcessPriorityToString(aPriority, aCPUPriority),
-          aBackgroundLRU);
+  HAL_LOG(("FallbackProcessPriority - SetProcessPriority(%d, %s, %u)\n",
+           aPid, ProcessPriorityToString(aPriority, aCPUPriority),
+           aBackgroundLRU));
 }
 
 } // hal_impl

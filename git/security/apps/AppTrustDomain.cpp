@@ -238,7 +238,7 @@ AppTrustDomain::CheckRevocation(EndEntityOrCA, const CertID&, Time,
 }
 
 Result
-AppTrustDomain::IsChainValid(const DERArray& certChain, Time time)
+AppTrustDomain::IsChainValid(const DERArray& certChain)
 {
   SECStatus srv = ConstructCERTCertListFromReversedDERArray(certChain,
                                                             mCertChain);

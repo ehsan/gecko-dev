@@ -54,34 +54,18 @@ struct EffectChain;
 class CompositableBackendSpecificData
 {
 protected:
-  virtual ~CompositableBackendSpecificData() {}
+  virtual ~CompositableBackendSpecificData() { }
 
 public:
   NS_INLINE_DECL_REFCOUNTING(CompositableBackendSpecificData)
 
-  CompositableBackendSpecificData();
+  CompositableBackendSpecificData()
+  {
+  }
 
-  virtual void ClearData() {}
   virtual void SetCompositor(Compositor* aCompositor) {}
+  virtual void ClearData() {}
 
-  bool IsAllowingSharingTextureHost()
-  {
-    return mAllowSharingTextureHost;
-  }
-
-  void SetAllowSharingTextureHost(bool aAllow)
-  {
-    mAllowSharingTextureHost = aAllow;
-  }
-
-  uint64_t GetId()
-  {
-    return mId;
-  }
-
-public:
-  bool mAllowSharingTextureHost;
-  uint64_t mId;
 };
 
 /**
