@@ -39,7 +39,6 @@
 
 #include "nsIXPConnect.h"
 #include "mozStorageStatement.h"
-#include "mozStorageService.h"
 
 #include "nsMemory.h"
 #include "nsString.h"
@@ -52,12 +51,24 @@
 
 #include "jsapi.h"
 
+static nsIXPConnect *sXPConnect = nsnull;
+static inline
+nsIXPConnect *
+XPConnect()
+{
+  if (!sXPConnect) {
+    (void)CallGetService(nsIXPConnect::GetCID(), &sXPConnect);
+    NS_ASSERTION(sXPConnect, "Could not get XPConnect!");
+  }
+  return sXPConnect;
+}
+
 static
 JSBool
 stepFunc(JSContext *aCtx, PRUint32, jsval *_vp)
 {
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
-  nsresult rv = mozStorageService::XPConnect()->GetWrappedNativeOfJSObject(
+  nsresult rv = XPConnect()->GetWrappedNativeOfJSObject(
     aCtx, JS_THIS_OBJECT(aCtx, _vp), getter_AddRefs(wrapper)
   );
   if (NS_FAILED(rv)) {
@@ -109,13 +120,9 @@ mozStorageStatementJSHelper::getRow(mozStorageStatement *aStatement,
       new mozStorageStatementRow(aStatement);
     NS_ENSURE_TRUE(row, NS_ERROR_OUT_OF_MEMORY);
 
-    rv = mozStorageService::XPConnect()->WrapNative(
-      aCtx,
-      ::JS_GetGlobalForObject(aCtx, aScopeObj),
-      row,
-      NS_GET_IID(mozIStorageStatementRow),
-      getter_AddRefs(aStatement->mStatementRowHolder)
-    );
+    rv = XPConnect()->WrapNative(aCtx, ::JS_GetGlobalForObject(aCtx, aScopeObj),
+                                 row, NS_GET_IID(mozIStorageStatementRow),
+                                 getter_AddRefs(aStatement->mStatementRowHolder));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -144,13 +151,9 @@ mozStorageStatementJSHelper::getParams(mozStorageStatement *aStatement,
       new mozStorageStatementParams(aStatement);
     NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
 
-    rv = mozStorageService::XPConnect()->WrapNative(
-      aCtx,
-      ::JS_GetGlobalForObject(aCtx, aScopeObj),
-      params,
-      NS_GET_IID(mozIStorageStatementParams),
-      getter_AddRefs(aStatement->mStatementParamsHolder)
-    );
+    rv = XPConnect()->WrapNative(aCtx, ::JS_GetGlobalForObject(aCtx, aScopeObj),
+                                 params, NS_GET_IID(mozIStorageStatementParams),
+                                 getter_AddRefs(aStatement->mStatementParamsHolder));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
