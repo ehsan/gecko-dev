@@ -63,18 +63,14 @@ function test()
 
   var recursionDepth = 0;
   function err() {
-    try {
-        return err.apply(this, arguments);
-    } catch (e) {
-        if (!(e instanceof InternalError))
-            throw e;
-    }
-    return new Error();
+    if (++recursionDepth == 128)
+      return new Error();
+    return err.apply(this, arguments);
   }
 
-  // The full stack trace in error would include 64*4 copies of s exceeding
+  // The full stack trace in error would include 128*2 copies of s exceeding
   //  2^23 * 256 or 2^31 in length
-  var error = err(s,s,s,s);
+  var error = err(s,s);
 
   print(error.stack.length);
 

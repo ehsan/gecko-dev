@@ -50,39 +50,13 @@
 #include "jsdhash.h"
 #endif
 
-inline const js::Value &
-JSObject::getRegExpLastIndex() const
-{
-    JS_ASSERT(isRegExp());
-    return fslots[JSSLOT_REGEXP_LAST_INDEX];
-}
+JS_BEGIN_EXTERN_C
 
-inline void
-JSObject::setRegExpLastIndex(const js::Value &v)
-{
-    JS_ASSERT(isRegExp());
-    fslots[JSSLOT_REGEXP_LAST_INDEX] = v;
-}
-
-inline void
-JSObject::setRegExpLastIndex(jsdouble d)
-{
-    JS_ASSERT(isRegExp());
-    fslots[JSSLOT_REGEXP_LAST_INDEX] = js::NumberValue(d);
-}
-
-inline void
-JSObject::zeroRegExpLastIndex()
-{
-    JS_ASSERT(isRegExp());
-    fslots[JSSLOT_REGEXP_LAST_INDEX].setInt32(0);
-}
-
-namespace js { class AutoStringRooter; }
+namespace js { class AutoValueRooter; }
 
 extern JS_FRIEND_API(void)
 js_SaveAndClearRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
-                             js::AutoStringRooter *tvr);
+                             js::AutoValueRooter *tvr);
 
 extern JS_FRIEND_API(void)
 js_RestoreRegExpStatics(JSContext *cx, JSRegExpStatics *statics);
@@ -140,7 +114,7 @@ js_DestroyRegExp(JSContext *cx, JSRegExp *re);
  */
 extern JSBool
 js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
-                 JSBool test, js::Value *rval);
+                 JSBool test, jsval *rval);
 
 extern void
 js_InitRegExpStatics(JSContext *cx);
@@ -152,9 +126,9 @@ extern void
 js_FreeRegExpStatics(JSContext *cx);
 
 #define VALUE_IS_REGEXP(cx, v)                                                \
-    ((v).isObject() && v.toObject().isRegExp())
+    (!JSVAL_IS_PRIMITIVE(v) && JSVAL_TO_OBJECT(v)->isRegExp())
 
-extern js::Class js_RegExpClass;
+extern JSClass js_RegExpClass;
 
 inline bool
 JSObject::isRegExp() const
@@ -172,7 +146,7 @@ js_InitRegExpClass(JSContext *cx, JSObject *obj);
  * Export js_regexp_toString to the decompiler.
  */
 extern JSBool
-js_regexp_toString(JSContext *cx, JSObject *obj, js::Value *vp);
+js_regexp_toString(JSContext *cx, JSObject *obj, jsval *vp);
 
 /*
  * Create, serialize/deserialize, or clone a RegExp object.
@@ -190,5 +164,7 @@ js_CloneRegExpObject(JSContext *cx, JSObject *obj, JSObject *proto);
 /* Return whether the given character array contains RegExp meta-characters. */
 extern bool
 js_ContainsRegExpMetaChars(const jschar *chars, size_t length);
+
+JS_END_EXTERN_C
 
 #endif /* jsregexp_h___ */

@@ -167,9 +167,6 @@ public:
     win->mMutationBits |= aType;
   }
 
-  virtual void MaybeUpdateTouchState() {}
-  virtual void UpdateTouchState() {}
-
   // GetExtantDocument provides a backdoor to the DOM GetDocument accessor
   nsIDOMDocument* GetExtantDocument() const
   {
@@ -426,16 +423,6 @@ public:
   }
   
   /**
-   * Call this to indicate that some node (this window, its document,
-   * or content in that document) has a touch event listener.
-   */
-  void SetHasTouchEventListeners()
-  {
-    mMayHaveTouchEventListener = PR_TRUE;
-    MaybeUpdateTouchState();
-  }
-
-  /**
    * Initialize window.java and window.Packages.
    */
   virtual void InitJavaProperties() = 0;
@@ -573,7 +560,6 @@ protected:
   PRPackedBool           mIsHandlingResizeEvent;
   PRPackedBool           mIsInnerWindow;
   PRPackedBool           mMayHavePaintEventListener;
-  PRPackedBool           mMayHaveTouchEventListener;
 
   // This variable is used on both inner and outer windows (and they
   // should match).

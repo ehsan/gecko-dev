@@ -41,6 +41,8 @@ gTestfile = 'regress-327564.js';
 
 var summary = "Hang due to cycle in XML object";
 var BUGNUMBER = 327564;
+var actual = 'No Cycle Detected';
+var expect = 'Error: cyclic XML value';
 
 printBugNumber(BUGNUMBER);
 START(summary);
@@ -67,9 +69,10 @@ try
 }
 catch(ex)
 {
-    actual = ex instanceof Error;
+    actual = ex + '';
+    printStatus(actual);
 }
 
-TEST(2, true, actual);
+TEST(2, expect, actual);
 
 END();

@@ -72,8 +72,6 @@
 #include <gdk/gdkx.h>
 #endif
 
-#include "jsobj.h"
-
 static PRBool IsUniversalXPConnectCapable()
 {
   PRBool hasCap = PR_FALSE;
@@ -523,13 +521,15 @@ nsDOMWindowUtils::Focus(nsIDOMElement* aElement)
 NS_IMETHODIMP
 nsDOMWindowUtils::GarbageCollect()
 {
-  // Always permit this in debug builds.
+  // NOTE: Only do this in NON debug builds, as this function can useful
+  // during debugging.
 #ifndef DEBUG
   if (!IsUniversalXPConnectCapable()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 #endif
 
+  nsJSContext::CC();
   nsJSContext::CC();
 
   return NS_OK;
@@ -1361,10 +1361,14 @@ nsDOMWindowUtils::GetParent()
   JSObject *parent = JS_GetParent(cx, JSVAL_TO_OBJECT(argv[0]));
   *rval = OBJECT_TO_JSVAL(parent);
 
-  // Outerize if necessary.
+  // Outerize if necessary.  Embrace the ugliness!
   if (parent) {
-    if (JSObjectOp outerize = parent->getClass()->ext.outerObject)
-      *rval = OBJECT_TO_JSVAL(outerize(cx, parent));
+    JSClass* clasp = JS_GET_CLASS(cx, parent);
+    if (clasp->flags & JSCLASS_IS_EXTENDED) {
+      JSExtendedClass* xclasp = reinterpret_cast<JSExtendedClass*>(clasp);
+      if (JSObjectOp outerize = xclasp->outerObject)
+        *rval = OBJECT_TO_JSVAL(outerize(cx, parent));
+    }
   }
 
   cc->SetReturnValueWasSet(PR_TRUE);

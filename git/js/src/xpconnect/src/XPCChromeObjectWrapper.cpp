@@ -210,33 +210,33 @@ CanTouchProperty(JSContext *cx, JSObject *wrapperObj, jsid id, JSBool isSet,
 }
 
 static JSBool
-XPC_COW_AddProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+XPC_COW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
 static JSBool
-XPC_COW_DelProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+XPC_COW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
 static JSBool
-XPC_COW_GetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+XPC_COW_GetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
 static JSBool
-XPC_COW_SetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+XPC_COW_SetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
 static JSBool
 XPC_COW_Enumerate(JSContext *cx, JSObject *obj);
 
 static JSBool
-XPC_COW_NewResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
+XPC_COW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
                    JSObject **objp);
 
 static JSBool
 XPC_COW_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
 
 static JSBool
-XPC_COW_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
+XPC_COW_CheckAccess(JSContext *cx, JSObject *obj, jsval id, JSAccessMode mode,
                     jsval *vp);
 
 static JSBool
-XPC_COW_Equality(JSContext *cx, JSObject *obj, const jsval *valp, JSBool *bp);
+XPC_COW_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
 
 static JSObject *
 XPC_COW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly);
@@ -251,34 +251,28 @@ using namespace XPCWrapper;
 
 namespace ChromeObjectWrapper {
 
-js::Class COWClass = {
-    "ChromeObjectWrapper",
-    JSCLASS_NEW_RESOLVE |
+JSExtendedClass COWClass = {
+  // JSClass (JSExtendedClass.base) initialization
+  { "ChromeObjectWrapper",
+    JSCLASS_NEW_RESOLVE | JSCLASS_IS_EXTENDED |
     JSCLASS_HAS_RESERVED_SLOTS(XPCWrapper::sNumSlots + 1),
-    js::Valueify(XPC_COW_AddProperty),
-    js::Valueify(XPC_COW_DelProperty),
-    js::Valueify(XPC_COW_GetProperty),
-    js::Valueify(XPC_COW_SetProperty),
-    XPC_COW_Enumerate,
-    (JSResolveOp)XPC_COW_NewResolve,
-    js::Valueify(XPC_COW_Convert),
-    JS_FinalizeStub,
-    nsnull,   // reserved0
-    js::Valueify(XPC_COW_CheckAccess),
-    nsnull,   // call
-    nsnull,   // construct
-    nsnull,   // xdrObject
-    nsnull,   // hasInstance
-    nsnull,   // mark
+    XPC_COW_AddProperty, XPC_COW_DelProperty,
+    XPC_COW_GetProperty, XPC_COW_SetProperty,
+    XPC_COW_Enumerate,   (JSResolveOp)XPC_COW_NewResolve,
+    XPC_COW_Convert,     JS_FinalizeStub,
+    nsnull,              XPC_COW_CheckAccess,
+    nsnull,              nsnull,
+    nsnull,              nsnull,
+    nsnull,              nsnull
+  },
 
-    // ClassExtension
-    {
-      js::Valueify(XPC_COW_Equality),
-      nsnull, // outerObject
-      nsnull, // innerObject
-      XPC_COW_Iterator,
-      XPC_COW_WrappedObject
-    }
+  // JSExtendedClass initialization
+  XPC_COW_Equality,
+  nsnull,             // outerObject
+  nsnull,             // innerObject
+  XPC_COW_Iterator,
+  XPC_COW_WrappedObject,
+  JSCLASS_NO_RESERVED_MEMBERS
 };
 
 JSBool
@@ -289,23 +283,23 @@ WrapObject(JSContext *cx, JSObject *parent, jsval v, jsval *vp)
   }
 
   JSObject *wrapperObj =
-    JS_NewObjectWithGivenProto(cx, js::Jsvalify(&COWClass), NULL, parent);
+    JS_NewObjectWithGivenProto(cx, &COWClass.base, NULL, parent);
   if (!wrapperObj) {
     return JS_FALSE;
   }
 
   *vp = OBJECT_TO_JSVAL(wrapperObj);
 
-  js::AutoValueRooter exposedProps(cx);
+  js::AutoValueRooter exposedProps(cx, JSVAL_VOID);
 
-  if (!GetExposedProperties(cx, JSVAL_TO_OBJECT(v), exposedProps.jsval_addr())) {
+  if (!GetExposedProperties(cx, JSVAL_TO_OBJECT(v), exposedProps.addr())) {
     return JS_FALSE;
   }
 
   if (!JS_SetReservedSlot(cx, wrapperObj, XPCWrapper::sWrappedObjSlot, v) ||
       !JS_SetReservedSlot(cx, wrapperObj, XPCWrapper::sFlagsSlot, JSVAL_ZERO) ||
       !JS_SetReservedSlot(cx, wrapperObj, sExposedPropsSlot,
-                          exposedProps.jsval_value())) {
+                          exposedProps.value())) {
     return JS_FALSE;
   }
 
@@ -329,8 +323,13 @@ ThrowException(nsresult rv, JSContext *cx)
 static inline JSObject *
 GetWrappedJSObject(JSContext *cx, JSObject *obj)
 {
-  JSObjectOp op = obj->getClass()->ext.wrappedObject;
-  if (!op) {
+  JSClass *clasp = obj->getClass();
+  if (!(clasp->flags & JSCLASS_IS_EXTENDED)) {
+    return obj;
+  }
+
+  JSExtendedClass *xclasp = (JSExtendedClass *)clasp;
+  if (!xclasp->wrappedObject) {
     if (XPCNativeWrapper::IsNativeWrapper(obj)) {
       XPCWrappedNative *wn = XPCNativeWrapper::SafeGetWrappedNative(obj);
       return wn ? wn->GetFlatJSObject() : nsnull;
@@ -339,7 +338,7 @@ GetWrappedJSObject(JSContext *cx, JSObject *obj)
     return obj;
   }
 
-  return op(cx, obj);
+  return xclasp->wrappedObject(cx, obj);
 }
 
 // Get the (possibly nonexistent) COW off of an object
@@ -348,7 +347,7 @@ static inline
 JSObject *
 GetWrapper(JSObject *obj)
 {
-  while (obj->getClass() != &COWClass) {
+  while (obj->getClass() != &COWClass.base) {
     obj = obj->getProto();
     if (!obj) {
       break;
@@ -474,17 +473,17 @@ RewrapForContent(JSContext *cx, JSObject *wrapperObj, jsval *vp)
 }
 
 static JSBool
-CheckSOW(JSContext *cx, JSObject *wrapperObj, jsid id)
+CheckSOW(JSContext *cx, JSObject *wrapperObj, jsval idval)
 {
   jsval flags;
   JS_GetReservedSlot(cx, wrapperObj, sFlagsSlot, &flags);
 
   return HAS_FLAGS(flags, FLAG_SOW)
-         ? SystemOnlyWrapper::AllowedToAct(cx, id) : JS_TRUE;
+         ? SystemOnlyWrapper::AllowedToAct(cx, idval) : JS_TRUE;
 }
 
 static JSBool
-XPC_COW_AddProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
+XPC_COW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   obj = GetWrapper(obj);
   jsval flags;
@@ -508,9 +507,11 @@ XPC_COW_AddProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
     return ThrowException(NS_ERROR_ILLEGAL_VALUE, cx);
   }
 
+  jsid interned_id;
   JSPropertyDescriptor desc;
 
-  if (!XPCWrapper::GetPropertyAttrs(cx, obj, id, JSRESOLVE_QUALIFIED,
+  if (!JS_ValueToId(cx, id, &interned_id) ||
+      !XPCWrapper::GetPropertyAttrs(cx, obj, interned_id, JSRESOLVE_QUALIFIED,
                                     JS_TRUE, &desc)) {
     return JS_FALSE;
   }
@@ -526,12 +527,12 @@ XPC_COW_AddProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
   }
 
   return RewrapForChrome(cx, obj, vp) &&
-         JS_DefinePropertyById(cx, wrappedObj, id, *vp,
+         JS_DefinePropertyById(cx, wrappedObj, interned_id, *vp,
                                desc.getter, desc.setter, desc.attrs);
 }
 
 static JSBool
-XPC_COW_DelProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
+XPC_COW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   if (!CheckSOW(cx, obj, id)) {
     return JS_FALSE;
@@ -548,7 +549,9 @@ XPC_COW_DelProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
   }
 
   JSBool canTouch;
-  if (!CanTouchProperty(cx, obj, id, JS_TRUE, &canTouch)) {
+  jsid interned_id;
+  if (!JS_ValueToId(cx, id, &interned_id) ||
+      !CanTouchProperty(cx, obj, interned_id, JS_TRUE, &canTouch)) {
     return JS_FALSE;
   }
 
@@ -561,7 +564,7 @@ XPC_COW_DelProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 }
 
 static JSBool
-XPC_COW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
+XPC_COW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
                          JSBool isSet)
 {
   obj = GetWrapper(obj);
@@ -585,14 +588,19 @@ XPC_COW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
     return ThrowException(NS_ERROR_ILLEGAL_VALUE, cx);
   }
 
-  if (id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_PROTO) ||
-      id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_EXPOSEDPROPS)) {
+  jsid interned_id;
+  if (!JS_ValueToId(cx, id, &interned_id)) {
+    return JS_FALSE;
+  }
+
+  if (interned_id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_PROTO) ||
+      interned_id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_EXPOSEDPROPS)) {
     // No getting or setting __proto__ on my object.
     return ThrowException(NS_ERROR_INVALID_ARG, cx); // XXX better error message
   }
 
   JSBool canTouch;
-  if (!CanTouchProperty(cx, obj, id, isSet, &canTouch)) {
+  if (!CanTouchProperty(cx, obj, interned_id, isSet, &canTouch)) {
     return JS_FALSE;
   }
 
@@ -604,8 +612,9 @@ XPC_COW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
     return JS_FALSE;
   }
 
-  JSBool ok = isSet ? JS_SetPropertyById(cx, wrappedObj, id, vp)
-                    : JS_GetPropertyById(cx, wrappedObj, id, vp);
+  JSBool ok = isSet
+              ? JS_SetPropertyById(cx, wrappedObj, interned_id, vp)
+              : JS_GetPropertyById(cx, wrappedObj, interned_id, vp);
   if (!ok) {
     return JS_FALSE;
   }
@@ -614,13 +623,13 @@ XPC_COW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
 }
 
 static JSBool
-XPC_COW_GetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
+XPC_COW_GetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   return XPC_COW_GetOrSetProperty(cx, obj, id, vp, JS_FALSE);
 }
 
 static JSBool
-XPC_COW_SetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
+XPC_COW_SetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   return XPC_COW_GetOrSetProperty(cx, obj, id, vp, JS_TRUE);
 }
@@ -635,7 +644,7 @@ XPC_COW_Enumerate(JSContext *cx, JSObject *obj)
     return JS_TRUE;
   }
 
-  if (!CheckSOW(cx, obj, JSID_VOID)) {
+  if (!CheckSOW(cx, obj, JSVAL_VOID)) {
     return JS_FALSE;
   }
 
@@ -644,32 +653,16 @@ XPC_COW_Enumerate(JSContext *cx, JSObject *obj)
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  jsval exposedProps;
-  if (!JS_GetReservedSlot(cx, obj, sExposedPropsSlot, &exposedProps)) {
-    return JS_FALSE;
-  }
-
-  JSObject *propertyContainer;
-  if (JSVAL_IS_VOID(exposedProps)) {
-    // TODO For now, expose whatever properties are on our object.
-    propertyContainer = wrappedObj;
-  } else if (!JSVAL_IS_PRIMITIVE(exposedProps)) {
-    // Just expose whatever the object exposes through __exposedProps__.
-    propertyContainer = JSVAL_TO_OBJECT(exposedProps);
-  } else {
-    return JS_TRUE;
-  }
-
-  return XPCWrapper::Enumerate(cx, obj, propertyContainer);
+  return XPCWrapper::Enumerate(cx, obj, wrappedObj);
 }
 
 static JSBool
-XPC_COW_NewResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
+XPC_COW_NewResolve(JSContext *cx, JSObject *obj, jsval idval, uintN flags,
                    JSObject **objp)
 {
   obj = GetWrapper(obj);
 
-  if (!CheckSOW(cx, obj, id)) {
+  if (!CheckSOW(cx, obj, idval)) {
     return JS_FALSE;
   }
 
@@ -685,8 +678,10 @@ XPC_COW_NewResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
+  jsid id;
   JSBool canTouch;
-  if (!CanTouchProperty(cx, obj, id, (flags & JSRESOLVE_ASSIGNING) != 0,
+  if (!JS_ValueToId(cx, idval, &id) ||
+      !CanTouchProperty(cx, obj, id, (flags & JSRESOLVE_ASSIGNING) != 0,
                         &canTouch)) {
     return JS_FALSE;
   }
@@ -721,7 +716,7 @@ XPC_COW_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  if (!wrappedObj->getJSClass()->convert(cx, wrappedObj, type, vp)) {
+  if (!wrappedObj->getClass()->convert(cx, wrappedObj, type, vp)) {
     return JS_FALSE;
   }
 
@@ -729,26 +724,28 @@ XPC_COW_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
 }
 
 static JSBool
-XPC_COW_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
+XPC_COW_CheckAccess(JSContext *cx, JSObject *obj, jsval prop, JSAccessMode mode,
                     jsval *vp)
 {
   // Simply forward checkAccess to our wrapped object. It's already expecting
   // untrusted things to ask it about accesses.
 
   uintN junk;
-  return JS_CheckAccess(cx, GetWrappedObject(cx, obj), id, mode, vp, &junk);
+  jsid id;
+  return JS_ValueToId(cx, prop, &id) &&
+         JS_CheckAccess(cx, GetWrappedObject(cx, obj), id, mode, vp, &junk);
 }
 
 static JSBool
-XPC_COW_Equality(JSContext *cx, JSObject *obj, const jsval *valp, JSBool *bp)
+XPC_COW_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
 {
   // Convert both sides to XPCWrappedNative and see if they match.
-  if (JSVAL_IS_PRIMITIVE(*valp)) {
+  if (JSVAL_IS_PRIMITIVE(v)) {
     *bp = JS_FALSE;
     return JS_TRUE;
   }
 
-  JSObject *test = GetWrappedJSObject(cx, JSVAL_TO_OBJECT(*valp));
+  JSObject *test = GetWrappedJSObject(cx, JSVAL_TO_OBJECT(v));
 
   obj = GetWrappedObject(cx, obj);
   if (!obj) {
@@ -764,8 +761,8 @@ XPC_COW_Equality(JSContext *cx, JSObject *obj, const jsval *valp, JSBool *bp)
   XPCWrappedNative *me = XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj);
   obj = me->GetFlatJSObject();
   test = other->GetFlatJSObject();
-  jsval testVal = OBJECT_TO_JSVAL(test);
-  return js::Jsvalify(obj->getClass()->ext.equality)(cx, obj, &testVal, bp);
+  return ((JSExtendedClass *)obj->getClass())->
+    equality(cx, obj, OBJECT_TO_JSVAL(test), bp);
 }
 
 static JSObject *

@@ -1,4 +1,4 @@
-/* vim: set sw=4 ts=4 et tw=78: */
+/* vim: set sw=4 ts=8 et tw=78: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -57,9 +57,6 @@ for (var op in opTypeNames) {
     }
 }
 
-/*
- * Tokenizer :: (file ptr, path, line number) -> Tokenizer
- */
 function Tokenizer(s, f, l) {
     this.cursor = 0;
     this.source = String(s);
@@ -67,23 +64,22 @@ function Tokenizer(s, f, l) {
     this.tokenIndex = 0;
     this.lookahead = 0;
     this.scanNewlines = false;
+    this.scanOperand = true;
     this.filename = f || "";
     this.lineno = l || 1;
 }
 
 Tokenizer.prototype = {
     get done() {
-        // We need to set scanOperand to true here because the first thing
-        // might be a regexp.
-        return this.peek(true) == END;
+        return this.peek() == END;
     },
 
     get token() {
         return this.tokens[this.tokenIndex];
     },
 
-    match: function (tt, scanOperand) {
-        return this.get(scanOperand) == tt || this.unget();
+    match: function (tt) {
+        return this.get() == tt || this.unget();
     },
 
     mustMatch: function (tt) {
@@ -92,7 +88,7 @@ Tokenizer.prototype = {
         return this.token;
     },
 
-    peek: function (scanOperand) {
+    peek: function () {
         var tt, next;
         if (this.lookahead) {
             next = this.tokens[(this.tokenIndex + this.lookahead) & 3];
@@ -100,15 +96,15 @@ Tokenizer.prototype = {
                  ? NEWLINE
                  : next.type;
         } else {
-            tt = this.get(scanOperand);
+            tt = this.get();
             this.unget();
         }
         return tt;
     },
 
-    peekOnSameLine: function (scanOperand) {
+    peekOnSameLine: function () {
         this.scanNewlines = true;
-        var tt = this.peek(scanOperand);
+        var tt = this.peek();
         this.scanNewlines = false;
         return tt;
     },
@@ -337,6 +333,13 @@ Tokenizer.prototype = {
             op += '=';
         } else {
             token.type = tokenIds[opTypeNames[op]];
+            if (this.scanOperand) {
+                switch (token.type) {
+                  case PLUS:    token.type = UNARY_PLUS;    break;
+                  case MINUS:   token.type = UNARY_MINUS;   break;
+                }
+            }
+
             token.assignOp = null;
         }
 
@@ -360,13 +363,7 @@ Tokenizer.prototype = {
         token.value = id;
     },
 
-    /*
-     * Tokenizer.get :: void -> token type
-     *
-     * Consumes input *only* if there is no lookahead.
-     * Dispatch to the appropriate lexing function depending on the input.
-     */
-    get: function (scanOperand) {
+    get: function () {
         var token;
         while (this.lookahead) {
             --this.lookahead;
@@ -394,7 +391,7 @@ Tokenizer.prototype = {
         if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
                 ch === '$' || ch === '_') {
             this.lexIdent(ch);
-        } else if (scanOperand && ch === '/') {
+        } else if (this.scanOperand && ch === '/') {
             this.lexRegExp(ch);
         } else if (ch in opTokens) {
             this.lexOp(ch);
@@ -418,11 +415,6 @@ Tokenizer.prototype = {
         return token.type;
     },
 
-    /*
-     * Tokenizer.unget :: void -> undefined
-     *
-     * Match depends on unget returning undefined.
-     */
     unget: function () {
         if (++this.lookahead == 4) throw "PANIC: too much lookahead!";
         this.tokenIndex = (this.tokenIndex - 1) & 3;
@@ -433,25 +425,6 @@ Tokenizer.prototype = {
         e.source = this.source;
         e.cursor = this.cursor;
         return e;
-    },
-
-    save: function () {
-        return {
-            cursor: this.cursor,
-            tokenIndex: this.tokenIndex,
-            tokens: this.tokens.slice(),
-            lookahead: this.lookahead,
-            scanNewlines: this.scanNewlines,
-            lineno: this.lineno
-        };
-    },
-
-    rewind: function(point) {
-        this.cursor = point.cursor;
-        this.tokenIndex = point.tokenIndex;
-        this.tokens = point.tokens.slice();
-        this.lookahead = point.lookahead;
-        this.scanNewline = point.scanNewline;
-        this.lineno = point.lineno;
     }
 };
+

@@ -476,12 +476,6 @@ nsSVGAnimationElement::EndElementAt(float offset)
   return NS_OK;
 }
 
-PRBool
-nsSVGAnimationElement::IsEventName(nsIAtom* aName)
-{
-  return nsContentUtils::IsEventAttributeName(aName, EventNameType_SMIL);
-}
-
 void
 nsSVGAnimationElement::UpdateHrefTarget(nsIContent* aNodeForContext,
                                         const nsAString& aHrefStr)

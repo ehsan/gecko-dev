@@ -1,6 +1,5 @@
-/* -*- Mode: JS; tab-width: 4; indent-tabs-mode: nil; -*-
- * vim: set sw=4 ts=8 et tw=78:
 /* ***** BEGIN LICENSE BLOCK *****
+ * vim: set ts=4 sw=4 et tw=80:
  *
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -71,27 +70,10 @@ var global = {
         x2.scope = x.scope;
         ExecutionContext.current = x2;
         try {
-            execute(parse(new VanillaBuilder, s), x2);
+            execute(parse(s), x2);
         } catch (e if e == THROW) {
             x.result = x2.result;
             throw e;
-        } catch (e if e instanceof SyntaxError) {
-            x.result = e;
-            throw THROW;
-        } catch (e if e instanceof InternalError) {
-            /*
-             * If we get too much recursion during parsing we need to re-throw
-             * it as a narcissus THROW.
-             *
-             * See bug 152646.
-             */
-            var re = /InternalError: (script stack space quota is exhausted|too much recursion)/;
-            if (re.test(e.toString())) {
-                x.result = e;
-                throw THROW;
-            } else {
-                throw e;
-            }
         } finally {
             ExecutionContext.current = x;
         }
@@ -123,11 +105,10 @@ var global = {
         var t = new Tokenizer("anonymous(" + p + ") {" + b + "}");
 
         // NB: Use the STATEMENT_FORM constant since we don't want to push this
-        // function onto the fake compilation context.
-        var x = { builder: new VanillaBuilder };
-        var f = FunctionDefinition(t, x, false, STATEMENT_FORM);
+        // function onto the null compilation context.
+        var f = FunctionDefinition(t, null, false, STATEMENT_FORM);
         var s = {object: global, parent: null};
-        return newFunction(f,{scope:s});
+        return new FunctionObject(f, s);
     },
     Array: function (dummy) {
         // Array when called as a function acts as a constructor.
@@ -160,8 +141,7 @@ var global = {
 
         evaluate(snarf(s), s, 1)
     },
-    print: print,
-    version: function() { return 185; }
+    print: print, version: null
 };
 
 // Helper to avoid Object.prototype.hasOwnProperty polluting scope objects.
@@ -172,8 +152,8 @@ function hasDirectProperty(o, p) {
 // Reflect a host class into the target global environment by delegation.
 function reflectClass(name, proto) {
     var gctor = global[name];
-    defineProperty(gctor, "prototype", proto, true, true, true);
-    defineProperty(proto, "constructor", gctor, false, false, true);
+    gctor.__defineProperty__('prototype', proto, true, true, true);
+    proto.__defineProperty__('constructor', gctor, false, false, true);
     return proto;
 }
 
@@ -263,15 +243,15 @@ function execute(n, x) {
       case FUNCTION:
         if (n.functionForm != DECLARED_FORM) {
             if (!n.name || n.functionForm == STATEMENT_FORM) {
-                v = newFunction(n, x);
+                v = new FunctionObject(n, x.scope);
                 if (n.functionForm == STATEMENT_FORM)
-                    defineProperty(x.scope.object, n.name, v, true);
+                    x.scope.object.__defineProperty__(n.name, v, true);
             } else {
                 t = new Object;
                 x.scope = {object: t, parent: x.scope};
                 try {
-                    v = newFunction(n, x);
-                    defineProperty(t, n.name, v, true, true);
+                    v = new FunctionObject(n, x.scope);
+                    t.__defineProperty__(n.name, v, true, true);
                 } finally {
                     x.scope = x.scope.parent;
                 }
@@ -284,8 +264,8 @@ function execute(n, x) {
         a = n.funDecls;
         for (i = 0, j = a.length; i < j; i++) {
             s = a[i].name;
-            f = newFunction(a[i], x);
-            defineProperty(t, s, f, x.type != EVAL_CODE);
+            f = new FunctionObject(a[i], x.scope);
+            t.__defineProperty__(s, f, x.type != EVAL_CODE);
         }
         a = n.varDecls;
         for (i = 0, j = a.length; i < j; i++) {
@@ -296,7 +276,8 @@ function execute(n, x) {
                                     u.filename, u.lineno);
             }
             if (u.readOnly || !hasDirectProperty(t, s)) {
-                defineProperty(t, s, undefined, x.type != EVAL_CODE, u.readOnly);
+                t.__defineProperty__(s, undefined, x.type != EVAL_CODE,
+                                     u.readOnly);
             }
         }
         // FALL THROUGH
@@ -424,7 +405,7 @@ function execute(n, x) {
                 }
                 t = n.catchClauses[i];
                 x.scope = {object: {}, parent: x.scope};
-                defineProperty(x.scope.object, t.varName, e, true);
+                x.scope.object.__defineProperty__(t.varName, e, true);
                 try {
                     if (t.guard && !getValue(execute(t.guard, x)))
                         continue;
@@ -472,7 +453,7 @@ function execute(n, x) {
             }
             u = getValue(execute(u, x));
             if (n.type == CONST)
-                defineProperty(s.object, t, u, x.type != EVAL_CODE, true);
+                s.object.__defineProperty__(t, u, x.type != EVAL_CODE, true);
             else
                 s.object[t] = u;
         }
@@ -500,7 +481,7 @@ function execute(n, x) {
 
       case ASSIGN:
         r = execute(n[0], x);
-        t = n.assignOp;
+        t = n[0].assignOp;
         if (t)
             u = getValue(r);
         v = getValue(execute(n[1], x));
@@ -686,9 +667,9 @@ function execute(n, x) {
         v = {};
         for (i = 0, j = n.length; i < j; i++) {
             u = getValue(execute(n[i], x));
-            defineProperty(v, i, u, false, false, true);
+            v.__defineProperty__(i, u, false, false, true);
         }
-        defineProperty(v, "length", i, false, false, true);
+        v.__defineProperty__('length', i, false, false, true);
         break;
 
       case CALL:
@@ -711,7 +692,7 @@ function execute(n, x) {
         f = getValue(r);
         if (n.type == NEW) {
             a = {};
-            defineProperty(a, "length", 0, false, false, true);
+            a.__defineProperty__('length', 0, false, false, true);
         } else {
             a = execute(n[1], x);
         }
@@ -738,7 +719,7 @@ function execute(n, x) {
             if (t.type == PROPERTY_INIT) {
                 v[t[0].value] = getValue(execute(t[1], x));
             } else {
-                f = newFunction(t, x);
+                f = new FunctionObject(t, x.scope);
                 u = (t.type == GETTER) ? '__defineGetter__'
                                        : '__defineSetter__';
                 v[u](t.name, thunk(f, x));
@@ -789,91 +770,36 @@ function execute(n, x) {
 
 function Activation(f, a) {
     for (var i = 0, j = f.params.length; i < j; i++)
-        defineProperty(this, f.params[i], a[i], true);
-    defineProperty(this, "arguments", a, true);
+        this.__defineProperty__(f.params[i], a[i], true);
+    this.__defineProperty__('arguments', a, true);
 }
 
 // Null Activation.prototype's proto slot so that Object.prototype.* does not
 // pollute the scope of heavyweight functions.  Also delete its 'constructor'
-// property so that it doesn't pollute function scopes.
+// property so that it doesn't pollute function scopes.  But first, we must
+// copy __defineProperty__ down from Object.prototype.
 
+Activation.prototype.__defineProperty__ = Object.prototype.__defineProperty__;
 Activation.prototype.__proto__ = null;
 delete Activation.prototype.constructor;
 
 function FunctionObject(node, scope) {
     this.node = node;
     this.scope = scope;
-    defineProperty(this, "length", node.params.length, true, true, true);
+    this.__defineProperty__('length', node.params.length, true, true, true);
     var proto = {};
-    defineProperty(this, "prototype", proto, true);
-    defineProperty(proto, "constructor", this, false, false, true);
-}
-
-// Returns a new function wrapped with a Proxy.
-function newFunction(n,x) {
-    var f = new FunctionObject(n, x.scope);
-    var p = Proxy.createFunction(
-
-            // Handler function copied from
-            //  http://wiki.ecmascript.org/doku.php?id=harmony:proxies&s=proxy%20object#examplea_no-op_forwarding_proxy
-            function(obj) { return {
-                getOwnPropertyDescriptor: function(name) {
-                    var desc = Object.getOwnPropertyDescriptor(obj);
-
-                    // a trapping proxy's properties must always be configurable
-                    desc.configurable = true;
-                    return desc;
-                 },
-                getPropertyDescriptor: function(name) {
-                    var desc = Object.getPropertyDescriptor(obj); //assumed
-
-                    // a trapping proxy's properties must always be configurable
-                    desc.configurable = true;
-                    return desc;
-                },
-                getOwnPropertyNames: function() {
-                    return Object.getOwnPropertyNames(obj);
-                },
-                defineProperty: function(name, desc) {
-                    Object.defineProperty(obj, name, desc);
-                },
-                delete: function(name) { return delete obj[name]; },   
-                fix: function() {
-                    if (Object.isFrozen(obj)) {
-                        return Object.getOwnProperties(obj); // assumed
-                    }
-
-                    // As long as obj is not frozen, the proxy won't allow itself to be fixed.
-                    return undefined; // will cause a TypeError to be thrown
-                },
- 
-                has: function(name) { return name in obj; },
-                hasOwn: function(name) { return ({}).hasOwnProperty.call(obj, name); },
-                get: function(receiver, name) { return obj[name]; },
-
-                // bad behavior when set fails in non-strict mode
-                set: function(receiver, name, val) { obj[name] = val; return true; },
-                enumerate: function() {
-                    var result = [];
-                    for (name in obj) { result.push(name); };
-                    return result;
-                },
-                enumerateOwn: function() { return Object.keys(obj); } };
-            }(f),
-            function() { return f.__call__(this, arguments, x); },
-            function() { return f.__construct__(arguments, x); });
-    return p;
+    this.__defineProperty__('prototype', proto, true);
+    proto.__defineProperty__('constructor', this, false, false, true);
 }
 
 var FOp = FunctionObject.prototype = {
-
     // Internal methods.
     __call__: function (t, a, x) {
         var x2 = new ExecutionContext(FUNCTION_CODE);
         x2.thisObject = t || global;
         x2.caller = x;
         x2.callee = this;
-        defineProperty(a, "callee", this, false, false, true);
+        a.__defineProperty__('callee', this, false, false, true);
         var f = this.node;
         x2.scope = {object: new Activation(f, a), parent: this.scope};
 
@@ -940,12 +866,12 @@ var FOp = FunctionObject.prototype = {
 
         if (a === undefined || a === null) {
             a = {};
-            defineProperty(a, "length", 0, false, false, true);
+            a.__defineProperty__('length', 0, false, false, true);
         } else if (a instanceof Array) {
             var v = {};
             for (var i = 0, j = a.length; i < j; i++)
-                defineProperty(v, i, a[i], false, false, true);
-            defineProperty(v, "length", i, false, false, true);
+                v.__defineProperty__(i, a[i], false, false, true);
+            v.__defineProperty__('length', i, false, false, true);
             a = v;
         } else if (!(a instanceof Object)) {
             // XXX check for a non-arguments object
@@ -972,45 +898,28 @@ var Fp = Function.prototype;
 var REp = RegExp.prototype;
 
 if (!('__call__' in Fp)) {
-    defineProperty(Fp, "__call__",
-                   function (t, a, x) {
-                       // Curse ECMA yet again!
-                       a = Array.prototype.splice.call(a, 0, a.length);
-                       return this.apply(t, a);
-                   }, true, true, true);
-    defineProperty(REp, "__call__",
-                   function (t, a, x) {
-                       a = Array.prototype.splice.call(a, 0, a.length);
-                       return this.exec.apply(this, a);
-                   }, true, true, true);
-    defineProperty(Fp, "__construct__",
-                   function (a, x) {
-                       a = Array.prototype.splice.call(a, 0, a.length);
-                       switch (a.length) {
-                         case 0:
-                           return new this();
-                         case 1:
-                           return new this(a[0]);
-                         case 2:
-                           return new this(a[0], a[1]);
-                         case 3:
-                           return new this(a[0], a[1], a[2]);
-                         default:
-                           var argStr = "";
-                           for (var i=0; i<a.length; i++) {
-                               argStr += 'a[' + i + '],';
-                           }
-                           return eval('new this(' + argStr.slice(0,-1) + ');');
-                       }
-                   }, true, true, true);
+    Fp.__defineProperty__('__call__', function (t, a, x) {
+        // Curse ECMA yet again!
+        a = Array.prototype.splice.call(a, 0, a.length);
+        return this.apply(t, a);
+    }, true, true, true);
+
+    REp.__defineProperty__('__call__', function (t, a, x) {
+        a = Array.prototype.splice.call(a, 0, a.length);
+        return this.exec.apply(this, a);
+    }, true, true, true);
+
+    Fp.__defineProperty__('__construct__', function (a, x) {
+        a = Array.prototype.splice.call(a, 0, a.length);
+        return this.__applyConstructor__(a);
+    }, true, true, true);
 
     // Since we use native functions such as Date along with host ones such
     // as global.eval, we want both to be considered instances of the native
     // Function constructor.
-    defineProperty(Fp, "__hasInstance__",
-                   function (v) {
-                       return v instanceof Function || v instanceof global.Function;
-                   }, true, true, true);
+    Fp.__defineProperty__('__hasInstance__', function (v) {
+        return v instanceof Function || v instanceof global.Function;
+    }, true, true, true);
 }
 
 function thunk(f, x) {
@@ -1025,7 +934,7 @@ function evaluate(s, f, l) {
     var x2 = new ExecutionContext(GLOBAL_CODE);
     ExecutionContext.current = x2;
     try {
-        execute(parse(new VanillaBuilder, s, f, l), x2);
+        execute(parse(s, f, l), x2);
     } catch (e if e == THROW) {
         if (x) {
             x.result = x2.result;

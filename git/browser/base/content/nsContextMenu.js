@@ -807,7 +807,7 @@ nsContextMenu.prototype = {
     this.target.pause();
 
     openDialog("chrome://browser/content/fullscreen-video.xhtml",
-               "", "chrome,centerscreen,dialog=no", this.target);
+               "", "chrome,dialog=no", this.target);
   },
 
   // Change current window to the URL of the background image.

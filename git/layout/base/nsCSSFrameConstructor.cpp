@@ -7622,11 +7622,6 @@ UpdateViewsForTree(nsIFrame* aFrame, nsIViewManager* aViewManager,
           DoApplyRenderingChangeToTree(child, aViewManager,
                                        aFrameManager, aChange);
         } else {  // regular frame
-          if ((child->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER) &&
-              (aChange & nsChangeHint_RepaintFrame)) {
-            FrameLayerBuilder::InvalidateThebesLayerContents(child,
-              child->GetOverflowRectRelativeToSelf());
-          }
           UpdateViewsForTree(child, aViewManager, aFrameManager, aChange);
         }
       }
@@ -7682,12 +7677,6 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
       aFrame->MarkLayersActive();
       aFrame->InvalidateLayer(aFrame->GetOverflowRectRelativeToSelf(),
                               nsDisplayItem::TYPE_OPACITY);
-    }
-    
-    if (aChange & nsChangeHint_UpdateTransformLayer) {
-      aFrame->MarkLayersActive();
-      aFrame->InvalidateLayer(aFrame->GetOverflowRectRelativeToSelf(),
-                              nsDisplayItem::TYPE_TRANSFORM);
     }
   }
 }
@@ -7972,7 +7961,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
         didReflow = PR_TRUE;
       }
       if (hint & (nsChangeHint_RepaintFrame | nsChangeHint_SyncFrameView |
-                  nsChangeHint_UpdateOpacityLayer | nsChangeHint_UpdateTransformLayer)) {
+                  nsChangeHint_UpdateOpacityLayer)) {
         ApplyRenderingChangeToTree(presContext, frame, hint);
         didInvalidate = PR_TRUE;
       }

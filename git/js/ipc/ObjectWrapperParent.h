@@ -43,7 +43,6 @@
 
 #include "mozilla/jsipc/PObjectWrapperParent.h"
 #include "jsapi.h"
-#include "jsvalue.h"
 #include "nsAutoJSValHolder.h"
 
 namespace mozilla {
@@ -76,7 +75,7 @@ public:
     void CheckOperation(JSContext* cx,
                         OperationStatus* status);
 
-    static const js::Class sCPOW_JSClass;
+    static const JSExtendedClass sCPOW_JSClass;
 
 protected:
 
@@ -89,16 +88,16 @@ private:
     mutable JSObject* mObj;
 
     static JSBool
-    CPOW_AddProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+    CPOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
     static JSBool
-    CPOW_DelProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+    CPOW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
     static JSBool
-    CPOW_GetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+    CPOW_GetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
     
     static JSBool
-    CPOW_SetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+    CPOW_SetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
     JSBool NewEnumerateInit(JSContext* cx, jsval* statep, jsid* idp);
     JSBool NewEnumerateNext(JSContext* cx, jsval* statep, jsid* idp);
@@ -108,7 +107,7 @@ private:
                       jsval *statep, jsid *idp);
 
     static JSBool
-    CPOW_NewResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
+    CPOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
                     JSObject **objp);
 
     static JSBool
@@ -126,10 +125,10 @@ private:
                    jsval *rval);
     
     static JSBool
-    CPOW_HasInstance(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
+    CPOW_HasInstance(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
 
     static JSBool
-    CPOW_Equality(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
+    CPOW_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
 
     static bool jsval_to_JSVariant(JSContext* cx, jsval from, JSVariant* to);
     static bool jsval_from_JSVariant(JSContext* cx, const JSVariant& from,

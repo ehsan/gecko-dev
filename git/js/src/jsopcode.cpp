@@ -294,7 +294,7 @@ ToDisassemblySource(JSContext *cx, jsval v)
 {
     if (!JSVAL_IS_PRIMITIVE(v)) {
         JSObject *obj = JSVAL_TO_OBJECT(v);
-        Class *clasp = obj->getClass();
+        JSClass *clasp = obj->getClass();
 
         if (clasp == &js_BlockClass) {
             char *source = JS_sprintf_append(NULL, "depth %d {", OBJ_BLOCK_DEPTH(cx, obj));
@@ -331,11 +331,11 @@ ToDisassemblySource(JSContext *cx, jsval v)
             AutoValueRooter tvr(cx);
             if (!js_regexp_toString(cx, obj, tvr.addr()))
                 return NULL;
-            return js_GetStringBytes(cx, JSVAL_TO_STRING(Jsvalify(tvr.value())));
+            return js_GetStringBytes(cx, JSVAL_TO_STRING(tvr.value()));
         }
     }
 
-    return js_ValueToPrintableSource(cx, Valueify(v));
+    return js_ValueToPrintableSource(cx, v);
 }
 
 JS_FRIEND_API(uintN)
@@ -388,12 +388,8 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
       case JOF_REGEXP:
         index = js_GetIndexFromBytecode(cx, script, pc, 0);
         if (type == JOF_ATOM) {
-            if (op == JSOP_DOUBLE) {
-                v = Jsvalify(script->getConst(index));
-            } else {
-                JS_GET_SCRIPT_ATOM(script, pc, index, atom);
-                v = ATOM_TO_JSVAL(atom);
-            }
+            JS_GET_SCRIPT_ATOM(script, pc, index, atom);
+            v = ATOM_KEY(atom);
         } else {
             if (type == JOF_OBJECT)
                 obj = script->getObject(index);
@@ -456,12 +452,12 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
         pc2 += UINT16_LEN;
         fprintf(fp, " offset %d npairs %u", (intN) off, (uintN) npairs);
         while (npairs) {
-            uint16 constIndex = GET_INDEX(pc2);
+            JS_GET_SCRIPT_ATOM(script, pc, GET_INDEX(pc2), atom);
             pc2 += INDEX_LEN;
             off = GetJumpOffset(pc, pc2);
             pc2 += jmplen;
 
-            bytes = ToDisassemblySource(cx, Jsvalify(script->getConst(constIndex)));
+            bytes = ToDisassemblySource(cx, ATOM_KEY(atom));
             if (!bytes)
                 return 0;
             fprintf(fp, "\n\t%s: %d", bytes, (intN) off);
@@ -485,7 +481,7 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
         index = js_GetIndexFromBytecode(cx, script, pc, SLOTNO_LEN);
         if (type == JOF_SLOTATOM) {
             JS_GET_SCRIPT_ATOM(script, pc, index, atom);
-            v = ATOM_TO_JSVAL(atom);
+            v = ATOM_KEY(atom);
         } else {
             obj = script->getObject(index);
             v = OBJECT_TO_JSVAL(obj);
@@ -1116,7 +1112,7 @@ SprintDoubleValue(Sprinter *sp, jsval v, JSOp *opp)
     char *s, buf[DTOSTR_STANDARD_BUFFER_SIZE];
 
     JS_ASSERT(JSVAL_IS_DOUBLE(v));
-    d = JSVAL_TO_DOUBLE(v);
+    d = *JSVAL_TO_DOUBLE(v);
     if (JSDOUBLE_IS_NEGZERO(d)) {
         todo = SprintCString(sp, "-0");
         *opp = JSOP_NEG;
@@ -1226,7 +1222,7 @@ DecompileSwitch(SprintStack *ss, TableEntry *table, uintN tableLength,
                     todo = SprintDoubleValue(&ss->sprinter, key, &junk);
                     str = NULL;
                 } else {
-                    str = js_ValueToString(cx, Valueify(key));
+                    str = js_ValueToString(cx, key);
                     if (!str)
                         return JS_FALSE;
                 }
@@ -1579,7 +1575,8 @@ DecompileDestructuring(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc)
           case JSOP_INT32:  d = i = GET_INT32(pc);  goto do_getelem;
 
           case JSOP_DOUBLE:
-            GET_DOUBLE_FROM_BYTECODE(jp->script, pc, 0, d);
+            GET_DOUBLE_FROM_BYTECODE(jp->script, pc, 0, atom);
+            d = *ATOM_TO_DOUBLE(atom);
             LOCAL_ASSERT(JSDOUBLE_IS_FINITE(d) && !JSDOUBLE_IS_NEGZERO(d));
             i = (jsint)d;
 
@@ -2866,7 +2863,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                      * jp->script is the eval-compiled script.
                      *
                      * However, it's possible that a js_Invoke already
-                     * pushed a frame trying to call Construct on an
+                     * pushed a frame trying to call js_Construct on an
                      * object that's not a constructor, causing us to be
                      * called with an intervening frame on the stack.
                      */
@@ -3877,6 +3874,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
               do_getarg_prop:
                 atom = GetArgOrVarAtom(ss->printer, i);
                 LOCAL_ASSERT(atom);
+                LOCAL_ASSERT(ATOM_IS_STRING(atom));
                 lval = QuoteString(&ss->sprinter, ATOM_TO_STRING(atom), 0);
                 if (!lval || !PushOff(ss, STR2OFF(&ss->sprinter, lval), op))
                     return NULL;
@@ -4036,13 +4034,11 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 break;
 
               case JSOP_DOUBLE:
-              {
-                double d;
-                GET_DOUBLE_FROM_BYTECODE(jp->script, pc, 0, d);
-                val = DOUBLE_TO_JSVAL(d);
+                GET_DOUBLE_FROM_BYTECODE(jp->script, pc, 0, atom);
+                val = ATOM_KEY(atom);
+                LOCAL_ASSERT(JSVAL_IS_DOUBLE(val));
                 todo = SprintDoubleValue(&ss->sprinter, val, &saveop);
                 break;
-              }
 
               case JSOP_STRING:
                 LOAD_ATOM(0);
@@ -4216,7 +4212,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
               case JSOP_REGEXP:
                 GET_REGEXP_FROM_BYTECODE(jp->script, pc, 0, obj);
               do_regexp:
-                if (!js_regexp_toString(cx, obj, Valueify(&val)))
+                if (!js_regexp_toString(cx, obj, &val))
                     return NULL;
                 str = JSVAL_TO_STRING(val);
                 goto sprint_string;
@@ -4272,8 +4268,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     if (tmp) {
                         VOUCH_DOES_NOT_REQUIRE_STACK();
                         ok = js_MergeSort(table, (size_t)j, sizeof(TableEntry),
-                                          CompareOffsets, NULL, tmp,
-                                          JS_SORTING_GENERIC);
+                                          CompareOffsets, NULL, tmp);
                         cx->free(tmp);
                     } else {
                         ok = JS_FALSE;
@@ -4321,11 +4316,11 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     } else {
                         table[k].label = NULL;
                     }
-                    uint16 constIndex = GET_INDEX(pc2);
+                    JS_GET_SCRIPT_ATOM(jp->script, pc, GET_INDEX(pc2), atom);
                     pc2 += INDEX_LEN;
                     off2 = GetJumpOffset(pc, pc2);
                     pc2 += jmplen;
-                    table[k].key = Jsvalify(jp->script->getConst(constIndex));
+                    table[k].key = ATOM_KEY(atom);
                     table[k].offset = off2;
                 }
 
@@ -4977,6 +4972,10 @@ js_DecompileFunction(JSPrinter *jp)
         if (!jp->grouped && (fun->flags & JSFUN_LAMBDA))
             js_puts(jp, "(");
     }
+    if (JSFUN_GETTER_TEST(fun->flags))
+        js_printf(jp, "%s ", js_getter_str);
+    else if (JSFUN_SETTER_TEST(fun->flags))
+        js_printf(jp, "%s ", js_setter_str);
 
     js_printf(jp, "%s ", js_function_str);
     if (fun->atom && !QuoteString(&jp->sprinter, ATOM_TO_STRING(fun->atom), 0))
@@ -5111,14 +5110,12 @@ js_DecompileFunction(JSPrinter *jp)
 }
 
 char *
-js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
+js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v,
                            JSString *fallback)
 {
     JSStackFrame *fp;
     jsbytecode *pc;
     JSScript *script;
-
-    Value v = Valueify(v_in);
 
     JS_ASSERT(spindex < 0 ||
               spindex == JSDVG_IGNORE_STACK ||
@@ -5166,8 +5163,8 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
              * calculated value matching v under assumption that it is
              * it that caused exception, see bug 328664.
              */
-            Value *stackBase = fp->base();
-            Value *sp = i.sp();
+            jsval *stackBase = StackBase(fp);
+            jsval *sp = i.sp();
             do {
                 if (sp == stackBase) {
                     pcdepth = -1;
@@ -5494,6 +5491,10 @@ SimulateImacroCFG(JSContext *cx, JSScript *script,
 
 #undef LOCAL_ASSERT
 #define LOCAL_ASSERT(expr)      LOCAL_ASSERT_RV(expr, -1);
+
+static intN
+ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
+                   jsbytecode **pcstack);
 
 static intN
 ReconstructImacroPCStack(JSContext *cx, JSScript *script,

@@ -211,13 +211,13 @@ PRBool XPCDispInterface::Member::IsParameterizedProperty() const
 }
 
 inline
-jsid XPCDispInterface::Member::GetName() const
+jsval XPCDispInterface::Member::GetName() const
 {
     return mName;
 }
 
 inline
-void XPCDispInterface::Member::SetName(jsid name)
+void XPCDispInterface::Member::SetName(jsval name)
 {
     mName = name;
 }
@@ -310,7 +310,7 @@ void XPCDispInterface::SetJSObject(JSObject* jsobj)
 }
 
 inline
-const XPCDispInterface::Member* XPCDispInterface::FindMember(jsid name) const
+const XPCDispInterface::Member* XPCDispInterface::FindMember(jsval name) const
 {
     // Iterate backwards to save time
     const Member* member = mMembers + mMemberCount;
@@ -635,16 +635,17 @@ jschar * xpc_JSString2String(JSContext * cx, jsval val, PRUint32 * len = 0)
 }
 
 /**
- * Converts a JSString * to a PRUnichar *
+ * Converts a jsval that is a string to a PRUnichar *
  * @param cx a JS context
- * @param str the JSString to be converted
+ * @param val the JS value to vbe converted
  * @param length optional pointer to a variable to hold the length
  * @return a PRUnichar buffer (Does not need to be freed)
  */
 inline
-PRUnichar* xpc_JSString2PRUnichar(XPCCallContext& ccx, JSString* str,
+PRUnichar* xpc_JSString2PRUnichar(XPCCallContext& ccx, jsval val,
                                   size_t* length = nsnull)
 {
+    JSString* str = JS_ValueToString(ccx, val);
     if(!str)
         return nsnull;
     if(length)

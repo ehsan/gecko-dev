@@ -421,7 +421,7 @@ WillDeadlock(JSContext *ownercx, JSThread *thread)
 
      for (;;) {
         JS_ASSERT(ownercx->thread);
-        JS_ASSERT(ownercx->thread->requestContext);
+        JS_ASSERT(ownercx->requestDepth > 0);
         JSTitle *title = ownercx->thread->titleToShare;
         if (!title || !title->ownercx) {
             /*
@@ -482,7 +482,7 @@ ShareTitle(JSContext *cx, JSTitle *title)
  * making mutable strings in the title's object's slots be immutable. We have
  * to do this because such strings will soon be available to multiple threads,
  * so their buffers can't be realloc'd any longer in js_ConcatStrings, and
- * their members can't be modified by js_ConcatStrings, JSString::undepend, or
+ * their members can't be modified by js_ConcatStrings, js_UndependString or
  * MinimizeDependentStrings.
  *
  * The last bit of work done by this function nulls title->ownercx and updates
@@ -500,22 +500,59 @@ FinishSharingTitle(JSContext *cx, JSTitle *title)
         uint32 nslots = scope->freeslot;
         JS_ASSERT(nslots >= JSSLOT_START(obj->getClass()));
         for (uint32 i = JSSLOT_START(obj->getClass()); i != nslots; ++i) {
-            Value v = obj->getSlot(i);
-            if (v.isString() &&
-                !js_MakeStringImmutable(cx, v.toString())) {
+            jsval v = obj->getSlot(i);
+            if (JSVAL_IS_STRING(v) &&
+                !js_MakeStringImmutable(cx, JSVAL_TO_STRING(v))) {
                 /*
                  * FIXME bug 363059: The following error recovery changes
                  * runtime execution semantics, arbitrarily and silently
                  * ignoring errors except out-of-memory, which should have been
                  * reported through JS_ReportOutOfMemory at this point.
                  */
-                obj->setSlot(i, UndefinedValue());
+                obj->setSlot(i, JSVAL_VOID);
             }
         }
     }
 
     title->ownercx = NULL;  /* NB: set last, after lock init */
     JS_RUNTIME_METER(cx->runtime, sharedTitles);
+}
+
+/*
+ * Notify all contexts that are currently in a request, which will give them a
+ * chance to yield their current request.
+ */
+void
+js_NudgeOtherContexts(JSContext *cx)
+{
+    JSRuntime *rt = cx->runtime;
+    JSContext *acx = NULL;
+
+    while ((acx = js_NextActiveContext(rt, acx)) != NULL) {
+        if (cx != acx)
+            JS_TriggerOperationCallback(acx);
+    }
+}
+
+/*
+ * Notify all contexts that are currently in a request and execute on this
+ * specific thread.
+ */
+static void
+NudgeThread(JSRuntime *rt, JSThread *thread)
+{
+    JS_ASSERT(thread);
+
+    /*
+     * We cannot walk here over thread->contextList as that is manipulated
+     * outside the GC lock and must be accessed only from the the thread that
+     * owns JSThread.
+     */
+    JSContext *acx = NULL;
+    while ((acx = js_NextActiveContext(rt, acx)) != NULL) {
+        if (acx->thread == thread)
+            JS_TriggerOperationCallback(acx);
+    }
 }
 
 /*
@@ -530,7 +567,7 @@ static JSBool
 ClaimTitle(JSTitle *title, JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
-    JS_ASSERT_IF(!cx->thread->requestContext,
+    JS_ASSERT_IF(cx->requestDepth == 0,
                  cx->thread == rt->gcThread && rt->gcRunning);
 
     JS_RUNTIME_METER(rt, claimAttempts);
@@ -559,13 +596,12 @@ ClaimTitle(JSTitle *title, JSContext *cx)
         bool canClaim;
         if (title->u.link) {
             JS_ASSERT(js_ValidContextPointer(rt, ownercx));
-            JS_ASSERT(ownercx->thread->requestContext);
+            JS_ASSERT(ownercx->requestDepth > 0);
             JS_ASSERT(!rt->gcRunning);
             canClaim = (ownercx->thread == cx->thread);
         } else {
             canClaim = (!js_ValidContextPointer(rt, ownercx) ||
-                        !ownercx->thread ||
-                        !ownercx->thread->requestContext ||
+                        !ownercx->requestDepth ||
                         cx->thread == ownercx->thread  ||
                         cx->thread == rt->gcThread ||
                         ownercx->thread->gcWaiting);
@@ -611,7 +647,7 @@ ClaimTitle(JSTitle *title, JSContext *cx)
          * But before waiting, we force the operation callback for that other
          * thread so it can quickly suspend.
          */
-        JS_THREAD_DATA(ownercx)->triggerOperationCallback();
+        NudgeThread(rt, ownercx->thread);
 
         JS_ASSERT(!cx->thread->titleToShare);
         cx->thread->titleToShare = title;
@@ -681,7 +717,7 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
     if (CX_THREAD_IS_RUNNING_GC(cx) ||
         scope->sealed() ||
         (title->ownercx && ClaimTitle(title, cx))) {
-        return Jsvalify(obj->getSlot(slot));
+        return obj->getSlot(slot);
     }
 
 #ifndef NSPR_LOCK
@@ -696,7 +732,7 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
          * lock release followed by fat lock acquisition.
          */
         if (scope == obj->scope()) {
-            v = Jsvalify(obj->getSlot(slot));
+            v = obj->getSlot(slot);
             if (!NativeCompareAndSwap(&tl->owner, me, 0)) {
                 /* Assert that scope locks never revert to flyweight. */
                 JS_ASSERT(title->ownercx != cx);
@@ -710,12 +746,12 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
             js_Dequeue(tl);
     }
     else if (Thin_RemoveWait(ReadWord(tl->owner)) == me) {
-        return Jsvalify(obj->getSlot(slot));
+        return obj->getSlot(slot);
     }
 #endif
 
     js_LockObj(cx, obj);
-    v = Jsvalify(obj->getSlot(slot));
+    v = obj->getSlot(slot);
 
     /*
      * Test whether cx took ownership of obj's scope during js_LockObj.
@@ -769,7 +805,7 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
     if (CX_THREAD_IS_RUNNING_GC(cx) ||
         scope->sealed() ||
         (title->ownercx && ClaimTitle(title, cx))) {
-        obj->lockedSetSlot(slot, Valueify(v));
+        obj->lockedSetSlot(slot, v);
         return;
     }
 
@@ -779,7 +815,7 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
     JS_ASSERT(CURRENT_THREAD_IS_ME(me));
     if (NativeCompareAndSwap(&tl->owner, 0, me)) {
         if (scope == obj->scope()) {
-            obj->lockedSetSlot(slot, Valueify(v));
+            obj->lockedSetSlot(slot, v);
             if (!NativeCompareAndSwap(&tl->owner, me, 0)) {
                 /* Assert that scope locks never revert to flyweight. */
                 JS_ASSERT(title->ownercx != cx);
@@ -792,13 +828,13 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
         if (!NativeCompareAndSwap(&tl->owner, me, 0))
             js_Dequeue(tl);
     } else if (Thin_RemoveWait(ReadWord(tl->owner)) == me) {
-        obj->lockedSetSlot(slot, Valueify(v));
+        obj->lockedSetSlot(slot, v);
         return;
     }
 #endif
 
     js_LockObj(cx, obj);
-    obj->lockedSetSlot(slot, Valueify(v));
+    obj->lockedSetSlot(slot, v);
 
     /*
      * Same drill as above, in js_GetSlotThreadSafe.

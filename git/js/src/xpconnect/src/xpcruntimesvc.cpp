@@ -69,7 +69,7 @@ NS_IMPL_THREADSAFE_RELEASE(BackstagePass)
 NS_IMETHODIMP
 BackstagePass::NewResolve(nsIXPConnectWrappedNative *wrapper,
                           JSContext * cx, JSObject * obj,
-                          jsid id, PRUint32 flags, 
+                          jsval id, PRUint32 flags, 
                           JSObject * *objp, PRBool *_retval)
 {
     JSBool resolved;

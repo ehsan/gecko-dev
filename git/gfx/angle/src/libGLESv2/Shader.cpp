@@ -21,7 +21,7 @@ namespace gl
 void *Shader::mFragmentCompiler = NULL;
 void *Shader::mVertexCompiler = NULL;
 
-Shader::Shader(ResourceManager *manager, GLuint handle) : mHandle(handle), mResourceManager(manager)
+Shader::Shader(Context *context, GLuint handle) : mHandle(handle), mContext(context)
 {
     mSource = NULL;
     mHlsl = NULL;
@@ -34,22 +34,12 @@ Shader::Shader(ResourceManager *manager, GLuint handle) : mHandle(handle), mReso
 
         if (result)
         {
-            TBuiltInResource resources;
-            resources.maxVertexAttribs = MAX_VERTEX_ATTRIBS;
-            resources.maxVertexUniformVectors = MAX_VERTEX_UNIFORM_VECTORS;
-            resources.maxVaryingVectors = MAX_VARYING_VECTORS;
-            resources.maxVertexTextureImageUnits = MAX_VERTEX_TEXTURE_IMAGE_UNITS;
-            resources.maxCombinedTextureImageUnits = MAX_COMBINED_TEXTURE_IMAGE_UNITS;
-            resources.maxTextureImageUnits = MAX_TEXTURE_IMAGE_UNITS;
-            resources.maxFragmentUniformVectors = MAX_FRAGMENT_UNIFORM_VECTORS;
-            resources.maxDrawBuffers = MAX_DRAW_BUFFERS;
-
-            mFragmentCompiler = ShConstructCompiler(EShLangFragment, EShSpecGLES2, &resources);
-            mVertexCompiler = ShConstructCompiler(EShLangVertex, EShSpecGLES2, &resources);
+            mFragmentCompiler = ShConstructCompiler(EShLangFragment, EDebugOpObjectCode);
+            mVertexCompiler = ShConstructCompiler(EShLangVertex, EDebugOpObjectCode);
         }
     }
 
-    mRefCount = 0;
+    mAttachCount = 0;
     mDeleteStatus = false;
 }
 
@@ -187,24 +177,24 @@ const char *Shader::getHLSL()
     return mHlsl;
 }
 
-void Shader::addRef()
+void Shader::attach()
 {
-    mRefCount++;
+    mAttachCount++;
 }
 
-void Shader::release()
+void Shader::detach()
 {
-    mRefCount--;
+    mAttachCount--;
 
-    if (mRefCount == 0 && mDeleteStatus)
+    if (mAttachCount == 0 && mDeleteStatus)
     {
-        mResourceManager->deleteShader(mHandle);
+        mContext->deleteShader(mHandle);
     }
 }
 
-unsigned int Shader::getRefCount() const
+bool Shader::isAttached() const
 {
-    return mRefCount;
+    return mAttachCount > 0;
 }
 
 bool Shader::isFlaggedForDeletion() const
@@ -262,8 +252,6 @@ void Shader::parseVaryings()
 
         mUsesFragCoord = strstr(mHlsl, "GL_USES_FRAG_COORD") != NULL;
         mUsesFrontFacing = strstr(mHlsl, "GL_USES_FRONT_FACING") != NULL;
-        mUsesPointSize = strstr(mHlsl, "GL_USES_POINT_SIZE") != NULL;
-        mUsesPointCoord = strstr(mHlsl, "GL_USES_POINT_COORD") != NULL;
     }
 }
 
@@ -279,7 +267,18 @@ void Shader::compileToHLSL(void *compiler)
     delete[] mInfoLog;
     mInfoLog = NULL;
 
-    int result = ShCompile(compiler, &mSource, 1, EShOptNone, EDebugOpNone);
+    TBuiltInResource resources;
+
+    resources.maxVertexAttribs = MAX_VERTEX_ATTRIBS;
+    resources.maxVertexUniformVectors = MAX_VERTEX_UNIFORM_VECTORS;
+    resources.maxVaryingVectors = MAX_VARYING_VECTORS;
+    resources.maxVertexTextureImageUnits = MAX_VERTEX_TEXTURE_IMAGE_UNITS;
+    resources.maxCombinedTextureImageUnits = MAX_COMBINED_TEXTURE_IMAGE_UNITS;
+    resources.maxTextureImageUnits = MAX_TEXTURE_IMAGE_UNITS;
+    resources.maxFragmentUniformVectors = MAX_FRAGMENT_UNIFORM_VECTORS;
+    resources.maxDrawBuffers = MAX_DRAW_BUFFERS;
+
+    int result = ShCompile(compiler, &mSource, 1, EShOptNone, &resources, EDebugOpObjectCode);
     const char *obj = ShGetObjectCode(compiler);
     const char *info = ShGetInfoLog(compiler);
 
@@ -417,7 +416,7 @@ bool Shader::compareVarying(const Varying &x, const Varying &y)
     return false;
 }
 
-VertexShader::VertexShader(ResourceManager *manager, GLuint handle) : Shader(manager, handle)
+VertexShader::VertexShader(Context *context, GLuint handle) : Shader(context, handle)
 {
 }
 
@@ -481,7 +480,7 @@ void VertexShader::parseAttributes()
     }
 }
 
-FragmentShader::FragmentShader(ResourceManager *manager, GLuint handle) : Shader(manager, handle)
+FragmentShader::FragmentShader(Context *context, GLuint handle) : Shader(context, handle)
 {
 }
 

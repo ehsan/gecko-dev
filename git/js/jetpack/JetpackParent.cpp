@@ -104,7 +104,7 @@ JetpackParent::SendMessage(const nsAString& aMessageName)
 
 NS_IMETHODIMP
 JetpackParent::RegisterReceiver(const nsAString& aMessageName,
-                                const jsval &aReceiver)
+                                jsval aReceiver)
 {
   return JetpackActorCommon::RegisterReceiver(mContext,
                                               nsString(aMessageName),
@@ -113,7 +113,7 @@ JetpackParent::RegisterReceiver(const nsAString& aMessageName,
 
 NS_IMETHODIMP
 JetpackParent::UnregisterReceiver(const nsAString& aMessageName,
-                                  const jsval &aReceiver)
+                                  jsval aReceiver)
 {
   JetpackActorCommon::UnregisterReceiver(nsString(aMessageName),
                                          aReceiver);

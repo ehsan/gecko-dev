@@ -492,7 +492,7 @@ protected:
     {
     protected:
         nsXULDocument* mDocument;              // [WEAK]
-        nsRefPtr<mozilla::dom::Element> mObservesElement; // [OWNER]
+        nsCOMPtr<mozilla::dom::Element> mObservesElement; // [OWNER]
         PRBool mResolved;
 
     public:

@@ -365,7 +365,7 @@ IDBCursor::GetValue(JSContext* aCx,
 }
 
 NS_IMETHODIMP
-IDBCursor::Continue(const jsval &aKey,
+IDBCursor::Continue(jsval aKey,
                     JSContext* aCx,
                     PRUint8 aOptionalArgCount,
                     PRBool* _retval)
@@ -410,7 +410,7 @@ IDBCursor::Continue(const jsval &aKey,
 }
 
 NS_IMETHODIMP
-IDBCursor::Update(const jsval &aValue,
+IDBCursor::Update(jsval aValue,
                   JSContext* aCx,
                   nsIIDBRequest** _retval)
 {
@@ -436,7 +436,7 @@ IDBCursor::Update(const jsval &aValue,
 
   js::AutoValueRooter clone(aCx);
   nsresult rv = nsContentUtils::CreateStructuredClone(aCx, aValue,
-                                                      clone.jsval_addr());
+                                                      clone.addr());
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -449,22 +449,22 @@ IDBCursor::Update(const jsval &aValue,
     const size_t keyPathLen = keyPath.Length();
 
     js::AutoValueRooter prop(aCx);
-    JSBool ok = JS_GetUCProperty(aCx, JSVAL_TO_OBJECT(clone.jsval_value()),
-                                 keyPathChars, keyPathLen, prop.jsval_addr());
+    JSBool ok = JS_GetUCProperty(aCx, JSVAL_TO_OBJECT(clone.value()),
+                                 keyPathChars, keyPathLen, prop.addr());
     NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
 
-    if (JSVAL_IS_VOID(prop.jsval_value())) {
-      rv = IDBObjectStore::GetJSValFromKey(key, aCx, prop.jsval_addr());
+    if (JSVAL_IS_VOID(prop.value())) {
+      rv = IDBObjectStore::GetJSValFromKey(key, aCx, prop.addr());
       NS_ENSURE_SUCCESS(rv, rv);
 
-      ok = JS_DefineUCProperty(aCx, JSVAL_TO_OBJECT(clone.jsval_value()),
-                               keyPathChars, keyPathLen, prop.jsval_value(), nsnull,
+      ok = JS_DefineUCProperty(aCx, JSVAL_TO_OBJECT(clone.value()),
+                               keyPathChars, keyPathLen, prop.value(), nsnull,
                                nsnull, JSPROP_ENUMERATE);
       NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
     }
     else {
       Key newKey;
-      rv = IDBObjectStore::GetKeyFromJSVal(prop.jsval_value(), newKey);
+      rv = IDBObjectStore::GetKeyFromJSVal(prop.value(), newKey);
       NS_ENSURE_SUCCESS(rv, rv);
 
       if (newKey.IsUnset() || newKey.IsNull() || newKey != key) {
@@ -475,13 +475,13 @@ IDBCursor::Update(const jsval &aValue,
 
   nsTArray<IndexUpdateInfo> indexUpdateInfo;
   rv = IDBObjectStore::GetIndexUpdateInfo(mObjectStore->GetObjectStoreInfo(),
-                                          aCx, clone.jsval_value(), indexUpdateInfo);
+                                          aCx, clone.value(), indexUpdateInfo);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIJSON> json(new nsJSON());
 
   nsString jsonValue;
-  rv = json->EncodeFromJSVal(clone.jsval_addr(), aCx, jsonValue);
+  rv = json->EncodeFromJSVal(clone.addr(), aCx, jsonValue);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsRefPtr<IDBRequest> request = GenerateWriteRequest();
