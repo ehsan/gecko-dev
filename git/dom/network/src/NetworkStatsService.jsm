@@ -88,7 +88,7 @@ this.NetworkStatsService = {
     this.messages = ["NetworkStats:Get",
                      "NetworkStats:Clear",
                      "NetworkStats:ClearAll",
-                     "NetworkStats:GetAvailableNetworks",
+                     "NetworkStats:Networks",
                      "NetworkStats:SampleRate",
                      "NetworkStats:MaxStorageAge"];
 
@@ -130,9 +130,8 @@ this.NetworkStatsService = {
       case "NetworkStats:ClearAll":
         this.clearDB(mm, msg);
         break;
-      case "NetworkStats:GetAvailableNetworks":
-        this.getAvailableNetworks(mm, msg);
-        break;
+      case "NetworkStats:Networks":
+        return this.availableNetworks();
       case "NetworkStats:SampleRate":
         // This message is sync.
         return this._db.sampleRate;
@@ -159,7 +158,6 @@ this.NetworkStatsService = {
           break;
         }
 
-        debug("NetId: " + netId);
         this.updateStats(netId);
         break;
       case "xpcom-shutdown":
@@ -228,11 +226,13 @@ this.NetworkStatsService = {
     return aIccId + '' + aNetworkType;
   },
 
-  getAvailableNetworks: function getAvailableNetworks(mm, msg) {
-    this._db.getAvailableNetworks(function onGetNetworks(aError, aResult) {
-      mm.sendAsyncMessage("NetworkStats:GetAvailableNetworks:Return",
-                          { id: msg.id, error: aError, result: aResult });
-    });
+  availableNetworks: function availableNetworks() {
+    let result = [];
+    for (let netId in this._networks) {
+      result.push(this._networks[netId].network);
+    }
+
+    return result;
   },
 
   /*
@@ -247,6 +247,12 @@ this.NetworkStatsService = {
     let self = this;
     let network = msg.network;
     let netId = this.getNetworkId(network.id, network.type);
+
+    if (!this._networks[netId]) {
+      mm.sendAsyncMessage("NetworkStats:Get:Return",
+                          { id: msg.id, error: "Invalid connectionType", result: null });
+      return;
+    }
 
     let appId = 0;
     let manifestURL = msg.manifestURL;
@@ -263,42 +269,17 @@ this.NetworkStatsService = {
     let start = new Date(msg.start);
     let end = new Date(msg.end);
 
-    // Check if the network is currently active. If yes, we need to update
-    // the cached stats first before retrieving stats from the DB.
-    if (this._networks[netId]) {
-      this.updateStats(netId, function onStatsUpdated(aResult, aMessage) {
-        debug("getstats for network " + network.id + " of type " + network.type);
-        debug("appId: " + appId + " from manifestURL: " + manifestURL);
+    this.updateStats(netId, function onStatsUpdated(aResult, aMessage) {
+      debug("getstats for network " + network.id + " of type " + network.type);
+      debug("appId: " + appId + " from manifestURL: " + manifestURL);
 
-        self.updateCachedAppStats(function onAppStatsUpdated(aResult, aMessage) {
-          self._db.find(function onStatsFound(aError, aResult) {
-            mm.sendAsyncMessage("NetworkStats:Get:Return",
-                                { id: msg.id, error: aError, result: aResult });
-          }, network, start, end, appId, manifestURL);
-        });
-      });
-      return;
-    }
-
-    // Check if the network is available in the DB. If yes, we also
-    // retrieve the stats for it from the DB.
-    this._db.isNetworkAvailable(network, function(aError, aResult) {
-      if (aResult) {
-        // If network is not active, there is no need to update stats.
+      this.updateCachedAppStats(function onAppStatsUpdated(aResult, aMessage) {
         self._db.find(function onStatsFound(aError, aResult) {
           mm.sendAsyncMessage("NetworkStats:Get:Return",
                               { id: msg.id, error: aError, result: aResult });
         }, network, start, end, appId, manifestURL);
-        return;
-      }
-
-      if (!aError) {
-        aError = "Invalid connectionType";
-      }
-
-      mm.sendAsyncMessage("NetworkStats:Get:Return",
-                          { id: msg.id, error: aError, result: null });
-    });
+      });
+    }.bind(this));
   },
 
   clearInterfaceStats: function clearInterfaceStats(mm, msg) {
@@ -320,19 +301,10 @@ this.NetworkStatsService = {
   },
 
   clearDB: function clearDB(mm, msg) {
-    let self = this;
-    this._db.getAvailableNetworks(function onGetNetworks(aError, aResult) {
-      if (aError) {
-        mm.sendAsyncMessage("NetworkStats:ClearAll:Return",
-                            { id: msg.id, error: aError, result: aResult });
-        return;
-      }
-
-      let networks = aResult;
-      self._db.clearStats(networks, function onDBCleared(aError, aResult) {
-        mm.sendAsyncMessage("NetworkStats:ClearAll:Return",
-                            { id: msg.id, error: aError, result: aResult });
-      });
+    let networks = this.availableNetworks();
+    this._db.clearStats(networks, function onDBCleared(aError, aResult) {
+      mm.sendAsyncMessage("NetworkStats:ClearAll:Return",
+                          { id: msg.id, error: aError, result: aResult });
     });
   },
 

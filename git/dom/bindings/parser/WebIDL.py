@@ -868,7 +868,7 @@ class IDLInterface(IDLObjectWithScope):
                                       [self.location])
 
                 self._noInterfaceObject = True
-            elif identifier == "Constructor" or identifier == "NamedConstructor" or identifier == "ChromeConstructor":
+            elif identifier == "Constructor" or identifier == "NamedConstructor":
                 if identifier == "Constructor" and not self.hasInterfaceObject():
                     raise WebIDLError(str(identifier) + " and NoInterfaceObject are incompatible",
                                       [self.location])
@@ -877,15 +877,11 @@ class IDLInterface(IDLObjectWithScope):
                     raise WebIDLError("NamedConstructor must either take an identifier or take a named argument list",
                                       [attr.location])
 
-                if identifier == "ChromeConstructor" and not self.hasInterfaceObject():
-                    raise WebIDLError(str(identifier) + " and NoInterfaceObject are incompatible",
-                                      [self.location])
-
                 args = attr.args() if attr.hasArgs() else []
 
                 retType = IDLWrapperType(self.location, self)
                 
-                if identifier == "Constructor" or identifier == "ChromeConstructor":
+                if identifier == "Constructor":
                     name = "constructor"
                     allowForbidden = True
                 else:
@@ -904,11 +900,9 @@ class IDLInterface(IDLObjectWithScope):
                 method.addExtendedAttributes(
                     [IDLExtendedAttribute(self.location, ("NewObject",)),
                      IDLExtendedAttribute(self.location, ("Throws",))])
-                if identifier == "ChromeConstructor":
-                    method.addExtendedAttributes(
-                        [IDLExtendedAttribute(self.location, ("ChromeOnly",))])
 
-                if identifier == "Constructor" or identifier == "ChromeConstructor":
+
+                if identifier == "Constructor":
                     method.resolve(self)
                 else:
                     # We need to detect conflicts for NamedConstructors across

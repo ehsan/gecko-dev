@@ -16,7 +16,6 @@ Important Concepts
    :maxdepth: 1
 
    build-overview
-   supported-configurations
    Mozconfig Files <mozconfigs>
    mozbuild-files
    mozbuild-symbols

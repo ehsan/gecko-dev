@@ -24,7 +24,6 @@ class nsCycleCollectionNoteRootCallback;
 
 namespace mozilla {
 template <class> class Maybe;
-struct CycleCollectorResults;
 }
 
 // The amount of time we wait between a request to GC (due to leaving
@@ -104,10 +103,8 @@ public:
   // If aExtraForgetSkippableCalls is -1, forgetSkippable won't be
   // called even if the previous collection was GC.
   static void CycleCollectNow(nsICycleCollectorListener *aListener = nullptr,
-                              int32_t aExtraForgetSkippableCalls = 0);
-  static void ScheduledCycleCollectNow();
-  static void BeginCycleCollectionCallback();
-  static void EndCycleCollectionCallback(mozilla::CycleCollectorResults &aResults);
+                              int32_t aExtraForgetSkippableCalls = 0,
+                              bool aManuallyTriggered = true);
 
   static void PokeGC(JS::gcreason::Reason aReason, int aDelay = 0);
   static void KillGCTimer();

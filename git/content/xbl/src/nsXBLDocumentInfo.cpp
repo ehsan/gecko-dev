@@ -33,11 +33,9 @@
 #include "mozilla/scache/StartupCacheUtils.h"
 #include "nsCCUncollectableMarker.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/URL.h"
 
-using namespace mozilla;
 using namespace mozilla::scache;
-using namespace mozilla::dom;
+using namespace mozilla;
 
 static const char kXBLCachePrefix[] = "xblcache";
 
@@ -282,6 +280,14 @@ nsXBLDocGlobalObject::GetPrincipal()
     return nullptr;
 
   return document->NodePrincipal();
+}
+
+static bool IsChromeURI(nsIURI* aURI)
+{
+  bool isChrome = false;
+  if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &isChrome)))
+      return isChrome;
+  return false;
 }
 
 /* Implementation file */

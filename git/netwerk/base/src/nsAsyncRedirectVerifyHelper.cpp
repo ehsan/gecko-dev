@@ -17,7 +17,6 @@
 #include "nsIHttpChannelInternal.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 
-#undef LOG
 #ifdef PR_LOGGING
 static PRLogModuleInfo *
 GetRedirectLog()

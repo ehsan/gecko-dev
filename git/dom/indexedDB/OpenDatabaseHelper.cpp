@@ -881,10 +881,8 @@ public:
     rv = aArguments->GetSharedBlob(0, &uncompressedLength, &uncompressed);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    static const fallible_t fallible = fallible_t();
     size_t compressedLength = snappy::MaxCompressedLength(uncompressedLength);
-    nsAutoArrayPtr<char> compressed(new (fallible) char[compressedLength]);
-    NS_ENSURE_TRUE(compressed, NS_ERROR_OUT_OF_MEMORY);
+    nsAutoArrayPtr<char> compressed(new char[compressedLength]);
 
     snappy::RawCompress(reinterpret_cast<const char*>(uncompressed),
                         uncompressedLength, compressed.get(),

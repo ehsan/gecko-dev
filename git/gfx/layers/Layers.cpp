@@ -1261,12 +1261,6 @@ Layer::LogSelf(const char* aPrefix)
   nsAutoCString str;
   PrintInfo(str, aPrefix);
   MOZ_LAYERS_LOG(("%s", str.get()));
-
-  if (mMaskLayer) {
-    nsAutoCString pfx(aPrefix);
-    pfx += "   \\ MaskLayer ";
-    mMaskLayer->LogSelf(pfx.get());
-  }
 }
 
 nsACString&
@@ -1310,9 +1304,6 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
                      mStickyPositionData->mOuter.width, mStickyPositionData->mOuter.height,
                      mStickyPositionData->mInner.x, mStickyPositionData->mInner.y,
                      mStickyPositionData->mInner.width, mStickyPositionData->mInner.height);
-  }
-  if (mMaskLayer) {
-    aTo.AppendPrintf(" [mMaskLayer=%p]", mMaskLayer.get());
   }
 
   return aTo;

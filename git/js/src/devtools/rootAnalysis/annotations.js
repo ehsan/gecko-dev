@@ -160,9 +160,6 @@ var ignoreFunctions = {
     // FIXME!
     "NS_DebugBreak": true,
 
-    // Bug 940765 - fetching preferences should not GC
-    "PrefHashEntry* pref_HashTableLookup(void*)": true,
-
     // These are a little overzealous -- these destructors *can* GC if they end
     // up wrapping a pending exception. See bug 898815 for the heavyweight fix.
     "void js::AutoCompartment::~AutoCompartment(int32)" : true,
@@ -228,6 +225,5 @@ function isRootedPointerTypeName(name)
 function isSuppressConstructor(name)
 {
     return /::AutoSuppressGC/.test(name)
-        || /::AutoEnterAnalysis/.test(name)
-        || /::AutoAssertNoGC/.test(name);
+        || /::AutoEnterAnalysis/.test(name);
 }

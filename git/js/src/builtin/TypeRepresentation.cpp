@@ -62,9 +62,6 @@ TypeRepresentationHasher::match(TypeRepresentation *key1,
       case TypeRepresentation::Reference:
         return matchReferences(key1->asReference(), key2->asReference());
 
-      case TypeRepresentation::X4:
-        return matchX4s(key1->asX4(), key2->asX4());
-
       case TypeRepresentation::Struct:
         return matchStructs(key1->asStruct(), key2->asStruct());
 
@@ -85,13 +82,6 @@ TypeRepresentationHasher::matchScalars(ScalarTypeRepresentation *key1,
 bool
 TypeRepresentationHasher::matchReferences(ReferenceTypeRepresentation *key1,
                                           ReferenceTypeRepresentation *key2)
-{
-    return key1->type() == key2->type();
-}
-
-bool
-TypeRepresentationHasher::matchX4s(X4TypeRepresentation *key1,
-                                   X4TypeRepresentation *key2)
 {
     return key1->type() == key2->type();
 }
@@ -132,9 +122,6 @@ TypeRepresentationHasher::hash(TypeRepresentation *key) {
       case TypeRepresentation::Reference:
         return hashReference(key->asReference());
 
-      case TypeRepresentation::X4:
-        return hashX4(key->asX4());
-
       case TypeRepresentation::Struct:
         return hashStruct(key->asStruct());
 
@@ -153,12 +140,6 @@ TypeRepresentationHasher::hashScalar(ScalarTypeRepresentation *key)
 
 HashNumber
 TypeRepresentationHasher::hashReference(ReferenceTypeRepresentation *key)
-{
-    return HashGeneric(key->kind(), key->type());
-}
-
-HashNumber
-TypeRepresentationHasher::hashX4(X4TypeRepresentation *key)
 {
     return HashGeneric(key->kind(), key->type());
 }
@@ -191,30 +172,32 @@ TypeRepresentation::TypeRepresentation(Kind kind, size_t size,
     opaque_(opaque)
 {}
 
-static size_t ScalarSizes[] = {
-#define SCALAR_SIZE(_kind, _type, _name)                        \
-    sizeof(_type),
-    JS_FOR_EACH_SCALAR_TYPE_REPR(SCALAR_SIZE) 0
-#undef SCALAR_SIZE
-};
-
 ScalarTypeRepresentation::ScalarTypeRepresentation(Type type)
-  : TypeRepresentation(Scalar, ScalarSizes[type], ScalarSizes[type], false),
+  : TypeRepresentation(Scalar, 0, 1, false),
     type_(type)
 {
-}
+    switch (type) {
+      case TYPE_INT8:
+      case TYPE_UINT8:
+      case TYPE_UINT8_CLAMPED:
+        size_ = alignment_ = 1;
+        break;
 
-static size_t X4Sizes[] = {
-#define X4_SIZE(_kind, _type, _name)                        \
-    sizeof(_type) * 4,
-    JS_FOR_EACH_X4_TYPE_REPR(X4_SIZE) 0
-#undef X4_SIZE
-};
+      case TYPE_INT16:
+      case TYPE_UINT16:
+        size_ = alignment_ = 2;
+        break;
 
-X4TypeRepresentation::X4TypeRepresentation(Type type)
-  : TypeRepresentation(X4, X4Sizes[type], X4Sizes[type], false),
-    type_(type)
-{
+      case TYPE_INT32:
+      case TYPE_UINT32:
+      case TYPE_FLOAT32:
+        size_ = alignment_ = 4;
+        break;
+
+      case TYPE_FLOAT64:
+        size_ = alignment_ = 8;
+        break;
+    }
 }
 
 ReferenceTypeRepresentation::ReferenceTypeRepresentation(Type type)
@@ -375,11 +358,6 @@ TypeRepresentation::addToTableOrFree(JSContext *cx,
                                       Int32Value(asReference()->type()));
         break;
 
-      case X4:
-        ownerObject->initReservedSlot(JS_TYPEREPR_SLOT_TYPE,
-                                      Int32Value(asX4()->type()));
-        break;
-
       case Struct:
         break;
     }
@@ -388,43 +366,27 @@ TypeRepresentation::addToTableOrFree(JSContext *cx,
     return &*ownerObject;
 }
 
-namespace js {
-class TypeRepresentationHelper {
-  public:
-    template<typename T>
-    static JSObject *CreateSimple(JSContext *cx, typename T::Type type) {
-        JSCompartment *comp = cx->compartment();
-
-        T sample(type);
-        TypeRepresentationHash::AddPtr p = comp->typeReprs.lookupForAdd(&sample);
-        if (p)
-            return (*p)->ownerObject();
-
-        // Note: cannot use cx->new_ because constructor is private.
-        T *ptr = (T *) cx->malloc_(sizeof(T));
-        if (!ptr)
-            return nullptr;
-        new(ptr) T(type);
-
-        return ptr->addToTableOrFree(cx, p);
-    }
-};
-} // namespace js
-
 /*static*/
 JSObject *
 ScalarTypeRepresentation::Create(JSContext *cx,
                                  ScalarTypeRepresentation::Type type)
 {
-    return TypeRepresentationHelper::CreateSimple<ScalarTypeRepresentation>(cx, type);
-}
+    JSCompartment *comp = cx->compartment();
 
-/*static*/
-JSObject *
-X4TypeRepresentation::Create(JSContext *cx,
-                             X4TypeRepresentation::Type type)
-{
-    return TypeRepresentationHelper::CreateSimple<X4TypeRepresentation>(cx, type);
+    ScalarTypeRepresentation sample(type);
+    TypeRepresentationHash::AddPtr p = comp->typeReprs.lookupForAdd(&sample);
+    if (p)
+        return (*p)->ownerObject();
+
+    // Note: cannot use cx->new_ because constructor is private.
+    ScalarTypeRepresentation *ptr =
+        (ScalarTypeRepresentation *) cx->malloc_(
+            sizeof(ScalarTypeRepresentation));
+    if (!ptr)
+        return nullptr;
+    new(ptr) ScalarTypeRepresentation(type);
+
+    return ptr->addToTableOrFree(cx, p);
 }
 
 /*static*/
@@ -537,7 +499,6 @@ TypeRepresentation::traceFields(JSTracer *trace)
     switch (kind()) {
       case Scalar:
       case Reference:
-      case X4:
         break;
 
       case Struct:
@@ -591,9 +552,6 @@ TypeRepresentation::appendString(JSContext *cx, StringBuffer &contents)
       case Reference:
         return asReference()->appendStringReference(cx, contents);
 
-      case X4:
-        return asX4()->appendStringX4(cx, contents);
-
       case Array:
         return asArray()->appendStringArray(cx, contents);
 
@@ -645,18 +603,6 @@ ReferenceTypeRepresentation::appendStringReference(JSContext *cx, StringBuffer &
 #define NUMERIC_TYPE_APPEND_STRING(constant_, type_, name_)                   \
         case constant_: return contents.append(#name_);
         JS_FOR_EACH_REFERENCE_TYPE_REPR(NUMERIC_TYPE_APPEND_STRING)
-    }
-    MOZ_ASSUME_UNREACHABLE("Invalid type");
-}
-
-bool
-X4TypeRepresentation::appendStringX4(JSContext *cx, StringBuffer &contents)
-{
-    switch (type()) {
-      case TYPE_FLOAT32:
-        return contents.append("float32x4");
-      case TYPE_INT32:
-        return contents.append("int32x4");
     }
     MOZ_ASSUME_UNREACHABLE("Invalid type");
 }
@@ -726,7 +672,6 @@ visitReferences(TypeRepresentation *repr, uint8_t *mem, V& visitor)
 
     switch (repr->kind()) {
       case TypeRepresentation::Scalar:
-      case TypeRepresentation::X4:
         return;
 
       case TypeRepresentation::Reference:

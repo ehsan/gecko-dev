@@ -298,13 +298,12 @@ CaptivePortalDetector.prototype = {
 
     let urlFetcher = new URLFetcher(this._canonicalSiteURL, this._maxWaitingTime);
 
-    let mayRetry = this._mayRetry.bind(this);
-
-    urlFetcher.ontimeout = mayRetry;
-    urlFetcher.onerror = mayRetry;
+    let requestDone = this.executeCallback.bind(this, true);
+    urlFetcher.ontimeout = requestDone;
+    urlFetcher.onerror = requestDone;
     urlFetcher.onsuccess = function (content) {
       if (self.validateContent(content)) {
-        self.executeCallback(true);
+        requestDone();
       } else {
         // Content of the canonical website has been overwrite
         self._startLogin();
@@ -314,8 +313,11 @@ CaptivePortalDetector.prototype = {
       if (status >= 300 && status <= 399) {
         // The canonical website has been redirected to an unknown location
         self._startLogin();
+      } else if (self._runningRequest.retryCount++ < self._maxRetryCount) {
+        debug('startDetection-retry: ' + self._runningRequest.retryCount);
+        self._startDetection();
       } else {
-        mayRetry();
+        requestDone();
       }
     };
 
@@ -332,15 +334,6 @@ CaptivePortalDetector.prototype = {
     this._loginObserver.attach();
     this._runningRequest['eventId'] = id;
     this._sendEvent(kOpenCaptivePortalLoginEvent, details);
-  },
-
-  _mayRetry: function _mayRetry() {
-    if (this._runningRequest.retryCount++ < this._maxRetryCount) {
-      debug('retry-Detection: ' + this._runningRequest.retryCount + '/' + this._maxRetryCount);
-      this._startDetection();
-    } else {
-      this.executeCallback(true);
-    }
   },
 
   executeCallback: function executeCallback(success) {

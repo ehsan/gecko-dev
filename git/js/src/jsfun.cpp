@@ -1119,15 +1119,14 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
         if (cx->zone()->needsBarrier())
             LazyScript::writeBarrierPre(lazy);
 
-        // Suppress GC for now although we should be able to remove this by
-        // making 'lazy' a Rooted<LazyScript*> (which requires adding a
-        // THING_ROOT_LAZY_SCRIPT).
+        // Suppress GC when lazily compiling functions, to preserve source
+        // character buffers.
         AutoSuppressGC suppressGC(cx);
 
         fun->flags &= ~INTERPRETED_LAZY;
         fun->flags |= INTERPRETED;
 
-        RootedScript script(cx, lazy->maybeScript());
+        JSScript *script = lazy->maybeScript();
 
         if (script) {
             fun->initScript(script);
@@ -1156,12 +1155,13 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
         // has started.
         if (!lazy->numInnerFunctions() && !JS::IsIncrementalGCInProgress(cx->runtime())) {
             LazyScriptCache::Lookup lookup(cx, lazy);
-            cx->runtime()->lazyScriptCache.lookup(lookup, script.address());
+            cx->runtime()->lazyScriptCache.lookup(lookup, &script);
         }
 
         if (script) {
             RootedObject enclosingScope(cx, lazy->enclosingScope());
-            RootedScript clonedScript(cx, CloneScript(cx, enclosingScope, fun, script));
+            RootedScript scriptRoot(cx, script);
+            RootedScript clonedScript(cx, CloneScript(cx, enclosingScope, fun, scriptRoot));
             if (!clonedScript) {
                 fun->initLazyScript(lazy);
                 return false;
@@ -1182,8 +1182,7 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
         JS_ASSERT(lazy->source()->hasSourceData());
 
         // Parse and compile the script from source.
-        SourceDataCache::AutoSuppressPurge asp(cx);
-        const jschar *chars = lazy->source()->chars(cx, asp);
+        const jschar *chars = lazy->source()->chars(cx);
         if (!chars) {
             fun->initLazyScript(lazy);
             return false;

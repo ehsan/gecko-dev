@@ -11,7 +11,6 @@
 
 using namespace mozilla;
 
-#undef LOG
 #if defined(PR_LOGGING)
 //
 // NSPR_LOG_MODULES=nsStreamCopier:5

@@ -93,9 +93,4 @@ GetSampleDuration(IMFSample* aSample);
 int64_t
 GetSampleTime(IMFSample* aSample);
 
-inline bool
-IsFlagSet(DWORD flags, DWORD pattern) {
-  return (flags & pattern) == pattern;
-}
-
 } // namespace mozilla

@@ -57,8 +57,7 @@ DOMWifiManager.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMWifiManager,
                                          Ci.nsIDOMGlobalPropertyInitializer,
-                                         Ci.nsISupportsWeakReference,
-                                         Ci.nsIObserver]),
+                                         Ci.nsISupportsWeakReference]),
 
   // nsIDOMGlobalPropertyInitializer implementation
   init: function(aWindow) {

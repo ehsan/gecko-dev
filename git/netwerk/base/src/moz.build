@@ -16,7 +16,7 @@ EXPORTS.mozilla.net += [
     'DashboardTypes.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'ArrayBufferInputStream.cpp',
     'BackgroundFileSaver.cpp',
     'Dashboard.cpp',

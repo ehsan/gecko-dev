@@ -133,7 +133,7 @@ struct Zone : public JS::shadow::Zone,
     }
 
   public:
-    enum GCState {
+    enum CompartmentGCState {
         NoGC,
         Mark,
         MarkGray,
@@ -143,7 +143,7 @@ struct Zone : public JS::shadow::Zone,
 
   private:
     bool                         gcScheduled;
-    GCState                      gcState;
+    CompartmentGCState           gcState;
     bool                         gcPreserveCode;
 
   public:
@@ -166,7 +166,7 @@ struct Zone : public JS::shadow::Zone,
         return runtimeFromMainThread()->isHeapMajorCollecting() && gcState != NoGC;
     }
 
-    void setGCState(GCState state) {
+    void setGCState(CompartmentGCState state) {
         JS_ASSERT(runtimeFromMainThread()->isHeapBusy());
         JS_ASSERT_IF(state != NoGC, canCollect());
         gcState = state;

@@ -688,7 +688,8 @@ DocAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aRelativeFrame)
 nsresult
 DocAccessible::AddEventListeners()
 {
-  nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem(mDocumentNode->GetDocShell());
+  nsCOMPtr<nsISupports> container = mDocumentNode->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem(do_QueryInterface(container));
 
   // We want to add a command observer only if the document is content and has
   // an editor.
@@ -720,7 +721,8 @@ DocAccessible::RemoveEventListeners()
   if (mDocumentNode) {
     mDocumentNode->RemoveObserver(this);
 
-    nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem(mDocumentNode->GetDocShell());
+    nsCOMPtr<nsISupports> container = mDocumentNode->GetContainer();
+    nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem(do_QueryInterface(container));
     NS_ASSERTION(docShellTreeItem, "doc should support nsIDocShellTreeItem.");
 
     if (docShellTreeItem) {
@@ -868,12 +870,7 @@ DocAccessible::AttributeWillChange(nsIDocument* aDocument,
       aAttribute == nsGkAtoms::aria_pressed) {
     mARIAAttrOldValue = (aModType != nsIDOMMutationEvent::ADDITION) ?
       nsAccUtils::GetARIAToken(aElement, aAttribute) : nullptr;
-    return;
   }
-
-  if (aAttribute == nsGkAtoms::aria_disabled ||
-      aAttribute == nsGkAtoms::disabled)
-    mStateBitWasOn = accessible->Unavailable();
 }
 
 void
@@ -941,24 +938,22 @@ DocAccessible::AttributeChangedImpl(Accessible* aAccessible,
 
   // Universal boolean properties that don't require a role. Fire the state
   // change when disabled or aria-disabled attribute is set.
-  // Note. Checking the XUL or HTML namespace would not seem to gain us
-  // anything, because disabled attribute really is going to mean the same
-  // thing in any namespace.
-  // Note. We use the attribute instead of the disabled state bit because
-  // ARIA's aria-disabled does not affect the disabled state bit.
   if (aAttribute == nsGkAtoms::disabled ||
       aAttribute == nsGkAtoms::aria_disabled) {
-    // Do nothing if state wasn't changed (like @aria-disabled was removed but
-    // @disabled is still presented).
-    if (aAccessible->Unavailable() == mStateBitWasOn)
-      return;
+
+    // Note. Checking the XUL or HTML namespace would not seem to gain us
+    // anything, because disabled attribute really is going to mean the same
+    // thing in any namespace.
+
+    // Note. We use the attribute instead of the disabled state bit because
+    // ARIA's aria-disabled does not affect the disabled state bit.
 
     nsRefPtr<AccEvent> enabledChangeEvent =
-      new AccStateChangeEvent(aAccessible, states::ENABLED, mStateBitWasOn);
+      new AccStateChangeEvent(aAccessible, states::ENABLED);
     FireDelayedEvent(enabledChangeEvent);
 
     nsRefPtr<AccEvent> sensitiveChangeEvent =
-      new AccStateChangeEvent(aAccessible, states::SENSITIVE, mStateBitWasOn);
+      new AccStateChangeEvent(aAccessible, states::SENSITIVE);
     FireDelayedEvent(sensitiveChangeEvent);
     return;
   }
@@ -1992,7 +1987,8 @@ DocAccessible::ShutdownChildrenInSubtree(Accessible* aAccessible)
 bool
 DocAccessible::IsLoadEventTarget() const
 {
-  nsCOMPtr<nsIDocShellTreeItem> treeItem = mDocumentNode->GetDocShell();
+  nsCOMPtr<nsISupports> container = mDocumentNode->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(container);
   NS_ASSERTION(treeItem, "No document shell for document!");
 
   nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;
