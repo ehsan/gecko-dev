@@ -420,31 +420,23 @@ iQ.fn = iQ.prototype = {
   // Function: width
 	width: function(unused) {
     Utils.assert('does not yet support setting', unused === undefined);
-/*     Utils.assert('does not yet support multi-objects (or null objects)', this.length == 1); */
-    return parseInt(this.css('width')); //this[0].clientWidth;
+    return parseInt(this.css('width')); 
   },
 
   // ----------
   // Function: height
 	height: function(unused) {
     Utils.assert('does not yet support setting', unused === undefined);
-/*     Utils.assert('does not yet support multi-objects (or null objects)', this.length == 1); */
-    return parseInt(this.css('height')); //this[0].clientHeight;
+    return parseInt(this.css('height'));
   },
 
   // ----------
   // Function: position
   position: function(unused) {
     Utils.assert('does not yet support setting', unused === undefined);
-/*     Utils.assert('does not yet support multi-objects (or null objects)', this.length == 1); */
-/*     var el = this[0]; */
     return {
       left: parseInt(this.css('left')),
       top: parseInt(this.css('top'))
-/*
-      left: (parseInt(el.style.left) || el.offsetLeft), 
-      top: (parseInt(el.style.top) || el.offsetTop)
-*/
     };
   },
   
@@ -612,19 +604,6 @@ iQ.fn = iQ.prototype = {
       var duration = (options.duration || 400);
       var easing = (easings[options.easing] || 'ease');
 
-      // The latest versions of Firefox do not animate from a non-explicitly set
-      // css properties. So for each element to be animated, go through and
-      // explicitly define 'em.
-      rupper = /([A-Z])/g;    
-      this.each(function(){
-        var cStyle = window.getComputedStyle(this, null);      
-        for(var prop in css){
-          prop = prop.replace( rupper, "-$1" ).toLowerCase();
-          iQ(this).css(prop, cStyle.getPropertyValue(prop));
-        }    
-      });
-
-
       this.css({
         '-moz-transition-property': 'all', // TODO: just animate the properties we're changing  
         '-moz-transition-duration': (duration / 1000) + 's',  
@@ -634,19 +613,15 @@ iQ.fn = iQ.prototype = {
       this.css(css);
       
       var self = this;
-      setTimeout(function() {
-        try {
-          self.css({
-            '-moz-transition-property': 'none',  
-            '-moz-transition-duration': '',  
-            '-moz-transition-timing-function': ''
-          });
-  
-          if(iQ.isFunction(options.complete))
-            options.complete.apply(self);
-        } catch(e) {
-          Utils.log(e);
-        }      
+      iQ.timeout(function() {
+        self.css({
+          '-moz-transition-property': 'none',  
+          '-moz-transition-duration': '',  
+          '-moz-transition-timing-function': ''
+        });
+
+        if(iQ.isFunction(options.complete))
+          options.complete.apply(self);
       }, duration);
     } catch(e) {
       Utils.log(e);
@@ -787,7 +762,7 @@ iQ.fn = iQ.prototype = {
     
     return this; 
   },
-
+  
   // ----------
   // Function: draggable
   draggable: function(options) {
@@ -1282,7 +1257,20 @@ iQ.extend({
 		}
 
 		return ret;
-	}	
+	},
+
+  // ----------
+  // Function: timeout
+  // wraps setTimeout with try/catch
+  timeout: function(func, delay) {
+    setTimeout(function() { 
+      try {
+        func();
+      } catch(e) {
+        Utils.log(e);
+      }
+    }, delay);
+  }
 });
 
 // ----------
