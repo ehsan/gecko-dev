@@ -112,7 +112,7 @@ public:
   const PRUint8* GetExtraField(PRUint16 aTag, PRUint16 *aBlockSize);
   PRTime   LastModTime();
 
-#ifdef XP_UNIX
+#if defined(XP_UNIX) || defined(XP_BEOS)
   bool     IsSymlink();
 #endif
 

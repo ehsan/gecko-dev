@@ -98,6 +98,18 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
                      jsval *argv,
                      jsval *rval)
 {
+    // Mark our internal string wrappers as not used. Make sure we do
+    // this before any early returns, as the destructor will assert
+    // based on this.
+    StringWrapperEntry *se =
+        reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
+
+    PRUint32 i;
+    for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
+    {
+        se[i].mInUse = PR_FALSE;
+    }
+
     if(!mXPC)
         return;
 
@@ -412,9 +424,15 @@ XPCCallContext::~XPCCallContext()
     }
 
 #ifdef DEBUG
-    for(PRUint32 i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
     {
-        NS_ASSERTION(!mScratchStrings[i].mInUse, "Uh, string wrapper still in use!");
+        StringWrapperEntry *se =
+            reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
+
+        PRUint32 i;
+        for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
+        {
+            NS_ASSERTION(!se[i].mInUse, "Uh, string wrapper still in use!");
+        }
     }
 #endif
 
@@ -425,9 +443,13 @@ XPCCallContext::~XPCCallContext()
 XPCReadableJSStringWrapper *
 XPCCallContext::NewStringWrapper(const PRUnichar *str, PRUint32 len)
 {
-    for(PRUint32 i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
+    StringWrapperEntry *se =
+        reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
+
+    PRUint32 i;
+    for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
     {
-        StringWrapperEntry& ent = mScratchStrings[i];
+        StringWrapperEntry& ent = se[i];
 
         if(!ent.mInUse)
         {
@@ -435,7 +457,7 @@ XPCCallContext::NewStringWrapper(const PRUnichar *str, PRUint32 len)
 
             // Construct the string using placement new.
 
-            return new (ent.mString.addr()) XPCReadableJSStringWrapper(str, len);
+            return new (&ent.mString) XPCReadableJSStringWrapper(str, len);
         }
     }
 
@@ -447,16 +469,20 @@ XPCCallContext::NewStringWrapper(const PRUnichar *str, PRUint32 len)
 void
 XPCCallContext::DeleteString(nsAString *string)
 {
-    for(PRUint32 i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
+    StringWrapperEntry *se =
+        reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
+
+    PRUint32 i;
+    for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
     {
-        StringWrapperEntry& ent = mScratchStrings[i];
-        if(string == ent.mString.addr())
+        StringWrapperEntry& ent = se[i];
+        if(string == &ent.mString)
         {
             // One of our internal strings is no longer in use, mark
             // it as such and destroy the string.
 
             ent.mInUse = PR_FALSE;
-            ent.mString.addr()->~XPCReadableJSStringWrapper();
+            ent.mString.~XPCReadableJSStringWrapper();
 
             return;
         }

@@ -306,10 +306,7 @@ enum nsSelectionAmount {
   eSelectBeginLine = 4,
   eSelectEndLine   = 5,
   eSelectNoAmount  = 6, // just bounce back current offset.
-  eSelectParagraph = 7,  // select a "paragraph"
-  eSelectWordNoSpace = 8 // select a "word" without selecting the following
-                         // space, no matter what the default platform
-                         // behavior is
+  eSelectParagraph = 7  // select a "paragraph"
 };
 
 enum nsDirection {
@@ -1465,11 +1462,7 @@ public:
     // optional breaks to prevent min-width from ending up bigger than
     // pref-width.
     void ForceBreak(nsIRenderingContext *aRenderingContext);
-
-    // If the break here is actually taken, aHyphenWidth must be added to the
-    // width of the current line.
-    void OptionallyBreak(nsIRenderingContext *aRenderingContext,
-                         nscoord aHyphenWidth = 0);
+    void OptionallyBreak(nsIRenderingContext *aRenderingContext);
 
     // The last text frame processed so far in the current line, when
     // the last characters in that text frame are relevant for line

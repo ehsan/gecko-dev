@@ -223,8 +223,6 @@ public:
     // unique name for the face, *not* the family
     const nsString& Name() const { return mName; }
 
-    gfxFontFamily* Family() const { return mFamily; }
-
     PRUint16 Weight() const { return mWeight; }
     PRInt16 Stretch() const { return mStretch; }
 
@@ -1459,27 +1457,6 @@ public:
          */
         virtual void GetSpacing(PRUint32 aStart, PRUint32 aLength,
                                 Spacing *aSpacing) = 0;
-    };
-
-    class ClusterIterator {
-    public:
-        ClusterIterator(gfxTextRun *aTextRun);
-
-        void Reset();
-
-        PRBool NextCluster();
-
-        PRUint32 Position() const {
-            return mCurrentChar;
-        }
-
-        PRUint32 ClusterLength() const;
-
-        gfxFloat ClusterAdvance(PropertyProvider *aProvider) const;
-
-    private:
-        gfxTextRun *mTextRun;
-        PRUint32    mCurrentChar;
     };
 
     /**

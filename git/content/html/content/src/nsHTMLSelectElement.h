@@ -506,6 +506,11 @@ protected:
   void VerifyOptionsArray();
 #endif
 
+  virtual PRBool AcceptAutofocus() const
+  {
+    return PR_TRUE;
+  }
+
   nsresult SetSelectedIndexInternal(PRInt32 aIndex, PRBool aNotify);
 
   void SetSelectionChanged(PRBool aValue, PRBool aNotify);

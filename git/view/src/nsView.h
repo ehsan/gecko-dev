@@ -76,7 +76,6 @@ public:
    */
   virtual void SetDimensions(const nsRect &aRect, PRBool aPaint = PR_TRUE,
                              PRBool aResizeWidget = PR_TRUE);
-  void SetInvalidationDimensions(const nsRect* aRect);
   void GetDimensions(nsRect &aRect) const { aRect = mDimBounds; aRect.x -= mPosX; aRect.y -= mPosY; }
   void GetDimensions(nsSize &aSize) const { aSize.width = mDimBounds.width; aSize.height = mDimBounds.height; }
 
@@ -135,6 +134,9 @@ public:
                                 PRBool aEnableDragDrop,
                                 PRBool aResetVisibility);
 
+  // See nsIView::DestroyWidget
+  void DestroyWidget();
+
   // NOT in nsIView, so only available in view module
   // These are also present in nsIView, but these versions return nsView and nsViewManager
   // instead of nsIView and nsIViewManager.
@@ -149,11 +151,6 @@ public:
   nsRect GetDimensions() const { nsRect r = mDimBounds; r.MoveBy(-mPosX, -mPosY); return r; }
   // Same as GetBounds but converts to parent appunits if they are different.
   nsRect GetBoundsInParentUnits() const;
-
-  nsRect GetInvalidationDimensions() const {
-    return mHaveInvalidationDimensions ? mInvalidationDimensions : GetDimensions();
-  }
-
   // These are defined exactly the same in nsIView, but for now they have to be redeclared
   // here because of stupid C++ method hiding rules
 
@@ -208,13 +205,6 @@ protected:
   void DoResetWidgetBounds(PRBool aMoveOnly, PRBool aInvalidateChangedSize);
 
   nsRegion*    mDirtyRegion;
-  // invalidations are clipped to mInvalidationDimensions, not
-  // GetDimensions(), when mHaveInvalidationDimensions is true.  This
-  // is used to support persistent "displayport" rendering; see
-  // nsPresShell.cpp.  The coordinates of mInvalidationDimensions are
-  // relative to |this|.
-  nsRect       mInvalidationDimensions;
-  PRPackedBool mHaveInvalidationDimensions;
 
 private:
   void InitializeWindow(PRBool aEnableDragDrop, PRBool aResetVisibility);

@@ -207,16 +207,6 @@ AddString(FcPattern *aPattern, const char *object, const char *aString)
 }
 
 static void
-AddWeakString(FcPattern *aPattern, const char *object, const char *aString)
-{
-    FcValue value;
-    value.type = FcTypeString;
-    value.u.s = gfxFontconfigUtils::ToFcChar8(aString);
-
-    FcPatternAddWeak(aPattern, object, value, FcTrue);
-}
-
-static void
 AddLangGroup(FcPattern *aPattern, nsIAtom *aLangGroup)
 {
     // Translate from mozilla's internal mapping into fontconfig's
@@ -228,14 +218,12 @@ AddLangGroup(FcPattern *aPattern, nsIAtom *aLangGroup)
     }
 }
 
+
 nsReturnRef<FcPattern>
 gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
                                const gfxFontStyle& aFontStyle,
                                const char *aLang)
 {
-    static const char* sFontconfigGenerics[] =
-        { "sans-serif", "serif", "monospace", "fantasy", "cursive" };
-
     nsAutoRef<FcPattern> pattern(FcPatternCreate());
     if (!pattern)
         return nsReturnRef<FcPattern>();
@@ -248,30 +236,9 @@ gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
         AddString(pattern, FC_LANG, aLang);
     }
 
-    PRBool useWeakBinding = PR_FALSE;
     for (PRUint32 i = 0; i < aFamilies.Length(); ++i) {
         NS_ConvertUTF16toUTF8 family(aFamilies[i]);
-        if (!useWeakBinding) {
-            AddString(pattern, FC_FAMILY, family.get());
-
-            // fontconfig generic families are typically implemented with weak
-            // aliases (so that the preferred font depends on language).
-            // However, this would give them lower priority than subsequent
-            // non-generic families in the list.  To ensure that subsequent
-            // families do not have a higher priority, they are given weak
-            // bindings.
-            for (PRUint32 g = 0;
-                 g < NS_ARRAY_LENGTH(sFontconfigGenerics);
-                 ++g) {
-                if (FcStrCmpIgnoreCase(ToFcChar8(sFontconfigGenerics[g]),
-                                       ToFcChar8(family.get()))) {
-                    useWeakBinding = PR_TRUE;
-                    break;
-                }
-            }
-        } else {
-            AddWeakString(pattern, FC_FAMILY, family.get());
-        }
+        AddString(pattern, FC_FAMILY, family.get());
     }
 
     return pattern.out();

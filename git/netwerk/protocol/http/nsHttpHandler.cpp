@@ -84,7 +84,7 @@
 #include "mozilla/net/NeckoChild.h"
 #endif 
 
-#if defined(XP_UNIX)
+#if defined(XP_UNIX) || defined(XP_BEOS)
 #include <sys/utsname.h>
 #endif
 
@@ -394,14 +394,15 @@ nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request,
     //
     // However, we need to send something so that we can use keepalive
     // with HTTP/1.0 servers/proxies. We use "Proxy-Connection:" when 
-    // we're talking to an http proxy, and "Connection:" otherwise.
-    // We no longer send the Keep-Alive request header.
+    // we're talking to an http proxy, and "Connection:" otherwise
     
     NS_NAMED_LITERAL_CSTRING(close, "close");
     NS_NAMED_LITERAL_CSTRING(keepAlive, "keep-alive");
 
     const nsACString *connectionType = &close;
     if (caps & NS_HTTP_ALLOW_KEEPALIVE) {
+        rv = request->SetHeader(nsHttp::Keep_Alive, nsPrintfCString("%u", mIdleTimeout));
+        if (NS_FAILED(rv)) return rv;
         connectionType = &keepAlive;
     } else if (useProxy) {
         // Bug 92006
@@ -684,6 +685,8 @@ nsHttpHandler::InitUserAgentComponents()
     "Windows"
 #elif defined(XP_MACOSX)
     "Macintosh"
+#elif defined(XP_BEOS)
+    "BeOS"
 #elif defined(MOZ_PLATFORM_MAEMO)
     "Maemo"
 #elif defined(MOZ_X11)
@@ -748,7 +751,7 @@ nsHttpHandler::InitUserAgentComponents()
         (::Gestalt(gestaltSystemVersionMinor, &minorVersion) == noErr)) {
         mOscpu += nsPrintfCString(" %d.%d", majorVersion, minorVersion);
     }
-#elif defined (XP_UNIX)
+#elif defined (XP_UNIX) || defined (XP_BEOS)
     struct utsname name;
     
     int ret = uname(&name);

@@ -438,13 +438,6 @@ abstract public class GeckoApp
         zip = new ZipFile(getApplication().getPackageResourcePath());
 
         byte[] buf = new byte[8192];
-        try {
-            if (unpackFile(zip, buf, null, "removed-files"))
-                removeFiles();
-        } catch (Exception ex) {
-            // This file may not be there, so just log any errors and move on
-            Log.w("GeckoApp", "error removing files", ex);
-        }
         unpackFile(zip, buf, null, "application.ini");
         unpackFile(zip, buf, null, getContentProcessName());
         try {
@@ -462,25 +455,7 @@ abstract public class GeckoApp
         }
     }
 
-    void removeFiles() throws IOException {
-        BufferedReader reader = new BufferedReader(
-            new FileReader(new File(sGREDir, "removed-files")));
-        try {
-            for (String removedFileName = reader.readLine(); 
-                 removedFileName != null; removedFileName = reader.readLine()) {
-                File removedFile = new File(sGREDir, removedFileName);
-                if (removedFile.exists())
-                    removedFile.delete();
-            }
-        } finally {
-            reader.close();
-        }
-        
-    }
-
-    boolean haveKilledZombies = false;
-
-    private boolean unpackFile(ZipFile zip, byte[] buf, ZipEntry fileEntry,
+    private void unpackFile(ZipFile zip, byte[] buf, ZipEntry fileEntry,
                             String name)
         throws IOException, FileNotFoundException
     {
@@ -494,12 +469,9 @@ abstract public class GeckoApp
         if (outFile.exists() &&
             outFile.lastModified() == fileEntry.getTime() &&
             outFile.length() == fileEntry.getSize())
-            return false;
+            return;
 
-        if (!haveKilledZombies) {
-            haveKilledZombies = true;
-            GeckoAppShell.killAnyZombies();
-        }
+        killAnyZombies();
 
         File dir = outFile.getParentFile();
         if (!outFile.exists())
@@ -518,7 +490,27 @@ abstract public class GeckoApp
         fileStream.close();
         outStream.close();
         outFile.setLastModified(fileEntry.getTime());
-        return true;
+    }
+
+    boolean haveKilledZombies = false;
+
+    void killAnyZombies() {
+        if (haveKilledZombies)
+            return;
+        haveKilledZombies = true;
+        File proc = new File("/proc");
+        File[] files = proc.listFiles();
+        for (int i = 0; i < files.length; i++) {
+            File p = files[i];
+            File pEnv = new File(p, "environ");
+            if (pEnv.canRead() && !p.getName().equals("self")) {
+                int pid = Integer.parseInt(p.getName());
+                if (pid != android.os.Process.myPid()) {
+                    Log.i("GeckoProcs", "gonna kill pid: " + p.getName());
+                    android.os.Process.killProcess(pid);
+                }
+            }
+        }
     }
 
     public void addEnvToIntent(Intent intent) {
@@ -545,14 +537,15 @@ abstract public class GeckoApp
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
                             Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
             Log.i("GeckoAppJava", intent.toString());
-            GeckoAppShell.killAnyZombies();
             startActivity(intent);
         } catch (Exception e) {
             Log.i("GeckoAppJava", "error doing restart", e);
         }
         finish();
         // Give the restart process time to start before we die
-        GeckoAppShell.waitForAnotherGeckoProc();
+        try {
+            Thread.currentThread().sleep(1000);
+        } catch (InterruptedException ie) {}
     }
 
     public void handleNotification(String action, String alertName, String alertCookie) {
@@ -660,7 +653,7 @@ abstract public class GeckoApp
                 Uri uri = data.getData();
                 String mimeType = cr.getType(uri);
                 String fileExt = "." +
-                    GeckoAppShell.getExtensionFromMimeType(mimeType);
+                    mimeType.substring(mimeType.lastIndexOf('/') + 1);
                 File file =
                     File.createTempFile("tmp_" +
                                         (int)Math.floor(1000 * Math.random()),

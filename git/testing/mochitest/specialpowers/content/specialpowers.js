@@ -41,7 +41,7 @@ function SpecialPowers() {}
 
 var SpecialPowers = {
   sanityCheck: function() { return "foo"; },
-
+  
   // Mimic the get*Pref API
   getBoolPref: function(aPrefName) {
     return (this._getPref(aPrefName, 'BOOL'));
@@ -68,12 +68,6 @@ var SpecialPowers = {
   },
   setComplexValue: function(aPrefName, aIid, aValue) {
     return (this._setPref(aPrefName, 'COMPLEX', aValue, aIid));
-  },
-
-  // Mimic the clearUserPref API
-  clearUserPref: function(aPrefName) {
-    var msg = {'op':'clear', 'prefName': aPrefName, 'prefType': ""};
-    sendSyncMessage('SPPrefService', msg);
   },
 
   // Private pref functions to communicate to chrome
@@ -124,56 +118,63 @@ var SpecialPowers = {
   isBackButtonEnabled: function(window) {
     return !this._getTopChromeWindow(window).document
                                       .getElementById("Browser:Back")
-                                      .hasAttribute("disabled");
-  }
-};
+                                      .hasAttribute("disabled")
+  },
+}
 
-// Expose everything but internal APIs (starting with underscores) to
-// web content.
 SpecialPowers.__exposedProps__ = {};
-for each (i in Object.keys(SpecialPowers).filter(function(v) {return v.charAt(0) != "_";})) {
+for each (i in Object.keys(SpecialPowers).filter(function(v) {return v.charAt(0) != "_"})) {
   SpecialPowers.__exposedProps__[i] = "r";
 }
 
 
-// Attach our API to the window.
-function attachSpecialPowersToWindow(aWindow) {
+// Attach our API to the window
+function attachSpecialPwrToWindow(aSubject) {
   try {
-    if ((aWindow !== null) &&
-        (aWindow !== undefined) &&
-        (aWindow.wrappedJSObject) &&
-        !(aWindow.wrappedJSObject.SpecialPowers)) {
-      aWindow.wrappedJSObject.SpecialPowers = SpecialPowers;
+    if ((aSubject !== null) && 
+        (aSubject !== undefined) &&
+        (aSubject.wrappedJSObject) &&
+        !(aSubject.wrappedJSObject.SpecialPowers)) {
+      aSubject.wrappedJSObject.SpecialPowers = SpecialPowers;
     }
   } catch(ex) {
     dump("TEST-INFO | specialpowers.js |  Failed to attach specialpowers to window exception: " + ex + "\n");
   }
 }
 
-// This is a frame script, so it may be running in a content process.
-// In any event, it is targeted at a specific "tab", so we listen for
-// the DOMWindowCreated event to be notified about content windows
-// being created in this context.
-
-function SpecialPowersManager() {
-  addEventListener("DOMWindowCreated", this, false);
+// In true IPC, this loads in the child process so we need our own observer here
+// to ensure we actually get attached, otherwise we'll miss content-document-global-created
+// notifications
+// NOTE: The observers are GC'd when the window dies, so while this looks like it should
+// leak, it actually doesn't. And if you add in an observer for dom-window-destroyed or 
+// xpcom-shutdown and upon capturing either of those notifications you unregister the 
+// content-document-global-created observer, then in the child process you will never
+// be able to capture another content-document-global-created on the next page load.  Essentially,
+// this is registered inside the child process once by our SpecialPowersObserver, and after that,
+// we will no longer trip that chrome code again.
+function frameScriptObserver() {
+  // Then we need to register the observers
+  this.register();
 }
 
-SpecialPowersManager.prototype = {
-  handleEvent: function handleEvent(aEvent) {
-    var window = aEvent.target.defaultView;
-
-    // Need to make sure we are called on what we care about -
-    // content windows. DOMWindowCreated is called on *all* HTMLDocuments,
-    // some of which belong to chrome windows or other special content.
-    //
-    var uri = window.document.documentURIObject;
-    if (uri.scheme === "chrome" || uri.spec.split(":")[0] == "about") {
-      return;
-    }
-
-    attachSpecialPowersToWindow(window);
+frameScriptObserver.prototype = {
+  observe: function(aSubject, aTopic, aData) {
+    if (aTopic == "content-document-global-created") {
+      attachSpecialPwrToWindow(aSubject);
+    } 
+  },
+  register: function() {
+    var obsSvc = Components.classes["@mozilla.org/observer-service;1"]
+                 .getService(Components.interfaces.nsIObserverService);
+    obsSvc.addObserver(this, "content-document-global-created", false);
+  },
+  unregister: function() {
+    var obsSvc = Components.classes["@mozilla.org/observer-service;1"]
+                 .getService(Components.interfaces.nsIObserverService);
+    obsSvc.removeObserver(this, "content-document-global-created");
   }
 };
 
-var specialpowersmanager = new SpecialPowersManager();
+// VERY IMPORTANT: Only add observers if they are needed
+if (content && !content.wrappedJSObject.SpecialPowers)
+  var frameScriptObsv = new frameScriptObserver();

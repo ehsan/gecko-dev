@@ -157,7 +157,6 @@ protected:
   nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnLoadStartListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnProgressListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnLoadendListener;
 };
 
 class nsXMLHttpRequestUpload : public nsXHREventTarget,

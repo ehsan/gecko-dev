@@ -62,8 +62,6 @@ class nsIWidget;
   // called when our corresponding Gecko view goes away
 - (void)widgetDestroyed;
 
-- (BOOL)isDragInProgress;
-
 @end
 
 // An informal protocol implemented by the NSWindow of the host application.
