@@ -1154,12 +1154,6 @@ NS_IMETHODIMP nsExternalAppHandler::GetTimeDownloadStarted(PRTime* aTime)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsExternalAppHandler::GetContentLength(PRInt64 *aContentLength)
-{
-  *aContentLength = mContentLength;
-  return NS_OK;
-}
-
 NS_IMETHODIMP nsExternalAppHandler::CloseProgressWindow()
 {
   // release extra state...
