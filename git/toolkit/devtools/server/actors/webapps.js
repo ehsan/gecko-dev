@@ -9,11 +9,12 @@ let Cc = Components.classes;
 let Ci = Components.interfaces;
 let CC = Components.Constructor;
 
-Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
+
+let promise;
 
 function debug(aMsg) {
   /*

@@ -8,12 +8,10 @@
 
 let { Ci, Cu } = require("chrome");
 let Services = require("Services");
-let { ActorPool, createExtraActors, appendExtraActors } = require("devtools/server/actors/common");
+let { createExtraActors, appendExtraActors } = require("devtools/server/actors/common");
 let { RootActor } = require("devtools/server/actors/root");
 let { AddonThreadActor, ThreadActor } = require("devtools/server/actors/script");
-let { DebuggerServer } = require("devtools/server/main");
 let DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
-let { dbg_assert, dumpn } = DevToolsUtils;
 
 let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -24,7 +22,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AddonManager", "resource://gre/modules/
 // events needs to be dispatched synchronously,
 // by calling the listeners in the order or registration.
 XPCOMUtils.defineLazyGetter(this, "events", () => {
-  return require("sdk/event/core");
+  return devtools.require("sdk/event/core");
 });
 
 // Also depends on following symbols, shared by common scope with main.js:
@@ -491,8 +489,6 @@ BrowserTabList.prototype.onCloseWindow = DevToolsUtils.makeInfallible(function(a
     }
   }, "BrowserTabList.prototype.onCloseWindow's delayed body"), 0);
 }, "BrowserTabList.prototype.onCloseWindow");
-
-exports.BrowserTabList = BrowserTabList;
 
 /**
  * Creates a tab actor for handling requests to a browser tab, like
@@ -1079,8 +1075,6 @@ TabActor.prototype.requestTypes = {
   "reconfigure": TabActor.prototype.onReconfigure
 };
 
-exports.TabActor = TabActor;
-
 /**
  * Creates a tab actor for handling requests to a single in-process
  * <browser> tab. Most of the implementation comes from TabActor.
@@ -1459,12 +1453,4 @@ DebuggerProgressListener.prototype = {
       this._tabActor._navigate(window);
     }
   }, "DebuggerProgressListener.prototype.onStateChange")
-};
-
-exports.register = function(handle) {
-  handle.setRootActor(createRootActor);
-};
-
-exports.unregister = function(handle) {
-  handle.setRootActor(null);
 };
