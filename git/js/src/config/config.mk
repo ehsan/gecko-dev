@@ -158,7 +158,7 @@ MOZ_UNICHARUTIL_LIBS = $(LIBXUL_DIST)/lib/$(LIB_PREFIX)unicharutil_s.$(LIB_SUFFI
 MOZ_WIDGET_SUPPORT_LIBS    = $(DIST)/lib/$(LIB_PREFIX)widgetsupport_s.$(LIB_SUFFIX)
 
 ifdef MOZ_MEMORY
-ifneq ($(OS_ARCH),WINNT)
+ifneq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
 JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME_PATH,jemalloc,$(DIST)/lib) $(MKSHLIB_UNFORCE_ALL)
 endif
 endif
@@ -518,6 +518,12 @@ INCLUDES	+= -I$(LIBXUL_DIST)/sdk/include
 endif
 
 include $(topsrcdir)/config/static-checking-config.mk
+
+ifdef MOZ_SHARK
+OS_CFLAGS += -F/System/Library/PrivateFrameworks
+OS_CXXFLAGS += -F/System/Library/PrivateFrameworks
+OS_LDFLAGS += -F/System/Library/PrivateFrameworks -framework CHUD
+endif # ifdef MOZ_SHARK
 
 CFLAGS		= $(OS_CFLAGS)
 CXXFLAGS	= $(OS_CXXFLAGS)
