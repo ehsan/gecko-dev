@@ -11,6 +11,3 @@ PARALLEL_DIRS += [
     'txmgr',
     'composer',
 ]
-
-MODULE = 'editor'
-

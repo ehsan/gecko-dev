@@ -5,5 +5,3 @@
 
 XPIDL_MODULE = 'necko_sctp'
 
-MODULE = 'necko'
-

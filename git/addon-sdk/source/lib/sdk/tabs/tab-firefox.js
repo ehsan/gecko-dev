@@ -63,10 +63,7 @@ const TabTrait = Trait.compose(EventEmitter, {
   destroy: function destroy() {
     this._removeAllListeners();
     if (this._tab) {
-      let browser = this._browser;
-      // The tab may already be removed from DOM -or- not yet added
-      if (browser)
-        browser.removeEventListener(EVENTS.ready.dom, this._onReady, true);
+      this._browser.removeEventListener(EVENTS.ready.dom, this._onReady, true);
       this._tab = null;
       TABS.splice(TABS.indexOf(this), 1);
     }
@@ -224,17 +221,12 @@ function getChromeTab(tab) {
   return getOwnerWindow(viewNS(tab).tab);
 }
 
-function Tab(options, existingOnly) {
+function Tab(options) {
   let chromeTab = options.tab;
   for each (let tab in TABS) {
     if (chromeTab == tab._tab)
       return tab._public;
   }
-  // If called asked to return only existing wrapper,
-  // we should return null here as no matching Tab object has been found
-  if (existingOnly)
-    return null;
-
   let tab = TabTrait(options);
   TABS.push(tab);
   return tab._public;

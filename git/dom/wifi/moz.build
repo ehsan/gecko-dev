@@ -18,5 +18,3 @@ XPIDL_FLAGS += [
     '-I$(topsrcdir)/dom/system/gonk',
 ]
 
-MODULE = 'dom'
-

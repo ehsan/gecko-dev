@@ -109,8 +109,6 @@ TestRunner.prototype = {
 
   exception: function exception(e) {
     this._logTestFailed("exception");
-    if (cfxArgs.parseable)
-      this.console.print("TEST-UNEXPECTED-FAIL | " + this.test.name + " | " + e + "\n");
     this.console.exception(e);
     this.failed++;
     this.test.failed++;

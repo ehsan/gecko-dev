@@ -14,5 +14,3 @@ XPIDL_SOURCES += [
     'nsIAutoCompleteSimpleResult.idl',
 ]
 
-MODULE = 'autocomplete'
-

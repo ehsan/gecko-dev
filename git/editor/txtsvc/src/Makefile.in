@@ -11,6 +11,7 @@ FAIL_ON_WARNINGS = 1
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= txtsvc
 LIBRARY_NAME	= txtsvc_s
 FORCE_STATIC_LIB = 1
 MODULE_NAME	= nsTextServicesModule

@@ -233,7 +233,7 @@ nsGenericHTMLFrameElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
     nsIDocShell *docShell = mFrameLoader ? mFrameLoader->GetExistingDocShell()
                                          : nullptr;
     if (docShell) {
-      docShell->SetName(aValue);
+      docShell->SetName(PromiseFlatString(aValue).get());
     }
   }
 
@@ -254,7 +254,7 @@ nsGenericHTMLFrameElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
     nsIDocShell *docShell = mFrameLoader ? mFrameLoader->GetExistingDocShell()
                                          : nullptr;
     if (docShell) {
-      docShell->SetName(EmptyString());
+      docShell->SetName(EmptyString().get());
     }
   }
 

@@ -11,6 +11,7 @@ NO_PROFILE_GUIDED_OPTIMIZE = 1
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= xpcom
 LIBRARY_NAME	= xptcmd
 EXPORT_LIBRARY	= ../..
 MOZILLA_INTERNAL_API = 1

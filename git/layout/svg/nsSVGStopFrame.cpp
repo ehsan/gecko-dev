@@ -31,9 +31,9 @@ public:
 
   // nsIFrame interface:
 #ifdef DEBUG
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 #endif
 
   void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -75,14 +75,14 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGStopFrame)
 // nsIFrame methods:
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGStopFrame::Init(nsIContent* aContent,
                      nsIFrame* aParent,
                      nsIFrame* aPrevInFlow)
 {
   NS_ASSERTION(aContent->IsSVG(nsGkAtoms::stop), "Content is not a stop element");
 
-  nsSVGStopFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGStopFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 

@@ -7,6 +7,8 @@ topsrcdir = @top_srcdir@
 srcdir    = @srcdir@
 VPATH     = @srcdir@
 
+MODULE    = metro
+
 include $(DEPTH)/config/autoconf.mk
 
 export::

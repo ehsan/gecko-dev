@@ -29,7 +29,7 @@ NS_NewSVGTextPathFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGTextPathFrame)
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGTextPathFrame::Init(nsIContent* aContent,
                          nsIFrame* aParent,
                          nsIFrame* aPrevInFlow)
@@ -46,7 +46,7 @@ nsSVGTextPathFrame::Init(nsIContent* aContent,
   NS_ASSERTION(aContent->IsSVG(nsGkAtoms::textPath),
                "Content is not an SVG textPath");
 
-  nsSVGTextPathFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGTextPathFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 

@@ -10,6 +10,7 @@ namespace dom {
 
 // Make sure that any change here is also made in
 // * mobile/android/base/GeckoScreenOrientationListener.java
+// * embedding/android/GeckoScreenOrientationListener.java
 typedef uint32_t ScreenOrientation;
 
 static const ScreenOrientation eScreenOrientation_None               = 0;

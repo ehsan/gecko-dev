@@ -54,11 +54,6 @@ function getMostRecentBrowserWindow() {
 }
 exports.getMostRecentBrowserWindow = getMostRecentBrowserWindow;
 
-function getHiddenWindow() {
-  return appShellService.hiddenDOMWindow;
-}
-exports.getHiddenWindow = getHiddenWindow;
-
 function getMostRecentWindow(type) {
   return WM.getMostRecentWindow(type);
 }
@@ -93,12 +88,6 @@ function getXULWindow(window) {
     getInterface(Ci.nsIXULWindow);
 };
 exports.getXULWindow = getXULWindow;
-
-function getDOMWindow(xulWindow) {
-  return xulWindow.QueryInterface(Ci.nsIInterfaceRequestor).
-    getInterface(Ci.nsIDOMWindow);
-}
-exports.getDOMWindow = getDOMWindow;
 
 /**
  * Returns `nsIBaseWindow` for the given `nsIDOMWindow`.
@@ -174,31 +163,29 @@ function open(uri, options) {
   options = options || {};
   let newWindow = windowWatcher.
     openWindow(options.parent || null,
-               uri || URI_BROWSER,
+               uri,
                options.name || null,
                serializeFeatures(options.features || {}),
                options.args || null);
 
   return newWindow;
 }
-
-
 exports.open = open;
 
 function onFocus(window) {
-  let { resolve, promise } = defer();
+  let deferred = defer();
 
   if (isFocused(window)) {
-    resolve(window);
+    deferred.resolve(window);
   }
   else {
     window.addEventListener("focus", function focusListener() {
       window.removeEventListener("focus", focusListener, true);
-      resolve(window);
+      deferred.resolve(window);
     }, true);
   }
 
-  return promise;
+  return deferred.promise;
 }
 exports.onFocus = onFocus;
 
@@ -218,7 +205,6 @@ function isFocused(window) {
 
   return (focusedChildWindow === childTargetWindow);
 }
-exports.isFocused = isFocused;
 
 /**
  * Opens a top level window and returns it's `nsIDOMWindow` representation.
@@ -228,7 +214,7 @@ exports.isFocused = isFocused;
  */
 function openDialog(options) {
   options = options || {};
-
+  
   let features = options.features || FEATURES;
   if (!!options.private &&
       !array.has(features.toLowerCase().split(','), 'private')) {
@@ -309,8 +295,7 @@ exports.isXULBrowser = isXULBrowser;
  * Returns the most recent focused window
  */
 function getFocusedWindow() {
-  let window = WM.getMostRecentWindow(BROWSER);
-
+  let window = getMostRecentBrowserWindow();
   return window ? window.document.commandDispatcher.focusedWindow : null;
 }
 exports.getFocusedWindow = getFocusedWindow;
@@ -319,8 +304,7 @@ exports.getFocusedWindow = getFocusedWindow;
  * Returns the focused element in the most recent focused window
  */
 function getFocusedElement() {
-  let window = WM.getMostRecentWindow(BROWSER);
-
+  let window = getMostRecentBrowserWindow();
   return window ? window.document.commandDispatcher.focusedElement : null;
 }
 exports.getFocusedElement = getFocusedElement;

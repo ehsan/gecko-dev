@@ -35,7 +35,7 @@ NS_QUERYFRAME_HEAD(nsSVGInnerSVGFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsSVGInnerSVGFrameBase)
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGInnerSVGFrame::Init(nsIContent* aContent,
                          nsIFrame* aParent,
                          nsIFrame* aPrevInFlow)
@@ -43,7 +43,7 @@ nsSVGInnerSVGFrame::Init(nsIContent* aContent,
   NS_ASSERTION(aContent->IsSVG(nsGkAtoms::svg),
                "Content is not an SVG 'svg' element!");
 
-  nsSVGInnerSVGFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGInnerSVGFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 

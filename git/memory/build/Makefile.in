@@ -9,6 +9,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = memory
 LIBRARY_NAME = memory
 FORCE_STATIC_LIB = 1
 STLFLAGS =

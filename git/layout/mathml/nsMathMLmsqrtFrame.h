@@ -39,10 +39,10 @@ public:
   friend nsIFrame* NS_NewMathMLmsqrtFrame(nsIPresShell*   aPresShell,
                                           nsStyleContext* aContext);
 
-  virtual void
+  NS_IMETHOD
   Init(nsIContent* aContent,
        nsIFrame*   aParent,
-       nsIFrame*   aPrevInFlow) MOZ_OVERRIDE;
+       nsIFrame*   aPrevInFlow);
 
   NS_IMETHOD
   InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;

@@ -58,14 +58,17 @@ nsHTMLButtonControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsContainerFrame::DestroyFrom(aDestructRoot);
 }
 
-void
+NS_IMETHODIMP
 nsHTMLButtonControlFrame::Init(
               nsIContent*      aContent,
               nsIFrame*        aParent,
               nsIFrame*        aPrevInFlow)
 {
-  nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
-  mRenderer.SetFrame(this, PresContext());
+  nsresult  rv = nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  if (NS_SUCCEEDED(rv)) {
+    mRenderer.SetFrame(this, PresContext());
+  }
+  return rv;
 }
 
 NS_QUERYFRAME_HEAD(nsHTMLButtonControlFrame)

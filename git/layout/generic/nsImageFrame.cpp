@@ -226,19 +226,18 @@ nsImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
 
 
 
-void
+NS_IMETHODIMP
 nsImageFrame::Init(nsIContent*      aContent,
                    nsIFrame*        aParent,
                    nsIFrame*        aPrevInFlow)
 {
-  nsSplittableFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsSplittableFrame::Init(aContent, aParent, aPrevInFlow);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   mListener = new nsImageListener(this);
 
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(aContent);
-  if (!imageLoader) {
-    NS_RUNTIMEABORT("Why do we have an nsImageFrame here at all?");
-  }
+  NS_ENSURE_TRUE(imageLoader, NS_ERROR_UNEXPECTED);
 
   {
     // Push a null JSContext on the stack so that code that runs
@@ -276,6 +275,8 @@ nsImageFrame::Init(nsIContent*      aContent,
       image->SetAnimationMode(aPresContext->ImageAnimationMode());
     }
   }
+
+  return rv;
 }
 
 bool

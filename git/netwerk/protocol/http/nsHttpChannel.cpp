@@ -4377,7 +4377,6 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     // that to complete would mean we don't include proxy resolution in the
     // timing.
     mAsyncOpenTime = TimeStamp::Now();
-    mCacheEffectExperimentAsyncOpenTime = mAsyncOpenTime;
 
     // the only time we would already know the proxy information at this
     // point would be if we were proxying a non-http protocol like ftp
@@ -5081,15 +5080,7 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
     CleanRedirectCacheChainIfNecessary();
 
     ReleaseListeners();
-
-    // If enabled, record the cache effect experiment data
-    if (NS_SUCCEEDED(status) && contentComplete && !mCanceled) {
-        Telemetry::ID telemID = gHttpHandler->mCacheEffectExperimentTelemetryID;
-        if (telemID != nsHttpHandler::kNullTelemetryID) {
-            Telemetry::AccumulateTimeDelta(telemID,
-                                           mCacheEffectExperimentAsyncOpenTime);
-        }
-    }
+    
     return NS_OK;
 }
 

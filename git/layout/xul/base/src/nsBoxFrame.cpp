@@ -158,12 +158,13 @@ nsBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 /**
  * Initialize us. This is a good time to get the alignment of the box
  */
-void
+NS_IMETHODIMP
 nsBoxFrame::Init(nsIContent*      aContent,
                  nsIFrame*        aParent,
                  nsIFrame*        aPrevInFlow)
 {
-  nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult  rv = nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (GetStateBits() & NS_FRAME_FONT_INFLATION_CONTAINER) {
     AddStateBits(NS_FRAME_FONT_INFLATION_FLOW_ROOT);
@@ -182,7 +183,9 @@ nsBoxFrame::Init(nsIContent*      aContent,
   UpdateMouseThrough();
 
   // register access key
-  RegUnregAccessKey(true);
+  rv = RegUnregAccessKey(true);
+
+  return rv;
 }
 
 void nsBoxFrame::UpdateMouseThrough()
@@ -1841,10 +1844,12 @@ nsBoxFrame::GetFrameSizeWithMargin(nsIFrame* aBox, nsSize& aSize)
 
 // If you make changes to this function, check its counterparts
 // in nsTextBoxFrame and nsXULLabelFrame
-void
+nsresult
 nsBoxFrame::RegUnregAccessKey(bool aDoReg)
 {
-  MOZ_ASSERT(mContent);
+  // if we have no content, we can't do anything
+  if (!mContent)
+    return NS_ERROR_FAILURE;
 
   // find out what type of element this is
   nsIAtom *atom = mContent->Tag();
@@ -1856,14 +1861,14 @@ nsBoxFrame::RegUnregAccessKey(bool aDoReg)
       atom != nsGkAtoms::textbox &&
       atom != nsGkAtoms::tab &&
       atom != nsGkAtoms::radio) {
-    return;
+    return NS_OK;
   }
 
   nsAutoString accessKey;
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, accessKey);
 
   if (accessKey.IsEmpty())
-    return;
+    return NS_OK;
 
   // With a valid PresContext we can get the ESM 
   // and register the access key
@@ -1874,6 +1879,8 @@ nsBoxFrame::RegUnregAccessKey(bool aDoReg)
     esm->RegisterAccessKey(mContent, key);
   else
     esm->UnregisterAccessKey(mContent, key);
+
+  return NS_OK;
 }
 
 bool

@@ -11,6 +11,7 @@ relativesrcdir  = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = crashreporter_test
 XPCSHELL_TESTS = unit unit_ipc
 
 LIBRARY_NAME = testcrasher

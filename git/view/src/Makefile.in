@@ -10,6 +10,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= view
 LIBRARY_NAME	= gkview_s
 FORCE_STATIC_LIB = 1
 MODULE_NAME	= nsViewModule

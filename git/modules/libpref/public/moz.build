@@ -12,5 +12,3 @@ XPIDL_SOURCES += [
     'nsIRelativeFilePref.idl',
 ]
 
-MODULE = 'pref'
-

@@ -23,6 +23,7 @@
 #include "nsCRT.h"
 #include "nsIAtom.h"
 #include "pldhash.h"
+#include "nsHashtable.h"
 #include "nsICSSPseudoComparator.h"
 #include "mozilla/css/StyleRule.h"
 #include "mozilla/css/GroupRule.h"

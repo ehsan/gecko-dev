@@ -5,6 +5,3 @@
 
 DIRS += ['xbl-marquee']
 TEST_TOOL_DIRS += ['test']
-
-MODULE = 'layout'
-

@@ -7,7 +7,7 @@
 #define nsTreeUtils_h__
 
 #include "nsString.h"
-#include "nsTreeStyleCache.h"
+#include "nsISupportsArray.h"
 #include "nsIContent.h"
 
 class nsTreeUtils
@@ -18,7 +18,7 @@ class nsTreeUtils
      * of atoms.
      */
     static nsresult
-    TokenizeProperties(const nsAString& aProperties, AtomArray & aPropertiesArray);
+    TokenizeProperties(const nsAString& aProperties, nsISupportsArray* aPropertiesArray);
 
     static nsIContent*
     GetImmediateChild(nsIContent* aContainer, nsIAtom* aTag);

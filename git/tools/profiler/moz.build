@@ -4,7 +4,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
-    MODULE = 'profiler'
     XPIDL_SOURCES += [
         'nsIProfiler.idl',
     ]

@@ -14,5 +14,3 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'nsIWinAppHelper.idl',
     ]
 
-MODULE = 'xulapp'
-

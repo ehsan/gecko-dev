@@ -9,6 +9,3 @@ TEST_DIRS += [
     'mixedcontent',
     'stricttransportsecurity',
 ]
-
-MODULE = 'pipnss'
-

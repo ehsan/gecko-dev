@@ -12,5 +12,3 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'content_html'
 
-MODULE = 'content'
-

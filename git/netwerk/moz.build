@@ -32,6 +32,3 @@ if CONFIG['MOZ_DASH']:
 
 DIRS += ['build']
 TEST_TOOL_DIRS += ['test']
-
-MODULE = 'necko'
-

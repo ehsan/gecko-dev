@@ -147,8 +147,10 @@ var TouchModule = {
             // content and triggers selection of text, so fire up the SelectionHelperUI
             // once selection is present.
             setTimeout(function () {
-              SelectionHelperUI.attachEditSession(Browser.selectedTab.browser,
-                                                  aEvent.clientX, aEvent.clientY);
+              let contextInfo = { name: "",
+                                  json: { xPos: aEvent.clientX, yPos: aEvent.clientY },
+                                  target: Browser.selectedTab.browser };
+              SelectionHelperUI.attachEditSession(contextInfo);
             }, 50);
             break;
         }

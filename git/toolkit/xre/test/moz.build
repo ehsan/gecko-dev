@@ -5,6 +5,3 @@
 
 if CONFIG['OS_ARCH'] == 'WINNT':
     DIRS += ['win']
-
-MODULE = 'test_xulapp'
-

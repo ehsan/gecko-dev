@@ -191,7 +191,7 @@ Marker.prototype = {
 
 var SelectionHelperUI = {
   _debugEvents: false,
-  _msgTarget: null,
+  _popupState: null,
   _startMark: null,
   _endMark: null,
   _target: null,
@@ -223,22 +223,38 @@ var SelectionHelperUI = {
    * Attempts to select underlying text at a point and begins editing
    * the section.
    */
-  openEditSession: function openEditSession(aContent, aClientX, aClientY) {
-    if (!aContent || this.isActive)
-      return;
-    this._init(aContent);
+  openEditSession: function openEditSession(aMessage) {
+     /*
+     * aMessage - from _onContentContextMenu in ContextMenuHandler
+     *  name: aMessage.name,
+     *  target: aMessage.target
+     *  json:
+     *   types: [],
+     *   label: "",
+     *   linkURL: "",
+     *   linkTitle: "",
+     *   linkProtocol: null,
+     *   mediaURL: "",
+     *   xPos: aEvent.x,
+     *   yPos: aEvent.y
+     */
+
+    this._popupState = aMessage.json;
+    this._popupState._target = aMessage.target;
+
+    this._init();
 
     // Set the track bounds for each marker NIY
-    this.startMark.setTrackBounds(aClientX, aClientY);
-    this.endMark.setTrackBounds(aClientX, aClientY);
+    this.startMark.setTrackBounds(this._popupState.xPos, this._popupState.yPos);
+    this.endMark.setTrackBounds(this._popupState.xPos, this._popupState.yPos);
 
     // Send this over to SelectionHandler in content, they'll message us
     // back with information on the current selection. SelectionStart
     // takes client coordinates.
     this._selectionHandlerActive = false;
     this._sendAsyncMessage("Browser:SelectionStart", {
-      xPos: aClientX,
-      yPos: aClientY
+      xPos: this._popupState.xPos,
+      yPos: this._popupState.yPos
     });
 
     this._setupDebugOptions();
@@ -249,33 +265,36 @@ var SelectionHelperUI = {
    * 
    * Attaches to existing selection and begins editing.
    */
-  attachEditSession: function attachEditSession(aContent, aClientX, aClientY) {
-    if (!aContent || this.isActive)
+  attachEditSession: function attachEditSession(aMessage) {
+    if (aMessage.target == undefined)
       return;
-    this._init(aContent);
+    this._popupState = aMessage.json;
+    this._popupState._target = aMessage.target;
+
+    this._init();
 
     // Set the track bounds for each marker NIY
-    this.startMark.setTrackBounds(aClientX, aClientY);
-    this.endMark.setTrackBounds(aClientX, aClientY);
+    this.startMark.setTrackBounds(this._popupState.xPos, this._popupState.yPos);
+    this.endMark.setTrackBounds(this._popupState.xPos, this._popupState.yPos);
 
     // Send this over to SelectionHandler in content, they'll message us
     // back with information on the current selection. SelectionAttach
     // takes client coordinates.
     this._selectionHandlerActive = false;
-    this._sendAsyncMessage("Browser:SelectionAttach", {
-      xPos: aClientX,
-      yPos: aClientY
-    });
+    this._popupState._target.messageManager.sendAsyncMessage(
+      "Browser:SelectionAttach",
+      { xPos: this._popupState.xPos,
+        yPos: this._popupState.yPos });
 
     this._setupDebugOptions();
   },
 
   /*
-   * canHandleContextMenuMsg
+   * canHandle
    *
    * Determines if we can handle a ContextMenuHandler message.
    */
-  canHandleContextMenuMsg: function canHandleContextMenuMsg(aMessage) {
+  canHandle: function canHandle(aMessage) {
     if (aMessage.json.types.indexOf("content-text") != -1)
       return true;
     return false;
@@ -287,7 +306,8 @@ var SelectionHelperUI = {
    * Determines if an edit session is currently active.
    */
   get isActive() {
-    return (this._msgTarget &&
+    return (this._popupState != null &&
+            this._popupState._target != null &&
             this._selectionHandlerActive);
   },
 
@@ -317,10 +337,7 @@ var SelectionHelperUI = {
    * Internal
    */
 
-  _init: function _init(aMsgTarget) {
-    // store the target message manager
-    this._msgTarget = aMsgTarget;
-
+  _init: function _init() {
     // SelectionHandler messages
     messageManager.addMessageListener("Content:SelectionRange", this);
     messageManager.addMessageListener("Content:SelectionCopied", this);
@@ -382,7 +399,7 @@ var SelectionHelperUI = {
     delete this._startMark;
     delete this._endMark;
 
-    this._msgTarget = null;
+    this._popupState = null;
     this._activeSelectionRect = null;
     this._selectionHandlerActive = false;
 
@@ -427,12 +444,12 @@ var SelectionHelperUI = {
    * SelectionHandler.
    */
   _sendAsyncMessage: function _sendAsyncMessage(aMsg, aJson) {
-    if (!this._msgTarget) {
+    if (!this._popupState || !this._popupState._target) {
       if (this._debugEvents)
         Util.dumpLn("SelectionHelperUI sendAsyncMessage could not send", aMsg);
       return;
     }
-    this._msgTarget.messageManager.sendAsyncMessage(aMsg, aJson);
+    this._popupState._target.messageManager.sendAsyncMessage(aMsg, aJson);
   },
 
   _checkForActiveDrag: function _checkForActiveDrag() {
@@ -629,6 +646,20 @@ var SelectionHelperUI = {
    */
 
   _getMarkerBaseMessage: function _getMarkerBaseMessage() {
+  /*
+    This appears to be adjusted for scroll and scale. It should only
+    adjust for scale, content handles scroll offsets.
+    let startPos =
+      this._popupState._target.transformBrowserToClient(this.startMark.xPos,
+                                                        this.startMark.yPos);
+    let endPos =
+      this._popupState._target.transformBrowserToClient(this.endMark.xPos,
+                                                        this.endMark.yPos);
+    return {
+      start: { xPos: startPos.x, yPos: startPos.y },
+      end: { xPos: endPos.x, yPos: endPos.y },
+    };
+    */
     return {
       start: { xPos: this.startMark.xPos, yPos: this.startMark.yPos },
       end: { xPos: this.endMark.xPos, yPos: this.endMark.yPos },

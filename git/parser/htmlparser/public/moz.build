@@ -8,5 +8,3 @@ XPIDL_SOURCES += [
     'nsIExtendedExpatSink.idl',
 ]
 
-MODULE = 'htmlparser'
-

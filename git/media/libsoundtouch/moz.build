@@ -5,5 +5,3 @@
 
 DIRS += ['src']
 
-MODULE = 'soundtouch'
-

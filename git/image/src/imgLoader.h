@@ -22,6 +22,10 @@
 #include "nsIProgressEventSink.h"
 #include "nsIChannel.h"
 
+#ifdef LOADER_THREADSAFE
+#include "prlock.h"
+#endif
+
 class imgLoader;
 class imgRequest;
 class imgRequestProxy;

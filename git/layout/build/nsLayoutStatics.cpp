@@ -88,7 +88,9 @@
 #include "GStreamerFormatHelper.h"
 #endif
 
+#ifdef MOZ_SYDNEYAUDIO
 #include "AudioStream.h"
+#endif
 
 #ifdef MOZ_WIDGET_GONK
 #include "nsVolumeService.h"
@@ -244,7 +246,9 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
+#ifdef MOZ_SYDNEYAUDIO
   AudioStream::InitLibrary();
+#endif
 
   nsContentSink::InitializeStatics();
   nsHtml5Module::InitializeStatics();
@@ -350,7 +354,9 @@ nsLayoutStatics::Shutdown()
   GStreamerFormatHelper::Shutdown();
 #endif
 
+#ifdef MOZ_SYDNEYAUDIO
   AudioStream::ShutdownLibrary();
+#endif
 
 #ifdef MOZ_WMF
   WMFDecoder::UnloadDLLs();

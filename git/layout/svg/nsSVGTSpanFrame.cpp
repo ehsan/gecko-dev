@@ -38,7 +38,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsSVGTSpanFrameBase)
 // nsIFrame methods
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGTSpanFrame::Init(nsIContent* aContent,
                       nsIFrame* aParent,
                       nsIFrame* aPrevInFlow)
@@ -63,7 +63,7 @@ nsSVGTSpanFrame::Init(nsIContent* aContent,
                  "Content is not an SVG tspan or altGlyph");
   }
 
-  nsSVGTSpanFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGTSpanFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 

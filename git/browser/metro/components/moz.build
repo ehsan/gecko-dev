@@ -8,5 +8,3 @@ XPIDL_SOURCES += [
     'SessionStore.idl',
 ]
 
-MODULE = 'components'
-

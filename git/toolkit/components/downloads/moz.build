@@ -12,5 +12,3 @@ XPIDL_SOURCES += [
     'nsIDownloadProgressListener.idl',
 ]
 
-MODULE = 'downloads'
-

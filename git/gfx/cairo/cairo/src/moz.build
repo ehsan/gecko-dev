@@ -5,5 +5,3 @@
 
 CONFIGURE_SUBST_FILES += ['cairo-features.h']
 
-MODULE = 'cairo'
-

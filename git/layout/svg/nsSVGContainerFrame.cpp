@@ -80,7 +80,7 @@ nsSVGContainerFrame::UpdateOverflow()
   return nsSVGContainerFrameBase::UpdateOverflow();
 }
 
-void
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
                                  nsIFrame* aParent,
                                  nsIFrame* aPrevInFlow)
@@ -89,7 +89,8 @@ nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
     AddStateBits(aParent->GetStateBits() &
       (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD));
   }
-  nsSVGContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsSVGContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  return rv;
 }
 
 void

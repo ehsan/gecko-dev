@@ -11,6 +11,7 @@ VPATH            = \
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE         = dom
 LIBRARY_NAME   = jsdomsettings_s
 LIBXUL_LIBRARY = 1
 

@@ -18,5 +18,3 @@ XPIDL_SOURCES += [
     'nsIFeedTextConstruct.idl',
 ]
 
-MODULE = 'feeds'
-

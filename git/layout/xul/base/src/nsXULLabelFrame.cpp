@@ -62,15 +62,17 @@ nsXULLabelFrame::RegUnregAccessKey(bool aDoReg)
 /////////////////////////////////////////////////////////////////////////////
 // nsIFrame
 
-void
+NS_IMETHODIMP
 nsXULLabelFrame::Init(nsIContent*      aContent,
                       nsIFrame*        aParent,
                       nsIFrame*        aPrevInFlow)
 {
-  nsBlockFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsBlockFrame::Init(aContent, aParent, aPrevInFlow);
+  if (NS_FAILED(rv))
+    return rv;
 
   // register access key
-  RegUnregAccessKey(true);
+  return RegUnregAccessKey(true);
 }
 
 void

@@ -5,6 +5,3 @@
 
 DIRS += ['component']
 TEST_DIRS += ['tests']
-
-MODULE = 'services-crypto'
-

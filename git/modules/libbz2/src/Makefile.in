@@ -11,6 +11,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= libbz2
 LIBRARY_NAME	= bz2
 HOST_LIBRARY_NAME = hostbz2
 FORCE_STATIC_LIB= 1

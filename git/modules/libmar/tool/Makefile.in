@@ -11,6 +11,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= mar
 ifeq ($(OS_ARCH),WINNT)
 USE_STATIC_LIBS = 1
 endif

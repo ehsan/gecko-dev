@@ -9,6 +9,7 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = soundtouch
 LIBRARY_NAME = soundtouch
 SHORT_LIBNAME = soundt
 VISIBILITY_FLAGS =

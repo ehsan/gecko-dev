@@ -31,9 +31,9 @@ public:
 
   
   // nsIFrame interface:
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 
   NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
                                nsIAtom*        aAttribute,
@@ -97,7 +97,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsSVGUseFrameBase)
 //----------------------------------------------------------------------
 // nsIFrame methods:
 
-void
+NS_IMETHODIMP
 nsSVGUseFrame::Init(nsIContent* aContent,
                     nsIFrame* aParent,
                     nsIFrame* aPrevInFlow)
@@ -108,7 +108,7 @@ nsSVGUseFrame::Init(nsIContent* aContent,
   mHasValidDimensions =
     static_cast<SVGUseElement*>(aContent)->HasValidDimensions();
 
-  nsSVGUseFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGUseFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 
 NS_IMETHODIMP

@@ -14,5 +14,3 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'necko_cache'
 
-MODULE = 'nkcache'
-

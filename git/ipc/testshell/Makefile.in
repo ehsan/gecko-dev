@@ -11,6 +11,7 @@ FAIL_ON_WARNINGS = 1
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = ipcshell
 LIBRARY_NAME = ipcshell_s
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1

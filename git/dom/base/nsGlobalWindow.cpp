@@ -3774,9 +3774,11 @@ nsGlobalWindow::GetName(nsAString& aName)
 {
   FORWARD_TO_OUTER(GetName, (aName), NS_ERROR_NOT_INITIALIZED);
 
+  nsXPIDLString name;
   if (mDocShell)
-    mDocShell->GetName(aName);
+    mDocShell->GetName(getter_Copies(name));
 
+  aName.Assign(name);
   return NS_OK;
 }
 
@@ -3787,7 +3789,7 @@ nsGlobalWindow::SetName(const nsAString& aName)
 
   nsresult result = NS_OK;
   if (mDocShell)
-    result = mDocShell->SetName(aName);
+    result = mDocShell->SetName(PromiseFlatString(aName).get());
   return result;
 }
 

@@ -71,15 +71,20 @@ nsFileControlFrame::nsFileControlFrame(nsStyleContext* aContext):
 }
 
 
-void
+NS_IMETHODIMP
 nsFileControlFrame::Init(nsIContent* aContent,
                          nsIFrame*   aParent,
                          nsIFrame*   aPrevInFlow)
 {
-  nsBlockFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsBlockFrame::Init(aContent, aParent, aPrevInFlow);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   mMouseListener = new BrowseMouseListener(this);
+  NS_ENSURE_TRUE(mMouseListener, NS_ERROR_OUT_OF_MEMORY);
   mCaptureMouseListener = new CaptureMouseListener(this);
+  NS_ENSURE_TRUE(mCaptureMouseListener, NS_ERROR_OUT_OF_MEMORY);
+
+  return rv;
 }
 
 void

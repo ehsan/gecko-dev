@@ -49,6 +49,7 @@
 #include "prinrval.h"
 #include "nsTArray.h"
 #include "nsCOMArray.h"
+#include "nsHashtable.h"
 #include "nsContainerFrame.h"
 #include "nsDOMEvent.h"
 #include "nsHTMLParts.h"
@@ -1701,7 +1702,7 @@ PresShell::Initialize(nscoord aWidth, nscoord aHeight)
   if (!rootFrame) {
     nsAutoScriptBlocker scriptBlocker;
     mFrameConstructor->BeginUpdate();
-    rootFrame = mFrameConstructor->ConstructRootFrame();
+    mFrameConstructor->ConstructRootFrame(&rootFrame);
     mFrameConstructor->SetRootFrame(rootFrame);
     mFrameConstructor->EndUpdate();
   }

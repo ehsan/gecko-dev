@@ -5,6 +5,3 @@
 
 DIRS += ['idl', 'public', 'util', 'src', 'tables']
 TEST_TOOL_DIRS += ['tests']
-
-MODULE = 'unicharutil'
-

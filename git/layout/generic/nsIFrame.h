@@ -577,15 +577,17 @@ public:
    * frame (the frame that was split).
    *
    * If you want a view associated with your frame, you should create the view
-   * after Init() has returned.
+   * now.
    *
    * @param   aContent the content object associated with the frame
-   * @param   aParent the parent frame
+   * @param   aGeometricParent  the geometric parent frame
+   * @param   aContentParent  the content parent frame
+   * @param   aContext the style context associated with the frame
    * @param   aPrevInFlow the prev-in-flow frame
    */
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) = 0;
+  NS_IMETHOD  Init(nsIContent*      aContent,
+                   nsIFrame*        aParent,
+                   nsIFrame*        aPrevInFlow) = 0;
 
   /**
    * Destroys this frame and each of its child frames (recursively calls

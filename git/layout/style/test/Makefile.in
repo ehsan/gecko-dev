@@ -11,6 +11,8 @@ relativesrcdir  = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= layout
+
 HOST_CPPSRCS	= \
 		ListCSSProperties.cpp \
 		$(NULL)

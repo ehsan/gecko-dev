@@ -24,5 +24,3 @@ XPIDL_SOURCES += [
     'nsPIEditorTransaction.idl',
 ]
 
-MODULE = 'editor'
-

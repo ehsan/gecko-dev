@@ -106,19 +106,21 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
 } // ctor
 
 
-void
+NS_IMETHODIMP
 nsMenuPopupFrame::Init(nsIContent*      aContent,
                        nsIFrame*        aParent,
                        nsIFrame*        aPrevInFlow)
 {
-  nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // lookup if we're allowed to overlap the OS bar (menubar/taskbar) from the
   // look&feel object
   mMenuCanOverlapOSBar =
     LookAndFeel::GetInt(LookAndFeel::eIntID_MenusCanOverlapOSBar) != 0;
 
-  CreatePopupView();
+  rv = CreatePopupView();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // XXX Hack. The popup's view should float above all other views,
   // so we use the nsView::SetFloating() to tell the view manager
@@ -169,6 +171,8 @@ nsMenuPopupFrame::Init(nsIContent*      aContent,
   }
 
   AddStateBits(NS_FRAME_IN_POPUP);
+
+  return rv;
 }
 
 bool
@@ -1911,11 +1915,11 @@ nsMenuPopupFrame::SetConsumeRollupEvent(uint32_t aConsumeMode)
  * KEEP THIS IN SYNC WITH nsContainerFrame::CreateViewForFrame
  * as much as possible. Until we get rid of views finally...
  */
-void
+nsresult
 nsMenuPopupFrame::CreatePopupView()
 {
   if (HasView()) {
-    return;
+    return NS_OK;
   }
 
   nsViewManager* viewManager = PresContext()->GetPresShell()->GetViewManager();
@@ -1931,13 +1935,20 @@ nsMenuPopupFrame::CreatePopupView()
 
   // Create a view
   nsView *view = viewManager->CreateView(GetRect(), parentView, visibility);
-  viewManager->SetViewZIndex(view, autoZIndex, zIndex);
-  // XXX put view last in document order until we can do better
-  viewManager->InsertChild(parentView, view, nullptr, true);
+  if (view) {
+    viewManager->SetViewZIndex(view, autoZIndex, zIndex);
+    // XXX put view last in document order until we can do better
+    viewManager->InsertChild(parentView, view, nullptr, true);
+  }
 
   // Remember our view
   SetView(view);
 
   NS_FRAME_LOG(NS_FRAME_TRACE_CALLS,
     ("nsMenuPopupFrame::CreatePopupView: frame=%p view=%p", this, view));
+
+  if (!view)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  return NS_OK;
 }

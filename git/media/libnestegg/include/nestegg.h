@@ -4,12 +4,12 @@
  * This program is made available under an ISC-style license.  See the
  * accompanying file LICENSE for details.
  */
-#if !defined(NESTEGG_671cac2a_365d_ed69_d7a3_4491d3538d79)
-#define NESTEGG_671cac2a_365d_ed69_d7a3_4491d3538d79
+#ifndef   NESTEGG_671cac2a_365d_ed69_d7a3_4491d3538d79
+#define   NESTEGG_671cac2a_365d_ed69_d7a3_4491d3538d79
 
 #include <nestegg/nestegg-stdint.h>
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -334,7 +334,7 @@ int nestegg_has_cues(nestegg * context);
  * @retval 1 The file is a WebM file. */
 int nestegg_sniff(unsigned char const * buffer, size_t length);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif
 

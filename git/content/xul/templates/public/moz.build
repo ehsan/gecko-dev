@@ -12,5 +12,3 @@ XPIDL_SOURCES += [
     'nsIXULTemplateRuleFilter.idl',
 ]
 
-MODULE = 'xultmpl'
-

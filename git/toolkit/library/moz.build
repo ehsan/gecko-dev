@@ -5,6 +5,3 @@
 
 if CONFIG['MOZ_METRO'] and CONFIG['OS_ARCH'] == 'WINNT':
     DIRS += ['winvccorlib']
-
-MODULE = 'libxul'
-

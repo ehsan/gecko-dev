@@ -11,6 +11,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= windowwatcher
 GRE_MODULE	= 1
 
 EXPORTS		= nsPromptUtils.h \

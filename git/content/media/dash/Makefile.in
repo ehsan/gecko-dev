@@ -15,6 +15,7 @@ VPATH      := @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE         := content
 LIBRARY_NAME   := gkcondash_s
 LIBXUL_LIBRARY := 1
 

@@ -9,6 +9,8 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE         = captivedetect
+
 EXTRA_COMPONENTS = \
   CaptivePortalDetectComponents.manifest \
   captivedetect.js \

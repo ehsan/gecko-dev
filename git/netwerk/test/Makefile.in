@@ -13,6 +13,8 @@ FAIL_ON_WARNINGS := 1
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= test_necko
+
 CPPSRCS = \
   TestIncrementalDownload.cpp \
   TestStreamLoader.cpp \

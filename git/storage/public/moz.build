@@ -26,5 +26,3 @@ XPIDL_SOURCES += [
     'mozIStorageValueArray.idl',
 ]
 
-MODULE = 'storage'
-

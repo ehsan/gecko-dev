@@ -9,4 +9,3 @@ XPIDL_SOURCES += [
     'nsIAlertsService.idl',
 ]
 
-MODULE = 'alerts'

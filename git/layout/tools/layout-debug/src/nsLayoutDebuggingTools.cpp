@@ -307,7 +307,7 @@ nsLayoutDebuggingTools::SetReflowCounts(bool aShow)
 
 static void DumpAWebShell(nsIDocShellTreeItem* aShellItem, FILE* out, int32_t aIndent)
 {
-    nsString name;
+    nsXPIDLString name;
     nsCOMPtr<nsIDocShellTreeItem> parent;
     int32_t i, n;
 
@@ -315,7 +315,7 @@ static void DumpAWebShell(nsIDocShellTreeItem* aShellItem, FILE* out, int32_t aI
         fprintf(out, "  ");
 
     fprintf(out, "%p '", static_cast<void*>(aShellItem));
-    aShellItem->GetName(name);
+    aShellItem->GetName(getter_Copies(name));
     aShellItem->GetSameTypeParent(getter_AddRefs(parent));
     fputs(NS_LossyConvertUTF16toASCII(name).get(), out);
     fprintf(out, "' parent=%p <\n", static_cast<void*>(parent));

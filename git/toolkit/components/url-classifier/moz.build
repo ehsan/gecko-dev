@@ -14,5 +14,3 @@ XPIDL_SOURCES += [
     'nsIUrlListManager.idl',
 ]
 
-MODULE = 'url-classifier'
-

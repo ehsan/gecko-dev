@@ -5,6 +5,3 @@
 
 DIRS += ['idl', 'include', 'src']
 TEST_DIRS += ['tests/mochitest']
-
-MODULE = 'caps'
-

@@ -49,14 +49,14 @@ nsSVGMarkerFrame::AttributeChanged(int32_t  aNameSpaceID,
 }
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGMarkerFrame::Init(nsIContent* aContent,
                        nsIFrame* aParent,
                        nsIFrame* aPrevInFlow)
 {
   NS_ASSERTION(aContent->IsSVG(nsGkAtoms::marker), "Content is not an SVG marker");
 
-  nsSVGMarkerFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGMarkerFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 

@@ -10,6 +10,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= TestXPTC
 SIMPLE_PROGRAMS	= TestXPTCInvoke$(BIN_SUFFIX)
 
 CPPSRCS		= TestXPTCInvoke.cpp

@@ -12,5 +12,3 @@ XPIDL_SOURCES += [
     'nsIXULWindow.idl',
 ]
 
-MODULE = 'appshell'
-

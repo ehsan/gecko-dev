@@ -77,12 +77,12 @@ nsSliderFrame::~nsSliderFrame()
 {
 }
 
-void
+NS_IMETHODIMP
 nsSliderFrame::Init(nsIContent*      aContent,
                     nsIFrame*        aParent,
                     nsIFrame*        aPrevInFlow)
 {
-  nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
 
   static bool gotPrefs = false;
   if (!gotPrefs) {
@@ -93,6 +93,8 @@ nsSliderFrame::Init(nsIContent*      aContent,
   }
 
   mCurPos = GetCurrentPosition(aContent);
+
+  return rv;
 }
 
 NS_IMETHODIMP

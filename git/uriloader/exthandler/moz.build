@@ -16,5 +16,3 @@ XPIDL_SOURCES += [
     'nsIHelperAppLauncherDialog.idl',
 ]
 
-MODULE = 'exthandler'
-

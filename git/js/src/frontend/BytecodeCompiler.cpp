@@ -66,12 +66,6 @@ CheckArgumentsWithinEval(JSContext *cx, Parser<FullParseHandler> &parser, Handle
             return false;
     }
 
-    // It's an error to use |arguments| in a generator expression.
-    if (script->isGeneratorExp) {
-        parser.report(ParseError, false, NULL, JSMSG_BAD_GENEXP_BODY, js_arguments_str);
-        return false;
-    }
-
     return true;
 }
 

@@ -5,6 +5,3 @@
 
 PARALLEL_DIRS += ['public', 'src', 'idl']
 TEST_TOOL_DIRS += ['tests']
-
-MODULE = 'txmgr'
-

@@ -36,5 +36,3 @@ XPIDL_SOURCES += [
     'nsIXBLAccessible.idl',
 ]
 
-MODULE = 'accessibility'
-

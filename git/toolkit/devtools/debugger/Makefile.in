@@ -9,6 +9,7 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = jsinspector
 MODULE_NAME = jsinspector
 GRE_MODULE = 1
 

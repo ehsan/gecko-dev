@@ -13,6 +13,7 @@
 #include "nsIContent.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
+#include "nsHashtable.h"
 #include "nsITimer.h"
 #include "nsCOMPtr.h"
 #include "nsIDocument.h"

@@ -7,5 +7,3 @@ XPIDL_SOURCES += [
     'nsIFindService.idl',
 ]
 
-MODULE = 'mozfind'
-

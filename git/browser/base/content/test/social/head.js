@@ -90,12 +90,6 @@ function runSocialTestWithProvider(manifest, callback, finishcallback) {
       removeProvider(m.origin, callback);
     });
   }
-  function finishSocialTest(cleanup) {
-    // disable social before removing the providers to avoid providers
-    // being activated immediately before we get around to removing it.
-    Services.prefs.clearUserPref("social.enabled");
-    removeAddedProviders(cleanup);
-  }
 
   let providersAdded = 0;
   let firstProvider;
@@ -117,6 +111,12 @@ function runSocialTestWithProvider(manifest, callback, finishcallback) {
         // Set the UI's provider (which enables the feature)
         Social.provider = firstProvider;
 
+        function finishSocialTest(cleanup) {
+          // disable social before removing the providers to avoid providers
+          // being activated immediately before we get around to removing it.
+          Services.prefs.clearUserPref("social.enabled");
+          removeAddedProviders(cleanup);
+        }
         registerCleanupFunction(function () {
           finishSocialTest(true);
         });
@@ -169,7 +169,7 @@ function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
 // A fairly large hammer which checks all aspects of the SocialUI for
 // internal consistency.
 function checkSocialUI(win) {
-  win = win || window;
+  let win = win || window;
   let doc = win.document;
   let provider = Social.provider;
   let enabled = win.SocialUI.enabled;

@@ -14,5 +14,3 @@ XPIDL_SOURCES += [
     'nsISHistoryListener.idl',
 ]
 
-MODULE = 'shistory'
-

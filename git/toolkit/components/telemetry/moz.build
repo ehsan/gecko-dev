@@ -10,5 +10,3 @@ XPIDL_SOURCES += [
     'nsITelemetryPing.idl',
 ]
 
-MODULE = 'telemetry'
-

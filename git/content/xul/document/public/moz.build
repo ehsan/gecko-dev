@@ -13,5 +13,3 @@ if CONFIG['MOZ_XUL']:
         'nsIXULOverlayProvider.idl',
     ]
 
-MODULE = 'xuldoc'
-

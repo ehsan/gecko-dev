@@ -5,5 +5,3 @@
 
 DIRS += ['mochitest', 'browser']
 
-MODULE = 'test_dom'
-

@@ -55,19 +55,22 @@ nsLeafBoxFrame::GetBoxName(nsAutoString& aName)
 /**
  * Initialize us. This is a good time to get the alignment of the box
  */
-void
+NS_IMETHODIMP
 nsLeafBoxFrame::Init(
               nsIContent*      aContent,
               nsIFrame*        aParent,
               nsIFrame*        aPrevInFlow)
 {
-  nsLeafFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult  rv = nsLeafFrame::Init(aContent, aParent, aPrevInFlow);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (GetStateBits() & NS_FRAME_FONT_INFLATION_CONTAINER) {
     AddStateBits(NS_FRAME_FONT_INFLATION_FLOW_ROOT);
   }
 
   UpdateMouseThrough();
+
+  return rv;
 }
 
 NS_IMETHODIMP

@@ -9,5 +9,3 @@ XPIDL_SOURCES += [
     'nsIWebContentConverterRegistrar.idl',
 ]
 
-MODULE = 'browser-feeds'
-

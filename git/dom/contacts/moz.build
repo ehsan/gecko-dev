@@ -7,5 +7,3 @@ TEST_DIRS += ['tests']
 
 XPIDL_MODULE = 'dom_contacts'
 
-MODULE = 'dom'
-

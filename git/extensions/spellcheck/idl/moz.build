@@ -10,5 +10,3 @@ XPIDL_SOURCES += [
     'mozISpellI18NUtil.idl',
 ]
 
-MODULE = 'spellchecker'
-

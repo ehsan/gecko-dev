@@ -8,11 +8,10 @@
 
 #include "nsHashtable.h"
 #include "nsIAtom.h"
-#include "nsCOMArray.h"
 #include "nsICSSPseudoComparator.h"
 #include "nsStyleContext.h"
 
-typedef nsCOMArray<nsIAtom> AtomArray;
+class nsISupportsArray;
 
 class nsDFAState : public nsHashKey
 {
@@ -75,7 +74,7 @@ public:
                                   nsIContent* aContent, 
                                   nsStyleContext* aContext,
                                   nsIAtom* aPseudoElement,
-                                  const AtomArray & aInputWord);
+                                  nsISupportsArray* aInputWord);
 
   static bool DeleteDFAState(nsHashKey *aKey, void *aData, void *closure);
 

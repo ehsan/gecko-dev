@@ -400,17 +400,19 @@ NS_IMETHODIMP nsWebBrowser::SetIsActive(bool aIsActive)
 // nsWebBrowser::nsIDocShellTreeItem
 //*****************************************************************************   
 
-NS_IMETHODIMP nsWebBrowser::GetName(nsAString& aName)
+NS_IMETHODIMP nsWebBrowser::GetName(PRUnichar** aName)
 {
+   NS_ENSURE_ARG_POINTER(aName);
+
    if(mDocShell)  
       mDocShell->GetName(aName);
    else
-      aName = mInitInfo->name;
+      *aName = ToNewUnicode(mInitInfo->name);
 
    return NS_OK;
 }
 
-NS_IMETHODIMP nsWebBrowser::SetName(const nsAString& aName)
+NS_IMETHODIMP nsWebBrowser::SetName(const PRUnichar* aName)
 {
    if(mDocShell)
       {
@@ -1169,7 +1171,7 @@ NS_IMETHODIMP nsWebBrowser::Create()
       docShellParentWidget, mInitInfo->x, mInitInfo->y, mInitInfo->cx,
       mInitInfo->cy), NS_ERROR_FAILURE);
 
-   mDocShell->SetName(mInitInfo->name);
+   mDocShell->SetName(mInitInfo->name.get());
    if (mContentType == typeChromeWrapper)
    {
        mDocShell->SetItemType(nsIDocShellTreeItem::typeChrome);

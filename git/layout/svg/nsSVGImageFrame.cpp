@@ -66,9 +66,9 @@ public:
   NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
                                nsIAtom*        aAttribute,
                                int32_t         aModType);
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   /**
@@ -129,7 +129,7 @@ nsSVGImageFrame::~nsSVGImageFrame()
   mListener = nullptr;
 }
 
-void
+NS_IMETHODIMP
 nsSVGImageFrame::Init(nsIContent* aContent,
                       nsIFrame* aParent,
                       nsIFrame* aPrevInFlow)
@@ -137,13 +137,13 @@ nsSVGImageFrame::Init(nsIContent* aContent,
   NS_ASSERTION(aContent->IsSVG(nsGkAtoms::image),
                "Content is not an SVG image!");
 
-  nsSVGImageFrameBase::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsSVGImageFrameBase::Init(aContent, aParent, aPrevInFlow);
+  if (NS_FAILED(rv)) return rv;
 
   mListener = new nsSVGImageListener(this);
+  if (!mListener) return NS_ERROR_OUT_OF_MEMORY;
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
-  if (!imageLoader) {
-    NS_RUNTIMEABORT("Why is this not an image loading content?");
-  }
+  NS_ENSURE_TRUE(imageLoader, NS_ERROR_UNEXPECTED);
 
   // We should have a PresContext now, so let's notify our image loader that
   // we need to register any image animations with the refresh driver.
@@ -156,6 +156,8 @@ nsSVGImageFrame::Init(nsIContent* aContent,
   pusher.PushNull();
 
   imageLoader->AddObserver(mListener);
+
+  return NS_OK; 
 }
 
 /* virtual */ void

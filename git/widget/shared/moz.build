@@ -5,6 +5,3 @@
 
 if CONFIG['MOZ_X11']:
     PARALLEL_DIRS += ['x11']
-
-MODULE = 'widget'
-

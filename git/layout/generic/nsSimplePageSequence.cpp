@@ -265,8 +265,12 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     } else if (!kidNextInFlow) {
       // The page isn't complete and it doesn't have a next-in-flow, so
       // create a continuing page.
-      nsIFrame* continuingPage = aPresContext->PresShell()->FrameConstructor()->
-        CreateContinuingFrame(aPresContext, kidFrame, this);
+      nsIFrame* continuingPage;
+      nsresult rv = aPresContext->PresShell()->FrameConstructor()->
+        CreateContinuingFrame(aPresContext, kidFrame, this, &continuingPage);
+      if (NS_FAILED(rv)) {
+        break;
+      }
 
       // Add it to our child list
       mFrames.InsertFrame(nullptr, kidFrame, continuingPage);

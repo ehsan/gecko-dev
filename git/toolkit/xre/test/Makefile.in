@@ -10,6 +10,8 @@ relativesrcdir = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = test_xulapp
+
 MOCHITEST_FILES = \
   test_fpuhandler.html \
   $(NULL)

@@ -5,5 +5,3 @@
 
 DIRS += ['browser']
 
-MODULE = 'test_privatebrowsing'
-

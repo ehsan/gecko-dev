@@ -420,7 +420,7 @@ nsSVGGradientFrame::GetStopFrame(int32_t aIndex, nsIFrame * *aStopFrame)
 // -------------------------------------------------------------------------
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGLinearGradientFrame::Init(nsIContent* aContent,
                                nsIFrame* aParent,
                                nsIFrame* aPrevInFlow)
@@ -428,7 +428,7 @@ nsSVGLinearGradientFrame::Init(nsIContent* aContent,
   NS_ASSERTION(aContent->IsSVG(nsGkAtoms::linearGradient),
                "Content is not an SVG linearGradient");
 
-  nsSVGLinearGradientFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGLinearGradientFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 
@@ -533,7 +533,7 @@ nsSVGLinearGradientFrame::CreateGradient()
 // -------------------------------------------------------------------------
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGRadialGradientFrame::Init(nsIContent* aContent,
                                nsIFrame* aParent,
                                nsIFrame* aPrevInFlow)
@@ -541,7 +541,7 @@ nsSVGRadialGradientFrame::Init(nsIContent* aContent,
   NS_ASSERTION(aContent->IsSVG(nsGkAtoms::radialGradient),
                "Content is not an SVG radialGradient");
 
-  nsSVGRadialGradientFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGRadialGradientFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 

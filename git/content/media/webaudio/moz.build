@@ -6,6 +6,3 @@
 PARALLEL_DIRS += ['test']
 
 TEST_TOOL_DIRS += ['compiledtest']
-
-MODULE = 'content'
-

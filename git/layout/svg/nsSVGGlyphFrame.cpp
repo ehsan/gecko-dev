@@ -313,7 +313,7 @@ nsSVGGlyphFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 }
 
-void
+NS_IMETHODIMP
 nsSVGGlyphFrame::Init(nsIContent* aContent,
                       nsIFrame* aParent,
                       nsIFrame* aPrevInFlow)
@@ -332,7 +332,7 @@ nsSVGGlyphFrame::Init(nsIContent* aContent,
                "trying to construct an SVGGlyphFrame for wrong content element");
 #endif /* DEBUG */
 
-  nsSVGGlyphFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGGlyphFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 
 nsIAtom *

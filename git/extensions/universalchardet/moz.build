@@ -5,6 +5,3 @@
 
 DIRS += ['src']
 TEST_DIRS += ['tests']
-
-MODULE = 'universalchardet'
-

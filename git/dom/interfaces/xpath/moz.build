@@ -19,5 +19,3 @@ XPIDL_FLAGS += [
     '-I$(topsrcdir)/dom/interfaces/core',
 ]
 
-MODULE = 'dom'
-

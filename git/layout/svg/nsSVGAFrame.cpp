@@ -32,9 +32,9 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 #endif
 
   // nsIFrame:
@@ -86,7 +86,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGAFrame)
 //----------------------------------------------------------------------
 // nsIFrame methods
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGAFrame::Init(nsIContent* aContent,
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow)
@@ -95,7 +95,7 @@ nsSVGAFrame::Init(nsIContent* aContent,
                "Trying to construct an SVGAFrame for a "
                "content element that doesn't support the right interfaces");
 
-  nsSVGAFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGAFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 

@@ -19,15 +19,11 @@ const FRAME_URL = "data:text/html;charset=utf-8," + encodeURIComponent(FRAME_HTM
 
 const { defer } = require("sdk/core/promise");
 const tabs = require("sdk/tabs");
-const { setTabURL } = require("sdk/tabs/utils");
 const { getActiveTab, getTabContentWindow, closeTab } = require("sdk/tabs/utils")
 const { getMostRecentBrowserWindow } = require("sdk/window/utils");
-const { open: openNewWindow } = require("sdk/window/helpers");
 const { Loader } = require("sdk/test/loader");
 const { setTimeout } = require("sdk/timers");
 const { Cu } = require("chrome");
-const { merge } = require("sdk/util/object");
-const { isPrivate } = require("sdk/private-browsing");
 
 // General purpose utility functions
 
@@ -38,33 +34,8 @@ const { isPrivate } = require("sdk/private-browsing");
  * I believe this approach could be useful in most of our unit test, that
  * requires to open a tab and need to access to its content.
  */
-function open(url, options) {
+function open(url) {
   let { promise, resolve } = defer();
-
-  if (options && typeof(options) === "object") {
-    openNewWindow("", {
-      features: merge({ toolbar: true }, options)
-    }).then(function(chromeWindow) {
-      if (isPrivate(chromeWindow) !== !!options.private)
-        throw new Error("Window should have Private set to " + !!options.private);
-
-      let tab = getActiveTab(chromeWindow);
-
-      tab.addEventListener("load", function ready(event) {
-        let { document } = getTabContentWindow(this);
-
-        if (document.readyState === "complete" && document.URL === url) {
-          this.removeEventListener(event.type, ready);
-
-          resolve(document.defaultView);
-        }
-      })
-
-      setTabURL(tab, url);
-    });
-
-    return promise;
-  };
 
   tabs.open({
     url: url,
@@ -87,16 +58,10 @@ function open(url, options) {
 /**
  * Close the Active Tab
  */
-function close(window) {
-  if (window && window.top && typeof(window.top).close === "function") {
-    window.top.close();
-  } else {
-    // Here we assuming that the most recent browser window is the one we're
-    // doing the test, and the active tab is the one we just opened.
-    let tab = getActiveTab(getMostRecentBrowserWindow());
-
-    closeTab(tab);
-  }
+function close() {
+  // Here we assuming that the most recent browser window is the one we're
+  // doing the test, and the active tab is the one we just opened.
+  closeTab(getActiveTab(getMostRecentBrowserWindow()));
 }
 
 /**
@@ -249,8 +214,6 @@ function dispatchSelectionEvent(window) {
   // contract the selection by one character. So if the text selected is "foo"
   // will be "fo".
   window.getSelection().modify("extend", "backward", "character");
-
-  return window;
 }
 
 /**
@@ -265,8 +228,6 @@ function dispatchOnSelectEvent(window) {
   event.initUIEvent("select", true, true, window, 1);
 
   textarea.dispatchEvent(event);
-
-  return window;
 }
 
 /**
@@ -305,7 +266,7 @@ exports["test No Selection"] = function(assert, done) {
     assert.equal(selectionCount, 0,
       "No iterable selections");
 
-  }).then(close).then(loader.unload).then(done, assert.fail);
+  }).then(close).then(loader.unload).then(done);
 };
 
 exports["test Single DOM Selection"] = function(assert, done) {
@@ -337,7 +298,7 @@ exports["test Single DOM Selection"] = function(assert, done) {
     assert.equal(selectionCount, 1,
       "One iterable selection");
 
-  }).then(close).then(loader.unload).then(done, assert.fail);
+  }).then(close).then(loader.unload).then(done);
 };
 
 exports["test Multiple DOM Selection"] = function(assert, done) {
@@ -371,7 +332,7 @@ exports["test Multiple DOM Selection"] = function(assert, done) {
     assert.equal(selectionCount, 2,
       "Two iterable selections");
 
-  }).then(close).then(loader.unload).then(done, assert.fail);
+  }).then(close).then(loader.unload).then(done);
 };
 
 exports["test Textarea Selection"] = function(assert, done) {
@@ -403,7 +364,7 @@ exports["test Textarea Selection"] = function(assert, done) {
     assert.equal(selectionCount, 1,
       "One iterable selection");
 
-  }).then(close).then(loader.unload).then(done, assert.fail);
+  }).then(close).then(loader.unload).then(done);
 };
 
 exports["test Set Text in Multiple DOM Selection"] = function(assert, done) {
@@ -437,7 +398,7 @@ exports["test Set Text in Multiple DOM Selection"] = function(assert, done) {
     assert.equal(selectionCount, 2,
       "Two iterable selections");
 
-  }).then(close).then(loader.unload).then(done, assert.fail);
+  }).then(close).then(loader.unload).then(done);
 };
 
 exports["test Set HTML in Multiple DOM Selection"] = function(assert, done) {
@@ -473,7 +434,7 @@ exports["test Set HTML in Multiple DOM Selection"] = function(assert, done) {
     assert.equal(selectionCount, 2,
       "Two iterable selections");
 
-  }).then(close).then(loader.unload).then(done, assert.fail);
+  }).then(close).then(loader.unload).then(done);
 };
 
 exports["test Set HTML as text in Multiple DOM Selection"] = function(assert, done) {
@@ -510,7 +471,7 @@ exports["test Set HTML as text in Multiple DOM Selection"] = function(assert, do
     assert.equal(selectionCount, 2,
       "Two iterable selections");
 
-  }).then(close).then(loader.unload).then(done, assert.fail);
+  }).then(close).then(loader.unload).then(done);
 };
 
 exports["test Set Text in Textarea Selection"] = function(assert, done) {
@@ -543,7 +504,7 @@ exports["test Set Text in Textarea Selection"] = function(assert, done) {
     assert.equal(selectionCount, 1,
       "One iterable selection");
 
-  }).then(close).then(loader.unload).then(done, assert.fail);
+  }).then(close).then(loader.unload).then(done);
 };
 
 exports["test Set HTML in Textarea Selection"] = function(assert, done) {
@@ -578,7 +539,7 @@ exports["test Set HTML in Textarea Selection"] = function(assert, done) {
     assert.equal(selectionCount, 1,
       "One iterable selection");
 
-  }).then(close).then(loader.unload).then(done, assert.fail);
+  }).then(close).then(loader.unload).then(done);
 };
 
 exports["test Empty Selections"] = function(assert, done) {
@@ -602,7 +563,7 @@ exports["test Empty Selections"] = function(assert, done) {
     assert.equal(selectionCount, 0,
       "No iterable selections");
 
-  }).then(close).then(loader.unload).then(done, assert.fail);
+  }).then(close).then(loader.unload).then(done);
 }
 
 
@@ -623,7 +584,7 @@ exports["test No Selection Exception"] = function(assert, done) {
       selection.html = "bar";
     }, NO_SELECTION);
 
-  }).then(close).then(loader.unload).then(done, assert.fail);
+  }).then(close).then(loader.unload).then(done);
 };
 
 exports["test for...of without selections"] = function(assert, done) {
@@ -646,7 +607,7 @@ exports["test for...of without selections"] = function(assert, done) {
       assert.pass("`iterable` method not supported in this application");
     else
       assert.fail(error);
-  }).then(done, assert.fail);
+  }).then(done);
 }
 
 exports["test for...of with selections"] = function(assert, done) {
@@ -679,7 +640,7 @@ exports["test for...of with selections"] = function(assert, done) {
       assert.pass("`iterable` method not supported in this application");
     else
       assert.fail(error);
-  }).then(done, assert.fail)
+  }).then(done)
 }
 
 exports["test Selection Listener"] = function(assert, done) {
@@ -694,7 +655,7 @@ exports["test Selection Listener"] = function(assert, done) {
   open(URL).then(selectContentFirstDiv).
     then(dispatchSelectionEvent).
     then(close).
-    then(loader.unload, assert.fail);
+    then(loader.unload);
 };
 
 exports["test Textarea OnSelect Listener"] = function(assert, done) {
@@ -709,7 +670,7 @@ exports["test Textarea OnSelect Listener"] = function(assert, done) {
   open(URL).then(selectTextarea).
     then(dispatchOnSelectEvent).
     then(close).
-    then(loader.unload, assert.fail);
+    then(loader.unload);
 };
 
 exports["test Selection listener removed on unload"] = function(assert, done) {
@@ -728,7 +689,7 @@ exports["test Selection listener removed on unload"] = function(assert, done) {
     then(selectContentFirstDiv).
     then(dispatchSelectionEvent).
     then(close).
-    then(done, assert.fail);
+    then(done)
 };
 
 exports["test Textarea onSelect Listener removed on unload"] = function(assert, done) {
@@ -747,7 +708,7 @@ exports["test Textarea onSelect Listener removed on unload"] = function(assert, 
     then(selectTextarea).
     then(dispatchOnSelectEvent).
     then(close).
-    then(done, assert.fail);
+    then(done)
 };
 
 
@@ -766,7 +727,7 @@ exports["test Selection Listener on existing document"] = function(assert, done)
   }).then(selectContentFirstDiv).
     then(dispatchSelectionEvent).
     then(close).
-    then(loader.unload, assert.fail);
+    then(loader.unload)
 };
 
 
@@ -785,7 +746,7 @@ exports["test Textarea OnSelect Listener on existing document"] = function(asser
   }).then(selectTextarea).
     then(dispatchOnSelectEvent).
     then(close).
-    then(loader.unload, assert.fail);
+    then(loader.unload)
 };
 
 exports["test Selection Listener on document reload"] = function(assert, done) {
@@ -802,7 +763,7 @@ exports["test Selection Listener on document reload"] = function(assert, done) {
     then(selectContentFirstDiv).
     then(dispatchSelectionEvent).
     then(close).
-    then(loader.unload, assert.fail);
+    then(loader.unload);
 };
 
 exports["test Textarea OnSelect Listener on document reload"] = function(assert, done) {
@@ -819,7 +780,7 @@ exports["test Textarea OnSelect Listener on document reload"] = function(assert,
     then(selectTextarea).
     then(dispatchOnSelectEvent).
     then(close).
-    then(loader.unload, assert.fail);
+    then(loader.unload);
 };
 
 exports["test Selection Listener on frame"] = function(assert, done) {
@@ -837,7 +798,7 @@ exports["test Selection Listener on frame"] = function(assert, done) {
     then(selectContentFirstDiv).
     then(dispatchSelectionEvent).
     then(close).
-    then(loader.unload, assert.fail);
+    then(loader.unload)
 };
 
 exports["test Textarea onSelect Listener on frame"] = function(assert, done) {
@@ -855,104 +816,7 @@ exports["test Textarea onSelect Listener on frame"] = function(assert, done) {
     then(selectTextarea).
     then(dispatchOnSelectEvent).
     then(close).
-    then(loader.unload, assert.fail);
-};
-
-
-exports["test PBPW Selection Listener"] = function(assert, done) {
-  let loader = Loader(module);
-  let selection = loader.require("sdk/selection");
-
-  selection.once("select", function() {
-    assert.fail("Shouldn't be never called");
-  });
-
-  assert.pass();
-
-  open(URL, {private: true}).
-    then(selectContentFirstDiv).
-    then(dispatchSelectionEvent).
-    then(close).
-    then(loader.unload).
-    then(done, assert.fail);
-};
-
-exports["test PBPW Textarea OnSelect Listener"] = function(assert, done) {
-  let loader = Loader(module);
-  let selection = loader.require("sdk/selection");
-
-  selection.once("select", function() {
-    assert.fail("Shouldn't be never called");
-  });
-
-  assert.pass();
-
-  open(URL, {private: true}).
-    then(selectTextarea).
-    then(dispatchOnSelectEvent).
-    then(close).
-    then(loader.unload).
-    then(done, assert.fail);
-};
-
-
-exports["test PBPW Single DOM Selection"] = function(assert, done) {
-  let loader = Loader(module);
-  let selection = loader.require("sdk/selection");
-
-  open(URL, {private: true}).then(selectFirstDiv).then(function(window) {
-
-    assert.equal(selection.isContiguous, false,
-      "selection.isContiguous with single DOM Selection in PBPW works.");
-
-    assert.equal(selection.text, null,
-      "selection.text with single DOM Selection in PBPW works.");
-
-    assert.equal(selection.html, null,
-      "selection.html with single DOM Selection in PBPW works.");
-
-    let selectionCount = 0;
-    for each (let sel in selection)
-      selectionCount++;
-
-    assert.equal(selectionCount, 0,
-      "No iterable selection in PBPW");
-
-    return window;
-  }).then(close).then(loader.unload).then(done, assert.fail);
-};
-
-exports["test PBPW Textarea Selection"] = function(assert, done) {
-  let loader = Loader(module);
-  let selection = loader.require("sdk/selection");
-
-  open(URL, {private: true}).then(selectTextarea).then(function(window) {
-
-    assert.equal(selection.isContiguous, false,
-      "selection.isContiguous with Textarea Selection in PBPW works.");
-
-    assert.equal(selection.text, null,
-      "selection.text with Textarea Selection in PBPW works.");
-
-    assert.strictEqual(selection.html, null,
-      "selection.html with Textarea Selection in PBPW works.");
-
-    let selectionCount = 0;
-    for each (let sel in selection) {
-      selectionCount++;
-
-      assert.equal(sel.text, null,
-        "iterable selection.text with Textarea Selection in PBPW works.");
-
-      assert.strictEqual(sel.html, null,
-        "iterable selection.html with Textarea Selection in PBPW works.");
-    }
-
-    assert.equal(selectionCount, 0,
-      "No iterable selection in PBPW");
-
-    return window;
-  }).then(close).then(loader.unload).then(done, assert.fail);
+    then(loader.unload)
 };
 
 // TODO: test Selection Listener on long-held connection (Bug 661884)
@@ -970,17 +834,6 @@ exports["test Selection Listener on long-held connection"] = function(assert, do
 
 };
 */
-
-// If the platform doesn't support the PBPW, we're replacing PBPW tests
-if (!require("sdk/private-browsing/utils").isWindowPBSupported) {
-  Object.keys(module.exports).forEach(function(key) {
-    if (key.indexOf("test PBPW") === 0) {
-      module.exports[key] = function Unsupported (assert) {
-        assert.pass("Private Window Per Browsing is not supported on this platform.");
-      }
-    }
-  });
-}
 
 // If the module doesn't support the app we're being run in, require() will
 // throw.  In that case, remove all tests above from exports, and add one dummy

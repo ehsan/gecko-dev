@@ -167,17 +167,9 @@ nsSVGNumberPair::SetAnimValue(const float aValue[2], nsSVGElement *aSVGElement)
 }
 
 nsresult
-nsSVGNumberPair::ToDOMAnimatedNumber(nsIDOMSVGAnimatedNumber** aResult,
+nsSVGNumberPair::ToDOMAnimatedNumber(nsIDOMSVGAnimatedNumber **aResult,
                                      PairIndex aIndex,
-                                     nsSVGElement* aSVGElement)
-{
-  *aResult = ToDOMAnimatedNumber(aIndex, aSVGElement).get();
-  return NS_OK;
-}
-
-already_AddRefed<nsIDOMSVGAnimatedNumber>
-nsSVGNumberPair::ToDOMAnimatedNumber(PairIndex aIndex,
-                                     nsSVGElement* aSVGElement)
+                                     nsSVGElement *aSVGElement)
 {
   nsRefPtr<DOMAnimatedNumber> domAnimatedNumber =
     aIndex == eFirst ? sSVGFirstAnimatedNumberTearoffTable.GetTearoff(this) :
@@ -191,7 +183,8 @@ nsSVGNumberPair::ToDOMAnimatedNumber(PairIndex aIndex,
     }
   }
 
-  return domAnimatedNumber.forget();
+  domAnimatedNumber.forget(aResult);
+  return NS_OK;
 }
 
 nsSVGNumberPair::DOMAnimatedNumber::~DOMAnimatedNumber()

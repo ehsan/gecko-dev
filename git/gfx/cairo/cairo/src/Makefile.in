@@ -9,6 +9,7 @@ VPATH           = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE          = cairo
 LIBRARY_NAME    = mozcairo
 LIBXUL_LIBRARY = 1
 

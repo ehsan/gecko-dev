@@ -14,6 +14,7 @@
 #include "nsCOMPtr.h"
 #include "nsGUIEvent.h"
 #include "nsRegion.h"
+#include "nsHashtable.h"
 #include "nsCOMArray.h"
 #include "nsIPluginWidget.h"
 #include "nsXULPopupManager.h"
@@ -130,10 +131,12 @@ nsViewManager::CreateView(const nsRect& aBounds,
                           nsViewVisibility aVisibilityFlag)
 {
   nsView *v = new nsView(this, aVisibilityFlag);
-  v->SetParent(const_cast<nsView*>(aParent));
-  v->SetPosition(aBounds.x, aBounds.y);
-  nsRect dim(0, 0, aBounds.width, aBounds.height);
-  v->SetDimensions(dim, false);
+  if (v) {
+    v->SetParent(const_cast<nsView*>(aParent));
+    v->SetPosition(aBounds.x, aBounds.y);
+    nsRect dim(0, 0, aBounds.width, aBounds.height);
+    v->SetDimensions(dim, false);
+  }
   return v;
 }
 

@@ -2913,19 +2913,20 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGTextFrame2)
 // ---------------------------------------------------------------------
 // nsIFrame methods
 
-void
+NS_IMETHODIMP
 nsSVGTextFrame2::Init(nsIContent* aContent,
                       nsIFrame* aParent,
                       nsIFrame* aPrevInFlow)
 {
   NS_ASSERTION(aContent->IsSVG(nsGkAtoms::text), "Content is not an SVG text");
 
-  nsSVGTextFrame2Base::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsSVGTextFrame2Base::Init(aContent, aParent, aPrevInFlow);
   AddStateBits((aParent->GetStateBits() &
                 (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD)) |
                NS_FRAME_SVG_LAYOUT | NS_FRAME_IS_SVG_TEXT);
 
   mMutationObserver.StartObserving(this);
+  return rv;
 }
 
 void

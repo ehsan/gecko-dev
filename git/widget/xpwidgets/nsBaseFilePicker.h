@@ -15,6 +15,8 @@
 
 class nsIWidget;
 
+#define BASEFILEPICKER_HAS_DISPLAYDIRECTORY 1
+
 class nsBaseFilePicker : public nsIFilePicker
 {
 public:
@@ -30,13 +32,12 @@ public:
   NS_IMETHOD GetFilterIndex(int32_t *aFilterIndex);
   NS_IMETHOD SetFilterIndex(int32_t aFilterIndex);
   NS_IMETHOD GetFiles(nsISimpleEnumerator **aFiles);
+#ifdef BASEFILEPICKER_HAS_DISPLAYDIRECTORY 
   NS_IMETHOD GetDisplayDirectory(nsIFile * *aDisplayDirectory);
   NS_IMETHOD SetDisplayDirectory(nsIFile * aDisplayDirectory);
+#endif
   NS_IMETHOD GetAddToRecentDocs(bool *aFlag);
   NS_IMETHOD SetAddToRecentDocs(bool aFlag);
-
-  NS_IMETHOD GetDomfile(nsIDOMFile** aDomfile);
-  NS_IMETHOD GetDomfiles(nsISimpleEnumerator** aDomfiles);
 
 protected:
 
@@ -44,7 +45,9 @@ protected:
                           int16_t aMode) = 0;
 
   bool mAddToRecentDocs;
+#ifdef BASEFILEPICKER_HAS_DISPLAYDIRECTORY 
   nsCOMPtr<nsIFile> mDisplayDirectory;
+#endif
 };
 
 #endif // nsBaseFilePicker_h__

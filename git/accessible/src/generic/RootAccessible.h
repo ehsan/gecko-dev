@@ -9,6 +9,7 @@
 #include "HyperTextAccessible.h"
 #include "DocAccessibleWrap.h"
 
+#include "nsHashtable.h"
 #include "nsIDocument.h"
 #include "nsIDOMEventListener.h"
 

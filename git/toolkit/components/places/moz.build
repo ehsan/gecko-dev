@@ -26,5 +26,3 @@ if CONFIG['MOZ_PLACES']:
         'nsPIPlacesHistoryListenersNotifier.idl',
     ]
 
-MODULE = 'places'
-

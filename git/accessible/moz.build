@@ -5,6 +5,3 @@
 
 DIRS += ['public', 'src', 'build']
 TEST_DIRS += ['tests']
-
-MODULE = 'accessibility'
-
