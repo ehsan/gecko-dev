@@ -1097,7 +1097,8 @@ TraceRecorder::import(LIns* base, ptrdiff_t offset, jsval* p, uint8& t,
     const char* funName = NULL;
     if (*prefix == 'a' || *prefix == 'v') {
         mark = JS_ARENA_MARK(&cx->tempPool);
-        localNames = js_GetLocalNameArray(cx, fp->fun, &cx->tempPool);
+        if (JS_GET_LOCAL_NAME_COUNT(fp->fun) != 0)
+            localNames = js_GetLocalNameArray(cx, fp->fun, &cx->tempPool);
         funName = fp->fun->atom ? js_AtomToPrintableString(cx, fp->fun->atom) : "<anonymous>";
     }
     if (!strcmp(prefix, "argv")) {
@@ -1281,9 +1282,6 @@ struct FrameInfo {
     };
 };
 
-static void
-js_TrashTree(JSContext* cx, Fragment* f);
-
 /* Promote slots if necessary to match the called tree' type map and report error if thats
    impossible. */
 bool
@@ -1293,36 +1291,23 @@ TraceRecorder::adjustCallerTypes(Fragment* f)
     uint8* m = tm->globalTypeMap->data();
     uint16* gslots = traceMonitor->globalSlots->data();
     unsigned ngslots = traceMonitor->globalSlots->length();
-    JSScript* script = ((TreeInfo*)f->vmprivate)->script;
-    uint8* map = ((TreeInfo*)f->vmprivate)->stackTypeMap.data();
-    bool ok = true;
     FORALL_GLOBAL_SLOTS(cx, ngslots, gslots, 
         LIns* i = get(vp);
         bool isPromote = isPromoteInt(i);
         if (isPromote && *m == JSVAL_DOUBLE) 
             lir->insStorei(get(vp), gp_ins, nativeGlobalOffset(vp));
-        else if (!isPromote && *m == JSVAL_INT) {
-            oracle.markGlobalSlotUndemotable(script, nativeGlobalOffset(vp)/sizeof(double));
-            ok = false;
-        }
         ++m;
     );
-    m = map;
+    m = ((TreeInfo*)f->vmprivate)->stackTypeMap.data();
     FORALL_SLOTS_IN_PENDING_FRAMES(cx, 0,
         LIns* i = get(vp);
         bool isPromote = isPromoteInt(i);
         if (isPromote && *m == JSVAL_DOUBLE) 
             lir->insStorei(get(vp), lirbuf->sp, 
                            -treeInfo->nativeStackBase + nativeStackOffset(vp));
-        else if (!isPromote && *m == JSVAL_INT) {
-            oracle.markStackSlotUndemotable(script, (jsbytecode*)f->ip, unsigned(m - map));
-            ok = false;
-        }
         ++m;
     );
-    if (!ok)
-        js_TrashTree(cx, f);
-    return ok;
+    return true;
 }
 
 /* Find a peer fragment that we can call, considering our current type distribution. */
@@ -1426,6 +1411,9 @@ TraceRecorder::checkType(jsval& v, uint8 t, bool& unstable)
 #endif
     return JSVAL_TAG(v) == t;
 }
+
+static void
+js_TrashTree(JSContext* cx, Fragment* f);
 
 /* Make sure that the current values in the given stack frame and all stack frames
    up and including entryFrame are type-compatible with the entry map. */
@@ -1812,7 +1800,6 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f)
             (cx->fp->regs->sp - StackBase(cx->fp))) * sizeof(double);
     ti->maxNativeStackSlots = entryNativeStackSlots;
     ti->maxCallDepth = 0;
-    ti->script = cx->fp->script;
 
     /* recording primary trace */
     return js_StartRecorder(cx, NULL, f, ti,
