@@ -37,7 +37,6 @@ class RtspControllerParent : public PRtspControllerParent
   bool RecvSuspend();
   bool RecvSeek(const uint64_t& offset);
   bool RecvStop();
-  bool RecvPlaybackEnded();
 
  private:
   bool mIPCOpen;

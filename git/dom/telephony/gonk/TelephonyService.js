@@ -439,10 +439,10 @@ TelephonyService.prototype = {
       return;
     }
 
-    function onCdmaDialSuccess(aCallIndex) {
+    function onCdmaDialSuccess() {
       let indexes = Object.keys(this._currentCalls[aClientId]);
-      if (indexes.length == 0) {
-        aTelephonyCallback.notifyDialSuccess(aCallIndex);
+      if (indexes.length != 1 ) {
+        aTelephonyCallback.notifyDialSuccess();
         return;
       }
 
@@ -458,7 +458,7 @@ TelephonyService.prototype = {
         isMergeable: true,
         parentId: indexes[0]
       };
-      aTelephonyCallback.notifyDialSuccess(CDMA_SECOND_CALL_INDEX);
+      aTelephonyCallback.notifyDialSuccess();
 
       // Manual update call state according to the request response.
       this.notifyCallStateChanged(aClientId, childCall);
@@ -486,7 +486,7 @@ TelephonyService.prototype = {
       }
 
       if (response.isCdma) {
-        onCdmaDialSuccess.call(this, response.callIndex);
+        onCdmaDialSuccess.call(this);
       } else {
         aTelephonyCallback.notifyDialSuccess(response.callIndex);
       }

@@ -76,24 +76,15 @@ var ProjectEditor = Class({
    *        The iframe to inject the DOM into.  If this is not
    *        specified, then this.load(frame) will need to be called
    *        before accessing ProjectEditor.
-   * @param Object options
-   *         - menubar: a <menubar> element to inject menus into
-   *         - menuindex: Integer child index to insert menus
    */
-  initialize: function(iframe, options = {}) {
+  initialize: function(iframe) {
     this._onTreeSelected = this._onTreeSelected.bind(this);
     this._onTreeResourceRemoved = this._onTreeResourceRemoved.bind(this);
     this._onEditorCreated = this._onEditorCreated.bind(this);
     this._onEditorActivated = this._onEditorActivated.bind(this);
     this._onEditorDeactivated = this._onEditorDeactivated.bind(this);
-    this._updateMenuItems = this._updateMenuItems.bind(this);
-    this.destroy = this.destroy.bind(this);
-    this.menubar = options.menubar || null;
-    this.menuindex = options.menuindex || null;
-    this._menuEnabled = true;
-    this._destroyed = false;
-    this._loaded = false;
-    this._pluginCommands = new Map();
+    this._updateEditorMenuItems = this._updateEditorMenuItems.bind(this);
+
     if (iframe) {
       this.load(iframe);
     }
@@ -120,12 +111,7 @@ var ProjectEditor = Class({
     this.iframe = iframe;
 
     let domReady = () => {
-      if (this._destroyed) {
-        deferred.reject("Error: ProjectEditor has been destroyed before loading");
-        return;
-      }
       this._onLoad();
-      this._loaded = true;
       deferred.resolve(this);
     };
 
@@ -144,11 +130,9 @@ var ProjectEditor = Class({
     this.document = this.iframe.contentDocument;
     this.window = this.iframe.contentWindow;
 
-    this._initCommands();
-    this._buildMenubar();
     this._buildSidebar();
 
-    this.window.addEventListener("unload", this.destroy, false);
+    this.window.addEventListener("unload", this.destroy.bind(this));
 
     // Editor management
     this.shells = new ShellDeck(this, this.document);
@@ -159,6 +143,9 @@ var ProjectEditor = Class({
     let shellContainer = this.document.querySelector("#shells-deck-container");
     shellContainer.appendChild(this.shells.elt);
 
+    let popup = this.document.querySelector("#edit-menu-popup");
+    popup.addEventListener("popupshowing", this.updateEditorMenuItems);
+
     // We are not allowing preset projects for now - rebuild a fresh one
     // each time.
     this.setProject(new Project({
@@ -168,40 +155,10 @@ var ProjectEditor = Class({
       openFiles: []
     }));
 
+    this._initCommands();
     this._initPlugins();
   },
 
-  _buildMenubar: function() {
-
-    this.editMenu = this.document.getElementById("edit-menu");
-    this.fileMenu = this.document.getElementById("file-menu");
-
-    this.editMenuPopup = this.document.getElementById("edit-menu-popup");
-    this.fileMenuPopup = this.document.getElementById("file-menu-popup");
-    this.editMenu.addEventListener("popupshowing", this._updateMenuItems);
-    this.fileMenu.addEventListener("popupshowing", this._updateMenuItems);
-
-    if (this.menubar) {
-      let body = this.menubar.ownerDocument.body ||
-                 this.menubar.ownerDocument.querySelector("window");
-      body.appendChild(this.projectEditorCommandset);
-      body.appendChild(this.projectEditorKeyset);
-      body.appendChild(this.editorCommandset);
-      body.appendChild(this.editorKeyset);
-      body.appendChild(this.contextMenuPopup);
-
-      let index = this.menuindex || 0;
-      this.menubar.insertBefore(this.editMenu, this.menubar.children[index]);
-      this.menubar.insertBefore(this.fileMenu, this.menubar.children[index]);
-    } else {
-      this.document.getElementById("projecteditor-menubar").style.display = "block";
-    }
-
-    // Insert a controller to allow enabling and disabling of menu items.
-    this._commandWindow = this.editorCommandset.ownerDocument.defaultView;
-    this._commandController = getCommandController(this);
-    this._commandWindow.controllers.insertControllerAt(0, this._commandController);
-  },
 
   /**
    * Create the project tree sidebar that lists files.
@@ -209,8 +166,7 @@ var ProjectEditor = Class({
   _buildSidebar: function() {
     this.projectTree = new ProjectTreeView(this.document, {
       resourceVisible: this.resourceVisible.bind(this),
-      resourceFormatter: this.resourceFormatter.bind(this),
-      contextMenuPopup: this.contextMenuPopup
+      resourceFormatter: this.resourceFormatter.bind(this)
     });
     on(this, this.projectTree, "selection", this._onTreeSelected);
     on(this, this.projectTree, "resource-removed", this._onTreeResourceRemoved);
@@ -223,16 +179,8 @@ var ProjectEditor = Class({
    * Set up listeners for commands to dispatch to all of the plugins
    */
   _initCommands: function() {
-
-    this.projectEditorCommandset = this.document.getElementById("projecteditor-commandset");
-    this.projectEditorKeyset = this.document.getElementById("projecteditor-keyset");
-
-    this.editorCommandset = this.document.getElementById("editMenuCommands");
-    this.editorKeyset = this.document.getElementById("editMenuKeys");
-
-    this.contextMenuPopup = this.document.getElementById("context-menu-popup");
-
-    this.projectEditorCommandset.addEventListener("command", (evt) => {
+    this.commands = this.document.querySelector("#projecteditor-commandset");
+    this.commands.addEventListener("command", (evt) => {
       evt.stopPropagation();
       evt.preventDefault();
       this.pluginDispatch("onCommand", evt.target.id, evt.target);
@@ -259,35 +207,17 @@ var ProjectEditor = Class({
   /**
    * Enable / disable necessary menu items using globalOverlay.js.
    */
-  _updateMenuItems: function() {
-    let window = this.editMenu.ownerDocument.defaultView;
-    let commands = ['cmd_undo', 'cmd_redo', 'cmd_delete', 'cmd_cut', 'cmd_copy', 'cmd_paste'];
-    commands.forEach(window.goUpdateCommand);
-
-    for (let c of this._pluginCommands.keys()) {
-      window.goUpdateCommand(c);
-    }
+  _updateEditorMenuItems: function() {
+    this.window.goUpdateGlobalEditMenuItems();
+    this.window.goUpdateGlobalEditMenuItems();
+    let commands = ['cmd_undo', 'cmd_redo', 'cmd_delete', 'cmd_findAgain'];
+    commands.forEach(this.window.goUpdateCommand);
   },
 
   /**
    * Destroy all objects on the iframe unload event.
    */
   destroy: function() {
-    this._destroyed = true;
-
-
-    // If been destroyed before the iframe finished loading, then
-    // the properties below will not exist.
-    if (!this._loaded) {
-      this.iframe.setAttribute("src", "about:blank");
-      return;
-    }
-
-    // Reset the src for the iframe so if it reused for a new ProjectEditor
-    // instance, the load will fire properly.
-    this.window.removeEventListener("unload", this.destroy, false);
-    this.iframe.setAttribute("src", "about:blank");
-
     this._plugins.forEach(plugin => { plugin.destroy(); });
 
     forget(this, this.projectTree);
@@ -295,17 +225,6 @@ var ProjectEditor = Class({
     this.projectTree = null;
 
     this.shells.destroy();
-
-    this.projectEditorCommandset.remove();
-    this.projectEditorKeyset.remove();
-    this.editorCommandset.remove();
-    this.editorKeyset.remove();
-    this.contextMenuPopup.remove();
-    this.editMenu.remove();
-    this.fileMenu.remove();
-
-    this._commandWindow.controllers.removeController(this._commandController);
-    this._commandController = null;
 
     forget(this, this.project);
     this.project.destroy();
@@ -465,13 +384,11 @@ var ProjectEditor = Class({
    * @returns DOMElement
    *          The command element that has been created.
    */
-  addCommand: function(plugin, definition) {
-    this._pluginCommands.set(definition.id, plugin);
-    let document = this.projectEditorKeyset.ownerDocument;
-    let command = document.createElement("command");
+  addCommand: function(definition) {
+    let command = this.document.createElement("command");
     command.setAttribute("id", definition.id);
     if (definition.key) {
-      let key = document.createElement("key");
+      let key = this.document.createElement("key");
       key.id = "key_" + definition.id;
 
       let keyName = definition.key;
@@ -482,10 +399,10 @@ var ProjectEditor = Class({
       }
       key.setAttribute("modifiers", definition.modifiers);
       key.setAttribute("command", definition.id);
-      this.projectEditorKeyset.appendChild(key);
+      this.document.getElementById("projecteditor-keyset").appendChild(key);
     }
     command.setAttribute("oncommand", "void(0);"); // needed. See bug 371900
-    this.projectEditorCommandset.appendChild(command);
+    this.document.getElementById("projecteditor-commandset").appendChild(command);
     return command;
   },
 
@@ -693,49 +610,6 @@ var ProjectEditor = Class({
   get currentEditor() {
     return this.shells.currentEditor;
   },
-
-  /**
-   * Whether or not menu items should be able to be enabled.
-   * Note that even if this is true, certain menu items will not be
-   * enabled until the correct state is achieved (for instance, the
-   * 'copy' menu item is only enabled when there is a selection).
-   * But if this is false, then nothing will be enabled.
-   */
-  set menuEnabled(val) {
-    this._menuEnabled = val;
-    this._updateMenuItems();
-  },
-
-  get menuEnabled() {
-    return this._menuEnabled;
-  }
 });
-
-
-/**
- * Returns a controller object that can be used for
- * editor-specific commands such as find, jump to line,
- * copy/paste, etc.
- */
-function getCommandController(host) {
-  return {
-    supportsCommand: function (cmd) {
-      return host._pluginCommands.get(cmd);
-    },
-
-    isCommandEnabled: function (cmd) {
-      if (!host.menuEnabled) {
-        return false;
-      }
-      let plugin = host._pluginCommands.get(cmd);
-      if (plugin && plugin.isCommandEnabled) {
-        return plugin.isCommandEnabled(cmd);
-      }
-      return true;
-    },
-    doCommand: function(cmd) {
-    }
-  };
-}
 
 exports.ProjectEditor = ProjectEditor;

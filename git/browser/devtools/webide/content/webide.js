@@ -321,34 +321,13 @@ let UI = {
 
   // ProjectEditor & details screen
 
-  destroyProjectEditor: function() {
-    if (this.projecteditor) {
-      this.projecteditor.destroy();
-      this.projecteditor = null;
-    }
-  },
-
-  updateProjectEditorMenusVisibility: function() {
-    if (this.projecteditor) {
-      let panel = document.querySelector("#deck").selectedPanel;
-      if (panel && panel.id == "deck-panel-projecteditor") {
-        this.projecteditor.menuEnabled = true;
-      } else {
-        this.projecteditor.menuEnabled = false;
-      }
-    }
-  },
-
   getProjectEditor: function() {
     if (this.projecteditor) {
       return this.projecteditor.loaded;
     }
 
     let projecteditorIframe = document.querySelector("#deck-panel-projecteditor");
-    this.projecteditor = ProjectEditor.ProjectEditor(projecteditorIframe, {
-      menubar: document.querySelector("#main-menubar"),
-      menuindex: 1
-    });
+    this.projecteditor = ProjectEditor.ProjectEditor(projecteditorIframe);
     this.projecteditor.on("onEditorSave", (editor, resource) => {
       AppManager.validateProject(AppManager.selectedProject);
     });
@@ -430,14 +409,12 @@ let UI = {
     let deck = document.querySelector("#deck");
     let panel = deck.querySelector("#deck-panel-" + id);
     deck.selectedPanel = panel;
-    this.updateProjectEditorMenusVisibility();
   },
 
   resetDeck: function() {
     this.resetFocus();
     let deck = document.querySelector("#deck");
     deck.selectedPanel = null;
-    this.updateProjectEditorMenusVisibility();
   },
 
   /********** COMMANDS **********/
@@ -845,11 +822,7 @@ let Cmds = {
   },
 
   toggleEditors: function() {
-    let isNowEnabled = !UI.isProjectEditorEnabled();
-    Services.prefs.setBoolPref("devtools.webide.showProjectEditor", isNowEnabled);
-    if (!isNowEnabled) {
-      UI.destroyProjectEditor();
-    }
+    Services.prefs.setBoolPref("devtools.webide.showProjectEditor", !UI.isProjectEditorEnabled());
     UI.openProject();
   },
 

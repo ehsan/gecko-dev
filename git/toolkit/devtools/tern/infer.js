@@ -119,17 +119,7 @@
       return canonicalType(this.types);
     },
 
-    computedPropType: function() {
-      if (!this.propertyOf || !this.propertyOf.hasProp("<i>")) return null;
-      var computedProp = this.propertyOf.getProp("<i>");
-      if (computedProp == this) return null;
-      return computedProp.getType();
-    },
-
     makeupType: function() {
-      var computed = this.computedPropType();
-      if (computed) return computed;
-
       if (!this.forward) return null;
       for (var i = this.forward.length - 1; i >= 0; --i) {
         var hint = this.forward[i].typeHint();
@@ -139,7 +129,7 @@
       var props = Object.create(null), foundProp = null;
       for (var i = 0; i < this.forward.length; ++i) {
         var prop = this.forward[i].propHint();
-        if (prop && prop != "length" && prop != "<i>" && prop != "✖" && prop != cx.completingProperty) {
+        if (prop && prop != "length" && prop != "<i>" && prop != "✖") {
           props[prop] = true;
           foundProp = prop;
         }
@@ -173,8 +163,6 @@
         var prop = this.forward[i].propHint();
         if (prop) f(prop, null, 0);
       }
-      var guessed = this.makeupType();
-      if (guessed) guessed.gatherProperties(f);
     }
   });
 
@@ -236,8 +224,7 @@
     },
     propHint: function() { return this.prop; },
     propagatesTo: function() {
-      if (this.prop == "<i>" || !/[^\w_]/.test(this.prop))
-        return {target: this.target, pathExt: "." + this.prop};
+      return {target: this.target, pathExt: "." + this.prop};
     }
   });
 
@@ -392,7 +379,6 @@
 
   var Type = exports.Type = function() {};
   Type.prototype = extend(ANull, {
-    constructor: Type,
     propagate: function(c, w) { c.addType(this, w); },
     hasType: function(other) { return other == this; },
     isEmpty: function() { return false; },
@@ -402,7 +388,6 @@
 
   var Prim = exports.Prim = function(proto, name) { this.name = name; this.proto = proto; };
   Prim.prototype = extend(Type.prototype, {
-    constructor: Prim,
     toString: function() { return this.name; },
     getProp: function(prop) {return this.proto.hasProp(prop) || ANull;},
     gatherProperties: function(f, depth) {
@@ -422,7 +407,6 @@
     this.origin = cx.curOrigin;
   };
   Obj.prototype = extend(Type.prototype, {
-    constructor: Obj,
     toString: function(maxDepth) {
       if (!maxDepth && this.name) return this.name;
       var props = [], etc = false;
@@ -446,7 +430,6 @@
     defProp: function(prop, originNode) {
       var found = this.hasProp(prop, false);
       if (found) {
-        if (found.maybePurge) found.maybePurge = false;
         if (originNode && !found.originNode) found.originNode = originNode;
         return found;
       }
@@ -458,7 +441,6 @@
         this.maybeUnregProtoPropHandler();
       } else {
         av = new AVal;
-        av.propertyOf = this;
       }
 
       this.props[prop] = av;
@@ -471,9 +453,7 @@
       var found = this.hasProp(prop, true) || (this.maybeProps && this.maybeProps[prop]);
       if (found) return found;
       if (prop == "__proto__" || prop == "✖") return ANull;
-      var av = this.ensureMaybeProps()[prop] = new AVal;
-      av.propertyOf = this;
-      return av;
+      return this.ensureMaybeProps()[prop] = new AVal;
     },
     broadcastProp: function(prop, val, local) {
       if (local) {
@@ -549,7 +529,6 @@
     this.retval = retval;
   };
   Fn.prototype = extend(Obj.prototype, {
-    constructor: Fn,
     toString: function(maxDepth) {
       if (maxDepth) maxDepth--;
       var str = "fn(";
@@ -597,7 +576,6 @@
     if (contentType) contentType.propagate(content);
   };
   Arr.prototype = extend(Obj.prototype, {
-    constructor: Arr,
     toString: function(maxDepth) {
       return "[" + toString(this.getProp("<i>").getType(), maxDepth, this) + "]";
     }
@@ -658,23 +636,6 @@
     finally { cx = old; }
   };
 
-  exports.TimedOut = function() {
-    this.message = "Timed out";
-    this.stack = (new Error()).stack;
-  }
-  exports.TimedOut.prototype = Object.create(Error.prototype);
-  exports.TimedOut.prototype.name = "infer.TimedOut";
-
-  var timeout;
-  exports.withTimeout = function(ms, f) {
-    var end = +new Date + ms;
-    var oldEnd = timeout;
-    if (oldEnd && oldEnd < end) return f();
-    timeout = end;
-    try { return f(); }
-    finally { timeout = oldEnd; }
-  };
-
   exports.addOrigin = function(origin) {
     if (cx.origins.indexOf(origin) < 0) cx.origins.push(origin);
   };
@@ -691,8 +652,6 @@
     try {
       var ret = f(add);
       for (var i = 0; i < list.length; i += 4) {
-        if (timeout && +new Date >= timeout)
-          throw new exports.TimedOut();
         depth = list[i + 3] + 1;
         list[i + 1].addType(list[i], list[i + 2]);
       }
@@ -709,7 +668,6 @@
     this.prev = prev;
   };
   Scope.prototype = extend(Obj.prototype, {
-    constructor: Scope,
     defVar: function(name, originNode) {
       for (var s = this; ; s = s.proto) {
         var found = s.props[name];
@@ -759,9 +717,8 @@
         var oldOrigin = cx.curOrigin;
         cx.curOrigin = fn.origin;
         var scopeCopy = new Scope(scope.prev);
-        scopeCopy.originNode = scope.originNode;
         for (var v in scope.props) {
-          var local = scopeCopy.defProp(v, scope.props[v].originNode);
+          var local = scopeCopy.defProp(v);
           for (var i = 0; i < args.length; ++i) if (fn.argNames[i] == v && i < args.length)
             args[i].propagate(local);
         }
@@ -823,13 +780,15 @@
   // SCOPE GATHERING PASS
 
   function addVar(scope, nameNode) {
-    return scope.defProp(nameNode.name, nameNode);
+    var val = scope.defProp(nameNode.name, nameNode);
+    if (val.maybePurge) val.maybePurge = false;
+    return val;
   }
 
   var scopeGatherer = walk.make({
     Function: function(node, scope, c) {
       var inner = node.body.scope = new Scope(scope);
-      inner.originNode = node;
+      inner.node = node;
       var argVals = [], argNames = [];
       for (var i = 0; i < node.params.length; ++i) {
         var param = node.params[i];
@@ -1116,13 +1075,10 @@
     },
 
     ReturnStatement: function(node, scope, c) {
-      if (!node.argument) return;
-      var output = ANull;
-      if (scope.fnType) {
+      if (node.argument && scope.fnType) {
         if (scope.fnType.retval == ANull) scope.fnType.retval = new AVal;
-        output = scope.fnType.retval;
+        infer(node.argument, scope, c, scope.fnType.retval);
       }
-      infer(node.argument, scope, c, output);
     },
 
     ForInStatement: function(node, scope, c) {
@@ -1230,7 +1186,6 @@
   Obj.prototype.purge = function(test) {
     if (this.purgeGen == cx.purgeGen) return true;
     this.purgeGen = cx.purgeGen;
-    var props = [];
     for (var p in this.props) {
       var av = this.props[p];
       if (test(av, av.originNode))

@@ -54,7 +54,6 @@ public:
     void seek(uint64_t timeUs);
     void resume();
     void suspend();
-    void playbackEnded();
 
     status_t feedMoreTSData();
 
@@ -72,14 +71,13 @@ protected:
 
 private:
     enum {
-        kWhatNotify               = 'noti',
-        kWhatDisconnect           = 'disc',
-        kWhatPerformSeek          = 'seek',
-        kWhatPerformPlay          = 'play',
-        kWhatPerformPause         = 'paus',
-        kWhatPerformResume        = 'resu',
-        kWhatPerformSuspend       = 'susp',
-        kWhatPerformPlaybackEnded = 'ende',
+        kWhatNotify          = 'noti',
+        kWhatDisconnect      = 'disc',
+        kWhatPerformSeek     = 'seek',
+        kWhatPerformPlay     = 'play',
+        kWhatPerformPause    = 'paus',
+        kWhatPerformResume   = 'resu',
+        kWhatPerformSuspend  = 'susp',
     };
 
     enum State {
@@ -141,8 +139,6 @@ private:
     void performResume();
 
     void performSuspend();
-
-    void performPlaybackEnded();
 
     void onTrackDataAvailable(size_t trackIndex);
 

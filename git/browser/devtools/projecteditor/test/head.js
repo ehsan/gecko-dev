@@ -88,29 +88,25 @@ function loadHelperScript(filePath) {
   Services.scriptloader.loadSubScript(testDir + "/" + filePath, this);
 }
 
-function addProjectEditorTabForTempDirectory(opts = {}) {
+function addProjectEditorTabForTempDirectory() {
   TEMP_PATH = buildTempDirectoryStructure();
-  let customOpts = {
+  let CUSTOM_OPTS = {
     name: "Test",
     iconUrl: "chrome://browser/skin/devtools/tool-options.svg",
     projectOverviewURL: SAMPLE_WEBAPP_URL
   };
 
-  return addProjectEditorTab(opts).then((projecteditor) => {
-    return projecteditor.setProjectToAppPath(TEMP_PATH, customOpts).then(() => {
+  return addProjectEditorTab().then((projecteditor) => {
+    return projecteditor.setProjectToAppPath(TEMP_PATH, CUSTOM_OPTS).then(() => {
       return projecteditor;
     });
   });
 }
 
-function addProjectEditorTab(opts = {}) {
-  return addTab("chrome://browser/content/devtools/projecteditor-test.xul").then(() => {
+function addProjectEditorTab() {
+  return addTab("chrome://browser/content/devtools/projecteditor-test.html").then(() => {
     let iframe = content.document.getElementById("projecteditor-iframe");
-    if (opts.menubar !== false) {
-      opts.menubar = content.document.querySelector("menubar");
-    }
-    let projecteditor = ProjectEditor.ProjectEditor(iframe, opts);
-
+    let projecteditor = ProjectEditor.ProjectEditor(iframe);
 
     ok (iframe, "Tab has placeholder iframe for projecteditor");
     ok (projecteditor, "ProjectEditor has been initialized");

@@ -24,6 +24,4 @@ endif
 $(DIST)/bin/dependentlibs.list.gtest: $(DIST)/bin/dependentlibs.list
 	sed -e 's|$(SHARED_LIBRARY)|gtest/$(SHARED_LIBRARY)|' $< > $@
 
-LINK_PDBFILE = xul-gtest.pdb
-
 endif
