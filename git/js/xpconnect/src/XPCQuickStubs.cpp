@@ -516,7 +516,7 @@ GetMethodInfo(JSContext *cx, jsval *vp, const char **ifaceNamep, jsid *memberIdp
     *memberIdp = methodId;
 }
 
-static bool
+static JSBool
 ThrowCallFailed(JSContext *cx, nsresult rv,
                 const char *ifaceName, jsid memberId, const char *memberName)
 {
@@ -592,12 +592,12 @@ xpc_qsThrowMethodFailedWithCcx(XPCCallContext &ccx, nsresult rv)
     return false;
 }
 
-bool
+void
 xpc_qsThrowMethodFailedWithDetails(JSContext *cx, nsresult rv,
                                    const char *ifaceName,
                                    const char *memberName)
 {
-    return ThrowCallFailed(cx, rv, ifaceName, JSID_VOID, memberName);
+    ThrowCallFailed(cx, rv, ifaceName, JSID_VOID, memberName);
 }
 
 static void

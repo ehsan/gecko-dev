@@ -3995,26 +3995,29 @@ bool
 nsHTMLEditor::IsNodeInActiveEditor(nsIDOMNode* aNode)
 {
   nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return node && IsNodeInActiveEditor(node);
-}
-
-bool
-nsHTMLEditor::IsNodeInActiveEditor(nsINode* aNode)
-{
+  if (!node) {
+    return false;
+  }
   nsIContent* activeEditingHost = GetActiveEditingHost();
   if (!activeEditingHost) {
     return false;
   }
-  return nsContentUtils::ContentIsDescendantOf(aNode, activeEditingHost);
+  return nsContentUtils::ContentIsDescendantOf(node, activeEditingHost);
 }
 
 bool
 nsHTMLEditor::SetCaretInTableCell(nsIDOMElement* aElement)
 {
+  if (!aElement || !IsNodeInActiveEditor(aElement)) {
+    return false;
+  }
+
   nsCOMPtr<dom::Element> element = do_QueryInterface(aElement);
-  if (!element || !element->IsHTML() ||
-      !nsHTMLEditUtils::IsTableElement(element) ||
-      !IsNodeInActiveEditor(element)) {
+  if (!element || !element->IsHTML()) {
+    return false;
+  }
+
+  if (!nsHTMLEditUtils::IsTableElement(element)) {
     return false;
   }
 
@@ -4071,7 +4074,7 @@ nsCOMPtr<nsIDOMElement> nsHTMLEditor::FindPreElement()
   nsString prestr ("PRE");  // GetFirstNodeOfType requires capitals
   nsCOMPtr<nsIDOMNode> preNode;
   if (NS_FAILED(nsEditor::GetFirstNodeOfType(rootNode, prestr,
-                                             getter_AddRefs(preNode))))
+                                                 getter_AddRefs(preNode))))
     return 0;
 
   return do_QueryInterface(preNode);
@@ -4105,11 +4108,10 @@ nsHTMLEditor::CollapseAdjacentTextNodes(nsIDOMRange *aInRange)
 
   while (!iter->IsDone())
   {
-    nsINode* node = iter->GetCurrentNode();
-    if (node->NodeType() == nsIDOMNode::TEXT_NODE &&
-        IsEditable(static_cast<nsIContent*>(node))) {
-      nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(node);
-      textNodes.AppendElement(domNode);
+    nsCOMPtr<nsIDOMCharacterData> text = do_QueryInterface(iter->GetCurrentNode());
+    if (text && IsEditable(text))
+    {
+      textNodes.AppendElement(text);
     }
 
     iter->Next();
@@ -4148,10 +4150,10 @@ nsHTMLEditor::CollapseAdjacentTextNodes(nsIDOMRange *aInRange)
 NS_IMETHODIMP 
 nsHTMLEditor::SetSelectionAtDocumentStart(nsISelection *aSelection)
 {
-  dom::Element* rootElement = GetRoot();
+  nsCOMPtr<nsIDOMElement> rootElement = do_QueryInterface(GetRoot());
   NS_ENSURE_TRUE(rootElement, NS_ERROR_NULL_POINTER);
 
-  return aSelection->CollapseNative(rootElement, 0);
+  return aSelection->Collapse(rootElement,0);
 }
 
 
@@ -4918,24 +4920,26 @@ nsHTMLEditor::RemoveAttributeOrEquivalent(nsIDOMElement * aElement,
 nsresult
 nsHTMLEditor::SetIsCSSEnabled(bool aIsCSSPrefChecked)
 {
-  if (!mHTMLCSSUtils) {
-    return NS_ERROR_NOT_INITIALIZED;
+  nsresult  err = NS_ERROR_NOT_INITIALIZED;
+  if (mHTMLCSSUtils)
+  {
+    err = mHTMLCSSUtils->SetCSSEnabled(aIsCSSPrefChecked);
   }
-
-  nsresult rv = mHTMLCSSUtils->SetCSSEnabled(aIsCSSPrefChecked);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   // Disable the eEditorNoCSSMask flag if we're enabling StyleWithCSS.
-  PRUint32 flags = mFlags;
-  if (aIsCSSPrefChecked) {
-    // Turn off NoCSS as we're enabling CSS
-    flags &= ~eEditorNoCSSMask;
-  } else {
-    // Turn on NoCSS, as we're disabling CSS.
-    flags |= eEditorNoCSSMask;
-  }
+  if (NS_SUCCEEDED(err)) {
+    PRUint32 flags = mFlags;
+    if (aIsCSSPrefChecked) {
+      // Turn off NoCSS as we're enabling CSS
+      flags &= ~eEditorNoCSSMask;
+    } else {
+      // Turn on NoCSS, as we're disabling CSS.
+      flags |= eEditorNoCSSMask;
+    }
 
-  return SetFlags(flags);
+    err = SetFlags(flags);
+    NS_ENSURE_SUCCESS(err, err);
+  }
+  return err;
 }
 
 // Set the block background color
@@ -5261,7 +5265,8 @@ nsHTMLEditor::CopyLastEditableChildStyles(nsIDOMNode * aPreviousBlock, nsIDOMNod
     res = CreateBR(deepestStyle, 0, address_of(outBRNode));
     NS_ENSURE_SUCCESS(res, res);
     // Getters must addref
-    outBRNode.forget(aOutBrNode);
+    *aOutBrNode = outBRNode;
+    NS_ADDREF(*aOutBrNode);
   }
   return NS_OK;
 }
@@ -5405,7 +5410,9 @@ nsHTMLEditor::GetSelectionContainer(nsIDOMElement ** aReturn)
   }
 
   nsCOMPtr<nsIDOMElement> focusElement = do_QueryInterface(focusNode);
-  focusElement.forget(aReturn);
+  *aReturn = focusElement;
+  NS_IF_ADDREF(*aReturn);
+
   return NS_OK;
 }
 
@@ -5632,7 +5639,8 @@ nsHTMLEditor::GetFocusedNode()
   }
 
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  return doc.forget();
+  nsCOMPtr<nsINode> node = do_QueryInterface(doc);
+  return node.forget();
 }
 
 bool

@@ -606,6 +606,12 @@ nsDummyJavaPluginOwner::InvalidateRegion(NPRegion invalidRegion)
 }
 
 NS_IMETHODIMP
+nsDummyJavaPluginOwner::ForceRedraw()
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 nsDummyJavaPluginOwner::GetNetscapeWindow(void *value)
 {
   return NS_ERROR_NOT_IMPLEMENTED;

@@ -674,6 +674,11 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRegion(NPRegion invalidRegion)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+NS_IMETHODIMP nsPluginInstanceOwner::ForceRedraw()
+{
+  return NS_OK;
+}
+
 NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
 {
   if (!mObjectFrame) {
