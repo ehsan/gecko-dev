@@ -34,8 +34,6 @@ public:
 
     virtual void SetEnabled(bool enabled);
 
-    virtual void OnEnabled(OnEnabledCallbackType callback);
-
     virtual void* GetHWCDevice();
 
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur);
