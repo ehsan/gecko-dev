@@ -860,14 +860,6 @@ const gFormSubmitObserver = {
     function inputHandler(e) {
       if (e.originalTarget.validity.valid) {
         gFormSubmitObserver.panel.hidePopup();
-      } else {
-        // If the element is now invalid for a new reason, we should update the
-        // error message.
-        if (gFormSubmitObserver.panel.firstChild.textContent !=
-            e.originalTarget.validationMessage) {
-          gFormSubmitObserver.panel.firstChild.textContent =
-            e.originalTarget.validationMessage;
-        }
       }
     };
     element.addEventListener("input", inputHandler, false);
@@ -891,18 +883,12 @@ const gFormSubmitObserver = {
         (element.type == 'radio' || element.type == 'checkbox')) {
       position = "bottomcenter topleft";
     } else {
-      let win = element.ownerDocument.defaultView;
-      let style = win.getComputedStyle(element, null);
-      let utils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                     .getInterface(Components.interfaces.nsIDOMWindowUtils);
-
+      let style = element.ownerDocument.defaultView.getComputedStyle(element, null);
       if (style.direction == 'rtl') {
         offset = parseInt(style.paddingRight) + parseInt(style.borderRightWidth);
       } else {
         offset = parseInt(style.paddingLeft) + parseInt(style.borderLeftWidth);
       }
-
-      offset = Math.round(offset * utils.screenPixelsPerCSSPixel);
 
       position = "after_start";
     }
@@ -1998,7 +1984,6 @@ function BrowserGoHome(aEvent) {
 
   // Home page should open in a new tab when current tab is an app tab
   if (where == "current" &&
-      gBrowser &&
       gBrowser.selectedTab.pinned)
     where = "tab";
 
@@ -4037,7 +4022,6 @@ var XULBrowserWindow = {
   defaultStatus: "",
   jsStatus: "",
   jsDefaultStatus: "",
-  overLink: "",
   startTime: 0,
   statusText: "",
   isBusy: false,
@@ -4110,17 +4094,18 @@ var XULBrowserWindow = {
   },
 
   setOverLink: function (url, anchorElt) {
-    // Encode bidirectional formatting characters.
-    // (RFC 3987 sections 3.2 and 4.1 paragraph 6)
-    this.overLink = url.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
-                                encodeURIComponent)
-                       .replace(/^http:\/\//, "");
-    LinkTargetDisplay.update();
-  },
+    if (gURLBar) {
+      // Encode bidirectional formatting characters.
+      // (RFC 3987 sections 3.2 and 4.1 paragraph 6)
+      url = url.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
+                        encodeURIComponent);
+      gURLBar.setOverLink(url);
+    }
+  }, 
 
   updateStatusField: function () {
-    var text = this.overLink;
-    if (!text && this._busyUI)
+    var text;
+    if (this._busyUI)
       text = this.status;
     if (!text)
       text = this.jsStatus || this.jsDefaultStatus || this.defaultStatus;
@@ -4368,7 +4353,11 @@ var XULBrowserWindow = {
       }
 
       // Show or hide browser chrome based on the whitelist
-      if (this.hideChromeForLocation(location))
+      var disableChrome = this.inContentWhitelist.some(function(aSpec) {
+        return aSpec == location;
+      });
+
+      if (disableChrome)
         document.documentElement.setAttribute("disablechrome", "true");
       else
         document.documentElement.removeAttribute("disablechrome");
@@ -4413,12 +4402,6 @@ var XULBrowserWindow = {
 
   asyncUpdateUI: function () {
     FeedHandler.updateFeeds();
-  },
-
-  hideChromeForLocation: function(aLocation) {
-    return this.inContentWhitelist.some(function(aSpec) {
-      return aSpec == aLocation;
-    });
   },
 
   onStatusChange: function (aWebProgress, aRequest, aStatus, aMessage) {
@@ -4556,58 +4539,6 @@ var XULBrowserWindow = {
       Services.obs.notifyObservers(content, notification, urlStr);
     } catch (e) {
     }
-  }
-};
-
-var LinkTargetDisplay = {
-  DELAY_SHOW: 70,
-  DELAY_HIDE: 150,
-  _timer: 0,
-
-  get _isVisible () XULBrowserWindow.statusTextField.label != "",
-
-  update: function () {
-    clearTimeout(this._timer);
-    window.removeEventListener("mousemove", this, true);
-
-    if (!XULBrowserWindow.overLink) {
-      if (XULBrowserWindow.hideOverLinkImmediately)
-        this._hide();
-      else
-        this._timer = setTimeout(this._hide.bind(this), this.DELAY_HIDE);
-      return;
-    }
-
-    if (this._isVisible) {
-      XULBrowserWindow.updateStatusField();
-    } else {
-      // Let the display appear when the mouse doesn't move within the delay
-      this._showDelayed();
-      window.addEventListener("mousemove", this, true);
-    }
-  },
-
-  handleEvent: function (event) {
-    switch (event.type) {
-      case "mousemove":
-        // Restart the delay since the mouse was moved
-        clearTimeout(this._timer);
-        this._showDelayed();
-        break;
-    }
-  },
-
-  _showDelayed: function () {
-    this._timer = setTimeout(function (self) {
-      XULBrowserWindow.updateStatusField();
-      window.removeEventListener("mousemove", self, true);
-    }, this.DELAY_SHOW, this);
-  },
-
-  _hide: function () {
-    clearTimeout(this._timer);
-
-    XULBrowserWindow.updateStatusField();
   }
 };
 
@@ -7199,7 +7130,7 @@ function undoCloseTab(aIndex) {
   var ss = Cc["@mozilla.org/browser/sessionstore;1"].
            getService(Ci.nsISessionStore);
   if (ss.getClosedTabCount(window) > (aIndex || 0)) {
-    TabView.prepareUndoCloseTab(blankTabToRemove);
+    TabView.prepareUndoCloseTab();
     tab = ss.undoCloseTab(window, aIndex || 0);
     TabView.afterUndoCloseTab();
 

@@ -205,8 +205,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   } mGestureState;
   float mCumulativeMagnification;
   float mCumulativeRotation;
-
-  BOOL mDidForceRefreshOpenGL;
 }
 
 // class initialization

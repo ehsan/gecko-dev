@@ -99,8 +99,6 @@ extern PRTime gFirstPaintTimestamp;
 static PRTime gRestoredTimestamp = 0;       // Timestamp of sessionstore-windows-restored
 static PRTime gProcessCreationTimestamp = 0;// Timestamp of sessionstore-windows-restored
 
-PRUint32 gRestartMode = 0;
-
 class nsAppExitEvent : public nsRunnable {
 private:
   nsRefPtr<nsAppStartup> mService;
@@ -291,10 +289,8 @@ nsAppStartup::Quit(PRUint32 aMode)
     }
 
     mShuttingDown = PR_TRUE;
-    if (!mRestart) {
+    if (!mRestart)
       mRestart = (aMode & eRestart) != 0;
-      gRestartMode = (aMode & 0xF0);
-    }
 
     if (mRestart) {
       // Firefox-restarts reuse the process. Process start-time isn't a useful indicator of startup time

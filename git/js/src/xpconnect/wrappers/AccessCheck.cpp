@@ -71,17 +71,8 @@ AccessCheck::isSameOrigin(JSCompartment *a, JSCompartment *b)
     if (!aprin || !bprin)
         return true;
 
-    nsCOMPtr<nsIURI> auri;
-    aprin->GetURI(getter_AddRefs(auri));
-
-    nsCOMPtr<nsIURI> buri;
-    bprin->GetURI(getter_AddRefs(buri));
-
-    if (!auri || !buri)
-        return aprin == bprin;
-
-    nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
-    return !ssm || NS_SUCCEEDED(ssm->CheckSameOriginURI(auri, buri, PR_FALSE));
+    PRBool cond;
+    return NS_SUCCEEDED(aprin->Equals(bprin, &cond)) && cond;
 }
 
 bool

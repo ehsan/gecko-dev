@@ -188,17 +188,10 @@ function GroupItem(listOfEls, options) {
 
   this.$title
     .blur(function() {
-      self._titleFocused = false;
       self.$titleShield.show();
     })
     .focus(function() {
-      if (!self._titleFocused) {
-        (self.$title)[0].select();
-        self._titleFocused = true;
-      }
-    })
-    .mousedown(function(e) {
-      e.stopPropagation();
+      (self.$title)[0].select();
     })
     .keydown(handleKeyDown)
     .keyup(handleKeyUp);
@@ -680,22 +673,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       group.newTab();
     }
 
-    this.destroy();
-  },
-
-  // ----------
-  // Function: destroy
-  // Close all tabs linked to children (tabItems), removes all children and 
-  // close the groupItem.
-  //
-  // Parameters:
-  //   options - An object with optional settings for this call.
-  //
-  // Options:
-  //   immediately - (bool) if true, no animation will be used
-  destroy: function GroupItem_destroy(options) {
-    let self = this;
-
     // when "TabClose" event is fired, the browser tab is about to close and our 
     // item "close" event is fired.  And then, the browser tab gets closed. 
     // In other words, the group "close" event is fired before all browser
@@ -726,7 +703,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
       this.$undoContainer.fadeOut(function() { self._unhide() });
     } else {
-      this.close(options);
+      this.close();
     }
   },
 
@@ -865,10 +842,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         $el = iQ(a);
         item = Items.item($el);
       }
-
-      // safeguard to remove the item from its previous group
-      if (item.parent && item.parent !== this)
-        item.parent.remove(item);
+      Utils.assertThrow(!item.parent || item.parent == this,
+          "shouldn't already be in another groupItem");
 
       item.removeTrenches();
 
@@ -985,11 +960,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
       if (typeof item.setResizable == 'function')
         item.setResizable(true, options.immediately);
-
-      // if a blank tab is selected while restoring a tab the blank tab gets
-      // removed. we need to keep the group alive for the restored tab.
-      if (item.tab._tabViewTabIsRemovedAfterRestore)
-        options.dontClose = true;
 
       let closed = options.dontClose ? false : this.closeIfEmpty();
       if (closed)
@@ -1555,6 +1525,12 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
                                   animate: true});
       }
 
+      // remove the item from its parent if that's not the current groupItem.
+      // this may occur when dragging too quickly so the out event is not fired.
+      var groupItem = drag.info.item.parent;
+      if (groupItem && self !== groupItem)
+        groupItem.remove(drag.info.$el, {dontClose: true});
+
       if (dropIndex !== false)
         options = {index: dropIndex};
       this.add(drag.info.$el, options);
@@ -1916,6 +1892,7 @@ let GroupItems = {
   // ----------
   // Function: reconstitute
   // Restores to stored state, creating groupItems as needed.
+  // If no data, sets up blank slate (including "new tabs" groupItem).
   reconstitute: function GroupItems_reconstitute(groupItemsData, groupItemData) {
     try {
       let activeGroupId;
@@ -1933,7 +1910,7 @@ let GroupItems = {
           let data = groupItemData[id];
           if (this.groupItemStorageSanity(data)) {
             let groupItem = this.groupItem(data.id); 
-            if (groupItem && !groupItem.hidden) {
+            if (groupItem) {
               groupItem.userSize = data.userSize;
               groupItem.setTitle(data.title);
               groupItem.setBounds(data.bounds, true);
@@ -1953,7 +1930,7 @@ let GroupItems = {
         }
 
         toClose.forEach(function(groupItem) {
-          groupItem.destroy({immediately: true});
+          groupItem.close({immediately: true});
         });
       }
 

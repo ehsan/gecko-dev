@@ -28,6 +28,7 @@ function seekEnded() {
   if (seekCount == 3) {
     clearInterval(interval);
     completed = true;
+    dump("Seek test 6 time sum:" + sum + "\n");
     finish();
   } else {
     v.currentTime = Math.random() * v.duration;

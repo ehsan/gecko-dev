@@ -49,7 +49,6 @@
 #include "nsPluginSafety.h"
 #include "nsPluginLogging.h"
 #include "nsIPrivateBrowsingService.h"
-#include "nsContentUtils.h"
 
 #include "nsIDocument.h"
 #include "nsIScriptGlobalObject.h"
@@ -414,15 +413,19 @@ nsNPAPIPluginInstance::InitializePlugin()
   mRunning = RUNNING;
 
   nsresult newResult = library->NPP_New((char*)mimetype, &mNPP, (PRUint16)mode, count, (char**)names, (char**)values, NULL, &error);
+  if (NS_FAILED(newResult)) {
+    mRunning = DESTROYED;
+    return newResult;
+  }
+
   mInPluginInitCall = oldVal;
 
   NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
   ("NPP New called: this=%p, npp=%p, mime=%s, mode=%d, argc=%d, return=%d\n",
   this, &mNPP, mimetype, mode, count, error));
 
-  if (NS_FAILED(newResult) || error != NPERR_NO_ERROR) {
+  if (error != NPERR_NO_ERROR) {
     mRunning = DESTROYED;
-    nsJSNPRuntime::OnPluginDestroy(&mNPP);
     return NS_ERROR_FAILURE;
   }
   
@@ -1249,48 +1252,5 @@ nsNPAPIPluginInstance::URLRedirectResponse(void* notifyData, NPBool allow)
     if (currentListener->GetNotifyData() == notifyData) {
       currentListener->URLRedirectResponse(allow);
     }
-  }
-}
-
-class CarbonEventModelFailureEvent : public nsRunnable {
-public:
-  nsCOMPtr<nsIContent> mContent;
-
-  CarbonEventModelFailureEvent(nsIContent* aContent)
-    : mContent(aContent)
-  {}
-
-  ~CarbonEventModelFailureEvent() {}
-
-  NS_IMETHOD Run();
-};
-
-NS_IMETHODIMP
-CarbonEventModelFailureEvent::Run()
-{
-  nsString type = NS_LITERAL_STRING("npapi-carbon-event-model-failure");
-  nsContentUtils::DispatchTrustedEvent(mContent->GetDocument(), mContent,
-                                       type, PR_TRUE, PR_TRUE);
-  return NS_OK;
-}
-
-void
-nsNPAPIPluginInstance::CarbonNPAPIFailure()
-{
-  nsCOMPtr<nsIDOMElement> element;
-  GetDOMElement(getter_AddRefs(element));
-  if (!element) {
-    return;
-  }
-
-  nsCOMPtr<nsIContent> content(do_QueryInterface(element));
-  if (!content) {
-    return;
-  }
-
-  nsCOMPtr<nsIRunnable> e = new CarbonEventModelFailureEvent(content);
-  nsresult rv = NS_DispatchToCurrentThread(e);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to dispatch CarbonEventModelFailureEvent.");
   }
 }
