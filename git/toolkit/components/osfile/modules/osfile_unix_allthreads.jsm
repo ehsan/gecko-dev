@@ -39,20 +39,34 @@ let LOG = SharedAll.LOG.bind(SharedAll, "Unix", "allthreads");
 let Const = SharedAll.Constants.libc;
 
 // Open libc
-let libc = new SharedAll.Library("libc",
-                                 "libc.so", "libSystem.B.dylib", "a.out");
+let libc;
+let libc_candidates =  [ "libc.so",
+                         "libSystem.B.dylib",
+                         "a.out" ];
+for (let i = 0; i < libc_candidates.length; ++i) {
+  try {
+    libc = ctypes.open(libc_candidates[i]);
+    break;
+  } catch (x) {
+    LOG("Could not open libc ", libc_candidates[i]);
+  }
+}
+
+if (!libc) {
+  // Note: If you change the string here, please adapt tests accordingly
+  throw new Error("Could not open system library: no libc");
+}
 exports.libc = libc;
 
 // Define declareFFI
 let declareFFI = SharedAll.declareFFI.bind(null, libc);
 exports.declareFFI = declareFFI;
 
-// Define lazy binding
-let LazyBindings = {};
-libc.declareLazy(LazyBindings, "strerror",
-                 "strerror", ctypes.default_abi,
-                 /*return*/ ctypes.char.ptr,
-                 /*errnum*/ ctypes.int);
+// Define Error
+let strerror = libc.declare("strerror",
+  ctypes.default_abi,
+  /*return*/ ctypes.char.ptr,
+  /*errnum*/ ctypes.int);
 
 /**
  * A File-related error.
@@ -86,7 +100,7 @@ OSError.prototype = Object.create(SharedAll.OSError.prototype);
 OSError.prototype.toString = function toString() {
   return "Unix error " + this.unixErrno +
     " during operation " + this.operation +
-    " (" + LazyBindings.strerror(this.unixErrno).readString() + ")";
+    " (" + strerror(this.unixErrno).readString() + ")";
 };
 
 /**

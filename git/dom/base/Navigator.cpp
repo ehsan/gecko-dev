@@ -1799,7 +1799,6 @@ Navigator::HasIccManagerSupport(JSContext* /* unused */,
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
   return win && CheckPermission(win, "mobileconnection");
 }
-#endif // MOZ_B2G_RIL
 
 /* static */
 bool
@@ -1820,6 +1819,7 @@ Navigator::HasWifiManagerSupport(JSContext* /* unused */,
   permMgr->TestPermissionFromPrincipal(principal, "wifi-manage", &permission);
   return nsIPermissionManager::ALLOW_ACTION == permission;
 }
+#endif // MOZ_B2G_RIL
 
 #ifdef MOZ_B2G_BT
 /* static */

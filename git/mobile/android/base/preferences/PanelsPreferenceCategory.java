@@ -68,13 +68,13 @@ public class PanelsPreferenceCategory extends CustomListCategory {
             @Override
             public void onPostExecute(List<PanelConfig> panelConfigs) {
                 mPanelConfigs = panelConfigs;
-                displayHomeConfig();
+                displayPanelConfig();
             }
         };
         mLoadTask.execute();
     }
 
-    private void displayHomeConfig() {
+    private void displayPanelConfig() {
         for (PanelConfig panelConfig : mPanelConfigs) {
             // Create and add the pref.
             final PanelsPreference pref = new PanelsPreference(getContext(), PanelsPreferenceCategory.this);
@@ -145,13 +145,13 @@ public class PanelsPreferenceCategory extends CustomListCategory {
      * Update the local HomeConfig default state from mDefaultReference.
      */
     private void updateConfigDefault() {
-        String id = null;
+        String mId = null;
         if (mDefaultReference != null) {
-            id = mDefaultReference.getKey();
+            mId = mDefaultReference.getKey();
         }
 
         for (PanelConfig panelConfig : mPanelConfigs) {
-            if (TextUtils.equals(panelConfig.getId(), id)) {
+            if (TextUtils.equals(panelConfig.getId(), mId)) {
                 panelConfig.setIsDefault(true);
                 panelConfig.setIsDisabled(false);
             } else {
@@ -166,10 +166,10 @@ public class PanelsPreferenceCategory extends CustomListCategory {
         // This could change the default, so update the local version of the config.
         updateConfigDefault();
 
-        final String id = pref.getKey();
+        final String mId = pref.getKey();
         PanelConfig toRemove = null;
         for (PanelConfig panelConfig : mPanelConfigs) {
-            if (TextUtils.equals(panelConfig.getId(), id)) {
+            if (TextUtils.equals(panelConfig.getId(), mId)) {
                 toRemove = panelConfig;
                 break;
             }
@@ -190,9 +190,9 @@ public class PanelsPreferenceCategory extends CustomListCategory {
         pref.setHidden(toHide);
         ensureDefaultForHide(pref, toHide);
 
-        final String id = pref.getKey();
+        final String mId = pref.getKey();
         for (PanelConfig panelConfig : mPanelConfigs) {
-            if (TextUtils.equals(panelConfig.getId(), id)) {
+            if (TextUtils.equals(panelConfig.getId(), mId)) {
                 panelConfig.setIsDisabled(toHide);
                 break;
             }

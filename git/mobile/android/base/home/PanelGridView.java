@@ -34,6 +34,7 @@ public class PanelGridView extends GridView
         super(context, null, R.attr.panelGridViewStyle);
         mAdapter = new PanelGridViewAdapter(context);
         setAdapter(mAdapter);
+        setNumColumns(AUTO_FIT);
         setOnItemClickListener(new PanelGridItemClickListener());
     }
 

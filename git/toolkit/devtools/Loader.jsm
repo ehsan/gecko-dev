@@ -68,8 +68,8 @@ BuiltinProvider.prototype = {
         "devtools/client": "resource://gre/modules/devtools/client",
         "devtools/pretty-fast": "resource://gre/modules/devtools/pretty-fast.js",
 
-        "acorn": "resource://gre/modules/devtools/acorn",
-        "acorn/util/walk": "resource://gre/modules/devtools/acorn/walk.js",
+        "acorn": "resource://gre/modules/devtools/acorn.js",
+        "acorn_loose": "resource://gre/modules/devtools/acorn_loose.js",
 
         // Allow access to xpcshell test items from the loader.
         "xpcshell-test": "resource://test"
@@ -115,7 +115,7 @@ SrcdirProvider.prototype = {
     let clientURI = this.fileURI(OS.Path.join(toolkitDir, "client"));
     let prettyFastURI = this.fileURI(OS.Path.join(toolkitDir), "pretty-fast.js");
     let acornURI = this.fileURI(OS.Path.join(toolkitDir, "acorn"));
-    let acornWalkURI = OS.Path.join(acornURI, "walk.js");
+    let acornLoosseURI = this.fileURI(OS.Path.join(toolkitDir, "acorn_loose.js"));
     this.loader = new loader.Loader({
       modules: {
         "toolkit/loader": loader,
@@ -136,7 +136,7 @@ SrcdirProvider.prototype = {
         "devtools/pretty-fast": prettyFastURI,
 
         "acorn": acornURI,
-        "acorn/util/walk": acornWalkURI
+        "acorn_loose": acornLoosseURI
       },
       globals: loaderGlobals,
       invisibleToDebugger: this.invisibleToDebugger

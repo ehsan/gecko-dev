@@ -103,8 +103,7 @@ public class HomeProvider extends SQLiteBridgeContentProvider {
             HomeItems.DATASET_ID,
             HomeItems.URL,
             HomeItems.TITLE,
-            HomeItems.DESCRIPTION,
-            HomeItems.IMAGE_URL
+            HomeItems.DESCRIPTION
         };
 
         final MatrixCursor c = new MatrixCursor(itemsColumns);
@@ -116,8 +115,7 @@ public class HomeProvider extends SQLiteBridgeContentProvider {
                     item.getString("dataset_id"),
                     item.getString("url"),
                     item.getString("title"),
-                    item.getString("description"),
-                    item.getString("image_url")
+                    item.getString("description")
                 });
             } catch (JSONException e) {
                 Log.e(LOGTAG, "Error creating cursor row for fake home item", e);

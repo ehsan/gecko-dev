@@ -39,7 +39,14 @@ let LOG = SharedAll.LOG.bind(SharedAll, "Win", "allthreads");
 let Const = SharedAll.Constants.Win;
 
 // Open libc
-let libc = new SharedAll.Library("libc", "kernel32.dll");
+let libc;
+try {
+  libc = ctypes.open("kernel32.dll");
+} catch (ex) {
+  // Note: If you change the string here, please adapt consumers and
+  // tests accordingly
+  throw new Error("Could not open system library: " + ex.message);
+}
 exports.libc = libc;
 
 // Define declareFFI
@@ -49,16 +56,17 @@ exports.declareFFI = declareFFI;
 let Scope = {};
 
 // Define Error
-libc.declareLazy(Scope, "FormatMessage",
-                 "FormatMessageW", ctypes.winapi_abi,
-                 /*return*/ ctypes.uint32_t,
-                 /*flags*/  ctypes.uint32_t,
-                 /*source*/ ctypes.voidptr_t,
-                 /*msgid*/  ctypes.uint32_t,
-                 /*langid*/ ctypes.uint32_t,
-                 /*buf*/    ctypes.jschar.ptr,
-                 /*size*/   ctypes.uint32_t,
-                 /*Arguments*/ctypes.voidptr_t);
+SharedAll.declareLazy(Scope, "FormatMessage", libc,
+  "FormatMessageW", ctypes.winapi_abi,
+  /*return*/ ctypes.uint32_t,
+  /*flags*/  ctypes.uint32_t,
+  /*source*/ ctypes.voidptr_t,
+  /*msgid*/  ctypes.uint32_t,
+  /*langid*/ ctypes.uint32_t,
+  /*buf*/    ctypes.jschar.ptr,
+  /*size*/   ctypes.uint32_t,
+  /*Arguments*/ctypes.voidptr_t
+);
 
 /**
  * A File-related error.
