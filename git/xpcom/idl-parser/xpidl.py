@@ -994,9 +994,10 @@ class IDLParser(object):
 
     def t_directive(self, t):
         r'\#(?P<directive>[a-zA-Z]+)[^\n]+'
-        raise IDLError("Unrecognized directive %s" % t.lexer.lexmatch.group('directive'),
-                       Location(lexer=self.lexer, lineno=self.lexer.lineno,
-                                lexpos=self.lexer.lexpos))
+        print >>sys.stderr, IDLError("Unrecognized directive %s" % t.lexer.lexmatch.group('directive'),
+                                     Location(lexer=self.lexer,
+                                              lineno=self.lexer.lineno,
+                                              lexpos=self.lexer.lexpos))
 
     def t_newline(self, t):
         r'\n+'

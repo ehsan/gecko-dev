@@ -63,19 +63,21 @@ CAccessibleAction::QueryInterface(REFIID iid, void** ppv)
 // IAccessibleAction
 
 STDMETHODIMP
-CAccessibleAction::nActions(long* aActionCount)
+CAccessibleAction::nActions(long *aNumActions)
 {
 __try {
-  if (!aActionCount)
-    return E_INVALIDARG;
+  *aNumActions = 0;
 
-  *aActionCount = 0;
-
-  nsRefPtr<nsAccessible> acc(do_QueryObject(this));
-  if (!acc || acc->IsDefunct())
+  nsCOMPtr<nsIAccessible> acc(do_QueryObject(this));
+  if (!acc)
     return E_FAIL;
 
-  *aActionCount = acc->ActionCount();
+  PRUint8 count = 0;
+  nsresult rv = acc->GetNumActions(&count);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aNumActions = count;
   return S_OK;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }

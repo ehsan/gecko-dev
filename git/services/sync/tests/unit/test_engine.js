@@ -45,7 +45,7 @@ let engineObserver = {
   topics: [],
 
   observe: function(subject, topic, data) {
-    do_check_eq(data, "steam");
+    do_check_eq(subject, "steam");
     this.topics.push(topic);
   },
 
