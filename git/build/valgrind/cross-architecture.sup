@@ -67,7 +67,7 @@
    Memcheck:Leak
    fun:malloc
    fun:moz_xmalloc
-   fun:_ZN3xpc18CreateGlobalObjectEP9JSContextP7JSClassP12nsIPrincipalm
+   fun:_ZN3xpc18CreateGlobalObjectEP9JSContextP7JSClassP12nsIPrincipal
    ...
 }
 {
@@ -200,14 +200,6 @@
    fun:malloc
    fun:moz_xmalloc
    fun:_ZN22nsComponentManagerImpl16RegisterCIDEntryEPKN7mozilla6Module8CIDEntryEPNS_11KnownModuleE
-   ...
-}
-{
-   Bug 794372
-   Memcheck:Leak
-   fun:malloc
-   fun:moz_xmalloc
-   fun:_ZN22nsComponentManagerImpl22RegisterCIDEntryLockedEPKN7mozilla6Module8CIDEntryEPNS_11KnownModuleE
    ...
 }
 {

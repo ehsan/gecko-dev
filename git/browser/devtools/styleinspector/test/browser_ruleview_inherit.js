@@ -6,6 +6,7 @@ let tempScope = {}
 Cu.import("resource:///modules/devtools/CssRuleView.jsm", tempScope);
 let CssRuleView = tempScope.CssRuleView;
 let _ElementStyle = tempScope._ElementStyle;
+let _editableField = tempScope._editableField;
 
 let doc;
 
