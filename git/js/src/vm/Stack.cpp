@@ -1718,20 +1718,17 @@ JS::ProfilingFrameIterator::ProfilingFrameIterator(JSRuntime *rt, const Register
                                                    uint32_t sampleBufferGen)
   : rt_(rt),
     sampleBufferGen_(sampleBufferGen),
-    activation_(nullptr),
+    activation_(rt->profilingActivation()),
     savedPrevJitTop_(nullptr)
 {
-    if (!rt->spsProfiler.enabled())
-        MOZ_CRASH("ProfilingFrameIterator called when spsProfiler not enabled for runtime.");
-
-    if (!rt->profilingActivation())
+    if (!activation_)
         return;
 
     // If profiler sampling is not enabled, skip.
-    if (!rt_->isProfilerSamplingEnabled())
+    if (!rt_->isProfilerSamplingEnabled()) {
+        activation_ = nullptr;
         return;
-
-    activation_ = rt->profilingActivation();
+    }
 
     MOZ_ASSERT(activation_->isProfiling());
 

@@ -165,16 +165,6 @@ ICStub::updateCode(JitCode *code)
     stubCode_ = code->raw();
 }
 
-void
-ReceiverGuard::trace(JSTracer *trc)
-{
-    MOZ_ASSERT(!!shape_ != !!group_);
-    if (shape_)
-        MarkShape(trc, &shape_, "receiver_guard_shape");
-    else
-        MarkObjectGroup(trc, &group_, "receiver_guard_group");
-}
-
 /* static */ void
 ICStub::trace(JSTracer *trc)
 {
@@ -352,14 +342,20 @@ ICStub::trace(JSTracer *trc)
       }
       case ICStub::GetProp_NativePrototype: {
         ICGetProp_NativePrototype *propStub = toGetProp_NativePrototype();
-        propStub->guard().trace(trc);
+        MarkShape(trc, &propStub->shape(), "baseline-getpropnativeproto-stub-shape");
+        MarkObject(trc, &propStub->holder(), "baseline-getpropnativeproto-stub-holder");
+        MarkShape(trc, &propStub->holderShape(), "baseline-getpropnativeproto-stub-holdershape");
+        break;
+      }
+      case ICStub::GetProp_UnboxedPrototype: {
+        ICGetProp_UnboxedPrototype *propStub = toGetProp_UnboxedPrototype();
+        MarkObjectGroup(trc, &propStub->group(), "baseline-getpropnativeproto-stub-group");
         MarkObject(trc, &propStub->holder(), "baseline-getpropnativeproto-stub-holder");
         MarkShape(trc, &propStub->holderShape(), "baseline-getpropnativeproto-stub-holdershape");
         break;
       }
       case ICStub::GetProp_NativeDoesNotExist: {
         ICGetProp_NativeDoesNotExist *propStub = toGetProp_NativeDoesNotExist();
-        propStub->guard().trace(trc);
         JS_STATIC_ASSERT(ICGetProp_NativeDoesNotExist::MAX_PROTO_CHAIN_DEPTH == 8);
         switch (propStub->protoChainDepth()) {
           case 0: propStub->toImpl<0>()->traceShapes(trc); break;
@@ -410,7 +406,7 @@ ICStub::trace(JSTracer *trc)
       }
       case ICStub::GetProp_CallScripted: {
         ICGetProp_CallScripted *callStub = toGetProp_CallScripted();
-        callStub->receiverGuard().trace(trc);
+        MarkShape(trc, &callStub->receiverShape(), "baseline-getpropcallscripted-stub-receivershape");
         MarkObject(trc, &callStub->holder(), "baseline-getpropcallscripted-stub-holder");
         MarkShape(trc, &callStub->holderShape(), "baseline-getpropcallscripted-stub-holdershape");
         MarkObject(trc, &callStub->getter(), "baseline-getpropcallscripted-stub-getter");
@@ -425,7 +421,7 @@ ICStub::trace(JSTracer *trc)
       }
       case ICStub::GetProp_CallNativePrototype: {
         ICGetProp_CallNativePrototype *callStub = toGetProp_CallNativePrototype();
-        callStub->receiverGuard().trace(trc);
+        MarkShape(trc, &callStub->receiverShape(), "baseline-getpropcallnativeproto-stub-receivershape");
         MarkObject(trc, &callStub->holder(), "baseline-getpropcallnativeproto-stub-holder");
         MarkShape(trc, &callStub->holderShape(), "baseline-getpropcallnativeproto-stub-holdershape");
         MarkObject(trc, &callStub->getter(), "baseline-getpropcallnativeproto-stub-getter");
@@ -467,7 +463,7 @@ ICStub::trace(JSTracer *trc)
       }
       case ICStub::SetProp_CallScripted: {
         ICSetProp_CallScripted *callStub = toSetProp_CallScripted();
-        callStub->guard().trace(trc);
+        MarkShape(trc, &callStub->shape(), "baseline-setpropcallscripted-stub-shape");
         MarkObject(trc, &callStub->holder(), "baseline-setpropcallscripted-stub-holder");
         MarkShape(trc, &callStub->holderShape(), "baseline-setpropcallscripted-stub-holdershape");
         MarkObject(trc, &callStub->setter(), "baseline-setpropcallscripted-stub-setter");
@@ -475,7 +471,7 @@ ICStub::trace(JSTracer *trc)
       }
       case ICStub::SetProp_CallNative: {
         ICSetProp_CallNative *callStub = toSetProp_CallNative();
-        callStub->guard().trace(trc);
+        MarkShape(trc, &callStub->shape(), "baseline-setpropcallnative-stub-shape");
         MarkObject(trc, &callStub->holder(), "baseline-setpropcallnative-stub-holder");
         MarkShape(trc, &callStub->holderShape(), "baseline-setpropcallnative-stub-holdershape");
         MarkObject(trc, &callStub->setter(), "baseline-setpropcallnative-stub-setter");
@@ -3302,15 +3298,18 @@ EffectlesslyLookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName n
         checkObj = GetDOMProxyProto(obj);
         if (!checkObj)
             return true;
-    } else if (!obj->isNative() && !obj->is<UnboxedPlainObject>()) {
+    } else if (!obj->isNative()) {
         return true;
     }
 
-    if (LookupPropertyPure(cx, checkObj, NameToId(name), holder.address(), shape.address()))
-        return true;
-
-    holder.set(nullptr);
-    shape.set(nullptr);
+    if (checkObj->hasIdempotentProtoChain()) {
+        if (!LookupProperty(cx, checkObj, name, holder, shape))
+            return false;
+    } else if (checkObj->isNative()) {
+        shape.set(checkObj->as<NativeObject>().lookup(cx, NameToId(name)));
+        if (shape)
+            holder.set(checkObj);
+    }
     return true;
 }
 
@@ -3323,21 +3322,16 @@ CheckHasNoSuchProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
     size_t depth = 0;
     RootedObject curObj(cx, obj);
     while (curObj) {
-        if (curObj->isNative()) {
-            // Don't handle proto chains with resolve hooks.
-            if (curObj->getClass()->resolve)
-                return false;
+        if (!curObj->isNative())
+            return false;
 
-            if (curObj->as<NativeObject>().contains(cx, NameToId(name)))
-                return false;
-        } else {
-            // Handle unboxed plain objects as the original receiver.
-            if (!curObj->is<UnboxedPlainObject>() || curObj != obj)
-                return false;
+        // Don't handle proto chains with resolve hooks.
+        if (curObj->getClass()->resolve)
+            return false;
 
-            if (curObj->as<UnboxedPlainObject>().layout().lookup(name))
-                return false;
-        }
+        Shape *shape = curObj->as<NativeObject>().lookup(cx, NameToId(name));
+        if (shape)
+            return false;
 
         JSObject *proto = curObj->getTaggedProto().toObjectOrNull();
         if (!proto)
@@ -5371,6 +5365,7 @@ ICSetElem_Dense::Compiler::generateStubCode(MacroAssembler &masm)
 static bool
 GetProtoShapes(JSObject *obj, size_t protoChainDepth, AutoShapeVector *shapes)
 {
+    MOZ_ASSERT(shapes->length() == 1);
     JSObject *curProto = obj->getProto();
     for (size_t i = 0; i < protoChainDepth; i++) {
         if (!shapes->append(curProto->lastProperty()))
@@ -5772,20 +5767,20 @@ UpdateExistingGetPropCallStubs(ICFallbackStub* fallbackStub,
     MOZ_ASSERT(fallbackStub->isGetName_Fallback() ||
                fallbackStub->isGetProp_Fallback());
     bool foundMatchingStub = false;
-    ReceiverGuard::Token receiverGuard = receiver ? ReceiverGuard::objectToken(receiver) : 0;
+    Shape *receiverShape = receiver ? receiver->lastProperty() : nullptr;
     for (ICStubConstIterator iter = fallbackStub->beginChainConst(); !iter.atEnd(); iter++) {
         if (iter->kind() == kind) {
             ICGetPropCallGetter *getPropStub = static_cast<ICGetPropCallGetter *>(*iter);
             if (getPropStub->holder() == holder) {
                 // We want to update the holder shape to match the new one no
                 // matter what, even if the receiver shape is different.
-                ReceiverGuard::Token cachedReceiverGuard;
+                Shape *cachedReceiverShape;
                 if (kind == ICStub::GetProp_CallNative) {
-                    cachedReceiverGuard = 0;
+                    cachedReceiverShape = nullptr;
                 } else {
                     ICGetPropCallPrototypeGetter *stubWithReceiver =
                         static_cast<ICGetPropCallPrototypeGetter*>(getPropStub);
-                    cachedReceiverGuard = stubWithReceiver->receiverGuard().token();
+                    cachedReceiverShape = stubWithReceiver->receiverShape();
                 }
                 // We would like to assert that either
                 // getPropStub->holderShape() != holder->lastProperty() or
@@ -5801,7 +5796,7 @@ UpdateExistingGetPropCallStubs(ICFallbackStub* fallbackStub,
                 // Make sure to update the getter, since a shape change might
                 // have changed which getter we want to use.
                 getPropStub->getter() = getter;
-                if (receiverGuard == cachedReceiverGuard)
+                if (receiverShape == cachedReceiverShape)
                     foundMatchingStub = true;
             }
         }
@@ -5814,10 +5809,10 @@ UpdateExistingGetPropCallStubs(ICFallbackStub* fallbackStub,
 // place with a new shape and setter.
 static bool
 UpdateExistingSetPropCallStubs(ICSetProp_Fallback* fallbackStub,
-                               ICStub::Kind kind,
-                               JSObject *holder,
-                               ReceiverGuard::Token receiverGuard,
-                               JSFunction *setter)
+                              ICStub::Kind kind,
+                              HandleObject holder,
+                              HandleShape receiverShape,
+                              HandleFunction setter)
 {
     MOZ_ASSERT(kind == ICStub::SetProp_CallScripted ||
                kind == ICStub::SetProp_CallNative);
@@ -5829,13 +5824,13 @@ UpdateExistingSetPropCallStubs(ICSetProp_Fallback* fallbackStub,
                 // We want to update the holder shape to match the new one no
                 // matter what, even if the receiver shape is different.
                 MOZ_ASSERT(setPropStub->holderShape() != holder->lastProperty() ||
-                           setPropStub->guard().token() != receiverGuard,
+                           setPropStub->shape() != receiverShape,
                            "Why didn't we end up using this stub?");
                 setPropStub->holderShape() = holder->lastProperty();
                 // Make sure to update the setter, since a shape change might
                 // have changed which setter we want to use.
                 setPropStub->setter() = setter;
-                if (receiverGuard == setPropStub->guard().token())
+                if (receiverShape == setPropStub->shape())
                     foundMatchingStub = true;
             }
         }
@@ -6520,8 +6515,15 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
         if (IsIonEnabled(cx))
             EnsureTrackPropertyTypes(cx, holder, NameToId(name));
 
-        ICStub::Kind kind =
-            (obj == holder) ? ICStub::GetProp_Native : ICStub::GetProp_NativePrototype;
+        ICStub::Kind kind;
+        if (obj == holder)
+            kind = ICStub::GetProp_Native;
+        else if (obj->isNative())
+            kind = ICStub::GetProp_NativePrototype;
+        else if (obj->is<UnboxedPlainObject>())
+            kind = ICStub::GetProp_UnboxedPrototype;
+        else
+            MOZ_CRASH("Bad kind");
 
         JitSpew(JitSpew_BaselineIC, "  Generating GetProp(%s %s) stub",
                     isDOMProxy ? "DOMProxy" : "Native",
@@ -6543,8 +6545,8 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
     }
 
     bool isScripted = false;
-    bool cacheableCall = IsCacheableGetPropCall(cx, obj, holder, shape, &isScripted,
-                                                isTemporarilyUnoptimizable);
+    bool cacheableCall = obj->isNative() && IsCacheableGetPropCall(cx, obj, holder, shape, &isScripted,
+                                                                   isTemporarilyUnoptimizable);
 
     // Try handling scripted getters.
     if (cacheableCall && isScripted && !isDOMProxy) {
@@ -6605,7 +6607,7 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
     }
 
     const Class *outerClass = nullptr;
-    if (!isDOMProxy && !obj->isNative() && !obj->is<UnboxedPlainObject>()) {
+    if (!isDOMProxy && !obj->isNative()) {
         outerClass = obj->getClass();
         DebugOnly<JSObject *> outer = obj.get();
         obj = GetInnerObject(obj);
@@ -6853,6 +6855,8 @@ TryAttachNativeDoesNotExistStub(JSContext *cx, HandleScript script, jsbytecode *
         return true;
 
     ICStub *monitorStub = stub->fallbackMonitorStub()->firstMonitorStub();
+    RootedShape objShape(cx, obj->lastProperty());
+    RootedShape lastShape(cx, lastProto->lastProperty());
 
     // Confirmed no-such-property.  Add stub.
     JitSpew(JitSpew_BaselineIC, "  Generating GetProp_NativeDoesNotExist stub");
@@ -7173,33 +7177,22 @@ ICGetPropNativeCompiler::getStub(ICStubSpace *space)
 
       case ICStub::GetProp_NativePrototype: {
         MOZ_ASSERT(obj_ != holder_);
-        ReceiverGuard::Token guard = ReceiverGuard::objectToken(obj_);
-        Shape *holderShape = holder_->lastProperty();
-        return ICStub::New<ICGetProp_NativePrototype>(space, getStubCode(), firstMonitorStub_, guard,
+        RootedShape shape(cx, obj_->lastProperty());
+        RootedShape holderShape(cx, holder_->lastProperty());
+        return ICStub::New<ICGetProp_NativePrototype>(space, getStubCode(), firstMonitorStub_, shape,
                                                       offset_, holder_, holderShape);
+      }
+
+      case ICStub::GetProp_UnboxedPrototype: {
+        MOZ_ASSERT(obj_ != holder_);
+        RootedObjectGroup group(cx, obj_->group());
+        RootedShape holderShape(cx, holder_->lastProperty());
+        return ICStub::New<ICGetProp_UnboxedPrototype>(space, getStubCode(), firstMonitorStub_, group,
+                                                       offset_, holder_, holderShape);
       }
 
       default:
         MOZ_CRASH("Bad stub kind");
-    }
-}
-
-static void
-GuardNativeOrUnboxedReceiver(MacroAssembler &masm, JSObject *obj,
-                             Register object, Register scratch,
-                             size_t receiverGuardOffset, Label *failure)
-{
-    if (obj->isNative()) {
-        masm.loadPtr(Address(BaselineStubReg,
-                             receiverGuardOffset + ReceiverGuard::offsetOfShape()),
-                     scratch);
-        masm.branchTestObjShape(Assembler::NotEqual, object, scratch, failure);
-    } else {
-        MOZ_ASSERT(obj->is<UnboxedPlainObject>());
-        masm.loadPtr(Address(BaselineStubReg,
-                             receiverGuardOffset + ReceiverGuard::offsetOfGroup()),
-                     scratch);
-        masm.branchTestObjGroup(Assembler::NotEqual, object, scratch, failure);
     }
 }
 
@@ -7223,16 +7216,26 @@ ICGetPropNativeCompiler::generateStubCode(MacroAssembler &masm)
     Register scratch = regs.takeAnyExcluding(BaselineTailCallReg);
 
     // Shape/group guard.
-    MOZ_ASSERT(ICGetProp_Native::offsetOfShape() ==
-               ICGetProp_NativePrototype::offsetOfGuard() + ReceiverGuard::offsetOfShape());
-    GuardNativeOrUnboxedReceiver(masm, obj_, objReg, scratch,
-                                 ICGetProp_NativePrototype::offsetOfGuard(), &failure);
+    if (kind == ICStub::GetProp_UnboxedPrototype) {
+        masm.loadPtr(Address(BaselineStubReg, ICGetProp_UnboxedPrototype::offsetOfGroup()), scratch);
+        masm.branchPtr(Assembler::NotEqual, Address(objReg, JSObject::offsetOfGroup()), scratch,
+                       &failure);
+    } else {
+        MOZ_ASSERT(ICGetProp_Native::offsetOfShape() ==
+                   ICGetProp_NativePrototype::offsetOfShape());
+        masm.loadPtr(Address(BaselineStubReg, ICGetProp_Native::offsetOfShape()), scratch);
+        masm.branchTestObjShape(Assembler::NotEqual, objReg, scratch, &failure);
+    }
 
     Register holderReg;
     if (obj_ == holder_) {
         holderReg = objReg;
     } else {
         // Shape guard holder.
+        MOZ_ASSERT(ICGetProp_NativePrototype::offsetOfHolder() ==
+                   ICGetProp_UnboxedPrototype::offsetOfHolder());
+        MOZ_ASSERT(ICGetProp_NativePrototype::offsetOfHolderShape() ==
+                   ICGetProp_UnboxedPrototype::offsetOfHolderShape());
         holderReg = regs.takeAny();
         masm.loadPtr(Address(BaselineStubReg, ICGetProp_NativePrototype::offsetOfHolder()),
                      holderReg);
@@ -7319,6 +7322,8 @@ ICStub *
 ICGetPropNativeDoesNotExistCompiler::getStub(ICStubSpace *space)
 {
     AutoShapeVector shapes(cx);
+    if (!shapes.append(obj_->lastProperty()))
+        return nullptr;
 
     if (!GetProtoShapes(obj_, protoChainDepth_, &shapes))
         return nullptr;
@@ -7365,17 +7370,18 @@ ICGetPropNativeDoesNotExistCompiler::generateStubCode(MacroAssembler &masm)
     // Guard input is an object.
     masm.branchTestObject(Assembler::NotEqual, R0, &failure);
 
-    // Unbox and guard against old shape/group.
+    // Unbox and guard against old shape.
     Register objReg = masm.extractObject(R0, ExtractTemp0);
-    GuardNativeOrUnboxedReceiver(masm, obj_, objReg, scratch,
-                                 ICGetProp_NativeDoesNotExist::offsetOfGuard(), &failure);
+    masm.loadPtr(Address(BaselineStubReg, ICGetProp_NativeDoesNotExist::offsetOfShape(0)),
+                 scratch);
+    masm.branchTestObjShape(Assembler::NotEqual, objReg, scratch, &failure);
 
     Register protoReg = regs.takeAny();
     // Check the proto chain.
     for (size_t i = 0; i < protoChainDepth_; i++) {
         masm.loadObjProto(i == 0 ? objReg : protoReg, protoReg);
         masm.branchTestPtr(Assembler::Zero, protoReg, protoReg, &failure);
-        size_t shapeOffset = ICGetProp_NativeDoesNotExistImpl<0>::offsetOfShape(i);
+        size_t shapeOffset = ICGetProp_NativeDoesNotExistImpl<0>::offsetOfShape(i + 1);
         masm.loadPtr(Address(BaselineStubReg, shapeOffset), scratch);
         masm.branchTestObjShape(Assembler::NotEqual, protoReg, scratch, &failure);
     }
@@ -7406,8 +7412,8 @@ ICGetProp_CallScripted::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Unbox and shape guard.
     Register objReg = masm.extractObject(R0, ExtractTemp0);
-    GuardNativeOrUnboxedReceiver(masm, receiver_, objReg, scratch,
-                                 ICGetProp_CallScripted::offsetOfReceiverGuard(), &failure);
+    masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallScripted::offsetOfReceiverShape()), scratch);
+    masm.branchTestObjShape(Assembler::NotEqual, objReg, scratch, &failure);
 
     Register holderReg = regs.takeAny();
     masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallScripted::offsetOfHolder()), holderReg);
@@ -7568,8 +7574,8 @@ ICGetProp_CallNativePrototype::Compiler::generateStubCode(MacroAssembler &masm)
     Register scratch = regs.takeAnyExcluding(BaselineTailCallReg);
 
     // Shape guard.
-    GuardNativeOrUnboxedReceiver(masm, receiver_, objReg, scratch,
-                                 ICGetProp_CallNativePrototype::offsetOfReceiverGuard(), &failure);
+    masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallNativePrototype::offsetOfReceiverShape()), scratch);
+    masm.branchTestObjShape(Assembler::NotEqual, objReg, scratch, &failure);
 
     Register holderReg = regs.takeAny();
     masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallNativePrototype::offsetOfHolder()), holderReg);
@@ -8141,14 +8147,14 @@ TryAttachSetValuePropStub(JSContext *cx, HandleScript script, jsbytecode *pc, IC
 // an accessor property.
 static bool
 TryAttachSetAccessorPropStub(JSContext *cx, HandleScript script, jsbytecode *pc, ICSetProp_Fallback *stub,
-                             HandleObject obj, ReceiverGuard::Token receiverGuard, HandlePropertyName name,
+                             HandleObject obj, HandleShape receiverShape, HandlePropertyName name,
                              HandleId id, HandleValue rhs, bool *attached,
                              bool *isTemporarilyUnoptimizable)
 {
     MOZ_ASSERT(!*attached);
     MOZ_ASSERT(!*isTemporarilyUnoptimizable);
 
-    if (obj->watched())
+    if (!obj->isNative() || obj->watched())
         return true;
 
     RootedShape shape(cx);
@@ -8167,7 +8173,7 @@ TryAttachSetAccessorPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
         MOZ_ASSERT(callee->hasScript());
 
         if (UpdateExistingSetPropCallStubs(stub, ICStub::SetProp_CallScripted,
-                                           holder, receiverGuard, callee)) {
+                                           holder, receiverShape, callee)) {
             *attached = true;
             return true;
         }
@@ -8192,7 +8198,7 @@ TryAttachSetAccessorPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
         MOZ_ASSERT(callee->isNative());
 
         if (UpdateExistingSetPropCallStubs(stub, ICStub::SetProp_CallNative,
-                                           holder, receiverGuard, callee)) {
+                                           holder, receiverShape, callee)) {
             *attached = true;
             return true;
         }
@@ -8323,7 +8329,6 @@ DoSetPropFallback(JSContext *cx, BaselineFrame *frame, ICSetProp_Fallback *stub_
     RootedObject obj(cx, ToObjectFromStack(cx, lhs));
     if (!obj)
         return false;
-    ReceiverGuard::Token oldGuard = ReceiverGuard::objectToken(obj);
     RootedShape oldShape(cx, obj->lastProperty());
     RootedObjectGroup oldGroup(cx, obj->getGroup(cx));
     if (!oldGroup)
@@ -8338,7 +8343,7 @@ DoSetPropFallback(JSContext *cx, BaselineFrame *frame, ICSetProp_Fallback *stub_
     bool isTemporarilyUnoptimizable = false;
     if (stub->numOptimizedStubs() < ICSetProp_Fallback::MAX_OPTIMIZED_STUBS &&
         lhs.isObject() &&
-        !TryAttachSetAccessorPropStub(cx, script, pc, stub, obj, oldGuard, name, id,
+        !TryAttachSetAccessorPropStub(cx, script, pc, stub, obj, oldShape, name, id,
                                       rhs, &attached, &isTemporarilyUnoptimizable))
     {
         return false;
@@ -8891,8 +8896,8 @@ ICSetProp_CallScripted::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Unbox and shape guard.
     Register objReg = masm.extractObject(R0, ExtractTemp0);
-    GuardNativeOrUnboxedReceiver(masm, obj_, objReg, scratch,
-                                 ICSetProp_CallScripted::offsetOfGuard(), &failureUnstow);
+    masm.loadPtr(Address(BaselineStubReg, ICSetProp_CallScripted::offsetOfShape()), scratch);
+    masm.branchTestObjShape(Assembler::NotEqual, objReg, scratch, &failureUnstow);
 
     Register holderReg = regs.takeAny();
     masm.loadPtr(Address(BaselineStubReg, ICSetProp_CallScripted::offsetOfHolder()), holderReg);
@@ -9010,8 +9015,8 @@ ICSetProp_CallNative::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Unbox and shape guard.
     Register objReg = masm.extractObject(R0, ExtractTemp0);
-    GuardNativeOrUnboxedReceiver(masm, obj_, objReg, scratch,
-                                 ICSetProp_CallNative::offsetOfGuard(), &failureUnstow);
+    masm.loadPtr(Address(BaselineStubReg, ICSetProp_CallNative::offsetOfShape()), scratch);
+    masm.branchTestObjShape(Assembler::NotEqual, objReg, scratch, &failureUnstow);
 
     Register holderReg = regs.takeAny();
     masm.loadPtr(Address(BaselineStubReg, ICSetProp_CallNative::offsetOfHolder()), holderReg);
@@ -11847,10 +11852,10 @@ ICGetProp_Native::Clone(ICStubSpace *space, ICStub *firstMonitorStub,
 }
 
 ICGetProp_NativePrototype::ICGetProp_NativePrototype(JitCode *stubCode, ICStub *firstMonitorStub,
-                                                     ReceiverGuard::Token guard, uint32_t offset,
+                                                     Shape *shape, uint32_t offset,
                                                      JSObject *holder, Shape *holderShape)
   : ICGetPropNativeStub(GetProp_NativePrototype, stubCode, firstMonitorStub, offset),
-    guard_(guard),
+    shape_(shape),
     holder_(holder),
     holderShape_(holderShape)
 { }
@@ -11859,15 +11864,30 @@ ICGetProp_NativePrototype::ICGetProp_NativePrototype(JitCode *stubCode, ICStub *
 ICGetProp_NativePrototype::Clone(ICStubSpace *space, ICStub *firstMonitorStub,
                                  ICGetProp_NativePrototype &other)
 {
-    return New<ICGetProp_NativePrototype>(space, other.jitCode(), firstMonitorStub,
-                                          other.guard().token(),
+    return New<ICGetProp_NativePrototype>(space, other.jitCode(), firstMonitorStub, other.shape(),
                                           other.offset(), other.holder_, other.holderShape_);
 }
 
+ICGetProp_UnboxedPrototype::ICGetProp_UnboxedPrototype(JitCode *stubCode, ICStub *firstMonitorStub,
+                                                       ObjectGroup *group, uint32_t offset,
+                                                       JSObject *holder, Shape *holderShape)
+  : ICGetPropNativeStub(GetProp_UnboxedPrototype, stubCode, firstMonitorStub, offset),
+    group_(group),
+    holder_(holder),
+    holderShape_(holderShape)
+{ }
+
+/* static */ ICGetProp_UnboxedPrototype *
+ICGetProp_UnboxedPrototype::Clone(ICStubSpace *space, ICStub *firstMonitorStub,
+                                  ICGetProp_UnboxedPrototype &other)
+{
+    return New<ICGetProp_UnboxedPrototype>(space, other.jitCode(), firstMonitorStub, other.group(),
+                                           other.offset(), other.holder_, other.holderShape_);
+}
+
 ICGetProp_NativeDoesNotExist::ICGetProp_NativeDoesNotExist(
-    JitCode *stubCode, ICStub *firstMonitorStub, ReceiverGuard::Token guard, size_t protoChainDepth)
-  : ICMonitoredStub(GetProp_NativeDoesNotExist, stubCode, firstMonitorStub),
-    guard_(guard)
+        JitCode *stubCode, ICStub *firstMonitorStub, size_t protoChainDepth)
+  : ICMonitoredStub(GetProp_NativeDoesNotExist, stubCode, firstMonitorStub)
 {
     MOZ_ASSERT(protoChainDepth <= MAX_PROTO_CHAIN_DEPTH);
     extra_ = protoChainDepth;
@@ -11884,14 +11904,11 @@ ICGetProp_NativeDoesNotExist::offsetOfShape(size_t idx)
 
 template <size_t ProtoChainDepth>
 ICGetProp_NativeDoesNotExistImpl<ProtoChainDepth>::ICGetProp_NativeDoesNotExistImpl(
-        JitCode *stubCode, ICStub *firstMonitorStub, ReceiverGuard::Token guard,
-        const AutoShapeVector *shapes)
-  : ICGetProp_NativeDoesNotExist(stubCode, firstMonitorStub, guard, ProtoChainDepth)
+        JitCode *stubCode, ICStub *firstMonitorStub, const AutoShapeVector *shapes)
+  : ICGetProp_NativeDoesNotExist(stubCode, firstMonitorStub, ProtoChainDepth)
 {
     MOZ_ASSERT(shapes->length() == NumShapes);
-
-    // Note: using int32_t here to avoid gcc warning.
-    for (int32_t i = 0; i < int32_t(NumShapes); i++)
+    for (size_t i = 0; i < NumShapes; i++)
         shapes_[i].init((*shapes)[i]);
 }
 
@@ -11923,12 +11940,11 @@ ICGetPropCallGetter::ICGetPropCallGetter(Kind kind, JitCode *stubCode, ICStub *f
 
 ICGetPropCallPrototypeGetter::ICGetPropCallPrototypeGetter(Kind kind, JitCode *stubCode,
                                                            ICStub *firstMonitorStub,
-                                                           ReceiverGuard::Token receiverGuard,
-                                                           JSObject *holder,
+                                                           Shape *receiverShape, JSObject *holder,
                                                            Shape *holderShape,
                                                            JSFunction *getter, uint32_t pcOffset)
   : ICGetPropCallGetter(kind, stubCode, firstMonitorStub, holder, holderShape, getter, pcOffset),
-    receiverGuard_(receiverGuard)
+    receiverShape_(receiverShape)
 {
     MOZ_ASSERT(kind == ICStub::GetProp_CallScripted || kind == ICStub::GetProp_CallNativePrototype);
 }
@@ -11946,8 +11962,7 @@ ICGetProp_CallScripted::Clone(ICStubSpace *space, ICStub *firstMonitorStub,
                               ICGetProp_CallScripted &other)
 {
     return New<ICGetProp_CallScripted>(space, other.jitCode(), firstMonitorStub,
-                                       other.receiverGuard().token(),
-                                       other.holder_, other.holderShape_,
+                                       other.receiverShape_, other.holder_, other.holderShape_,
                                        other.getter_, other.pcOffset_);
 }
 
@@ -11964,7 +11979,7 @@ ICGetProp_CallNativePrototype::Clone(ICStubSpace *space, ICStub *firstMonitorStu
                                      ICGetProp_CallNativePrototype &other)
 {
     return New<ICGetProp_CallNativePrototype>(space, other.jitCode(), firstMonitorStub,
-                                              other.receiverGuard().token(), other.holder_,
+                                              other.receiverShape_, other.holder_,
                                               other.holderShape_, other.getter_, other.pcOffset_);
 }
 
@@ -12036,11 +12051,11 @@ ICSetPropNativeAddCompiler::ICSetPropNativeAddCompiler(JSContext *cx, HandleObje
     MOZ_ASSERT(protoChainDepth_ <= ICSetProp_NativeAdd::MAX_PROTO_CHAIN_DEPTH);
 }
 
-ICSetPropCallSetter::ICSetPropCallSetter(Kind kind, JitCode *stubCode, ReceiverGuard::Token guard,
+ICSetPropCallSetter::ICSetPropCallSetter(Kind kind, JitCode *stubCode, Shape *shape,
                                          JSObject *holder, Shape *holderShape,
                                          JSFunction *setter, uint32_t pcOffset)
   : ICStub(kind, stubCode),
-    guard_(guard),
+    shape_(shape),
     holder_(holder),
     holderShape_(holderShape),
     setter_(setter),
@@ -12052,14 +12067,14 @@ ICSetPropCallSetter::ICSetPropCallSetter(Kind kind, JitCode *stubCode, ReceiverG
 /* static */ ICSetProp_CallScripted *
 ICSetProp_CallScripted::Clone(ICStubSpace *space, ICStub *, ICSetProp_CallScripted &other)
 {
-    return New<ICSetProp_CallScripted>(space, other.jitCode(), other.guard().token(), other.holder_,
+    return New<ICSetProp_CallScripted>(space, other.jitCode(), other.shape_, other.holder_,
                                        other.holderShape_, other.setter_, other.pcOffset_);
 }
 
 /* static */ ICSetProp_CallNative *
 ICSetProp_CallNative::Clone(ICStubSpace *space, ICStub *, ICSetProp_CallNative &other)
 {
-    return New<ICSetProp_CallNative>(space, other.jitCode(), other.guard().token(), other.holder_,
+    return New<ICSetProp_CallNative>(space, other.jitCode(), other.shape_, other.holder_,
                                      other.holderShape_, other.setter_, other.pcOffset_);
 }
 

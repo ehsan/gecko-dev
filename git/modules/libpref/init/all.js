@@ -1571,7 +1571,7 @@ pref("network.dnsCacheEntries", 400);
 pref("network.dnsCacheExpiration", 60);
 
 // Get TTL; not supported on all platforms; nop on the unsupported ones.
-pref("network.dns.get-ttl", false);
+pref("network.dns.get-ttl", true);
 
 // The grace period allows the DNS cache to use expired entries, while kicking off
 // a revalidation in the background.
@@ -4433,10 +4433,6 @@ pref("camera.control.face_detection.enabled", true);
 
 // Fetch API.
 pref("dom.fetch.enabled", false);
-
-// SW Cache API
-pref("dom.caches.enabled", false);
-
 #ifdef MOZ_WIDGET_GONK
 // Empirically, this is the value returned by hal::GetTotalSystemMemory()
 // when Flame's memory is limited to 512MiB. If the camera stack determines

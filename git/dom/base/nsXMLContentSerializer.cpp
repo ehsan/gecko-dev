@@ -766,9 +766,9 @@ bool
 nsXMLContentSerializer::IsJavaScript(nsIContent * aContent, nsIAtom* aAttrNameAtom,
                                      int32_t aAttrNamespaceID, const nsAString& aValueString)
 {
-  bool isHtml = aContent->IsHTMLElement();
-  bool isXul = aContent->IsXULElement();
-  bool isSvg = aContent->IsSVGElement();
+  bool isHtml = aContent->IsHTML();
+  bool isXul = aContent->IsXUL();
+  bool isSvg = aContent->IsSVG();
 
   if (aAttrNamespaceID == kNameSpaceID_None &&
       (isHtml || isXul || isSvg) &&
@@ -895,7 +895,7 @@ nsXMLContentSerializer::AppendElementStart(Element* aElement,
   uint32_t skipAttr = ScanNamespaceDeclarations(content,
                           aOriginalElement, tagNamespaceURI);
 
-  nsIAtom *name = content->NodeInfo()->NameAtom();
+  nsIAtom *name = content->Tag();
   bool lineBreakBeforeOpen = LineBreakBeforeOpen(content->GetNameSpaceID(), name);
 
   if ((mDoFormat || forceFormat) && !mDoRaw && !PreLevel()) {
@@ -985,7 +985,7 @@ nsXMLContentSerializer::AppendElementEnd(Element* aElement,
   bool forceFormat = false, outputElementEnd;
   outputElementEnd = CheckElementEnd(content, forceFormat, aStr);
 
-  nsIAtom *name = content->NodeInfo()->NameAtom();
+  nsIAtom *name = content->Tag();
 
   if ((mDoFormat || forceFormat) && !mDoRaw && !PreLevel()) {
     DecrIndentation(name);

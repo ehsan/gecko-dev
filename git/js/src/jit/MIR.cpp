@@ -948,20 +948,6 @@ MSimdSwizzle::foldsTo(TempAllocator &alloc)
     return this;
 }
 
-MDefinition *
-MSimdGeneralSwizzle::foldsTo(TempAllocator &alloc)
-{
-    int32_t lanes[4];
-    for (size_t i = 0; i < 4; i++) {
-        if (!lane(i)->isConstant() || lane(i)->type() != MIRType_Int32)
-            return this;
-        lanes[i] = lane(i)->toConstant()->value().toInt32();
-        if (lanes[i] < 0 || lanes[i] >= 4)
-            return this;
-    }
-    return MSimdSwizzle::New(alloc, input(), type(), lanes[0], lanes[1], lanes[2], lanes[3]);
-}
-
 template <typename T>
 static void
 PrintOpcodeOperation(T *mir, FILE *fp)
@@ -4109,24 +4095,17 @@ MLoadElement::foldsTo(TempAllocator &alloc)
 }
 
 bool
-MGuardReceiverPolymorphic::congruentTo(const MDefinition *ins) const
+MGuardShapePolymorphic::congruentTo(const MDefinition *ins) const
 {
-    if (!ins->isGuardReceiverPolymorphic())
+    if (!ins->isGuardShapePolymorphic())
         return false;
 
-    const MGuardReceiverPolymorphic *other = ins->toGuardReceiverPolymorphic();
-
+    const MGuardShapePolymorphic *other = ins->toGuardShapePolymorphic();
     if (numShapes() != other->numShapes())
         return false;
+
     for (size_t i = 0; i < numShapes(); i++) {
         if (getShape(i) != other->getShape(i))
-            return false;
-    }
-
-    if (numUnboxedGroups() != other->numUnboxedGroups())
-        return false;
-    for (size_t i = 0; i < numUnboxedGroups(); i++) {
-        if (getUnboxedGroup(i) != other->getUnboxedGroup(i))
             return false;
     }
 
@@ -4595,7 +4574,7 @@ jit::PropertyReadNeedsTypeBarrier(JSContext *propertycx,
         if (key->isSingleton())
             obj = key->singleton();
         else
-            obj = key->proto().isLazy() ? nullptr : key->proto().toObjectOrNull();
+            obj = key->proto().toObjectOrNull();
 
         while (obj) {
             if (!obj->getClass()->isNative())

@@ -157,7 +157,8 @@ bool RawReader::DecodeVideoFrame(bool &aKeyframeSkip,
 
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
-  AbstractMediaDecoder::AutoNotifyDecoded a(mDecoder);
+  uint32_t parsed = 0, decoded = 0;
+  AbstractMediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
 
   if (!mFrameSize)
     return false; // Metadata read failed.  We should refuse to play.
@@ -184,7 +185,7 @@ bool RawReader::DecodeVideoFrame(bool &aKeyframeSkip,
       return false;
     }
 
-    a.mParsed++;
+    parsed++;
 
     if (currentFrameTime >= aTimeThreshold)
       break;
@@ -228,7 +229,7 @@ bool RawReader::DecodeVideoFrame(bool &aKeyframeSkip,
 
   mVideoQueue.Push(v);
   mCurrentFrame++;
-  a.mDecoded++;
+  decoded++;
   currentFrameTime += USECS_PER_S / mFrameRate;
 
   return true;

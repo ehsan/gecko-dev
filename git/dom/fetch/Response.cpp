@@ -210,13 +210,6 @@ Response::SetBody(nsIInputStream* aBody)
   mInternalResponse->SetBody(aBody);
 }
 
-already_AddRefed<InternalResponse>
-Response::GetInternalResponse() const
-{
-  nsRefPtr<InternalResponse> ref = mInternalResponse;
-  return ref.forget();
-}
-
 Headers*
 Response::Headers_()
 {

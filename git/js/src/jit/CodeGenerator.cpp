@@ -154,7 +154,6 @@ CodeGenerator::CodeGenerator(MIRGenerator *gen, LIRGraph *graph, MacroAssembler 
   : CodeGeneratorSpecific(gen, graph, masm)
   , ionScriptLabels_(gen->alloc())
   , scriptCounts_(nullptr)
-  , simdRefreshTemplatesDuringLink_(0)
 {
 }
 
@@ -2528,38 +2527,23 @@ CodeGenerator::visitGuardObjectIdentity(LGuardObjectIdentity *guard)
 }
 
 void
-CodeGenerator::visitGuardReceiverPolymorphic(LGuardReceiverPolymorphic *lir)
+CodeGenerator::visitGuardShapePolymorphic(LGuardShapePolymorphic *lir)
 {
-    const MGuardReceiverPolymorphic *mir = lir->mir();
+    const MGuardShapePolymorphic *mir = lir->mir();
     Register obj = ToRegister(lir->object());
     Register temp = ToRegister(lir->temp());
 
-    MOZ_ASSERT(mir->numShapes() + mir->numUnboxedGroups() > 1);
+    MOZ_ASSERT(mir->numShapes() > 1);
 
     Label done;
+    masm.loadObjShape(obj, temp);
 
-    if (mir->numShapes()) {
-        masm.loadObjShape(obj, temp);
-
-        for (size_t i = 0; i < mir->numShapes(); i++) {
-            Shape *shape = mir->getShape(i);
-            if (i == mir->numShapes() - 1 && !mir->numUnboxedGroups())
-                bailoutCmpPtr(Assembler::NotEqual, temp, ImmGCPtr(shape), lir->snapshot());
-            else
-                masm.branchPtr(Assembler::Equal, temp, ImmGCPtr(shape), &done);
-        }
-    }
-
-    if (mir->numUnboxedGroups()) {
-        masm.loadObjGroup(obj, temp);
-
-        for (size_t i = 0; i < mir->numUnboxedGroups(); i++) {
-            ObjectGroup *group = mir->getUnboxedGroup(i);
-            if (i == mir->numUnboxedGroups() - 1)
-                bailoutCmpPtr(Assembler::NotEqual, temp, ImmGCPtr(group), lir->snapshot());
-            else
-                masm.branchPtr(Assembler::Equal, temp, ImmGCPtr(group), &done);
-        }
+    for (size_t i = 0; i < mir->numShapes(); i++) {
+        Shape *shape = mir->getShape(i);
+        if (i == mir->numShapes() - 1)
+            bailoutCmpPtr(Assembler::NotEqual, temp, ImmGCPtr(shape), lir->snapshot());
+        else
+            masm.branchPtr(Assembler::Equal, temp, ImmGCPtr(shape), &done);
     }
 
     masm.bind(&done);
@@ -4416,7 +4400,6 @@ CodeGenerator::visitSimdBox(LSimdBox *lir)
     InlineTypedObject *templateObject = lir->mir()->templateObject();
     gc::InitialHeap initialHeap = lir->mir()->initialHeap();
     MIRType type = lir->mir()->input()->type();
-    registerSimdTemplate(templateObject);
 
     MOZ_ASSERT(lir->safepoint()->liveRegs().has(in),
                "Save the input register across the oolCallVM");
@@ -4437,29 +4420,6 @@ CodeGenerator::visitSimdBox(LSimdBox *lir)
         break;
       default:
         MOZ_CRASH("Unknown SIMD kind when generating code for SimdBox.");
-    }
-}
-
-void
-CodeGenerator::registerSimdTemplate(InlineTypedObject *templateObject)
-{
-    simdRefreshTemplatesDuringLink_ |=
-        1 << uint32_t(templateObject->typeDescr().as<SimdTypeDescr>().type());
-}
-
-void
-CodeGenerator::captureSimdTemplate(JSContext *cx)
-{
-    JitCompartment *jitCompartment = cx->compartment()->jitCompartment();
-    while (simdRefreshTemplatesDuringLink_) {
-        uint32_t typeIndex = mozilla::CountTrailingZeroes32(simdRefreshTemplatesDuringLink_);
-        simdRefreshTemplatesDuringLink_ ^= 1 << typeIndex;
-        SimdTypeDescr::Type type = SimdTypeDescr::Type(typeIndex);
-
-        // Note: the weak-reference on the template object should not have been
-        // garbage collected. It is either registered by IonBuilder, or verified
-        // before using it in the EagerSimdUnbox phase.
-        jitCompartment->registerSimdTemplateObjectFor(type);
     }
 }
 
@@ -7432,12 +7392,6 @@ CodeGenerator::link(JSContext *cx, CompilerConstraintList *constraints)
 {
     RootedScript script(cx, gen->info().script());
     OptimizationLevel optimizationLevel = gen->optimizationInfo().level();
-
-    // Capture the SIMD template objects which are used during the
-    // compilation. This iterates over the template objects, using read-barriers
-    // to let the GC know that the generated code relies on these template
-    // objects.
-    captureSimdTemplate(cx);
 
     // We finished the new IonScript. Invalidate the current active IonScript,
     // so we can replace it with this new (probably higher optimized) version.

@@ -2011,7 +2011,7 @@ TabChild::RecvUpdateDimensions(const nsIntRect& rect, const nsIntSize& size,
     ScreenIntSize oldScreenSize = mInnerSize;
     mInnerSize = ScreenIntSize::FromUnknownSize(
       gfx::IntSize(size.width, size.height));
-    mWidget->Resize(0, 0, size.width, size.height,
+    mWidget->Resize(rect.x + chromeDisp.x, rect.y + chromeDisp.y, size.width, size.height,
                     true);
 
     nsCOMPtr<nsIBaseWindow> baseWin = do_QueryInterface(WebNavigation());
@@ -2046,7 +2046,7 @@ TabChild::RecvAcknowledgeScrollUpdate(const ViewID& aScrollId,
 }
 
 bool
-TabChild::RecvHandleDoubleTap(const CSSPoint& aPoint, const Modifiers& aModifiers, const ScrollableLayerGuid& aGuid)
+TabChild::RecvHandleDoubleTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
     TABC_LOG("Handling double tap at %s with %p %p\n",
       Stringify(aPoint).c_str(), mGlobal.get(), mTabChildGlobal.get());
@@ -2055,8 +2055,6 @@ TabChild::RecvHandleDoubleTap(const CSSPoint& aPoint, const Modifiers& aModifier
         return true;
     }
 
-    // Note: there is nothing to do with the modifiers here, as we are not
-    // synthesizing any sort of mouse event.
     CSSPoint point = APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid,
         GetPresShellResolution());
     nsString data;
@@ -2072,29 +2070,29 @@ TabChild::RecvHandleDoubleTap(const CSSPoint& aPoint, const Modifiers& aModifier
 }
 
 bool
-TabChild::RecvHandleSingleTap(const CSSPoint& aPoint, const Modifiers& aModifiers, const ScrollableLayerGuid& aGuid)
+TabChild::RecvHandleSingleTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
   if (mGlobal && mTabChildGlobal) {
-    mAPZEventState->ProcessSingleTap(aPoint, aModifiers, aGuid, GetPresShellResolution());
+    mAPZEventState->ProcessSingleTap(aPoint, aGuid, GetPresShellResolution());
   }
   return true;
 }
 
 bool
-TabChild::RecvHandleLongTap(const CSSPoint& aPoint, const Modifiers& aModifiers, const ScrollableLayerGuid& aGuid, const uint64_t& aInputBlockId)
+TabChild::RecvHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid, const uint64_t& aInputBlockId)
 {
   if (mGlobal && mTabChildGlobal) {
-    mAPZEventState->ProcessLongTap(GetDOMWindowUtils(), aPoint, aModifiers, aGuid,
+    mAPZEventState->ProcessLongTap(GetDOMWindowUtils(), aPoint, aGuid,
         aInputBlockId, GetPresShellResolution());
   }
   return true;
 }
 
 bool
-TabChild::RecvHandleLongTapUp(const CSSPoint& aPoint, const Modifiers& aModifiers, const ScrollableLayerGuid& aGuid)
+TabChild::RecvHandleLongTapUp(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
   if (mGlobal && mTabChildGlobal) {
-    mAPZEventState->ProcessLongTapUp(aPoint, aModifiers, aGuid, GetPresShellResolution());
+    mAPZEventState->ProcessLongTapUp(aPoint, aGuid, GetPresShellResolution());
   }
   return true;
 }
@@ -2271,9 +2269,9 @@ TabChild::UpdateTapState(const WidgetTouchEvent& aEvent, nsEventStatus aStatus)
 
   case NS_TOUCH_END:
     if (!TouchManager::gPreventMouseEvents) {
-      APZCCallbackHelper::DispatchSynthesizedMouseEvent(NS_MOUSE_MOVE, time, currentPoint, 0, mWidget);
-      APZCCallbackHelper::DispatchSynthesizedMouseEvent(NS_MOUSE_BUTTON_DOWN, time, currentPoint, 0, mWidget);
-      APZCCallbackHelper::DispatchSynthesizedMouseEvent(NS_MOUSE_BUTTON_UP, time, currentPoint, 0, mWidget);
+      APZCCallbackHelper::DispatchSynthesizedMouseEvent(NS_MOUSE_MOVE, time, currentPoint, mWidget);
+      APZCCallbackHelper::DispatchSynthesizedMouseEvent(NS_MOUSE_BUTTON_DOWN, time, currentPoint, mWidget);
+      APZCCallbackHelper::DispatchSynthesizedMouseEvent(NS_MOUSE_BUTTON_UP, time, currentPoint, mWidget);
     }
     // fall through
   case NS_TOUCH_CANCEL:

@@ -208,7 +208,7 @@ nsFrameLoader::LoadFrame()
 
   nsAutoString src;
 
-  bool isSrcdoc = mOwnerContent->IsHTMLElement(nsGkAtoms::iframe) &&
+  bool isSrcdoc = mOwnerContent->IsHTML(nsGkAtoms::iframe) &&
                   mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::srcdoc);
   if (isSrcdoc) {
     src.AssignLiteral("about:srcdoc");
@@ -222,7 +222,7 @@ nsFrameLoader::LoadFrame()
       // If the frame is a XUL element and has the attribute 'nodefaultsrc=true'
       // then we will not use 'about:blank' as fallback but return early without
       // starting a load if no 'src' attribute is given (or it's empty).
-      if (mOwnerContent->IsXULElement() &&
+      if (mOwnerContent->IsXUL() &&
           mOwnerContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::nodefaultsrc,
                                      nsGkAtoms::_true, eCaseMatters)) {
         return NS_OK;
@@ -402,7 +402,7 @@ nsFrameLoader::ReallyStartLoadingInternal()
   nsCOMPtr<nsIURI> referrer;
   
   nsAutoString srcdoc;
-  bool isSrcdoc = mOwnerContent->IsHTMLElement(nsGkAtoms::iframe) &&
+  bool isSrcdoc = mOwnerContent->IsHTML(nsGkAtoms::iframe) &&
                   mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::srcdoc,
                                          srcdoc);
 
@@ -914,8 +914,7 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size,
 
     // Don't show remote iframe if we are waiting for the completion of reflow.
     if (!aFrame || !(aFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-      nsIntPoint chromeDisp = aFrame->GetChromeDisplacement();
-      mRemoteBrowser->UpdateDimensions(dimensions, size, chromeDisp);
+      mRemoteBrowser->UpdateDimensions(dimensions, size);
     }
   }
 
@@ -1729,7 +1728,7 @@ nsFrameLoader::MaybeCreateDocShell()
   }
 
   if (mIsTopLevelContent &&
-      mOwnerContent->IsXULElement(nsGkAtoms::browser) &&
+      mOwnerContent->IsXUL(nsGkAtoms::browser) &&
       !mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disablehistory)) {
     nsresult rv;
     nsCOMPtr<nsISHistory> sessionHistory =
@@ -1815,7 +1814,7 @@ nsFrameLoader::GetURL(nsString& aURI)
 {
   aURI.Truncate();
 
-  if (mOwnerContent->IsHTMLElement(nsGkAtoms::object)) {
+  if (mOwnerContent->Tag() == nsGkAtoms::object) {
     mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::data, aURI);
   } else {
     mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::src, aURI);
@@ -1960,8 +1959,7 @@ nsFrameLoader::UpdatePositionAndSize(nsSubDocumentFrame *aIFrame)
       nsIntSize size = aIFrame->GetSubdocumentSize();
       nsIntRect dimensions;
       NS_ENSURE_SUCCESS(GetWindowDimensions(dimensions), NS_ERROR_FAILURE);
-      nsIntPoint chromeDisp = aIFrame->GetChromeDisplacement();
-      mRemoteBrowser->UpdateDimensions(dimensions, size, chromeDisp);
+      mRemoteBrowser->UpdateDimensions(dimensions, size);
     }
     return NS_OK;
   }
@@ -2115,7 +2113,7 @@ nsFrameLoader::TryRemoteBrowser()
       return false;
     }
 
-    if (!mOwnerContent->IsXULElement()) {
+    if (!mOwnerContent->IsXUL()) {
       return false;
     }
 
@@ -2415,7 +2413,7 @@ nsFrameLoader::EnsureMessageManager()
   if (!mIsTopLevelContent &&
       !OwnerIsBrowserOrAppFrame() &&
       !mRemoteFrame &&
-      !(mOwnerContent->IsXULElement() &&
+      !(mOwnerContent->IsXUL() &&
         mOwnerContent->AttrValueIs(kNameSpaceID_None,
                                    nsGkAtoms::forcemessagemanager,
                                    nsGkAtoms::_true, eCaseMatters))) {
@@ -2436,7 +2434,7 @@ nsFrameLoader::EnsureMessageManager()
 
   if (chromeWindow) {
     nsAutoString messagemanagergroup;
-    if (mOwnerContent->IsXULElement() &&
+    if (mOwnerContent->IsXUL() &&
         mOwnerContent->GetAttr(kNameSpaceID_None,
                                nsGkAtoms::messagemanagergroup,
                                messagemanagergroup)) {

@@ -115,14 +115,7 @@ enum : uint32_t {
     /* Whether this group is associated with some allocation site. */
     OBJECT_FLAG_FROM_ALLOCATION_SITE  = 0x1,
 
-    /* Whether this group is associated with a single object. */
-    OBJECT_FLAG_SINGLETON             = 0x2,
-
-    /*
-     * Whether this group is used by objects whose singleton groups have not
-     * been created yet.
-     */
-    OBJECT_FLAG_LAZY_SINGLETON        = 0x4,
+    /* (0x2 and 0x4 are unused) */
 
     /* Mask/shift for the number of properties in propertySet */
     OBJECT_FLAG_PROPERTY_COUNT_MASK   = 0xfff8,

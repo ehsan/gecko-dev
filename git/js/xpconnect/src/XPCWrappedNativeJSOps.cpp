@@ -1108,14 +1108,11 @@ MOZ_ALWAYS_INLINE JSObject*
 FixUpThisIfBroken(JSObject *obj, JSObject *funobj)
 {
     if (funobj) {
-        JSObject* parentObj =
-            &js::GetFunctionNativeReserved(funobj,
-                                           XPC_FUNCTION_PARENT_OBJECT_SLOT).toObject();
-        const js::Class *parentClass = js::GetObjectClass(parentObj);
+        const js::Class *parentClass = js::GetObjectClass(js::GetObjectParent(funobj));
         if (MOZ_UNLIKELY((IS_NOHELPER_CLASS(parentClass) || IS_CU_CLASS(parentClass)) &&
                          (js::GetObjectClass(obj) != parentClass)))
         {
-            return parentObj;
+            return js::GetObjectParent(funobj);
         }
     }
     return obj;

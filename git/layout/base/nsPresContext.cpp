@@ -1010,7 +1010,7 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
         if (parentItem) {
           Element* containingElement =
             parent->FindContentForSubDocument(mDocument);
-          if (!containingElement->IsXULElement() ||
+          if (!containingElement->IsXUL() ||
               !containingElement->
                 HasAttr(kNameSpaceID_None,
                         nsGkAtoms::forceOwnRefreshDriver)) {
@@ -2920,9 +2920,7 @@ nsRootPresContext::ComputePluginGeometryUpdates(nsIFrame* aFrame,
   // This is not happening during a paint event.
   ApplyPluginGeometryUpdates();
 #else
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
-    InitApplyPluginGeometryTimer();
-  }
+  InitApplyPluginGeometryTimer();
 #endif
 }
 

@@ -630,19 +630,19 @@ JS_CloneObject(JSContext *cx, HandleObject obj, HandleObject protoArg)
 
 #ifdef DEBUG
 JS_FRIEND_API(void)
-js::DumpString(JSString *str)
+js_DumpString(JSString *str)
 {
     str->dump();
 }
 
 JS_FRIEND_API(void)
-js::DumpAtom(JSAtom *atom)
+js_DumpAtom(JSAtom *atom)
 {
     atom->dump();
 }
 
 JS_FRIEND_API(void)
-js::DumpChars(const char16_t *s, size_t n)
+js_DumpChars(const char16_t *s, size_t n)
 {
     fprintf(stderr, "char16_t * (%p) = ", (void *) s);
     JSString::dumpChars(s, n);
@@ -650,7 +650,7 @@ js::DumpChars(const char16_t *s, size_t n)
 }
 
 JS_FRIEND_API(void)
-js::DumpObject(JSObject *obj)
+js_DumpObject(JSObject *obj)
 {
     if (!obj) {
         fprintf(stderr, "NULL\n");

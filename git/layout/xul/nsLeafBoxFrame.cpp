@@ -129,18 +129,16 @@ nsLeafBoxFrame::GetMinISize(nsRenderingContext *aRenderingContext)
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
   nsBoxLayoutState state(PresContext(), aRenderingContext);
+  nsSize minSize = GetMinSize(state);
 
-  WritingMode wm = GetWritingMode();
-  LogicalSize minSize(wm, GetMinSize(state));
-
-  // GetMinSize returns border-box size, and we want to return content
-  // inline-size.  Since Reflow uses the reflow state's border and padding, we
+  // GetMinSize returns border-box width, and we want to return content
+  // width.  Since Reflow uses the reflow state's border and padding, we
   // actually just want to subtract what GetMinSize added, which is the
   // result of GetBorderAndPadding.
   nsMargin bp;
   GetBorderAndPadding(bp);
 
-  result = minSize.ISize(wm) - LogicalMargin(wm, bp).IStartEnd(wm);
+  result = minSize.width - bp.LeftRight();
 
   return result;
 }
@@ -151,18 +149,16 @@ nsLeafBoxFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
   nsBoxLayoutState state(PresContext(), aRenderingContext);
+  nsSize prefSize = GetPrefSize(state);
 
-  WritingMode wm = GetWritingMode();
-  LogicalSize prefSize(wm, GetPrefSize(state));
-
-  // GetPrefSize returns border-box size, and we want to return content
-  // inline-size.  Since Reflow uses the reflow state's border and padding, we
+  // GetPrefSize returns border-box width, and we want to return content
+  // width.  Since Reflow uses the reflow state's border and padding, we
   // actually just want to subtract what GetPrefSize added, which is the
   // result of GetBorderAndPadding.
   nsMargin bp;
   GetBorderAndPadding(bp);
 
-  result = prefSize.ISize(wm) - LogicalMargin(wm, bp).IStartEnd(wm);
+  result = prefSize.width - bp.LeftRight();
 
   return result;
 }

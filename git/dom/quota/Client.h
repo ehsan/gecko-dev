@@ -16,7 +16,6 @@ class nsIRunnable;
 
 #define IDB_DIRECTORY_NAME "idb"
 #define ASMJSCACHE_DIRECTORY_NAME "asmjs"
-#define DOMCACHE_DIRECTORY_NAME "cache"
 
 BEGIN_QUOTA_NAMESPACE
 
@@ -40,7 +39,6 @@ public:
     //LS,
     //APPCACHE,
     ASMJS,
-    DOMCACHE,
     TYPE_MAX
   };
 
@@ -57,10 +55,6 @@ public:
 
       case ASMJS:
         aText.AssignLiteral(ASMJSCACHE_DIRECTORY_NAME);
-        break;
-
-      case DOMCACHE:
-        aText.AssignLiteral(DOMCACHE_DIRECTORY_NAME);
         break;
 
       case TYPE_MAX:
@@ -80,9 +74,6 @@ public:
     }
     else if (aText.EqualsLiteral(ASMJSCACHE_DIRECTORY_NAME)) {
       aType = ASMJS;
-    }
-    else if (aText.EqualsLiteral(DOMCACHE_DIRECTORY_NAME)) {
-      aType = DOMCACHE;
     }
     else {
       return NS_ERROR_FAILURE;

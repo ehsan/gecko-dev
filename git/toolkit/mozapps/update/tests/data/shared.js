@@ -304,7 +304,7 @@ function readStatusFile() {
   file.append(FILE_UPDATE_STATUS);
 
   if (!file.exists()) {
-    debugDump("update status file does not exists! Path: " + file.path);
+    logTestInfo("update status file does not exists! Path: " + file.path);
     return STATE_NONE;
   }
 
@@ -508,7 +508,7 @@ function removeDirRecursive(aDir) {
   }
 
   try {
-    debugDump("attempting to remove directory. Path: " + aDir.path);
+    logTestInfo("attempting to remove directory. Path: " + aDir.path);
     aDir.remove(true);
     return;
   } catch (e) {
@@ -524,7 +524,7 @@ function removeDirRecursive(aDir) {
     } else {
       entry.permissions = PERMS_FILE;
       try {
-        debugDump("attempting to remove file. Path: " + entry.path);
+        logTestInfo("attempting to remove file. Path: " + entry.path);
         entry.remove(false);
       } catch (e) {
         logTestInfo("error removing file. Exception: " + e);
@@ -535,7 +535,7 @@ function removeDirRecursive(aDir) {
 
   aDir.permissions = PERMS_DIRECTORY;
   try {
-    debugDump("attempting to remove directory. Path: " + aDir.path);
+    logTestInfo("attempting to remove directory. Path: " + aDir.path);
     aDir.remove(true);
   } catch (e) {
     logTestInfo("error removing directory. Exception: " + e);
