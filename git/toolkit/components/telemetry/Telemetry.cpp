@@ -792,7 +792,7 @@ TelemetryImpl::GetAddonHistogram(const nsACString &id, const nsACString &name,
 
   AddonHistogramInfo &info = histogramEntry->mData;
   if (!info.h) {
-    nsAutoCString actualName;
+    nsCAutoString actualName;
     AddonHistogramName(id, name, actualName);
     if (!CreateHistogramForAddon(actualName, info)) {
       return NS_ERROR_FAILURE;
@@ -1059,7 +1059,7 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
 
     const uint32_t pcCount = stack.GetStackSize();
     for (size_t pcIndex = 0; pcIndex < pcCount; ++pcIndex) {
-      nsAutoCString pcString;
+      nsCAutoString pcString;
       const Telemetry::ProcessedStack::Frame &Frame = stack.GetFrame(pcIndex);
       pcString.AppendPrintf("0x%p", Frame.mOffset);
       JSString *str = JS_NewStringCopyZ(cx, pcString.get());
@@ -1100,7 +1100,7 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
       }
 
       // Start address
-      nsAutoCString addressString;
+      nsCAutoString addressString;
       addressString.AppendPrintf("0x%p", module.mStart);
       JSString *str = JS_NewStringCopyZ(cx, addressString.get());
       if (!str) {
@@ -1395,19 +1395,20 @@ TelemetryImpl::RecordSlowStatement(const nsACString &sql,
                                    const nsACString &dbName,
                                    uint32_t delay)
 {
-  if (!sTelemetry || !sTelemetry->mCanRecord)
+  MOZ_ASSERT(sTelemetry);
+  if (!sTelemetry->mCanRecord)
     return;
 
-  nsAutoCString fullSQL(sql);
+  nsCAutoString fullSQL(sql);
   fullSQL.AppendPrintf(" /* %s */", dbName.BeginReading());
 
   bool isFirefoxDB = sTelemetry->mTrackedDBs.Contains(dbName);
   if (isFirefoxDB) {
-    nsAutoCString sanitizedSQL(SanitizeSQL(fullSQL));
+    nsCAutoString sanitizedSQL(SanitizeSQL(fullSQL));
     StoreSlowSQL(sanitizedSQL, delay, Sanitized);
   } else {
     // Report aggregate DB-level statistics for addon DBs
-    nsAutoCString aggregate;
+    nsCAutoString aggregate;
     aggregate.AppendPrintf("Untracked SQL for %s", dbName.BeginReading());
     StoreSlowSQL(aggregate, delay, Sanitized);
   }
@@ -1420,8 +1421,10 @@ void
 TelemetryImpl::RecordChromeHang(uint32_t duration,
                                 Telemetry::ProcessedStack &aStack)
 {
-  if (!sTelemetry || !sTelemetry->mCanRecord)
+  MOZ_ASSERT(sTelemetry);
+  if (!sTelemetry->mCanRecord) {
     return;
+  }
 
   MutexAutoLock hangReportMutex(sTelemetry->mHangReportsMutex);
 
@@ -1429,7 +1432,8 @@ TelemetryImpl::RecordChromeHang(uint32_t duration,
   if (sTelemetry->mHangReports.Length()) {
     Telemetry::ProcessedStack &firstStack =
       sTelemetry->mHangReports[0].mStack;
-    for (size_t i = 0; i < aStack.GetNumModules(); ++i) {
+    const uint32_t moduleCount = aStack.GetNumModules();
+    for (size_t i = 0; i < moduleCount; ++i) {
       const Telemetry::ProcessedStack::Module &module = aStack.GetModule(i);
       if (firstStack.HasModule(module)) {
         aStack.RemoveModule(i);

@@ -432,13 +432,6 @@ SetTimezone(const nsCString& aTimezoneSpec)
   PROXY_IF_SANDBOXED(SetTimezone(aTimezoneSpec));
 }
 
-nsCString
-GetTimezone()
-{
-  AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetTimezone());
-}
-
 void
 EnableSensorNotifications(SensorType aSensor) {
   AssertMainThread();

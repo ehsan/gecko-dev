@@ -278,7 +278,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     nsCOMPtr<nsIURI> uri;
     channel->GetURI(getter_AddRefs(uri));
       
-    nsAutoCString entryuriC;
+    nsCAutoString entryuriC;
     uri->GetSpec(entryuriC);
 
     nsCOMPtr<nsIRDFResource> entry;
@@ -379,7 +379,7 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
   }
 
   // we found the filename; construct a resource for its entry
-  nsAutoCString entryuriC(baseStr);
+  nsCAutoString entryuriC(baseStr);
 
   nsXPIDLCString filename;
   nsresult rv = aIndex->GetLocation(getter_Copies(filename));

@@ -386,7 +386,7 @@ DocAccessible::GetURL(nsAString& aURL)
 
   nsCOMPtr<nsISupports> container = mDocument->GetContainer();
   nsCOMPtr<nsIWebNavigation> webNav(do_GetInterface(container));
-  nsAutoCString theURL;
+  nsCAutoString theURL;
   if (webNav) {
     nsCOMPtr<nsIURI> pURI;
     webNav->GetCurrentURI(getter_AddRefs(pURI));

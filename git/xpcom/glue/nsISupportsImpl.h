@@ -30,8 +30,6 @@
 #include "nsCycleCollector.h"
 #include "nsCycleCollectorUtils.h"
 
-#include "mozilla/Assertions.h"
-
 ////////////////////////////////////////////////////////////////////////////////
 // Macros to help detect thread-safety:
 
@@ -668,11 +666,7 @@ NS_IMETHODIMP _class::QueryInterface(REFNSIID aIID, void** aInstancePtr)      \
     foundInterface = 0;                                                       \
   nsresult status;                                                            \
   if ( !foundInterface )                                                      \
-    {                                                                         \
-      /* nsISupports should be handled by this point. If not, fail. */        \
-      MOZ_ASSERT(!aIID.Equals(NS_GET_IID(nsISupports)));                      \
-      status = NS_NOINTERFACE;                                                \
-    }                                                                         \
+    status = NS_NOINTERFACE;                                                  \
   else                                                                        \
     {                                                                         \
       NS_ADDREF(foundInterface);                                              \

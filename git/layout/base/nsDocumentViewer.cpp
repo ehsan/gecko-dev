@@ -188,7 +188,6 @@ static PRLogModuleInfo * kPrintingLogMod = PR_NewLogModule("printing");
 //-----------------------------------------------------
 
 class DocumentViewerImpl;
-class nsPrintEventDispatcher;
 
 // a small delegate class used to avoid circular references
 
@@ -437,7 +436,6 @@ protected:
   nsCOMPtr<nsPrintEngine>          mPrintEngine;
   float                            mOriginalPrintPreviewScale;
   float                            mPrintPreviewZoom;
-  nsAutoPtr<nsPrintEventDispatcher> mBeforeAndAfterPrint;
 #endif // NS_PRINT_PREVIEW
 
 #ifdef DEBUG
@@ -1507,7 +1505,6 @@ DocumentViewerImpl::Destroy()
       return NS_OK;
     }
   }
-  mBeforeAndAfterPrint = nullptr;
 #endif
 
   // Don't let the document get unloaded while we are printing.
@@ -3614,8 +3611,7 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
     return rv;
   }
 
-  nsAutoPtr<nsPrintEventDispatcher> beforeAndAfterPrint(
-    new nsPrintEventDispatcher(mDocument));
+  nsPrintEventDispatcher beforeAndAfterPrint(mDocument);
   NS_ENSURE_STATE(!GetIsPrinting());
   // If we are hosting a full-page plugin, tell it to print
   // first. It shows its own native print UI.
@@ -3643,9 +3639,7 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
       return rv;
     }
   }
-  if (mPrintEngine->HasPrintCallbackCanvas()) {
-    mBeforeAndAfterPrint = beforeAndAfterPrint;
-  }
+
   rv = mPrintEngine->Print(aPrintSettings, aWebProgressListener);
   if (NS_FAILED(rv)) {
     OnDonePrinting();
@@ -3691,8 +3685,7 @@ DocumentViewerImpl::PrintPreview(nsIPrintSettings* aPrintSettings,
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
   NS_ENSURE_STATE(doc);
 
-  nsAutoPtr<nsPrintEventDispatcher> beforeAndAfterPrint(
-    new nsPrintEventDispatcher(doc));
+  nsPrintEventDispatcher beforeAndAfterPrint(doc);
   NS_ENSURE_STATE(!GetIsPrinting());
   if (!mPrintEngine) {
     mPrintEngine = new nsPrintEngine();
@@ -3713,9 +3706,7 @@ DocumentViewerImpl::PrintPreview(nsIPrintSettings* aPrintSettings,
       return rv;
     }
   }
-  if (mPrintEngine->HasPrintCallbackCanvas()) {
-    mBeforeAndAfterPrint = beforeAndAfterPrint;
-  }
+
   rv = mPrintEngine->PrintPreview(aPrintSettings, aChildDOMWin, aWebProgressListener);
   mPrintPreviewZoomed = false;
   if (NS_FAILED(rv)) {
@@ -4120,10 +4111,6 @@ DocumentViewerImpl::SetIsPrinting(bool aIsPrinting)
   } else {
     NS_WARNING("Did you close a window before printing?");
   }
-
-  if (!aIsPrinting) {
-    mBeforeAndAfterPrint = nullptr;
-  }
 #endif
 }
 
@@ -4153,9 +4140,6 @@ DocumentViewerImpl::SetIsPrintPreview(bool aIsPrintPreview)
   nsCOMPtr<nsIDocShellTreeNode> docShellTreeNode(do_QueryReferent(mContainer));
   if (docShellTreeNode || !aIsPrintPreview) {
     SetIsPrintingInDocShellTree(docShellTreeNode, aIsPrintPreview, true);
-  }
-  if (!aIsPrintPreview) {
-    mBeforeAndAfterPrint = nullptr;
   }
 #endif
   if (!aIsPrintPreview) {

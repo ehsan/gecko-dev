@@ -3035,7 +3035,7 @@ let SessionStoreInternal = {
   },
 
   /**
-   * Restore history for a window
+   * Restory history for a window
    * @param aWindow
    *        Window reference
    * @param aTabs
@@ -3865,17 +3865,16 @@ let SessionStoreInternal = {
                      aState.windows.every(function (win)
                        win.tabs.every(function (tab) tab.pinned));
 
-    let hasFirstArgument = aWindow.arguments && aWindow.arguments[0];
     if (!pinnedOnly) {
       let defaultArgs = Cc["@mozilla.org/browser/clh;1"].
                         getService(Ci.nsIBrowserHandler).defaultArgs;
       if (aWindow.arguments &&
           aWindow.arguments[0] &&
           aWindow.arguments[0] == defaultArgs)
-        hasFirstArgument = false;
+        aWindow.arguments[0] = null;
     }
 
-    return !hasFirstArgument;
+    return !aWindow.arguments || !aWindow.arguments[0];
   },
 
   /**

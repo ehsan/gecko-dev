@@ -191,7 +191,7 @@ uint32_t nsMenuItemX::ConvertGeckoToMacKeyCode(nsAString& aKeyCodeName)
     return 0;
   }
 
-  nsAutoCString keyCodeName;
+  nsCAutoString keyCodeName;
   keyCodeName.AssignWithConversion(aKeyCodeName);
   // We want case-insensitive comparison with data stored as uppercase.
   ToUpperCase(keyCodeName);

@@ -259,8 +259,8 @@ void nsMediaFragmentURIParser::Parse()
     const nsCSubstring& nv = tokenizer.nextToken();
     int32_t index = nv.FindChar('=');
     if (index >= 0) {
-      nsAutoCString name;
-      nsAutoCString value;
+      nsCAutoString name;
+      nsCAutoString value;
       NS_UnescapeURL(StringHead(nv, index), esc_Ref | esc_AlwaysCopy, name);
       NS_UnescapeURL(Substring(nv, index + 1, nv.Length()),
                      esc_Ref | esc_AlwaysCopy, value);

@@ -150,7 +150,7 @@ NS_IMETHODIMP
 WebSocketChannelParent::OnStart(nsISupports *aContext)
 {
   LOG(("WebSocketChannelParent::OnStart() %p\n", this));
-  nsAutoCString protocol, extensions;
+  nsCAutoString protocol, extensions;
   if (mChannel) {
     mChannel->GetProtocol(protocol);
     mChannel->GetExtensions(extensions);

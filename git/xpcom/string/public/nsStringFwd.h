@@ -39,7 +39,7 @@ class nsXPIDLString;
 class nsACString;
 class nsCSubstringTuple;
 class nsCString;
-class nsAutoCString;
+class nsCAutoString;
 class nsDependentCString;
 class nsDependentCSubstring;
 class nsPromiseFlatCString;

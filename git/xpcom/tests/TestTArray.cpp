@@ -321,7 +321,7 @@ typedef nsCOMPtr<nsIFile> FilePointer;
 class nsFileNameComparator {
   public:
     bool Equals(const FilePointer &a, const char *b) const {
-      nsAutoCString name;
+      nsCAutoString name;
       a->GetNativeLeafName(name);
       return name.Equals(b);
     }

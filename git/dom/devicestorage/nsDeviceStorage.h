@@ -44,11 +44,10 @@ class DeviceStorageFile MOZ_FINAL
 public:
   nsCOMPtr<nsIFile> mFile;
   nsString mPath;
-  nsString mStorageType;
   bool mEditable;
 
-  DeviceStorageFile(const nsAString& aStorageType, nsIFile* aFile, const nsAString& aPath);
-  DeviceStorageFile(const nsAString& aStorageType, nsIFile* aFile);
+  DeviceStorageFile(nsIFile* aFile, const nsAString& aPath);
+  DeviceStorageFile(nsIFile* aFile);
   void SetPath(const nsAString& aPath);
   void SetEditable(bool aEditable);
 
@@ -57,7 +56,6 @@ public:
   // we want to make sure that the names of file can't reach
   // outside of the type of storage the user asked for.
   bool IsSafePath();
-  bool IsType(nsAString& aType);
 
   nsresult Remove();
   nsresult Write(nsIInputStream* aInputStream);
@@ -65,7 +63,7 @@ public:
   void CollectFiles(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, uint64_t aSince = 0);
   void collectFilesInternal(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, uint64_t aSince, nsAString& aRootPath);
 
-  static void DirectoryDiskUsage(nsIFile* aFile, uint64_t* aSoFar);
+  static uint64_t DirectoryDiskUsage(nsIFile* aFile, uint64_t aSoFar = 0);
 
 private:
   void NormalizeFilePath();
@@ -106,8 +104,6 @@ public:
 
   virtual bool Recv__delete__(const bool& allow);
   virtual void IPDLRelease();
-
-  void GetStorageType(nsAString & aType);
 
 private:
   ~nsDOMDeviceStorageCursor();

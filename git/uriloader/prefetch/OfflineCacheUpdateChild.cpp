@@ -90,7 +90,7 @@ OfflineCacheUpdateChild::~OfflineCacheUpdateChild()
     LOG(("OfflineCacheUpdateChild::~OfflineCacheUpdateChild [%p]", this));
 }
 
-void
+nsresult
 OfflineCacheUpdateChild::GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers)
 {
     for (int32_t i = 0; i < mWeakObservers.Count(); i++) {
@@ -105,6 +105,8 @@ OfflineCacheUpdateChild::GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserve
     for (int32_t i = 0; i < mObservers.Count(); i++) {
         aObservers.AppendObject(mObservers[i]);
     }
+
+    return NS_OK;
 }
 
 void
@@ -156,7 +158,7 @@ OfflineCacheUpdateChild::AssociateDocument(nsIDOMDocument *aDocument,
     if (!existingCache) {
 #if defined(PR_LOGGING)
         if (LOG_ENABLED()) {
-            nsAutoCString clientID;
+            nsCAutoString clientID;
             if (aApplicationCache) {
                 aApplicationCache->GetClientID(clientID);
             }
@@ -443,7 +445,8 @@ OfflineCacheUpdateChild::RecvAssociateDocuments(const nsCString &cacheGroupId,
     }
 
     nsCOMArray<nsIOfflineCacheUpdateObserver> observers;
-    GatherObservers(observers);
+    rv = GatherObservers(observers);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     for (int32_t i = 0; i < observers.Count(); i++)
         observers[i]->ApplicationCacheAvailable(cache);
@@ -474,7 +477,8 @@ OfflineCacheUpdateChild::RecvNotifyStateEvent(const uint32_t &event,
     }
 
     nsCOMArray<nsIOfflineCacheUpdateObserver> observers;
-    GatherObservers(observers);
+    nsresult rv = GatherObservers(observers);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     for (int32_t i = 0; i < observers.Count(); i++)
         observers[i]->UpdateStateChanged(this, event);

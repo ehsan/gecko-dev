@@ -44,6 +44,7 @@ public class SendTabActivity extends Activity {
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
+    setTheme(R.style.SyncTheme);
     super.onCreate(savedInstanceState);
   }
 

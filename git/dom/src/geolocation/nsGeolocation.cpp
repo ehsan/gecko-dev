@@ -549,7 +549,7 @@ nsresult nsGeolocationService::Init()
 
       nsCOMPtr<nsISupportsCString> elemString = do_QueryInterface(elem);
       
-      nsAutoCString name;
+      nsCAutoString name;
       elemString->GetData(name);
 
       nsXPIDLCString spec;

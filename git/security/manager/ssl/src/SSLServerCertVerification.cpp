@@ -795,7 +795,7 @@ BlockServerCertChangeForSpdy(nsNSSSocketInfo *infoObject,
   }
 
   // Filter out sockets that did not neogtiate SPDY via NPN
-  nsAutoCString negotiatedNPN;
+  nsCAutoString negotiatedNPN;
   nsresult rv = infoObject->GetNegotiatedNPN(negotiatedNPN);
   NS_ASSERTION(NS_SUCCEEDED(rv),
                "GetNegotiatedNPN() failed during renegotiation");

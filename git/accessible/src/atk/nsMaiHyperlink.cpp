@@ -186,7 +186,7 @@ getUriCB(AtkHyperlink *aLink, gint aLinkIndex)
     if (!uri)
         return nullptr;
 
-    nsAutoCString cautoStr;
+    nsCAutoString cautoStr;
     nsresult rv = uri->GetSpec(cautoStr);
     NS_ENSURE_SUCCESS(rv, nullptr);
 

@@ -1538,19 +1538,16 @@ nsAttrValue::ParseIntMarginValue(const nsAString& aString)
   return false;
 }
 
-void
+bool
 nsAttrValue::LoadImage(nsIDocument* aDocument)
 {
   NS_ASSERTION(Type() == eURL, "wrong type");
 
-#ifdef DEBUG
-  {
-    nsString val;
-    ToString(val);
-    NS_ASSERTION(!val.IsEmpty(),
-                 "How did we end up with an empty string for eURL");
+  nsString val;
+  ToString(val);
+  if (val.IsEmpty()) {
+    return false;
   }
-#endif
 
   MiscContainer* cont = GetMiscContainer();
   mozilla::css::URLValue* url = cont->mURL;
@@ -1562,6 +1559,8 @@ nsAttrValue::LoadImage(nsIDocument* aDocument)
   cont->mImage = image;
   NS_RELEASE(url);
   cont->mType = eImage;
+
+  return true;
 }
 
 void

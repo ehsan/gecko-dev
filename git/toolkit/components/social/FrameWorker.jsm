@@ -146,6 +146,11 @@ FrameWorker.prototype = {
       workerWindow.addEventListener(t, l, c)
     };
 
+    // And a very hacky work-around for bug 734215
+    sandbox.bufferToArrayHack = function fw_bufferToArrayHack(a) {
+      return new workerWindow.Uint8Array(a);
+    };
+
     this.sandbox = sandbox;
 
     let worker = this;
@@ -226,8 +231,6 @@ function makeHiddenFrame() {
   let hiddenDoc = Services.appShell.hiddenDOMWindow.document;
   let iframe = hiddenDoc.createElementNS("http://www.w3.org/1999/xhtml", "iframe");
   iframe.setAttribute("mozframetype", "content");
-  // allow-same-origin is necessary for localStorage to work in the sandbox.
-  iframe.setAttribute("sandbox", "allow-same-origin");
 
   hiddenDoc.documentElement.appendChild(iframe);
 
@@ -238,6 +241,10 @@ function makeHiddenFrame() {
   docShell.allowImages = false;
   docShell.allowWindowControl = false;
   // TODO: disable media (bug 759964)
+  
+  // Mark this docShell as a "browserFrame", to break script access to e.g. window.top
+  docShell.setIsBrowserElement();
+
   return iframe;
 }
 

@@ -115,9 +115,6 @@ public:
     CreateSourceSurfaceFromNativeSurface(const NativeSurface &aSurface) const;
   virtual TemporaryRef<DrawTarget>
     CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFormat) const;
-  virtual TemporaryRef<DrawTarget>
-    CreateShadowDrawTarget(const IntSize &aSize, SurfaceFormat aFormat,
-                           float aSigma) const;
 
   virtual TemporaryRef<GradientStops>
     CreateGradientStops(GradientStop *aStops,
@@ -169,12 +166,7 @@ private: // data
   cairo_surface_t* mSurface;
   IntSize mSize;
   std::vector<SourceSurfaceCairo*> mSnapshots;
-
-  // It is safe to use a regular pointer here because the CairoPathContext will
-  // deregister itself on destruction. Using a RefPtr would extend the life-
-  // span of the CairoPathContext. This causes a problem when
-  // PathBuilderCairo.Finish()
-  mutable CairoPathContext* mPathObserver;
+  mutable RefPtr<CairoPathContext> mPathObserver;
 };
 
 }

@@ -11,15 +11,13 @@
 #include "nsIDocumentViewerPrint.h"
 #include "nsPrintObject.h"
 #include "mozilla/Attributes.h"
-#include "nsThreadUtils.h"
 
 class nsPrintEngine;
 
 //---------------------------------------------------
 //-- Page Timer Class
 //---------------------------------------------------
-class nsPagePrintTimer MOZ_FINAL : public nsITimerCallback,
-                                   public nsRunnable
+class nsPagePrintTimer MOZ_FINAL : public nsITimerCallback
 {
 public:
 
@@ -35,8 +33,6 @@ public:
             uint32_t                aDelay);
 
   nsresult Start(nsPrintObject* aPO);
-
-  NS_IMETHOD Run();
 
   void Stop();
 

@@ -181,7 +181,7 @@ nsFtpProtocolHandler::NewURI(const nsACString &aSpec,
                              nsIURI *aBaseURI,
                              nsIURI **result)
 {
-    nsAutoCString spec(aSpec);
+    nsCAutoString spec(aSpec);
     spec.Trim(" \t\n\r"); // Match NS_IsAsciiWhitespace instead of HTML5
 
     char *fwdPtr = spec.BeginWriting();
@@ -266,7 +266,7 @@ nsFtpProtocolHandler::RemoveConnection(nsIURI *aKey, nsFtpControlConnection* *_r
     
     *_retval = nullptr;
 
-    nsAutoCString spec;
+    nsCAutoString spec;
     aKey->GetPrePath(spec);
     
     LOG(("FTP:removing connection for %s\n", spec.get()));
@@ -304,7 +304,7 @@ nsFtpProtocolHandler::InsertConnection(nsIURI *aKey, nsFtpControlConnection *aCo
     if (aConn->mSessionId != mSessionId)
         return NS_ERROR_FAILURE;
 
-    nsAutoCString spec;
+    nsCAutoString spec;
     aKey->GetPrePath(spec);
 
     LOG(("FTP:inserting connection for %s\n", spec.get()));

@@ -84,7 +84,7 @@ WriteConsoleLog()
   // the memory allocated for the messages array. XPCOM arrays suck.
 
   nsXPIDLString msg;
-  nsAutoCString nativemsg;
+  nsCAutoString nativemsg;
 
   for (uint32_t i = 0; i < mcount; ++i) {
     rv = messages[i]->GetMessageMoz(getter_Copies(msg));

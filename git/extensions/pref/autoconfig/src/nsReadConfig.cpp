@@ -260,7 +260,7 @@ nsresult nsReadConfig::openAndEvaluateJSFile(const char *aFileName, int32_t obsc
         if (NS_FAILED(rv)) 
             return rv;
 
-        nsAutoCString location("resource://gre/defaults/autoconfig/");
+        nsCAutoString location("resource://gre/defaults/autoconfig/");
         location += aFileName;
 
         nsCOMPtr<nsIURI> uri;

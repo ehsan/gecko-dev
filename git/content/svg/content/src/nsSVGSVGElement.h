@@ -210,10 +210,6 @@ public:
     return mHasChildrenOnlyTransform;
   }
 
-  enum ChildrenOnlyTransformChangedFlags {
-    eDuringReflow = 1
-  };
-
   /**
    * This method notifies the style system that the overflow rects of our
    * immediate childrens' frames need to be updated. It is called by our own
@@ -224,7 +220,7 @@ public:
    * GetAttributeChangeHint is because we need to act on non-attribute (e.g.
    * currentScale) changes in addition to attribute (e.g. viewBox) changes.
    */
-  void ChildrenOnlyTransformChanged(PRUint32 aFlags = 0);
+  void ChildrenOnlyTransformChanged();
 
   // This services any pending notifications for the transform on on this root
   // <svg> node needing to be recalculated.  (Only applicable in

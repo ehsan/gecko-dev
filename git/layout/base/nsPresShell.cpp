@@ -99,7 +99,6 @@
 #ifdef MOZ_REFLOW_PERF
 #include "nsFontMetrics.h"
 #endif
-#include "PositionedEventTargeting.h"
 
 #include "nsIReflowCallback.h"
 
@@ -180,7 +179,7 @@
 
 #ifdef NS_FUNCTION_TIMER
 #define NS_TIME_FUNCTION_DECLARE_DOCURL                \
-  nsAutoCString docURL__("N/A");                       \
+  nsCAutoString docURL__("N/A");                       \
   nsIURI *uri__ = mDocument->GetDocumentURI();         \
   if (uri__) uri__->GetSpec(docURL__);
 #define NS_TIME_FUNCTION_WITH_DOCURL                   \
@@ -1639,7 +1638,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
     if (mDocument) {
       nsIURI *uri = mDocument->GetDocumentURI();
       if (uri) {
-        nsAutoCString url;
+        nsCAutoString url;
         uri->GetSpec(url);
         printf("*** PresShell::InitialReflow (this=%p, url='%s')\n", (void*)this, url.get());
       }
@@ -2477,7 +2476,7 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
 {
 #ifdef NS_FUNCTION_TIMER
   NS_TIME_FUNCTION_DECLARE_DOCURL;
-  nsAutoCString frameType__("N/A");
+  nsCAutoString frameType__("N/A");
   nsIAtom *atomType__ = aFrame ? aFrame->GetType() : nullptr;
   if (atomType__) atomType__->ToUTF8String(frameType__);
   NS_TIME_FUNCTION_MIN_FMT(1.0, "%s (line %d) (document: %s, frame type: %s)", MOZ_FUNCTION_NAME,
@@ -5641,21 +5640,6 @@ AppendToTouchList(const uint32_t& aKey, nsCOMPtr<nsIDOMTouch>& aData, void *aTou
   return PL_DHASH_NEXT;
 }
 
-nsIFrame* GetNearestFrameContainingPresShell(nsIPresShell* aPresShell)
-{
-  nsIView* view = aPresShell->GetViewManager()->GetRootView();
-  while (view && !view->GetFrame()) {
-    view = view->GetParent();
-  }
-
-  nsIFrame* frame = nullptr;
-  if (view) {
-    frame = view->GetFrame();
-  }
-
-  return frame;
-}
-
 nsresult
 PresShell::HandleEvent(nsIFrame        *aFrame,
                        nsGUIEvent*     aEvent,
@@ -5726,7 +5710,14 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
             return NS_OK;
           }
 
-          frame = GetNearestFrameContainingPresShell(presShell);
+          nsIView* view = presShell->GetViewManager()->GetRootView();
+          while (view && !view->GetFrame()) {
+            view = view->GetParent();
+          }
+
+          if (view) {
+            frame = view->GetFrame();
+          }
         }
 
         if (!frame)
@@ -5753,12 +5744,6 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
   }
 
   nsIFrame* frame = aFrame;
-
-  if (aEvent->eventStructType == NS_TOUCH_EVENT) {
-    FlushPendingNotifications(Flush_Layout);
-    frame = GetNearestFrameContainingPresShell(this);
-  }
-
   bool dispatchUsingCoordinates = NS_IsEventUsingCoordinates(aEvent);
   if (dispatchUsingCoordinates) {
     NS_WARN_IF_FALSE(frame, "Nothing to handle this event!");
@@ -5892,15 +5877,16 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
       } else {
         eventPoint = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, frame);
       }
-      uint32_t flags = 0;
-      if (aEvent->eventStructType == NS_MOUSE_EVENT &&
-          static_cast<nsMouseEvent*>(aEvent)->ignoreRootScrollFrame) {
-        flags |= INPUT_IGNORE_ROOT_SCROLL_FRAME;
-      }
-      nsIFrame* target =
-        FindFrameTargetedByInputEvent(aEvent->eventStructType, frame, eventPoint, flags);
-      if (target) {
-        frame = target;
+      {
+        bool ignoreRootScrollFrame = false;
+        if (aEvent->eventStructType == NS_MOUSE_EVENT) {
+          ignoreRootScrollFrame = static_cast<nsMouseEvent*>(aEvent)->ignoreRootScrollFrame;
+        }
+        nsIFrame* target = nsLayoutUtils::GetFrameForPoint(frame, eventPoint,
+                                                           false, ignoreRootScrollFrame);
+        if (target) {
+          frame = target;
+        }
       }
     }
 
@@ -7356,7 +7342,7 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
 {
   NS_TIME_FUNCTION_WITH_DOCURL;
 
-  nsAutoCString docURL("N/A");
+  nsCAutoString docURL("N/A");
   nsIURI *uri = mDocument->GetDocumentURI();
   if (uri)
     uri->GetSpec(docURL);
@@ -8301,7 +8287,7 @@ void
 PresShell::DumpReflows()
 {
   if (mReflowCountMgr) {
-    nsAutoCString uriStr;
+    nsCAutoString uriStr;
     if (mDocument) {
       nsIURI *uri = mDocument->GetDocumentURI();
       if (uri) {

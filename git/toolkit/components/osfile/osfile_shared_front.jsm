@@ -50,7 +50,7 @@ AbstractFile.prototype = {
    * bytes read and the number of bytes read. Note that |buffer| may be
    * larger than the number of bytes actually read.
    */
-  read: function read(bytes) {
+  readAll: function readAll(bytes) {
     if (bytes == null) {
       bytes = this.stat().size;
     }
@@ -76,26 +76,24 @@ AbstractFile.prototype = {
    * following fields:
    * - {number} offset The offset in |buffer| at which to start placing
    * data
-   * - {number} bytes The number of |bytes| to write from the buffer. If
-   * unspecified, this is |buffer.byteLength|. Note that |bytes| is required
-   * if |buffer| is a C pointer.
    *
    * @return {number} The number of bytes actually read, which may be
-   * less than |bytes| if the file did not contain that many bytes left.
+   * less than |bytes| if the file did not contain that many bytes left
+   * or if |options.once| was set.
    */
-  readTo: function readTo(buffer, options) {
+  readTo: function readTo(buffer, bytes, options) {
     options = options || noOptions;
 
-    let {ptr, bytes} = AbstractFile.normalizeToPointer(buffer, options.bytes,
+    let pointer = AbstractFile.normalizeToPointer(buffer, bytes,
       options.offset);
     let pos = 0;
     while (pos < bytes) {
-      let chunkSize = this._read(ptr, bytes - pos, options);
+      let chunkSize = this.read(pointer, bytes - pos, options);
       if (chunkSize == 0) {
         break;
       }
       pos += chunkSize;
-      ptr = exports.OS.Shared.offsetBy(ptr, chunkSize);
+      pointer = exports.OS.Shared.offsetBy(pointer, chunkSize);
     }
 
     return pos;
@@ -115,23 +113,21 @@ AbstractFile.prototype = {
    * following fields:
    * - {number} offset The offset in |buffer| at which to start extracting
    * data
-   * - {number} bytes The number of |bytes| to write from the buffer. If
-   * unspecified, this is |buffer.byteLength|. Note that |bytes| is required
-   * if |buffer| is a C pointer.
    *
-   * @return {number} The number of bytes actually written.
+   * @return {number} The number of bytes actually written, which may be
+   * less than |bytes| if |options.once| was set.
    */
-  write: function write(buffer, options) {
+  writeFrom: function writeFrom(buffer, bytes, options) {
     options = options || noOptions;
 
-    let {ptr, bytes} = AbstractFile.normalizeToPointer(buffer, options.bytes,
+    let pointer = AbstractFile.normalizeToPointer(buffer, bytes,
       options.offset);
 
     let pos = 0;
     while (pos < bytes) {
-      let chunkSize = this._write(ptr, bytes - pos, options);
+      let chunkSize = this.write(pointer, bytes - pos, options);
       pos += chunkSize;
-      ptr = exports.OS.Shared.offsetBy(ptr, chunkSize);
+      pointer = exports.OS.Shared.offsetBy(pointer, chunkSize);
     }
     return pos;
   }
@@ -150,8 +146,8 @@ AbstractFile.prototype = {
  * @param {number=} offset Optionally, a number of bytes by which to shift
  * |candidate|.
  *
- * @return {ptr:{C pointer}, bytes:number} A C pointer of type uint8_t,
- * corresponding to the start of |candidate| + |offset| bytes.
+ * @return {C pointer} A C pointer of type uint8_t, corresponding to the
+ * start of |candidate| + |offset| bytes.
  */
 AbstractFile.normalizeToPointer = function normalizeToPointer(candidate, bytes, offset) {
   if (!candidate) {
@@ -166,14 +162,8 @@ AbstractFile.normalizeToPointer = function normalizeToPointer(candidate, bytes, 
       throw new TypeError("Expecting a non-null pointer");
     }
     ptr = exports.OS.Shared.Type.uint8_t.out_ptr.cast(candidate);
-    if (bytes == null) {
-      throw new TypeError("C pointer missing bytes indication.");
-    }
   } else if ("byteLength" in candidate) {
     ptr = exports.OS.Shared.Type.uint8_t.out_ptr.implementation(candidate);
-    if (bytes == null) {
-      bytes = candidate.byteLength - offset;
-    }
     if (candidate.byteLength < offset + bytes) {
       throw new TypeError("Buffer is too short. I need at least " +
                          (offset + bytes) +
@@ -187,7 +177,7 @@ AbstractFile.normalizeToPointer = function normalizeToPointer(candidate, bytes, 
   if (offset != 0) {
     ptr = exports.OS.Shared.offsetBy(ptr, offset);
   }
-  return {ptr: ptr, bytes: bytes};
+  return ptr;
 };
 
 /**

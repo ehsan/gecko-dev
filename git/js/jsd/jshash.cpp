@@ -34,26 +34,26 @@ using namespace js;
 static void *
 DefaultAllocTable(void *pool, size_t size)
 {
-    return js_malloc(size);
+    return OffTheBooks::malloc_(size);
 }
 
 static void
 DefaultFreeTable(void *pool, void *item, size_t size)
 {
-    js_free(item);
+    UnwantedForeground::free_(item);
 }
 
 static JSHashEntry *
 DefaultAllocEntry(void *pool, const void *key)
 {
-    return (JSHashEntry*) js_malloc(sizeof(JSHashEntry));
+    return (JSHashEntry*) OffTheBooks::malloc_(sizeof(JSHashEntry));
 }
 
 static void
 DefaultFreeEntry(void *pool, JSHashEntry *he, unsigned flag)
 {
     if (flag == HT_FREE_ENTRY)
-        js_free(he);
+        UnwantedForeground::free_(he);
 }
 
 static JSHashAllocOps defaultHashAllocOps = {

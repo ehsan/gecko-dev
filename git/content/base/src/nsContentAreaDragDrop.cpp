@@ -291,7 +291,7 @@ DragDataProducer::GetAnchorURL(nsIContent* inNode, nsAString& outURL)
     return;
   }
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   linkURI->GetSpec(spec);
   CopyUTF8toUTF16(spec, outURL);
 }
@@ -527,7 +527,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
         nsCOMPtr<nsIURI> imageURI;
         image->GetCurrentURI(getter_AddRefs(imageURI));
         if (imageURI) {
-          nsAutoCString spec;
+          nsCAutoString spec;
           imageURI->GetSpec(spec);
           CopyUTF8toUTF16(spec, mUrlString);
         }
@@ -561,7 +561,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
           nsCOMPtr<nsIURL> imgUrl(do_QueryInterface(imgUri));
 
           if (imgUrl) {
-            nsAutoCString extension;
+            nsCAutoString extension;
             imgUrl->GetFileExtension(extension);
 
             nsXPIDLCString mimeType;
@@ -572,7 +572,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
                                                  getter_AddRefs(mimeInfo));
 
             if (mimeInfo) {
-              nsAutoCString spec;
+              nsCAutoString spec;
               imgUrl->GetSpec(spec);
 
               // pass out the image source string
@@ -589,13 +589,13 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
 
                 imgUrl = do_QueryInterface(imgUri);
 
-                nsAutoCString primaryExtension;
+                nsCAutoString primaryExtension;
                 mimeInfo->GetPrimaryExtension(primaryExtension);
 
                 imgUrl->SetFileExtension(primaryExtension);
               }
 
-              nsAutoCString fileName;
+              nsCAutoString fileName;
               imgUrl->GetFileName(fileName);
 
               NS_UnescapeURL(fileName);

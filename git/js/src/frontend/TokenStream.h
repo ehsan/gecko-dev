@@ -433,14 +433,16 @@ struct CompileError {
     void throwError();
 };
 
+namespace StrictMode {
 /* For an explanation of how these are used, see the comment in the FunctionBox definition. */
-MOZ_BEGIN_ENUM_CLASS(StrictMode, uint8_t)
+enum StrictModeState {
     NOTSTRICT,
     UNKNOWN,
     STRICT
-MOZ_END_ENUM_CLASS(StrictMode)
+};
+}
 
-inline StrictMode
+inline StrictMode::StrictModeState
 StrictModeFromContext(JSContext *cx)
 {
     return cx->hasRunOption(JSOPTION_STRICT_MODE) ? StrictMode::STRICT : StrictMode::UNKNOWN;
@@ -461,7 +463,7 @@ class StrictModeGetter {
   public:
     StrictModeGetter(Parser *p) : parser(p) { }
 
-    StrictMode get() const;
+    StrictMode::StrictModeState get() const;
     CompileError *queuedStrictModeError() const;
     void setQueuedStrictModeError(CompileError *e);
 };
@@ -534,9 +536,9 @@ class TokenStream
     void setXMLOnlyMode(bool enabled = true) { setFlag(enabled, TSF_XMLONLYMODE); }
     void setUnexpectedEOF(bool enabled = true) { setFlag(enabled, TSF_UNEXPECTED_EOF); }
 
-    StrictMode strictModeState() const
+    StrictMode::StrictModeState strictModeState() const
     {
-        return strictModeGetter ? strictModeGetter->get() : StrictMode(StrictMode::NOTSTRICT);
+        return strictModeGetter ? strictModeGetter->get() : StrictMode::NOTSTRICT;
     }
     bool isXMLTagMode() const { return !!(flags & TSF_XMLTAGMODE); }
     bool isXMLOnlyMode() const { return !!(flags & TSF_XMLONLYMODE); }

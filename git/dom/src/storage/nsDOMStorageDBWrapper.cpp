@@ -251,7 +251,7 @@ nsDOMStorageDBWrapper::CreateOriginScopeDBKey(nsIURI* aUri, nsACString& aKey)
   if (NS_FAILED(rv))
     return rv;
 
-  nsAutoCString scheme;
+  nsCAutoString scheme;
   rv = aUri->GetScheme(scheme);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -272,7 +272,7 @@ nsDOMStorageDBWrapper::CreateDomainScopeDBKey(nsIURI* aUri, nsACString& aKey)
 {
   nsresult rv;
 
-  nsAutoCString domainScope;
+  nsCAutoString domainScope;
   rv = aUri->GetAsciiHost(domainScope);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -324,7 +324,7 @@ nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(const nsACString& aAsciiDomain,
 {
   nsresult rv;
 
-  nsAutoCString subdomainsDBKey;
+  nsCAutoString subdomainsDBKey;
   if (aEffectiveTLDplus1Only) {
     nsCOMPtr<nsIEffectiveTLDService> eTLDService(do_GetService(
       NS_EFFECTIVETLDSERVICE_CONTRACTID, &rv));
@@ -334,7 +334,7 @@ nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(const nsACString& aAsciiDomain,
     rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("http://") + aAsciiDomain);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString eTLDplusOne;
+    nsCAutoString eTLDplusOne;
     rv = eTLDService->GetBaseDomain(uri, 0, eTLDplusOne);
     if (NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS == rv) {
       // XXX bug 357323 - what to do for localhost/file exactly?
@@ -359,7 +359,7 @@ nsresult
 nsDOMStorageDBWrapper::GetDomainFromScopeKey(const nsACString& aScope,
                                          nsACString& aDomain)
 {
-  nsAutoCString reverseDomain, scope;
+  nsCAutoString reverseDomain, scope;
   scope = aScope;
   scope.Left(reverseDomain, scope.FindChar(':')-1);
 

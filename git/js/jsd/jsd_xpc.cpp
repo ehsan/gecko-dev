@@ -250,7 +250,7 @@ jsds_SyncFilter (FilterRecord *rec, jsdIFilter *filter)
     if (NS_FAILED(rv))
         return false;    
 
-    nsAutoCString urlPattern;
+    nsCAutoString urlPattern;
     rv = filter->GetUrlPattern (urlPattern);
     if (NS_FAILED(rv))
         return false;
@@ -520,7 +520,7 @@ jsds_ErrorHookProc (JSDContext *jsdc, JSContext *cx, const char *message,
         val = getter_AddRefs(jsdValue::FromPtr(jsdc, jsdv));
     }
     
-    nsAutoCString fileName;
+    nsCAutoString fileName;
     uint32_t    line;
     uint32_t    pos;
     uint32_t    flags;

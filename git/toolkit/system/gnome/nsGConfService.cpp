@@ -235,7 +235,7 @@ NS_IMETHODIMP
 nsGConfService::GetAppForProtocol(const nsACString &aScheme, bool *aEnabled,
                                   nsACString &aHandler)
 {
-  nsAutoCString key("/desktop/gnome/url-handlers/");
+  nsCAutoString key("/desktop/gnome/url-handlers/");
   key.Append(aScheme);
   key.Append("/command");
 
@@ -263,7 +263,7 @@ NS_IMETHODIMP
 nsGConfService::HandlerRequiresTerminal(const nsACString &aScheme,
                                         bool *aResult)
 {
-  nsAutoCString key("/desktop/gnome/url-handlers/");
+  nsCAutoString key("/desktop/gnome/url-handlers/");
   key.Append(aScheme);
   key.Append("/requires_terminal");
 
@@ -281,7 +281,7 @@ NS_IMETHODIMP
 nsGConfService::SetAppForProtocol(const nsACString &aScheme,
                                   const nsACString &aCommand)
 {
-  nsAutoCString key("/desktop/gnome/url-handlers/");
+  nsCAutoString key("/desktop/gnome/url-handlers/");
   key.Append(aScheme);
   key.Append("/command");
 

@@ -42,7 +42,7 @@ bool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
   
   if (aContent->GetAttr(nameSpaceID, nsGkAtoms::handler, handlerURIStr)) {
     hasHandlerURI = true;
-    nsAutoCString handlerRef;
+    nsCAutoString handlerRef;
     nsCOMPtr<nsIURI> handlerURI;
     bool equals = false;
     nsIURI *docURI = aDocument->GetDocumentURI();

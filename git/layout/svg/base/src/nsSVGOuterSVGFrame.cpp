@@ -135,7 +135,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGOuterSVGFrame)
 
 nsSVGOuterSVGFrame::nsSVGOuterSVGFrame(nsStyleContext* aContext)
     : nsSVGOuterSVGFrameBase(aContext)
-    , mFullZoom(aContext->PresContext()->GetFullZoom())
+    , mFullZoom(0)
     , mViewportInitialized(false)
     , mIsRootContent(false)
 {
@@ -726,9 +726,7 @@ nsSVGOuterSVGFrame::NotifyViewportOrTransformChanged(uint32_t aFlags)
 
     if (haveNonFulLZoomTransformChange &&
         !(mState & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-      PRUint32 flags = (mState & NS_FRAME_IN_REFLOW) ?
-                         nsSVGSVGElement::eDuringReflow : 0;
-      content->ChildrenOnlyTransformChanged(flags);
+      content->ChildrenOnlyTransformChanged();
     }
   }
 

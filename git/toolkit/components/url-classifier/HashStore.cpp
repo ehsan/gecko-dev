@@ -176,8 +176,8 @@ HashStore::CheckChecksum(nsIFile* aStoreFile)
 {
   // Check for file corruption by
   // comparing the stored checksum to actual checksum of data
-  nsAutoCString hash;
-  nsAutoCString compareHash;
+  nsCAutoString hash;
+  nsCAutoString compareHash;
   char *data;
   uint32_t read;
 
@@ -338,7 +338,7 @@ HashStore::SanityCheck(nsIFile *storeFile)
 }
 
 nsresult
-HashStore::CalculateChecksum(nsAutoCString& aChecksum, bool aChecksumPresent)
+HashStore::CalculateChecksum(nsCAutoString& aChecksum, bool aChecksumPresent)
 {
   aChecksum.Truncate();
 

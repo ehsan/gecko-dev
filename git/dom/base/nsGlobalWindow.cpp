@@ -823,7 +823,7 @@ nsGlobalWindow::~nsGlobalWindow()
 
 #ifdef DEBUG
   if (!PR_GetEnv("MOZ_QUIET")) {
-    nsAutoCString url;
+    nsCAutoString url;
     if (mLastOpenedURI) {
       mLastOpenedURI->GetSpec(url);
     }
@@ -2190,7 +2190,7 @@ nsGlobalWindow::InnerSetNewDocument(nsIDocument* aDocument)
 #ifdef PR_LOGGING
   if (gDOMLeakPRLog && PR_LOG_TEST(gDOMLeakPRLog, PR_LOG_DEBUG)) {
     nsIURI *uri = aDocument->GetDocumentURI();
-    nsAutoCString spec;
+    nsCAutoString spec;
     if (uri)
       uri->GetSpec(spec);
     PR_LogPrint("DOMWINDOW %p SetNewDocument %s", this, spec.get());
@@ -4667,7 +4667,7 @@ nsGlobalWindow::MakeScriptDialogTitle(nsAString &aOutTitle)
           nsCOMPtr<nsIURI> fixedURI;
           rv = fixup->CreateExposableURI(uri, getter_AddRefs(fixedURI));
           if (NS_SUCCEEDED(rv) && fixedURI) {
-            nsAutoCString host;
+            nsCAutoString host;
             fixedURI->GetHost(host);
 
             if (!host.IsEmpty()) {
@@ -4675,7 +4675,7 @@ nsGlobalWindow::MakeScriptDialogTitle(nsAString &aOutTitle)
               // schemes (e.g. file:) we fall back to the localized
               // generic string
 
-              nsAutoCString prepath;
+              nsCAutoString prepath;
               fixedURI->GetPrePath(prepath);
 
               NS_ConvertUTF8toUTF16 ucsPrePath(prepath);
@@ -7972,14 +7972,14 @@ nsGlobalWindow::DispatchAsyncHashchange(nsIURI *aOldURI, nsIURI *aNewURI)
 
   // Make sure that aOldURI and aNewURI are identical up to the '#', and that
   // their hashes are different.
-  nsAutoCString oldBeforeHash, oldHash, newBeforeHash, newHash;
+  nsCAutoString oldBeforeHash, oldHash, newBeforeHash, newHash;
   nsContentUtils::SplitURIAtHash(aOldURI, oldBeforeHash, oldHash);
   nsContentUtils::SplitURIAtHash(aNewURI, newBeforeHash, newHash);
 
   NS_ENSURE_STATE(oldBeforeHash.Equals(newBeforeHash));
   NS_ENSURE_STATE(!oldHash.Equals(newHash));
 
-  nsAutoCString oldSpec, newSpec;
+  nsCAutoString oldSpec, newSpec;
   aOldURI->GetSpec(oldSpec);
   aNewURI->GetSpec(newSpec);
 
@@ -10232,7 +10232,7 @@ nsGlobalWindow::BuildURIfromBase(const char *aURL, nsIURI **aBuiltURI,
   /* resolve the URI, which could be relative to the calling window
      (note the algorithm to get the base URI should match the one
      used to actually kick off the load in nsWindowWatcher.cpp). */
-  nsAutoCString charset(NS_LITERAL_CSTRING("UTF-8")); // default to utf-8
+  nsCAutoString charset(NS_LITERAL_CSTRING("UTF-8")); // default to utf-8
   nsIURI* baseURI = nullptr;
   nsCOMPtr<nsIURI> uriToLoad;
   nsCOMPtr<nsIDOMWindow> sourceWindow;
@@ -11093,8 +11093,7 @@ nsGlobalWindow::SetHasAudioAvailableEventListeners()
     if (!obj) {                                                              \
       return NS_ERROR_UNEXPECTED;                                            \
     }                                                                        \
-    return elm->SetEventHandlerToJsval(nsGkAtoms::on##name_, cx, obj, v,     \
-                                       true);                                \
+    return elm->SetEventHandlerToJsval(nsGkAtoms::on##name_, cx, obj, v);    \
   }
 #define WINDOW_ONLY_EVENT EVENT
 #define TOUCH_EVENT EVENT

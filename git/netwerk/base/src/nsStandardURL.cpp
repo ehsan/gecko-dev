@@ -161,7 +161,7 @@ nsSegmentEncoder::EncodeSegmentCount(const char *str,
         // only do this if the segment is non-ASCII.  Further, if mCharset is
         // null or the empty string then the origin charset is UTF-8 and there
         // is nothing to do.
-        nsAutoCString encBuf;
+        nsCAutoString encBuf;
         if (mCharset && *mCharset && !nsCRT::IsAscii(str + pos, len)) {
             // we have to encode this segment
             if (mEncoder || InitUnicodeEncoder()) {
@@ -473,11 +473,11 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
 
     // buffers for holding escaped url segments (these will remain empty unless
     // escaping is required).
-    nsAutoCString encUsername, encPassword, encHost, encDirectory,
+    nsCAutoString encUsername, encPassword, encHost, encDirectory,
       encBasename, encExtension, encQuery, encRef;
     bool useEncUsername, useEncPassword, useEncHost = false,
       useEncDirectory, useEncBasename, useEncExtension, useEncQuery, useEncRef;
-    nsAutoCString portbuf;
+    nsCAutoString portbuf;
 
     //
     // escape each URL segment, if necessary, and calculate approximate normalized
@@ -1056,7 +1056,7 @@ nsStandardURL::GetAsciiSpec(nsACString &result)
     NS_EscapeURL(Userpass(true), esc_OnlyNonASCII | esc_AlwaysCopy, result);
 
     // get escaped host
-    nsAutoCString escHostport;
+    nsCAutoString escHostport;
     if (mHost.mLen > 0) {
         // this doesn't fail
         (void) GetAsciiHost(escHostport);
@@ -1129,7 +1129,7 @@ nsStandardURL::SetSpec(const nsACString &input)
         return NS_OK;
 
     // filter out unexpected chars "\r\n\t" if necessary
-    nsAutoCString buf1;
+    nsCAutoString buf1;
     if (net_FilterURIString(spec, buf1)) {
         spec = buf1.get();
         specLength = buf1.Length();
@@ -1253,7 +1253,7 @@ nsStandardURL::SetUserPass(const nsACString &input)
     if (NS_FAILED(rv)) return rv;
 
     // build new user:pass in |buf|
-    nsAutoCString buf;
+    nsCAutoString buf;
     if (usernameLen > 0) {
         GET_SEGMENT_ENCODER(encoder);
         bool ignoredOut;
@@ -1327,7 +1327,7 @@ nsStandardURL::SetUsername(const nsACString &input)
     InvalidateCache();
 
     // escape username if necessary
-    nsAutoCString buf;
+    nsCAutoString buf;
     GET_SEGMENT_ENCODER(encoder);
     const nsACString &escUsername =
         encoder.EncodeSegment(username, esc_Username, buf);
@@ -1384,7 +1384,7 @@ nsStandardURL::SetPassword(const nsACString &input)
     }
 
     // escape password if necessary
-    nsAutoCString buf;
+    nsCAutoString buf;
     GET_SEGMENT_ENCODER(encoder);
     const nsACString &escPassword =
         encoder.EncodeSegment(password, esc_Password, buf);
@@ -1462,7 +1462,7 @@ nsStandardURL::SetHost(const nsACString &input)
 
     // handle IPv6 unescaped address literal
     int32_t len;
-    nsAutoCString hostBuf;
+    nsCAutoString hostBuf;
     if (EscapeIPv6(host, hostBuf)) {
         host = hostBuf.get();
         len = hostBuf.Length();
@@ -1516,7 +1516,7 @@ nsStandardURL::SetPort(int32_t port)
 
     if (mPort == -1) {
         // need to insert the port number in the URL spec
-        nsAutoCString buf;
+        nsCAutoString buf;
         buf.Assign(':');
         buf.AppendInt(port);
         mSpec.Insert(buf, mHost.mPos + mHost.mLen);
@@ -1536,7 +1536,7 @@ nsStandardURL::SetPort(int32_t port)
     }
     else {
         // need to replace the existing port
-        nsAutoCString buf;
+        nsCAutoString buf;
         buf.AppendInt(port);
         uint32_t start = mHost.mPos + mHost.mLen + 1;
         uint32_t length = mPath.mPos - start;
@@ -1563,7 +1563,7 @@ nsStandardURL::SetPath(const nsACString &input)
     InvalidateCache();
 
     if (!path.IsEmpty()) {
-        nsAutoCString spec;
+        nsCAutoString spec;
 
         spec.Assign(mSpec.get(), mPath.mPos);
         if (path.First() != '/')
@@ -1768,7 +1768,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
     const char *relpath = flat.get();
 
     // filter out unexpected chars "\r\n\t" if necessary
-    nsAutoCString buf;
+    nsCAutoString buf;
     int32_t relpathLen;
     if (net_FilterURIString(relpath, buf)) {
         relpath = buf.get();
@@ -2151,7 +2151,7 @@ nsStandardURL::SetFilePath(const nsACString &input)
         return SetPath(flat);
 
     if (filepath && *filepath) {
-        nsAutoCString spec;
+        nsCAutoString spec;
         uint32_t dirPos, basePos, extPos;
         int32_t dirLen, baseLen, extLen;
         nsresult rv;
@@ -2261,7 +2261,7 @@ nsStandardURL::SetQuery(const nsACString &input)
     }
 
     // encode query if necessary
-    nsAutoCString buf;
+    nsCAutoString buf;
     bool encoded;
     GET_QUERY_ENCODER(encoder);
     encoder.EncodeSegmentCount(query, URLSegment(0, queryLen), esc_Query,
@@ -2322,7 +2322,7 @@ nsStandardURL::SetRef(const nsACString &input)
     }
 
     // encode ref if necessary
-    nsAutoCString buf;
+    nsCAutoString buf;
     bool encoded;
     GET_SEGMENT_ENCODER(encoder);
     encoder.EncodeSegmentCount(ref, URLSegment(0, refLen), esc_Ref,
@@ -2394,7 +2394,7 @@ nsStandardURL::SetFileName(const nsACString &input)
             }
         }
         else {
-            nsAutoCString newFilename;
+            nsCAutoString newFilename;
             bool ignoredOut;
             GET_SEGMENT_ENCODER(encoder);
             basename.mLen = encoder.EncodeSegmentCount(filename, basename,
@@ -2443,11 +2443,11 @@ nsStandardURL::SetFileName(const nsACString &input)
 NS_IMETHODIMP
 nsStandardURL::SetFileBaseName(const nsACString &input)
 {
-    nsAutoCString extension;
+    nsCAutoString extension;
     nsresult rv = GetFileExtension(extension);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString newFileName(input);
+    nsCAutoString newFileName(input);
 
     if (!extension.IsEmpty()) {
         newFileName.Append('.');
@@ -2460,7 +2460,7 @@ nsStandardURL::SetFileBaseName(const nsACString &input)
 NS_IMETHODIMP
 nsStandardURL::SetFileExtension(const nsACString &input)
 {
-    nsAutoCString newFileName;
+    nsCAutoString newFileName;
     nsresult rv = GetFileBaseName(newFileName);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2511,7 +2511,7 @@ nsStandardURL::GetFile(nsIFile **result)
 
 #if defined(PR_LOGGING)
     if (LOG_ENABLED()) {
-        nsAutoCString path;
+        nsCAutoString path;
         mFile->GetNativePath(path);
         LOG(("nsStandardURL::GetFile [this=%p spec=%s resulting_path=%s]\n",
             this, mSpec.get(), path.get()));
@@ -2535,7 +2535,7 @@ nsStandardURL::SetFile(nsIFile *file)
     NS_ENSURE_ARG_POINTER(file);
 
     nsresult rv;
-    nsAutoCString url;
+    nsCAutoString url;
 
     rv = net_GetURLSpecFromFile(file, url);
     if (NS_FAILED(rv)) return rv;
@@ -2636,7 +2636,7 @@ nsStandardURL::Init(uint32_t urlType,
     if (!baseURI)
         return SetSpec(spec);
 
-    nsAutoCString buf;
+    nsCAutoString buf;
     nsresult rv = baseURI->Resolve(spec, buf);
     if (NS_FAILED(rv)) return rv;
 

@@ -59,6 +59,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMOfflineResourceList,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCacheUpdate)
 
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnCheckingListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnNoUpdateListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnDownloadingListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnProgressListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnCachedListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnUpdateReadyListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnObsoleteListener)
+
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mPendingEvents);
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -66,6 +75,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMOfflineResourceList,
                                                 nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCacheUpdate)
+
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnCheckingListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnNoUpdateListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnDownloadingListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnProgressListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnCachedListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnUpdateReadyListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnObsoleteListener)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mPendingEvents)
 
@@ -83,15 +101,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMOfflineResourceList, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(nsDOMOfflineResourceList, nsDOMEventTargetHelper)
-
-NS_IMPL_EVENT_HANDLER(nsDOMOfflineResourceList, checking)
-NS_IMPL_EVENT_HANDLER(nsDOMOfflineResourceList, error)
-NS_IMPL_EVENT_HANDLER(nsDOMOfflineResourceList, noupdate)
-NS_IMPL_EVENT_HANDLER(nsDOMOfflineResourceList, downloading)
-NS_IMPL_EVENT_HANDLER(nsDOMOfflineResourceList, progress)
-NS_IMPL_EVENT_HANDLER(nsDOMOfflineResourceList, cached)
-NS_IMPL_EVENT_HANDLER(nsDOMOfflineResourceList, updateready)
-NS_IMPL_EVENT_HANDLER(nsDOMOfflineResourceList, obsolete)
 
 nsDOMOfflineResourceList::nsDOMOfflineResourceList(nsIURI *aManifestURI,
                                                    nsIURI *aDocumentURI,
@@ -179,6 +188,15 @@ nsDOMOfflineResourceList::Init()
 void
 nsDOMOfflineResourceList::Disconnect()
 {
+  mOnCheckingListener = nullptr;
+  mOnErrorListener = nullptr;
+  mOnNoUpdateListener = nullptr;
+  mOnDownloadingListener = nullptr;
+  mOnProgressListener = nullptr;
+  mOnCachedListener = nullptr;
+  mOnUpdateReadyListener = nullptr;
+  mOnObsoleteListener = nullptr;
+
   mPendingEvents.Clear();
 
   if (mListenerManager) {
@@ -243,7 +261,7 @@ nsDOMOfflineResourceList::MozHasItem(const nsAString& aURI, bool* aExists)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
-  nsAutoCString key;
+  nsCAutoString key;
   rv = GetCacheKey(aURI, key);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -327,7 +345,7 @@ nsDOMOfflineResourceList::MozAdd(const nsAString& aURI)
   rv = NS_NewURI(getter_AddRefs(requestedURI), aURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString scheme;
+  nsCAutoString scheme;
   rv = requestedURI->GetScheme(scheme);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -353,7 +371,7 @@ nsDOMOfflineResourceList::MozAdd(const nsAString& aURI)
     do_CreateInstance(NS_OFFLINECACHEUPDATE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString clientID;
+  nsCAutoString clientID;
   rv = appCache->GetClientID(clientID);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -387,7 +405,7 @@ nsDOMOfflineResourceList::MozRemove(const nsAString& aURI)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
-  nsAutoCString key;
+  nsCAutoString key;
   rv = GetCacheKey(aURI, key);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -515,6 +533,111 @@ nsDOMOfflineResourceList::SwapCache()
 //
 // nsDOMOfflineResourceList::nsIDOMEventTarget
 //
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::GetOnchecking(nsIDOMEventListener **aOnchecking)
+{
+  return GetInnerEventListener(mOnCheckingListener, aOnchecking);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::SetOnchecking(nsIDOMEventListener *aOnchecking)
+{
+  return RemoveAddEventListener(NS_LITERAL_STRING(CHECKING_STR),
+                                mOnCheckingListener, aOnchecking);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::GetOnerror(nsIDOMEventListener **aOnerror)
+{
+  return GetInnerEventListener(mOnErrorListener, aOnerror);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::SetOnerror(nsIDOMEventListener *aOnerror)
+{
+  return RemoveAddEventListener(NS_LITERAL_STRING(ERROR_STR), mOnErrorListener,
+                                aOnerror);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::GetOnnoupdate(nsIDOMEventListener **aOnnoupdate)
+{
+  return GetInnerEventListener(mOnNoUpdateListener, aOnnoupdate);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::SetOnnoupdate(nsIDOMEventListener *aOnnoupdate)
+{
+  return RemoveAddEventListener(NS_LITERAL_STRING(NOUPDATE_STR),
+                                mOnNoUpdateListener, aOnnoupdate);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::GetOndownloading(nsIDOMEventListener **aOndownloading)
+{
+  return GetInnerEventListener(mOnDownloadingListener, aOndownloading);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::SetOndownloading(nsIDOMEventListener *aOndownloading)
+{
+  return RemoveAddEventListener(NS_LITERAL_STRING(DOWNLOADING_STR),
+                                mOnDownloadingListener, aOndownloading);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::GetOnprogress(nsIDOMEventListener **aOnprogress)
+{
+  return GetInnerEventListener(mOnProgressListener, aOnprogress);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::SetOnprogress(nsIDOMEventListener *aOnprogress)
+{
+  return RemoveAddEventListener(NS_LITERAL_STRING(PROGRESS_STR),
+                                mOnProgressListener, aOnprogress);
+}
+
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::GetOnupdateready(nsIDOMEventListener **aOnupdateready)
+{
+  return GetInnerEventListener(mOnUpdateReadyListener, aOnupdateready);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::SetOncached(nsIDOMEventListener *aOncached)
+{
+  return RemoveAddEventListener(NS_LITERAL_STRING(CACHED_STR),
+                                mOnCachedListener, aOncached);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::GetOncached(nsIDOMEventListener **aOncached)
+{
+  return GetInnerEventListener(mOnCachedListener, aOncached);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::SetOnupdateready(nsIDOMEventListener *aOnupdateready)
+{
+  return RemoveAddEventListener(NS_LITERAL_STRING(UPDATEREADY_STR),
+                                mOnUpdateReadyListener, aOnupdateready);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::GetOnobsolete(nsIDOMEventListener **aOnobsolete)
+{
+  return GetInnerEventListener(mOnObsoleteListener, aOnobsolete);
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::SetOnobsolete(nsIDOMEventListener *aOnobsolete)
+{
+  return RemoveAddEventListener(NS_LITERAL_STRING(OBSOLETE_STR),
+                                mOnObsoleteListener, aOnobsolete);
+}
 
 void
 nsDOMOfflineResourceList::FirePendingEvents()
@@ -753,7 +876,7 @@ nsDOMOfflineResourceList::GetCacheKey(nsIURI *aURI, nsCString &aKey)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // url fragments aren't used in cache keys
-  nsAutoCString::const_iterator specStart, specEnd;
+  nsCAutoString::const_iterator specStart, specEnd;
   aKey.BeginReading(specStart);
   aKey.EndReading(specEnd);
   if (FindCharInReadable('#', specStart, specEnd)) {

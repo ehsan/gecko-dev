@@ -49,19 +49,23 @@ function eventSource(aProto) {
    * Add a listener to the event source for a given event.
    *
    * @param aName string
-   *        The event to listen for.
+   *        The event to listen for, or null to listen to all events.
    * @param aListener function
    *        Called when the event is fired. If the same listener
-   *        is added more than once, it will be called once per
+   *        is added more the once, it will be called once per
    *        addListener call.
    */
   aProto.addListener = function EV_addListener(aName, aListener) {
     if (typeof aListener != "function") {
-      throw TypeError("Listeners must be functions.");
+      return;
     }
 
     if (!this._listeners) {
       this._listeners = {};
+    }
+
+    if (!aName) {
+      aName = '*';
     }
 
     this._getListeners(aName).push(aListener);
@@ -72,7 +76,8 @@ function eventSource(aProto) {
    * listener will be removed after it is called for the first time.
    *
    * @param aName string
-   *        The event to listen for.
+   *        The event to listen for, or null to respond to the first event
+   *        fired by the object.
    * @param aListener function
    *        Called when the event is fired.
    */
@@ -135,6 +140,9 @@ function eventSource(aProto) {
 
     let name = arguments[0];
     let listeners = this._getListeners(name).slice(0);
+    if (this._listeners['*']) {
+      listeners.concat(this._listeners['*']);
+    }
 
     for each (let listener in listeners) {
       try {
@@ -178,6 +186,29 @@ const UnsolicitedPauses = {
   "debuggerStatement": "debuggerStatement",
   "breakpoint": "breakpoint",
   "watchpoint": "watchpoint"
+};
+
+/**
+ * Set of debug protocol request types that specify the protocol request being
+ * sent to the server.
+ */
+const DebugProtocolTypes = {
+  "assign": "assign",
+  "attach": "attach",
+  "clientEvaluate": "clientEvaluate",
+  "delete": "delete",
+  "detach": "detach",
+  "frames": "frames",
+  "interrupt": "interrupt",
+  "listTabs": "listTabs",
+  "nameAndParameters": "nameAndParameters",
+  "ownPropertyNames": "ownPropertyNames",
+  "property": "property",
+  "prototype": "prototype",
+  "prototypeAndProperties": "prototypeAndProperties",
+  "resume": "resume",
+  "scripts": "scripts",
+  "setBreakpoint": "setBreakpoint"
 };
 
 const ROOT_ACTOR_NAME = "root";
@@ -262,7 +293,7 @@ DebuggerClient.prototype = {
    *        Called with the response packet.
    */
   listTabs: function DC_listTabs(aOnResponse) {
-    let packet = { to: ROOT_ACTOR_NAME, type: "listTabs" };
+    let packet = { to: ROOT_ACTOR_NAME, type: DebugProtocolTypes.listTabs };
     this.request(packet, function(aResponse) {
       aOnResponse(aResponse);
     });
@@ -279,7 +310,7 @@ DebuggerClient.prototype = {
    */
   attachTab: function DC_attachTab(aTabActor, aOnResponse) {
     let self = this;
-    let packet = { to: aTabActor, type: "attach" };
+    let packet = { to: aTabActor, type: DebugProtocolTypes.attach };
     this.request(packet, function(aResponse) {
       if (!aResponse.error) {
         var tabClient = new TabClient(self, aTabActor);
@@ -301,7 +332,7 @@ DebuggerClient.prototype = {
    */
   attachThread: function DC_attachThread(aThreadActor, aOnResponse) {
     let self = this;
-    let packet = { to: aThreadActor, type: "attach" };
+    let packet = { to: aThreadActor, type: DebugProtocolTypes.attach };
     this.request(packet, function(aResponse) {
       if (!aResponse.error) {
         var threadClient = new ThreadClient(self, aThreadActor);
@@ -453,7 +484,7 @@ TabClient.prototype = {
    */
   detach: function TabC_detach(aOnResponse) {
     let self = this;
-    let packet = { to: this._actor, type: "detach" };
+    let packet = { to: this._actor, type: DebugProtocolTypes.detach };
     this._client.request(packet, function(aResponse) {
       if (self.activeTab === self._client._tabClients[self._actor]) {
         delete self.activeTab;
@@ -483,7 +514,6 @@ function ThreadClient(aClient, aActor) {
   this._actor = aActor;
   this._frameCache = [];
   this._scriptCache = {};
-  this._pauseGrips = {};
 }
 
 ThreadClient.prototype = {
@@ -522,7 +552,7 @@ ThreadClient.prototype = {
     let self = this;
     let packet = {
       to: this._actor,
-      type: "resume",
+      type: DebugProtocolTypes.resume,
       resumeLimit: aLimit,
       pauseOnExceptions: this._pauseOnExceptions
     };
@@ -574,7 +604,7 @@ ThreadClient.prototype = {
    *        Called with the response packet.
    */
   interrupt: function TC_interrupt(aOnResponse) {
-    let packet = { to: this._actor, type: "interrupt" };
+    let packet = { to: this._actor, type: DebugProtocolTypes.interrupt };
     this._client.request(packet, function(aResponse) {
       if (aOnResponse) {
         aOnResponse(aResponse);
@@ -627,7 +657,7 @@ ThreadClient.prototype = {
     this._state = "resuming";
 
     let self = this;
-    let request = { to: this._actor, type: "clientEvaluate",
+    let request = { to: this._actor, type: DebugProtocolTypes.clientEvaluate,
                     frame: aFrame, expression: aExpression };
     this._client.request(request, function(aResponse) {
       if (aResponse.error) {
@@ -649,7 +679,7 @@ ThreadClient.prototype = {
    */
   detach: function TC_detach(aOnResponse) {
     let self = this;
-    let packet = { to: this._actor, type: "detach" };
+    let packet = { to: this._actor, type: DebugProtocolTypes.detach };
     this._client.request(packet, function(aResponse) {
       if (self.activeThread === self._client._threadClients[self._actor]) {
         delete self.activeThread;
@@ -672,7 +702,7 @@ ThreadClient.prototype = {
   setBreakpoint: function TC_setBreakpoint(aLocation, aOnResponse) {
     // A helper function that sets the breakpoint.
     let doSetBreakpoint = function _doSetBreakpoint(aCallback) {
-      let packet = { to: this._actor, type: "setBreakpoint",
+      let packet = { to: this._actor, type: DebugProtocolTypes.setBreakpoint,
                      location: aLocation };
       this._client.request(packet, function (aResponse) {
         // Ignoring errors, since the user may be setting a breakpoint in a
@@ -712,7 +742,7 @@ ThreadClient.prototype = {
    *        Called with the thread's response.
    */
   getScripts: function TC_getScripts(aOnResponse) {
-    let packet = { to: this._actor, type: "scripts" };
+    let packet = { to: this._actor, type: DebugProtocolTypes.scripts };
     this._client.request(packet, aOnResponse);
   },
 
@@ -778,7 +808,7 @@ ThreadClient.prototype = {
   getFrames: function TC_getFrames(aStart, aCount, aOnResponse) {
     this._assertPaused("frames");
 
-    let packet = { to: this._actor, type: "frames",
+    let packet = { to: this._actor, type: DebugProtocolTypes.frames,
                    start: aStart, count: aCount ? aCount : undefined };
     this._client.request(packet, aOnResponse);
   },
@@ -848,27 +878,15 @@ ThreadClient.prototype = {
    *        A pause-lifetime object grip returned by the protocol.
    */
   pauseGrip: function TC_pauseGrip(aGrip) {
+    if (!this._pauseGrips) {
+      this._pauseGrips = {};
+    }
+
     if (aGrip.actor in this._pauseGrips) {
       return this._pauseGrips[aGrip.actor];
     }
 
     let client = new GripClient(this._client, aGrip);
-    this._pauseGrips[aGrip.actor] = client;
-    return client;
-  },
-
-  /**
-   * Return an instance of LongStringClient for the given long string grip.
-   *
-   * @param aGrip Object
-   *        The long string grip returned by the protocol.
-   */
-  longString: function TC_longString(aGrip) {
-    if (aGrip.actor in this._pauseGrips) {
-      return this._pauseGrips[aGrip.actor];
-    }
-
-    let client = new LongStringClient(this._client, aGrip);
     this._pauseGrips[aGrip.actor] = client;
     return client;
   },
@@ -881,7 +899,7 @@ ThreadClient.prototype = {
     for each (let grip in this._pauseGrips) {
       grip.valid = false;
     }
-    this._pauseGrips = {};
+    this._pauseGrips = null;
   },
 
   /**
@@ -915,7 +933,9 @@ function GripClient(aClient, aGrip)
 GripClient.prototype = {
   get actor() { return this._grip.actor },
 
-  valid: true,
+  _valid: true,
+  get valid() { return this._valid; },
+  set valid(aValid) { this._valid = !!aValid; },
 
   /**
    * Request the name of the function and its formal parameters.
@@ -928,7 +948,7 @@ GripClient.prototype = {
       throw "getSignature is only valid for function grips.";
     }
 
-    let packet = { to: this.actor, type: "nameAndParameters" };
+    let packet = { to: this.actor, type: DebugProtocolTypes.nameAndParameters };
     this._client.request(packet, function (aResponse) {
                                    if (aOnResponse) {
                                      aOnResponse(aResponse);
@@ -943,7 +963,7 @@ GripClient.prototype = {
    * @param aOnResponse function Called with the request's response.
    */
   getOwnPropertyNames: function GC_getOwnPropertyNames(aOnResponse) {
-    let packet = { to: this.actor, type: "ownPropertyNames" };
+    let packet = { to: this.actor, type: DebugProtocolTypes.ownPropertyNames };
     this._client.request(packet, function (aResponse) {
                                    if (aOnResponse) {
                                      aOnResponse(aResponse);
@@ -958,7 +978,7 @@ GripClient.prototype = {
    */
   getPrototypeAndProperties: function GC_getPrototypeAndProperties(aOnResponse) {
     let packet = { to: this.actor,
-                   type: "prototypeAndProperties" };
+                   type: DebugProtocolTypes.prototypeAndProperties };
     this._client.request(packet, function (aResponse) {
                                    if (aOnResponse) {
                                      aOnResponse(aResponse);
@@ -973,7 +993,7 @@ GripClient.prototype = {
    * @param aOnResponse function Called with the request's response.
    */
   getProperty: function GC_getProperty(aName, aOnResponse) {
-    let packet = { to: this.actor, type: "property",
+    let packet = { to: this.actor, type: DebugProtocolTypes.property,
                    name: aName };
     this._client.request(packet, function (aResponse) {
                                    if (aOnResponse) {
@@ -988,51 +1008,12 @@ GripClient.prototype = {
    * @param aOnResponse function Called with the request's response.
    */
   getPrototype: function GC_getPrototype(aOnResponse) {
-    let packet = { to: this.actor, type: "prototype" };
+    let packet = { to: this.actor, type: DebugProtocolTypes.prototype };
     this._client.request(packet, function (aResponse) {
                                    if (aOnResponse) {
                                      aOnResponse(aResponse);
                                    }
                                  });
-  }
-};
-
-/**
- * A LongStringClient provides a way to access "very long" strings from the
- * debugger server.
- *
- * @param aClient DebuggerClient
- *        The debugger client parent.
- * @param aGrip Object
- *        A pause-lifetime long string grip returned by the protocol.
- */
-function LongStringClient(aClient, aGrip) {
-  this._grip = aGrip;
-  this._client = aClient;
-}
-
-LongStringClient.prototype = {
-  get actor() { return this._grip.actor; },
-  get length() { return this._grip.length; },
-
-  valid: true,
-
-  /**
-   * Get the substring of this LongString from aStart to aEnd.
-   *
-   * @param aStart Number
-   *        The starting index.
-   * @param aEnd Number
-   *        The ending index.
-   * @param aCallback Function
-   *        The function called when we receive the substring.
-   */
-  substring: function LSC_substring(aStart, aEnd, aCallback) {
-    let packet = { to: this.actor,
-                   type: "substring",
-                   start: aStart,
-                   end: aEnd };
-    this._client.request(packet, aCallback);
   }
 };
 
@@ -1062,7 +1043,7 @@ BreakpointClient.prototype = {
    * Remove the breakpoint from the server.
    */
   remove: function BC_remove(aOnResponse) {
-    let packet = { to: this._actor, type: "delete" };
+    let packet = { to: this._actor, type: DebugProtocolTypes["delete"] };
     this._client.request(packet, function(aResponse) {
                                    if (aOnResponse) {
                                      aOnResponse(aResponse);

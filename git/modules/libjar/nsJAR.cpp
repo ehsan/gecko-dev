@@ -247,7 +247,7 @@ nsJAR::Extract(const nsACString &aEntryName, nsIFile* outFile)
     if (NS_FAILED(rv)) return rv;
 
     // ExtractFile also closes the fd handle and resolves the symlink if needed
-    nsAutoCString path;
+    nsCAutoString path;
     rv = outFile->GetNativePath(path);
     if (NS_FAILED(rv)) return rv;
 
@@ -504,7 +504,7 @@ nsJAR::ParseManifest()
     return NS_OK;
   }
 
-  nsAutoCString manifestFilename;
+  nsCAutoString manifestFilename;
   rv = files->GetNext(manifestFilename);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -547,19 +547,19 @@ nsJAR::ParseManifest()
   if (NS_FAILED(rv)) return rv;
   
   //-- Get its corresponding signature file
-  nsAutoCString sigFilename(manifestFilename);
+  nsCAutoString sigFilename(manifestFilename);
   int32_t extension = sigFilename.RFindChar('.') + 1;
   NS_ASSERTION(extension != 0, "Manifest Parser: Missing file extension.");
   (void)sigFilename.Cut(extension, 2);
   nsXPIDLCString sigBuffer;
   uint32_t sigLen;
   {
-    nsAutoCString tempFilename(sigFilename); tempFilename.Append("rsa", 3);
+    nsCAutoString tempFilename(sigFilename); tempFilename.Append("rsa", 3);
     rv = LoadEntry(tempFilename, getter_Copies(sigBuffer), &sigLen);
   }
   if (NS_FAILED(rv))
   {
-    nsAutoCString tempFilename(sigFilename); tempFilename.Append("RSA", 3);
+    nsCAutoString tempFilename(sigFilename); tempFilename.Append("RSA", 3);
     rv = LoadEntry(tempFilename, getter_Copies(sigBuffer), &sigLen);
   }
   if (NS_FAILED(rv))
@@ -606,7 +606,7 @@ nsJAR::ParseOneFile(const char* filebuf, int16_t aFileType)
 {
   //-- Check file header
   const char* nextLineStart = filebuf;
-  nsAutoCString curLine;
+  nsCAutoString curLine;
   int32_t linelen;
   linelen = ReadLine(&nextLineStart);
   curLine.Assign(filebuf, linelen);
@@ -630,8 +630,8 @@ nsJAR::ParseOneFile(const char* filebuf, int16_t aFileType)
     if (!(curItemMF = new nsJARManifestItem()))
       return NS_ERROR_OUT_OF_MEMORY;
 
-  nsAutoCString curItemName;
-  nsAutoCString storedSectionDigest;
+  nsCAutoString curItemName;
+  nsCAutoString storedSectionDigest;
 
   for(;;)
   {
@@ -727,7 +727,7 @@ nsJAR::ParseOneFile(const char* filebuf, int16_t aFileType)
     {
       curPos = nextLineStart;
       int32_t continuationLen = ReadLine(&nextLineStart) - 1;
-      nsAutoCString continuation(curPos+1, continuationLen);
+      nsCAutoString continuation(curPos+1, continuationLen);
       curLine += continuation;
       linelen += continuationLen;
     }
@@ -737,9 +737,9 @@ nsJAR::ParseOneFile(const char* filebuf, int16_t aFileType)
     if (colonPos == -1)    // No colon on line, ignore line
       continue;
     //-- Break down the line
-    nsAutoCString lineName;
+    nsCAutoString lineName;
     curLine.Left(lineName, colonPos);
-    nsAutoCString lineData;
+    nsCAutoString lineData;
     curLine.Mid(lineData, colonPos+2, linelen - (colonPos+2));
 
     //-- Lines to look for:
@@ -1074,7 +1074,7 @@ nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
   mZipCacheLookups++;
 #endif
 
-  nsAutoCString uri;
+  nsCAutoString uri;
   rv = zipFile->GetNativePath(uri);
   if (NS_FAILED(rv)) return rv;
 
@@ -1125,7 +1125,7 @@ nsZipReaderCache::GetInnerZip(nsIFile* zipFile, const nsACString &entry,
   mZipCacheLookups++;
 #endif
 
-  nsAutoCString uri;
+  nsCAutoString uri;
   rv = zipFile->GetNativePath(uri);
   if (NS_FAILED(rv)) return rv;
 
@@ -1239,7 +1239,7 @@ nsZipReaderCache::ReleaseZip(nsJAR* zip)
 #endif
 
   // remove from hashtable
-  nsAutoCString uri;
+  nsCAutoString uri;
   rv = oldest->GetJarPath(uri);
   if (NS_FAILED(rv))
     return rv;
@@ -1310,7 +1310,7 @@ nsZipReaderCache::Observe(nsISupports *aSubject,
     if (!file)
       return NS_OK;
 
-    nsAutoCString uri;
+    nsCAutoString uri;
     if (NS_FAILED(file->GetNativePath(uri)))
       return NS_OK;
 

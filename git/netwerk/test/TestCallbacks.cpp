@@ -221,14 +221,14 @@ int main(int argc, char *argv[]) {
     }
 
     rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
-    if (NS_FAILED(rv)) return -1;
+    if (NS_FAILED(rv)) return rv;
 
     if (cmdLineURL) {
         rv = StartLoad(argv[1]);
     } else {
         rv = StartLoad("http://badhostnamexyz/test.txt");
     }
-    if (NS_FAILED(rv)) return -1;
+    if (NS_FAILED(rv)) return rv;
 
     // Enter the message pump to allow the URL load to proceed.
     PumpEvents();
@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
     if (gError) {
         fprintf(stderr, "\n\n-------ERROR-------\n\n");
     }
-    return 0;
+    return rv;
 }
 
 nsresult StartLoad(const char *aURISpec) {

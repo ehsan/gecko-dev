@@ -106,7 +106,7 @@ nsNativeAppSupportQt::Start(bool* aRetVal)
      defined in your desktop file.  If it doesn't, the OSSO
      system will happily kill your process.
   */
-  nsAutoCString applicationName;
+  nsCAutoString applicationName;
   if (gAppData->vendor) {
       applicationName.Append(gAppData->vendor);
       applicationName.Append(".");

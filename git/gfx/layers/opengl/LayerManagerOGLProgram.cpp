@@ -279,7 +279,7 @@ ShaderProgramOGL::CreateShader(GLenum aShaderType, const char *aShaderSource)
 #endif
       )
   {
-    nsAutoCString log;
+    nsCAutoString log;
     log.SetCapacity(len);
     mGL->fGetShaderInfoLog(sh, len, (GLint*) &len, (char*) log.BeginWriting());
     log.SetLength(len);
@@ -332,7 +332,7 @@ ShaderProgramOGL::CreateProgram(const char *aVertexShaderString,
 #endif
       )
   {
-    nsAutoCString log;
+    nsCAutoString log;
     log.SetCapacity(len);
     mGL->fGetProgramInfoLog(result, len, (GLint*) &len, (char*) log.BeginWriting());
     log.SetLength(len);

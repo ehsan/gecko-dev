@@ -244,7 +244,7 @@ Classifier::TableRequest(nsACString& aResult)
 
     if (adds.Length() > 0) {
       aResult.Append("a:");
-      nsAutoCString addList;
+      nsCAutoString addList;
       adds.Serialize(addList);
       aResult.Append(addList);
     }
@@ -253,7 +253,7 @@ Classifier::TableRequest(nsACString& aResult)
       if (adds.Length() > 0)
         aResult.Append(':');
       aResult.Append("s:");
-      nsAutoCString subList;
+      nsCAutoString subList;
       subs.Serialize(subList);
       aResult.Append(subList);
     }
@@ -300,7 +300,7 @@ Classifier::Check(const nsACString& aSpec, LookupResultArray& aResults)
 
 #if DEBUG && defined(PR_LOGGING)
     if (LOG_ENABLED()) {
-      nsAutoCString checking;
+      nsCAutoString checking;
       lookupHash.ToString(checking);
       LOG(("Checking %s (%X)", checking.get(), lookupHash.ToUint32()));
     }

@@ -794,7 +794,7 @@ ContinueHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   // (less than, if we're running a PREV cursor) or equal to the key that was
   // specified.
 
-  nsAutoCString query;
+  nsCAutoString query;
   if (mCursor->mContinueToKey.IsUnset()) {
     query.Assign(mCursor->mContinueQuery);
   }

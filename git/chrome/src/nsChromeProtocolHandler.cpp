@@ -151,7 +151,7 @@ nsChromeProtocolHandler::NewChannel(nsIURI* aURI,
     rv = nsChromeRegistry::gChromeRegistry->ConvertChromeURL(aURI, getter_AddRefs(resolvedURI));
     if (NS_FAILED(rv)) {
 #ifdef DEBUG
-        nsAutoCString spec;
+        nsCAutoString spec;
         aURI->GetSpec(spec);
         printf("Couldn't convert chrome URL: %s\n", spec.get());
 #endif
@@ -173,7 +173,7 @@ nsChromeProtocolHandler::NewChannel(nsIURI* aURI,
         bool exists = false;
         file->Exists(&exists);
         if (!exists) {
-            nsAutoCString path;
+            nsCAutoString path;
             file->GetNativePath(path);
             printf("Chrome file doesn't exist: %s\n", path.get());
         }
@@ -191,7 +191,7 @@ nsChromeProtocolHandler::NewChannel(nsIURI* aURI,
     // Get a system principal for content files and set the owner
     // property of the result
     nsCOMPtr<nsIURL> url = do_QueryInterface(aURI);
-    nsAutoCString path;
+    nsCAutoString path;
     rv = url->GetPath(path);
     if (StringBeginsWith(path, NS_LITERAL_CSTRING("/content/")))
     {

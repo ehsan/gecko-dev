@@ -97,7 +97,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
   // protect |result| here.
   nsresult rv;
 
-  nsAutoCString uriSpec;
+  nsCAutoString uriSpec;
   aBindingDocURI->GetSpec(uriSpec);
   
   JSContext* cx = aContext->GetNativeContext();

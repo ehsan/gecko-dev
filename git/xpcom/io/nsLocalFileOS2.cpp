@@ -245,7 +245,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
 
         nsresult Init(nsIFile* parent)
         {
-            nsAutoCString filepath;
+            nsCAutoString filepath;
             parent->GetNativeTarget(filepath);
 
             if (filepath.IsEmpty())
@@ -1121,7 +1121,7 @@ nsLocalFile::GetFileTypes(nsIArray **_retval)
         nsCOMPtr<nsISupportsCString> typeString(
                     do_CreateInstance(NS_SUPPORTS_CSTRING_CONTRACTID, &rv));
         if (NS_SUCCEEDED(rv)) {
-            nsAutoCString temp;
+            nsCAutoString temp;
             temp.Assign(ptr, lth);
             typeString->SetData(temp);
             mutArray->AppendElement(typeString, false);
@@ -1332,16 +1332,16 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
                             const nsACString &newName, bool move)
 {
     nsresult rv;
-    nsAutoCString filePath;
+    nsCAutoString filePath;
 
-    nsAutoCString destPath;
+    nsCAutoString destPath;
     destParent->GetNativeTarget(destPath);
 
     destPath.Append("\\");
 
     if (newName.IsEmpty())
     {
-        nsAutoCString aFileName;
+        nsCAutoString aFileName;
         sourceFile->GetNativeLeafName(aFileName);
         destPath.Append(aFileName);
     }
@@ -1487,7 +1487,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
         if (NS_FAILED(rv))
             return rv;
 
-        nsAutoCString allocatedNewName;
+        nsCAutoString allocatedNewName;
         if (newName.IsEmpty())
         {
             GetNativeLeafName(allocatedNewName);
@@ -1581,7 +1581,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
     {
         MakeDirty();
 
-        nsAutoCString newParentPath;
+        nsCAutoString newParentPath;
         newParentDir->GetNativePath(newParentPath);
 
         if (newParentPath.IsEmpty())
@@ -1589,7 +1589,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
 
         if (newName.IsEmpty())
         {
-            nsAutoCString aFileName;
+            nsCAutoString aFileName;
             GetNativeLeafName(aFileName);
 
             InitWithNativePath(newParentPath);
@@ -1702,7 +1702,7 @@ nsLocalFile::Remove(bool recursive)
 }
 
 NS_IMETHODIMP
-nsLocalFile::GetLastModifiedTime(PRTime *aLastModifiedTime)
+nsLocalFile::GetLastModifiedTime(int64_t *aLastModifiedTime)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
@@ -1723,14 +1723,14 @@ nsLocalFile::GetLastModifiedTime(PRTime *aLastModifiedTime)
 
 
 NS_IMETHODIMP
-nsLocalFile::GetLastModifiedTimeOfLink(PRTime *aLastModifiedTime)
+nsLocalFile::GetLastModifiedTimeOfLink(int64_t *aLastModifiedTime)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 
 NS_IMETHODIMP
-nsLocalFile::SetLastModifiedTime(PRTime aLastModifiedTime)
+nsLocalFile::SetLastModifiedTime(int64_t aLastModifiedTime)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
@@ -1740,13 +1740,13 @@ nsLocalFile::SetLastModifiedTime(PRTime aLastModifiedTime)
 
 
 NS_IMETHODIMP
-nsLocalFile::SetLastModifiedTimeOfLink(PRTime aLastModifiedTime)
+nsLocalFile::SetLastModifiedTimeOfLink(int64_t aLastModifiedTime)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 nsresult
-nsLocalFile::SetModDate(PRTime aLastModifiedTime)
+nsLocalFile::SetModDate(int64_t aLastModifiedTime)
 {
     nsresult rv = Stat();
 
@@ -1972,7 +1972,7 @@ nsLocalFile::GetParent(nsIFile * *aParent)
 
     NS_ENSURE_ARG_POINTER(aParent);
 
-    nsAutoCString parentPath(mWorkingPath);
+    nsCAutoString parentPath(mWorkingPath);
 
     // cannot use nsCString::RFindChar() due to 0x5c problem
     int32_t offset = (int32_t) (_mbsrchr((const unsigned char *) parentPath.get(), '\\')
@@ -2088,7 +2088,7 @@ nsLocalFile::IsExecutable(bool *_retval)
     if (NS_FAILED(rv) || !isFile)
         return rv;
 
-    nsAutoCString path;
+    nsCAutoString path;
     GetNativeTarget(path);
 
     // get the filename, including the leading backslash
@@ -2211,7 +2211,7 @@ nsLocalFile::Equals(nsIFile *inFile, bool *_retval)
     NS_ENSURE_ARG(inFile);
     NS_ENSURE_ARG(_retval);
 
-    nsAutoCString inFilePath;
+    nsCAutoString inFilePath;
     inFile->GetNativePath(inFilePath);
 
     *_retval = inFilePath.Equals(mWorkingPath);
@@ -2226,13 +2226,13 @@ nsLocalFile::Contains(nsIFile *inFile, bool recur, bool *_retval)
 
     *_retval = false;
 
-    nsAutoCString myFilePath;
+    nsCAutoString myFilePath;
     if ( NS_FAILED(GetNativeTarget(myFilePath)))
         GetNativePath(myFilePath);
 
     int32_t myFilePathLen = myFilePath.Length();
 
-    nsAutoCString inFilePath;
+    nsCAutoString inFilePath;
     if ( NS_FAILED(inFile->GetNativeTarget(inFilePath)))
         inFile->GetNativePath(inFilePath);
 
@@ -2339,7 +2339,7 @@ NS_IMETHODIMP
 nsLocalFile::Reveal()
 {
     bool isDirectory = false;
-    nsAutoCString path;
+    nsCAutoString path;
 
     IsDirectory(&isDirectory);
     if (isDirectory)
@@ -2404,7 +2404,7 @@ nsLocalFile::InitWithPath(const nsAString &filePath)
     if (filePath.IsEmpty())
         return InitWithNativePath(EmptyCString());
 
-    nsAutoCString tmp;
+    nsCAutoString tmp;
     nsresult rv = NS_CopyUnicodeToNative(filePath, tmp);
     if (NS_SUCCEEDED(rv))
         return InitWithNativePath(tmp);
@@ -2418,7 +2418,7 @@ nsLocalFile::Append(const nsAString &node)
     if (node.IsEmpty())
         return NS_OK;
 
-    nsAutoCString tmp;
+    nsCAutoString tmp;
     nsresult rv = NS_CopyUnicodeToNative(node, tmp);
     if (NS_SUCCEEDED(rv))
         return AppendNative(tmp);
@@ -2432,7 +2432,7 @@ nsLocalFile::AppendRelativePath(const nsAString &node)
     if (node.IsEmpty())
         return NS_OK;
 
-    nsAutoCString tmp;
+    nsCAutoString tmp;
     nsresult rv = NS_CopyUnicodeToNative(node, tmp);
     if (NS_SUCCEEDED(rv))
         return AppendRelativeNativePath(tmp);
@@ -2443,7 +2443,7 @@ nsLocalFile::AppendRelativePath(const nsAString &node)
 NS_IMETHODIMP
 nsLocalFile::GetLeafName(nsAString &aLeafName)
 {
-    nsAutoCString tmp;
+    nsCAutoString tmp;
     nsresult rv = GetNativeLeafName(tmp);
     if (NS_SUCCEEDED(rv))
         rv = NS_CopyNativeToUnicode(tmp, aLeafName);
@@ -2457,7 +2457,7 @@ nsLocalFile::SetLeafName(const nsAString &aLeafName)
     if (aLeafName.IsEmpty())
         return SetNativeLeafName(EmptyCString());
 
-    nsAutoCString tmp;
+    nsCAutoString tmp;
     nsresult rv = NS_CopyUnicodeToNative(aLeafName, tmp);
     if (NS_SUCCEEDED(rv))
         return SetNativeLeafName(tmp);
@@ -2477,7 +2477,7 @@ nsLocalFile::CopyTo(nsIFile *newParentDir, const nsAString &newName)
     if (newName.IsEmpty())
         return CopyToNative(newParentDir, EmptyCString());
 
-    nsAutoCString tmp;
+    nsCAutoString tmp;
     nsresult rv = NS_CopyUnicodeToNative(newName, tmp);
     if (NS_SUCCEEDED(rv))
         return CopyToNative(newParentDir, tmp);
@@ -2491,7 +2491,7 @@ nsLocalFile::CopyToFollowingLinks(nsIFile *newParentDir, const nsAString &newNam
     if (newName.IsEmpty())
         return CopyToFollowingLinksNative(newParentDir, EmptyCString());
 
-    nsAutoCString tmp;
+    nsCAutoString tmp;
     nsresult rv = NS_CopyUnicodeToNative(newName, tmp);
     if (NS_SUCCEEDED(rv))
         return CopyToFollowingLinksNative(newParentDir, tmp);
@@ -2505,7 +2505,7 @@ nsLocalFile::MoveTo(nsIFile *newParentDir, const nsAString &newName)
     if (newName.IsEmpty())
         return MoveToNative(newParentDir, EmptyCString());
 
-    nsAutoCString tmp;
+    nsCAutoString tmp;
     nsresult rv = NS_CopyUnicodeToNative(newName, tmp);
     if (NS_SUCCEEDED(rv))
         return MoveToNative(newParentDir, tmp);
@@ -2516,7 +2516,7 @@ nsLocalFile::MoveTo(nsIFile *newParentDir, const nsAString &newName)
 NS_IMETHODIMP
 nsLocalFile::GetTarget(nsAString &_retval)
 {
-    nsAutoCString tmp;
+    nsCAutoString tmp;
     nsresult rv = GetNativeTarget(tmp);
     if (NS_SUCCEEDED(rv))
         rv = NS_CopyNativeToUnicode(tmp, _retval);
@@ -2548,7 +2548,7 @@ nsLocalFile::GetHashCode(uint32_t *aResult)
 nsresult
 NS_NewLocalFile(const nsAString &path, bool followLinks, nsIFile* *result)
 {
-    nsAutoCString buf;
+    nsCAutoString buf;
     nsresult rv = NS_CopyUnicodeToNative(path, buf);
     if (NS_FAILED(rv)) {
         *result = nullptr;

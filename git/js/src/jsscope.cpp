@@ -128,7 +128,7 @@ Shape::hashify(JSContext *cx)
         return false;
 
     if (!table->init(rt, self)) {
-        js_free(table);
+        rt->free_(table);
         return false;
     }
 
@@ -255,7 +255,7 @@ ShapeTable::change(int log2Delta, JSContext *cx)
     }
 
     /* Finally, free the old entries storage. */
-    js_free(oldTable);
+    cx->free_(oldTable);
     return true;
 }
 

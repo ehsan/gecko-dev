@@ -32,7 +32,7 @@ nsSocketProviderService::GetSocketProvider(const char         *type,
                                            nsISocketProvider **result)
 {
   nsresult rv;
-  nsAutoCString contractID(
+  nsCAutoString contractID(
           NS_LITERAL_CSTRING(NS_NETWORK_SOCKET_CONTRACTID_PREFIX) +
           nsDependentCString(type));
 

@@ -33,7 +33,7 @@ main(int argc, char **argv)
         return -1;
 
     nsresult rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
-    if (NS_FAILED(rv)) return -1;
+    if (NS_FAILED(rv)) return rv;
 
     char buf[256];
 

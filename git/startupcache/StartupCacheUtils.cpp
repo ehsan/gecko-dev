@@ -103,11 +103,11 @@ NewBufferFromStorageStream(nsIStorageStream *storageStream,
 static const char baseName[2][5] = { "gre/", "app/" };
 
 static inline bool
-canonicalizeBase(nsAutoCString &spec,
+canonicalizeBase(nsCAutoString &spec,
                  nsACString &out,
                  mozilla::Omnijar::Type aType)
 {
-    nsAutoCString base;
+    nsCAutoString base;
     nsresult rv = mozilla::Omnijar::GetURIString(aType, base);
 
     if (NS_FAILED(rv) || !base.Length())
@@ -153,7 +153,7 @@ PathifyURI(nsIURI *in, nsACString &out)
     bool equals;
     nsresult rv;
     nsCOMPtr<nsIURI> uri = in;
-    nsAutoCString spec;
+    nsCAutoString spec;
 
     // Resolve resource:// URIs. At the end of this if/else block, we
     // have both spec and uri variables identifying the same URI.
@@ -195,7 +195,7 @@ PathifyURI(nsIURI *in, nsACString &out)
             baseFileURL = do_QueryInterface(uri, &rv);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            nsAutoCString path;
+            nsCAutoString path;
             rv = baseFileURL->GetPath(path);
             NS_ENSURE_SUCCESS(rv, rv);
 
@@ -211,13 +211,13 @@ PathifyURI(nsIURI *in, nsACString &out)
             rv = PathifyURI(jarFileURI, out);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            nsAutoCString path;
+            nsCAutoString path;
             rv = jarURI->GetJAREntry(path);
             NS_ENSURE_SUCCESS(rv, rv);
             out.Append("/");
             out.Append(path);
         } else { // Very unlikely
-            nsAutoCString spec;
+            nsCAutoString spec;
             rv = uri->GetSpec(spec);
             NS_ENSURE_SUCCESS(rv, rv);
 

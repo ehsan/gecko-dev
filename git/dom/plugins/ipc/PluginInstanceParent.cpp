@@ -430,6 +430,9 @@ PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginDrawingModel(
 #if defined(XP_WIN)
                drawingModel == NPDrawingModelSyncWin
 #elif defined(XP_MACOSX)
+#ifndef NP_NO_QUICKDRAW
+               drawingModel == NPDrawingModelQuickDraw ||
+#endif
                drawingModel == NPDrawingModelOpenGL ||
                drawingModel == NPDrawingModelCoreGraphics
 #elif defined(MOZ_X11)

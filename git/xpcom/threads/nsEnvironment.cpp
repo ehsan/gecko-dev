@@ -46,11 +46,11 @@ nsEnvironment::~nsEnvironment()
 NS_IMETHODIMP
 nsEnvironment::Exists(const nsAString& aName, bool *aOutValue)
 {
-    nsAutoCString nativeName;
+    nsCAutoString nativeName;
     nsresult rv = NS_CopyUnicodeToNative(aName, nativeName);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString nativeVal;
+    nsCAutoString nativeVal;
 #if defined(XP_UNIX)
     /* For Unix/Linux platforms we follow the Unix definition:
      * An environment variable exists when |getenv()| returns a non-NULL value.
@@ -75,11 +75,11 @@ nsEnvironment::Exists(const nsAString& aName, bool *aOutValue)
 NS_IMETHODIMP
 nsEnvironment::Get(const nsAString& aName, nsAString& aOutValue)
 {
-    nsAutoCString nativeName;
+    nsCAutoString nativeName;
     nsresult rv = NS_CopyUnicodeToNative(aName, nativeName);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString nativeVal;
+    nsCAutoString nativeVal;
     const char *value = PR_GetEnv(nativeName.get());
     if (value && *value) {
         rv = NS_CopyNativeToUnicode(nsDependentCString(value), aOutValue);
@@ -118,8 +118,8 @@ EnsureEnvHash()
 NS_IMETHODIMP
 nsEnvironment::Set(const nsAString& aName, const nsAString& aValue)
 {
-    nsAutoCString nativeName;
-    nsAutoCString nativeVal;
+    nsCAutoString nativeName;
+    nsCAutoString nativeVal;
 
     nsresult rv = NS_CopyUnicodeToNative(aName, nativeName);
     NS_ENSURE_SUCCESS(rv, rv);

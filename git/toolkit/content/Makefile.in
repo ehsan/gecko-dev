@@ -58,14 +58,13 @@ TEST_DIRS += tests
 
 EXTRA_JS_MODULES = \
   debug.js \
-  DeferredTask.jsm \
-  Dict.jsm \
   Geometry.jsm \
   InlineSpellChecker.jsm \
-  PageMenu.jsm \
   PopupNotifications.jsm \
-  PrivateBrowsingUtils.jsm \
+  Dict.jsm \
+  PageMenu.jsm \
   PropertyListUtils.jsm \
+  PrivateBrowsingUtils.jsm \
   Task.jsm \
   $(NULL)
 

@@ -20,17 +20,34 @@ namespace ctypes {
 ** Utility classes
 *******************************************************************************/
 
+template<class T>
+class OperatorDelete
+{
+public:
+  static void destroy(T* ptr) { UnwantedForeground::delete_(ptr); }
+};
+
+template<class T>
+class OperatorArrayDelete
+{
+public:
+  static void destroy(T* ptr) { UnwantedForeground::array_delete(ptr); }
+};
+
 // Class that takes ownership of a pointer T*, and calls cx->delete_() or
 // cx->array_delete() upon destruction.
-template<class T>
+template<class T, class DeleteTraits = OperatorDelete<T> >
 class AutoPtr {
 private:
-  typedef AutoPtr<T> self_type;
+  typedef AutoPtr<T, DeleteTraits> self_type;
 
 public:
+  // An AutoPtr variant that calls js_array_delete() instead.
+  typedef AutoPtr<T, OperatorArrayDelete<T> > Array;
+
   AutoPtr() : mPtr(NULL) { }
   explicit AutoPtr(T* ptr) : mPtr(ptr) { }
-  ~AutoPtr() { js_delete(mPtr); }
+  ~AutoPtr() { DeleteTraits::destroy(mPtr); }
 
   T*   operator->()         { return mPtr; }
   bool operator!()          { return mPtr == NULL; }
@@ -47,8 +64,8 @@ public:
 
 private:
   // Do not allow copy construction or assignment from another AutoPtr.
-  AutoPtr(AutoPtr<T>&);
-  self_type& operator=(AutoPtr<T>& rhs);
+  template<class U> AutoPtr(AutoPtr<T, U>&);
+  template<class U> self_type& operator=(AutoPtr<T, U>& rhs);
 
   T* mPtr;
 };
@@ -294,7 +311,7 @@ struct ClosureInfo
     if (closure)
       ffi_closure_free(closure);
     if (errResult)
-      js_free(errResult);
+      rt->free_(errResult);
   };
 };
 

@@ -381,7 +381,7 @@ bool nsUnknownDecoder::TryContentSniffers(nsIRequest* aRequest)
 
     nsCOMPtr<nsISupportsCString> sniffer_id(do_QueryInterface(elem));
     NS_ASSERTION(sniffer_id, "element is no nsISupportsCString!?");
-    nsAutoCString contractid;
+    nsCAutoString contractid;
     nsresult rv = sniffer_id->GetData(contractid);
     if (NS_FAILED(rv)) {
       continue;
@@ -505,7 +505,7 @@ bool nsUnknownDecoder::SniffURI(nsIRequest* aRequest)
       nsCOMPtr<nsIURI> uri;
       nsresult result = channel->GetURI(getter_AddRefs(uri));
       if (NS_SUCCEEDED(result) && uri) {
-        nsAutoCString type;
+        nsCAutoString type;
         result = mimeService->GetTypeFromURI(uri, type);
         if (NS_SUCCEEDED(result)) {
           mContentType = type;
@@ -645,10 +645,10 @@ nsBinaryDetector::DetermineContentType(nsIRequest* aRequest)
   }
 
   // It's an HTTP channel.  Check for the text/plain mess
-  nsAutoCString contentTypeHdr;
+  nsCAutoString contentTypeHdr;
   httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Content-Type"),
                                  contentTypeHdr);
-  nsAutoCString contentType;
+  nsCAutoString contentType;
   httpChannel->GetContentType(contentType);
 
   // Make sure to do a case-sensitive exact match comparison here.  Apache
@@ -670,7 +670,7 @@ nsBinaryDetector::DetermineContentType(nsIRequest* aRequest)
   // detect the type.
   // XXXbz we could improve this by doing a local decompress if we
   // wanted, I'm sure.  
-  nsAutoCString contentEncoding;
+  nsCAutoString contentEncoding;
   httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Content-Encoding"),
                                  contentEncoding);
   if (!contentEncoding.IsEmpty()) {

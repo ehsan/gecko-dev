@@ -416,14 +416,6 @@ JSObject::ensureElements(JSContext *cx, uint32_t capacity)
 }
 
 inline void
-JSObject::setDynamicElements(js::ObjectElements *header)
-{
-    JS_ASSERT(!hasDynamicElements());
-    elements = header->elements();
-    JS_ASSERT(hasDynamicElements());
-}
-
-inline void
 JSObject::setDenseArrayElement(unsigned idx, const js::Value &val)
 {
     JS_ASSERT(isDenseArray() && idx < getDenseArrayInitializedLength());
@@ -933,6 +925,30 @@ JSObject::nativeSetSlotWithType(JSContext *cx, js::Shape *shape, const js::Value
 {
     nativeSetSlot(shape->slot(), value);
     js::types::AddTypePropertyId(cx, this, shape->propid(), value);
+}
+
+inline bool
+JSObject::nativeContains(JSContext *cx, js::HandleId id)
+{
+    return nativeLookup(cx, id) != NULL;
+}
+
+inline bool
+JSObject::nativeContains(JSContext *cx, js::HandleShape shape)
+{
+    return nativeLookup(cx, shape->propid()) == shape;
+}
+
+inline bool
+JSObject::nativeContainsNoAllocation(jsid id)
+{
+    return nativeLookupNoAllocation(id) != NULL;
+}
+
+inline bool
+JSObject::nativeContainsNoAllocation(const js::Shape &shape)
+{
+    return nativeLookupNoAllocation(shape.propid()) == &shape;
 }
 
 inline bool
@@ -1536,7 +1552,7 @@ inline bool
 PreallocateObjectDynamicSlots(JSContext *cx, Shape *shape, HeapSlot **slots)
 {
     if (size_t count = JSObject::dynamicSlotsCount(shape->numFixedSlots(), shape->slotSpan())) {
-        *slots = cx->pod_malloc<HeapSlot>(count);
+        *slots = (HeapSlot *) cx->malloc_(count * sizeof(HeapSlot));
         if (!*slots)
             return false;
         Debug_SetSlotRangeToCrashOnTouch(*slots, count);

@@ -230,7 +230,7 @@ FetchIconInfo(nsRefPtr<Database>& aDB,
   rv = stmt->GetIsNull(1, &isNull);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!isNull) {
-    rv = stmt->GetInt64(1, reinterpret_cast<int64_t*>(&_icon.expiration));
+    rv = stmt->GetInt64(1, &_icon.expiration);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -320,7 +320,7 @@ SniffMimeTypeForIconData(nsIRequest* aRequest,
     nsCOMPtr<nsISupportsCString> snifferCIDSupportsCString =
       do_QueryInterface(snifferCIDSupports);
     NS_ENSURE_STATE(snifferCIDSupports);
-    nsAutoCString snifferCID;
+    nsCAutoString snifferCID;
     rv = snifferCIDSupportsCString->GetData(snifferCID);
     NS_ENSURE_SUCCESS(rv, rv);
     nsCOMPtr<nsIContentSniffer> sniffer = do_GetService(snifferCID.get());
@@ -389,7 +389,7 @@ OptimizeIconSize(IconData& aIcon,
   // Even if the page provides a large image for the favicon (eg, a highres
   // image or a multiresolution .ico file), don't try to store more data than
   // needed.
-  nsAutoCString newData, newMimeType;
+  nsCAutoString newData, newMimeType;
   if (aIcon.data.Length() > MAX_ICON_FILESIZE(aFaviconSvc->GetOptimizedIconDimension())) {
     nsresult rv = aFaviconSvc->OptimizeFaviconImage(TO_INTBUFFER(aIcon.data),
                                                     aIcon.data.Length(),
@@ -616,7 +616,7 @@ AsyncFetchAndSetIconFromNetwork::OnDataAvailable(nsIRequest* aRequest,
                                                  uint32_t aOffset,
                                                  uint32_t aCount)
 {
-  nsAutoCString buffer;
+  nsCAutoString buffer;
   nsresult rv = NS_ConsumeStream(aInputStream, aCount, buffer);
   if (rv != NS_BASE_STREAM_WOULD_BLOCK && NS_FAILED(rv)) {
     return rv;
@@ -812,7 +812,7 @@ AsyncGetFaviconURLForPage::start(nsIURI* aPageURI,
   NS_PRECONDITION(NS_IsMainThread(),
                   "This should be called on the main thread.");
 
-  nsAutoCString pageSpec;
+  nsCAutoString pageSpec;
   nsresult rv = aPageURI->GetSpec(pageSpec);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -845,7 +845,7 @@ AsyncGetFaviconURLForPage::Run()
   NS_PRECONDITION(!NS_IsMainThread(),
                   "This should not be called on the main thread.");
 
-  nsAutoCString iconSpec;
+  nsCAutoString iconSpec;
   nsresult rv = FetchIconURL(mDB, mPageSpec, iconSpec);
   MOZ_ASSERT(NS_SUCCEEDED(rv));
 
@@ -877,7 +877,7 @@ AsyncGetFaviconDataForPage::start(nsIURI* aPageURI,
   NS_PRECONDITION(NS_IsMainThread(),
                   "This should be called on the main thread.");
 
-  nsAutoCString pageSpec;
+  nsCAutoString pageSpec;
   nsresult rv = aPageURI->GetSpec(pageSpec);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -910,7 +910,7 @@ AsyncGetFaviconDataForPage::Run()
   NS_PRECONDITION(!NS_IsMainThread(),
                   "This should not be called on the main thread.");
 
-  nsAutoCString iconSpec;
+  nsCAutoString iconSpec;
   nsresult rv = FetchIconURL(mDB, mPageSpec, iconSpec);
   MOZ_ASSERT(NS_SUCCEEDED(rv));
 

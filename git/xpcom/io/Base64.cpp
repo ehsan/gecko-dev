@@ -267,7 +267,7 @@ nsresult
 Base64Encode(const nsAString &aString, nsAString &aBinaryData)
 {
   NS_LossyConvertUTF16toASCII string(aString);
-  nsAutoCString binaryData;
+  nsCAutoString binaryData;
 
   nsresult rv = Base64Encode(string, binaryData);
   if (NS_SUCCEEDED(rv)) {
@@ -319,7 +319,7 @@ nsresult
 Base64Decode(const nsAString &aBinaryData, nsAString &aString)
 {
   NS_LossyConvertUTF16toASCII binaryData(aBinaryData);
-  nsAutoCString string;
+  nsCAutoString string;
 
   nsresult rv = Base64Decode(binaryData, string);
   if (NS_SUCCEEDED(rv)) {

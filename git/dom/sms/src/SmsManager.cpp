@@ -39,10 +39,16 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(SmsManager)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(SmsManager,
                                                   nsDOMEventTargetHelper)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(received)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(sent)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(delivered)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(SmsManager,
                                                 nsDOMEventTargetHelper)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(received)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(sent)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(delivered)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(SmsManager)
@@ -54,10 +60,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(SmsManager, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(SmsManager, nsDOMEventTargetHelper)
-
-NS_IMPL_EVENT_HANDLER(SmsManager, received)
-NS_IMPL_EVENT_HANDLER(SmsManager, sent)
-NS_IMPL_EVENT_HANDLER(SmsManager, delivered)
 
 /* static */already_AddRefed<SmsManager>
 SmsManager::CheckPermissionAndCreateInstance(nsPIDOMWindow* aWindow)
@@ -341,6 +343,10 @@ SmsManager::MarkMessageRead(int32_t aId, bool aValue,
 
   return NS_OK;
 }
+
+NS_IMPL_EVENT_HANDLER(SmsManager, received)
+NS_IMPL_EVENT_HANDLER(SmsManager, sent)
+NS_IMPL_EVENT_HANDLER(SmsManager, delivered)
 
 nsresult
 SmsManager::DispatchTrustedSmsEventToSelf(const nsAString& aEventName, nsIDOMMozSmsMessage* aMessage)

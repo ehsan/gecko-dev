@@ -154,6 +154,7 @@ public:
 
   // nsAccessNode
   virtual void Shutdown();
+  virtual bool IsPrimaryForNode() const;
 
   // Accessible
   virtual GroupPos GroupPosition();

@@ -30,7 +30,6 @@
 #define MAC_OS_X_VERSION_10_5_HEX   0x00001050
 #define MAC_OS_X_VERSION_10_6_HEX   0x00001060
 #define MAC_OS_X_VERSION_10_7_HEX   0x00001070
-#define MAC_OS_X_VERSION_10_8_HEX   0x00001080
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -53,8 +52,6 @@ OSXVersionToOperatingSystem(uint32_t aOSXVersion)
       return DRIVER_OS_OS_X_10_6;
     case MAC_OS_X_VERSION_10_7_HEX:
       return DRIVER_OS_OS_X_10_7;
-    case MAC_OS_X_VERSION_10_8_HEX:
-      return DRIVER_OS_OS_X_10_8;
   }
 
   return DRIVER_OS_UNKNOWN;
@@ -294,7 +291,7 @@ GfxInfo::AddCrashReportAnnotations()
 {
 #if defined(MOZ_CRASHREPORTER)
   nsString deviceID, vendorID;
-  nsAutoCString narrowDeviceID, narrowVendorID;
+  nsCAutoString narrowDeviceID, narrowVendorID;
 
   GetAdapterDeviceID(deviceID);
   CopyUTF16toUTF8(deviceID, narrowDeviceID);
@@ -307,7 +304,7 @@ GfxInfo::AddCrashReportAnnotations()
                                      narrowDeviceID);
   /* Add an App Note for now so that we get the data immediately. These
    * can go away after we store the above in the socorro db */
-  nsAutoCString note;
+  nsCAutoString note;
   /* AppendPrintf only supports 32 character strings, mrghh. */
   note.Append("AdapterVendorID: ");
   note.Append(narrowVendorID);

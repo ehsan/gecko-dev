@@ -1552,7 +1552,7 @@ public:
 
     if (!mWorkerPrivate) {
 #ifdef DEBUG
-      nsAutoCString message("Unable to report memory for ");
+      nsCAutoString message("Unable to report memory for ");
       message += NS_LITERAL_CSTRING("Worker (") + mAddressString +
                  NS_LITERAL_CSTRING(")! It is either using ctypes or is in "
                                     "the process of being destroyed");
@@ -2404,7 +2404,7 @@ WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
   if (NS_SUCCEEDED(aBaseURI->GetPort(&port)) && port != -1) {
     mLocationInfo.mPort.AppendInt(port);
 
-    nsAutoCString host(mLocationInfo.mHostname);
+    nsCAutoString host(mLocationInfo.mHostname);
     host.AppendLiteral(":");
     host.Append(mLocationInfo.mPort);
 

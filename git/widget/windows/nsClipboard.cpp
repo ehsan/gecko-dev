@@ -773,7 +773,7 @@ nsClipboard :: FindURLFromLocalFile ( IDataObject* inDataObject, UINT inIndex, v
 
     if ( IsInternetShortcut(filepath) ) {
       nsMemory::Free(*outData);
-      nsAutoCString url;
+      nsCAutoString url;
       ResolveShortcut( file, url );
       if ( !url.IsEmpty() ) {
         // convert it to unicode and pass it out
@@ -794,7 +794,7 @@ nsClipboard :: FindURLFromLocalFile ( IDataObject* inDataObject, UINT inIndex, v
     }
     else {
       // we have a normal file, use some Necko objects to get our file path
-      nsAutoCString urlSpec;
+      nsCAutoString urlSpec;
       NS_GetURLSpecFromFile(file, urlSpec);
 
       // convert it to unicode and pass it out

@@ -40,7 +40,7 @@ nsRDFConInstanceTestNode::nsRDFConInstanceTestNode(TestNode* aParent,
 {
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
-        nsAutoCString props;
+        nsCAutoString props;
 
         nsResourceSet& containmentProps = aProcessor->ContainmentProperties();
         nsResourceSet::ConstIterator last = containmentProps.Last();

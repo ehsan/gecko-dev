@@ -1036,12 +1036,14 @@ ContentParent::Observe(nsISupports* aSubject,
     else if (!strcmp(aTopic, "file-watcher-update")) {
         nsCString creason;
         CopyUTF16toUTF8(aData, creason);
-        DeviceStorageFile* file = static_cast<DeviceStorageFile*>(aSubject);
+        nsCOMPtr<nsIFile> file = do_QueryInterface(aSubject);
+        if (!file) {
+            return NS_OK;
+        }
 
         nsString path;
-        file->mFile->GetPath(path);
-
-        unused << SendFilePathUpdate(file->mStorageType, path, creason);
+        file->GetPath(path);
+        unused << SendFilePathUpdate(path, creason);
     }
 #ifdef MOZ_WIDGET_GONK
     else if(!strcmp(aTopic, NS_VOLUME_STATE_CHANGED)) {

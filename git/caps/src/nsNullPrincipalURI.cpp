@@ -55,7 +55,7 @@ nsNullPrincipalURI::GetAsciiHost(nsACString &_host)
 NS_IMETHODIMP
 nsNullPrincipalURI::GetAsciiSpec(nsACString &_spec)
 {
-  nsAutoCString buffer;
+  nsCAutoString buffer;
   (void)GetSpec(buffer);
   NS_EscapeURL(buffer, esc_OnlyNonASCII | esc_AlwaysCopy, _spec);
   return NS_OK;

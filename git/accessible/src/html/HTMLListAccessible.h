@@ -75,11 +75,13 @@ private:
 class HTMLListBulletAccessible : public LeafAccessible
 {
 public:
-  HTMLListBulletAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  HTMLListBulletAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+    LeafAccessible(aContent, aDoc) { }
   virtual ~HTMLListBulletAccessible() { }
 
   // nsAccessNode
   virtual nsIFrame* GetFrame() const;
+  virtual bool IsPrimaryForNode() const;
 
   // Accessible
   virtual ENameValueFlag Name(nsString& aName);

@@ -475,7 +475,7 @@ public:
             return;
         }
 
-        nsAutoCString buf;
+        nsCAutoString buf;
         PL_DHashTableEnumerate(&mMap, WriteOutMap, &buf);
         PL_DHashTableFinish(&mMap);
         mCache->PutBuffer(CACHE_KEY, buf.get(), buf.Length() + 1);
@@ -596,7 +596,7 @@ private:
             return PL_DHASH_NEXT;
         }
 
-        nsAutoCString* buf = reinterpret_cast<nsAutoCString*>(aData);
+        nsCAutoString* buf = reinterpret_cast<nsCAutoString*>(aData);
         buf->Append(entry->mFilename);
         buf->Append(';');
         buf->Append(entry->mFaces);

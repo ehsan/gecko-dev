@@ -433,7 +433,7 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
       NSString *extStr = [NSString stringWithCString:flatExt.get() encoding:NSASCIIStringEncoding];
       NSString *typeStr = map ? [map MIMETypeForExtension:extStr] : NULL;
       if (typeStr) {
-        nsAutoCString mimeType;
+        nsCAutoString mimeType;
         mimeType.Assign((char *)[typeStr cStringUsingEncoding:NSASCIIStringEncoding]);
         mimeInfoMac->SetMIMEType(mimeType);
         haveAppForType = true;
@@ -496,7 +496,7 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
     mimeInfoMac->SetPreferredAction(nsIMIMEInfo::saveToDisk);
   }
 
-  nsAutoCString mimeType;
+  nsCAutoString mimeType;
   mimeInfoMac->GetMIMEType(mimeType);
   if (*aFound && !mimeType.IsEmpty()) {
     // If we have a MIME type, make sure its preferred extension is included
@@ -505,7 +505,7 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
     NSString *typeStr = [NSString stringWithCString:mimeType.get() encoding:NSASCIIStringEncoding];
     NSString *extStr = map ? [map preferredExtensionForMIMEType:typeStr] : NULL;
     if (extStr) {
-      nsAutoCString preferredExt;
+      nsCAutoString preferredExt;
       preferredExt.Assign((char *)[extStr cStringUsingEncoding:NSASCIIStringEncoding]);
       mimeInfoMac->AppendExtension(preferredExt);
     }

@@ -27,7 +27,7 @@ let SocialUI = {
 
   showProfile: function SocialUI_showProfile() {
     if (Social.provider)
-      openUILinkIn(Social.provider.profile.profileURL, "tab");
+      openUILink(Social.provider.profile.profileURL);
   },
 
   observe: function SocialUI_observe(subject, topic, data) {

@@ -930,7 +930,7 @@ nsCompressOutputStreamWrapper::Close()
     }
 
     if (mDescriptor->CacheEntry()) {
-        nsAutoCString uncompressedLenStr;
+        nsCAutoString uncompressedLenStr;
         rv = mDescriptor->GetMetaDataElement("uncompressed-len",
                                              getter_Copies(uncompressedLenStr));
         if (NS_SUCCEEDED(rv)) {

@@ -1992,7 +1992,7 @@ WebSocketChannel::HandleExtensions()
   LOG(("WebSocketChannel::HandleExtensions() %p\n", this));
 
   nsresult rv;
-  nsAutoCString extensions;
+  nsCAutoString extensions;
 
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
 
@@ -2095,7 +2095,7 @@ WebSocketChannel::SetupRequest()
                                    false);
 
   uint8_t      *secKey;
-  nsAutoCString secKeyString;
+  nsCAutoString secKeyString;
 
   rv = mRandomGenerator->GenerateRandomBytes(16, &secKey);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2283,7 +2283,7 @@ WebSocketChannel::AsyncOnChannelRedirect(
     // It's only a HSTS redirect if we started with non-secure, are going to
     // secure, and the new URI is otherwise the same as the old one.
     if (!(!currentIsHttps && newuriIsHttps && uriEqual)) {
-      nsAutoCString newSpec;
+      nsCAutoString newSpec;
       rv = newuri->GetSpec(newSpec);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2294,7 +2294,7 @@ WebSocketChannel::AsyncOnChannelRedirect(
   }
 
   if (mEncrypted && !newuriIsHttps) {
-    nsAutoCString spec;
+    nsCAutoString spec;
     if (NS_SUCCEEDED(newuri->GetSpec(spec)))
       LOG(("WebSocketChannel: Redirect to %s violates encryption rule\n",
            spec.get()));
@@ -2774,7 +2774,7 @@ WebSocketChannel::OnStartRequest(nsIRequest *aRequest,
     return NS_ERROR_CONNECTION_REFUSED;
   }
 
-  nsAutoCString respUpgrade;
+  nsCAutoString respUpgrade;
   rv = mHttpChannel->GetResponseHeader(
     NS_LITERAL_CSTRING("Upgrade"), respUpgrade);
 
@@ -2798,7 +2798,7 @@ WebSocketChannel::OnStartRequest(nsIRequest *aRequest,
     return rv;
   }
 
-  nsAutoCString respConnection;
+  nsCAutoString respConnection;
   rv = mHttpChannel->GetResponseHeader(
     NS_LITERAL_CSTRING("Connection"), respConnection);
 
@@ -2822,7 +2822,7 @@ WebSocketChannel::OnStartRequest(nsIRequest *aRequest,
     return rv;
   }
 
-  nsAutoCString respAccept;
+  nsCAutoString respAccept;
   rv = mHttpChannel->GetResponseHeader(
                        NS_LITERAL_CSTRING("Sec-WebSocket-Accept"),
                        respAccept);
@@ -2841,7 +2841,7 @@ WebSocketChannel::OnStartRequest(nsIRequest *aRequest,
   // If it does not, set mProtocol to "" so the protocol attribute
   // of the WebSocket JS object reflects that
   if (!mProtocol.IsEmpty()) {
-    nsAutoCString respProtocol;
+    nsCAutoString respProtocol;
     rv = mHttpChannel->GetResponseHeader(
                          NS_LITERAL_CSTRING("Sec-WebSocket-Protocol"), 
                          respProtocol);

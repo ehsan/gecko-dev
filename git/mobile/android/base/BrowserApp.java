@@ -413,17 +413,6 @@ abstract public class BrowserApp extends GeckoApp
                 resetFeedbackLaunchCount();
             } else if (event.equals("Feedback:LastUrl")) {
                 getLastUrl();
-            } else if (event.equals("Gecko:Ready")) {
-                // Handle this message in GeckoApp, but also enable the Settings
-                // menuitem, which is specific to BrowserApp.
-                super.handleMessage(event, message);
-                final Menu menu = mMenu;
-                mMainHandler.post(new Runnable() {
-                    public void run() {
-                        if (menu != null)
-                            menu.findItem(R.id.settings).setEnabled(true);
-                    }
-                });
             } else {
                 super.handleMessage(event, message);
             }
@@ -659,12 +648,8 @@ abstract public class BrowserApp extends GeckoApp
                         try {
                             URL url = new URL(icon);
                             InputStream is = (InputStream) url.getContent();
-                            try {
-                                Drawable drawable = Drawable.createFromStream(is, "src");
-                                item.setIcon(drawable);
-                            } finally {
-                                is.close();
-                            }
+                            Drawable drawable = Drawable.createFromStream(is, "src");
+                            item.setIcon(drawable);
                         } catch (Exception e) {
                             Log.w(LOGTAG, "Unable to set icon", e);
                         }

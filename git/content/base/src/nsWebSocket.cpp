@@ -189,7 +189,7 @@ nsWebSocket::ConsoleError()
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
   nsresult rv;
 
-  nsAutoCString targetSpec;
+  nsCAutoString targetSpec;
   rv = mURI->GetSpec(targetSpec);
   if (NS_FAILED(rv)) {
     NS_WARNING("Failed to get targetSpec");
@@ -503,6 +503,10 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsWebSocket)
   if (isBlack|| tmp->mKeepingAlive) {
     if (tmp->mListenerManager) {
       tmp->mListenerManager->UnmarkGrayJSListeners();
+      NS_UNMARK_LISTENER_WRAPPER(Open)
+      NS_UNMARK_LISTENER_WRAPPER(Error)
+      NS_UNMARK_LISTENER_WRAPPER(Message)
+      NS_UNMARK_LISTENER_WRAPPER(Close)
     }
     if (!isBlack && tmp->PreservingWrapper()) {
       xpc_UnmarkGrayObject(tmp->GetWrapperPreserveColor());
@@ -525,6 +529,10 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsWebSocket,
                                                   nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnOpenListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnMessageListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnCloseListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrincipal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mURI)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mChannel)
@@ -533,6 +541,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsWebSocket,
                                                 nsDOMEventTargetHelper)
   tmp->Disconnect();
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnOpenListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnMessageListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnCloseListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPrincipal)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mURI)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChannel)
@@ -554,15 +566,14 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(nsWebSocket, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(nsWebSocket, nsDOMEventTargetHelper)
 
-NS_IMPL_EVENT_HANDLER(nsWebSocket, open)
-NS_IMPL_EVENT_HANDLER(nsWebSocket, error)
-NS_IMPL_EVENT_HANDLER(nsWebSocket, message)
-NS_IMPL_EVENT_HANDLER(nsWebSocket, close)
-
 void
 nsWebSocket::DisconnectFromOwner()
 {
   nsDOMEventTargetHelper::DisconnectFromOwner();
+  NS_DISCONNECT_EVENT_HANDLER(Open)
+  NS_DISCONNECT_EVENT_HANDLER(Message)
+  NS_DISCONNECT_EVENT_HANDLER(Close)
+  NS_DISCONNECT_EVENT_HANDLER(Error)
   CloseConnection(nsIWebSocketChannel::CLOSE_GOING_AWAY);
   DontKeepAliveAnyMore();
 }
@@ -948,17 +959,17 @@ nsWebSocket::ParseURL(const nsString& aURL)
   nsCOMPtr<nsIURL> parsedURL(do_QueryInterface(uri, &rv));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_SYNTAX_ERR);
 
-  nsAutoCString fragment;
+  nsCAutoString fragment;
   rv = parsedURL->GetRef(fragment);
   NS_ENSURE_TRUE(NS_SUCCEEDED(rv) && fragment.IsEmpty(),
                  NS_ERROR_DOM_SYNTAX_ERR);
 
-  nsAutoCString scheme;
+  nsCAutoString scheme;
   rv = parsedURL->GetScheme(scheme);
   NS_ENSURE_TRUE(NS_SUCCEEDED(rv) && !scheme.IsEmpty(),
                  NS_ERROR_DOM_SYNTAX_ERR);
 
-  nsAutoCString host;
+  nsCAutoString host;
   rv = parsedURL->GetAsciiHost(host);
   NS_ENSURE_TRUE(NS_SUCCEEDED(rv) && !host.IsEmpty(), NS_ERROR_DOM_SYNTAX_ERR);
 
@@ -969,14 +980,14 @@ nsWebSocket::ParseURL(const nsString& aURL)
   rv = NS_CheckPortSafety(port, scheme.get());
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_SYNTAX_ERR);
 
-  nsAutoCString filePath;
+  nsCAutoString filePath;
   rv = parsedURL->GetFilePath(filePath);
   if (filePath.IsEmpty()) {
     filePath.AssignLiteral("/");
   }
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_SYNTAX_ERR);
 
-  nsAutoCString query;
+  nsCAutoString query;
   rv = parsedURL->GetQuery(query);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_SYNTAX_ERR);
 
@@ -1093,7 +1104,7 @@ nsWebSocket::UpdateURI()
   nsresult rv = mChannel->GetURI(getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   rv = uri->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
   CopyUTF8toUTF16(spec, mEffectiveURL);
@@ -1206,10 +1217,31 @@ nsWebSocket::SetBinaryType(const nsAString& aBinaryType)
     mBinaryType = WS_BINARY_TYPE_ARRAYBUFFER;
   } else if (aBinaryType.EqualsLiteral("blob")) {
     mBinaryType = WS_BINARY_TYPE_BLOB;
+  } else  {
+    return NS_ERROR_INVALID_ARG;
   }
 
   return NS_OK;
 }
+
+#define NS_WEBSOCKET_IMPL_DOMEVENTLISTENER(_eventlistenername, _eventlistener) \
+  NS_IMETHODIMP                                                                \
+  nsWebSocket::GetOn##_eventlistenername(nsIDOMEventListener * *aEventListener)\
+  {                                                                            \
+    return GetInnerEventListener(_eventlistener, aEventListener);              \
+  }                                                                            \
+                                                                               \
+  NS_IMETHODIMP                                                                \
+  nsWebSocket::SetOn##_eventlistenername(nsIDOMEventListener * aEventListener) \
+  {                                                                            \
+    return RemoveAddEventListener(NS_LITERAL_STRING(#_eventlistenername),      \
+                                  _eventlistener, aEventListener);             \
+  }
+
+NS_WEBSOCKET_IMPL_DOMEVENTLISTENER(open, mOnOpenListener)
+NS_WEBSOCKET_IMPL_DOMEVENTLISTENER(error, mOnErrorListener)
+NS_WEBSOCKET_IMPL_DOMEVENTLISTENER(message, mOnMessageListener)
+NS_WEBSOCKET_IMPL_DOMEVENTLISTENER(close, mOnCloseListener)
 
 NS_IMETHODIMP
 nsWebSocket::Send(nsIVariant *aData, JSContext *aCx)
@@ -1342,7 +1374,7 @@ nsWebSocket::Close(uint16_t code, const nsAString & reason, uint8_t argc)
     closeCode = code;
   }
 
-  nsAutoCString closeReason;
+  nsCAutoString closeReason;
   if (argc >= 2) {
     CopyUTF16toUTF8(reason, closeReason);
 

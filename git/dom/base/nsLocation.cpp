@@ -348,7 +348,7 @@ nsLocation::GetHash(nsAString& aHash)
     return rv;
   }
 
-  nsAutoCString ref;
+  nsCAutoString ref;
   nsAutoString unicodeRef;
 
   rv = uri->GetRef(ref);
@@ -357,7 +357,7 @@ nsLocation::GetHash(nsAString& aHash)
         do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv));
 
     if (NS_SUCCEEDED(rv)) {
-      nsAutoCString charset;
+      nsCAutoString charset;
       uri->GetOriginCharset(charset);
         
       rv = textToSubURI->UnEscapeURIForUI(charset, ref, unicodeRef);
@@ -420,7 +420,7 @@ nsLocation::GetHost(nsAString& aHost)
   result = GetURI(getter_AddRefs(uri), true);
 
   if (uri) {
-    nsAutoCString hostport;
+    nsCAutoString hostport;
 
     result = uri->GetHostPort(hostport);
 
@@ -459,7 +459,7 @@ nsLocation::GetHostname(nsAString& aHostname)
   result = GetURI(getter_AddRefs(uri), true);
 
   if (uri) {
-    nsAutoCString host;
+    nsCAutoString host;
 
     result = uri->GetHost(host);
 
@@ -498,7 +498,7 @@ nsLocation::GetHref(nsAString& aHref)
   result = GetURI(getter_AddRefs(uri));
 
   if (uri) {
-    nsAutoCString uriString;
+    nsCAutoString uriString;
 
     result = uri->GetSpec(uriString);
 
@@ -572,7 +572,7 @@ nsLocation::SetHrefWithBase(const nsAString& aHref, nsIURI* aBase,
 
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocShell));
 
-  nsAutoCString docCharset;
+  nsCAutoString docCharset;
   if (NS_SUCCEEDED(GetDocumentCharacterSetForURI(aHref, docCharset)))
     result = NS_NewURI(getter_AddRefs(newUri), aHref, docCharset.get(), aBase);
   else
@@ -631,7 +631,7 @@ nsLocation::GetPathname(nsAString& aPathname)
 
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
   if (url) {
-    nsAutoCString file;
+    nsCAutoString file;
 
     result = url->GetFilePath(file);
 
@@ -727,7 +727,7 @@ nsLocation::GetProtocol(nsAString& aProtocol)
   result = GetURI(getter_AddRefs(uri));
 
   if (uri) {
-    nsAutoCString protocol;
+    nsCAutoString protocol;
 
     result = uri->GetScheme(protocol);
 
@@ -769,7 +769,7 @@ nsLocation::GetSearch(nsAString& aSearch)
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
 
   if (url) {
-    nsAutoCString search;
+    nsCAutoString search;
 
     result = url->GetQuery(search);
 

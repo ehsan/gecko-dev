@@ -274,7 +274,6 @@
     <panel id="social-flyout-panel"
            onpopupshown="SocialFlyout.onShown()"
            onpopuphidden="SocialFlyout.onHidden()"
-           side="right"
            type="arrow"
            hidden="true"
            noautofocus="true"

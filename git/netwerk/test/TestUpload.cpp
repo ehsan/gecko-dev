@@ -127,16 +127,16 @@ main(int argc, char* argv[])
                                   true,
                                   nsDependentCString(fileName), // XXX UTF-8
                                   0, ioService);
-        if (NS_FAILED(rv)) return -1;
+        if (NS_FAILED(rv)) return rv;
 
         // create our url.
         nsCOMPtr<nsIURI> uri;
         rv = NS_NewURI(getter_AddRefs(uri), uriSpec);
-        if (NS_FAILED(rv)) return -1;
+        if (NS_FAILED(rv)) return rv;
 
         nsCOMPtr<nsIChannel> channel;
         rv = ioService->NewChannelFromURI(uri, getter_AddRefs(channel));
-        if (NS_FAILED(rv)) return -1;
+        if (NS_FAILED(rv)) return rv;
 	
         // QI and set the upload stream
         nsCOMPtr<nsIUploadChannel> uploadChannel(do_QueryInterface(channel));

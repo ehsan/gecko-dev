@@ -38,7 +38,7 @@ nsGNOMERegistry::HandlerExists(const char *aProtocolScheme)
       return true;
   } else if (gconf) {
     bool isEnabled;
-    nsAutoCString handler;
+    nsCAutoString handler;
     if (NS_FAILED(gconf->GetAppForProtocol(nsDependentCString(aProtocolScheme), &isEnabled, handler)))
       return false;
 
@@ -79,7 +79,7 @@ nsGNOMERegistry::GetAppDescForScheme(const nsACString& aScheme,
   if (!gconf && !giovfs)
     return;
 
-  nsAutoCString name;
+  nsCAutoString name;
   if (giovfs) {
     nsCOMPtr<nsIGIOMimeApp> app;
     if (NS_FAILED(giovfs->GetAppForURIScheme(aScheme, getter_AddRefs(app))))
@@ -111,7 +111,7 @@ nsGNOMERegistry::GetAppDescForScheme(const nsACString& aScheme,
 /* static */ already_AddRefed<nsMIMEInfoBase>
 nsGNOMERegistry::GetFromExtension(const nsACString& aFileExt)
 {
-  nsAutoCString mimeType;
+  nsCAutoString mimeType;
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
 
   if (giovfs) {
@@ -141,8 +141,8 @@ nsGNOMERegistry::GetFromType(const nsACString& aMIMEType)
   nsRefPtr<nsMIMEInfoUnix> mimeInfo = new nsMIMEInfoUnix(aMIMEType);
   NS_ENSURE_TRUE(mimeInfo, nullptr);
 
-  nsAutoCString name;
-  nsAutoCString description;
+  nsCAutoString name;
+  nsCAutoString description;
 
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
   if (giovfs) {
@@ -175,7 +175,7 @@ nsGNOMERegistry::GetFromType(const nsACString& aMIMEType)
   // the default maemo domain-name to try and translate the string into the operating 
   // system's native language.
   const char kDefaultTextDomain [] = "maemo-af-desktop";
-  nsAutoCString realName (dgettext(kDefaultTextDomain, PromiseFlatCString(name).get()));
+  nsCAutoString realName (dgettext(kDefaultTextDomain, PromiseFlatCString(name).get()));
   mimeInfo->SetDefaultDescription(NS_ConvertUTF8toUTF16(realName));
 #else
   mimeInfo->SetDefaultDescription(NS_ConvertUTF8toUTF16(name));

@@ -428,7 +428,7 @@ nsXULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
         nsCOMPtr<nsIURI> uri;
         nsresult rv = aChannel->GetOriginalURI(getter_AddRefs(uri));
         if (NS_SUCCEEDED(rv)) {
-            nsAutoCString urlspec;
+            nsCAutoString urlspec;
             rv = uri->GetSpec(urlspec);
             if (NS_SUCCEEDED(rv)) {
                 PR_LOG(gXULLog, PR_LOG_WARNING,
@@ -611,7 +611,7 @@ nsXULDocument::EndLoad()
     OnPrototypeLoadDone(true);
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULLog, PR_LOG_WARNING)) {
-        nsAutoCString urlspec;
+        nsCAutoString urlspec;
         rv = uri->GetSpec(urlspec);
         if (NS_SUCCEEDED(rv)) {
             PR_LOG(gXULLog, PR_LOG_WARNING,
@@ -1440,7 +1440,7 @@ nsXULDocument::Persist(nsIContent* aElement, int32_t aNameSpaceID,
     // Add it to the persisted set for this document (if it's not
     // there already).
     {
-        nsAutoCString docurl;
+        nsCAutoString docurl;
         rv = mDocumentURI->GetSpec(docurl);
         if (NS_FAILED(rv)) return rv;
 
@@ -2131,7 +2131,7 @@ nsXULDocument::ApplyPersistentAttributesInternal()
 {
     nsCOMArray<nsIContent> elements;
 
-    nsAutoCString docurl;
+    nsCAutoString docurl;
     mDocumentURI->GetSpec(docurl);
 
     nsCOMPtr<nsIRDFResource> doc;
@@ -2358,7 +2358,7 @@ nsXULDocument::PrepareToWalk()
         if (PR_LOG_TEST(gXULLog, PR_LOG_ERROR)) {
             nsCOMPtr<nsIURI> url = mCurrentPrototype->GetURI();
 
-            nsAutoCString urlspec;
+            nsCAutoString urlspec;
             rv = url->GetSpec(urlspec);
             if (NS_FAILED(rv)) return rv;
 
@@ -2633,9 +2633,9 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, bool aIsDynamic,
 
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULLog, PR_LOG_DEBUG)) {
-        nsAutoCString urlspec;
+        nsCAutoString urlspec;
         aURI->GetSpec(urlspec);
-        nsAutoCString parentDoc;
+        nsCAutoString parentDoc;
         nsCOMPtr<nsIURI> uri;
         nsresult rv = mChannel->GetOriginalURI(getter_AddRefs(uri));
         if (NS_SUCCEEDED(rv))
@@ -3308,7 +3308,7 @@ nsXULDocument::ReportMissingOverlay(nsIURI* aURI)
 {
     NS_PRECONDITION(aURI, "Must have a URI");
     
-    nsAutoCString spec;
+    nsCAutoString spec;
     aURI->GetSpec(spec);
 
     NS_ConvertUTF8toUTF16 utfSpec(spec);
@@ -3427,7 +3427,7 @@ nsXULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
             nsCOMPtr<nsIURI> uri;
             channel->GetURI(getter_AddRefs(uri));
             if (uri) {
-                nsAutoCString uriSpec;
+                nsCAutoString uriSpec;
                 uri->GetSpec(uriSpec);
                 printf("Failed to load %s\n", uriSpec.get());
             }
@@ -3907,7 +3907,7 @@ nsXULDocument::OverlayForwardReference::Resolve()
 
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULLog, PR_LOG_NOTICE)) {
-        nsAutoCString idC;
+        nsCAutoString idC;
         idC.AssignWithConversion(id);
         PR_LOG(gXULLog, PR_LOG_NOTICE,
                ("xul: overlay resolved '%s'",
@@ -4078,15 +4078,15 @@ nsXULDocument::OverlayForwardReference::~OverlayForwardReference()
         nsAutoString id;
         mOverlay->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
 
-        nsAutoCString idC;
+        nsCAutoString idC;
         idC.AssignWithConversion(id);
 
         nsIURI *protoURI = mDocument->mCurrentPrototype->GetURI();
-        nsAutoCString urlspec;
+        nsCAutoString urlspec;
         protoURI->GetSpec(urlspec);
 
         nsCOMPtr<nsIURI> docURI;
-        nsAutoCString parentDoc;
+        nsCAutoString parentDoc;
         nsresult rv = mDocument->mChannel->GetOriginalURI(getter_AddRefs(docURI));
         if (NS_SUCCEEDED(rv))
             docURI->GetSpec(parentDoc);
@@ -4135,7 +4135,7 @@ nsXULDocument::BroadcasterHookup::~BroadcasterHookup()
             attribute.AssignLiteral("*");
         }
 
-        nsAutoCString attributeC,broadcasteridC;
+        nsCAutoString attributeC,broadcasteridC;
         attributeC.AssignWithConversion(attribute);
         broadcasteridC.AssignWithConversion(broadcasterID);
         PR_LOG(gXULLog, PR_LOG_WARNING,
@@ -4348,7 +4348,7 @@ nsXULDocument::CheckBroadcasterHookup(Element* aElement,
         if (! content)
             return rv;
 
-        nsAutoCString attributeC,broadcasteridC;
+        nsCAutoString attributeC,broadcasteridC;
         attributeC.AssignWithConversion(attribute);
         broadcasteridC.AssignWithConversion(broadcasterID);
         PR_LOG(gXULLog, PR_LOG_NOTICE,
@@ -4610,7 +4610,7 @@ nsXULDocument::IsDocumentRightToLeft()
     if (!reg)
         return false;
 
-    nsAutoCString package;
+    nsCAutoString package;
     bool isChrome;
     if (NS_SUCCEEDED(mDocumentURI->SchemeIs("chrome", &isChrome)) &&
         isChrome) {

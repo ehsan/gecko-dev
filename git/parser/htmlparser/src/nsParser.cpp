@@ -682,7 +682,7 @@ VerifyPublicIDs()
       }
     }
     for (i = 0; i < ELEMENTS_OF(kPublicIDs); ++i) {
-      nsAutoCString lcPubID(kPublicIDs[i].name);
+      nsCAutoString lcPubID(kPublicIDs[i].name);
       ToLowerCase(lcPubID);
       if (nsCRT::strcmp(kPublicIDs[i].name, lcPubID.get()) != 0) {
         NS_NOTREACHED("doctype not lower case");
@@ -726,7 +726,7 @@ DetermineHTMLParseMode(const nsString& aBuffer,
     } else {
       // We have to check our list of public IDs to see what to do.
       // Yes, we want UCS2 to ASCII lossy conversion.
-      nsAutoCString publicID;
+      nsCAutoString publicID;
       publicID.AssignWithConversion(publicIDUCS2);
 
       // See comment above definition of kPublicIDs about case
@@ -1243,7 +1243,7 @@ nsParser::Parse(nsIURI* aURL,
   mObserver = aListener;
 
   if (aURL) {
-    nsAutoCString spec;
+    nsCAutoString spec;
     nsresult rv = aURL->GetSpec(spec);
     if (rv != NS_OK) {
       return rv;
@@ -1659,7 +1659,7 @@ nsParser::OnStartRequest(nsIRequest *request, nsISupports* aContext)
   mDTD = nullptr;
 
   nsresult rv;
-  nsAutoCString contentType;
+  nsCAutoString contentType;
   nsCOMPtr<nsIChannel> channel = do_QueryInterface(request);
   if (channel) {
     rv = channel->GetContentType(contentType);
@@ -2012,8 +2012,8 @@ ParserWriteFunc(nsIInputStream* in,
 
   if (pws->mNeedCharsetCheck) {
     int32_t guessSource;
-    nsAutoCString guess;
-    nsAutoCString preferred;
+    nsCAutoString guess;
+    nsCAutoString preferred;
 
     pws->mNeedCharsetCheck = false;
     if (pws->mParser->DetectMetaTag(buf, theNumRead, guess, guessSource) ||

@@ -79,7 +79,7 @@ using namespace js::frontend;
     JS_END_MACRO
 #define MUST_MATCH_TOKEN(tt, errno) MUST_MATCH_TOKEN_WITH_FLAGS(tt, errno, 0)
 
-StrictMode
+StrictMode::StrictModeState
 StrictModeGetter::get() const
 {
     return parser->pc->sc->strictModeState;
@@ -388,7 +388,7 @@ Parser::newObjectBox(JSObject *obj)
 }
 
 FunctionBox::FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseContext *outerpc,
-                         StrictMode sms)
+                         StrictMode::StrictModeState sms)
   : ObjectBox(traceListHead, obj),
     siblings(outerpc->functionList),
     kids(NULL),
@@ -397,54 +397,23 @@ FunctionBox::FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseContext *
     bufEnd(0),
     ndefaults(0),
     strictModeState(sms),
-    inWith(false),                  // initialized below
+    inWith(outerpc->parsingWith),
     inGenexpLambda(false),
-    cxFlags(outerpc->sc->context)   // the cxFlags are set in LeaveFunction
+    cxFlags(outerpc->sc->context)     // the cxFlags are set in LeaveFunction
 {
     isFunctionBox = true;
-
-    if (outerpc->parsingWith) {
-        // This covers cases that don't involve eval().  For example:
-        //
-        //   with (o) { (function() { g(); })(); }
-        //
-        // In this case, |outerpc| corresponds to global code, and
-        // outerpc->parsingWith is true.
-        inWith = true;
-
-    } else if (!outerpc->sc->inFunction()) {
-        // This covers the case where a function is nested within an eval()
-        // within a |with| statement.
-        //
-        //   with (o) { eval("(function() { g(); })();"); }
-        //
-        // In this case, |outerpc| corresponds to the eval(),
-        // outerpc->parsingWith is false because the eval() breaks the
-        // ParseContext chain, and |parent| is NULL (again because of the
-        // eval(), so we have to look at |outerpc|'s scopeChain.
-        //
+    if (!outerpc->sc->inFunction()) {
         JSObject *scope = outerpc->sc->scopeChain();
         while (scope) {
             if (scope->isWith())
                 inWith = true;
             scope = scope->enclosingScope();
         }
-    } else {
-        // This is like the above case, but for more deeply nested functions.
-        // For example:
-        //
-        //   with (o) { eval("(function() { (function() { g(); })(); })();"); } }
-        //
-        // In this case, the inner anonymous function needs to inherit the
-        // setting of |inWith| from the outer one.
-        FunctionBox *parent = outerpc->sc->funbox();
-        if (parent && parent->inWith)
-            inWith = true;
     }
 }
 
 FunctionBox *
-Parser::newFunctionBox(JSObject *obj, ParseContext *outerpc, StrictMode sms)
+Parser::newFunctionBox(JSObject *obj, ParseContext *outerpc, StrictMode::StrictModeState sms)
 {
     JS_ASSERT(obj && !IsPoisonedPtr(obj));
     JS_ASSERT(obj->isFunction());
@@ -1612,7 +1581,7 @@ Parser::functionDef(HandlePropertyName funName, FunctionType type, FunctionSynta
         return NULL;
 
     // Inherit strictness if neeeded.
-    StrictMode sms = (outerpc->sc->strictModeState == StrictMode::STRICT) ?
+    StrictMode::StrictModeState sms = (outerpc->sc->strictModeState == StrictMode::STRICT) ?
         StrictMode::STRICT : StrictMode::UNKNOWN;
 
     // Create box for fun->object early to protect against last-ditch GC.
@@ -1779,7 +1748,7 @@ Parser::functionExpr()
 }
 
 void
-FunctionBox::recursivelySetStrictMode(StrictMode strictness)
+FunctionBox::recursivelySetStrictMode(StrictMode::StrictModeState strictness)
 {
     if (strictModeState == StrictMode::UNKNOWN) {
         strictModeState = strictness;

@@ -62,7 +62,7 @@ nsCRLManager::ImportCrl (uint8_t *aData, uint32_t aLength, nsIURI * aURI, uint32
   CERTSignedData sd;
   SECStatus sec_rv;
   CERTSignedCrl *crl;
-  nsAutoCString url;
+  nsCAutoString url;
   nsCOMPtr<nsICRLInfo> crlData;
   bool importSuccessful;
   int32_t errorCode;
@@ -191,20 +191,20 @@ done:
       return rv;
     }
     
-    nsAutoCString updateErrCntPrefStr(CRL_AUTOUPDATE_ERRCNT_PREF);
+    nsCAutoString updateErrCntPrefStr(CRL_AUTOUPDATE_ERRCNT_PREF);
     LossyAppendUTF16toASCII(crlKey, updateErrCntPrefStr);
     if(importSuccessful){
       PRUnichar *updateTime;
-      nsAutoCString updateTimeStr;
+      nsCAutoString updateTimeStr;
       nsCString updateURL;
       int32_t timingTypePref;
       double dayCnt;
       char *dayCntStr;
-      nsAutoCString updateTypePrefStr(CRL_AUTOUPDATE_TIMIINGTYPE_PREF);
-      nsAutoCString updateTimePrefStr(CRL_AUTOUPDATE_TIME_PREF);
-      nsAutoCString updateUrlPrefStr(CRL_AUTOUPDATE_URL_PREF);
-      nsAutoCString updateDayCntPrefStr(CRL_AUTOUPDATE_DAYCNT_PREF);
-      nsAutoCString updateFreqCntPrefStr(CRL_AUTOUPDATE_FREQCNT_PREF);
+      nsCAutoString updateTypePrefStr(CRL_AUTOUPDATE_TIMIINGTYPE_PREF);
+      nsCAutoString updateTimePrefStr(CRL_AUTOUPDATE_TIME_PREF);
+      nsCAutoString updateUrlPrefStr(CRL_AUTOUPDATE_URL_PREF);
+      nsCAutoString updateDayCntPrefStr(CRL_AUTOUPDATE_DAYCNT_PREF);
+      nsCAutoString updateFreqCntPrefStr(CRL_AUTOUPDATE_FREQCNT_PREF);
       LossyAppendUTF16toASCII(crlKey, updateTypePrefStr);
       LossyAppendUTF16toASCII(crlKey, updateTimePrefStr);
       LossyAppendUTF16toASCII(crlKey, updateUrlPrefStr);
@@ -251,8 +251,8 @@ done:
 
     } else{
       int32_t errCnt;
-      nsAutoCString errMsg;
-      nsAutoCString updateErrDetailPrefStr(CRL_AUTOUPDATE_ERRDETAIL_PREF);
+      nsCAutoString errMsg;
+      nsCAutoString updateErrDetailPrefStr(CRL_AUTOUPDATE_ERRDETAIL_PREF);
       LossyAppendUTF16toASCII(crlKey, updateErrDetailPrefStr);
       errMsg.AssignWithConversion(errorMessage.get());
       rv = pref->GetIntPref(updateErrCntPrefStr.get(),&errCnt);

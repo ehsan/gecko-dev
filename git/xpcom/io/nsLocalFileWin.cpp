@@ -2250,7 +2250,7 @@ nsLocalFile::Remove(bool recursive)
 }
 
 NS_IMETHODIMP
-nsLocalFile::GetLastModifiedTime(PRTime *aLastModifiedTime)
+nsLocalFile::GetLastModifiedTime(int64_t *aLastModifiedTime)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
@@ -2275,7 +2275,7 @@ nsLocalFile::GetLastModifiedTime(PRTime *aLastModifiedTime)
 
 
 NS_IMETHODIMP
-nsLocalFile::GetLastModifiedTimeOfLink(PRTime *aLastModifiedTime)
+nsLocalFile::GetLastModifiedTimeOfLink(int64_t *aLastModifiedTime)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
@@ -2299,7 +2299,7 @@ nsLocalFile::GetLastModifiedTimeOfLink(PRTime *aLastModifiedTime)
 
 
 NS_IMETHODIMP
-nsLocalFile::SetLastModifiedTime(PRTime aLastModifiedTime)
+nsLocalFile::SetLastModifiedTime(int64_t aLastModifiedTime)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
@@ -2322,7 +2322,7 @@ nsLocalFile::SetLastModifiedTime(PRTime aLastModifiedTime)
 
 
 NS_IMETHODIMP
-nsLocalFile::SetLastModifiedTimeOfLink(PRTime aLastModifiedTime)
+nsLocalFile::SetLastModifiedTimeOfLink(int64_t aLastModifiedTime)
 {
     // The caller is assumed to have already called IsSymlink 
     // and to have found that this file is a link. 
@@ -2335,7 +2335,7 @@ nsLocalFile::SetLastModifiedTimeOfLink(PRTime aLastModifiedTime)
 }
 
 nsresult
-nsLocalFile::SetModDate(PRTime aLastModifiedTime, const PRUnichar *filePath)
+nsLocalFile::SetModDate(int64_t aLastModifiedTime, const PRUnichar *filePath)
 {
     // The FILE_FLAG_BACKUP_SEMANTICS is required in order to change the
     // modification time for directories.

@@ -179,7 +179,7 @@ LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
     // have uppercase letters they might cause false matches (both fooBar and
     // foo-bar matching fooBar).
     const PRUnichar *name = aName->GetUTF16String();
-    nsAutoCString methodName;
+    nsCAutoString methodName;
     PRUnichar letter;
     bool upperNext = false;
     while ((letter = *name)) {

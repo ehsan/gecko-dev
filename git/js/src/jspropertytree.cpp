@@ -46,9 +46,9 @@ PropertyTree::newShape(JSContext *cx)
 static KidsHash *
 HashChildren(Shape *kid1, Shape *kid2)
 {
-    KidsHash *hash = js_new<KidsHash>();
+    KidsHash *hash = OffTheBooks::new_<KidsHash>();
     if (!hash || !hash->init(2)) {
-        js_delete(hash);
+        Foreground::delete_(hash);
         return NULL;
     }
 
@@ -125,7 +125,7 @@ Shape::removeChild(Shape *child)
         Shape *otherChild = r.front();
         JS_ASSERT((r.popFront(), r.empty()));    /* No more elements! */
         kidp->setShape(otherChild);
-        js_delete(hash);
+        js::UnwantedForeground::delete_(hash);
     }
 }
 

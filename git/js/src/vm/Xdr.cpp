@@ -32,7 +32,7 @@ namespace js {
 void
 XDRBuffer::freeBuffer()
 {
-    js_free(base);
+    Foreground::free_(base);
 #ifdef DEBUG
     memset(this, 0xe2, sizeof *this);
 #endif
@@ -51,7 +51,7 @@ XDRBuffer::grow(size_t n)
         return false;
     }
 
-    void *data = js_realloc(base, newCapacity);
+    void *data = OffTheBooks::realloc_(base, newCapacity);
     if (!data) {
         js_ReportOutOfMemory(cx());
         return false;

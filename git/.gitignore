@@ -45,3 +45,6 @@ parser/html/java/javaparser/
 .project
 .cproject
 .settings/
+
+# Python stuff installed at build-time
+*.egg-info/

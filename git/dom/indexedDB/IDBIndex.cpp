@@ -1705,7 +1705,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     mKeyRange->GetBindingClause(value, keyRangeClause);
   }
 
-  nsAutoCString directionClause(" ORDER BY value ");
+  nsCAutoString directionClause(" ORDER BY value ");
   switch (mDirection) {
     case IDBCursor::NEXT:
     case IDBCursor::NEXT_UNIQUE:
@@ -1760,7 +1760,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now we need to make the query to get the next match.
-  nsAutoCString queryStart = NS_LITERAL_CSTRING("SELECT value, object_data_key"
+  nsCAutoString queryStart = NS_LITERAL_CSTRING("SELECT value, object_data_key"
                                                 " FROM ") + table +
                              NS_LITERAL_CSTRING(" WHERE index_id = :id");
 
@@ -2033,7 +2033,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     mKeyRange->GetBindingClause(value, keyRangeClause);
   }
 
-  nsAutoCString directionClause(" ORDER BY index_table.value ");
+  nsCAutoString directionClause(" ORDER BY index_table.value ");
   switch (mDirection) {
     case IDBCursor::NEXT:
     case IDBCursor::NEXT_UNIQUE:
@@ -2100,7 +2100,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now we need to make the query to get the next match.
-  nsAutoCString queryStart =
+  nsCAutoString queryStart =
     NS_LITERAL_CSTRING("SELECT index_table.value, "
                        "index_table.object_data_key, object_data.data, "
                        "object_data.file_ids FROM ") +
@@ -2353,7 +2353,7 @@ CountHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_NAMED_LITERAL_CSTRING(upperKeyName, "upper_key");
   NS_NAMED_LITERAL_CSTRING(value, "value");
 
-  nsAutoCString keyRangeClause;
+  nsCAutoString keyRangeClause;
   if (mKeyRange) {
     if (!mKeyRange->Lower().IsUnset()) {
       AppendConditionClause(value, lowerKeyName, false,

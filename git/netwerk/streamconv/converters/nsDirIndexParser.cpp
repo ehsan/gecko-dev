@@ -184,7 +184,7 @@ nsDirIndexParser::ParseFormat(const char* aFormatStr) {
     if (! *aFormatStr)
       break;
 
-    nsAutoCString name;
+    nsCAutoString name;
     int32_t     len = 0;
     while (aFormatStr[len] && !nsCRT::IsAsciiSpace(PRUnichar(aFormatStr[len])))
       ++len;
@@ -224,7 +224,7 @@ nsDirIndexParser::ParseData(nsIDirIndex *aIdx, char* aDataStr) {
 
   nsresult rv = NS_OK;
 
-  nsAutoCString filename;
+  nsCAutoString filename;
 
   for (int32_t i = 0; mFormat[i] != -1; ++i) {
     // If we've exhausted the data before we run out of fields, just

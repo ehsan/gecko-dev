@@ -234,7 +234,7 @@ nsAboutCache::VisitEntry(const char *deviceID,
 
     nsresult        rv;
     uint32_t        bytesWritten;
-    nsAutoCString   key;
+    nsCAutoString   key;
     nsXPIDLCString  clientID;
     bool            streamBased;
     
@@ -248,7 +248,7 @@ nsAboutCache::VisitEntry(const char *deviceID,
     if (NS_FAILED(rv)) return rv;
 
     // Generate a about:cache-entry URL for this entry...
-    nsAutoCString url;
+    nsCAutoString url;
     url.AssignLiteral("about:cache-entry?client=");
     url += clientID;
     url.AppendLiteral("&amp;sb=");
@@ -327,7 +327,7 @@ nsAboutCache::ParseURI(nsIURI * uri, nsCString &deviceID)
 
     deviceID.Truncate();
 
-    nsAutoCString path;
+    nsCAutoString path;
     rv = uri->GetPath(path);
     if (NS_FAILED(rv)) return rv;
 

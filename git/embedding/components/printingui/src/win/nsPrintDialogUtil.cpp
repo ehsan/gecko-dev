@@ -340,7 +340,7 @@ GetLocalizedString(nsIStringBundle* aStrBundle, const char* aKey, nsString& oVal
 // Set a multi-byte string in the control
 static void SetTextOnWnd(HWND aControl, const nsString& aStr)
 {
-  nsAutoCString text;
+  nsCAutoString text;
   if (NS_SUCCEEDED(NS_CopyUnicodeToNative(aStr, text))) {
     ::SetWindowText(aControl, text.get());
   }
@@ -445,7 +445,7 @@ static HWND CreateControl(LPCTSTR          aType,
                           const nsAString& aStr, 
                           const nsIntRect& aRect)
 {
-  nsAutoCString str;
+  nsCAutoString str;
   if (NS_FAILED(NS_CopyUnicodeToNative(aStr, str)))
     return NULL;
 

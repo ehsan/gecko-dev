@@ -353,7 +353,7 @@ LM_Hash(const nsString &password, unsigned char *hash)
 {
   // convert password to OEM character set.  we'll just use the native
   // filesystem charset.
-  nsAutoCString passbuf;
+  nsCAutoString passbuf;
   NS_CopyUnicodeToNative(password, passbuf);
   ToUpperCase(passbuf);
   uint32_t n = passbuf.Length();
@@ -577,7 +577,7 @@ GenerateType3Msg(const nsString &domain,
 #endif
   nsAutoString ucsHostBuf; 
   // temporary buffers for oem strings
-  nsAutoCString oemDomainBuf, oemUserBuf, oemHostBuf;
+  nsCAutoString oemDomainBuf, oemUserBuf, oemHostBuf;
   // pointers and lengths for the string buffers; encoding is unicode if
   // the "negotiate unicode" flag was set in the Type-2 message.
   const void *domainPtr, *userPtr, *hostPtr;

@@ -250,12 +250,6 @@ void AdjustSystemClock(int32_t aDeltaMilliseconds);
 void SetTimezone(const nsCString& aTimezoneSpec);
 
 /**
- * Get timezone
- * http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
- */
-nsCString GetTimezone();
-
-/**
  * Reboot the device.
  */
 void Reboot();

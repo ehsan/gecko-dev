@@ -2141,8 +2141,7 @@ nsGenericHTMLElement::ParseBackgroundAttribute(int32_t aNamespaceID,
                                                nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None &&
-      aAttribute == nsGkAtoms::background &&
-      !aValue.IsEmpty()) {
+      aAttribute == nsGkAtoms::background) {
     // Resolve url to an absolute url
     nsIDocument* doc = OwnerDoc();
     nsCOMPtr<nsIURI> baseURI = GetBaseURI();
@@ -2222,7 +2221,7 @@ nsGenericHTMLElement::GetPrimaryPresState(nsGenericHTMLElement* aContent,
 
   nsresult result = NS_OK;
 
-  nsAutoCString key;
+  nsCAutoString key;
   nsCOMPtr<nsILayoutHistoryState> history = GetLayoutHistoryAndKey(aContent, false, key);
 
   if (history) {
@@ -2289,7 +2288,7 @@ bool
 nsGenericHTMLElement::RestoreFormControlState(nsGenericHTMLElement* aContent,
                                               nsIFormControl* aControl)
 {
-  nsAutoCString key;
+  nsCAutoString key;
   nsCOMPtr<nsILayoutHistoryState> history = GetLayoutHistoryAndKey(aContent, true, key);
   if (!history) {
     return false;
@@ -2777,14 +2776,12 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
       const_cast<nsAttrValue*>(aAttributes->GetAttr(nsGkAtoms::background));
     // If the value is an image, or it is a URL and we attempted a load,
     // put it in the style tree.
-    if (value) {
-      if (value->Type() == nsAttrValue::eURL) {
-        value->LoadImage(presContext->Document());
-      }
-      if (value->Type() == nsAttrValue::eImage) {
-        nsCSSValueList* list = backImage->SetListValue();
-        list->mValue.SetImageValue(value->GetImageValue());
-      }
+    if (value &&
+        (value->Type() == nsAttrValue::eImage ||
+         (value->Type() == nsAttrValue::eURL &&
+          value->LoadImage(presContext->Document())))) {
+      nsCSSValueList* list = backImage->SetListValue();
+      list->mValue.SetImageValue(value->GetImageValue());
     }
   }
 }
@@ -2955,7 +2952,7 @@ nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& 
     return NS_OK;
   }
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   uri->GetSpec(spec);
   CopyUTF8toUTF16(spec, aResult);
   return NS_OK;
@@ -3026,7 +3023,7 @@ nsGenericHTMLElement::GetURIListAttr(nsIAtom* aAttr, nsAString& aResult)
         nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(attrURI),
                                                   uriPart, doc, baseURI);
         if (attrURI) {
-          nsAutoCString spec;
+          nsCAutoString spec;
           attrURI->GetSpec(spec);
           AppendUTF8toUTF16(spec, aResult);
         } else {

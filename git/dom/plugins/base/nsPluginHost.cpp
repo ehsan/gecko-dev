@@ -236,7 +236,7 @@ nsInvalidPluginTag::~nsInvalidPluginTag()
 static bool
 IsTypeInList(nsCString &aMimeType, nsCString aTypeList)
 {
-  nsAutoCString searchStr;
+  nsCAutoString searchStr;
   searchStr.Assign(',');
   searchStr.Append(aTypeList);
   searchStr.Append(',');
@@ -246,7 +246,7 @@ IsTypeInList(nsCString &aMimeType, nsCString aTypeList)
   searchStr.BeginReading(start);
   searchStr.EndReading(end);
 
-  nsAutoCString commaSeparated;
+  nsCAutoString commaSeparated;
   commaSeparated.Assign(',');
   commaSeparated += aMimeType;
   commaSeparated.Append(',');
@@ -522,7 +522,7 @@ nsresult nsPluginHost::UserAgent(const char **retstring)
   if (NS_FAILED(res))
     return res;
 
-  nsAutoCString uaString;
+  nsCAutoString uaString;
   res = http->GetUserAgent(uaString);
 
   if (NS_SUCCEEDED(res)) {
@@ -764,7 +764,7 @@ nsresult nsPluginHost::FindProxyForURL(const char* url, char* *result)
   if (NS_FAILED(res))
     return res;
 
-  nsAutoCString host, type;
+  nsCAutoString host, type;
   int32_t port = -1;
 
   // These won't fail, and even if they do... we'll be ok.
@@ -913,7 +913,7 @@ nsPluginHost::InstantiateEmbeddedPluginInstance(const char *aMimeType, nsIURI* a
   NS_ENSURE_ARG_POINTER(aOwner);
 
 #ifdef PLUGIN_LOGGING
-  nsAutoCString urlSpec;
+  nsCAutoString urlSpec;
   if (aURL)
     aURL->GetAsciiSpec(urlSpec);
 
@@ -998,9 +998,9 @@ nsPluginHost::InstantiateEmbeddedPluginInstance(const char *aMimeType, nsIURI* a
   // Also set bCanHandleInternally to true if aAllowOpeningStreams is
   // false; we don't want to do any network traffic in that case.
   bool bCanHandleInternally = false;
-  nsAutoCString scheme;
+  nsCAutoString scheme;
   if (aURL && NS_SUCCEEDED(aURL->GetScheme(scheme))) {
-      nsAutoCString contractID(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX);
+      nsCAutoString contractID(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX);
       contractID += scheme;
       ToLowerCase(contractID);
       nsCOMPtr<nsIProtocolHandler> handler = do_GetService(contractID.get());
@@ -1048,7 +1048,7 @@ nsPluginHost::InstantiateEmbeddedPluginInstance(const char *aMimeType, nsIURI* a
   instanceOwner.forget(aOwner);
 
 #ifdef PLUGIN_LOGGING
-  nsAutoCString urlSpec2;
+  nsCAutoString urlSpec2;
   if (aURL != nullptr) aURL->GetAsciiSpec(urlSpec2);
 
   PR_LOG(nsPluginLogging::gPluginLog, PLUGIN_LOG_NORMAL,
@@ -1068,7 +1068,7 @@ nsresult nsPluginHost::InstantiateFullPagePluginInstance(const char *aMimeType,
                                                          nsIStreamListener **aStreamListener)
 {
 #ifdef PLUGIN_LOGGING
-  nsAutoCString urlSpec;
+  nsCAutoString urlSpec;
   aURI->GetSpec(urlSpec);
   PLUGIN_LOG(PLUGIN_LOG_NORMAL,
   ("nsPluginHost::InstantiateFullPagePlugin Begin mime=%s, url=%s\n",
@@ -1189,7 +1189,7 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
                                      nsIPluginInstanceOwner *aOwner)
 {
 #ifdef PLUGIN_LOGGING
-  nsAutoCString urlSpec;
+  nsCAutoString urlSpec;
   if (aURL != nullptr) aURL->GetSpec(urlSpec);
 
   PR_LOG(nsPluginLogging::gPluginLog, PLUGIN_LOG_NORMAL,
@@ -1208,7 +1208,7 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
     nsCOMPtr<nsIURL> url = do_QueryInterface(aURL);
     if (!url) return NS_ERROR_FAILURE;
 
-    nsAutoCString fileExtension;
+    nsCAutoString fileExtension;
     url->GetFileExtension(fileExtension);
 
     // if we don't have an extension or no plugin for this extension,
@@ -1259,7 +1259,7 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
   }
 
 #ifdef PLUGIN_LOGGING
-  nsAutoCString urlSpec2;
+  nsCAutoString urlSpec2;
   if (aURL)
     aURL->GetSpec(urlSpec2);
 
@@ -1372,6 +1372,55 @@ nsPluginHost::IsPluginEnabledForExtension(const char* aExtension,
 
   return NS_ERROR_FAILURE;
 }
+
+class DOMMimeTypeImpl : public nsIDOMMimeType {
+public:
+  NS_DECL_ISUPPORTS
+
+  DOMMimeTypeImpl(nsPluginTag* aTag, uint32_t aMimeTypeIndex)
+  {
+    if (!aTag)
+      return;
+    CopyUTF8toUTF16(aTag->mMimeDescriptions[aMimeTypeIndex], mDescription);
+    CopyUTF8toUTF16(aTag->mExtensions[aMimeTypeIndex], mSuffixes);
+    CopyUTF8toUTF16(aTag->mMimeTypes[aMimeTypeIndex], mType);
+  }
+
+  virtual ~DOMMimeTypeImpl() {
+  }
+
+  NS_METHOD GetDescription(nsAString& aDescription)
+  {
+    aDescription.Assign(mDescription);
+    return NS_OK;
+  }
+
+  NS_METHOD GetEnabledPlugin(nsIDOMPlugin** aEnabledPlugin)
+  {
+    // this has to be implemented by the DOM version.
+    *aEnabledPlugin = nullptr;
+    return NS_OK;
+  }
+
+  NS_METHOD GetSuffixes(nsAString& aSuffixes)
+  {
+    aSuffixes.Assign(mSuffixes);
+    return NS_OK;
+  }
+
+  NS_METHOD GetType(nsAString& aType)
+  {
+    aType.Assign(mType);
+    return NS_OK;
+  }
+
+private:
+  nsString mDescription;
+  nsString mSuffixes;
+  nsString mType;
+};
+
+NS_IMPL_ISUPPORTS1(DOMMimeTypeImpl, nsIDOMMimeType)
 
 class DOMPluginImpl : public nsIDOMPlugin {
 public:
@@ -1787,7 +1836,7 @@ nsPluginHost::RegisterPlayPreviewMimeType(const nsACString& mimeType)
 NS_IMETHODIMP
 nsPluginHost::UnregisterPlayPreviewMimeType(const nsACString& mimeType)
 {
-  nsAutoCString mimeTypeToRemove(mimeType);
+  nsCAutoString mimeTypeToRemove(mimeType);
   for (uint32_t i = mPlayPreviewMimeTypes.Length(); i > 0;) {
     nsCString mt = mPlayPreviewMimeTypes[--i];
     if (PL_strcasecmp(mt.get(), mimeTypeToRemove.get()) == 0) {
@@ -1955,7 +2004,7 @@ namespace {
 
 int64_t GetPluginLastModifiedTime(const nsCOMPtr<nsIFile>& localfile)
 {
-  PRTime fileModTime = LL_ZERO;
+  int64_t fileModTime = LL_ZERO;
 
 #if defined(XP_MACOSX)
   // On OS X the date of a bundle's "contents" (i.e. of its Info.plist file)
@@ -2003,7 +2052,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
   *aPluginsChanged = false;
 
 #ifdef PLUGIN_LOGGING
-  nsAutoCString dirPath;
+  nsCAutoString dirPath;
   pluginsDir->GetNativePath(dirPath);
   PLUGIN_LOG(PLUGIN_LOG_BASIC,
   ("nsPluginHost::ScanPluginsDirectory dir=%s\n", dirPath.get()));
@@ -2601,7 +2650,7 @@ nsPluginHost::WritePluginInfo()
   if (NS_FAILED(rv))
     return rv;
 
-  nsAutoCString filename(kPluginRegistryFilename);
+  nsCAutoString filename(kPluginRegistryFilename);
   filename.Append(".tmp");
   rv = pluginReg->AppendNative(filename);
   if (NS_FAILED(rv))
@@ -2616,7 +2665,7 @@ nsPluginHost::WritePluginInfo()
     return NS_ERROR_FAILURE;
   }
     
-  nsAutoCString arch;
+  nsCAutoString arch;
   rv = runtime->GetXPCOMABI(arch);
   if (NS_FAILED(rv)) {
     return rv;
@@ -2830,7 +2879,7 @@ nsPluginHost::ReadPluginInfo()
       return rv;
     }
       
-    nsAutoCString arch;
+    nsCAutoString arch;
     if (NS_FAILED(runtime->GetXPCOMABI(arch))) {
       return rv;
     }
@@ -2856,7 +2905,7 @@ nsPluginHost::ReadPluginInfo()
   while (reader.NextLine()) {
     const char *filename;
     const char *fullpath;
-    nsAutoCString derivedFileName;
+    nsCAutoString derivedFileName;
     
     if (hasInvalidPlugins && *reader.LinePtr() == '[') {
       break;
@@ -3228,10 +3277,10 @@ nsPluginHost::AddHeadersToChannel(const char *aHeadersData,
   }
 
   // used during the manipulation of the String from the aHeadersData
-  nsAutoCString headersString;
-  nsAutoCString oneHeader;
-  nsAutoCString headerName;
-  nsAutoCString headerValue;
+  nsCAutoString headersString;
+  nsCAutoString oneHeader;
+  nsCAutoString headerName;
+  nsCAutoString headerValue;
   int32_t crlf = 0;
   int32_t colon = 0;
 
@@ -3674,7 +3723,7 @@ nsPluginHost::CreateTempFileToPost(const char *aPostDataURL, nsIFile **aTmpFile)
 {
   nsresult rv;
   int64_t fileSize;
-  nsAutoCString filename;
+  nsCAutoString filename;
 
   // stat file == get size & convert file:///c:/ to c: if needed
   nsCOMPtr<nsIFile> inFile;
@@ -3705,7 +3754,7 @@ nsPluginHost::CreateTempFileToPost(const char *aPostDataURL, nsIFile **aTmpFile)
     if (NS_FAILED(rv))
       return rv;
 
-    nsAutoCString inFileName;
+    nsCAutoString inFileName;
     inFile->GetNativeLeafName(inFileName);
     // XXX hack around bug 70083
     inFileName.Insert(NS_LITERAL_CSTRING("post-"), 0);

@@ -67,7 +67,7 @@ static bool
 ComputeAccurateDecimalInteger(JSContext *cx, const jschar *start, const jschar *end, double *dp)
 {
     size_t length = end - start;
-    char *cstr = cx->pod_malloc<char>(length + 1);
+    char *cstr = static_cast<char *>(cx->malloc_(length + 1));
     if (!cstr)
         return false;
 
@@ -83,12 +83,12 @@ ComputeAccurateDecimalInteger(JSContext *cx, const jschar *start, const jschar *
     *dp = js_strtod_harder(cx->runtime->dtoaState, cstr, &estr, &err);
     if (err == JS_DTOA_ENOMEM) {
         JS_ReportOutOfMemory(cx);
-        js_free(cstr);
+        cx->free_(cstr);
         return false;
     }
     if (err == JS_DTOA_ERANGE && *dp == HUGE_VAL)
         *dp = js_PositiveInfinity;
-    js_free(cstr);
+    cx->free_(cstr);
     return true;
 }
 
@@ -514,7 +514,7 @@ ToCStringBuf::ToCStringBuf() :dbuf(NULL)
 ToCStringBuf::~ToCStringBuf()
 {
     if (dbuf)
-        js_free(dbuf);
+        UnwantedForeground::free_(dbuf);
 }
 
 JSFixedString *
@@ -702,7 +702,7 @@ num_toLocaleString_impl(JSContext *cx, CallArgs args)
     }
     tmpGroup--;
 
-    char *buf = cx->pod_malloc<char>(buflen + 1);
+    char *buf = (char *)cx->malloc_(buflen + 1);
     if (!buf)
         return false;
 
@@ -741,12 +741,12 @@ num_toLocaleString_impl(JSContext *cx, CallArgs args)
         bool ok = !!cx->localeCallbacks->localeToUnicode(cx, buf, v.address());
         if (ok)
             args.rval().set(v);
-        js_free(buf);
+        cx->free_(buf);
         return ok;
     }
 
     str = js_NewStringCopyN(cx, buf, buflen);
-    js_free(buf);
+    cx->free_(buf);
     if (!str)
         return false;
 
@@ -1089,9 +1089,9 @@ InitRuntimeNumberState(JSRuntime *rt)
     size_t decimalPointSize = strlen(decimalPoint) + 1;
     size_t groupingSize = strlen(grouping) + 1;
 
-    char *storage = js_pod_malloc<char>(thousandsSeparatorSize +
-                                        decimalPointSize +
-                                        groupingSize);
+    char *storage = static_cast<char *>(OffTheBooks::malloc_(thousandsSeparatorSize +
+                                                             decimalPointSize +
+                                                             groupingSize));
     if (!storage)
         return false;
 
@@ -1116,7 +1116,7 @@ FinishRuntimeNumberState(JSRuntime *rt)
      * strings.
      */
     char *storage = const_cast<char *>(rt->thousandsSeparator);
-    js_free(storage);
+    Foreground::free_(storage);
 }
 
 } /* namespace js */
@@ -1547,7 +1547,7 @@ js_strtod(JSContext *cx, const jschar *s, const jschar *send,
 
     i = estr - cstr;
     if (cstr != cbuf)
-        js_free(cstr);
+        cx->free_(cstr);
     *ep = i ? s1 + i : s;
     *dp = d;
     return JS_TRUE;

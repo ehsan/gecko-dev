@@ -6,6 +6,7 @@
 
 #include "base/process_util.h"
 
+#include <sys/types.h>
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #include <sys/wait.h>
@@ -94,7 +95,7 @@ bool LaunchApp(const std::vector<std::string>& argv,
                bool wait, ProcessHandle* process_handle,
                ProcessArchitecture arch) {
   return LaunchApp(argv, fds_to_remap, env_vars_to_set,
-                   PRIVILEGES_INHERIT,
+                   SAME_PRIVILEGES_AS_PARENT,
                    wait, process_handle);
 }
 
@@ -219,7 +220,7 @@ bool LaunchApp(const std::vector<std::string>& argv,
                bool wait, ProcessHandle* process_handle,
                ProcessArchitecture arch) {
   return LaunchApp(argv, fds_to_remap, env_vars_to_set,
-                   PRIVILEGES_INHERIT,
+                   SAME_PRIVILEGES_AS_PARENT,
                    wait, process_handle);
 }
 
@@ -255,7 +256,7 @@ bool LaunchApp(const std::vector<std::string>& argv,
       argv_cstr[i] = const_cast<char*>(argv[i].c_str());
     argv_cstr[argv.size()] = NULL;
 
-    if (privs == PRIVILEGES_UNPRIVILEGED) {
+    if (privs == UNPRIVILEGED) {
       if (setgid(CHILD_UNPRIVILEGED_GID) != 0) {
         DLOG(ERROR) << "FAILED TO setgid() CHILD PROCESS, path: " << argv_cstr[0];
         _exit(127);

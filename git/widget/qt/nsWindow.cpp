@@ -817,7 +817,7 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
         return NS_OK;
 
     nsCOMPtr<nsIFile> iconFile;
-    nsAutoCString path;
+    nsCAutoString path;
     nsTArray<nsCString> iconList;
 
     // Look for icons with the following suffixes appended to the base name.
@@ -2861,7 +2861,7 @@ nsWindow::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus)
 {
 #ifdef DEBUG
     debug_DumpEvent(stdout, aEvent->widget, aEvent,
-                    nsAutoCString("something"), 0);
+                    nsCAutoString("something"), 0);
 #endif
 
     aStatus = nsEventStatus_eIgnore;

@@ -595,7 +595,7 @@ GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleValue 
             if (!bytes)
                 return false;
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NOT_ITERABLE, bytes);
-            js_free(bytes);
+            cx->free_(bytes);
             return false;
         }
 

@@ -18,11 +18,5 @@ void
 SetTimezone(const nsCString& aTimezoneSpec)
 {}
 
-nsCString
-GetTimezone()
-{
-  return EmptyCString();
-}
-
 } // namespace hal_impl
 } // namespace mozilla

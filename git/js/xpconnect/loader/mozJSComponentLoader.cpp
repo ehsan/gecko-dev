@@ -554,7 +554,7 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
     }
 
     if (JS_TypeOfValue(cx, NSGetFactory_val) != JSTYPE_FUNCTION) {
-        nsAutoCString spec;
+        nsCAutoString spec;
         uri->GetSpec(spec);
         JS_ReportError(cx, "%s has NSGetFactory property that is not a function",
                        spec.get());
@@ -688,7 +688,7 @@ mozJSComponentLoader::GlobalForLocation(nsIFile *aComponentFile,
             return NS_ERROR_FAILURE;
     }
 
-    nsAutoCString nativePath;
+    nsCAutoString nativePath;
     rv = aURI->GetSpec(nativePath);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -709,7 +709,7 @@ mozJSComponentLoader::GlobalForLocation(nsIFile *aComponentFile,
     bool writeToCache = false;
     StartupCache* cache = StartupCache::GetSingleton();
 
-    nsAutoCString cachePath(kJSCachePrefix);
+    nsCAutoString cachePath(kJSCachePrefix);
     rv = PathifyURI(aURI, cachePath);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1120,7 +1120,7 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
     sourceLocalFile = do_QueryInterface(sourceFile, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString key;
+    nsCAutoString key;
     rv = resolvedURI->GetSpec(key);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1192,7 +1192,7 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
         }
 
 #ifdef DEBUG
-        nsAutoCString logBuffer;
+        nsCAutoString logBuffer;
 #endif
 
         for (uint32_t i = 0; i < symbolCount; ++i) {
@@ -1277,7 +1277,7 @@ mozJSComponentLoader::Unload(const nsACString & aLocation)
     rv = scriptChannel->GetURI(getter_AddRefs(resolvedURI));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString key;
+    nsCAutoString key;
     rv = resolvedURI->GetSpec(key);
     NS_ENSURE_SUCCESS(rv, rv);
 

@@ -64,6 +64,8 @@ private:
    */
   double mBandwidth;
 
+  NS_DECL_EVENT_HANDLER(change)
+
   static const char* sMeteredPrefName;
   static const bool  sMeteredDefaultValue;
 };

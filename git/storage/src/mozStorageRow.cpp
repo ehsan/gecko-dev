@@ -67,7 +67,7 @@ Row::initialize(sqlite3_stmt *aStatement)
     // Associate the name (if any) with the index
     const char *name = ::sqlite3_column_name(aStatement, i);
     if (!name) break;
-    nsAutoCString colName(name);
+    nsCAutoString colName(name);
     mNameHashtable.Put(colName, i);
   }
 

@@ -188,7 +188,7 @@ PrintDocTree(nsIDocShellTreeItem* aParentItem, int aLevel)
     static_cast<void*>(presContext ? presContext->EventStateManager() : nullptr),
     uri ? ' ' : '\n');
   if (uri) {
-    nsAutoCString spec;
+    nsCAutoString spec;
     uri->GetSpec(spec);
     printf("\"%s\"\n", spec.get());
   }
@@ -2504,8 +2504,7 @@ nsEventStateManager::DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
   // Ignore mouse wheel transaction for computing legacy mouse wheel
   // events' delta value.
   nsIScrollableFrame* scrollTarget =
-    ComputeScrollTarget(aTargetFrame, aEvent,
-                        COMPUTE_LEGACY_MOUSE_SCROLL_EVENT_TARGET);
+    ComputeScrollTarget(aTargetFrame, aEvent, false);
 
   nsIFrame* scrollFrame = do_QueryFrame(scrollTarget);
   nsPresContext* pc =
@@ -2689,9 +2688,9 @@ nsEventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
 nsIScrollableFrame*
 nsEventStateManager::ComputeScrollTarget(nsIFrame* aTargetFrame,
                                          widget::WheelEvent* aEvent,
-                                         ComputeScrollTargetOptions aOptions)
+                                         bool aForDefaultAction)
 {
-  if (aOptions & PREFER_MOUSE_WHEEL_TRANSACTION) {
+  if (aForDefaultAction) {
     // If the user recently scrolled with the mousewheel, then they probably
     // want to scroll the same view as before instead of the view under the
     // cursor.  nsMouseWheelTransaction tracks the frame currently being
@@ -2718,23 +2717,18 @@ nsEventStateManager::ComputeScrollTarget(nsIFrame* aTargetFrame,
     return nullptr;
   }
 
-  bool checkIfScrollableX =
-    aEvent->deltaX && (aOptions & PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_X_AXIS);
-  bool checkIfScrollableY =
-    aEvent->deltaY && (aOptions & PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_Y_AXIS);
-
   nsIScrollableFrame* frameToScroll = nullptr;
-  nsIFrame* scrollFrame =
-    !(aOptions & START_FROM_PARENT) ? aTargetFrame :
-                                      GetParentFrameToScroll(aTargetFrame);
-  for (; scrollFrame; scrollFrame = GetParentFrameToScroll(scrollFrame)) {
+  for (nsIFrame* scrollFrame = aTargetFrame; scrollFrame;
+       scrollFrame = GetParentFrameToScroll(scrollFrame)) {
     // Check whether the frame wants to provide us with a scrollable view.
     frameToScroll = scrollFrame->GetScrollTargetFrame();
     if (!frameToScroll) {
       continue;
     }
 
-    if (!checkIfScrollableX && !checkIfScrollableY) {
+    // At computing scroll target for legacy mouse events, we should return
+    // first scrollable element even when it's not scrollable to the direction.
+    if (!aForDefaultAction) {
       return frameToScroll;
     }
 
@@ -2742,8 +2736,8 @@ nsEventStateManager::ComputeScrollTarget(nsIFrame* aTargetFrame,
     bool hiddenForV = (NS_STYLE_OVERFLOW_HIDDEN == ss.mVertical);
     bool hiddenForH = (NS_STYLE_OVERFLOW_HIDDEN == ss.mHorizontal);
     if ((hiddenForV && hiddenForH) ||
-        (checkIfScrollableY && !checkIfScrollableX && hiddenForV) ||
-        (checkIfScrollableX && !checkIfScrollableY && hiddenForH)) {
+        (aEvent->deltaY && !aEvent->deltaX && hiddenForV) ||
+        (aEvent->deltaX && !aEvent->deltaY && hiddenForH)) {
       continue;
     }
 
@@ -2769,9 +2763,8 @@ nsEventStateManager::ComputeScrollTarget(nsIFrame* aTargetFrame,
 
   nsIFrame* newFrame = nsLayoutUtils::GetCrossDocParentFrame(
       aTargetFrame->PresContext()->FrameManager()->GetRootFrame());
-  aOptions =
-    static_cast<ComputeScrollTargetOptions>(aOptions & ~START_FROM_PARENT);
-  return newFrame ? ComputeScrollTarget(newFrame, aEvent, aOptions) : nullptr;
+  return newFrame ?
+    ComputeScrollTarget(newFrame, aEvent, aForDefaultAction) : nullptr;
 }
 
 nsSize
@@ -2915,17 +2908,18 @@ nsEventStateManager::DoScrollText(nsIScrollableFrame* aScrollableFrame,
       return;
   }
 
+  // XXX When the scroll target came from the wheel transaction manager, there
+  //     may be another scrollable element in its ancestors.  Then, probably we
+  //     shouldn't set overflowDelta even if the event doesn't cause scroll
+  //     actually because the non-zero overflowDelta could cause another action
+  //     such as "back" or "forward" in the history.
+
   nsIntPoint overflow;
   aScrollableFrame->ScrollBy(actualDevPixelScrollAmount,
                              nsIScrollableFrame::DEVICE_PIXELS,
                              mode, &overflow, origin);
 
-  if (!scrollFrameWeak.IsAlive()) {
-    // If the scroll causes changing the layout, we can think that the event
-    // has been completely consumed by the content.  Then, users probably don't
-    // want additional action.
-    aEvent->overflowDeltaX = aEvent->overflowDeltaY = 0;
-  } else if (isDeltaModePixel) {
+  if (isDeltaModePixel) {
     aEvent->overflowDeltaX = overflow.x;
     aEvent->overflowDeltaY = overflow.y;
   } else {
@@ -2937,30 +2931,19 @@ nsEventStateManager::DoScrollText(nsIScrollableFrame* aScrollableFrame,
 
   // If CSS overflow properties caused not to scroll, the overflowDelta* values
   // should be same as delta* values since they may be used as gesture event by
-  // widget.  However, if there is another scrollable element in the ancestor
-  // along the axis, probably users don't want the operation to cause
-  // additional action such as moving history.  In such case, overflowDelta
-  // values should stay zero.
-  if (scrollFrameWeak.IsAlive()) {
-    if (aEvent->deltaX &&
-        overflowStyle.mHorizontal == NS_STYLE_OVERFLOW_HIDDEN &&
-        !ComputeScrollTarget(scrollFrame, aEvent,
-                             COMPUTE_SCROLLABLE_ANCESTOR_ALONG_X_AXIS)) {
-      aEvent->overflowDeltaX = aEvent->deltaX;
-    }
-    if (aEvent->deltaY &&
-        overflowStyle.mVertical == NS_STYLE_OVERFLOW_HIDDEN &&
-        !ComputeScrollTarget(scrollFrame, aEvent,
-                             COMPUTE_SCROLLABLE_ANCESTOR_ALONG_Y_AXIS)) {
-      aEvent->overflowDeltaY = aEvent->deltaY;
-    }
+  // widget.
+  if (overflowStyle.mHorizontal == NS_STYLE_OVERFLOW_HIDDEN) {
+    aEvent->overflowDeltaX = aEvent->deltaX;
+  }
+  if (overflowStyle.mVertical == NS_STYLE_OVERFLOW_HIDDEN) {
+    aEvent->overflowDeltaY = aEvent->deltaY;
   }
 
   NS_ASSERTION(aEvent->overflowDeltaX == 0 ||
-    (aEvent->overflowDeltaX > 0) == (aEvent->deltaX > 0),
+    (aEvent->overflowDeltaX > 0) == (actualDevPixelScrollAmount.x > 0),
     "The sign of overflowDeltaX is different from the scroll direction");
   NS_ASSERTION(aEvent->overflowDeltaY == 0 ||
-    (aEvent->overflowDeltaY > 0) == (aEvent->deltaY > 0),
+    (aEvent->overflowDeltaY > 0) == (actualDevPixelScrollAmount.y > 0),
     "The sign of overflowDeltaY is different from the scroll direction");
 
   WheelPrefs::GetInstance()->CancelApplyingUserPrefsFromOverflowDelta(aEvent);
@@ -3289,8 +3272,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
           // For scrolling of default action, we should honor the mouse wheel
           // transaction.
           nsIScrollableFrame* scrollTarget =
-            ComputeScrollTarget(aTargetFrame, wheelEvent,
-                                COMPUTE_DEFAULT_ACTION_TARGET);
+            ComputeScrollTarget(aTargetFrame, wheelEvent, true);
           wheelEvent->overflowDeltaX = wheelEvent->deltaX;
           wheelEvent->overflowDeltaY = wheelEvent->deltaY;
           WheelPrefs::GetInstance()->
@@ -4892,8 +4874,7 @@ nsEventStateManager::UnregisterAccessKey(nsIContent* aContent, uint32_t aKey)
 uint32_t
 nsEventStateManager::GetRegisteredAccessKey(nsIContent* aContent)
 {
-  NS_ASSERTION(aContent, "Null pointer passed to GetRegisteredAccessKey");
-  NS_ENSURE_TRUE(aContent, 0);
+  NS_ENSURE_ARG(aContent);
 
   if (mAccessKeys.IndexOf(aContent) == -1)
     return 0;
@@ -5189,8 +5170,7 @@ nsEventStateManager::DeltaAccumulator::InitLineOrPageDelta(
     // of default action.  The transaction should be used only for the default
     // action.
     nsIScrollableFrame* scrollTarget =
-      aESM->ComputeScrollTarget(aTargetFrame, aEvent,
-                                COMPUTE_LEGACY_MOUSE_SCROLL_EVENT_TARGET);
+      aESM->ComputeScrollTarget(aTargetFrame, aEvent, false);
     nsIFrame* frame = do_QueryFrame(scrollTarget);
     nsPresContext* pc =
       frame ? frame->PresContext() : aTargetFrame->PresContext();
@@ -5378,25 +5358,25 @@ nsEventStateManager::WheelPrefs::Init(
   }
   mInit[aIndex] = true;
 
-  nsAutoCString basePrefName;
+  nsCAutoString basePrefName;
   GetBasePrefName(aIndex, basePrefName);
 
-  nsAutoCString prefNameX(basePrefName);
+  nsCAutoString prefNameX(basePrefName);
   prefNameX.AppendLiteral("delta_multiplier_x");
   mMultiplierX[aIndex] =
     static_cast<double>(Preferences::GetInt(prefNameX.get(), 100)) / 100;
 
-  nsAutoCString prefNameY(basePrefName);
+  nsCAutoString prefNameY(basePrefName);
   prefNameY.AppendLiteral("delta_multiplier_y");
   mMultiplierY[aIndex] =
     static_cast<double>(Preferences::GetInt(prefNameY.get(), 100)) / 100;
 
-  nsAutoCString prefNameZ(basePrefName);
+  nsCAutoString prefNameZ(basePrefName);
   prefNameZ.AppendLiteral("delta_multiplier_z");
   mMultiplierZ[aIndex] =
     static_cast<double>(Preferences::GetInt(prefNameZ.get(), 100)) / 100;
 
-  nsAutoCString prefNameAction(basePrefName);
+  nsCAutoString prefNameAction(basePrefName);
   prefNameAction.AppendLiteral("action");
   mActions[aIndex] =
     static_cast<Action>(Preferences::GetInt(prefNameAction.get(),

@@ -1325,7 +1325,7 @@ JSObject::makeDenseArraySlow(JSContext *cx, HandleObject obj)
     if (!AddLengthProperty(cx, obj)) {
         obj->shape_ = oldShape;
         if (obj->elements != emptyObjectElements)
-            js_free(obj->getElementsHeader());
+            cx->free_(obj->getElementsHeader());
         obj->elements = elems;
         return false;
     }
@@ -1345,7 +1345,7 @@ JSObject::makeDenseArraySlow(JSContext *cx, HandleObject obj)
 
         if (!obj->addDataProperty(cx, id, next, JSPROP_ENUMERATE)) {
             obj->shape_ = oldShape;
-            js_free(obj->getElementsHeader());
+            cx->free_(obj->getElementsHeader());
             obj->elements = elems;
             return false;
         }
@@ -1358,12 +1358,45 @@ JSObject::makeDenseArraySlow(JSContext *cx, HandleObject obj)
     ObjectElements *oldheader = ObjectElements::fromElements(elems);
 
     obj->getElementsHeader()->length = oldheader->length;
-    js_free(oldheader);
+    cx->free_(oldheader);
 
     return true;
 }
 
 #if JS_HAS_TOSOURCE
+class ArraySharpDetector
+{
+    JSContext *cx;
+    bool success;
+    bool alreadySeen;
+    bool sharp;
+
+  public:
+    ArraySharpDetector(JSContext *cx)
+      : cx(cx),
+        success(false),
+        alreadySeen(false),
+        sharp(false)
+    {}
+
+    bool init(HandleObject obj) {
+        success = js_EnterSharpObject(cx, obj, NULL, &alreadySeen, &sharp);
+        if (!success)
+            return false;
+        return true;
+    }
+
+    bool initiallySharp() const {
+        JS_ASSERT_IF(sharp, alreadySeen);
+        return sharp;
+    }
+
+    ~ArraySharpDetector() {
+        if (success && !sharp)
+            js_LeaveSharpObject(cx, NULL);
+    }
+};
+
 JS_ALWAYS_INLINE bool
 IsArray(const Value &v)
 {
@@ -1378,13 +1411,13 @@ array_toSource_impl(JSContext *cx, CallArgs args)
     Rooted<JSObject*> obj(cx, &args.thisv().toObject());
     RootedValue elt(cx);
 
-    AutoCycleDetector detector(cx, obj);
-    if (!detector.init())
+    ArraySharpDetector detector(cx);
+    if (!detector.init(obj))
         return false;
 
     StringBuffer sb(cx);
 
-    if (detector.foundCycle()) {
+    if (detector.initiallySharp()) {
         if (!sb.append("[]"))
             return false;
         goto make_string;
@@ -1448,6 +1481,52 @@ array_toSource(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif
 
+class AutoArrayCycleDetector
+{
+    JSContext *cx;
+    JSObject *obj;
+    uint32_t genBefore;
+    BusyArraysSet::AddPtr hashPointer;
+    bool cycle;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+
+  public:
+    AutoArrayCycleDetector(JSContext *cx, JSObject *obj JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : cx(cx),
+        obj(obj),
+        cycle(true)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    bool init()
+    {
+        BusyArraysSet &set = cx->busyArrays;
+        hashPointer = set.lookupForAdd(obj);
+        if (!hashPointer) {
+            if (!set.add(hashPointer, obj))
+                return false;
+            cycle = false;
+            genBefore = set.generation();
+        }
+        return true;
+    }
+
+    ~AutoArrayCycleDetector()
+    {
+        if (!cycle) {
+            if (genBefore == cx->busyArrays.generation())
+                cx->busyArrays.remove(hashPointer);
+            else
+                cx->busyArrays.remove(obj);
+        }
+    }
+
+    bool foundCycle() { return cycle; }
+
+  protected:
+};
+
 static bool
 array_join_sub(JSContext *cx, CallArgs &args, bool locale)
 {
@@ -1460,7 +1539,7 @@ array_join_sub(JSContext *cx, CallArgs &args, bool locale)
     if (!obj)
         return false;
 
-    AutoCycleDetector detector(cx, obj);
+    AutoArrayCycleDetector detector(cx, obj);
     if (!detector.init())
         return false;
 
@@ -1473,6 +1552,7 @@ array_join_sub(JSContext *cx, CallArgs &args, bool locale)
     uint32_t length;
     if (!GetLengthProperty(cx, obj, &length))
         return false;
+
 
     // Steps 4 and 5
     RootedString sepstr(cx, NULL);
@@ -3737,7 +3817,7 @@ js_ArrayInfo(JSContext *cx, unsigned argc, Value *vp)
         if (arg.isPrimitive() ||
             !(array = arg.toObjectOrNull())->isArray()) {
             fprintf(stderr, "%s: not array\n", bytes);
-            js_free(bytes);
+            cx->free_(bytes);
             continue;
         }
         fprintf(stderr, "%s: %s (len %u", bytes,
@@ -3748,7 +3828,7 @@ js_ArrayInfo(JSContext *cx, unsigned argc, Value *vp)
                     array->getDenseArrayCapacity());
         }
         fputs(")\n", stderr);
-        js_free(bytes);
+        cx->free_(bytes);
     }
 
     args.rval().setUndefined();

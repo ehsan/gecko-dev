@@ -30,7 +30,6 @@ let AppsUtils = {
       installTime: aApp.installTime,
       manifestURL: aApp.manifestURL,
       appStatus: aApp.appStatus,
-      removable: aApp.removable,
       localId: aApp.localId,
       progress: aApp.progress || 0.0,
       status: aApp.status || "installed"
@@ -105,20 +104,5 @@ let AppsUtils = {
     }
 
     return "";
-  },
-
-  getAppFromObserverMessage: function(aApps, aMessage) {
-    let data = JSON.parse(aMessage);
-
-    for (let id in aApps) {
-      let app = aApps[id];
-      if (app.origin != data.origin) {
-        continue;
-      }
-
-      return this.cloneAsMozIApplication(app);
-    }
-
-    return null;
   }
 }

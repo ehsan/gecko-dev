@@ -27,7 +27,6 @@ struct BlobResponse
 
 struct DeviceStorageFileValue
 {
-  nsString type;
   nsString name;
   nsString fullpath;
 };

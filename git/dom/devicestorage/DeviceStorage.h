@@ -23,12 +23,13 @@ public:
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIDOMEVENTTARGET
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMDeviceStorage, nsDOMEventTargetHelper)
+  NS_DECL_EVENT_HANDLER(change)
 
   nsDOMDeviceStorage();
 
   nsresult Init(nsPIDOMWindow* aWindow, const nsAString &aType);
 
-  void SetRootDirectoryForType(const nsAString& aType);
+  void SetRootFileForType(const nsAString& aType);
 
   static void CreateDeviceStoragesFor(nsPIDOMWindow* aWin,
                                       const nsAString &aType,
@@ -50,15 +51,15 @@ private:
                              bool aEditable, 
                              nsIDOMDeviceStorageCursor** aRetval);
 
-  nsString mStorageType;
-  nsCOMPtr<nsIFile> mRootDirectory;
+  int32_t mStorageType;
+  nsCOMPtr<nsIFile> mFile;
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
 
   bool mIsWatchingFile;
   bool mAllowedToWatchFile;
 
-  nsresult Notify(const char* aReason, class DeviceStorageFile* aFile);
+  nsresult Notify(const char* aReason, nsIFile* aFile);
 
   friend class WatchFileEvent;
   friend class DeviceStorageRequest;

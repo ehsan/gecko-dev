@@ -98,7 +98,7 @@ nsUrlClassifierUtils::GetKeyForURI(nsIURI * uri, nsACString & _retval)
   if (!innerURI)
     innerURI = uri;
 
-  nsAutoCString host;
+  nsCAutoString host;
   innerURI->GetAsciiHost(host);
 
   if (host.IsEmpty()) {
@@ -108,7 +108,7 @@ nsUrlClassifierUtils::GetKeyForURI(nsIURI * uri, nsACString & _retval)
   nsresult rv = CanonicalizeHostname(host, _retval);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString path;
+  nsCAutoString path;
   rv = innerURI->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -117,7 +117,7 @@ nsUrlClassifierUtils::GetKeyForURI(nsIURI * uri, nsACString & _retval)
   if (ref != kNotFound)
     path.SetLength(ref);
 
-  nsAutoCString temp;
+  nsCAutoString temp;
   rv = CanonicalizePath(path, temp);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -133,17 +133,17 @@ nsresult
 nsUrlClassifierUtils::CanonicalizeHostname(const nsACString & hostname,
                                            nsACString & _retval)
 {
-  nsAutoCString unescaped;
+  nsCAutoString unescaped;
   if (!NS_UnescapeURL(PromiseFlatCString(hostname).get(),
                       PromiseFlatCString(hostname).Length(),
                       0, unescaped)) {
     unescaped.Assign(hostname);
   }
 
-  nsAutoCString cleaned;
+  nsCAutoString cleaned;
   CleanupHostname(unescaped, cleaned);
 
-  nsAutoCString temp;
+  nsCAutoString temp;
   ParseIPAddress(cleaned, temp);
   if (!temp.IsEmpty()) {
     cleaned.Assign(temp);
@@ -162,8 +162,8 @@ nsUrlClassifierUtils::CanonicalizePath(const nsACString & path,
 {
   _retval.Truncate();
 
-  nsAutoCString decodedPath(path);
-  nsAutoCString temp;
+  nsCAutoString decodedPath(path);
+  nsCAutoString temp;
   while (NS_UnescapeURL(decodedPath.get(), decodedPath.Length(), 0, temp)) {
     decodedPath.Assign(temp);
     temp.Truncate();
@@ -261,7 +261,7 @@ nsUrlClassifierUtils::ParseIPAddress(const nsACString & host,
   }
 
   for (i = 0; i < parts.Length(); i++) {
-    nsAutoCString canonical;
+    nsCAutoString canonical;
 
     if (i == parts.Length() - 1) {
       CanonicalNum(parts[i], 5 - parts.Length(), allowOctal, canonical);
@@ -387,7 +387,7 @@ nsUrlClassifierUtils::DecodeClientKey(const nsACString &key,
                                       nsACString &_retval)
 {
   // Client key is sent in urlsafe base64, we need to decode it first.
-  nsAutoCString base64(key);
+  nsCAutoString base64(key);
   UnUrlsafeBase64(base64);
 
   // PL_Base64Decode doesn't null-terminate unless we let it allocate,

@@ -34,7 +34,6 @@ LIBXUL_LIBRARY  = 1
 
 CPPSRCS	= \
 	Framebuffer.cpp \
-	HWComposer.cpp \
 	nsAppShell.cpp \
 	nsWidgetFactory.cpp \
 	nsWindow.cpp \

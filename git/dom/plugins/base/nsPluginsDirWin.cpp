@@ -188,7 +188,7 @@ static bool CanLoadPlugin(const PRUnichar* aBinaryPath)
 // The file name must be in the form "np*.dll"
 bool nsPluginsDir::IsPluginFile(nsIFile* file)
 {
-  nsAutoCString path;
+  nsCAutoString path;
   if (NS_FAILED(file->GetNativePath(path)))
     return false;
 

@@ -216,7 +216,7 @@ nsHTMLSharedElement::GetHref(nsAString& aValue)
     return NS_OK;
   }
   
-  nsAutoCString spec;
+  nsCAutoString spec;
   uri->GetSpec(spec);
   CopyUTF8toUTF16(spec, aValue);
 

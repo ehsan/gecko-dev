@@ -307,7 +307,7 @@ nsresult
 nsDOMStorageMemoryDB::RemoveOwner(const nsACString& aOwner,
                                   bool aIncludeSubDomains)
 {
-  nsAutoCString subdomainsDBKey;
+  nsCAutoString subdomainsDBKey;
   nsDOMStorageDBWrapper::CreateDomainScopeDBKey(aOwner, subdomainsDBKey);
 
   if (!aIncludeSubDomains)
@@ -338,7 +338,7 @@ nsDOMStorageMemoryDB::RemoveOwners(const nsTArray<nsString> &aOwners,
   }
 
   for (uint32_t i = 0; i < aOwners.Length(); i++) {
-    nsAutoCString quotaKey;
+    nsCAutoString quotaKey;
     nsDOMStorageDBWrapper::CreateDomainScopeDBKey(
       NS_ConvertUTF16toUTF8(aOwners[i]), quotaKey);
 
@@ -381,7 +381,7 @@ nsDOMStorageMemoryDB::GetUsage(const nsACString& aDomain,
 {
   nsresult rv;
 
-  nsAutoCString quotadomainDBKey;
+  nsCAutoString quotadomainDBKey;
   rv = nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(aDomain,
                                                      aIncludeSubDomains,
                                                      false,
@@ -407,7 +407,7 @@ GetUsageEnum(const nsACString& key,
 
   if (StringBeginsWith(key, struc->mSubdomain)) {
     if (struc->mExcludeOfflineFromUsage) {
-      nsAutoCString domain;
+      nsCAutoString domain;
       nsresult rv = nsDOMStorageDBWrapper::GetDomainFromScopeKey(key, domain);
       if (NS_SUCCEEDED(rv) && IsOfflineAllowed(domain))
         return PL_DHASH_NEXT;

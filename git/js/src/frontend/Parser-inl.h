@@ -79,7 +79,7 @@ ParseContext::~ParseContext()
     // die, make |*parserPC| point to this object's parent.
     JS_ASSERT(*parserPC == this);
     *parserPC = this->parent;
-    js_delete(funcStmts);
+    sc->context->delete_(funcStmts);
     if (queuedStrictModeError) {
         // If the parent context is looking for strict mode violations, pass
         // ours up. Otherwise, free it.
@@ -87,7 +87,7 @@ ParseContext::~ParseContext()
             !parent->queuedStrictModeError)
             parent->queuedStrictModeError = queuedStrictModeError;
         else
-            js_delete(queuedStrictModeError);
+            sc->context->delete_(queuedStrictModeError);
     }
 }
 

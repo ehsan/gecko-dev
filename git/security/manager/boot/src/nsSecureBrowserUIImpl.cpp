@@ -1666,7 +1666,7 @@ nsSecureBrowserUIImpl::OnSecurityChange(nsIWebProgress *aWebProgress,
   channel->GetURI(getter_AddRefs(aURI));
   
   if (aURI) {
-    nsAutoCString temp;
+    nsCAutoString temp;
     aURI->GetSpec(temp);
     PR_LOG(gSecureDocLog, PR_LOG_DEBUG,
            ("SecureUI:%p: OnSecurityChange: (%x) %s\n", this,

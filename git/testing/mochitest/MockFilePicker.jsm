@@ -137,18 +137,19 @@ MockFilePickerInstance.prototype = {
   },
   open: function(aFilePickerShownCallback) {
     MockFilePicker.showing = true;
+    var self = this;
     var tm = Components.classes["@mozilla.org/thread-manager;1"]
                        .getService(Components.interfaces.nsIThreadManager);
-    tm.mainThread.dispatch(function() {
-      let result = Components.interfaces.nsIFilePicker.returnCancel;
-      try {
-        result = this.show();
-      } catch(ex) {
+    tm.mainThread.dispatch({
+      run: function() {
+        try {
+          let result = self.show();
+          aFilePickerShownCallback.done(result);
+        } catch(ex) {
+          aFilePickerShownCallback.done(self.returnCancel);
+        }
       }
-      if (aFilePickerShownCallback) {
-        aFilePickerShownCallback.done(result);
-      }
-    }.bind(this), Components.interfaces.nsIThread.DISPATCH_NORMAL);
+    }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
   }
 };
 

@@ -506,7 +506,7 @@ NS_IMETHODIMP nsHTMLMediaElement::GetEnded(bool *aEnded)
 /* readonly attribute DOMString currentSrc; */
 NS_IMETHODIMP nsHTMLMediaElement::GetCurrentSrc(nsAString & aCurrentSrc)
 {
-  nsAutoCString src;
+  nsCAutoString src;
   GetCurrentSpec(src);
   aCurrentSrc = NS_ConvertUTF8toUTF16(src);
   return NS_OK;
@@ -535,7 +535,7 @@ nsHTMLMediaElement::OnChannelRedirect(nsIChannel *aChannel,
 
   NS_NAMED_LITERAL_CSTRING(rangeHdr, "Range");
  
-  nsAutoCString rangeVal;
+  nsCAutoString rangeVal;
   if (NS_SUCCEEDED(http->GetRequestHeader(rangeHdr, rangeVal))) {
     NS_ENSURE_STATE(!rangeVal.IsEmpty());
 
@@ -2432,7 +2432,7 @@ nsresult nsHTMLMediaElement::InitializeDecoderForChannel(nsIChannel *aChannel,
   NS_ASSERTION(mLoadingSrc, "mLoadingSrc must already be set");
   NS_ASSERTION(mDecoder == nullptr, "Shouldn't have a decoder");
 
-  nsAutoCString mimeType;
+  nsCAutoString mimeType;
   aChannel->GetContentType(mimeType);
 
   nsRefPtr<nsMediaDecoder> decoder = CreateDecoder(mimeType);
@@ -2676,7 +2676,7 @@ nsresult nsHTMLMediaElement::NewURIFromString(const nsAutoString& aURISpec, nsIU
 
 void nsHTMLMediaElement::ProcessMediaFragmentURI()
 {
-  nsAutoCString ref;
+  nsCAutoString ref;
   GetCurrentSpec(ref);
   nsMediaFragmentURIParser parser(ref);
   parser.Parse();

@@ -66,13 +66,13 @@ struct ParamTraits<nsHttpAtom>
   {
     // aParam.get() cannot be null.
     NS_ASSERTION(aParam.get(), "null nsHTTPAtom value");
-    nsAutoCString value(aParam.get());
+    nsCAutoString value(aParam.get());
     WriteParam(aMsg, value);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    nsAutoCString value;
+    nsCAutoString value;
     if (!ReadParam(aMsg, aIter, &value))
       return false;
 

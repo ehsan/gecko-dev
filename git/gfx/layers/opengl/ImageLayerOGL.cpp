@@ -372,7 +372,11 @@ ImageLayerOGL::RenderLayer(int,
     program->SetTextureUnit(0);
     program->LoadMask(GetMaskLayer());
 
-    mOGLManager->BindAndDrawQuad(program);
+    mOGLManager->BindAndDrawQuadWithTextureRect(program,
+                                                GetVisibleRegion().GetBounds(),
+                                                nsIntSize(cairoImage->GetSize().width,
+                                                          cairoImage->GetSize().height));
+
 
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     if (cairoImage->mSurface && pixmap) {
@@ -955,7 +959,7 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 
     ShaderProgramOGL *program = mOGLManager->GetProgram(RGBAExternalLayerProgramType, GetMaskLayer());
 
-    gl()->ApplyFilterToBoundTexture(LOCAL_GL_TEXTURE_EXTERNAL, mFilter);
+    gl()->ApplyFilterToBoundTexture(mFilter);
 
     program->Activate();
     program->SetLayerQuadRect(nsIntRect(0, 0,

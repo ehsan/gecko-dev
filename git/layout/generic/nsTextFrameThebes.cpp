@@ -196,9 +196,6 @@ NS_DECLARE_FRAME_PROPERTY(FontSizeInflationProperty, nullptr)
 // nsTextFrame.h has
 // #define TEXT_HAS_NONCOLLAPSED_CHARACTERS NS_FRAME_STATE_BIT(31)
 
-// nsTextFrame.h has
-// #define TEXT_FORCE_TRIM_WHITESPACE       NS_FRAME_STATE_BIT(32)
-
 // Set when this text frame is mentioned in the userdata for the
 // uninflated textrun property
 #define TEXT_IN_UNINFLATED_TEXTRUN_USER_DATA NS_FRAME_STATE_BIT(60)
@@ -7615,22 +7612,14 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
       length = newLineOffset + 1 - offset;
     }
   }
-  if ((atStartOfLine && !textStyle->WhiteSpaceIsSignificant()) ||
-      (GetStateBits() & TEXT_FORCE_TRIM_WHITESPACE)) {
+  if (atStartOfLine && !textStyle->WhiteSpaceIsSignificant()) {
     // Skip leading whitespace. Make sure we don't skip a 'pre-line'
     // newline if there is one.
     int32_t skipLength = newLineOffset >= 0 ? length - 1 : length;
     int32_t whitespaceCount =
       GetTrimmableWhitespaceCount(frag, offset, skipLength, 1);
-    if (whitespaceCount) {
-      offset += whitespaceCount;
-      length -= whitespaceCount;
-      // Make sure this frame maps the trimmable whitespace.
-      if (NS_UNLIKELY(offset > GetContentEnd())) {
-        SetLength(offset - GetContentOffset(), &aLineLayout,
-                  ALLOW_FRAME_CREATION_AND_DESTRUCTION);
-      }
-    }
+    offset += whitespaceCount;
+    length -= whitespaceCount;
   }
 
   bool completedFirstLetter = false;
@@ -7781,8 +7770,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   bool usedHyphenation;
   gfxFloat trimmedWidth = 0;
   gfxFloat availWidth = aAvailableWidth;
-  bool canTrimTrailingWhitespace = !textStyle->WhiteSpaceIsSignificant() ||
-                                   (GetStateBits() & TEXT_FORCE_TRIM_WHITESPACE);
+  bool canTrimTrailingWhitespace = !textStyle->WhiteSpaceIsSignificant();
   int32_t unusedOffset;  
   gfxBreakPriority breakPriority;
   aLineLayout.GetLastOptionalBreakPosition(&unusedOffset, &breakPriority);
@@ -7851,12 +7839,11 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     // the line. (If we actually do end up at the end of the line, we'll have
     // to trim it off again in TrimTrailingWhiteSpace, and we'd like to avoid
     // having to re-do it.)
-    if (brokeText ||
-        (GetStateBits() & TEXT_FORCE_TRIM_WHITESPACE)) {
+    if (brokeText) {
       // We're definitely going to break so our trailing whitespace should
-      // definitely be trimmed. Record that we've already done it.
+      // definitely be timmed. Record that we've already done it.
       AddStateBits(TEXT_TRIMMED_TRAILING_WHITESPACE);
-    } else if (!(GetStateBits() & TEXT_FORCE_TRIM_WHITESPACE)) {
+    } else {
       // We might not be at the end of the line. (Note that even if this frame
       // ends in breakable whitespace, it might not be at the end of the line
       // because it might be followed by breakable, but preformatted, whitespace.)
@@ -8350,7 +8337,7 @@ nsTextFrame::GetFrameName(nsAString& aResult) const
 {
   MakeFrameName(NS_LITERAL_STRING("Text"), aResult);
   int32_t totalContentLength;
-  nsAutoCString tmp;
+  nsCAutoString tmp;
   ToCString(tmp, &totalContentLength);
   tmp.SetLength(NS_MIN(tmp.Length(), 50u));
   aResult += NS_LITERAL_STRING("\"") + NS_ConvertASCIItoUTF16(tmp) + NS_LITERAL_STRING("\"");

@@ -10,7 +10,6 @@
  */
 
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/ThreadLocal.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -413,7 +412,7 @@ JS_AddArgumentFormatter(JSContext *cx, const char *format, JSArgumentFormatter f
             goto out;
         mpp = &map->next;
     }
-    map = cx->pod_malloc<JSArgumentFormatMap>();
+    map = (JSArgumentFormatMap *) cx->malloc_(sizeof *map);
     if (!map)
         return JS_FALSE;
     map->format = format;
@@ -436,7 +435,7 @@ JS_RemoveArgumentFormatter(JSContext *cx, const char *format)
     while ((map = *mpp) != NULL) {
         if (map->length == length && !strcmp(map->format, format)) {
             *mpp = map->next;
-            js_free(map);
+            cx->free_(map);
             return;
         }
         mpp = &map->next;
@@ -720,13 +719,6 @@ JS_IsBuiltinFunctionConstructor(JSFunction *fun)
  */
 static JSBool js_NewRuntimeWasCalled = JS_FALSE;
 
-/*
- * Thread Local Storage slot for storing the runtime for a thread.
- */
-namespace JS {
-mozilla::ThreadLocal<JSRuntime *> TlsRuntime;
-}
-
 static const JSSecurityCallbacks NullSecurityCallbacks = { };
 
 JSRuntime::JSRuntime()
@@ -855,6 +847,7 @@ JSRuntime::JSRuntime()
     waiveGCQuota(false),
     mathCache_(NULL),
     dtoaState(NULL),
+    pendingProxyOperation(NULL),
     trustedPrincipals_(NULL),
     wrapObjectCallback(TransparentObjectWrapper),
     sameCompartmentWrapObjectCallback(NULL),
@@ -885,8 +878,6 @@ JSRuntime::init(uint32_t maxbytes)
     ownerThread_ = PR_GetCurrentThread();
 #endif
 
-    JS::TlsRuntime.set(this);
-
 #ifdef JS_METHODJIT_SPEW
     JMCheckLogging();
 #endif
@@ -905,7 +896,7 @@ JSRuntime::init(uint32_t maxbytes)
         !atomsCompartment->init(NULL) ||
         !compartments.append(atomsCompartment))
     {
-        js_delete(atomsCompartment);
+        Foreground::delete_(atomsCompartment);
         return false;
     }
 
@@ -938,7 +929,7 @@ JSRuntime::init(uint32_t maxbytes)
 
     debugScopes = this->new_<DebugScopes>(this);
     if (!debugScopes || !debugScopes->init()) {
-        js_delete(debugScopes);
+        Foreground::delete_(debugScopes);
         return false;
     }
 
@@ -948,11 +939,9 @@ JSRuntime::init(uint32_t maxbytes)
 
 JSRuntime::~JSRuntime()
 {
-#ifdef JS_THREADSAFE
-    clearOwnerThread();
-#endif
+    JS_ASSERT(onOwnerThread());
 
-    js_delete(debugScopes);
+    delete_(debugScopes);
 
     /*
      * Even though all objects in the compartment are dead, we may have keep
@@ -992,12 +981,12 @@ JSRuntime::~JSRuntime()
         PR_DestroyLock(gcLock);
 #endif
 
-    js_delete(bumpAlloc_);
-    js_delete(mathCache_);
+    delete_(bumpAlloc_);
+    delete_(mathCache_);
 #ifdef JS_METHODJIT
-    js_delete(jaegerRuntime_);
+    delete_(jaegerRuntime_);
 #endif
-    js_delete(execAlloc_);  /* Delete after jaegerRuntime_. */
+    delete_(execAlloc_);  /* Delete after jaegerRuntime_. */
 }
 
 #ifdef JS_THREADSAFE
@@ -1006,10 +995,7 @@ JSRuntime::setOwnerThread()
 {
     JS_ASSERT(ownerThread_ == (void *)0xc1ea12);  /* "clear" */
     JS_ASSERT(requestDepth == 0);
-    JS_ASSERT(js_NewRuntimeWasCalled);
-    JS_ASSERT(JS::TlsRuntime.get() == NULL);
     ownerThread_ = PR_GetCurrentThread();
-    JS::TlsRuntime.set(this);
     nativeStackBase = GetNativeStackBase();
     if (nativeStackQuota)
         JS_SetNativeStackQuota(this, nativeStackQuota);
@@ -1018,11 +1004,9 @@ JSRuntime::setOwnerThread()
 void
 JSRuntime::clearOwnerThread()
 {
-    assertValidThread();
+    JS_ASSERT(onOwnerThread());
     JS_ASSERT(requestDepth == 0);
-    JS_ASSERT(js_NewRuntimeWasCalled);
     ownerThread_ = (void *)0xc1ea12;  /* "clear" */
-    JS::TlsRuntime.set(NULL);
     nativeStackBase = 0;
 #if JS_STACK_GROWTH_DIRECTION > 0
     nativeStackLimit = UINTPTR_MAX;
@@ -1031,20 +1015,10 @@ JSRuntime::clearOwnerThread()
 #endif
 }
 
-JS_FRIEND_API(void)
-JSRuntime::abortIfWrongThread() const
+JS_FRIEND_API(bool)
+JSRuntime::onOwnerThread() const
 {
-    if (ownerThread_ != PR_GetCurrentThread())
-        MOZ_CRASH();
-    if (this != JS::TlsRuntime.get())
-        MOZ_CRASH();
-}
-
-JS_FRIEND_API(void)
-JSRuntime::assertValidThread() const
-{
-    JS_ASSERT(ownerThread_ == PR_GetCurrentThread());
-    JS_ASSERT(this == JS::TlsRuntime.get());
+    return ownerThread_ == PR_GetCurrentThread();
 }
 #endif  /* JS_THREADSAFE */
 
@@ -1081,13 +1055,10 @@ JS_NewRuntime(uint32_t maxbytes)
 
         InitMemorySubsystem();
 
-        if (!JS::TlsRuntime.init())
-            return NULL;
-
         js_NewRuntimeWasCalled = JS_TRUE;
     }
 
-    JSRuntime *rt = js_new<JSRuntime>();
+    JSRuntime *rt = OffTheBooks::new_<JSRuntime>();
     if (!rt)
         return NULL;
 
@@ -1104,7 +1075,7 @@ JS_PUBLIC_API(void)
 JS_DestroyRuntime(JSRuntime *rt)
 {
     Probes::destroyRuntime(rt);
-    js_delete(rt);
+    Foreground::delete_(rt);
 }
 
 JS_PUBLIC_API(void)
@@ -1131,7 +1102,7 @@ static void
 StartRequest(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
-    rt->assertValidThread();
+    JS_ASSERT(rt->onOwnerThread());
 
     if (rt->requestDepth) {
         rt->requestDepth++;
@@ -1148,7 +1119,7 @@ static void
 StopRequest(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
-    rt->assertValidThread();
+    JS_ASSERT(rt->onOwnerThread());
     JS_ASSERT(rt->requestDepth != 0);
     if (rt->requestDepth != 1) {
         rt->requestDepth--;
@@ -1196,7 +1167,7 @@ JS_SuspendRequest(JSContext *cx)
 {
 #ifdef JS_THREADSAFE
     JSRuntime *rt = cx->runtime;
-    rt->assertValidThread();
+    JS_ASSERT(rt->onOwnerThread());
 
     unsigned saveDepth = rt->requestDepth;
     if (!saveDepth)
@@ -1216,7 +1187,7 @@ JS_ResumeRequest(JSContext *cx, unsigned saveDepth)
 {
 #ifdef JS_THREADSAFE
     JSRuntime *rt = cx->runtime;
-    rt->assertValidThread();
+    JS_ASSERT(rt->onOwnerThread());
     if (saveDepth == 0)
         return;
     JS_ASSERT(saveDepth >= 1);
@@ -1232,7 +1203,7 @@ JS_PUBLIC_API(JSBool)
 JS_IsInRequest(JSRuntime *rt)
 {
 #ifdef JS_THREADSAFE
-    rt->assertValidThread();
+    JS_ASSERT(rt->onOwnerThread());
     return rt->requestDepth != 0;
 #else
     return false;
@@ -1243,7 +1214,7 @@ JS_PUBLIC_API(JSBool)
 JS_IsInSuspendedRequest(JSRuntime *rt)
 {
 #ifdef JS_THREADSAFE
-    rt->assertValidThread();
+    JS_ASSERT(rt->onOwnerThread());
     return rt->suspendCount != 0;
 #else
     return false;
@@ -2037,8 +2008,9 @@ JS_EnumerateStandardClasses(JSContext *cx, JSObject *objArg)
      * Since ES5 15.1.1.3 undefined can't be deleted.
      */
     RootedPropertyName undefinedName(cx, cx->runtime->atomState.typeAtoms[JSTYPE_VOID]);
+    RootedId undefinedId(cx, NameToId(undefinedName));
     RootedValue undefinedValue(cx, UndefinedValue());
-    if (!obj->nativeContains(cx, undefinedName) &&
+    if (!obj->nativeContains(cx, undefinedId) &&
         !JSObject::defineProperty(cx, obj, undefinedName, undefinedValue,
                                   JS_PropertyStub, JS_StrictPropertyStub,
                                   JSPROP_PERMANENT | JSPROP_READONLY)) {
@@ -2113,10 +2085,11 @@ AddNameToArray(JSContext *cx, PropertyName *name, JSIdArray *ida, int *ip)
 }
 
 static JSIdArray *
-EnumerateIfResolved(JSContext *cx, Handle<JSObject*> obj, Handle<PropertyName*> name,
-                    JSIdArray *ida, int *ip, JSBool *foundp)
+EnumerateIfResolved(JSContext *cx, JSHandleObject obj, PropertyName *name, JSIdArray *ida,
+                    int *ip, JSBool *foundp)
 {
-    *foundp = obj->nativeContains(cx, name);
+    RootedId id(cx, NameToId(name));
+    *foundp = obj->nativeContains(cx, id);
     if (*foundp)
         ida = AddNameToArray(cx, name, ida, ip);
     return ida;
@@ -2128,6 +2101,7 @@ JS_EnumerateResolvedStandardClasses(JSContext *cx, JSObject *objArg, JSIdArray *
     RootedObject obj(cx, objArg);
     JSRuntime *rt;
     int i, j, k;
+    PropertyName *name;
     JSBool found;
     JSClassInitializerOp init;
 
@@ -2145,7 +2119,7 @@ JS_EnumerateResolvedStandardClasses(JSContext *cx, JSObject *objArg, JSIdArray *
     }
 
     /* Check whether 'undefined' has been resolved and enumerate it if so. */
-    Rooted<PropertyName*> name(cx, rt->atomState.typeAtoms[JSTYPE_VOID]);
+    name = rt->atomState.typeAtoms[JSTYPE_VOID];
     ida = EnumerateIfResolved(cx, obj, name, ida, &i, &found);
     if (!ida)
         return NULL;
@@ -2307,7 +2281,7 @@ JS_realloc(JSContext *cx, void *p, size_t nbytes)
 JS_PUBLIC_API(void)
 JS_free(JSContext *cx, void *p)
 {
-    return js_free(p);
+    return cx->free_(p);
 }
 
 JS_PUBLIC_API(void)
@@ -2769,7 +2743,7 @@ DumpNotify(JSTracer *trc, void **thingp, JSGCTraceKind kind)
     const char *edgeName = JS_GetTraceEdgeName(&dtrc->base, dtrc->buffer, sizeof(dtrc->buffer));
     size_t edgeNameSize = strlen(edgeName) + 1;
     size_t bytes = offsetof(JSHeapDumpNode, edgeName) + edgeNameSize;
-    JSHeapDumpNode *node = (JSHeapDumpNode *) js_malloc(bytes);
+    JSHeapDumpNode *node = (JSHeapDumpNode *) OffTheBooks::malloc_(bytes);
     if (!node) {
         dtrc->ok = false;
         return;
@@ -2913,7 +2887,7 @@ JS_DumpHeap(JSRuntime *rt, FILE *fp, void* startThing, JSGCTraceKind startKind,
         for (;;) {
             next = node->next;
             parent = node->parent;
-            js_free(node);
+            Foreground::free_(node);
             node = next;
             if (node)
                 break;
@@ -5224,7 +5198,7 @@ JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options,
         return NULL;
 
     JSScript *script = Compile(cx, obj, options, chars, length);
-    js_free(chars);
+    cx->free_(chars);
     return script;
 }
 
@@ -5392,7 +5366,7 @@ JS_BufferIsCompilableUnit(JSContext *cx, JSBool bytes_are_utf8, JSObject *objArg
             JS_SetErrorReporter(cx, older);
         }
     }
-    js_free(chars);
+    cx->free_(chars);
     JS_RestoreExceptionState(cx, exnState);
     return result;
 }
@@ -5516,7 +5490,7 @@ JS::CompileFunction(JSContext *cx, HandleObject obj, CompileOptions options,
         return NULL;
 
     JSFunction *fun = CompileFunction(cx, obj, options, name, nargs, argnames, chars, length);
-    js_free(chars);
+    cx->free_(chars);
     return fun;
 }
 
@@ -5712,7 +5686,7 @@ JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
         return false;
 
     bool ok = Evaluate(cx, obj, options, chars, length, rval);
-    js_free(chars);
+    cx->free_(chars);
     return ok;
 }
 
@@ -6017,7 +5991,7 @@ JS_NewStringCopyZ(JSContext *cx, const char *s)
         return NULL;
     str = js_NewString(cx, js, n);
     if (!str)
-        js_free(js);
+        cx->free_(js);
     return str;
 }
 
@@ -6458,7 +6432,7 @@ void
 JSAutoStructuredCloneBuffer::clear()
 {
     if (data_) {
-        js_free(data_);
+        Foreground::free_(data_);
         data_ = NULL;
         nbytes_ = 0;
         version_ = 0;
@@ -6477,7 +6451,7 @@ JSAutoStructuredCloneBuffer::adopt(uint64_t *data, size_t nbytes, uint32_t versi
 bool
 JSAutoStructuredCloneBuffer::copy(const uint64_t *srcData, size_t nbytes, uint32_t version)
 {
-    uint64_t *newData = static_cast<uint64_t *>(js_malloc(nbytes));
+    uint64_t *newData = static_cast<uint64_t *>(OffTheBooks::malloc_(nbytes));
     if (!newData)
         return false;
 
@@ -6773,7 +6747,7 @@ JS_NewRegExpObject(JSContext *cx, JSObject *objArg, char *bytes, size_t length, 
 
     RegExpStatics *res = obj->asGlobal().getRegExpStatics();
     RegExpObject *reobj = RegExpObject::create(cx, res, chars, length, RegExpFlag(flags), NULL);
-    js_free(chars);
+    cx->free_(chars);
     return reobj;
 }
 
@@ -6832,7 +6806,7 @@ JS_NewRegExpObjectNoStatics(JSContext *cx, char *bytes, size_t length, unsigned 
     if (!chars)
         return NULL;
     RegExpObject *reobj = RegExpObject::createNoStatics(cx, chars, length, RegExpFlag(flags), NULL);
-    js_free(chars);
+    cx->free_(chars);
     return reobj;
 }
 
@@ -6959,7 +6933,7 @@ JS_SaveExceptionState(JSContext *cx)
 
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    state = cx->pod_malloc<JSExceptionState>();
+    state = (JSExceptionState *) cx->malloc_(sizeof(JSExceptionState));
     if (state) {
         state->throwing = JS_GetPendingException(cx, &state->exception);
         if (state->throwing && JSVAL_IS_GCTHING(state->exception))
@@ -6992,7 +6966,7 @@ JS_DropExceptionState(JSContext *cx, JSExceptionState *state)
             assertSameCompartment(cx, state->exception);
             JS_RemoveValueRoot(cx, &state->exception);
         }
-        js_free(state);
+        cx->free_(state);
     }
 }
 
@@ -7052,7 +7026,10 @@ JS_SetRuntimeThread(JSRuntime *rt)
 extern JS_NEVER_INLINE JS_PUBLIC_API(void)
 JS_AbortIfWrongThread(JSRuntime *rt)
 {
-    rt->abortIfWrongThread();
+#ifdef JS_THREADSAFE
+    if (!rt->onOwnerThread())
+        MOZ_CRASH();
+#endif
 }
 
 #ifdef JS_GC_ZEAL

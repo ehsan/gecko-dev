@@ -292,11 +292,11 @@ main(int argc, char* argv[])
         rv = srcFile->Clone(getter_AddRefs(destFile));
         if (NS_FAILED(rv)) return rv;
 
-        nsAutoCString leafName;
+        nsCAutoString leafName;
         rv = destFile->GetNativeLeafName(leafName);
         if (NS_FAILED(rv)) return rv;
 
-        nsAutoCString newName(leafName);
+        nsCAutoString newName(leafName);
         newName.Append(NS_LITERAL_CSTRING(".1"));
         rv = destFile->SetNativeLeafName(newName);
         if (NS_FAILED(rv)) return rv;

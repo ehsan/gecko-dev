@@ -296,7 +296,7 @@ GetShutdownTimeFileName()
       return NULL;
 
     mozFile->AppendNative(NS_LITERAL_CSTRING("Telemetry.ShutdownTime.txt"));
-    nsAutoCString nativePath;
+    nsCAutoString nativePath;
     nsresult rv = mozFile->GetNativePath(nativePath);
     if (!NS_SUCCEEDED(rv))
       return NULL;
@@ -957,7 +957,7 @@ nsAppStartup::TrackStartupCrashBegin(bool *aIsSafeModeNecessary)
 
   xr->GetInSafeMode(&inSafeMode);
 
-  PRTime replacedLockTime;
+  int64_t replacedLockTime;
   rv = xr->GetReplacedLockTime(&replacedLockTime);
 
   if (NS_FAILED(rv) || !replacedLockTime) {

@@ -25,7 +25,6 @@ DOM_SRCDIRS = \
   content/base/src \
   content/html/content/src \
   content/html/document/src \
-  content/media/webaudio \
   content/svg/content/src \
   layout/generic \
   layout/style \

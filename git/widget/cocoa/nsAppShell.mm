@@ -276,7 +276,7 @@ nsAppShell::Init()
   nibFile->AppendNative(NS_LITERAL_CSTRING("res"));
   nibFile->AppendNative(NS_LITERAL_CSTRING("MainMenu.nib"));
 
-  nsAutoCString nibPath;
+  nsCAutoString nibPath;
   rv = nibFile->GetNativePath(nibPath);
   NS_ENSURE_SUCCESS(rv, rv);
 

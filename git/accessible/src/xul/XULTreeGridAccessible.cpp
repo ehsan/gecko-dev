@@ -367,7 +367,7 @@ XULTreeGridRowAccessible::ChildAtPoint(int32_t aX, int32_t aY,
 
   int32_t row = -1;
   nsCOMPtr<nsITreeColumn> column;
-  nsAutoCString childEltUnused;
+  nsCAutoString childEltUnused;
   mTree->GetCellAt(clientX, clientY, &row, getter_AddRefs(column),
                    childEltUnused);
 
@@ -469,7 +469,6 @@ XULTreeGridCellAccessible::
   mTreeView(aTreeView), mRow(aRow), mColumn(aColumn)
 {
   mParent = aRowAcc;
-  mFlags |= eSharedNode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -793,6 +792,12 @@ XULTreeGridCellAccessible::Init()
     mTreeView->GetCellValue(mRow, mColumn, mCachedTextEquiv);
   else
     mTreeView->GetCellText(mRow, mColumn, mCachedTextEquiv);
+}
+
+bool
+XULTreeGridCellAccessible::IsPrimaryForNode() const
+{
+  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -451,7 +451,7 @@ gfxUserFcFontEntry::AdjustPatternToCSS(FcPattern *aPattern)
     FcChar8 *unused;
     if (FcPatternGetString(aPattern,
                            FC_FULLNAME, 0, &unused) == FcResultNoMatch) {
-        nsAutoCString fullname;
+        nsCAutoString fullname;
         if (gfxFontconfigUtils::GetFullnameFromFamilyAndStyle(aPattern,
                                                               &fullname)) {
             FcPatternAddString(aPattern, FC_FULLNAME,
@@ -459,7 +459,7 @@ gfxUserFcFontEntry::AdjustPatternToCSS(FcPattern *aPattern)
         }
     }
 
-    nsAutoCString family;
+    nsCAutoString family;
     family.Append(FONT_FACE_FAMILY_PREFIX);
     AppendUTF16toUTF8(Name(), family);
 
@@ -3137,7 +3137,7 @@ GuessPangoLanguage(nsIAtom *aLanguage)
 
     // Pango and fontconfig won't understand mozilla's internal langGroups, so
     // find a real language.
-    nsAutoCString lang;
+    nsCAutoString lang;
     gfxFontconfigUtils::GetSampleLangForGroup(aLanguage, &lang);
     if (lang.IsEmpty())
         return NULL;

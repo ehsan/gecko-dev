@@ -243,6 +243,46 @@ nsNPAPIPlugin::PluginCrashed(const nsAString& pluginDumpID,
   host->PluginCrashed(this, pluginDumpID, browserDumpID);
 }
 
+#if defined(XP_MACOSX) && defined(__i386__)
+static int32_t OSXVersion()
+{
+  static int32_t gOSXVersion = 0x0;
+  if (gOSXVersion == 0x0) {
+    OSErr err = ::Gestalt(gestaltSystemVersion, (SInt32*)&gOSXVersion);
+    if (err != noErr) {
+      // This should probably be changed when our minimum version changes
+      NS_ERROR("Couldn't determine OS X version, assuming 10.5");
+      gOSXVersion = 0x00001050;
+    }
+  }
+  return gOSXVersion;
+}
+
+// Detects machines with Intel GMA9xx GPUs.
+// kCGLRendererIDMatchingMask and kCGLRendererIntel900ID are only defined in the 10.6 SDK.
+#define CGLRendererIDMatchingMask 0x00FE7F00
+#define CGLRendererIntel900ID 0x00024000
+static bool GMA9XXGraphics()
+{
+  bool hasIntelGMA9XX = false;
+  CGLRendererInfoObj renderer = 0;
+  GLint rendererCount = 0;
+  if (::CGLQueryRendererInfo(0xffffffff, &renderer, &rendererCount) == kCGLNoError) {
+    for (GLint c = 0; c < rendererCount; c++) {
+      GLint rendProp = 0;
+      if (::CGLDescribeRenderer(renderer, c, kCGLRPRendererID, &rendProp) == kCGLNoError) {
+        if ((rendProp & CGLRendererIDMatchingMask) == CGLRendererIntel900ID) {
+          hasIntelGMA9XX = true;
+          break;
+        }
+      }
+    }
+    ::CGLDestroyRendererInfo(renderer);
+  }
+  return hasIntelGMA9XX;
+}
+#endif
+
 bool
 nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
 {
@@ -262,6 +302,34 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   }
 #endif
 
+#if defined(XP_MACOSX) && defined(__i386__)
+  // Only allow on Mac OS X 10.6 or higher.
+  if (OSXVersion() < 0x00001060) {
+    return false;
+  }
+  // Blacklist Flash 10.0 or lower since it may try to negotiate Carbon/Quickdraw
+  // which are not supported out of process. Also blacklist Flash 10.1 if this
+  // machine has an Intel GMA9XX GPU because Flash will negotiate Quickdraw graphics.
+  // Never blacklist Flash >= 10.2.
+  if (aPluginTag->mFileName.EqualsIgnoreCase("flash player.plugin")) {
+    // If the first '.' is before position 2 or the version 
+    // starts with 10.0 then we are dealing with Flash 10 or less.
+    if (aPluginTag->mVersion.FindChar('.') < 2) {
+      return false;
+    }
+    if (aPluginTag->mVersion.Length() >= 4) {
+      nsCString versionPrefix;
+      aPluginTag->mVersion.Left(versionPrefix, 4);
+      if (versionPrefix.EqualsASCII("10.0")) {
+        return false;
+      }
+      if (versionPrefix.EqualsASCII("10.1") && GMA9XXGraphics()) {
+        return false;
+      }
+    }
+  }
+#endif
+
   nsIPrefBranch* prefs = Preferences::GetRootBranch();
   if (!prefs) {
     return false;
@@ -272,7 +340,7 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   // of "dom.ipc.plugins.enabled"
   // The "filename.dll" part can contain shell wildcard pattern
 
-  nsAutoCString prefFile(aPluginTag->mFullPath.get());
+  nsCAutoString prefFile(aPluginTag->mFullPath.get());
   int32_t slashPos = prefFile.RFindCharInSet("/\\");
   if (kNotFound == slashPos)
     return false;
@@ -281,14 +349,14 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
 
 #ifdef XP_MACOSX
 #if defined(__i386__)
-  nsAutoCString prefGroupKey("dom.ipc.plugins.enabled.i386.");
+  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.i386.");
 #elif defined(__x86_64__)
-  nsAutoCString prefGroupKey("dom.ipc.plugins.enabled.x86_64.");
+  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.x86_64.");
 #elif defined(__ppc__)
-  nsAutoCString prefGroupKey("dom.ipc.plugins.enabled.ppc.");
+  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.ppc.");
 #endif
 #else
-  nsAutoCString prefGroupKey("dom.ipc.plugins.enabled.");
+  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.");
 #endif
 
   // Java plugins include a number of different file names,
@@ -1496,7 +1564,7 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
 
   nsIPrincipal *principal = doc->NodePrincipal();
 
-  nsAutoCString specStr;
+  nsCAutoString specStr;
   const char *spec;
 
   nsCOMPtr<nsIURI> uri;
@@ -2077,7 +2145,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
 #ifndef NP_NO_QUICKDRAW
   case NPNVsupportsQuickDrawBool: {
-    *(NPBool*)result = false;
+    *(NPBool*)result = true;
     
     return NPERR_NO_ERROR;
   }

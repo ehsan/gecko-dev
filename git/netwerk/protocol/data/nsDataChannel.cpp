@@ -26,7 +26,7 @@ nsDataChannel::OpenContentStream(bool async, nsIInputStream **result,
 
     nsresult rv;
 
-    nsAutoCString spec;
+    nsCAutoString spec;
     rv = URI()->GetAsciiSpec(spec);
     if (NS_FAILED(rv)) return rv;
 

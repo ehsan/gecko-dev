@@ -97,7 +97,7 @@ nsHtml5Parser::SetDocumentCharset(const nsACString& aCharset,
   NS_PRECONDITION(!mExecutor->HasStarted(),
                   "Document charset set too late.");
   NS_PRECONDITION(mStreamParser, "Setting charset on a script-only parser.");
-  nsAutoCString trimmed;
+  nsCAutoString trimmed;
   trimmed.Assign(aCharset);
   trimmed.Trim(" \t\r\n\f");
   mStreamParser->SetDocumentCharset(trimmed, aCharsetSource);

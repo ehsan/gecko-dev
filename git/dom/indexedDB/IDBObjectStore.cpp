@@ -2331,7 +2331,7 @@ IDBObjectStore::CreateIndex(const nsAString& aName,
   }
 
   if (params.multiEntry && keyPath.IsArray()) {
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
 
   DatabaseInfo* databaseInfo = mTransaction->DBInfo();
@@ -3147,7 +3147,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     mKeyRange->GetBindingClause(keyValue, keyRangeClause);
   }
 
-  nsAutoCString directionClause;
+  nsCAutoString directionClause;
   switch (mDirection) {
     case IDBCursor::NEXT:
     case IDBCursor::NEXT_UNIQUE:
@@ -3202,7 +3202,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   // Now we need to make the query to get the next match.
   keyRangeClause.Truncate();
-  nsAutoCString continueToKeyRangeClause;
+  nsCAutoString continueToKeyRangeClause;
 
   NS_NAMED_LITERAL_CSTRING(currentKey, "current_key");
   NS_NAMED_LITERAL_CSTRING(rangeKey, "range_key");
@@ -3653,7 +3653,7 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_NAMED_LITERAL_CSTRING(lowerKeyName, "lower_key");
   NS_NAMED_LITERAL_CSTRING(upperKeyName, "upper_key");
 
-  nsAutoCString keyRangeClause;
+  nsCAutoString keyRangeClause;
   if (mKeyRange) {
     if (!mKeyRange->Lower().IsUnset()) {
       keyRangeClause = NS_LITERAL_CSTRING(" AND key_value");
@@ -3678,7 +3678,7 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     }
   }
 
-  nsAutoCString limitClause;
+  nsCAutoString limitClause;
   if (mLimit != PR_UINT32_MAX) {
     limitClause.AssignLiteral(" LIMIT ");
     limitClause.AppendInt(mLimit);
@@ -3886,7 +3886,7 @@ CountHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_NAMED_LITERAL_CSTRING(lowerKeyName, "lower_key");
   NS_NAMED_LITERAL_CSTRING(upperKeyName, "upper_key");
 
-  nsAutoCString keyRangeClause;
+  nsCAutoString keyRangeClause;
   if (mKeyRange) {
     if (!mKeyRange->Lower().IsUnset()) {
       keyRangeClause = NS_LITERAL_CSTRING(" AND key_value");

@@ -1260,7 +1260,7 @@ JITChunk::~JITChunk()
         rootedRegExps()[i]->decRef();
 
     if (pcLengths)
-        js_free(pcLengths);
+        Foreground::free_(pcLengths);
 }
 
 void

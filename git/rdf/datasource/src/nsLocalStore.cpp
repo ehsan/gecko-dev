@@ -394,7 +394,7 @@ LocalStoreImpl::LoadData()
     rv = NS_NewFileURI(getter_AddRefs(aURI), aFile);
     if (NS_FAILED(rv)) return rv;
 
-    nsAutoCString spec;
+    nsCAutoString spec;
     rv = aURI->GetSpec(spec);
     if (NS_FAILED(rv)) return rv;
 

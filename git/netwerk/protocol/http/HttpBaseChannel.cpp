@@ -89,7 +89,7 @@ HttpBaseChannel::Init(nsIURI *aURI,
   mCaps = aCaps;
 
   // Construct connection info object
-  nsAutoCString host;
+  nsCAutoString host;
   int32_t port = -1;
   bool usingSSL = false;
 
@@ -121,7 +121,7 @@ HttpBaseChannel::Init(nsIURI *aURI,
   mRequestHead.SetMethod(nsHttp::Get);
 
   // Set request headers
-  nsAutoCString hostLine;
+  nsCAutoString hostLine;
   rv = nsHttpHandler::GenerateHostPort(host, port, hostLine);
   if (NS_FAILED(rv)) return rv;
 
@@ -302,7 +302,7 @@ HttpBaseChannel::SetContentType(const nsACString& aContentType)
     if (!mResponseHead)
       return NS_ERROR_NOT_AVAILABLE;
 
-    nsAutoCString contentTypeBuf, charsetBuf;
+    nsCAutoString contentTypeBuf, charsetBuf;
     bool hadCharset;
     net_ParseContentType(aContentType, contentTypeBuf, charsetBuf, &hadCharset);
 
@@ -445,7 +445,7 @@ HttpBaseChannel::SetUploadStream(nsIInputStream *stream,
   // contentLength are unspecified.
 
   if (stream) {
-    nsAutoCString method;
+    nsCAutoString method;
     bool hasHeaders;
 
     if (contentType.IsEmpty()) {
@@ -494,7 +494,7 @@ HttpBaseChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
 
   if (!aStreamHasHeaders) {
     // SetRequestHeader propagates headers to chrome if HttpChannelChild 
-    nsAutoCString contentLengthStr;
+    nsCAutoString contentLengthStr;
     contentLengthStr.AppendInt(aContentLength);
     SetRequestHeader(NS_LITERAL_CSTRING("Content-Length"), contentLengthStr, 
                      false);
@@ -548,7 +548,7 @@ HttpBaseChannel::ApplyContentConversions()
     return NS_OK;
   }
 
-  nsAutoCString contentEncoding;
+  nsCAutoString contentEncoding;
   char *cePtr, *val;
   nsresult rv;
 
@@ -586,7 +586,7 @@ HttpBaseChannel::ApplyContentConversions()
       }
 
       nsCOMPtr<nsIStreamListener> converter;
-      nsAutoCString from(val);
+      nsCAutoString from(val);
       ToLowerCase(from);
       rv = serv->AsyncConvertData(from.get(),
                                   "uncompressed",
@@ -838,7 +838,7 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
   rv = referrer->SchemeIs("wyciwyg", &match);
   if (NS_FAILED(rv)) return rv;
   if (match) {
-    nsAutoCString path;
+    nsCAutoString path;
     rv = referrer->GetPath(path);
     if (NS_FAILED(rv)) return rv;
 
@@ -852,7 +852,7 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
     if (slashIndex == kNotFound) return NS_ERROR_FAILURE;
 
     // Get the charset of the original URI so we can pass it to our fixed up URI.
-    nsAutoCString charset;
+    nsCAutoString charset;
     referrer->GetOriginCharset(charset);
 
     // Replace |referrer| with a URI without wyciwyg://123/.
@@ -898,8 +898,8 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
       return NS_OK;
 
     if (!gHttpHandler->SendSecureXSiteReferrer()) {
-      nsAutoCString referrerHost;
-      nsAutoCString host;
+      nsCAutoString referrerHost;
+      nsCAutoString host;
 
       rv = referrer->GetAsciiHost(referrerHost);
       if (NS_FAILED(rv)) return rv;
@@ -927,7 +927,7 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
   rv = clone->SetUserPass(EmptyCString());
   if (NS_FAILED(rv)) return rv;
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   rv = clone->GetAsciiSpec(spec);
   if (NS_FAILED(rv)) return rv;
 
@@ -1351,7 +1351,7 @@ HttpBaseChannel::GetEntityID(nsACString& aEntityID)
   }
 
   uint64_t size = LL_MAXUINT;
-  nsAutoCString etag, lastmod;
+  nsCAutoString etag, lastmod;
   if (mResponseHead) {
     // Don't return an entity if the server sent the following header:
     // Accept-Ranges: none

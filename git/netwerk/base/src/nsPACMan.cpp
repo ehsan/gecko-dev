@@ -84,7 +84,7 @@ PendingPACQuery::Start(uint32_t flags)
     return rv;
   }
 
-  nsAutoCString host;
+  nsCAutoString host;
   rv = mURI->GetAsciiHost(host);
   if (NS_FAILED(rv))
     return rv;
@@ -130,7 +130,7 @@ PendingPACQuery::OnLookupComplete(nsICancelable *request,
   // We're no longer pending, so we can remove ourselves.
   PR_REMOVE_LINK(this);
 
-  nsAutoCString pacString;
+  nsCAutoString pacString;
   status = mPACMan->GetProxyForURI(mURI, pacString);
   Complete(status, pacString);
 
@@ -183,7 +183,7 @@ nsPACMan::GetProxyForURI(nsIURI *uri, nsACString &result)
   if (!mPAC)
     return NS_ERROR_NOT_AVAILABLE;
 
-  nsAutoCString spec, host;
+  nsCAutoString spec, host;
   uri->GetAsciiSpec(spec);
   uri->GetAsciiHost(host);
 
@@ -391,7 +391,7 @@ nsPACMan::OnStreamComplete(nsIStreamLoader *loader,
 
   if (NS_SUCCEEDED(status) && HttpRequestSucceeded(loader)) {
     // Get the URI spec used to load this PAC script.
-    nsAutoCString pacURI;
+    nsCAutoString pacURI;
     {
       nsCOMPtr<nsIRequest> request;
       loader->GetRequest(getter_AddRefs(request));

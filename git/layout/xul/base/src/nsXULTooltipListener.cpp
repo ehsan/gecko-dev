@@ -349,7 +349,7 @@ nsXULTooltipListener::CheckTreeBodyMove(nsIDOMMouseEvent* aMouseEvent)
 
     int32_t row;
     nsCOMPtr<nsITreeColumn> col;
-    nsAutoCString obj;
+    nsCAutoString obj;
 
     // subtract off the documentElement's boxObject
     int32_t boxX, boxY;

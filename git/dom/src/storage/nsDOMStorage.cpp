@@ -308,7 +308,7 @@ ClearStorage(nsDOMStorageEntry* aEntry, void* userArg)
 static PLDHashOperator
 ClearStorageIfDomainMatches(nsDOMStorageEntry* aEntry, void* userArg)
 {
-  nsAutoCString* aKey = static_cast<nsAutoCString*> (userArg);
+  nsCAutoString* aKey = static_cast<nsCAutoString*> (userArg);
   if (StringBeginsWith(aEntry->mStorage->GetScopeDBKey(), *aKey)) {
     aEntry->mStorage->ClearAll();
   }
@@ -338,12 +338,12 @@ GetOfflineDomains(nsTArray<nsString>& aDomains)
       rv = perm->GetCapability(&capability);
       NS_ENSURE_SUCCESS(rv, rv);
       if (capability != nsIPermissionManager::DENY_ACTION) {
-        nsAutoCString type;
+        nsCAutoString type;
         rv = perm->GetType(type);
         NS_ENSURE_SUCCESS(rv, rv);
 
         if (type.EqualsLiteral("offline-app")) {
-          nsAutoCString host;
+          nsCAutoString host;
           rv = perm->GetHost(host);
           NS_ENSURE_SUCCESS(rv, rv);
 
@@ -384,7 +384,7 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
     // Check for cookie permission change
     nsCOMPtr<nsIPermission> perm(do_QueryInterface(aSubject));
     if (perm) {
-      nsAutoCString type;
+      nsCAutoString type;
       perm->GetType(type);
       if (type != NS_LITERAL_CSTRING("cookie"))
         return NS_OK;
@@ -395,7 +395,7 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
           nsDependentString(aData) != NS_LITERAL_STRING("deleted"))
         return NS_OK;
 
-      nsAutoCString host;
+      nsCAutoString host;
       perm->GetHost(host);
       if (host.IsEmpty())
         return NS_OK;
@@ -411,7 +411,7 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
       obsserv->NotifyObservers(nullptr, NS_DOMSTORAGE_FLUSH_TIMER_TOPIC, nullptr);
   } else if (!strcmp(aTopic, "browser:purge-domain-data")) {
     // Convert the domain name to the ACE format
-    nsAutoCString aceDomain;
+    nsCAutoString aceDomain;
     nsresult rv;
     nsCOMPtr<nsIIDNService> converter = do_GetService(NS_IDNSERVICE_CONTRACTID);
     if (converter) {
@@ -424,7 +424,7 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
                    aceDomain);
     }
 
-    nsAutoCString key;
+    nsCAutoString key;
     rv = nsDOMStorageDBWrapper::CreateDomainScopeDBKey(aceDomain, key);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1407,7 +1407,7 @@ nsDOMStorage::CanUseStorage(DOMStorageBase* aStorage /* = NULL */)
   // IsCallerChrome().
 
   nsCOMPtr<nsIURI> subjectURI;
-  nsAutoCString unused;
+  nsCAutoString unused;
   if (NS_FAILED(GetPrincipalURIAndHost(subjectPrincipal,
                                        getter_AddRefs(subjectURI),
                                        unused))) {

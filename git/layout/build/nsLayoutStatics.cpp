@@ -98,7 +98,6 @@
 #include "nsWindowMemoryReporter.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ipc/ProcessPriorityManager.h"
-#include "nsPermissionManager.h"
 
 extern void NS_ShutdownChainItemPool();
 
@@ -252,8 +251,6 @@ nsLayoutStatics::Initialize()
   nsSVGUtils::Init();
 
   InitProcessPriorityManager();
-
-  nsPermissionManager::AppUninstallObserverInit();
 
   return NS_OK;
 }

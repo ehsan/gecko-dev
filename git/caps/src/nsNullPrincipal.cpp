@@ -113,7 +113,7 @@ nsNullPrincipal::GetScriptLocation(nsACString &aStr)
 #ifdef DEBUG
 void nsNullPrincipal::dumpImpl()
 {
-  nsAutoCString str;
+  nsCAutoString str;
   mURI->GetSpec(str);
   fprintf(stderr, "nsNullPrincipal (%p) = %s\n", this, str.get());
 }
@@ -246,7 +246,7 @@ nsNullPrincipal::GetOrigin(char** aOrigin)
 {
   *aOrigin = nullptr;
   
-  nsAutoCString str;
+  nsCAutoString str;
   nsresult rv = mURI->GetSpec(str);
   NS_ENSURE_SUCCESS(rv, rv);
 

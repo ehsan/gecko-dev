@@ -249,7 +249,7 @@ NS_IMETHODIMP
 nsGIOMimeApp::SetAsDefaultForURIScheme(nsACString const& aURIScheme)
 {
   GError *error = NULL;
-  nsAutoCString contentType("x-scheme-handler/");
+  nsCAutoString contentType("x-scheme-handler/");
   contentType.Append(aURIScheme);
 
   g_app_info_set_as_default_for_type(mApp,
@@ -272,7 +272,7 @@ NS_IMETHODIMP
 nsGIOService::GetMimeTypeFromExtension(const nsACString& aExtension,
                                              nsACString& aMimeType)
 {
-  nsAutoCString fileExtToUse("file.");
+  nsCAutoString fileExtToUse("file.");
   fileExtToUse.Append(aExtension);
 
   gboolean result_uncertain;
@@ -362,7 +362,7 @@ nsGIOService::GetDescriptionForMimeType(const nsACString& aMimeType,
 NS_IMETHODIMP
 nsGIOService::ShowURI(nsIURI* aURI)
 {
-  nsAutoCString spec;
+  nsCAutoString spec;
   aURI->GetSpec(spec);
   GError *error = NULL;
   if (!g_app_info_launch_default_for_uri(spec.get(), NULL, &error)) {

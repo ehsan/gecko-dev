@@ -1456,7 +1456,7 @@ public:
   }
 
   nsXBLDocumentInfo* mDocInfo;
-  nsAutoCString mID;
+  nsCAutoString mID;
 };
 
 nsresult
@@ -1469,13 +1469,13 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
 
   // nsXBLContentSink::ConstructBinding doesn't create a binding with an empty
   // id, so we don't here either.
-  nsAutoCString id;
+  nsCAutoString id;
   nsresult rv = aStream->ReadCString(id);
 
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(!id.IsEmpty(), NS_ERROR_FAILURE);
 
-  nsAutoCString baseBindingURI;
+  nsCAutoString baseBindingURI;
   rv = aStream->ReadCString(baseBindingURI);
   NS_ENSURE_SUCCESS(rv, rv);
   mCheckedBaseProto = true;
@@ -1545,7 +1545,7 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
 
   XBLPrototypeSetupCleanup cleanup(aDocInfo, id);  
 
-  nsAutoCString className;
+  nsCAutoString className;
   rv = aStream->ReadCString(className);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1679,13 +1679,13 @@ nsXBLPrototypeBinding::Write(nsIObjectOutputStream* aStream)
   nsresult rv = aStream->Write8(flags);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString id;
+  nsCAutoString id;
   mBindingURI->GetRef(id);
   rv = aStream->WriteStringZ(id.get());
   NS_ENSURE_SUCCESS(rv, rv);
 
   // write out the extends and display attribute values
-  nsAutoCString extends;
+  nsCAutoString extends;
   ResolveBaseBinding();
   if (mBaseBindingURI)
     mBaseBindingURI->GetSpec(extends);

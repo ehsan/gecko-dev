@@ -494,7 +494,7 @@ nsDOMFileFile::GetMozFullPathInternal(nsAString &aFilename)
 NS_IMETHODIMP
 nsDOMFileFile::GetLastModifiedDate(JSContext* cx, JS::Value *aLastModifiedDate)
 {
-  PRTime msecs;
+  int64_t msecs;
   mFile->GetLastModifiedTime(&msecs);
   JSObject* date = JS_NewDateObjectMsec(cx, msecs);
   if (date) {
@@ -540,7 +540,7 @@ nsDOMFileFile::GetType(nsAString &aType)
       do_GetService(NS_MIMESERVICE_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString mimeType;
+    nsCAutoString mimeType;
     rv = mimeService->GetTypeFromFile(mFile, mimeType);
     if (NS_FAILED(rv)) {
       mimeType.Truncate();
@@ -713,7 +713,7 @@ nsDOMFileInternalUrlHolder::nsDOMFileInternalUrlHolder(nsIDOMBlob* aFile,
  
 nsDOMFileInternalUrlHolder::~nsDOMFileInternalUrlHolder() {
   if (!mUrl.IsEmpty()) {
-    nsAutoCString narrowUrl;
+    nsCAutoString narrowUrl;
     CopyUTF16toUTF8(mUrl, narrowUrl);
     nsBlobProtocolHandler::RemoveFileDataEntry(narrowUrl);
   }

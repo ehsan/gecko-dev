@@ -385,7 +385,7 @@ PluginModuleParent::ProcessFirstMinidump()
 
     uint32_t sequence = PR_UINT32_MAX;
     nsCOMPtr<nsIFile> dumpFile;
-    nsAutoCString flashProcessType;
+    nsCAutoString flashProcessType;
     TakeMinidump(getter_AddRefs(dumpFile), &sequence);
 
 #ifdef MOZ_CRASHREPORTER_INJECTOR

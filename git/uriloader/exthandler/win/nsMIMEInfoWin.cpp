@@ -175,9 +175,9 @@ static nsresult GetIconURLVariant(nsIFile* aApplication, nsIVariant* *_retval)
   nsresult rv = CallCreateInstance("@mozilla.org/variant;1", _retval);
   if (NS_FAILED(rv))
     return rv;
-  nsAutoCString fileURLSpec;
+  nsCAutoString fileURLSpec;
   NS_GetURLSpecFromFile(aApplication, fileURLSpec);
-  nsAutoCString iconURLSpec; iconURLSpec.AssignLiteral("moz-icon://");
+  nsCAutoString iconURLSpec; iconURLSpec.AssignLiteral("moz-icon://");
   iconURLSpec += fileURLSpec;
   nsCOMPtr<nsIWritableVariant> writable(do_QueryInterface(*_retval));
   writable->SetAsAUTF8String(iconURLSpec);
@@ -225,11 +225,11 @@ nsMIMEInfoWin::LoadUriInternal(nsIURI * aURL)
   if (aURL)
   {
     // extract the url spec from the url
-    nsAutoCString urlSpec;
+    nsCAutoString urlSpec;
     aURL->GetAsciiSpec(urlSpec);
  
     // Unescape non-ASCII characters in the URL
-    nsAutoCString urlCharset;
+    nsCAutoString urlCharset;
     nsAutoString utf16Spec;
     rv = aURL->GetOriginCharset(urlCharset);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -570,7 +570,7 @@ nsMIMEInfoWin::GetPossibleLocalHandlers(nsIArray **_retval)
 
   nsTArray<nsString> trackList;
 
-  nsAutoCString fileExt;
+  nsCAutoString fileExt;
   GetPrimaryExtension(fileExt);
 
   nsCOMPtr<nsIWindowsRegKey> regKey =
@@ -592,7 +592,7 @@ nsMIMEInfoWin::GetPossibleLocalHandlers(nsIArray **_retval)
     // of file extensions related to mime type are simply not defined,
     // (application/rss+xml & application/atom+xml are good examples)
     // in which case we can only provide a generic list.
-    nsAutoCString mimeType;
+    nsCAutoString mimeType;
     GetMIMEType(mimeType);
     if (!mimeType.IsEmpty()) {
       workingRegistryPath.AppendLiteral("MIME\\Database\\Content Type\\");

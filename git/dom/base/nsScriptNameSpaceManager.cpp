@@ -263,7 +263,7 @@ nsScriptNameSpaceManager::RegisterExternalInterfaces(bool aAsProto)
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsXPIDLCString IID_string;
-  nsAutoCString category_entry;
+  nsCAutoString category_entry;
   const char* if_name;
   nsCOMPtr<nsISupports> entry;
   nsCOMPtr<nsIInterfaceInfo> if_info;
@@ -679,7 +679,7 @@ nsScriptNameSpaceManager::AddCategoryEntryToHash(nsICategoryManager* aCategoryMa
     return NS_OK;
   }
 
-  nsAutoCString categoryEntry;
+  nsCAutoString categoryEntry;
   nsresult rv = strWrapper->GetData(categoryEntry);
   NS_ENSURE_SUCCESS(rv, rv);
 

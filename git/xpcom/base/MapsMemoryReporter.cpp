@@ -172,7 +172,7 @@ MapsReporter::MapsReporter()
   const uint32_t len = ArrayLength(mozillaLibraries);
   mMozillaLibraries.Init(len);
   for (uint32_t i = 0; i < len; i++) {
-    nsAutoCString str;
+    nsCAutoString str;
     str.Assign(mozillaLibraries[i]);
     mMozillaLibraries.PutEntry(str);
   }
@@ -245,10 +245,10 @@ MapsReporter::FindLibxul()
       break;
     }
 
-    nsAutoCString pathStr;
+    nsCAutoString pathStr;
     pathStr.Append(path);
 
-    nsAutoCString basename;
+    nsCAutoString basename;
     GetBasename(pathStr, basename);
 
     if (basename.EqualsLiteral("libxul.so")) {
@@ -321,7 +321,7 @@ MapsReporter::ParseMapping(
     return NS_ERROR_FAILURE;
   }
 
-  nsAutoCString name, description;
+  nsCAutoString name, description;
   GetReporterNameAndDescription(path, perms, name, description);
 
   while (true) {
@@ -347,11 +347,11 @@ MapsReporter::GetReporterNameAndDescription(
   // If aPath points to a file, we have its absolute path, plus some
   // whitespace.  Truncate this to its basename, and put the absolute path in
   // the description.
-  nsAutoCString absPath;
+  nsCAutoString absPath;
   absPath.Append(aPath);
   absPath.StripChars(" ");
 
-  nsAutoCString basename;
+  nsCAutoString basename;
   GetBasename(absPath, basename);
 
   if (basename.EqualsLiteral("[heap]")) {
@@ -376,7 +376,7 @@ MapsReporter::GetReporterNameAndDescription(
                  "syscall.");
   }
   else if (!basename.IsEmpty()) {
-    nsAutoCString dirname;
+    nsCAutoString dirname;
     GetDirname(absPath, dirname);
 
     // Hack: A file is a shared library if the basename contains ".so" and its
@@ -496,7 +496,7 @@ MapsReporter::ParseMapBody(
     return NS_OK;
   }
 
-  nsAutoCString path;
+  nsCAutoString path;
   path.Append(category);
   path.Append("/");
   path.Append(aName);

@@ -30,7 +30,7 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
 {
     NS_ENSURE_ARG_POINTER(aURI);
     nsresult rv;
-    nsAutoCString path;
+    nsCAutoString path;
     rv = aURI->GetPath(path);
     if (NS_FAILED(rv)) return rv;
 
@@ -40,7 +40,7 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
 
     int32_t pos = path.Find("?");
     if (pos > 0) {
-        nsAutoCString param;
+        nsCAutoString param;
         (void)path.Right(param, path.Length() - (pos+1));
         if (param.EqualsLiteral("new"))
             statType = nsTraceRefcntImpl::NEW_STATS;
@@ -87,7 +87,7 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
             if (NS_FAILED(rv)) return rv;
         }
 
-        nsAutoCString dumpFileName;
+        nsCAutoString dumpFileName;
         if (statType == nsTraceRefcntImpl::ALL_STATS)
             dumpFileName.AssignLiteral("all-");
         else

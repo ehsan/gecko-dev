@@ -279,7 +279,7 @@ ProcessOrDeferMessage(HWND hwnd,
       } else {
         // Unknown messages only
 #ifdef DEBUG
-        nsAutoCString log("Received \"nonqueued\" message ");
+        nsCAutoString log("Received \"nonqueued\" message ");
         log.AppendInt(uMsg);
         log.AppendLiteral(" during a synchronous IPC message for window ");
         log.AppendInt((int64_t)hwnd);
@@ -390,7 +390,7 @@ WindowIsDeferredWindow(HWND hWnd)
     nsCOMPtr<nsIXULAppInfo> appInfo =
       do_GetService("@mozilla.org/xre/app-info;1");
     if (appInfo) {
-      nsAutoCString appName;
+      nsCAutoString appName;
       if (NS_SUCCEEDED(appInfo->GetName(appName))) {
         appName.Append("MessageWindow");
         nsDependentString windowName(gAppMessageWindowName);

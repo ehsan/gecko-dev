@@ -240,7 +240,7 @@ Navigator::GetAppCodeName(nsAString& aAppCodeName)
     service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString appName;
+  nsCAutoString appName;
   rv = service->GetAppName(appName);
   CopyASCIItoUTF16(appName, aAppCodeName);
 
@@ -340,7 +340,7 @@ Navigator::GetOscpu(nsAString& aOSCPU)
     service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString oscpu;
+  nsCAutoString oscpu;
   rv = service->GetOscpu(oscpu);
   CopyASCIItoUTF16(oscpu, aOSCPU);
 
@@ -480,7 +480,7 @@ Navigator::GetBuildID(nsAString& aBuildID)
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  nsAutoCString buildID;
+  nsCAutoString buildID;
   nsresult rv = appInfo->GetAppBuildID(buildID);
   if (NS_FAILED(rv)) {
     return rv;
@@ -1389,7 +1389,7 @@ NS_GetNavigatorUserAgent(nsAString& aUserAgent)
     service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString ua;
+  nsCAutoString ua;
   rv = service->GetUserAgent(ua);
   CopyASCIItoUTF16(ua, aUserAgent);
 
@@ -1433,7 +1433,7 @@ NS_GetNavigatorPlatform(nsAString& aPlatform)
   // XXX Communicator uses compiled-in build-time string defines
   // to indicate the platform it was compiled *for*, not what it is
   // currently running *on* which is what this does.
-  nsAutoCString plat;
+  nsCAutoString plat;
   rv = service->GetOscpu(plat);
   CopyASCIItoUTF16(plat, aPlatform);
 #endif
@@ -1459,7 +1459,7 @@ NS_GetNavigatorAppVersion(nsAString& aAppVersion)
     service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString str;
+  nsCAutoString str;
   rv = service->GetAppVersion(str);
   CopyASCIItoUTF16(str, aAppVersion);
   NS_ENSURE_SUCCESS(rv, rv);

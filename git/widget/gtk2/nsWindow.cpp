@@ -452,7 +452,7 @@ nsWindow::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus)
 {
 #ifdef DEBUG
     debug_DumpEvent(stdout, aEvent->widget, aEvent,
-                    nsAutoCString("something"), 0);
+                    nsCAutoString("something"), 0);
 #endif
 
     aStatus = nsEventStatus_eIgnore;
@@ -1288,7 +1288,7 @@ SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow)
     if (!GTKToolkit)
         return;
 
-    nsAutoCString desktopStartupID;
+    nsCAutoString desktopStartupID;
     GTKToolkit->GetDesktopStartupID(&desktopStartupID);
     if (desktopStartupID.IsEmpty()) {
         // We don't have the data we need. Fall back to an
@@ -1732,7 +1732,7 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
     if (!mShell)
         return NS_OK;
 
-    nsAutoCString iconName;
+    nsCAutoString iconName;
     
     if (aIconSpec.EqualsLiteral("default")) {
         nsXPIDLString brandName;
@@ -1744,7 +1744,7 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
     }
     
     nsCOMPtr<nsIFile> iconFile;
-    nsAutoCString path;
+    nsCAutoString path;
 
     gint *iconSizes =
         gtk_icon_theme_get_icon_sizes(gtk_icon_theme_get_default(),

@@ -37,7 +37,7 @@ public:
 
     static const nsIURI* KeyToPointer(nsIURI* aKey) { return aKey; }
     static PLDHashNumber HashKey(const nsIURI* aKey) {
-        nsAutoCString spec;
+        nsCAutoString spec;
         const_cast<nsIURI*>(aKey)->GetSpec(spec);
         return mozilla::HashString(spec);
     }

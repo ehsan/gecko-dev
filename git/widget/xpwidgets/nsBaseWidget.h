@@ -368,19 +368,19 @@ protected:
   static void debug_DumpInvalidate(FILE *                aFileOut,
                                    nsIWidget *           aWidget,
                                    const nsIntRect *     aRect,
-                                   const nsAutoCString & aWidgetName,
+                                   const nsCAutoString & aWidgetName,
                                    int32_t               aWindowID);
 
   static void debug_DumpEvent(FILE *                aFileOut,
                               nsIWidget *           aWidget,
                               nsGUIEvent *          aGuiEvent,
-                              const nsAutoCString & aWidgetName,
+                              const nsCAutoString & aWidgetName,
                               int32_t               aWindowID);
 
   static void debug_DumpPaintEvent(FILE *                aFileOut,
                                    nsIWidget *           aWidget,
                                    const nsIntRegion &   aPaintEvent,
-                                   const nsAutoCString & aWidgetName,
+                                   const nsCAutoString & aWidgetName,
                                    int32_t               aWindowID);
 
   static bool debug_GetCachedBoolPref(const char* aPrefName);

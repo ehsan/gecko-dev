@@ -96,7 +96,7 @@ nsHttpChannelAuthProvider::ProcessAuthentication(uint32_t httpStatus,
     rv = mAuthChannel->GetLoadFlags(&loadFlags);
     if (NS_FAILED(rv)) return rv;
 
-    nsAutoCString challenges;
+    nsCAutoString challenges;
     mProxyAuth = (httpStatus == 407);
 
     // Do proxy auth even if we're LOAD_ANONYMOUS
@@ -134,7 +134,7 @@ nsHttpChannelAuthProvider::ProcessAuthentication(uint32_t httpStatus,
         rv = mAuthChannel->GetWWWChallenges(challenges);
     if (NS_FAILED(rv)) return rv;
 
-    nsAutoCString creds;
+    nsCAutoString creds;
     rv = GetCredentials(challenges.get(), mProxyAuth, creds);
     if (rv == NS_ERROR_IN_PROGRESS)
         return rv;
@@ -187,7 +187,7 @@ nsHttpChannelAuthProvider::AddAuthorizationHeaders()
     }
 
     // check if server credentials should be sent
-    nsAutoCString path, scheme;
+    nsCAutoString path, scheme;
     if (NS_SUCCEEDED(GetCurrentPath(path)) &&
         NS_SUCCEEDED(mURI->GetScheme(scheme))) {
         SetAuthorizationHeader(authCache, nsHttp::Authorization,
@@ -412,7 +412,7 @@ nsHttpChannelAuthProvider::PrepareForAuthentication(bool proxyAuth)
     // We need to remove any Proxy_Authorization header left over from a
     // non-request based authentication handshake (e.g., for NTLM auth).
 
-    nsAutoCString contractId;
+    nsCAutoString contractId;
     contractId.Assign(NS_HTTP_AUTHENTICATOR_CONTRACTID_PREFIX);
     contractId.Append(mProxyAuthType);
 
@@ -428,7 +428,7 @@ nsHttpChannelAuthProvider::PrepareForAuthentication(bool proxyAuth)
         return rv;
 
     if (!(precedingAuthFlags & nsIHttpAuthenticator::REQUEST_BASED)) {
-        nsAutoCString challenges;
+        nsCAutoString challenges;
         rv = mAuthChannel->GetProxyChallenges(challenges);
         if (NS_FAILED(rv)) {
             // delete the proxy authorization header because we weren't
@@ -479,7 +479,7 @@ nsHttpChannelAuthProvider::ResolveHost()
     rv = mAuthChannel->GetURI(getter_AddRefs(uri));
     if (NS_FAILED(rv))
         return rv;
-    nsAutoCString host;
+    nsCAutoString host;
     rv = uri->GetAsciiHost(host);
     if (NS_FAILED(rv))
         return rv;
@@ -500,7 +500,7 @@ nsHttpChannelAuthProvider::GetCredentials(const char     *challenges,
                                           nsAFlatCString &creds)
 {
     nsCOMPtr<nsIHttpAuthenticator> auth;
-    nsAutoCString challenge;
+    nsCAutoString challenge;
 
     nsCString authType; // force heap allocation to enable string sharing since
                         // we'll be assigning this value into mAuthType.
@@ -648,7 +648,7 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
     nsresult rv = auth->GetAuthFlags(&authFlags);
     if (NS_FAILED(rv)) return rv;
 
-    nsAutoCString realm;
+    nsCAutoString realm;
     ParseRealm(challenge, realm);
 
     // if no realm, then use the auth type as the realm.  ToUpperCase so the
@@ -668,7 +668,7 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
     const char *host;
     int32_t port;
     nsHttpAuthIdentity *ident;
-    nsAutoCString path, scheme;
+    nsCAutoString path, scheme;
     bool identFromURI = false;
     nsISupports **continuationState;
 
@@ -833,7 +833,7 @@ nsHttpChannelAuthProvider::GetAuthenticator(const char            *challenge,
     // normalize to lowercase
     ToLowerCase(authType);
 
-    nsAutoCString contractid;
+    nsCAutoString contractid;
     contractid.Assign(NS_HTTP_AUTHENTICATOR_CONTRACTID_PREFIX);
     contractid.Append(authType);
 
@@ -851,7 +851,7 @@ nsHttpChannelAuthProvider::GetIdentityFromURI(uint32_t            authFlags,
     nsAutoString passBuf;
 
     // XXX i18n
-    nsAutoCString buf;
+    nsCAutoString buf;
     mURI->GetUsername(buf);
     if (!buf.IsEmpty()) {
         NS_UnescapeURL(buf);
@@ -1033,14 +1033,14 @@ NS_IMETHODIMP nsHttpChannelAuthProvider::OnAuthAvailable(nsISupports *aContext,
     const char *host;
     int32_t port;
     nsHttpAuthIdentity *ident;
-    nsAutoCString path, scheme;
+    nsCAutoString path, scheme;
     nsISupports **continuationState;
     rv = GetAuthorizationMembers(mProxyAuth, scheme, host, port,
                                  path, ident, continuationState);
     if (NS_FAILED(rv))
         OnAuthCancelled(aContext, false);
 
-    nsAutoCString realm;
+    nsCAutoString realm;
     ParseRealm(mCurrentChallenge.get(), realm);
 
     nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
@@ -1067,7 +1067,7 @@ NS_IMETHODIMP nsHttpChannelAuthProvider::OnAuthAvailable(nsISupports *aContext,
         return NS_OK;
     }
 
-    nsAutoCString unused;
+    nsCAutoString unused;
     nsCOMPtr<nsIHttpAuthenticator> auth;
     rv = GetAuthenticator(mCurrentChallenge.get(), unused,
                           getter_AddRefs(auth));
@@ -1107,7 +1107,7 @@ NS_IMETHODIMP nsHttpChannelAuthProvider::OnAuthCancelled(nsISupports *aContext,
             // there are still some challenges to process, do so
             nsresult rv;
 
-            nsAutoCString creds;
+            nsCAutoString creds;
             rv = GetCredentials(mRemainingChallenges.get(), mProxyAuth, creds);
             if (NS_SUCCEEDED(rv)) {
                 // GetCredentials loaded the credentials from the cache or
@@ -1173,7 +1173,7 @@ nsHttpChannelAuthProvider::ConfirmAuth(const nsString &bundleKey,
         !(loadFlags & nsIChannel::LOAD_INITIAL_DOCUMENT_URI))
         return true;
 
-    nsAutoCString userPass;
+    nsCAutoString userPass;
     rv = mURI->GetUserPass(userPass);
     if (NS_FAILED(rv) ||
         (userPass.Length() < gHttpHandler->PhishyUserPassLength()))
@@ -1193,12 +1193,12 @@ nsHttpChannelAuthProvider::ConfirmAuth(const nsString &bundleKey,
     if (!bundle)
         return true;
 
-    nsAutoCString host;
+    nsCAutoString host;
     rv = mURI->GetHost(host);
     if (NS_FAILED(rv))
         return true;
 
-    nsAutoCString user;
+    nsCAutoString user;
     rv = mURI->GetUsername(user);
     if (NS_FAILED(rv))
         return true;
@@ -1311,7 +1311,7 @@ nsHttpChannelAuthProvider::SetAuthorizationHeader(nsHttpAuthCache    *authCache,
         // the stored credentials.
         if ((!creds[0] || identFromURI) && challenge[0]) {
             nsCOMPtr<nsIHttpAuthenticator> auth;
-            nsAutoCString unused;
+            nsCAutoString unused;
             rv = GetAuthenticator(challenge, unused, getter_AddRefs(auth));
             if (NS_SUCCEEDED(rv)) {
                 bool proxyAuth = (header == nsHttp::Proxy_Authorization);

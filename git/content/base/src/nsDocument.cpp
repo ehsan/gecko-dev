@@ -960,7 +960,7 @@ nsExternalResourceMap::PendingLoad::SetupViewer(nsIRequest* aRequest,
     }
   }
  
-  nsAutoCString type;
+  nsCAutoString type;
   chan->GetContentType(type);
 
   nsCOMPtr<nsILoadGroup> loadGroup;
@@ -1801,14 +1801,14 @@ static const char* kNSURIs[] = {
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   if (NS_UNLIKELY(cb.WantDebugInfo())) {
     char name[512];
-    nsAutoCString loadedAsData;
+    nsCAutoString loadedAsData;
     if (tmp->IsLoadedAsData()) {
       loadedAsData.AssignLiteral("data");
     } else {
       loadedAsData.AssignLiteral("normal");
     }
     uint32_t nsid = tmp->GetDefaultNamespaceID();
-    nsAutoCString uri;
+    nsCAutoString uri;
     if (tmp->mDocumentURI)
       tmp->mDocumentURI->GetSpec(uri);
     if (nsid < ArrayLength(kNSURIs)) {
@@ -2098,7 +2098,7 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
 
 #ifdef PR_LOGGING
   if (gDocumentLeakPRLog && PR_LOG_TEST(gDocumentLeakPRLog, PR_LOG_DEBUG)) {
-    nsAutoCString spec;
+    nsCAutoString spec;
     aURI->GetSpec(spec);
     PR_LogPrint("DOCUMENT %p ResetToURI %s", this, spec.get());
   }
@@ -2353,7 +2353,7 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
   if (gDocumentLeakPRLog && PR_LOG_TEST(gDocumentLeakPRLog, PR_LOG_DEBUG)) {
     nsCOMPtr<nsIURI> uri;
     aChannel->GetURI(getter_AddRefs(uri));
-    nsAutoCString spec;
+    nsCAutoString spec;
     if (uri)
       uri->GetSpec(spec);
     PR_LogPrint("DOCUMENT %p StartDocumentLoad %s", this, spec.get());
@@ -2388,7 +2388,7 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     Reset(aChannel, aLoadGroup);
   }
 
-  nsAutoCString contentType;
+  nsCAutoString contentType;
   if (NS_SUCCEEDED(aChannel->GetContentType(contentType))) {
     // XXX this is only necessary for viewsource:
     nsACString::const_iterator start, end, semicolon;
@@ -3006,7 +3006,7 @@ nsDocument::SetDocumentCharacterSet(const nsACString& aCharSetID)
     mCharacterSet = aCharSetID;
 
 #ifdef DEBUG
-    nsAutoCString canonicalName;
+    nsCAutoString canonicalName;
     nsCharsetAlias::GetPreferred(aCharSetID, canonicalName);
     NS_ASSERTION(canonicalName.Equals(aCharSetID),
                  "charset name must be canonical");
@@ -3145,10 +3145,10 @@ nsDocument::TryChannelCharset(nsIChannel *aChannel,
   }
 
   if (aChannel) {
-    nsAutoCString charsetVal;
+    nsCAutoString charsetVal;
     nsresult rv = aChannel->GetContentCharset(charsetVal);
     if (NS_SUCCEEDED(rv)) {
-      nsAutoCString preferred;
+      nsCAutoString preferred;
       rv = nsCharsetAlias::GetPreferred(charsetVal, preferred);
       if(NS_SUCCEEDED(rv)) {
         aCharset = preferred;
@@ -3692,7 +3692,7 @@ nsDocument::EnsureCatalogStyleSheet(const char *aStyleSheetURI)
       nsIStyleSheet* sheet = GetCatalogStyleSheetAt(i);
       NS_ASSERTION(sheet, "unexpected null stylesheet in the document");
       if (sheet) {
-        nsAutoCString uriStr;
+        nsCAutoString uriStr;
         sheet->GetSheetURI()->GetSpec(uriStr);
         if (uriStr.Equals(aStyleSheetURI))
           return;
@@ -5324,7 +5324,7 @@ nsDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
   int32_t namespaceID;
   nsCOMPtr<nsIAtom> tag = BindingManager()->ResolveTag(content, &namespaceID);
 
-  nsAutoCString contractID("@mozilla.org/layout/xul-boxobject");
+  nsCAutoString contractID("@mozilla.org/layout/xul-boxobject");
   if (namespaceID == kNameSpaceID_XUL) {
     if (tag == nsGkAtoms::browser ||
         tag == nsGkAtoms::editor ||
@@ -5913,7 +5913,7 @@ NS_IMETHODIMP
 nsDocument::GetDocumentURI(nsAString& aDocumentURI)
 {
   if (mDocumentURI) {
-    nsAutoCString uri;
+    nsCAutoString uri;
     mDocumentURI->GetSpec(uri);
     CopyUTF8toUTF16(uri, aDocumentURI);
   } else {
@@ -6663,7 +6663,7 @@ nsDocument::RetrieveRelevantHeaders(nsIChannel *aChannel)
   nsresult rv;
 
   if (httpChannel) {
-    nsAutoCString tmp;
+    nsCAutoString tmp;
     rv = httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("last-modified"),
                                         tmp);
 
@@ -6698,7 +6698,7 @@ nsDocument::RetrieveRelevantHeaders(nsIChannel *aChannel)
       0
     };
     
-    nsAutoCString headerVal;
+    nsCAutoString headerVal;
     const char *const *name = headers;
     while (*name) {
       rv =
@@ -6725,7 +6725,7 @@ nsDocument::RetrieveRelevantHeaders(nsIChannel *aChannel)
         }
       }
     } else {
-      nsAutoCString contentDisp;
+      nsCAutoString contentDisp;
       rv = aChannel->GetContentDispositionHeader(contentDisp);
       if (NS_SUCCEEDED(rv)) {
         SetHeaderData(nsGkAtoms::headerContentDisposition,
@@ -6969,7 +6969,7 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
       nsCOMPtr<nsIRequest> request = do_QueryInterface(elem);
       if (request && request != aNewRequest && request != baseChannel) {
 #ifdef DEBUG_PAGE_CACHE
-        nsAutoCString requestName, docSpec;
+        nsCAutoString requestName, docSpec;
         request->GetName(requestName);
         if (mDocumentURI)
           mDocumentURI->GetSpec(docSpec);
@@ -7681,7 +7681,7 @@ nsDocument::MaybePreLoadImage(nsIURI* uri, const nsAString &aCrossOriginAttr)
   // which indicates that the "real" load has already started and
   // that we shouldn't preload it.
   int16_t blockingStatus;
-  if (nsContentUtils::IsImageInCache(uri, static_cast<nsIDocument *>(this)) ||
+  if (nsContentUtils::IsImageInCache(uri) ||
       !nsContentUtils::CanLoadImage(uri, static_cast<nsIDocument *>(this),
                                     this, NodePrincipal(), &blockingStatus)) {
     return;
@@ -7853,7 +7853,7 @@ nsDocument::SetScrollToRef(nsIURI *aDocumentURI)
     return;
   }
 
-  nsAutoCString ref;
+  nsCAutoString ref;
 
   // Since all URI's that pass through here aren't URL's we can't
   // rely on the nsIURI implementation for providing a way for
@@ -7891,7 +7891,7 @@ nsDocument::ScrollToRef()
   }
 
   nsUnescape(tmpstr);
-  nsAutoCString unescapedRef;
+  nsCAutoString unescapedRef;
   unescapedRef.Assign(tmpstr);
   nsMemory::Free(tmpstr);
 

@@ -354,8 +354,9 @@ public:
    * Convert a URL nsAttrValue to an Image nsAttrValue.
    *
    * @param aDocument the document this nsAttrValue belongs to.
+   * @return whether an image load was attempted
    */
-  void LoadImage(nsIDocument* aDocument);
+  bool LoadImage(nsIDocument* aDocument);
 
   size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 

@@ -51,7 +51,7 @@ struct SafebrowsingHash
        aPlainText.Length());
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString hashed;
+    nsCAutoString hashed;
     rv = aHash->Finish(false, hashed);
     NS_ENSURE_SUCCESS(rv, rv);
 

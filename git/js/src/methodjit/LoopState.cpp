@@ -1438,7 +1438,7 @@ LoopState::restoreInvariants(jsbytecode *pc, Assembler &masm,
     }
 
     if (temporaryCopies)
-        js_delete(temporaryCopies);
+        cx->delete_(temporaryCopies);
 }
 
 /* Loop analysis methods. */

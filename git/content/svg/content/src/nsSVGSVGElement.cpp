@@ -604,7 +604,7 @@ nsSVGSVGElement::GetElementById(const nsAString & elementId, nsIDOMElement **_re
   nsresult rv = NS_OK;
   nsAutoString selector(NS_LITERAL_STRING("#"));
   nsStyleUtil::AppendEscapedCSSIdent(PromiseFlatString(elementId), selector);
-  nsIContent* element = QuerySelector(selector, &rv);
+  nsIContent* element = nsGenericElement::doQuerySelector(this, selector, &rv);
   if (NS_SUCCEEDED(rv) && element) {
     return CallQueryInterface(element, _retval);
   }
@@ -934,7 +934,7 @@ nsSVGSVGElement::GetViewBoxTransform() const
 }
 
 void
-nsSVGSVGElement::ChildrenOnlyTransformChanged(PRUint32 aFlags)
+nsSVGSVGElement::ChildrenOnlyTransformChanged()
 {
   // Avoid wasteful calls:
   NS_ABORT_IF_FALSE(!(GetPrimaryFrame()->GetStateBits() &
@@ -957,15 +957,7 @@ nsSVGSVGElement::ChildrenOnlyTransformChanged(PRUint32 aFlags)
                    nsChangeHint_ChildrenOnlyTransform);
   }
 
-  // If we're not reconstructing the frame tree, then we only call
-  // PostRestyleEvent if we're not being called under reflow to avoid recursing
-  // to death. See bug 767056 comments 10 and 12. Since our nsSVGOuterSVGFrame
-  // is being reflowed we're going to invalidate and repaint its entire area
-  // anyway (which will include our children).
-  if ((changeHint & nsChangeHint_ReconstructFrame) ||
-      !(aFlags & eDuringReflow)) {
-    nsLayoutUtils::PostRestyleEvent(this, nsRestyleHint(0), changeHint);
-  }
+  nsLayoutUtils::PostRestyleEvent(this, nsRestyleHint(0), changeHint);
 
   mHasChildrenOnlyTransform = hasChildrenOnlyTransform;
 }

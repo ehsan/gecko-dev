@@ -277,9 +277,9 @@ nsWidgetUtils::ShouldLoad(uint32_t          aContentType,
     if (!aContentLocation)
         return NS_OK;
 
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     rv = aContentLocation->GetScheme(scheme);
-    nsAutoCString lscheme;
+    nsCAutoString lscheme;
     ToLowerCase(scheme, lscheme);
     if (!lscheme.EqualsLiteral("ftp") &&
         !lscheme.EqualsLiteral("http") &&

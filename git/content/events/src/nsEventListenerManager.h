@@ -44,8 +44,7 @@ struct nsListenerStruct
   nsCOMPtr<nsIAtom>             mTypeAtom;
   uint16_t                      mFlags;
   uint8_t                       mListenerType;
-  bool                          mListenerIsHandler : 1;
-  bool                          mHandlerIsString : 1;
+  bool                          mHandlerIsString;
 
   nsIJSEventListener* GetJSListener() const {
     return (mListenerType == eJSEventListener) ?
@@ -184,12 +183,6 @@ public:
   bool HasListenersFor(const nsAString& aEventName);
 
   /**
-   * Returns true if there is at least one event listener for aEventNameWithOn.
-   * Note that aEventNameWithOn must start with "on"!
-   */
-  bool HasListenersFor(nsIAtom* aEventNameWithOn);
-
-  /**
    * Returns true if there is at least one event listener.
    */
   bool HasListeners();
@@ -258,7 +251,6 @@ protected:
    * any, is returned in aListenerStruct.
    */
   nsresult SetEventHandlerInternal(nsIScriptContext *aContext,
-                                   JSContext* aCx,
                                    JSObject* aScopeGlobal,
                                    nsIAtom* aName,
                                    JSObject *aHandler,
@@ -275,12 +267,10 @@ public:
    * might actually remove the event listener, depending on the value
    * of |v|.  Note that on entry to this function cx and aScope might
    * not be in the same compartment, though cx and v are guaranteed to
-   * be in the same compartment.  If aExpectScriptContext is false,
-   * not finding an nsIScriptContext does not cause failure.
+   * be in the same compartment.
    */
-  nsresult SetEventHandlerToJsval(nsIAtom* aEventName, JSContext* cx,
-                                  JSObject* aScope, const jsval& v,
-                                  bool aExpectScriptContext);
+  nsresult SetEventHandlerToJsval(nsIAtom *aEventName, JSContext *cx,
+                                  JSObject *aScope, const jsval &v);
   /**
    * Get the value of the "inline" event listener for aEventName.
    * This may cause lazy compilation if the listener is uncompiled.
@@ -291,8 +281,7 @@ protected:
   void AddEventListener(nsIDOMEventListener *aListener, 
                         uint32_t aType,
                         nsIAtom* aTypeAtom,
-                        int32_t aFlags,
-                        bool aHandler = false);
+                        int32_t aFlags);
   void RemoveEventListener(nsIDOMEventListener *aListener,
                            uint32_t aType,
                            nsIAtom* aUserType,

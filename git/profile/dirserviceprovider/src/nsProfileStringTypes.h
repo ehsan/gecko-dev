@@ -22,7 +22,7 @@
 #include "nsEmbedString.h"
 
 typedef nsCString nsPromiseFlatCString;
-typedef nsCString nsAutoCString;
+typedef nsCString nsCAutoString;
 
 #define PromiseFlatCString nsCString
 

@@ -86,7 +86,7 @@ private:
     nsCOMPtr<nsIFile> mUpdateRoot;
     int mArgc;
     char **mArgv;
-    nsAutoCString mAppVersion;
+    nsCAutoString mAppVersion;
   };
 
 private:

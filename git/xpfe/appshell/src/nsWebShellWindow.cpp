@@ -589,7 +589,7 @@ void nsWebShellWindow::LoadContentAreas() {
 
       nsCOMPtr<nsIURL> url = do_QueryInterface(mainURL);
       if (url) {
-        nsAutoCString search;
+        nsCAutoString search;
         url->GetQuery(search);
 
         AppendUTF8toUTF16(search, searchSpec);

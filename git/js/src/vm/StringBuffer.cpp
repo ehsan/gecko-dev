@@ -29,7 +29,7 @@ StringBuffer::extractWellSized()
         JSContext *cx = context();
         jschar *tmp = (jschar *)cx->realloc_(buf, bytes);
         if (!tmp) {
-            js_free(buf);
+            cx->free_(buf);
             return NULL;
         }
         buf = tmp;
@@ -62,7 +62,7 @@ StringBuffer::finishString()
 
     JSFixedString *str = js_NewString(cx, buf, length);
     if (!str)
-        js_free(buf);
+        cx->free_(buf);
     return str;
 }
 

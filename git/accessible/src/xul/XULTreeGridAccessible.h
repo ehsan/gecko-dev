@@ -151,6 +151,7 @@ public:
 
   // nsAccessNode
   virtual void Init();
+  virtual bool IsPrimaryForNode() const;
 
   // Accessible
   virtual void Shutdown();

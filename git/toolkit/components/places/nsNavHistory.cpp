@@ -344,7 +344,7 @@ uint32_t
 nsNavHistory::GetRecentFlags(nsIURI *aURI)
 {
   uint32_t result = 0;
-  nsAutoCString spec;
+  nsCAutoString spec;
   nsresult rv = aURI->GetSpec(spec);
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Unable to get aURI's spec");
 
@@ -470,7 +470,7 @@ nsNavHistory::InternalAddNewPage(nsIURI* aURI,
   NS_ENSURE_SUCCESS(rv, rv);
   rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("typed"), aTyped);
   NS_ENSURE_SUCCESS(rv, rv);
-  nsAutoCString spec;
+  nsCAutoString spec;
   rv = aURI->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("frecency"),
@@ -616,7 +616,7 @@ nsNavHistory::FindLastVisit(nsIURI* aURI,
     NS_ENSURE_SUCCESS(rv, false);
     rv = stmt->GetInt64(1, aSessionID);
     NS_ENSURE_SUCCESS(rv, false);
-    rv = stmt->GetInt64(2, reinterpret_cast<int64_t*>(aTime));
+    rv = stmt->GetInt64(2, aTime);
     NS_ENSURE_SUCCESS(rv, false);
     return true;
   }
@@ -714,7 +714,7 @@ nsNavHistory::GetNewSessionID()
     "SELECT session FROM moz_historyvisits "
     "ORDER BY visit_date DESC "
   ), getter_AddRefs(selectSession));
-  NS_ENSURE_SUCCESS(rv, 0);
+  NS_ENSURE_SUCCESS(rv, rv);
   bool hasSession;
   if (NS_SUCCEEDED(selectSession->ExecuteStep(&hasSession)) && hasSession) {
     mLastSessionID = selectSession->AsInt64(0) + 1;
@@ -1013,12 +1013,12 @@ nsNavHistory::EvaluateQueryForNode(const nsCOMArray<nsNavHistoryQuery>& aQueries
         if (NS_FAILED(NS_NewURI(getter_AddRefs(nodeUri), aNode->mURI)))
           continue;
       }
-      nsAutoCString asciiRequest;
+      nsCAutoString asciiRequest;
       if (NS_FAILED(AsciiHostNameFromHostString(query->Domain(), asciiRequest)))
         continue;
 
       if (query->DomainIsHost()) {
-        nsAutoCString host;
+        nsCAutoString host;
         if (NS_FAILED(nodeUri->GetAsciiHost(host)))
           continue;
 
@@ -1026,7 +1026,7 @@ nsNavHistory::EvaluateQueryForNode(const nsCOMArray<nsNavHistoryQuery>& aQueries
           continue; // host names don't match
       }
       // check domain names
-      nsAutoCString domain;
+      nsCAutoString domain;
       DomainNameFromURI(nodeUri, domain);
       if (! asciiRequest.Equals(domain))
         continue; // domain names don't match
@@ -1049,9 +1049,9 @@ nsNavHistory::EvaluateQueryForNode(const nsCOMArray<nsNavHistoryQuery>& aQueries
         // harder case: match prefix, note that we need to get the ASCII string
         // from the node's parsed URI instead of using the node's mUrl string,
         // because that might not be normalized
-        nsAutoCString nodeUriString;
+        nsCAutoString nodeUriString;
         nodeUri->GetAsciiSpec(nodeUriString);
-        nsAutoCString queryUriString;
+        nsCAutoString queryUriString;
         query->Uri()->GetAsciiSpec(queryUriString);
         if (queryUriString.Length() > nodeUriString.Length())
           continue; // not long enough to match as prefix
@@ -1083,7 +1083,7 @@ nsNavHistory::AsciiHostNameFromHostString(const nsACString& aHostName,
                                           nsACString& aAscii)
 {
   // To properly generate a uri we must provide a protocol.
-  nsAutoCString fakeURL("http://");
+  nsCAutoString fakeURL("http://");
   fakeURL.Append(aHostName);
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), fakeURL);
@@ -1151,7 +1151,7 @@ nsresult
 nsNavHistory::invalidateFrecencies(const nsCString& aPlaceIdsQueryString)
 {
   // Exclude place: queries by setting their frecency to zero.
-  nsAutoCString invalideFrecenciesSQLFragment(
+  nsCAutoString invalideFrecenciesSQLFragment(
     "UPDATE moz_places SET frecency = (CASE "
       "WHEN url BETWEEN 'place:' AND 'place;' "
       "THEN 0 "
@@ -1196,7 +1196,7 @@ nsNavHistory::MarkPageAsFollowedBookmark(nsIURI* aURI)
   if (IsHistoryDisabled())
     return NS_OK;
 
-  nsAutoCString uriString;
+  nsCAutoString uriString;
   nsresult rv = aURI->GetSpec(uriString);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1234,7 +1234,7 @@ nsNavHistory::CanAddURI(nsIURI* aURI, bool* canAdd)
     return NS_OK;
   }
 
-  nsAutoCString scheme;
+  nsCAutoString scheme;
   nsresult rv = aURI->GetScheme(scheme);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1321,7 +1321,7 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
   rv = stmt->ExecuteStep(&alreadyVisited);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString guid;
+  nsCAutoString guid;
   int64_t pageID = 0;
   int32_t hidden;
   int32_t typed;
@@ -1796,7 +1796,7 @@ PlacesSQLQueryBuilder::SelectAsURI()
 {
   nsNavHistory *history = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
-  nsAutoCString tagsSqlFragment;
+  nsCAutoString tagsSqlFragment;
 
   switch (mQueryType) {
     case nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY:
@@ -1882,7 +1882,7 @@ PlacesSQLQueryBuilder::SelectAsVisit()
 {
   nsNavHistory *history = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
-  nsAutoCString tagsSqlFragment;
+  nsCAutoString tagsSqlFragment;
   GetTagsSqlFragment(history->GetTagsFolder(),
                      NS_LITERAL_CSTRING("h.id"),
                      mHasSearchTerms,
@@ -1935,16 +1935,16 @@ PlacesSQLQueryBuilder::SelectAsDay()
 
   int32_t daysOfHistory = history->GetDaysOfHistory();
   for (int32_t i = 0; i <= HISTORY_DATE_CONT_NUM(daysOfHistory); i++) {
-    nsAutoCString dateName;
+    nsCAutoString dateName;
     // Timeframes are calculated as BeginTime <= container < EndTime.
     // Notice times can't be relative to now, since to recognize a query we
     // must ensure it won't change based on the time it is built.
     // So, to select till now, we really select till start of tomorrow, that is
     // a fixed timestamp.
     // These are used as limits for the inside containers.
-    nsAutoCString sqlFragmentContainerBeginTime, sqlFragmentContainerEndTime;
+    nsCAutoString sqlFragmentContainerBeginTime, sqlFragmentContainerEndTime;
     // These are used to query if the container should be visible.
-    nsAutoCString sqlFragmentSearchBeginTime, sqlFragmentSearchEndTime;
+    nsCAutoString sqlFragmentSearchBeginTime, sqlFragmentSearchEndTime;
     switch(i) {
        case 0:
         // Today
@@ -2105,7 +2105,7 @@ PlacesSQLQueryBuilder::SelectAsDay()
 nsresult
 PlacesSQLQueryBuilder::SelectAsSite()
 {
-  nsAutoCString localFiles;
+  nsCAutoString localFiles;
 
   nsNavHistory *history = nsNavHistory::GetHistoryService();
   NS_ENSURE_STATE(history);
@@ -2114,9 +2114,9 @@ PlacesSQLQueryBuilder::SelectAsSite()
   mAddParams.Put(NS_LITERAL_CSTRING("localhost"), localFiles);
 
   // If there are additional conditions the query has to join on visits too.
-  nsAutoCString visitsJoin;
-  nsAutoCString additionalConditions;
-  nsAutoCString timeConstraints;
+  nsCAutoString visitsJoin;
+  nsCAutoString additionalConditions;
+  nsCAutoString timeConstraints;
   if (!mConditions.IsEmpty()) {
     visitsJoin.AssignLiteral("JOIN moz_historyvisits v ON v.place_id = h.id ");
     additionalConditions.AssignLiteral("{QUERY_OPTIONS_VISITS} "
@@ -2197,8 +2197,8 @@ PlacesSQLQueryBuilder::Where()
 {
 
   // Set query options
-  nsAutoCString additionalVisitsConditions;
-  nsAutoCString additionalPlacesConditions;
+  nsCAutoString additionalVisitsConditions;
+  nsCAutoString additionalPlacesConditions;
 
   if (!mIncludeHidden) {
     additionalPlacesConditions += NS_LITERAL_CSTRING("AND hidden = 0 ");
@@ -2215,7 +2215,7 @@ PlacesSQLQueryBuilder::Where()
   if (mResultType == nsINavHistoryQueryOptions::RESULTS_AS_URI &&
       !additionalVisitsConditions.IsEmpty()) {
     // URI results don't join on visits.
-    nsAutoCString tmp = additionalVisitsConditions;
+    nsCAutoString tmp = additionalVisitsConditions;
     additionalVisitsConditions = "AND EXISTS (SELECT 1 FROM moz_historyvisits WHERE place_id = h.id ";
     additionalVisitsConditions.Append(tmp);
     additionalVisitsConditions.Append("LIMIT 1)");
@@ -2229,7 +2229,7 @@ PlacesSQLQueryBuilder::Where()
   // If we used WHERE already, we inject the conditions 
   // in place of {ADDITIONAL_CONDITIONS}
   if (mQueryString.Find("{ADDITIONAL_CONDITIONS}", 0) != kNotFound) {
-    nsAutoCString innerCondition;
+    nsCAutoString innerCondition;
     // If we have condition AND it
     if (!mConditions.IsEmpty()) {
       innerCondition = " AND (";
@@ -2400,7 +2400,7 @@ nsNavHistory::ConstructQueryString(
     aQueries[i]->GetHasSearchTerms(&hasSearchTerms);
   }
 
-  nsAutoCString tagsSqlFragment;
+  nsCAutoString tagsSqlFragment;
   GetTagsSqlFragment(GetTagsFolder(),
                      NS_LITERAL_CSTRING("h.id"),
                      hasSearchTerms,
@@ -2437,14 +2437,14 @@ nsNavHistory::ConstructQueryString(
     queryString.Append(NS_LITERAL_CSTRING("LIMIT "));
     queryString.AppendInt(aOptions->MaxResults());
 
-    nsAutoCString additionalQueryOptions;
+    nsCAutoString additionalQueryOptions;
 
     queryString.ReplaceSubstring("{QUERY_OPTIONS}",
                                   additionalQueryOptions.get());
     return NS_OK;
   }
 
-  nsAutoCString conditions;
+  nsCAutoString conditions;
   for (int32_t i = 0; i < aQueries.Count(); i++) {
     nsCString queryClause;
     rv = QueryToSelectClause(aQueries[i], aOptions, i, &queryClause);
@@ -2522,7 +2522,7 @@ nsNavHistory::GetQueryResults(nsNavHistoryQueryResultNode *aResultNode,
   nsCOMPtr<mozIStorageStatement> statement = mDB->GetStatement(queryString);
 #ifdef DEBUG
   if (!statement) {
-    nsAutoCString lastErrorString;
+    nsCAutoString lastErrorString;
     (void)mDB->MainConn()->GetLastErrorString(lastErrorString);
     int32_t lastError = 0;
     (void)mDB->MainConn()->GetLastError(&lastError);
@@ -2714,7 +2714,7 @@ nsNavHistory::CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString)
     int64_t placeId;
     nsresult rv = stmt->GetInt64(0, &placeId);
     NS_ENSURE_SUCCESS(rv, rv);
-    nsAutoCString URLString;
+    nsCAutoString URLString;
     rv = stmt->GetUTF8String(1, URLString);
     nsCString guid;
     rv = stmt->GetUTF8String(2, guid);
@@ -2789,7 +2789,7 @@ nsNavHistory::RemovePages(nsIURI **aURIs, uint32_t aLength)
   nsCString deletePlaceIdsQueryString;
   for (uint32_t i = 0; i < aLength; i++) {
     int64_t placeId;
-    nsAutoCString guid;
+    nsCAutoString guid;
     rv = GetIdForPage(aURIs[i], &placeId, guid);
     NS_ENSURE_SUCCESS(rv, rv);
     if (placeId != 0) {
@@ -2824,13 +2824,13 @@ nsNavHistory::RemovePage(nsIURI *aURI)
 
   // Build a list of place ids to delete.
   int64_t placeId;
-  nsAutoCString guid;
+  nsCAutoString guid;
   nsresult rv = GetIdForPage(aURI, &placeId, guid);
   NS_ENSURE_SUCCESS(rv, rv);
   if (placeId == 0) {
     return NS_OK;
   }
-  nsAutoCString deletePlaceIdQueryString;
+  nsCAutoString deletePlaceIdQueryString;
   deletePlaceIdQueryString.AppendInt(placeId);
 
   rv = RemovePagesInternal(deletePlaceIdQueryString);
@@ -2890,7 +2890,7 @@ nsNavHistory::RemovePagesFromHost(const nsACString& aHost, bool aEntireDomain)
   revHostSlash.Append(NS_LITERAL_STRING("/"));
 
   // build condition string based on host selection type
-  nsAutoCString conditionString;
+  nsCAutoString conditionString;
   if (aEntireDomain)
     conditionString.AssignLiteral("rev_host >= ?1 AND rev_host < ?2 ");
   else
@@ -3134,7 +3134,7 @@ nsNavHistory::MarkPageAsTyped(nsIURI *aURI)
   if (IsHistoryDisabled())
     return NS_OK;
 
-  nsAutoCString uriString;
+  nsCAutoString uriString;
   nsresult rv = aURI->GetSpec(uriString);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3168,7 +3168,7 @@ nsNavHistory::MarkPageAsFollowedLink(nsIURI *aURI)
   if (IsHistoryDisabled())
     return NS_OK;
 
-  nsAutoCString uriString;
+  nsCAutoString uriString;
   nsresult rv = aURI->GetSpec(uriString);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3319,7 +3319,7 @@ nsNavHistory::AddVisitChain(nsIURI* aURI,
   // overwritten later if needed.
   nsCOMPtr<nsIURI> fromVisitURI = aReferrerURI;
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   nsresult rv = aURI->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3424,7 +3424,7 @@ nsNavHistory::IsVisited(nsIURI *aURI, bool *_retval)
     return NS_OK;
   }
 
-  nsAutoCString utf8URISpec;
+  nsCAutoString utf8URISpec;
   nsresult rv = aURI->GetSpec(utf8URISpec);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3594,7 +3594,7 @@ nsNavHistory::AsyncExecuteLegacyQueries(nsINavHistoryQuery** aQueries,
 
 #ifdef DEBUG
   if (NS_FAILED(rv)) {
-    nsAutoCString lastErrorString;
+    nsCAutoString lastErrorString;
     (void)mDB->MainConn()->GetLastErrorString(lastErrorString);
     int32_t lastError = 0;
     (void)mDB->MainConn()->GetLastError(&lastError);
@@ -4013,7 +4013,7 @@ nsNavHistory::BindQueryClauseParameters(mozIStorageBaseStatement* statement,
   // Append numbered index to param names, to replace them correctly in
   // case of multiple queries.  If we have just one query we don't change the
   // param name though.
-  nsAutoCString qIndex;
+  nsCAutoString qIndex;
   if (aQueryIndex > 0)
     qIndex.AppendInt(aQueryIndex);
 
@@ -4097,7 +4097,7 @@ nsNavHistory::BindQueryClauseParameters(mozIStorageBaseStatement* statement,
     );
     NS_ENSURE_SUCCESS(rv, rv);
     if (aQuery->UriIsPrefix()) {
-      nsAutoCString uriString;
+      nsCAutoString uriString;
       aQuery->Uri()->GetSpec(uriString);
       uriString.Append(char(0x7F)); // MAX_UTF8
       rv = URIBinder::Bind(
@@ -4182,7 +4182,7 @@ nsresult
 CreatePlacesPersistURN(nsNavHistoryQueryResultNode *aResultNode, 
                       int64_t aValue, const nsCString& aTitle, nsCString& aURN)
 {
-  nsAutoCString uri;
+  nsCAutoString uri;
   nsresult rv = aResultNode->GetUri(uri);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -4195,7 +4195,7 @@ CreatePlacesPersistURN(nsNavHistoryQueryResultNode *aResultNode,
 
   aURN.Append(NS_LITERAL_CSTRING(","));
   if (!aTitle.IsEmpty()) {
-    nsAutoCString escapedTitle;
+    nsCAutoString escapedTitle;
     bool success = NS_Escape(aTitle, escapedTitle, url_XAlphas);
     NS_ENSURE_TRUE(success, NS_ERROR_OUT_OF_MEMORY);
     aURN.Append(escapedTitle);
@@ -4273,7 +4273,7 @@ nsNavHistory::FilterResultSet(nsNavHistoryQueryResultNode* aQueryNode,
         // Convert title and url for the current node to UTF16 strings.
         NS_ConvertUTF8toUTF16 nodeTitle(aSet[nodeIndex]->mTitle);
         // Unescape the URL for search terms matching.
-        nsAutoCString cNodeURL(aSet[nodeIndex]->mURI);
+        nsCAutoString cNodeURL(aSet[nodeIndex]->mURI);
         NS_ConvertUTF8toUTF16 nodeURL(NS_UnescapeURL(cNodeURL));
 
         // Determine if every search term matches anywhere in the title, url or
@@ -4357,7 +4357,7 @@ nsNavHistory::CheckIsRecentEvent(RecentEventHash* hashTable,
                                  const nsACString& url)
 {
   PRTime eventTime;
-  if (hashTable->Get(url, reinterpret_cast<int64_t*>(&eventTime))) {
+  if (hashTable->Get(url, &eventTime)) {
     hashTable->Remove(url);
     if (eventTime > GetNow() - RECENT_EVENT_THRESHOLD)
       return true;
@@ -4404,12 +4404,12 @@ nsNavHistory::RowToResult(mozIStorageValueArray* aRow,
   *aResult = nullptr;
 
   // URL
-  nsAutoCString url;
+  nsCAutoString url;
   nsresult rv = aRow->GetUTF8String(kGetInfoIndex_URL, url);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // title
-  nsAutoCString title;
+  nsCAutoString title;
   rv = aRow->GetUTF8String(kGetInfoIndex_Title, title);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -4417,7 +4417,7 @@ nsNavHistory::RowToResult(mozIStorageValueArray* aRow,
   PRTime time = aRow->AsInt64(kGetInfoIndex_VisitDate);
 
   // favicon
-  nsAutoCString favicon;
+  nsCAutoString favicon;
   rv = aRow->GetUTF8String(kGetInfoIndex_FaviconURL, favicon);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -4592,7 +4592,7 @@ nsNavHistory::VisitIdToResultNode(int64_t visitId,
                                   nsNavHistoryQueryOptions* aOptions,
                                   nsNavHistoryResultNode** aResult)
 {
-  nsAutoCString tagsFragment;
+  nsCAutoString tagsFragment;
   GetTagsSqlFragment(GetTagsFolder(), NS_LITERAL_CSTRING("h.id"),
                      true, tagsFragment);
 
@@ -4658,7 +4658,7 @@ nsresult
 nsNavHistory::BookmarkIdToResultNode(int64_t aBookmarkId, nsNavHistoryQueryOptions* aOptions,
                                      nsNavHistoryResultNode** aResult)
 {
-  nsAutoCString tagsFragment;
+  nsCAutoString tagsFragment;
   GetTagsSqlFragment(GetTagsFolder(), NS_LITERAL_CSTRING("h.id"),
                      true, tagsFragment);
   // Should match kGetInfoIndex_*
@@ -4698,7 +4698,7 @@ nsNavHistory::URIToResultNode(nsIURI* aURI,
                               nsNavHistoryQueryOptions* aOptions,
                               nsNavHistoryResultNode** aResult)
 {
-  nsAutoCString tagsFragment;
+  nsCAutoString tagsFragment;
   GetTagsSqlFragment(GetTagsFolder(), NS_LITERAL_CSTRING("h.id"),
                      true, tagsFragment);
   // Should match kGetInfoIndex_*
@@ -4817,7 +4817,7 @@ nsNavHistory::GetMonthYear(int32_t aMonth, int32_t aYear, nsACString& aResult)
 {
   nsIStringBundle *bundle = GetBundle();
   if (bundle) {
-    nsAutoCString monthName;
+    nsCAutoString monthName;
     GetMonthName(aMonth, monthName);
     nsAutoString yearString;
     yearString.AppendInt(aYear);
@@ -4853,7 +4853,7 @@ nsNavHistory::SetPageTitleInternal(nsIURI* aURI, const nsAString& aTitle)
 
   // Make sure the page exists by fetching its GUID and the old title.
   nsAutoString title;
-  nsAutoCString guid;
+  nsCAutoString guid;
   {
     nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
       "SELECT id, url, title, rev_host, visit_count, guid "

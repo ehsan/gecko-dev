@@ -532,7 +532,7 @@ NS_ScriptErrorReporter(JSContext *cx,
 #ifdef DEBUG
   // Print it to stderr as well, for the benefit of those invoking
   // mozilla with -console.
-  nsAutoCString error;
+  nsCAutoString error;
   error.Assign("JavaScript ");
   if (JSREPORT_IS_STRICT(report->flags))
     error.Append("strict ");
@@ -616,7 +616,7 @@ PrintWinURI(nsGlobalWindow *win)
     return;
   }
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   uri->GetSpec(spec);
   printf("%s\n", spec.get());
 }
@@ -642,7 +642,7 @@ PrintWinCodebase(nsGlobalWindow *win)
     return;
   }
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   uri->GetSpec(spec);
   printf("%s\n", spec.get());
 }
@@ -2267,7 +2267,7 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
       nsCOMPtr<nsISupportsCString> p(do_QueryInterface(argPrimitive));
       NS_ENSURE_TRUE(p, NS_ERROR_UNEXPECTED);
 
-      nsAutoCString data;
+      nsCAutoString data;
 
       p->GetData(data);
 

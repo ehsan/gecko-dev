@@ -147,7 +147,7 @@ NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
                 if (channel) {
                       channel->GetURI(getter_AddRefs(uri));
                       if (uri) {
-                            nsAutoCString uriSpec;
+                            nsCAutoString uriSpec;
                             uri->GetSpec(uriSpec);
                             printf("Failed to load %s\n", uriSpec.get());
                       }

@@ -422,7 +422,7 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
     nsXPTCVariant xpctvar;
     nsID iid;
     nsAutoString astring;
-    nsAutoCString cString;
+    nsCAutoString cString;
     nsUTF8String utf8String;
     uint32_t size;
     xpctvar.flags = 0;

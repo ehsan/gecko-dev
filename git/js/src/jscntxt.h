@@ -43,44 +43,26 @@ JS_BEGIN_EXTERN_C
 struct DtoaState;
 JS_END_EXTERN_C
 
-extern void
-js_ReportOutOfMemory(JSContext *cx);
+struct JSSharpInfo {
+    bool hasGen;
+    bool isSharp;
 
-extern void
-js_ReportAllocationOverflow(JSContext *cx);
-
-namespace js {
-
-typedef HashSet<JSObject *> ObjectSet;
-
-/* Detects cycles when traversing an object graph. */
-class AutoCycleDetector
-{
-    JSContext *cx;
-    JSObject *obj;
-    bool cyclic;
-    uint32_t hashsetGenerationAtInit;
-    ObjectSet::AddPtr hashsetAddPointer;
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-
-  public:
-    AutoCycleDetector(JSContext *cx, JSObject *obj
-                      JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : cx(cx), obj(obj), cyclic(true)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    ~AutoCycleDetector();
-
-    bool init();
-
-    bool foundCycle() { return cyclic; }
+    JSSharpInfo() : hasGen(false), isSharp(false) {}
 };
 
-/* Updates references in the cycle detection set if the GC moves them. */
-extern void
-TraceCycleDetectionSet(JSTracer *trc, ObjectSet &set);
+typedef js::HashMap<JSObject *, JSSharpInfo> JSSharpTable;
+
+struct JSSharpObjectMap {
+    unsigned     depth;
+    uint32_t     sharpgen;
+    JSSharpTable table;
+
+    JSSharpObjectMap(JSContext *cx) : depth(0), sharpgen(0), table(js::TempAllocPolicy(cx)) {
+        table.init();
+    }
+};
+
+namespace js {
 
 namespace mjit {
 class JaegerRuntime;
@@ -113,6 +95,12 @@ struct GSNCache {
 
 inline GSNCache *
 GetGSNCache(JSContext *cx);
+
+struct PendingProxyOperation {
+    PendingProxyOperation   *next;
+    RootedObject            object;
+    PendingProxyOperation(JSContext *cx, JSObject *object) : next(NULL), object(cx, object) {}
+};
 
 typedef Vector<ScriptAndCounts, 0, SystemAllocPolicy> ScriptAndCountsVector;
 
@@ -347,13 +335,7 @@ class FreeOp : public JSFreeOp {
 
     inline void free_(void* p);
 
-    template <class T>
-    inline void delete_(T *p) {
-        if (p) {
-            p->~T();
-            free_(p);
-        }
-    }
+    JS_DECLARE_DELETE_METHODS(free_, inline)
 
     static void staticAsserts() {
         /*
@@ -386,15 +368,13 @@ struct JSRuntime : js::RuntimeFriendFields
     void *ownerThread() const { return ownerThread_; }
     void clearOwnerThread();
     void setOwnerThread();
-    JS_FRIEND_API(void) abortIfWrongThread() const;
-    JS_FRIEND_API(void) assertValidThread() const;
+    JS_FRIEND_API(bool) onOwnerThread() const;
   private:
     void                *ownerThread_;
   public:
 #else
   public:
-    void abortIfWrongThread() const {}
-    void assertValidThread() const {}
+    bool onOwnerThread() const { return true; }
 #endif
 
     /* Keeper of the contiguous stack used by all contexts in this thread. */
@@ -867,6 +847,9 @@ struct JSRuntime : js::RuntimeFriendFields
     /* State used by jsdtoa.cpp. */
     DtoaState           *dtoaState;
 
+    /* List of currently pending operations on proxies. */
+    js::PendingProxyOperation *pendingProxyOperation;
+
     js::ConservativeGCData conservativeGC;
 
   private:
@@ -914,7 +897,7 @@ struct JSRuntime : js::RuntimeFriendFields
      */
     void* malloc_(size_t bytes, JSContext *cx = NULL) {
         updateMallocCounter(cx, bytes);
-        void *p = js_malloc(bytes);
+        void *p = ::js_malloc(bytes);
         return JS_LIKELY(!!p) ? p : onOutOfMemory(NULL, bytes, cx);
     }
 
@@ -924,14 +907,14 @@ struct JSRuntime : js::RuntimeFriendFields
      */
     void* calloc_(size_t bytes, JSContext *cx = NULL) {
         updateMallocCounter(cx, bytes);
-        void *p = js_calloc(bytes);
+        void *p = ::js_calloc(bytes);
         return JS_LIKELY(!!p) ? p : onOutOfMemory(reinterpret_cast<void *>(1), bytes, cx);
     }
 
     void* realloc_(void* p, size_t oldBytes, size_t newBytes, JSContext *cx = NULL) {
         JS_ASSERT(oldBytes < newBytes);
         updateMallocCounter(cx, newBytes - oldBytes);
-        void *p2 = js_realloc(p, newBytes);
+        void *p2 = ::js_realloc(p, newBytes);
         return JS_LIKELY(!!p2) ? p2 : onOutOfMemory(p, newBytes, cx);
     }
 
@@ -942,39 +925,17 @@ struct JSRuntime : js::RuntimeFriendFields
          */
         if (!p)
             updateMallocCounter(cx, bytes);
-        void *p2 = js_realloc(p, bytes);
+        void *p2 = ::js_realloc(p, bytes);
         return JS_LIKELY(!!p2) ? p2 : onOutOfMemory(p, bytes, cx);
     }
 
-    template <class T>
-    T *pod_malloc(JSContext *cx = NULL) {
-        return (T *)malloc_(sizeof(T), cx);
+    inline void free_(void* p) {
+        /* FIXME: Making this free in the background is buggy. Can it work? */
+        js::Foreground::free_(p);
     }
 
-    template <class T>
-    T *pod_calloc(JSContext *cx = NULL) {
-        return (T *)calloc_(sizeof(T), cx);
-    }
-
-    template <class T>
-    T *pod_malloc(size_t numElems, JSContext *cx = NULL) {
-        if (numElems & js::tl::MulOverflowMask<sizeof(T)>::result) {
-            js_ReportAllocationOverflow(cx);
-            return NULL;
-        }
-        return (T *)malloc_(numElems * sizeof(T), cx);
-    }
-
-    template <class T>
-    T *pod_calloc(size_t numElems, JSContext *cx = NULL) {
-        if (numElems & js::tl::MulOverflowMask<sizeof(T)>::result) {
-            js_ReportAllocationOverflow(cx);
-            return NULL;
-        }
-        return (T *)calloc_(numElems * sizeof(T), cx);
-    }
-
-    JS_DECLARE_NEW_METHODS(new_, malloc_, JS_ALWAYS_INLINE)
+    JS_DECLARE_NEW_METHODS(malloc_, JS_ALWAYS_INLINE)
+    JS_DECLARE_DELETE_METHODS(free_, JS_ALWAYS_INLINE)
 
     void setGCMaxMallocBytes(size_t value);
 
@@ -1148,13 +1109,17 @@ VersionIsKnown(JSVersion version)
     return VersionNumber(version) != JSVERSION_UNKNOWN;
 }
 
+typedef HashSet<JSObject *,
+                DefaultHasher<JSObject *>,
+                SystemAllocPolicy> BusyArraysSet;
+
 inline void
 FreeOp::free_(void* p) {
     if (shouldFreeLater()) {
         runtime()->gcHelperThread.freeLater(p);
         return;
     }
-    js_free(p);
+    runtime()->free_(p);
 }
 
 } /* namespace js */
@@ -1271,7 +1236,8 @@ struct JSContext : js::ContextFriendFields
 
   public:
     /* State for object and array toSource conversion. */
-    js::ObjectSet       cycleDetectorSet;
+    JSSharpObjectMap    sharpObjectMap;
+    js::BusyArraysSet   busyArrays;
 
     /* Argument formatter support for JS_{Convert,Push}Arguments{,VA}. */
     JSArgumentFormatMap *argumentFormatMap;
@@ -1433,6 +1399,11 @@ struct JSContext : js::ContextFriendFields
         return runtime->malloc_(bytes, this);
     }
 
+    inline void* mallocNoReport(size_t bytes) {
+        JS_ASSERT(bytes != 0);
+        return runtime->malloc_(bytes, NULL);
+    }
+
     inline void* calloc_(size_t bytes) {
         return runtime->calloc_(bytes, this);
     }
@@ -1445,24 +1416,12 @@ struct JSContext : js::ContextFriendFields
         return runtime->realloc_(p, oldBytes, newBytes, this);
     }
 
-    template <class T> T *pod_malloc() {
-        return runtime->pod_malloc<T>(this);
+    inline void free_(void* p) {
+        runtime->free_(p);
     }
 
-    template <class T> T *pod_calloc() {
-        return runtime->pod_calloc<T>(this);
-    }
-
-    template <class T> T *pod_malloc(size_t numElems) {
-        return runtime->pod_malloc<T>(numElems, this);
-    }
-
-    template <class T>
-    T *pod_calloc(size_t numElems) {
-        return runtime->pod_calloc<T>(numElems, this);
-    }
-
-    JS_DECLARE_NEW_METHODS(new_, malloc_, JS_ALWAYS_INLINE)
+    JS_DECLARE_NEW_METHODS(malloc_, inline)
+    JS_DECLARE_DELETE_METHODS(free_, inline)
 
     void purge();
 
@@ -1658,6 +1617,7 @@ class AutoKeepAtoms {
 };
 
 class AutoReleasePtr {
+    JSContext   *cx;
     void        *ptr;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
@@ -1665,20 +1625,20 @@ class AutoReleasePtr {
     AutoReleasePtr operator=(const AutoReleasePtr &other) MOZ_DELETE;
 
   public:
-    explicit AutoReleasePtr(void *ptr
+    explicit AutoReleasePtr(JSContext *cx, void *ptr
                             JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(ptr)
+      : cx(cx), ptr(ptr)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
-    void forget() { ptr = NULL; }
-    ~AutoReleasePtr() { js_free(ptr); }
+    ~AutoReleasePtr() { cx->free_(ptr); }
 };
 
 /*
  * FIXME: bug 602774: cleaner API for AutoReleaseNullablePtr
  */
 class AutoReleaseNullablePtr {
+    JSContext   *cx;
     void        *ptr;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
@@ -1686,18 +1646,18 @@ class AutoReleaseNullablePtr {
     AutoReleaseNullablePtr operator=(const AutoReleaseNullablePtr &other) MOZ_DELETE;
 
   public:
-    explicit AutoReleaseNullablePtr(void *ptr
+    explicit AutoReleaseNullablePtr(JSContext *cx, void *ptr
                                     JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(ptr)
+      : cx(cx), ptr(ptr)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
     void reset(void *ptr2) {
         if (ptr)
-            js_free(ptr);
+            cx->free_(ptr);
         ptr = ptr2;
     }
-    ~AutoReleaseNullablePtr() { if (ptr) js_free(ptr); }
+    ~AutoReleaseNullablePtr() { if (ptr) cx->free_(ptr); }
 };
 
 } /* namespace js */
@@ -1799,16 +1759,13 @@ namespace js {
 extern void
 ReportUsageError(JSContext *cx, HandleObject callee, const char *msg);
 
-/*
- * Prints a full report and returns true if the given report is non-NULL and
- * the report doesn't have the JSREPORT_WARNING flag set or reportWarnings is
- * true.
- * Returns false otherwise, printing just the message if the report is NULL.
- */
-extern bool
-PrintError(JSContext *cx, FILE *file, const char *message, JSErrorReport *report,
-           bool reportWarnings);
 } /* namespace js */
+
+extern void
+js_ReportOutOfMemory(JSContext *cx);
+
+extern JS_FRIEND_API(void)
+js_ReportAllocationOverflow(JSContext *cx);
 
 /*
  * Report an exception using a previously composed JSErrorReport.
@@ -2047,7 +2004,7 @@ class RuntimeAllocPolicy
     RuntimeAllocPolicy(JSContext *cx) : runtime(cx->runtime) {}
     void *malloc_(size_t bytes) { return runtime->malloc_(bytes); }
     void *realloc_(void *p, size_t bytes) { return runtime->realloc_(p, bytes); }
-    void free_(void *p) { js_free(p); }
+    void free_(void *p) { runtime->free_(p); }
     void reportAllocOverflow() const {}
 };
 
@@ -2063,7 +2020,7 @@ class ContextAllocPolicy
     JSContext *context() const { return cx; }
     void *malloc_(size_t bytes) { return cx->malloc_(bytes); }
     void *realloc_(void *p, size_t oldBytes, size_t bytes) { return cx->realloc_(p, oldBytes, bytes); }
-    void free_(void *p) { js_free(p); }
+    void free_(void *p) { cx->free_(p); }
     void reportAllocOverflow() const { js_ReportAllocationOverflow(cx); }
 };
 

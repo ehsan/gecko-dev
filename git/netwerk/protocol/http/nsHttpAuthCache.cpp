@@ -76,7 +76,7 @@ nsHttpAuthCache::GetAuthEntryForPath(const char *scheme,
     LOG(("nsHttpAuthCache::GetAuthEntryForPath [key=%s://%s:%d path=%s]\n",
         scheme, host, port, path));
 
-    nsAutoCString key;
+    nsCAutoString key;
     nsHttpAuthNode *node = LookupAuthNode(scheme, host, port, key);
     if (!node)
         return NS_ERROR_NOT_AVAILABLE;
@@ -96,7 +96,7 @@ nsHttpAuthCache::GetAuthEntryForDomain(const char *scheme,
     LOG(("nsHttpAuthCache::GetAuthEntryForDomain [key=%s://%s:%d realm=%s]\n",
         scheme, host, port, realm));
 
-    nsAutoCString key;
+    nsCAutoString key;
     nsHttpAuthNode *node = LookupAuthNode(scheme, host, port, key);
     if (!node)
         return NS_ERROR_NOT_AVAILABLE;
@@ -126,7 +126,7 @@ nsHttpAuthCache::SetAuthEntry(const char *scheme,
         if (NS_FAILED(rv)) return rv;
     }
 
-    nsAutoCString key;
+    nsCAutoString key;
     nsHttpAuthNode *node = LookupAuthNode(scheme, host, port, key);
 
     if (!node) {
@@ -154,7 +154,7 @@ nsHttpAuthCache::ClearAuthEntry(const char *scheme,
     if (!mDB)
         return;
 
-    nsAutoCString key;
+    nsCAutoString key;
     GetAuthKey(scheme, host, port, key);
     PL_HashTableRemove(mDB, key.get());
 }

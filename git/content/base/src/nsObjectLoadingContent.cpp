@@ -444,7 +444,7 @@ IsSuccessfulRequest(nsIRequest* aRequest)
 static bool
 CanHandleURI(nsIURI* aURI)
 {
-  nsAutoCString scheme;
+  nsCAutoString scheme;
   if (NS_FAILED(aURI->GetScheme(scheme))) {
     return false;
   }
@@ -477,7 +477,7 @@ URIEquals(nsIURI *a, nsIURI *b)
 static bool
 IsSupportedImage(const nsCString& aMimeType)
 {
-  nsCOMPtr<imgILoader> loader = nsContentUtils::GetImgLoaderForChannel(nullptr);
+  imgILoader* loader = nsContentUtils::GetImgLoader();
   if (!loader) {
     return false;
   }
@@ -511,7 +511,7 @@ GetExtensionFromURI(nsIURI* uri, nsCString& ext)
 bool
 IsPluginEnabledByExtension(nsIURI* uri, nsCString& mimeType)
 {
-  nsAutoCString ext;
+  nsCAutoString ext;
   GetExtensionFromURI(uri, ext);
 
   if (ext.IsEmpty()) {
@@ -1101,8 +1101,8 @@ nsObjectLoadingContent::CheckLoadPolicy(int16_t *aContentPolicy)
                                           nsContentUtils::GetSecurityManager());
   NS_ENSURE_SUCCESS(rv, false);
   if (NS_CP_REJECTED(*aContentPolicy)) {
-    nsAutoCString uri;
-    nsAutoCString baseUri;
+    nsCAutoString uri;
+    nsCAutoString baseUri;
     mURI->GetSpec(uri);
     mURI->GetSpec(baseUri);
     LOG(("OBJLC [%p]: Content policy denied load of %s (base %s)",
@@ -1175,7 +1175,7 @@ nsObjectLoadingContent::UpdateObjectParameters()
   LOG(("OBJLC [%p]: Updating object parameters", this));
 
   nsresult rv;
-  nsAutoCString newMime;
+  nsCAutoString newMime;
   nsCOMPtr<nsIURI> newURI;
   nsCOMPtr<nsIURI> newBaseURI;
   ObjectType newType;
@@ -1379,7 +1379,7 @@ nsObjectLoadingContent::UpdateObjectParameters()
         // Set the type we'll use for dispatch on the channel.  Otherwise we could
         // end up trying to dispatch to a nsFrameLoader, which will complain that
         // it couldn't find a way to handle application/octet-stream
-        nsAutoCString typeHint, dummy;
+        nsCAutoString typeHint, dummy;
         NS_ParseContentType(newMime, typeHint, dummy);
         if (!typeHint.IsEmpty()) {
           mChannel->SetContentType(typeHint);
@@ -2154,9 +2154,9 @@ nsObjectLoadingContent::PluginCrashed(nsIPluginTag* aPluginTag,
 
   // Note that aPluginTag in invalidated after we're called, so copy 
   // out any data we need now.
-  nsAutoCString pluginName;
+  nsCAutoString pluginName;
   aPluginTag->GetName(pluginName);
-  nsAutoCString pluginFilename;
+  nsCAutoString pluginFilename;
   aPluginTag->GetFilename(pluginFilename);
 
   nsCOMPtr<nsIRunnable> ev =

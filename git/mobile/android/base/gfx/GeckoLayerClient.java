@@ -344,7 +344,7 @@ public class GeckoLayerClient
                     mGeckoViewport = newMetrics;
                 }
             });
-            setViewportMetrics(newMetrics, type == ViewportMessageType.UPDATE);
+            setViewportMetrics(newMetrics);
             mDisplayPort = DisplayPortCalculator.calculate(getViewportMetrics(), null);
         }
         mReturnDisplayPort = mDisplayPort;
@@ -623,13 +623,9 @@ public class GeckoLayerClient
      * You must hold the monitor while calling this.
      */
     public void setViewportMetrics(ViewportMetrics viewport) {
-        setViewportMetrics(viewport, true);
-    }
-
-    private void setViewportMetrics(ViewportMetrics viewport, boolean notifyGecko) {
         mViewportMetrics = new ImmutableViewportMetrics(viewport);
         mView.requestRender();
-        if (notifyGecko && mGeckoIsReady) {
+        if (mGeckoIsReady) {
             geometryChanged();
         }
     }

@@ -87,10 +87,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gSettingsService",
                                    "@mozilla.org/settingsService;1",
                                    "nsISettingsService");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gSystemMessenger",
-                                   "@mozilla.org/system-message-internal;1",
-                                   "nsISystemMessagesInternal");
-
 XPCOMUtils.defineLazyGetter(this, "WAP", function () {
   let WAP = {};
   Cu.import("resource://gre/modules/WapPushManager.js", WAP);
@@ -422,7 +418,7 @@ RadioInterfaceLayer.prototype = {
               " timestamp=" + message.localTimeStampInMS);
         break;
       case "iccinfochange":
-        this.handleICCInfoChange(message);
+        this.rilContext.icc = message;
         break;
       case "iccGetCardLock":
       case "iccSetCardLock":
@@ -593,7 +589,21 @@ RadioInterfaceLayer.prototype = {
     if (!newInfo.batch) {
       ppmm.broadcastAsyncMessage("RIL:DataInfoChanged", dataInfo);
     }
-    this.updateRILNetworkInterface();
+
+    if (!this.dataCallSettings["enabled"]) {
+      return;
+    }
+
+    let isRegistered =
+      newInfo.state == RIL.GECKO_MOBILE_CONNECTION_STATE_REGISTERED &&
+      (!newInfo.roaming || this._isDataRoamingEnabled());
+    let haveDataConnection =
+      newInfo.type != RIL.GECKO_MOBILE_CONNECTION_STATE_UNKNOWN;
+
+    if (isRegistered && haveDataConnection) {
+      debug("Radio is ready for data connection.");
+      this.updateRILNetworkInterface();
+    }
   },
 
   handleSignalStrengthChange: function handleSignalStrengthChange(message) {
@@ -683,7 +693,6 @@ RadioInterfaceLayer.prototype = {
     // This check avoids data call connection if the radio is not ready 
     // yet after toggling off airplane mode. 
     if (this.rilContext.radioState != RIL.GECKO_RADIOSTATE_READY) {
-      debug("RIL is not ready for data connection: radio's not ready");
       return; 
     }
 
@@ -700,29 +709,11 @@ RadioInterfaceLayer.prototype = {
     if (!this.dataCallSettings["enabled"] && RILNetworkInterface.connected) {
       debug("Data call settings: disconnect data call.");
       RILNetworkInterface.disconnect();
-      return;
     }
-    if (!this.dataCallSettings["enabled"] || RILNetworkInterface.connected) {
-      debug("Data call settings: nothing to do.");
-      return;
+    if (this.dataCallSettings["enabled"] && !RILNetworkInterface.connected) {
+      debug("Data call settings connect data call.");
+      RILNetworkInterface.connect(this.dataCallSettings);
     }
-    let dataInfo = this.rilContext.data;
-    let isRegistered =
-      dataInfo.state == RIL.GECKO_MOBILE_CONNECTION_STATE_REGISTERED;
-    let haveDataConnection =
-      dataInfo.type != RIL.GECKO_MOBILE_CONNECTION_STATE_UNKNOWN;
-    if (!isRegistered || !haveDataConnection) {
-      debug("RIL is not ready for data connection: Phone's not registered " +
-            "or doesn't have data connection.");
-      return;
-    }
-    if (dataInfo.roaming && !this.dataCallSettings["roaming_enabled"]) {
-      debug("We're roaming, but data roaming is disabled.");
-      return;
-    }
-
-    debug("Data call settings: connect data call.");
-    RILNetworkInterface.connect(this.dataCallSettings);
   },
 
   /**
@@ -762,11 +753,6 @@ RadioInterfaceLayer.prototype = {
   handleCallStateChange: function handleCallStateChange(call) {
     debug("handleCallStateChange: " + JSON.stringify(call));
     call.state = convertRILCallState(call.state);
-
-    if (call.state == nsIRadioInterfaceLayer.CALL_STATE_INCOMING) {
-      gSystemMessenger.broadcastMessage("telephony-incoming", {number: call.number});
-    }
-
     if (call.isActive) {
       this._activeCall = call;
     } else if (this._activeCall &&
@@ -1017,17 +1003,6 @@ RadioInterfaceLayer.prototype = {
                                   [message.datacalls, message.datacalls.length]);
   },
 
-  handleICCInfoChange: function handleICCInfoChange(message) {
-    let oldIcc = this.rilContext.icc;
-    this.rilContext.icc = message;
-    if (oldIcc && (oldIcc.mcc == message.mcc || oldIcc.mnc == message.mnc)) {
-      return;
-    }
-    // RIL:IccInfoChanged corresponds to a DOM event that gets fired only
-    // when the MCC or MNC codes have changed.
-    ppmm.broadcastAsyncMessage("RIL:IccInfoChanged", message);
-  },
-
   handleICCCardLockResult: function handleICCCardLockResult(message) {
     this._sendRequestResults("RIL:CardLockResult", message);
   },
@@ -1053,7 +1028,6 @@ RadioInterfaceLayer.prototype = {
 
   handleStkProactiveCommand: function handleStkProactiveCommand(message) {
     debug("handleStkProactiveCommand " + JSON.stringify(message));
-    gSystemMessenger.broadcastMessage("icc-stkcommand", message);
     ppmm.broadcastAsyncMessage("RIL:StkCommand", message);
   },
 
@@ -1751,9 +1725,20 @@ RadioInterfaceLayer.prototype = {
     } 
     let requestId = Math.floor(Math.random() * 1000);
     this._contactsCallbacks[requestId] = callback;
-    this.worker.postMessage({rilMessageType: "getICCContacts",
-                             type: type,
-                             requestId: requestId});
+    
+    let msgType;
+    switch (type) {
+      case "ADN": 
+        msgType = "getPBR";
+        break;
+      case "FDN":
+        msgType = "getFDN";
+        break;
+      default:
+        debug("Unknown contact type. " + type);
+        return;
+    }
+    this.worker.postMessage({rilMessageType: msgType, requestId: requestId});
   }
 };
 
@@ -1772,10 +1757,9 @@ let RILNetworkInterface = {
 
   state: Ci.nsINetworkInterface.NETWORK_STATE_UNKNOWN,
 
-  NETWORK_TYPE_WIFI:        Ci.nsINetworkInterface.NETWORK_TYPE_WIFI,
-  NETWORK_TYPE_MOBILE:      Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE,
-  NETWORK_TYPE_MOBILE_MMS:  Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS,
-  NETWORK_TYPE_MOBILE_SUPL: Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_SUPL,
+  NETWORK_TYPE_WIFI:       Ci.nsINetworkInterface.NETWORK_TYPE_WIFI,
+  NETWORK_TYPE_MOBILE:     Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE,
+  NETWORK_TYPE_MOBILE_MMS: Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS,
 
   /**
    * Standard values for the APN connection retry process

@@ -23,6 +23,10 @@ XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
                                    "nsIMessageSender");
 
+XPCOMUtils.defineLazyGetter(this, "mRIL", function () {
+  return Cc["@mozilla.org/telephony/system-worker-manager;1"].getService(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIRadioInterfaceLayer);
+});
+
 const nsIClassInfo            = Ci.nsIClassInfo;
 const CONTACTPROPERTIES_CID   = Components.ID("{f5181640-89e8-11e1-b0c4-0800200c9a66}");
 const nsIDOMContactProperties = Ci.nsIDOMContactProperties;
@@ -166,9 +170,9 @@ function Contact() {
 
 Contact.prototype = {
   __exposedProps__: {
-                      id: 'r',
-                      updated: 'r',
-                      published:  'r',
+                      id: 'rw',
+                      updated: 'rw',
+                      published:  'rw',
                       name: 'rw',
                       honorificPrefix: 'rw',
                       givenName: 'rw',
@@ -368,26 +372,11 @@ ContactManager.prototype = {
     let msg = aMessage.json;
     let contacts = msg.contacts;
 
-    let req;
     switch (aMessage.name) {
       case "Contacts:Find:Return:OK":
-        req = this.getRequest(msg.requestID);
+        let req = this.getRequest(msg.requestID);
         if (req) {
           let result = this._convertContactsArray(contacts);
-          Services.DOMRequest.fireSuccess(req.request, result);
-        } else {
-          if (DEBUG) debug("no request stored!" + msg.requestID);
-        }
-        break;
-      case "Contacts:GetSimContacts:Return:OK":
-        req = this.getRequest(msg.requestID);
-        if (req) {
-          let result = contacts.map(function(c) {
-            let contact = new Contact();
-            contact.init( { name: [c.alphaId], tel: [ { value: c.number } ] } );
-            return contact;
-          });
-          if (DEBUG) debug("result: " + JSON.stringify(result));
           Services.DOMRequest.fireSuccess(req.request, result);
         } else {
           if (DEBUG) debug("no request stored!" + msg.requestID);
@@ -553,13 +542,21 @@ ContactManager.prototype = {
   getSimContacts: function(aType) {
     let request;
     request = this.createRequest();
-    let options = {type: aType};
 
     let allowCallback = function() {
+      let callback = function(aType, aContacts) {
+        if (DEBUG) debug("got SIM contacts: " + aType + " " + JSON.stringify(aContacts));
+        let result = aContacts.map(function(c) {
+          var contact = new Contact();
+          contact.init( { name: [c.alphaId], tel: [ { value: c.number } ] } );
+          return contact;
+        });
+        if (DEBUG) debug("result: " + JSON.stringify(result));
+        Services.DOMRequest.fireSuccess(request, result);
+      };
       if (DEBUG) debug("getSimContacts " + aType);
-      cpmm.sendAsyncMessage("Contacts:GetSimContacts",
-        {requestID: this.getRequestId({request: request, reason: "getSimContacts"}),
-         options: options});
+
+      mRIL.getICCContacts(aType, callback);
     }.bind(this);
 
     let cancelCallback = function() {
@@ -578,7 +575,6 @@ ContactManager.prototype = {
                               "Contacts:Clear:Return:OK", "Contacts:Clear:Return:KO",
                               "Contact:Save:Return:OK", "Contact:Save:Return:KO",
                               "Contact:Remove:Return:OK", "Contact:Remove:Return:KO",
-                              "Contacts:GetSimContacts:Return:OK",
                               "PermissionPromptHelper:AskPermission:OK"]);
   },
 

@@ -23,7 +23,7 @@ namespace ctypes {
 static char*
 UnicodeToNative(JSContext *cx, const jschar *source, size_t slen)
 {
-  nsAutoCString native;
+  nsCAutoString native;
   nsDependentString unicode(reinterpret_cast<const PRUnichar*>(source), slen);
   nsresult rv = NS_CopyUnicodeToNative(unicode, native);
   if (NS_FAILED(rv)) {

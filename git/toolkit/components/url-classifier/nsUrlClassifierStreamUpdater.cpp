@@ -144,7 +144,7 @@ nsUrlClassifierStreamUpdater::FetchUpdate(const nsACString & aUpdateUrl,
   nsresult rv = NS_NewURI(getter_AddRefs(uri), aUpdateUrl);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString urlSpec;
+  nsCAutoString urlSpec;
   uri->GetAsciiSpec(urlSpec);
 
   LOG(("(post) Fetching update from %s\n", urlSpec.get()));
@@ -212,7 +212,7 @@ nsUrlClassifierStreamUpdater::DownloadUpdates(
   mIsUpdating = true;
   *_retval = true;
 
-  nsAutoCString urlSpec;
+  nsCAutoString urlSpec;
   mUpdateUrl->GetAsciiSpec(urlSpec);
 
   LOG(("FetchUpdate: %s", urlSpec.get()));
@@ -327,7 +327,7 @@ nsUrlClassifierStreamUpdater::UpdateSuccess(uint32_t requestedTimeout)
   nsCOMPtr<nsIUrlClassifierCallback> successCallback = mDownloadError ? nullptr : mSuccessCallback.get();
   DownloadDone();
 
-  nsAutoCString strTimeout;
+  nsCAutoString strTimeout;
   strTimeout.AppendInt(requestedTimeout);
   if (successCallback) {
     successCallback->HandleEvent(strTimeout);
@@ -346,7 +346,7 @@ nsUrlClassifierStreamUpdater::UpdateError(nsresult result)
 
   DownloadDone();
 
-  nsAutoCString strResult;
+  nsCAutoString strResult;
   strResult.AppendInt(static_cast<uint32_t>(result));
   if (errorCallback) {
     errorCallback->HandleEvent(strResult);
@@ -394,7 +394,7 @@ nsUrlClassifierStreamUpdater::OnStartRequest(nsIRequest *request,
 {
   nsresult rv;
   bool downloadError = false;
-  nsAutoCString strStatus;
+  nsCAutoString strStatus;
   nsresult status = NS_OK;
 
   // Only update if we got http success header

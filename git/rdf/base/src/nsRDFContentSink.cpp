@@ -833,7 +833,7 @@ RDFContentSinkImpl::GetIdAboutAttribute(const PRUnichar** aAttributes,
 
             nsAutoString relURI(aAttributes[1]);
             if (rdf_RequiresAbsoluteURI(relURI)) {
-                nsAutoCString uri;
+                nsCAutoString uri;
                 rv = mDocumentURL->Resolve(NS_ConvertUTF16toUTF8(aAttributes[1]), uri);
                 if (NS_FAILED(rv)) return rv;
                 
@@ -854,8 +854,8 @@ RDFContentSinkImpl::GetIdAboutAttribute(const PRUnichar** aAttributes,
             // Construct an in-line resource whose URI is the
             // document's URI plus the XML name specified in the ID
             // attribute.
-            nsAutoCString name;
-            nsAutoCString ref('#');
+            nsCAutoString name;
+            nsCAutoString ref('#');
             AppendUTF16toUTF8(aAttributes[1], ref);
 
             rv = mDocumentURL->Resolve(ref, name);
@@ -925,7 +925,7 @@ RDFContentSinkImpl::GetResourceAttribute(const PRUnichar** aAttributes,
           nsAutoString relURI(aAttributes[1]);
           if (rdf_RequiresAbsoluteURI(relURI)) {
               nsresult rv;
-              nsAutoCString uri;
+              nsCAutoString uri;
 
               rv = mDocumentURL->Resolve(NS_ConvertUTF16toUTF8(aAttributes[1]), uri);
               if (NS_FAILED(rv)) return rv;

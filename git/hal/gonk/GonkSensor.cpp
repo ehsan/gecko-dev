@@ -164,8 +164,14 @@ private:
 
 namespace hal_impl {
 
+class SensorStatus {
+public:
+  SensorData data;
+  DebugOnly<int> count;
+};
+
 static int sActivatedSensors = 0;
-static DebugOnly<int> sSensorRefCount[NUM_SENSOR_TYPE];
+static SensorStatus sSensorStatus[NUM_SENSOR_TYPE];
 static base::Thread* sSwitchThread;
 
 static void
@@ -200,7 +206,7 @@ SwitchSensor(bool aActivate, sensor_t aSensor, pthread_t aThreadId)
 {
   int index = HardwareSensorToHalSensor(aSensor.type);
 
-  MOZ_ASSERT(sSensorRefCount[index] || aActivate);
+  MOZ_ASSERT(sSensorStatus[index].count || aActivate);
 
   SensorDevice& device = SensorDevice::getInstance();
 
@@ -212,9 +218,9 @@ SwitchSensor(bool aActivate, sensor_t aSensor, pthread_t aThreadId)
       MessageLoop::current()->PostTask(FROM_HERE,
                                        NewRunnableFunction(PollSensorsOnce));
     }
-    sSensorRefCount[index]++;
+    sSensorStatus[index].count++;
   } else {
-    sSensorRefCount[index]--;
+    sSensorStatus[index].count--;
     --sActivatedSensors;
   }
 }

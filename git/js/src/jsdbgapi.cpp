@@ -353,14 +353,16 @@ JS_GetLinePCs(JSContext *cx, JSScript *script,
               unsigned startLine, unsigned maxLines,
               unsigned* count, unsigned** retLines, jsbytecode*** retPCs)
 {
+    unsigned* lines;
+    jsbytecode** pcs;
     size_t len = (script->length > maxLines ? maxLines : script->length);
-    unsigned *lines = cx->pod_malloc<unsigned>(len);
+    lines = (unsigned*) cx->malloc_(len * sizeof(unsigned));
     if (!lines)
         return JS_FALSE;
 
-    jsbytecode **pcs = cx->pod_malloc<jsbytecode*>(len);
+    pcs = (jsbytecode**) cx->malloc_(len * sizeof(jsbytecode*));
     if (!pcs) {
-        js_free(lines);
+        cx->free_(lines);
         return JS_FALSE;
     }
 
@@ -389,12 +391,12 @@ JS_GetLinePCs(JSContext *cx, JSScript *script,
     if (retLines)
         *retLines = lines;
     else
-        js_free(lines);
+        cx->free_(lines);
 
     if (retPCs)
         *retPCs = pcs;
     else
-        js_free(pcs);
+        cx->free_(pcs);
 
     return JS_TRUE;
 }
@@ -749,7 +751,7 @@ JS_EvaluateInStackFrame(JSContext *cx, JSStackFrame *fp,
     length = (unsigned) len;
     ok = JS_EvaluateUCInStackFrame(cx, fp, chars, length, filename, lineno,
                                    rval);
-    js_free(chars);
+    cx->free_(chars);
 
     return ok;
 }
@@ -813,7 +815,7 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj_, JSPropertyDescArray *pda)
         if (!Proxy::enumerate(cx, obj, props))
             return false;
 
-        pd = cx->pod_calloc<JSPropertyDesc>(props.length());
+        pd = (JSPropertyDesc *)cx->calloc_(props.length() * sizeof(JSPropertyDesc));
         if (!pd)
             return false;
 
@@ -851,7 +853,7 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj_, JSPropertyDescArray *pda)
         return true;
     }
 
-    pd = cx->pod_malloc<JSPropertyDesc>(obj->propertyCount());
+    pd = (JSPropertyDesc *)cx->malloc_(obj->propertyCount() * sizeof(JSPropertyDesc));
     if (!pd)
         return false;
     for (Shape::Range r = obj->lastProperty()->all(); !r.empty(); r.popFront()) {
@@ -894,7 +896,7 @@ JS_PutPropertyDescArray(JSContext *cx, JSPropertyDescArray *pda)
         if (pd[i].flags & JSPD_ALIAS)
             js_RemoveRoot(cx->runtime, &pd[i].alias);
     }
-    js_free(pd);
+    cx->free_(pd);
     pda->array = NULL;
     pda->length = 0;
 }
@@ -1225,7 +1227,7 @@ struct RequiredStringArg {
     }
     ~RequiredStringArg() {
         if (mBytes)
-            js_free(mBytes);
+            mCx->free_(mBytes);
     }
 };
 
@@ -1534,7 +1536,7 @@ js_StartVtune(const char *profileName)
     status = VTStartSampling(&params);
 
     if (params.tb5Filename != default_filename)
-        js_free(params.tb5Filename);
+        Foreground::free_(params.tb5Filename);
 
     if (status != 0) {
         if (status == VTAPI_MULTIPLE_RUNS)

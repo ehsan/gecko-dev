@@ -102,7 +102,7 @@ nsLocalHandlerApp::LaunchWithURI(nsIURI *aURI,
                                  nsIInterfaceRequestor *aWindowContext)
 {
   // pass the entire URI to the handler.
-  nsAutoCString spec;
+  nsCAutoString spec;
   aURI->GetAsciiSpec(spec);
   return LaunchWithIProcess(spec);
 }

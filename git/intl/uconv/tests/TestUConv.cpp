@@ -40,7 +40,7 @@ private:
 
   static const char * kTraceDelimiter;
 
-  nsAutoCString mTrace;
+  nsCAutoString mTrace;
 
 public:
 
@@ -189,7 +189,7 @@ nsresult nsTestUConv::TestEncoders()
   bool hasMore;
   encoders->HasMore(&hasMore);
   
-  nsAutoCString charset;
+  nsCAutoString charset;
   while (hasMore) {
     encoders->GetNext(charset);
 
@@ -258,7 +258,7 @@ nsresult nsTestUConv::DisplayDetectors()
   bool hasMore;
   detectors->HasMore(&hasMore);
   while (hasMore) {
-    nsAutoCString detectorName;
+    nsCAutoString detectorName;
     res = detectors->GetNext(detectorName);
     if (NS_FAILED(res)) {
       mLog.PrintError("GetNext()", res);
@@ -316,7 +316,7 @@ nsresult nsTestUConv::DisplayCharsets()
 
   nsTArray<nsCString> allCharsets;
   
-  nsAutoCString charset;
+  nsCAutoString charset;
   bool hasMore;
   encoders->HasMore(&hasMore);
   while (hasMore) {

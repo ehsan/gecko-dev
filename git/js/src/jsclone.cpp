@@ -607,12 +607,12 @@ class Chars {
     jschar *p;
   public:
     Chars(JSContext *cx) : cx(cx), p(NULL) {}
-    ~Chars() { if (p) js_free(p); }
+    ~Chars() { if (p) cx->free_(p); }
 
     bool allocate(size_t len) {
         JS_ASSERT(!p);
         // We're going to null-terminate!
-        p = cx->pod_malloc<jschar>(len + 1);
+        p = (jschar *) cx->malloc_((len + 1) * sizeof(jschar));
         if (p) {
             p[len] = jschar(0);
             return true;

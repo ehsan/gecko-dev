@@ -332,7 +332,7 @@ nsAuthSSPI::GetNextToken(const void *inToken,
           
                 // Start hashing. We are always doing SHA256, but depending
                 // on the certificate, a different alogirthm might be needed.
-                nsAutoCString hashString;
+                nsCAutoString hashString;
 
                 nsresult rv;
                 nsCOMPtr<nsICryptoHash> crypto;
