@@ -70,13 +70,6 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
         }
         break;
 
-      case "http-on-modify-request":
-        if (aSubject instanceof Ci.nsIChannel) {
-          let uri = aSubject.URI.spec;
-          this._sendAsyncMessage("specialpowers-http-notify-request", { uri: uri });
-        }
-        break;
-
       case "xpcom-shutdown":
         this.uninit();
         break;
@@ -106,7 +99,6 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
     var obs = Services.obs;
     obs.addObserver(this, "xpcom-shutdown", false);
     obs.addObserver(this, "chrome-document-global-created", false);
-    obs.addObserver(this, "http-on-modify-request", false);
 
     if (messageManager) {
       this._messageManager = messageManager;
@@ -118,7 +110,6 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
   {
     var obs = Services.obs;
     obs.removeObserver(this, "chrome-document-global-created");
-    obs.removeObserver(this, "http-on-modify-request");
     this._removeProcessCrashObservers();
   };
 

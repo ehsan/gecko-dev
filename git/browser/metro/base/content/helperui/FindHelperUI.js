@@ -56,7 +56,6 @@ var FindHelperUI = {
     Elements.tabList.addEventListener("TabSelect", this, true);
     Elements.browsers.addEventListener("URLChanged", this, true);
     window.addEventListener("MozAppbarShowing", this);
-    window.addEventListener("MozFlyoutPanelShowing", this, false);
   },
 
   handleEvent: function findHelperHandleEvent(aEvent) {
@@ -78,7 +77,6 @@ var FindHelperUI = {
         break;
 
       case "MozAppbarShowing":
-      case "MozFlyoutPanelShowing":
         if (aEvent.target != this._container) {
           this.hide();
         }

@@ -65,7 +65,7 @@ static void
 Reporter(int nr, siginfo_t *info, void *void_context)
 {
   ucontext_t *ctx = static_cast<ucontext_t*>(void_context);
-  unsigned long syscall, args[6];
+  unsigned int syscall, arg1;
 
   if (nr != SIGSYS) {
     return;
@@ -78,16 +78,9 @@ Reporter(int nr, siginfo_t *info, void *void_context)
   }
 
   syscall = SECCOMP_SYSCALL(ctx);
-  args[0] = SECCOMP_PARM1(ctx);
-  args[1] = SECCOMP_PARM2(ctx);
-  args[2] = SECCOMP_PARM3(ctx);
-  args[3] = SECCOMP_PARM4(ctx);
-  args[4] = SECCOMP_PARM5(ctx);
-  args[5] = SECCOMP_PARM6(ctx);
+  arg1 = SECCOMP_PARM1(ctx);
 
-  LOG_ERROR("seccomp sandbox violation: pid %u, syscall %lu, args %lu %lu %lu"
-            " %lu %lu %lu.  Killing process.", getpid(), syscall,
-            args[0], args[1], args[2], args[3], args[4], args[5]);
+  LOG_ERROR("PID %u is missing syscall %u, arg1 %u\n", getpid(), syscall, arg1);
 
   _exit(127);
 }

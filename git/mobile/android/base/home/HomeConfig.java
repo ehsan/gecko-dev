@@ -14,33 +14,33 @@ import java.util.EnumSet;
 import java.util.List;
 
 final class HomeConfig {
-    public static enum PanelType implements Parcelable {
-        TOP_SITES("top_sites", TopSitesPanel.class),
-        BOOKMARKS("bookmarks", BookmarksPanel.class),
-        HISTORY("history", HistoryPanel.class),
-        READING_LIST("reading_list", ReadingListPanel.class),
-        LIST("list", ListPanel.class);
+    public static enum PageType implements Parcelable {
+        TOP_SITES("top_sites", TopSitesPage.class),
+        BOOKMARKS("bookmarks", BookmarksPage.class),
+        HISTORY("history", HistoryPage.class),
+        READING_LIST("reading_list", ReadingListPage.class),
+        LIST("list", ListPage.class);
 
         private final String mId;
-        private final Class<?> mPanelClass;
+        private final Class<?> mPageClass;
 
-        PanelType(String id, Class<?> panelClass) {
+        PageType(String id, Class<?> pageClass) {
             mId = id;
-            mPanelClass = panelClass;
+            mPageClass = pageClass;
         }
 
-        public static PanelType fromId(String id) {
+        public static PageType fromId(String id) {
             if (id == null) {
-                throw new IllegalArgumentException("Could not convert null String to PanelType");
+                throw new IllegalArgumentException("Could not convert null String to PageType");
             }
 
-            for (PanelType panelType : PanelType.values()) {
-                if (TextUtils.equals(panelType.mId, id.toLowerCase())) {
-                    return panelType;
+            for (PageType page : PageType.values()) {
+                if (TextUtils.equals(page.mId, id.toLowerCase())) {
+                    return page;
                 }
             }
 
-            throw new IllegalArgumentException("Could not convert String id to PanelType");
+            throw new IllegalArgumentException("Could not convert String id to PageType");
         }
 
         @Override
@@ -48,8 +48,8 @@ final class HomeConfig {
             return mId;
         }
 
-        public Class<?> getPanelClass() {
-            return mPanelClass;
+        public Class<?> getPageClass() {
+            return mPageClass;
         }
 
         @Override
@@ -62,72 +62,72 @@ final class HomeConfig {
             dest.writeInt(ordinal());
         }
 
-        public static final Creator<PanelType> CREATOR = new Creator<PanelType>() {
+        public static final Creator<PageType> CREATOR = new Creator<PageType>() {
             @Override
-            public PanelType createFromParcel(final Parcel source) {
-                return PanelType.values()[source.readInt()];
+            public PageType createFromParcel(final Parcel source) {
+                return PageType.values()[source.readInt()];
             }
 
             @Override
-            public PanelType[] newArray(final int size) {
-                return new PanelType[size];
+            public PageType[] newArray(final int size) {
+                return new PageType[size];
             }
         };
     }
 
-    public static class PanelConfig implements Parcelable {
-        private final PanelType mType;
+    public static class PageEntry implements Parcelable {
+        private final PageType mType;
         private final String mTitle;
         private final String mId;
         private final EnumSet<Flags> mFlags;
 
         public enum Flags {
-            DEFAULT_PANEL
+            DEFAULT_PAGE
         }
 
         @SuppressWarnings("unchecked")
-        public PanelConfig(Parcel in) {
-            mType = (PanelType) in.readParcelable(getClass().getClassLoader());
+        public PageEntry(Parcel in) {
+            mType = (PageType) in.readParcelable(getClass().getClassLoader());
             mTitle = in.readString();
             mId = in.readString();
             mFlags = (EnumSet<Flags>) in.readSerializable();
         }
 
-        public PanelConfig(PanelType type, String title) {
+        public PageEntry(PageType type, String title) {
             this(type, title, EnumSet.noneOf(Flags.class));
         }
 
-        public PanelConfig(PanelType type, String title, EnumSet<Flags> flags) {
+        public PageEntry(PageType type, String title, EnumSet<Flags> flags) {
             this(type, title, type.toString(), flags);
         }
 
-        public PanelConfig(PanelType type, String title, String id) {
+        public PageEntry(PageType type, String title, String id) {
             this(type, title, id, EnumSet.noneOf(Flags.class));
         }
 
-        public PanelConfig(PanelType type, String title, String id, EnumSet<Flags> flags) {
+        public PageEntry(PageType type, String title, String id, EnumSet<Flags> flags) {
             if (type == null) {
-                throw new IllegalArgumentException("Can't create PanelConfig with null type");
+                throw new IllegalArgumentException("Can't create PageEntry with null type");
             }
             mType = type;
 
             if (title == null) {
-                throw new IllegalArgumentException("Can't create PanelConfig with null title");
+                throw new IllegalArgumentException("Can't create PageEntry with null title");
             }
             mTitle = title;
 
             if (id == null) {
-                throw new IllegalArgumentException("Can't create PanelConfig with null id");
+                throw new IllegalArgumentException("Can't create PageEntry with null id");
             }
             mId = id;
 
             if (flags == null) {
-                throw new IllegalArgumentException("Can't create PanelConfig with null flags");
+                throw new IllegalArgumentException("Can't create PageEntry with null flags");
             }
             mFlags = flags;
         }
 
-        public PanelType getType() {
+        public PageType getType() {
             return mType;
         }
 
@@ -140,7 +140,7 @@ final class HomeConfig {
         }
 
         public boolean isDefault() {
-            return mFlags.contains(Flags.DEFAULT_PANEL);
+            return mFlags.contains(Flags.DEFAULT_PAGE);
         }
 
         @Override
@@ -156,15 +156,15 @@ final class HomeConfig {
             dest.writeSerializable(mFlags);
         }
 
-        public static final Creator<PanelConfig> CREATOR = new Creator<PanelConfig>() {
+        public static final Creator<PageEntry> CREATOR = new Creator<PageEntry>() {
             @Override
-            public PanelConfig createFromParcel(final Parcel in) {
-                return new PanelConfig(in);
+            public PageEntry createFromParcel(final Parcel in) {
+                return new PageEntry(in);
             }
 
             @Override
-            public PanelConfig[] newArray(final int size) {
-                return new PanelConfig[size];
+            public PageEntry[] newArray(final int size) {
+                return new PageEntry[size];
             }
         };
     }
@@ -174,8 +174,8 @@ final class HomeConfig {
     }
 
     public interface HomeConfigBackend {
-        public List<PanelConfig> load();
-        public void save(List<PanelConfig> entries);
+        public List<PageEntry> load();
+        public void save(List<PageEntry> entries);
         public void setOnChangeListener(OnChangeListener listener);
     }
 
@@ -185,11 +185,11 @@ final class HomeConfig {
         mBackend = backend;
     }
 
-    public List<PanelConfig> load() {
+    public List<PageEntry> load() {
         return mBackend.load();
     }
 
-    public void save(List<PanelConfig> entries) {
+    public void save(List<PageEntry> entries) {
         mBackend.save(entries);
     }
 
@@ -198,6 +198,6 @@ final class HomeConfig {
     }
 
     public static HomeConfig getDefault(Context context) {
-        return new HomeConfig(new HomeConfigPrefsBackend(context));
+        return new HomeConfig(new HomeConfigMemBackend(context));
     }
 }

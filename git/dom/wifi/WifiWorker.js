@@ -192,24 +192,20 @@ var WifiManager = (function() {
     });
   }
 
-  function unloadDriver(type, callback) {
+  function unloadDriver(callback) {
     if (!unloadDriverEnabled) {
       // Unloading drivers is generally unnecessary and
       // can trigger bugs in some drivers.
       // On properly written drivers, bringing the interface
       // down powers down the interface.
-      if (type === WIFI_FIRMWARE_STATION) {
-        notify("supplicantlost", { success: true });
-      }
+      notify("supplicantlost", { success: true });
       callback(0);
       return;
     }
 
     wifiCommand.unloadDriver(function(status) {
       driverLoaded = (status < 0);
-      if (type === WIFI_FIRMWARE_STATION) {
-        notify("supplicantlost", { success: true });
-      }
+      notify("supplicantlost", { success: true });
       callback(status);
     });
   }
@@ -883,7 +879,7 @@ var WifiManager = (function() {
               cancelWaitForDriverReadyTimer();
               wifiCommand.startSupplicant(function (status) {
                 if (status < 0) {
-                  unloadDriver(WIFI_FIRMWARE_STATION, function() {
+                  unloadDriver(function() {
                     callback(status);
                   });
                   manager.state = "UNINITIALIZED";
@@ -918,7 +914,7 @@ var WifiManager = (function() {
             wifiCommand.closeSupplicantConnection(function () {
               manager.state = "UNINITIALIZED";
               netUtil.disableInterface(manager.ifname, function (ok) {
-                unloadDriver(WIFI_FIRMWARE_STATION, callback);
+                unloadDriver(callback);
               });
             });
           });
@@ -966,7 +962,7 @@ var WifiManager = (function() {
         // Should we fire a dom event if we fail to set wifi tethering  ?
         debug("Disable Wifi tethering result: " + (result ? result : "successfully"));
         // Unload wifi driver even if we fail to control wifi tethering.
-        unloadDriver(WIFI_FIRMWARE_AP, function(status) {
+        unloadDriver(function(status) {
           if (status < 0) {
             debug("Fail to unload wifi driver");
           }

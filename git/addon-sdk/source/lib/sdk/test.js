@@ -8,9 +8,6 @@ module.metadata = {
   "stability": "unstable"
 };
 
-const { Cu } = require("chrome");
-const { Task } = Cu.import("resource://gre/modules/Task.jsm", {});
-const { defer } = require("sdk/core/promise");
 const BaseAssert = require("sdk/test/assert").Assert;
 const { isFunction, isObject } = require("sdk/lang/type");
 
@@ -55,21 +52,11 @@ function defineTestSuite(target, suite, prefix) {
 
           // Creating `assert` functions for this test.
           let assert = Assert(options);
-          assert.end = () => options.done();
-
-          // If test function is a generator use a task JS to allow yield-ing
-          // style test runs.
-          if (test.isGenerator && test.isGenerator()) {
-            options.waitUntilDone();
-            Task.spawn(test.bind(null, assert)).
-                then(null, assert.fail).
-                then(assert.end);
-          }
 
           // If CommonJS test function expects more than one argument
           // it means that test is async and second argument is a callback
           // to notify that test is finished.
-          else if (1 < test.length) {
+          if (1 < test.length) {
 
             // Letting test runner know that test is executed async and
             // creating a callback function that CommonJS tests will call
