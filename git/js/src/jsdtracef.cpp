@@ -64,9 +64,7 @@ jsdtrace_fun_classname(const JSFunction *fun)
 static char *
 jsdtrace_filename(JSStackFrame *fp)
 {
-    return (fp && fp->hasScript() && fp->getScript()->filename)
-           ? (char *)fp->getScript()->filename
-           : dempty;
+    return (fp && fp->script && fp->script->filename) ? (char *)fp->script->filename : dempty;
 }
 
 static int
@@ -217,8 +215,8 @@ DTrace::ObjectCreationScope::handleCreationEnd()
 void
 DTrace::ObjectCreationScope::handleCreationImpl(JSObject *obj)
 {
-    JAVASCRIPT_OBJECT_CREATE(jsdtrace_filename(fp), (char *)clasp->name, (uintptr_t)obj,
-                             jsdtrace_frame_linenumber(cx, fp));
+    JAVASCRIPT_OBJECT_CREATE(jsdtrace_filename(cx->fp), (char *)clasp->name, (uintptr_t)obj,
+                             jsdtrace_frame_linenumber(cx, cx->fp));
 }
 
 void

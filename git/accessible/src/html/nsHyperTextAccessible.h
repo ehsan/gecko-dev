@@ -131,7 +131,7 @@ public:
   inline PRInt32 GetLinkIndexAtOffset(PRUint32 aOffset)
   {
     nsAccessible* child = GetChildAtOffset(aOffset);
-    return child ? GetLinkIndex(child) : -1;
+    return GetLinkIndex(child);
   }
 
   /**

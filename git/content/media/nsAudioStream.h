@@ -121,8 +121,5 @@ class nsAudioStream
 
   // PR_TRUE if this audio stream is paused.
   PRPackedBool mPaused;
-
-  // PR_TRUE if this stream has encountered an error.
-  PRPackedBool mInError;
 };
 #endif

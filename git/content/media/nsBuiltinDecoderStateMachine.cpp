@@ -939,10 +939,7 @@ nsresult nsBuiltinDecoderStateMachine::Run()
             MonitorAutoExit exitMon(mDecoder->GetMonitor());
             // Now perform the seek. We must not hold the state machine monitor
             // while we seek, since the seek decodes.
-            res = mReader->Seek(seekTime,
-                                mStartTime,
-                                mEndTime,
-                                mCurrentFrameTime + mStartTime);
+            res = mReader->Seek(seekTime, mStartTime, mEndTime);
           }
           if (NS_SUCCEEDED(res)){
             PRInt64 audioTime = seekTime;
@@ -1080,14 +1077,8 @@ nsresult nsBuiltinDecoderStateMachine::Run()
           }
         }
 
-        if (mState == DECODER_STATE_COMPLETED) {
-          // We've finished playback. Shutdown the state machine thread, 
-          // in order to save memory on thread stacks, particuarly on Linux.
-          nsCOMPtr<nsIRunnable> event =
-            new ShutdownThreadEvent(mDecoder->mStateMachineThread);
-          NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-          mDecoder->mStateMachineThread = nsnull;
-          return NS_OK;
+        while (mState == DECODER_STATE_COMPLETED) {
+          mDecoder->GetMonitor().Wait();
         }
       }
       break;

@@ -65,6 +65,7 @@
 #include "nsEventDispatcher.h"
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMProgressEvent.h"
+#include "nsHTMLMediaError.h"
 
 nsGenericHTMLElement*
 NS_NewHTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo,
@@ -119,10 +120,9 @@ nsHTMLAudioElement::Initialize(nsISupports* aOwner, JSContext* aContext,
                                JSObject *aObj, PRUint32 argc, jsval *argv)
 {
   // Audio elements created using "new Audio(...)" should have
-  // 'preload' set to 'auto' (since the script must intend to
-  // play the audio)
-  nsresult rv = SetAttr(kNameSpaceID_None, nsGkAtoms::preload,
-                        NS_LITERAL_STRING("auto"), PR_TRUE);
+  // 'autobuffer' set (since the script must intend to play the audio)
+  nsresult rv = SetAttr(kNameSpaceID_None, nsGkAtoms::autobuffer,
+                        NS_LITERAL_STRING("autobuffer"), PR_TRUE);
   if (NS_FAILED(rv))
     return rv;
 

@@ -420,7 +420,6 @@ public:
                               nsIInputStream **aStream);
     NS_IMETHOD GetThebesSurface(gfxASurface **surface);
     NS_IMETHOD SetIsOpaque(PRBool isOpaque);
-    NS_IMETHOD Reset();
     already_AddRefed<CanvasLayer> GetCanvasLayer(CanvasLayer *aOldLayer,
                                                  LayerManager *aManager);
     void MarkContextClean();
@@ -467,6 +466,9 @@ protected:
      * Lookup table used to speed up PutImageData().
      */
     static PRUint8 (*sPremultiplyTable)[256];
+
+    // destroy thebes/image stuff, in preparation for possibly recreating
+    void Destroy();
 
     // Some helpers.  Doesn't modify acolor on failure.
     nsresult SetStyleFromStringOrInterface(const nsAString& aStr, nsISupports *aInterface, Style aWhichStyle);
@@ -840,7 +842,7 @@ nsCanvasRenderingContext2D::nsCanvasRenderingContext2D()
 
 nsCanvasRenderingContext2D::~nsCanvasRenderingContext2D()
 {
-    Reset();
+    Destroy();
 
 #ifdef MOZ_IPC
     ContentParent* allocator = ContentParent::GetSingleton(PR_FALSE);
@@ -860,8 +862,8 @@ nsCanvasRenderingContext2D::~nsCanvasRenderingContext2D()
     }
 }
 
-nsresult
-nsCanvasRenderingContext2D::Reset()
+void
+nsCanvasRenderingContext2D::Destroy()
 {
 #ifdef MOZ_IPC
     ContentParent* allocator = ContentParent::GetSingleton(PR_FALSE);
@@ -880,7 +882,6 @@ nsCanvasRenderingContext2D::Reset()
     mThebes = nsnull;
     mValid = PR_FALSE;
     mIsEntireFrameInvalid = PR_FALSE;
-    return NS_OK;
 }
 
 nsresult
@@ -1082,7 +1083,7 @@ nsCanvasRenderingContext2D::Redraw(const gfxRect& r)
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
 {
-    Reset();
+    Destroy();
 
     nsRefPtr<gfxASurface> surface;
 
@@ -1143,7 +1144,7 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::InitializeWithSurface(nsIDocShell *docShell, gfxASurface *surface, PRInt32 width, PRInt32 height) {
-    Reset();
+    Destroy();
 
     NS_ASSERTION(!docShell ^ !mCanvasElement, "Cannot set both docshell and canvas element");
     mDocShell = docShell;
@@ -1887,7 +1888,7 @@ nsCanvasRenderingContext2D::ShadowInitialize(const gfxRect& extents, gfxAlphaBox
                        blurRadius.height, blurRadius.width);
     drawExtents = drawExtents.Intersect(clipExtents - CurrentState().shadowOffset);
 
-    gfxContext* ctx = blur.Init(drawExtents, gfxIntSize(0,0), blurRadius, nsnull, nsnull);
+    gfxContext* ctx = blur.Init(drawExtents, blurRadius, nsnull, nsnull);
 
     if (!ctx)
         return nsnull;
@@ -2327,7 +2328,8 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
     // We know the declaration is not !important, so we can use
     // GetNormalBlock().
     const nsCSSValue *fsaVal =
-      declaration->GetNormalBlock()->ValueFor(eCSSProperty_font_size_adjust);
+      declaration->GetNormalBlock()->
+        ValueStorageFor(eCSSProperty_font_size_adjust);
     if (!fsaVal || (fsaVal->GetUnit() != eCSSUnit_None &&
                     fsaVal->GetUnit() != eCSSUnit_System_Font)) {
         // We got an all-property value or a syntax error.  The spec says
@@ -3951,9 +3953,6 @@ nsCanvasRenderingContext2D::GetImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
         return NS_ERROR_DOM_SECURITY_ERR;
     }
 
-    if (w == 0 || h == 0)
-        return NS_ERROR_DOM_SYNTAX_ERR;
-
     if (!CanvasUtils::CheckSaneSubrectSize (x, y, w, h, mWidth, mHeight))
         return NS_ERROR_DOM_SYNTAX_ERR;
 
@@ -4044,9 +4043,6 @@ nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
 {
     if (!mValid)
         return NS_ERROR_FAILURE;
-
-    if (w == 0 || h == 0)
-        return NS_ERROR_DOM_SYNTAX_ERR;
 
     if (!CanvasUtils::CheckSaneSubrectSize (x, y, w, h, mWidth, mHeight))
         return NS_ERROR_DOM_SYNTAX_ERR;

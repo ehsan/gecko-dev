@@ -45,7 +45,7 @@ include $(srcdir)/objs.mk
 
 EXTRA_DEPS += $(srcdir)/objs.mk
 
-DIRS            = standalone nomozalloc
+DIRS            = standalone
 
 MODULE		= xpcom
 LIBRARY_NAME	= xpcomglue_s
@@ -132,7 +132,6 @@ EXPORTS_mozilla = \
   Mutex.h \
   SSE.h \
   unused.h \
-  FileUtils.h \
   $(NULL)
 
 SDK_LIBRARY     =                        \

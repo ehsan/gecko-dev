@@ -151,6 +151,8 @@
     <command id="Inspector:Next"
              oncommand="InspectorUI.inspectNext();"
              disabled="true"/>
+    <command id="Inspector:Style"
+             oncommand="InspectorUI.toggleStylePanel();"/>
   </commandset>
 
   <broadcasterset id="mainBroadcasterSet">
@@ -189,8 +191,6 @@
     <broadcaster id="blockedPopupsSeparator"/>
     <broadcaster id="isImage"/>
     <broadcaster id="isFrameImage"/>
-    <broadcaster id="singleFeedMenuitemState" disabled="true"/>
-    <broadcaster id="multipleFeedsMenuState" hidden="true"/>
   </broadcasterset>
 
   <keyset id="mainKeyset">

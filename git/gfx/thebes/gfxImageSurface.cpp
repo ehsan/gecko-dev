@@ -98,12 +98,9 @@ gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format) 
 
     // if we have a zero-sized surface, just leave mData nsnull
     if (mSize.height * mStride > 0) {
-
-        // Use the fallible allocator here
-        mData = (unsigned char *) moz_malloc(mSize.height * mStride);
+        mData = (unsigned char *) calloc(mSize.height, mStride);
         if (!mData)
             return;
-        memset(mData, 0, mSize.height * mStride);
     }
 
     mOwnsData = PR_TRUE;

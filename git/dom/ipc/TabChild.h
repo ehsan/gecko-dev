@@ -304,7 +304,7 @@ private:
     bool InitTabChildGlobal();
 
     nsCOMPtr<nsIWebNavigation> mWebNav;
-    nsRefPtr<TabChildGlobal> mTabChildGlobal;
+    TabChildGlobal* mTabChildGlobal;
     PRUint32 mChromeFlags;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);

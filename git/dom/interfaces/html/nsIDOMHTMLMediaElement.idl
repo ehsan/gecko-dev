@@ -37,8 +37,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsIDOMHTMLElement.idl"
-#include "nsIDOMMediaError.idl"
-#include "nsIDOMTimeRanges.idl"
+#include "nsIDOMHTMLMediaError.idl"
+#include "nsIDOMHTMLTimeRanges.idl"
 
 /**
  * The nsIDOMHTMLMediaElement interface is an interface to be implemented by the HTML
@@ -57,11 +57,11 @@
 #endif
 %}
 
-[scriptable, uuid(f748b7db-4ab9-4370-835d-59f30c8de57c)]
+[scriptable, uuid(b6c9f51d-237c-44d1-842d-996f4d62c843)]
 interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
 {
   // error state
-  readonly attribute nsIDOMMediaError error;
+  readonly attribute nsIDOMHTMLMediaError error;
 
   // network state
            attribute DOMString src;
@@ -72,8 +72,7 @@ interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
   const unsigned short NETWORK_LOADED = 3;
   const unsigned short NETWORK_NO_SOURCE = 4;
   readonly attribute unsigned short networkState;
-           attribute DOMString preload;  
-  readonly attribute nsIDOMTimeRanges buffered;
+  readonly attribute nsIDOMHTMLTimeRanges buffered;
   void load();
   DOMString canPlayType(in DOMString type);
 
@@ -93,6 +92,7 @@ interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
   readonly attribute boolean ended;
   readonly attribute boolean mozAutoplayEnabled;
            attribute boolean autoplay;
+           attribute boolean autobuffer;
   void play();
   void pause();
 

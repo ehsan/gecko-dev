@@ -65,7 +65,6 @@
 #include "nscore.h"
 #include "prinit.h"
 #include "prthread.h"
-#include "plstr.h"
 #include "nsStackWalk.h"
 #include "nsTraceMallocCallbacks.h"
 
@@ -158,11 +157,6 @@ static char      sdlogname[PATH_MAX] = ""; /* filename for shutdown leak log */
  * hooks before NS_TraceMallocStartup sets it.
  */
 static uint32 tracing_enabled = 0;
-
-/*
- * Control whether we should log stacks
- */
-static uint32 stacks_enabled = 1;
 
 /*
  * This lock must be held while manipulating the calltree, the
@@ -525,10 +519,6 @@ static uint32 filename_serial_generator = 0;
 static callsite calltree_root =
   {0, 0, LFD_SET_STATIC_INITIALIZER, NULL, NULL, 0, NULL, NULL, NULL};
 
-/* a fake pc for when stacks are disabled; must be different from the
-   pc in calltree_root */
-#define STACK_DISABLED_PC ((void*)1)
-
 /* Basic instrumentation. */
 static nsTMStats tmstats = NS_TMSTATS_STATIC_INITIALIZER;
 
@@ -616,10 +606,6 @@ static PLHashTable *filenames = NULL;
 /* Table mapping method names to logged 'N' record serial numbers. */
 static PLHashTable *methods = NULL;
 
-/*
- * Presumes that its caller is holding tmlock, but may temporarily exit
- * the lock.
- */
 static callsite *
 calltree(void **stack, size_t num_stack_entries, tm_thread *t)
 {
@@ -637,6 +623,13 @@ calltree(void **stack, size_t num_stack_entries, tm_thread *t)
     size_t stack_index;
     nsCodeAddressDetails details;
     nsresult rv;
+
+    /*
+     * FIXME bug 391749: We should really lock only the minimum amount
+     * that we need to in this function, because it makes some calls
+     * that could lock in the system's shared library loader.
+     */
+    TM_ENTER_LOCK(t);
 
     maxstack = (num_stack_entries > tmstats.calltree_maxstack);
     if (maxstack) {
@@ -698,38 +691,24 @@ calltree(void **stack, size_t num_stack_entries, tm_thread *t)
          * callsite info.
          */
 
-        if (!stacks_enabled) {
-            /*
-             * Fake the necessary information for our single fake stack
-             * frame.
-             */
-            PL_strncpyz(details.library, "stacks_disabled",
-                        sizeof(details.library));
-            details.loffset = 0;
-            details.filename[0] = '\0';
-            details.lineno = 0;
-            details.function[0] = '\0';
-            details.foffset = 0;
-        } else {
-            /*
-             * NS_DescribeCodeAddress can (on Linux) acquire a lock inside
-             * the shared library loader.  Another thread might call malloc
-             * while holding that lock (when loading a shared library).  So
-             * we have to exit tmlock around this call.  For details, see
-             * https://bugzilla.mozilla.org/show_bug.cgi?id=363334#c3
-             *
-             * We could be more efficient by building the nodes in the
-             * calltree, exiting the monitor once to describe all of them,
-             * and then filling in the descriptions for any that hadn't been
-             * described already.  But this is easier for now.
-             */
-            TM_EXIT_LOCK(t);
-            rv = NS_DescribeCodeAddress(pc, &details);
-            TM_ENTER_LOCK(t);
-            if (NS_FAILED(rv)) {
-                tmstats.dladdr_failures++;
-                goto fail;
-            }
+        /*
+         * NS_DescribeCodeAddress can (on Linux) acquire a lock inside
+         * the shared library loader.  Another thread might call malloc
+         * while holding that lock (when loading a shared library).  So
+         * we have to exit tmlock around this call.  For details, see
+         * https://bugzilla.mozilla.org/show_bug.cgi?id=363334#c3
+         *
+         * We could be more efficient by building the nodes in the
+         * calltree, exiting the monitor once to describe all of them,
+         * and then filling in the descriptions for any that hadn't been
+         * described already.  But this is easier for now.
+         */
+        TM_EXIT_LOCK(t);
+        rv = NS_DescribeCodeAddress(pc, &details);
+        TM_ENTER_LOCK(t);
+        if (NS_FAILED(rv)) {
+            tmstats.dladdr_failures++;
+            goto fail;
         }
 
         /* Check whether we need to emit a library trace record. */
@@ -914,9 +893,11 @@ calltree(void **stack, size_t num_stack_entries, tm_thread *t)
     if (maxstack)
         calltree_maxstack_top = site;
 
+    TM_EXIT_LOCK(t);
     return site;
 
   fail:
+    TM_EXIT_LOCK(t);
     return NULL;
 }
 
@@ -945,7 +926,7 @@ stack_callback(void *pc, void *closure)
  * sem_pool_lock in Mac OS X pthreads); the caller should bail out
  * without doing anything (such as acquiring locks).
  */
-static callsite *
+callsite *
 backtrace(tm_thread *t, int skip, int *immediate_abort)
 {
     callsite *site;
@@ -956,68 +937,49 @@ backtrace(tm_thread *t, int skip, int *immediate_abort)
 
     t->suppress_tracing++;
 
-    if (!stacks_enabled) {
-        /*
-         * Create a single fake stack frame so that all the tools get
-         * data in the correct format.
-         */
-        if (info->size < 1) {
-            PR_ASSERT(!info->buffer); /* !info->size == !info->buffer */
-            info->buffer = __libc_malloc(1 * sizeof(void*));
-            if (!info->buffer)
-                return NULL;
-            info->size = 1;
-        }
+    /*
+     * NS_StackWalk can (on Windows) acquire a lock the shared library
+     * loader.  Another thread might call malloc while holding that lock
+     * (when loading a shared library).  So we can't be in tmlock during
+     * this call.  For details, see
+     * https://bugzilla.mozilla.org/show_bug.cgi?id=374829#c8
+     */
 
-        info->entries = 1;
-        info->buffer[0] = STACK_DISABLED_PC;
-    } else {
-        /*
-         * NS_StackWalk can (on Windows) acquire a lock the shared library
-         * loader.  Another thread might call malloc while holding that lock
-         * (when loading a shared library).  So we can't be in tmlock during
-         * this call.  For details, see
-         * https://bugzilla.mozilla.org/show_bug.cgi?id=374829#c8
-         */
-
-        /* skip == 0 means |backtrace| should show up, so don't use skip + 1 */
-        /* NB: this call is repeated below if the buffer is too small */
-        info->entries = 0;
-        rv = NS_StackWalk(stack_callback, skip, info);
-        *immediate_abort = rv == NS_ERROR_UNEXPECTED;
-        if (rv == NS_ERROR_UNEXPECTED || info->entries == 0) {
-            t->suppress_tracing--;
-            return NULL;
-        }
-
-        /*
-         * To avoid allocating in stack_callback (which, on Windows, is
-         * called on a different thread from the one we're running on here),
-         * reallocate here if it didn't have a big enough buffer (which
-         * includes the first call on any thread), and call it again.
-         */
-        if (info->entries > info->size) {
-            new_stack_buffer_size = 2 * info->entries;
-            new_stack_buffer = __libc_realloc(info->buffer,
-                                   new_stack_buffer_size * sizeof(void*));
-            if (!new_stack_buffer)
-                return NULL;
-            info->buffer = new_stack_buffer;
-            info->size = new_stack_buffer_size;
-
-            /* and call NS_StackWalk again */
-            info->entries = 0;
-            NS_StackWalk(stack_callback, skip, info);
-
-            /* same stack */
-            PR_ASSERT(info->entries * 2 == new_stack_buffer_size);
-        }
+    /* skip == 0 means |backtrace| should show up, so don't use skip + 1 */
+    /* NB: this call is repeated below if the buffer is too small */
+    info->entries = 0;
+    rv = NS_StackWalk(stack_callback, skip, info);
+    *immediate_abort = rv == NS_ERROR_UNEXPECTED;
+    if (rv == NS_ERROR_UNEXPECTED || info->entries == 0) {
+        t->suppress_tracing--;
+        return NULL;
     }
 
-    TM_ENTER_LOCK(t);
+    /*
+     * To avoid allocating in stack_callback (which, on Windows, is
+     * called on a different thread from the one we're running on here),
+     * reallocate here if it didn't have a big enough buffer (which
+     * includes the first call on any thread), and call it again.
+     */
+    if (info->entries > info->size) {
+        new_stack_buffer_size = 2 * info->entries;
+        new_stack_buffer = __libc_realloc(info->buffer,
+                               new_stack_buffer_size * sizeof(void*));
+        if (!new_stack_buffer)
+            return NULL;
+        info->buffer = new_stack_buffer;
+        info->size = new_stack_buffer_size;
+
+        /* and call NS_StackWalk again */
+        info->entries = 0;
+        NS_StackWalk(stack_callback, skip, info);
+
+        PR_ASSERT(info->entries * 2 == new_stack_buffer_size); /* same stack */
+    }
 
     site = calltree(info->buffer, info->entries, t);
 
+    TM_ENTER_LOCK(t);
     tmstats.backtrace_calls++;
     if (!site) {
         tmstats.backtrace_failures++;
@@ -1342,16 +1304,10 @@ log_header(int logfd)
 PR_IMPLEMENT(void)
 NS_TraceMallocStartup(int logfd)
 {
-    const char* stack_disable_env;
-
     /* We must be running on the primordial thread. */
     PR_ASSERT(tracing_enabled == 0);
     PR_ASSERT(logfp == &default_logfile);
     tracing_enabled = (logfd >= 0);
-
-    /* stacks are disabled if this env var is set to a non-empty value */
-    stack_disable_env = PR_GetEnv("NS_TRACE_MALLOC_DISABLE_STACKS");
-    stacks_enabled = !stack_disable_env || !*stack_disable_env;
 
     if (tracing_enabled) {
         PR_ASSERT(logfp->simsize == 0); /* didn't overflow startup buffer */

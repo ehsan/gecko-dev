@@ -116,8 +116,7 @@ public:
   NS_IMETHOD  Composite(void);
 
   NS_IMETHOD  UpdateView(nsIView *aView, PRUint32 aUpdateFlags);
-  NS_IMETHOD  UpdateViewNoSuppression(nsIView *aView, const nsRect &aRect,
-                                      PRUint32 aUpdateFlags);
+  NS_IMETHOD  UpdateView(nsIView *aView, const nsRect &aRect, PRUint32 aUpdateFlags);
   NS_IMETHOD  UpdateAllViews(PRUint32 aUpdateFlags);
 
   NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent,
@@ -249,8 +248,6 @@ private:
   void SetPainting(PRBool aPainting) {
     RootViewManager()->mPainting = aPainting;
   }
-
-  nsresult UpdateView(nsIView *aView, const nsRect &aRect, PRUint32 aUpdateFlags);
 
 public: // NOT in nsIViewManager, so private to the view module
   nsView* GetRootView() const { return mRootView; }

@@ -77,7 +77,7 @@ struct JSONParser
 {
     JSONParser(JSContext *cx)
      : hexChar(), numHex(), statep(), stateStack(), rootVal(), objectStack(),
-       objectKey(cx), buffer(cx), suppressErrors(false)
+       objectKey(cx), buffer(cx)
     {}
 
     /* Used while handling \uNNNN in strings */
@@ -90,7 +90,6 @@ struct JSONParser
     JSObject *objectStack;
     js::Vector<jschar, 8> objectKey;
     js::Vector<jschar, 8> buffer;
-    bool suppressErrors;
 };
 
 #ifdef _MSC_VER
@@ -241,14 +240,16 @@ public:
         if (gapValue.value().isString()) {
             if (!js_ValueToCharBuffer(cx, gapValue.value(), gap))
                 return false;
-            if (gap.length() > 10)
-                gap.resize(10);
-        } else if (gapValue.value().isNumber()) {
+            if (cb.length() > 10)
+                cb.resize(10);
+        }
+
+        if (gapValue.value().isNumber()) {
             jsdouble d = gapValue.value().isInt32()
                          ? gapValue.value().toInt32()
                          : js_DoubleToInteger(gapValue.value().toDouble());
             d = JS_MIN(10, d);
-            if (d >= 1 && !gap.appendN(' ', uint32(d)))
+            if (d >= 1 && !cb.appendN(' ', uint32(d)))
                 return false;
         }
 
@@ -345,23 +346,23 @@ JO(JSContext *cx, Value *vp, StringifyContext *scx)
     }
 
     JSBool memberWritten = JS_FALSE;
-    AutoIdVector props(cx);
-    if (!GetPropertyNames(cx, &keySource->toObject(), JSITER_OWNONLY, props))
+    AutoIdArray ida(cx, JS_Enumerate(cx, &keySource->toObject()));
+    if (!ida)
         return JS_FALSE;
 
-    for (size_t i = 0, len = props.length(); i < len; i++) {
+    for (jsint i = 0, len = ida.length(); i < len; i++) {
         outputValue.setUndefined();
 
         if (!usingWhitelist) {
-            if (!js_ValueToStringId(cx, IdToValue(props[i]), &id))
+            if (!js_ValueToStringId(cx, IdToValue(ida[i]), &id))
                 return JS_FALSE;
         } else {
             // skip non-index properties
             jsuint index = 0;
-            if (!js_IdIsIndex(props[i], &index))
+            if (!js_IdIsIndex(ida[i], &index))
                 continue;
 
-            if (!scx->replacer->getProperty(cx, props[i], &whitelistElement))
+            if (!scx->replacer->getProperty(cx, ida[i], &whitelistElement))
                 return JS_FALSE;
 
             if (!js_ValueToStringId(cx, whitelistElement, &id))
@@ -408,7 +409,6 @@ JO(JSContext *cx, Value *vp, StringifyContext *scx)
         s->getCharsAndLength(chars, length);
         if (!write_string(cx, scx->cb, chars, length) ||
             !scx->cb.append(':') ||
-            !(scx->gap.empty() || scx->cb.append(' ')) ||
             !Str(cx, id, obj, scx, &outputValue, true)) {
             return JS_FALSE;
         }
@@ -618,12 +618,12 @@ Walk(JSContext *cx, jsid id, JSObject *holder, const Value &reviver, Value *vp)
                     return false;
             }
         } else {
-            AutoIdVector props(cx);
-            if (!GetPropertyNames(cx, obj, JSITER_OWNONLY, props))
+            AutoIdArray ida(cx, JS_Enumerate(cx, obj));
+            if (!ida)
                 return false;
 
-            for (size_t i = 0, len = props.length(); i < len; i++) {
-                jsid idName = props[i];
+            for (jsint i = 0, len = ida.length(); i < len; i++) {
+                jsid idName = ida[i];
                 if (!Walk(cx, idName, obj, reviver, propValue.addr()))
                     return false;
                 if (propValue.value().isUndefined()) {
@@ -656,14 +656,6 @@ Walk(JSContext *cx, jsid id, JSObject *holder, const Value &reviver, Value *vp)
     return true;
 }
 
-static JSBool
-JSONParseError(JSONParser *jp, JSContext *cx)
-{
-    if (!jp->suppressErrors)
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
-    return JS_FALSE;
-}
-
 static bool
 Revive(JSContext *cx, const Value &reviver, Value *vp)
 {
@@ -682,7 +674,7 @@ Revive(JSContext *cx, const Value &reviver, Value *vp)
 }
 
 JSONParser *
-js_BeginJSONParse(JSContext *cx, Value *rootVal, bool suppressErrors /*= true*/)
+js_BeginJSONParse(JSContext *cx, Value *rootVal)
 {
     if (!cx)
         return NULL;
@@ -702,7 +694,6 @@ js_BeginJSONParse(JSContext *cx, Value *rootVal, bool suppressErrors /*= true*/)
     jp->statep = jp->stateStack;
     *jp->statep = JSON_PARSE_STATE_INIT;
     jp->rootVal = rootVal;
-    jp->suppressErrors = suppressErrors;
 
     return jp;
 
@@ -739,15 +730,18 @@ js_FinishJSONParse(JSContext *cx, JSONParser *jp, const Value &reviver)
     bool ok = *jp->statep == JSON_PARSE_STATE_FINISHED;
     Value *vp = jp->rootVal;
 
-    if (!early_ok) {
-        ok = false;
-    } else if (!ok) {
-        JSONParseError(jp, cx);
-    } else if (reviver.isObject() && reviver.toObject().isCallable()) {
-        ok = Revive(cx, reviver, vp);
+    cx->destroy(jp);
+
+    if (!early_ok)
+        return false;
+
+    if (!ok) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return false;
     }
 
-    cx->destroy(jp);
+    if (reviver.isObject() && reviver.toObject().isCallable())
+        ok = Revive(cx, reviver, vp);
 
     return ok;
 }
@@ -757,13 +751,15 @@ PushState(JSContext *cx, JSONParser *jp, JSONParserState state)
 {
     if (*jp->statep == JSON_PARSE_STATE_FINISHED) {
         // extra input
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     jp->statep++;
     if ((uint32)(jp->statep - jp->stateStack) >= JS_ARRAY_LENGTH(jp->stateStack)) {
         // too deep
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     *jp->statep = state;
@@ -777,7 +773,8 @@ PopState(JSContext *cx, JSONParser *jp)
     jp->statep--;
     if (jp->statep < jp->stateStack) {
         jp->statep = jp->stateStack;
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     if (*jp->statep == JSON_PARSE_STATE_INIT)
@@ -815,8 +812,10 @@ PushObject(JSContext *cx, JSONParser *jp, JSObject *obj)
     jsuint len;
     if (!js_GetLengthProperty(cx, jp->objectStack, &len))
         return JS_FALSE;
-    if (len >= JSON_MAX_DEPTH)
-        return JSONParseError(jp, cx);
+    if (len >= JSON_MAX_DEPTH) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
+    }
 
     AutoObjectRooter tvr(cx, obj);
     Value v = ObjectOrNullValue(obj);
@@ -919,7 +918,8 @@ HandleNumber(JSContext *cx, JSONParser *jp, const jschar *buf, uint32 len)
         return JS_FALSE;
     if (ep != buf + len) {
         // bad number input
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     return PushPrimitive(cx, jp, DoubleValue(val));
@@ -942,7 +942,8 @@ HandleKeyword(JSContext *cx, JSONParser *jp, const jschar *buf, uint32 len)
     TokenKind tt = js_CheckKeyword(buf, len);
     if (tt != TOK_PRIMARY) {
         // bad keyword
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     if (buf[0] == 'n') {
@@ -952,7 +953,8 @@ HandleKeyword(JSContext *cx, JSONParser *jp, const jschar *buf, uint32 len)
     } else if (buf[0] == 'f') {
         keyword.setBoolean(false);
     } else {
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     return PushPrimitive(cx, jp, keyword);
@@ -1005,8 +1007,10 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
                 if (!PopState(cx, jp))
                     return JS_FALSE;
 
-                if (*jp->statep != JSON_PARSE_STATE_ARRAY)
-                    return JSONParseError(jp, cx);
+                if (*jp->statep != JSON_PARSE_STATE_ARRAY) {
+                    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                    return JS_FALSE;
+                }
 
                 if (!CloseArray(cx, jp) || !PopState(cx, jp))
                     return JS_FALSE;
@@ -1016,7 +1020,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
 
             if (c == '}') {
                 // we should only find these in OBJECT_KEY state
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
 
             if (c == '"') {
@@ -1049,7 +1054,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
                 if (!OpenArray(cx, jp) || !PushState(cx, jp, JSON_PARSE_STATE_VALUE))
                     return JS_FALSE;
             } else if (!JS_ISXMLSPACE(c)) {
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
             break;
 
@@ -1061,11 +1067,12 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
                 if (!PushState(cx, jp, JSON_PARSE_STATE_OBJECT_PAIR))
                     return JS_FALSE;
             } else if (c == ']' || !JS_ISXMLSPACE(c)) {
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
             break;
 
-          case JSON_PARSE_STATE_ARRAY:
+          case JSON_PARSE_STATE_ARRAY :
             if (c == ']') {
                 if (!CloseArray(cx, jp) || !PopState(cx, jp))
                     return JS_FALSE;
@@ -1073,11 +1080,12 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
                 if (!PushState(cx, jp, JSON_PARSE_STATE_VALUE))
                     return JS_FALSE;
             } else if (!JS_ISXMLSPACE(c)) {
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
             break;
 
-          case JSON_PARSE_STATE_OBJECT_PAIR:
+          case JSON_PARSE_STATE_OBJECT_PAIR :
             if (c == '"') {
                 // we want to be waiting for a : when the string has been read
                 *jp->statep = JSON_PARSE_STATE_OBJECT_IN_PAIR;
@@ -1088,7 +1096,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
                 if (!CloseObject(cx, jp) || !PopState(cx, jp) || !PopState(cx, jp))
                     return JS_FALSE;
             } else if (c == ']' || !JS_ISXMLSPACE(c)) {
-                return JSONParseError(jp, cx);
+              JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+              return JS_FALSE;
             }
             break;
 
@@ -1096,7 +1105,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
             if (c == ':') {
                 *jp->statep = JSON_PARSE_STATE_VALUE;
             } else if (!JS_ISXMLSPACE(c)) {
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
             break;
 
@@ -1117,7 +1127,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
             } else if (c < 31) {
                 // The JSON lexical grammer does not allow a JSONStringCharacter to be
                 // any of the Unicode characters U+0000 thru U+001F (control characters).
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             } else {
                 if (!jp->buffer.append(c))
                     return JS_FALSE;
@@ -1142,7 +1153,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
                     *jp->statep = JSON_PARSE_STATE_STRING_HEX;
                     continue;
                 } else {
-                    return JSONParseError(jp, cx);
+                    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                    return JS_FALSE;
                 }
             }
 
@@ -1159,7 +1171,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
             } else if (('A' <= c) && (c <= 'F')) {
                 jp->hexChar = (jp->hexChar << 4) | (c - 'A' + 0x0a);
             } else {
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
 
             if (++(jp->numHex) == 4) {
@@ -1203,7 +1216,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
           case JSON_PARSE_STATE_FINISHED:
             if (!JS_ISXMLSPACE(c)) {
                 // extra input
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
             break;
 
