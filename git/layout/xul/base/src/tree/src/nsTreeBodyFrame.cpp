@@ -108,7 +108,7 @@
 #include "nsTreeBoxObject.h"
 
 #ifdef IBMBIDI
-#include "nsBidiUtils.h"
+#include "nsBidiPresUtils.h"
 #endif
 
 // Enumeration function that cancels all the image requests in our cache

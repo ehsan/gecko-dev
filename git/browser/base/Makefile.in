@@ -62,7 +62,8 @@ EXTRA_JS_MODULES = \
 
 include $(topsrcdir)/config/rules.mk
 
-PRE_RELEASE_SUFFIX := ""
+PRE_RELEASE_SUFFIX := $(shell $(PYTHON) $(topsrcdir)/config/printprereleasesuffix.py \
+                        $(shell cat $(srcdir)/../config/version.txt))
 
 DEFINES += \
 	-DMOZ_APP_VERSION=$(MOZ_APP_VERSION) \
