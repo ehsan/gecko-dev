@@ -1,3 +1,5 @@
+let proxyPrefValue;
+
 // ----------------------------------------------------------------------------
 // Tests that going offline cancels an in progress download.
 function test() {
@@ -17,8 +19,11 @@ function test() {
 
 function download_progress(addon, value, maxValue) {
   try {
+    // Tests always connect to localhost, and per bug 87717, localhost is now
+    // reachable in offline mode.  To avoid this, disable any proxy.
+    proxyPrefValue = Services.prefs.getIntPref("network.proxy.type");
+    Services.prefs.setIntPref("network.proxy.type", 0);
     Services.io.manageOfflineStatus = false;
-    Services.prefs.setBoolPref("browser.offline", true);
     Services.io.offline = true;
   } catch (ex) {
   }
@@ -27,23 +32,30 @@ function download_progress(addon, value, maxValue) {
 function finish_test(count) {
   function wait_for_online() {
     info("Checking if the browser is still offline...");
-    var request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
-                  createInstance(Ci.nsIXMLHttpRequest);
-    request.open("GET", TESTROOT + "empty.xpi", true);
-    request.onerror = wait_for_online;
-    request.onload = Harness.finish;
-    request.send(null);
+
+    let tab = gBrowser.selectedTab;
+    tab.linkedBrowser.addEventListener("DOMContentLoaded", function errorLoad() {
+      tab.linkedBrowser.removeEventListener("DOMContentLoaded", errorLoad, true);
+      let url = tab.linkedBrowser.contentDocument.documentURI;
+      info("loaded: " + url);
+      if (/^about:neterror\?e=netOffline/.test(url)) {
+        wait_for_online();
+      } else {
+        gBrowser.removeCurrentTab();
+        Harness.finish();
+      }
+    }, true);
+    tab.linkedBrowser.loadURI("http://example.com/");
   }
 
   is(count, 0, "No add-ons should have been installed");
   try {
-    Services.prefs.setBoolPref("browser.offline", false);
+    Services.prefs.setIntPref("network.proxy.type", proxyPrefValue);
     Services.io.offline = false;
   } catch (ex) {
   }
 
   Services.perms.remove("example.com", "install");
 
-  gBrowser.removeCurrentTab();
   wait_for_online();
 }

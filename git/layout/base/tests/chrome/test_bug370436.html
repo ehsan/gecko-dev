@@ -5,7 +5,6 @@
 -->
 <head>
 	<title>Test for Bug 370436</title>
-	<script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
 	<script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>        
 	<script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>        
 	<link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css" />
@@ -15,6 +14,7 @@
 <script class="testbody" type="application/javascript">
 <!--
 words = new Array()
+const Ci = Components.interfaces;
 
 function expandStringOffsetToWord(data, offset)
 {
@@ -27,10 +27,10 @@ function expandStringOffsetToWord(data, offset)
 
 function onContextMenu(e)
 {
-	netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
 	var node = e.rangeParent;
 	var offset = e.rangeOffset;
+	var utils = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+	is(utils.getClassName(node), "Text", "Shouldn't have SOWs in chrome");
 
 	var word = expandStringOffsetToWord(node.data, offset);
 	words.push(word);

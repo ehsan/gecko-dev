@@ -1,40 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Benjamin Smedberg <benjamin@smedbergs.us>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "nsCOMPtr.h"
 #include "mozilla/ModuleUtils.h"
 
@@ -71,18 +38,18 @@ CreateNew##_func(nsISupports* aOuter, REFNSIID aIID, void **aResult) \
         return NS_ERROR_INVALID_POINTER;                             \
     }                                                                \
     if (aOuter) {                                                    \
-        *aResult = nsnull;                                           \
+        *aResult = nullptr;                                           \
         return NS_ERROR_NO_AGGREGATION;                              \
     }                                                                \
     nsI##_ifname* inst;                                              \
     nsresult rv = NS_New##_new(&inst);                               \
     if (NS_FAILED(rv)) {                                             \
-        *aResult = nsnull;                                           \
+        *aResult = nullptr;                                           \
         return rv;                                                   \
     }                                                                \
     rv = inst->QueryInterface(aIID, aResult);                        \
     if (NS_FAILED(rv)) {                                             \
-        *aResult = nsnull;                                           \
+        *aResult = nullptr;                                           \
     }                                                                \
     NS_RELEASE(inst);             /* get rid of extra refcnt */      \
     return rv;                                                       \
@@ -108,18 +75,18 @@ CreateNew##_func(nsISupports* aOuter, REFNSIID aIID, void **aResult) \
         return NS_ERROR_INVALID_POINTER;                             \
     }                                                                \
     if (aOuter) {                                                    \
-        *aResult = nsnull;                                           \
+        *aResult = nullptr;                                           \
         return NS_ERROR_NO_AGGREGATION;                              \
     }                                                                \
     rdfI##_ifname* inst;                                             \
     nsresult rv = NS_New##_new(&inst);                               \
     if (NS_FAILED(rv)) {                                             \
-        *aResult = nsnull;                                           \
+        *aResult = nullptr;                                           \
         return rv;                                                   \
     }                                                                \
     rv = inst->QueryInterface(aIID, aResult);                        \
     if (NS_FAILED(rv)) {                                             \
-        *aResult = nsnull;                                           \
+        *aResult = nullptr;                                           \
     }                                                                \
     NS_RELEASE(inst);             /* get rid of extra refcnt */      \
     return rv;                                                       \
@@ -146,20 +113,20 @@ NS_DEFINE_NAMED_CID(NS_LOCALSTORE_CID);
 
 
 static const mozilla::Module::CIDEntry kRDFCIDs[] = {
-    { &kNS_RDFCOMPOSITEDATASOURCE_CID, false, NULL, CreateNewRDFCompositeDataSource },
-    { &kNS_RDFFILESYSTEMDATASOURCE_CID, false, NULL, FileSystemDataSource::Create },
-    { &kNS_RDFINMEMORYDATASOURCE_CID, false, NULL, NS_NewRDFInMemoryDataSource },
-    { &kNS_RDFXMLDATASOURCE_CID, false, NULL, CreateNewRDFXMLDataSource },
-    { &kNS_RDFDEFAULTRESOURCE_CID, false, NULL, CreateNewRDFDefaultResource },
-    { &kNS_RDFCONTENTSINK_CID, false, NULL, CreateNewRDFContentSink },
-    { &kNS_RDFCONTAINER_CID, false, NULL, CreateNewRDFContainer },
-    { &kNS_RDFCONTAINERUTILS_CID, false, NULL, CreateNewRDFContainerUtils },
-    { &kNS_RDFSERVICE_CID, false, NULL, RDFServiceImpl::CreateSingleton },
-    { &kNS_RDFXMLPARSER_CID, false, NULL, nsRDFXMLParser::Create },
-    { &kNS_RDFXMLSERIALIZER_CID, false, NULL, nsRDFXMLSerializer::Create },
-    { &kNS_RDFNTRIPLES_SERIALIZER_CID, false, NULL, CreateNewTriplesSerializer },
-    { &kNS_LOCALSTORE_CID, false, NULL, NS_NewLocalStore },
-    { NULL }
+    { &kNS_RDFCOMPOSITEDATASOURCE_CID, false, nullptr, CreateNewRDFCompositeDataSource },
+    { &kNS_RDFFILESYSTEMDATASOURCE_CID, false, nullptr, FileSystemDataSource::Create },
+    { &kNS_RDFINMEMORYDATASOURCE_CID, false, nullptr, NS_NewRDFInMemoryDataSource },
+    { &kNS_RDFXMLDATASOURCE_CID, false, nullptr, CreateNewRDFXMLDataSource },
+    { &kNS_RDFDEFAULTRESOURCE_CID, false, nullptr, CreateNewRDFDefaultResource },
+    { &kNS_RDFCONTENTSINK_CID, false, nullptr, CreateNewRDFContentSink },
+    { &kNS_RDFCONTAINER_CID, false, nullptr, CreateNewRDFContainer },
+    { &kNS_RDFCONTAINERUTILS_CID, false, nullptr, CreateNewRDFContainerUtils },
+    { &kNS_RDFSERVICE_CID, false, nullptr, RDFServiceImpl::CreateSingleton },
+    { &kNS_RDFXMLPARSER_CID, false, nullptr, nsRDFXMLParser::Create },
+    { &kNS_RDFXMLSERIALIZER_CID, false, nullptr, nsRDFXMLSerializer::Create },
+    { &kNS_RDFNTRIPLES_SERIALIZER_CID, false, nullptr, CreateNewTriplesSerializer },
+    { &kNS_LOCALSTORE_CID, false, nullptr, NS_NewLocalStore },
+    { nullptr }
 };
 
 static const mozilla::Module::ContractIDEntry kRDFContracts[] = {
@@ -176,7 +143,7 @@ static const mozilla::Module::ContractIDEntry kRDFContracts[] = {
     { NS_RDF_CONTRACTID "/xml-serializer;1", &kNS_RDFXMLSERIALIZER_CID },
     { NS_RDF_SERIALIZER "ntriples", &kNS_RDFNTRIPLES_SERIALIZER_CID },
     { NS_LOCALSTORE_CONTRACTID, &kNS_LOCALSTORE_CID },
-    { NULL }
+    { nullptr }
 };
 
 static nsresult
@@ -184,7 +151,7 @@ StartupRDFModule()
 {
     if (RDFServiceImpl::gRDFService) {
         NS_ERROR("Leaked the RDF service from a previous startup.");
-        RDFServiceImpl::gRDFService = nsnull;
+        RDFServiceImpl::gRDFService = nullptr;
     }
 
     return NS_OK;
@@ -203,8 +170,8 @@ static const mozilla::Module kRDFModule = {
     mozilla::Module::kVersion,
     kRDFCIDs,
     kRDFContracts,
-    NULL,
-    NULL,
+    nullptr,
+    nullptr,
     StartupRDFModule,
     ShutdownRDFModule
 };

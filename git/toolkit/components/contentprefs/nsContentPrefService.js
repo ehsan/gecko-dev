@@ -1,40 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Content Preferences (cpref).
- *
- * The Initial Developer of the Original Code is Mozilla.
- * Portions created by the Initial Developer are Copyright (C) 2006
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Myk Melez <myk@mozilla.org>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *   Geoff Lankow <geoff@darktrojan.net>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
@@ -42,6 +8,25 @@ const Cr = Components.results;
 const Cu = Components.utils;
 
 const CACHE_MAX_GROUP_ENTRIES = 100;
+
+
+// We have a whitelist for getting/setting. This is because
+// there are potential privacy issues with a compromised
+// content process checking the user's content preferences
+// and using that to discover all the websites visited, etc.
+// Also there are both potential race conditions (if two processes
+// set more than one value in succession, and the values
+// only make sense together), as well as security issues, if
+// a compromised content process can send arbitrary setPref
+// messages. The whitelist contains only those settings that
+// are not at risk for either.
+// We currently whitelist saving/reading the last directory of file
+// uploads, and the last current spellchecker dictionary which are so far
+// the only need we have identified.
+const REMOTE_WHITELIST = [
+  "browser.upload.lastDir",
+  "spellcheck.lang",
+];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -60,24 +45,15 @@ function electrolify(service) {
       Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT) {
     // Parent process
 
+    service.messageManager = Cc["@mozilla.org/parentprocessmessagemanager;1"].
+                             getService(Ci.nsIMessageBroadcaster);
+
     // Setup listener for child messages. We don't need to call
     // addMessageListener as the wakeup service will do that for us.
     service.receiveMessage = function(aMessage) {
       var json = aMessage.json;
-      // We have a whitelist for getting/setting. This is because
-      // there are potential privacy issues with a compromised
-      // content process checking the user's content preferences
-      // and using that to discover all the websites visited, etc.
-      // Also there are both potential race conditions (if two processes
-      // set more than one value in succession, and the values
-      // only make sense together), as well as security issues, if
-      // a compromised content process can send arbitrary setPref
-      // messages. The whitelist contains only those settings that
-      // are not at risk for either.
-      // We currently whitelist saving/reading the last directory of file
-      // uploads, which is so far the only need we have identified.
-      const NAME_WHITELIST = ["browser.upload.lastDir"];
-      if (NAME_WHITELIST.indexOf(json.name) == -1)
+
+      if (REMOTE_WHITELIST.indexOf(json.name) == -1)
         return { succeeded: false };
 
       switch (aMessage.name) {
@@ -121,6 +97,19 @@ function electrolify(service) {
         return ret.value;
       };
     });
+
+    // Listen to preference change notifications from the parent and notify
+    // observers in the child process according to the change
+    service.messageManager.addMessageListener("ContentPref:notifyPrefSet",
+      function(aMessage) {
+        var json = aMessage.json;
+        service._notifyPrefSet(json.group, json.name, json.value);
+      });
+    service.messageManager.addMessageListener("ContentPref:notifyPrefRemoved",
+      function(aMessage) {
+        var json = aMessage.json;
+        service._notifyPrefRemoved(json.group, json.name);
+      });
   }
 }
 
@@ -133,18 +122,54 @@ function ContentPrefService() {
   // was due to a temporary condition (like being out of disk space).
   this._dbInit();
 
+  this._observerSvc.addObserver(this, "last-pb-context-exited", false);
+
   // Observe shutdown so we can shut down the database connection.
   this._observerSvc.addObserver(this, "xpcom-shutdown", false);
 }
+
+Cu.import("resource://gre/modules/ContentPrefStore.jsm");
+const cache = new ContentPrefStore();
+cache.set = function CPS_cache_set(group, name, val) {
+  Object.getPrototypeOf(this).set.apply(this, arguments);
+  let groupCount = Object.keys(this._groups).length;
+  if (groupCount >= CACHE_MAX_GROUP_ENTRIES) {
+    // Clean half of the entries
+    for (let [group, name, ] in this) {
+      this.remove(group, name);
+      groupCount--;
+      if (groupCount < CACHE_MAX_GROUP_ENTRIES / 2)
+        break;
+    }
+  }
+};
+
+const privModeStorage = new ContentPrefStore();
 
 ContentPrefService.prototype = {
   //**************************************************************************//
   // XPCOM Plumbing
 
-  classID:          Components.ID("{e6a3f533-4ffa-4615-8eb4-d4e72d883fa7}"),
-  QueryInterface:   XPCOMUtils.generateQI([Ci.nsIContentPrefService,
-                                           Ci.nsIFrameMessageListener]),
+  classID: Components.ID("{e3f772f3-023f-4b32-b074-36cf0fd5d414}"),
 
+  QueryInterface: function CPS_QueryInterface(iid) {
+    let supportedIIDs = [
+      Ci.nsIContentPrefService,
+      Ci.nsIFrameMessageListener,
+      Ci.nsISupports,
+    ];
+    if (supportedIIDs.some(function (i) iid.equals(i)))
+      return this;
+    if (iid.equals(Ci.nsIContentPrefService2)) {
+      if (!this._contentPrefService2) {
+        let s = {};
+        Cu.import("resource://gre/modules/ContentPrefService2.jsm", s);
+        this._contentPrefService2 = new s.ContentPrefService2(this);
+      }
+      return this._contentPrefService2;
+    }
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
 
   //**************************************************************************//
   // Convenience Getters
@@ -172,7 +197,7 @@ ContentPrefService.prototype = {
   get _prefSvc() {
     if (!this.__prefSvc)
       this.__prefSvc = Cc["@mozilla.org/preferences-service;1"].
-                       getService(Ci.nsIPrefBranch2);
+                       getService(Ci.nsIPrefBranch);
     return this.__prefSvc;
   },
 
@@ -182,12 +207,75 @@ ContentPrefService.prototype = {
 
   _destroy: function ContentPrefService__destroy() {
     this._observerSvc.removeObserver(this, "xpcom-shutdown");
+    this._observerSvc.removeObserver(this, "last-pb-context-exited");
 
     // Finalize statements which may have been used asynchronously.
-    if (this.__stmtSelectPref)
+    // FIXME(696499): put them in an object cache like other components.
+    if (this.__stmtSelectPrefID) {
+      this.__stmtSelectPrefID.finalize();
+      this.__stmtSelectPrefID = null;
+    }
+    if (this.__stmtSelectGlobalPrefID) {
+      this.__stmtSelectGlobalPrefID.finalize();
+      this.__stmtSelectGlobalPrefID = null;
+    }
+    if (this.__stmtInsertPref) {
+      this.__stmtInsertPref.finalize();
+      this.__stmtInsertPref = null;
+    }
+    if (this.__stmtInsertGroup) {
+      this.__stmtInsertGroup.finalize();
+      this.__stmtInsertGroup = null;
+    }
+    if (this.__stmtInsertSetting) {
+      this.__stmtInsertSetting.finalize();
+      this.__stmtInsertSetting = null;
+    }
+    if (this.__stmtSelectGroupID) {
+      this.__stmtSelectGroupID.finalize();
+      this.__stmtSelectGroupID = null;
+    }
+    if (this.__stmtSelectSettingID) {
+      this.__stmtSelectSettingID.finalize();
+      this.__stmtSelectSettingID = null;
+    }
+    if (this.__stmtSelectPref) {
       this.__stmtSelectPref.finalize();
-    if (this.__stmtSelectGlobalPref)
+      this.__stmtSelectPref = null;
+    }
+    if (this.__stmtSelectGlobalPref) {
       this.__stmtSelectGlobalPref.finalize();
+      this.__stmtSelectGlobalPref = null;
+    }
+    if (this.__stmtSelectPrefsByName) {
+      this.__stmtSelectPrefsByName.finalize();
+      this.__stmtSelectPrefsByName = null;
+    }
+    if (this.__stmtDeleteSettingIfUnused) {
+      this.__stmtDeleteSettingIfUnused.finalize();
+      this.__stmtDeleteSettingIfUnused = null;
+    }
+    if(this.__stmtSelectPrefs) {
+      this.__stmtSelectPrefs.finalize();
+      this.__stmtSelectPrefs = null;
+    }
+    if(this.__stmtDeleteGroupIfUnused) {
+      this.__stmtDeleteGroupIfUnused.finalize();
+      this.__stmtDeleteGroupIfUnused = null;
+    }
+    if (this.__stmtDeletePref) {
+      this.__stmtDeletePref.finalize();
+      this.__stmtDeletePref = null;
+    }
+    if (this.__stmtUpdatePref) {
+      this.__stmtUpdatePref.finalize();
+      this.__stmtUpdatePref = null;
+    }
+
+    if (this._contentPrefService2)
+      this._contentPrefService2.destroy();
+
+    this._dbConnection.asyncClose();
 
     // Delete references to XPCOM components to make sure we don't leak them
     // (although we haven't observed leakage in tests).  Also delete references
@@ -209,114 +297,64 @@ ContentPrefService.prototype = {
       case "xpcom-shutdown":
         this._destroy();
         break;
+      case "last-pb-context-exited":
+        this._privModeStorage.removeAll();
+        break;
     }
   },
 
 
   //**************************************************************************//
-  // Prefs cache
+  // in-memory cache and private-browsing stores
 
-  _cache: {
-    _prefCache: {},
-
-    cachePref: function(aName, aValue, aGroup) {
-      aGroup = aGroup || "__GlobalPrefs__";
-
-      if (!this._prefCache[aGroup]) {
-        this._possiblyCleanCache();
-        this._prefCache[aGroup] = {};
-      }
-
-      this._prefCache[aGroup][aName] = aValue;
-    },
-
-    getPref: function(aName, aGroup) {
-      aGroup = aGroup || "__GlobalPrefs__";
-
-      if (this._prefCache[aGroup] && this._prefCache[aGroup].hasOwnProperty(aName)) {
-        let value = this._prefCache[aGroup][aName];
-        return [true, value];
-      }
-      return [false, undefined];
-    },
-
-    setPref: function(aName, aValue, aGroup) {
-      if (typeof aValue == "boolean")
-        aValue = aValue ? 1 : 0;
-      else if (aValue === undefined)
-        aValue = null;
-
-      this.cachePref(aName, aValue, aGroup);
-    },
-
-    removePref: function(aName, aGroup) {
-      aGroup = aGroup || "__GlobalPrefs__";
-
-      if (this._prefCache[aGroup].hasOwnProperty(aName)) {
-        delete this._prefCache[aGroup][aName];
-        if (Object.keys(this._prefCache[aGroup]).length == 0) {
-          // remove empty group
-          delete this._prefCache[aGroup];
-        }
-      }
-    },
-
-    invalidate: function() {
-      this._prefCache = {};
-    },
-
-    _possiblyCleanCache: function() {
-      let groupCount = Object.keys(this._prefCache).length;
-
-      if (groupCount >= CACHE_MAX_GROUP_ENTRIES) {
-        // Clean half of the entries
-        for (let entry in this._prefCache) {
-          delete this._prefCache[entry];
-          groupCount--;
-
-          if (groupCount < CACHE_MAX_GROUP_ENTRIES / 2)
-            break;
-        }
-      }
-    }
-  },
-
+  _cache: cache,
+  _privModeStorage: privModeStorage,
 
   //**************************************************************************//
   // nsIContentPrefService
 
-  getPref: function ContentPrefService_getPref(aGroup, aName, aCallback) {
+  getPref: function ContentPrefService_getPref(aGroup, aName, aContext, aCallback) {
     if (!aName)
       throw Components.Exception("aName cannot be null or an empty string",
                                  Cr.NS_ERROR_ILLEGAL_VALUE);
 
     var group = this._parseGroupParam(aGroup);
+
+    if (aContext && aContext.usePrivateBrowsing) {
+      if (this._privModeStorage.has(group, aName)) {
+        let value = this._privModeStorage.get(group, aName);
+        if (aCallback) {
+          this._scheduleCallback(function(){aCallback.onResult(value);});
+          return;
+        }
+        return value;
+      }
+      // if we don't have a pref specific to this private mode browsing
+      // session, to try to get one from normal mode
+    }
+
     if (group == null)
       return this._selectGlobalPref(aName, aCallback);
     return this._selectPref(group, aName, aCallback);
   },
 
-  setPref: function ContentPrefService_setPref(aGroup, aName, aValue) {
+  setPref: function ContentPrefService_setPref(aGroup, aName, aValue, aContext) {
     // If the pref is already set to the value, there's nothing more to do.
-    var currentValue = this.getPref(aGroup, aName);
+    var currentValue = this.getPref(aGroup, aName, aContext);
     if (typeof currentValue != "undefined") {
       if (currentValue == aValue)
         return;
     }
-    else {
-      // If we are in private browsing mode, refuse to set new prefs
-      var inPrivateBrowsing = false;
-      try { // The Private Browsing service might not be available.
-        var pbs = Cc["@mozilla.org/privatebrowsing;1"].
-                  getService(Ci.nsIPrivateBrowsingService);
-        inPrivateBrowsing = pbs.privateBrowsingEnabled;
-      } catch (e) {}
-      if (inPrivateBrowsing)
-        return;
+
+    var group = this._parseGroupParam(aGroup);
+
+    if (aContext && aContext.usePrivateBrowsing) {
+      this._privModeStorage.setWithCast(group, aName, aValue);
+      this._broadcastPrefSet(group, aName, aValue);
+      return;
     }
 
     var settingID = this._selectSettingID(aName) || this._insertSetting(aName);
-    var group = this._parseGroupParam(aGroup);
     var groupID, prefID;
     if (group == null) {
       groupID = null;
@@ -333,41 +371,40 @@ ContentPrefService.prototype = {
     else
       this._insertPref(groupID, settingID, aValue);
 
-    this._cache.setPref(aName, aValue, group);
-    for each (var observer in this._getObservers(aName)) {
-      try {
-        observer.onContentPrefSet(group, aName, aValue);
-      }
-      catch(ex) {
-        Cu.reportError(ex);
-      }
-    }
+    this._cache.setWithCast(group, aName, aValue);
+    this._broadcastPrefSet(group, aName, aValue);
   },
 
-  hasPref: function ContentPrefService_hasPref(aGroup, aName) {
+  hasPref: function ContentPrefService_hasPref(aGroup, aName, aContext) {
     // XXX If consumers end up calling this method regularly, then we should
     // optimize this to query the database directly.
-    return (typeof this.getPref(aGroup, aName) != "undefined");
+    return (typeof this.getPref(aGroup, aName, aContext) != "undefined");
   },
 
-  hasCachedPref: function ContentPrefService_hasCachedPref(aGroup, aName) {
+  hasCachedPref: function ContentPrefService_hasCachedPref(aGroup, aName, aContext) {
     if (!aName)
       throw Components.Exception("aName cannot be null or an empty string",
                                  Cr.NS_ERROR_ILLEGAL_VALUE);
 
     let group = this._parseGroupParam(aGroup);
-    let [cached,] = this._cache.getPref(aName, group);
-    return cached;
+    let storage = aContext && aContext.usePrivateBrowsing ? this._privModeStorage: this._cache;
+    return storage.has(group, aName);
   },
 
-  removePref: function ContentPrefService_removePref(aGroup, aName) {
+  removePref: function ContentPrefService_removePref(aGroup, aName, aContext) {
     // If there's no old value, then there's nothing to remove.
-    if (!this.hasPref(aGroup, aName))
+    if (!this.hasPref(aGroup, aName, aContext))
       return;
 
+    var group = this._parseGroupParam(aGroup);
+
+    if (aContext && aContext.usePrivateBrowsing) {
+      this._privModeStorage.remove(group, aName);
+      this._broadcastPrefRemoved(group, aName);
+      return;
+    }
 
     var settingID = this._selectSettingID(aName);
-    var group = this._parseGroupParam(aGroup);
     var groupID, prefID;
     if (group == null) {
       groupID = null;
@@ -385,12 +422,17 @@ ContentPrefService.prototype = {
     if (groupID)
       this._deleteGroupIfUnused(groupID);
 
-    this._cache.removePref(aName, group);
-    this._notifyPrefRemoved(group, aName);
+    this._cache.remove(group, aName);
+    this._broadcastPrefRemoved(group, aName);
   },
 
-  removeGroupedPrefs: function ContentPrefService_removeGroupedPrefs() {
-    this._cache.invalidate();
+  removeGroupedPrefs: function ContentPrefService_removeGroupedPrefs(aContext) {
+    // will not delete global preferences
+    if (aContext && aContext.usePrivateBrowsing) {
+        // keep only global prefs
+        this._privModeStorage.removeAllGroups();
+    }
+    this._cache.removeAllGroups();
     this._dbConnection.beginTransaction();
     try {
       this._dbConnection.executeSimpleSQL("DELETE FROM prefs WHERE groupID IS NOT NULL");
@@ -407,10 +449,19 @@ ContentPrefService.prototype = {
     }
   },
 
-  removePrefsByName: function ContentPrefService_removePrefsByName(aName) {
+  removePrefsByName: function ContentPrefService_removePrefsByName(aName, aContext) {
     if (!aName)
       throw Components.Exception("aName cannot be null or an empty string",
                                  Cr.NS_ERROR_ILLEGAL_VALUE);
+
+    if (aContext && aContext.usePrivateBrowsing) {
+      for (let [group, name, ] in this._privModeStorage) {
+        if (name === aName) {
+          this._privModeStorage.remove(group, aName);
+          this._broadcastPrefRemoved(group, aName);
+        }
+      }
+    }
 
     var settingID = this._selectSettingID(aName);
     if (!settingID)
@@ -445,24 +496,46 @@ ContentPrefService.prototype = {
     this._dbConnection.executeSimpleSQL("DELETE FROM settings WHERE id = " + settingID);
 
     for (var i = 0; i < groupNames.length; i++) {
-      this._cache.removePref(aName, groupNames[i]);
-      this._notifyPrefRemoved(groupNames[i], aName);
+      this._cache.remove(groupNames[i], aName);
       if (groupNames[i]) // ie. not null, which will be last (and i == groupIDs.length)
         this._deleteGroupIfUnused(groupIDs[i]);
+      if (!aContext || !aContext.usePrivateBrowsing) {
+        this._broadcastPrefRemoved(groupNames[i], aName);
+      }
     }
   },
 
-  getPrefs: function ContentPrefService_getPrefs(aGroup) {
+  getPrefs: function ContentPrefService_getPrefs(aGroup, aContext) {
     var group = this._parseGroupParam(aGroup);
+    if (aContext && aContext.usePrivateBrowsing) {
+        let prefs = Cc["@mozilla.org/hash-property-bag;1"].
+                    createInstance(Ci.nsIWritablePropertyBag);
+        for (let [sgroup, sname, sval] in this._privModeStorage) {
+          if (sgroup === group)
+            prefs.setProperty(sname, sval);
+        }
+        return prefs;
+    }
+
     if (group == null)
       return this._selectGlobalPrefs();
     return this._selectPrefs(group);
   },
 
-  getPrefsByName: function ContentPrefService_getPrefsByName(aName) {
+  getPrefsByName: function ContentPrefService_getPrefsByName(aName, aContext) {
     if (!aName)
       throw Components.Exception("aName cannot be null or an empty string",
                                  Cr.NS_ERROR_ILLEGAL_VALUE);
+
+    if (aContext && aContext.usePrivateBrowsing) {
+      let prefs = Cc["@mozilla.org/hash-property-bag;1"].
+                  createInstance(Ci.nsIWritablePropertyBag);
+      for (let [sgroup, sname, sval] in this._privModeStorage) {
+        if (sname === aName)
+          prefs.setProperty(sgroup, sval);
+      }
+      return prefs;
+    }
 
     return this._selectPrefsByName(aName);
   },
@@ -517,7 +590,10 @@ ContentPrefService.prototype = {
 
     return observers;
   },
-  
+
+  /**
+   * Notify all observers about the removal of a preference.
+   */
   _notifyPrefRemoved: function ContentPrefService__notifyPrefRemoved(aGroup, aName) {
     for each (var observer in this._getObservers(aName)) {
       try {
@@ -526,6 +602,52 @@ ContentPrefService.prototype = {
       catch(ex) {
         Cu.reportError(ex);
       }
+    }
+  },
+
+  /**
+   * Notify all observers about a preference change.
+   */
+  _notifyPrefSet: function ContentPrefService__notifyPrefSet(aGroup, aName, aValue) {
+    for each (var observer in this._getObservers(aName)) {
+      try {
+        observer.onContentPrefSet(aGroup, aName, aValue);
+      }
+      catch(ex) {
+        Cu.reportError(ex);
+      }
+    }
+  },
+
+  /**
+   * Notify all observers in the current process about the removal of a
+   * preference and send a message to all other processes so that they can in
+   * turn notify their observers about the change. This is meant to be called
+   * only in the parent process. Only whitelisted preferences are broadcast to
+   * the child processes.
+   */
+  _broadcastPrefRemoved: function ContentPrefService__broadcastPrefRemoved(aGroup, aName) {
+    this._notifyPrefRemoved(aGroup, aName);
+
+    if (REMOTE_WHITELIST.indexOf(aName) != -1) {
+      this.messageManager.broadcastAsyncMessage('ContentPref:notifyPrefRemoved',
+        { "group": aGroup, "name": aName } );
+    }
+  },
+
+  /**
+   * Notify all observers in the current process about a preference change and
+   * send a message to all other processes so that they can in turn notify
+   * their observers about the change. This is meant to be called only in the
+   * parent process. Only whitelisted preferences are broadcast to the child
+   * processes.
+   */
+  _broadcastPrefSet: function ContentPrefService__broadcastPrefSet(aGroup, aName, aValue) {
+    this._notifyPrefSet(aGroup, aName, aValue);
+
+    if (REMOTE_WHITELIST.indexOf(aName) != -1) {
+      this.messageManager.broadcastAsyncMessage('ContentPref:notifyPrefSet',
+        { "group": aGroup, "name": aName, "value": aValue } );
     }
   },
 
@@ -566,9 +688,9 @@ ContentPrefService.prototype = {
   },
 
   _selectPref: function ContentPrefService__selectPref(aGroup, aSetting, aCallback) {
-
-    let [cached, value] = this._cache.getPref(aSetting, aGroup);
-    if (cached) {
+    let value = undefined;
+    if (this._cache.has(aGroup, aSetting)) {
+      value = this._cache.get(aGroup, aSetting);
       if (aCallback) {
         this._scheduleCallback(function(){aCallback.onResult(value);});
         return;
@@ -583,7 +705,7 @@ ContentPrefService.prototype = {
       if (aCallback) {
         let cache = this._cache;
         new AsyncStatement(this._stmtSelectPref).execute({onResult: function(aResult) {
-          cache.cachePref(aSetting, aResult, aGroup);
+          cache.set(aGroup, aSetting, aResult);
           aCallback.onResult(aResult);
         }});
       }
@@ -591,7 +713,7 @@ ContentPrefService.prototype = {
         if (this._stmtSelectPref.executeStep()) {
           value = this._stmtSelectPref.row["value"];
         }
-        this._cache.cachePref(aSetting, value, aGroup);
+        this._cache.set(aGroup, aSetting, value);
       }
     }
     finally {
@@ -616,9 +738,9 @@ ContentPrefService.prototype = {
   },
 
   _selectGlobalPref: function ContentPrefService__selectGlobalPref(aName, aCallback) {
-
-    let [cached, value] = this._cache.getPref(aName, null);
-    if (cached) {
+    let value = undefined;
+    if (this._cache.has(null, aName)) {
+      value = this._cache.get(null, aName);
       if (aCallback) {
         this._scheduleCallback(function(){aCallback.onResult(value);});
         return;
@@ -632,7 +754,7 @@ ContentPrefService.prototype = {
       if (aCallback) {
         let cache = this._cache;
         new AsyncStatement(this._stmtSelectGlobalPref).execute({onResult: function(aResult) {
-          cache.cachePref(aName, aResult);
+          cache.set(null, aName, aResult);
           aCallback.onResult(aResult);
         }});
       }
@@ -640,7 +762,7 @@ ContentPrefService.prototype = {
         if (this._stmtSelectGlobalPref.executeStep()) {
           value = this._stmtSelectGlobalPref.row["value"];
         }
-        this._cache.cachePref(aName, value);
+        this._cache.set(null, aName, value);
       }
     }
     finally {
@@ -1281,4 +1403,4 @@ AsyncStatement.prototype = {
 // XPCOM Plumbing
 
 var components = [ContentPrefService, HostnameGrouper];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

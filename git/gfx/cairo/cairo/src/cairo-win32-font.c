@@ -13,7 +13,7 @@
  *
  * You should have received a copy of the LGPL along with this library
  * in the file COPYING-LGPL-2.1; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Foundation, Inc., 51 Franklin Street, Suite 500, Boston, MA 02110-1335, USA
  * You should have received a copy of the MPL along with this library
  * in the file COPYING-MPL-1.1
  *
@@ -45,6 +45,9 @@
 #include "cairoint.h"
 
 #include "cairo-win32-private.h"
+#include "cairo-error-private.h"
+
+#include <wchar.h>
 
 #ifndef SPI_GETFONTSMOOTHINGTYPE
 #define SPI_GETFONTSMOOTHINGTYPE 0x200a
@@ -60,6 +63,23 @@
 #endif
 
 #define CMAP_TAG 0x70616d63
+
+/**
+ * SECTION:cairo-win32-fonts
+ * @Title: Win32 Fonts
+ * @Short_Description: Font support for Microsoft Windows
+ * @See_Also: #cairo_font_face_t
+ *
+ * The Microsoft Windows font backend is primarily used to render text on
+ * Microsoft Windows systems.
+ */
+
+/**
+ * CAIRO_HAS_WIN32_FONT:
+ *
+ * Defined if the Microsoft Windows font backend is available.
+ * This macro can be used to conditionally compile backend-specific code.
+ */
 
 const cairo_scaled_font_backend_t _cairo_win32_scaled_font_backend;
 
@@ -240,7 +260,7 @@ _have_cleartype_quality (void)
 }
 
 BYTE
-_cairo_win32_get_system_text_quality (void)
+cairo_win32_get_system_text_quality (void)
 {
     BOOL font_smoothing;
     UINT smoothing_type;
@@ -307,7 +327,7 @@ _win32_scaled_font_create (LOGFONTW                   *logfont,
      *      here is the hint_metrics options.
      */
     if (options->antialias == CAIRO_ANTIALIAS_DEFAULT)
-	f->quality = _cairo_win32_get_system_text_quality ();
+	f->quality = cairo_win32_get_system_text_quality ();
     else {
 	switch (options->antialias) {
 	case CAIRO_ANTIALIAS_NONE:
@@ -966,7 +986,7 @@ _cairo_win32_scaled_font_init_glyph_metrics (cairo_win32_scaled_font_t *scaled_f
 	extents.height = scaled_font->base.ctm.yy * (font_extents.ascent + font_extents.descent) / scaled_font->y_scale;
 	extents.x_advance = extents.width;
 	extents.y_advance = 0;
-    } else if (scaled_font->preserve_axes && scaled_font->base.options.hint_style != CAIRO_HINT_METRICS_OFF) {
+    } else if (scaled_font->preserve_axes && scaled_font->base.options.hint_metrics != CAIRO_HINT_METRICS_OFF) {
 	/* If we aren't rotating / skewing the axes, then we get the metrics
 	 * from the GDI in device space and convert to font space.
 	 */
@@ -1874,9 +1894,7 @@ struct _cairo_win32_font_face {
 /* implement the platform-specific interface */
 
 static void
-_cairo_win32_font_face_destroy (void *abstract_face)
-{
-}
+_cairo_win32_font_face_destroy (void *abstract_face);
 
 static cairo_bool_t
 _is_scale (const cairo_matrix_t *matrix, double scale)
@@ -1919,6 +1937,125 @@ const cairo_font_face_backend_t _cairo_win32_font_face_backend = {
     _cairo_win32_font_face_scaled_font_create
 };
 
+/* We maintain a hash table from LOGFONT,HFONT => #cairo_font_face_t.
+ * The primary purpose of this mapping is to provide unique
+ * #cairo_font_face_t values so that our cache and mapping from
+ * #cairo_font_face_t => #cairo_scaled_font_t works. Once the
+ * corresponding #cairo_font_face_t objects fall out of downstream
+ * caches, we don't need them in this hash table anymore.
+ *
+ * Modifications to this hash table are protected by
+ * _cairo_win32_font_face_mutex.
+ *
+ * Only #cairo_font_face_t values with null 'hfont' (no
+ * HFONT preallocated by caller) are stored in this table. We rely
+ * on callers to manage the lifetime of the HFONT, and they can't
+ * do that if we share #cairo_font_face_t values with other callers.
+ */
+
+static cairo_hash_table_t *cairo_win32_font_face_hash_table = NULL;
+
+static int
+_cairo_win32_font_face_keys_equal (const void *key_a,
+				   const void *key_b);
+
+static void
+_cairo_win32_font_face_hash_table_destroy (void)
+{
+    cairo_hash_table_t *hash_table;
+
+    /* We manually acquire the lock rather than calling
+     * _cairo_win32_font_face_hash_table_lock simply to avoid creating
+     * the table only to destroy it again. */
+    CAIRO_MUTEX_LOCK (_cairo_win32_font_face_mutex);
+    hash_table = cairo_win32_font_face_hash_table;
+    cairo_win32_font_face_hash_table = NULL;
+    CAIRO_MUTEX_UNLOCK (_cairo_win32_font_face_mutex);
+
+    if (hash_table != NULL)
+	_cairo_hash_table_destroy (hash_table);
+}
+
+static cairo_hash_table_t *
+_cairo_win32_font_face_hash_table_lock (void)
+{
+    CAIRO_MUTEX_LOCK (_cairo_win32_font_face_mutex);
+
+    if (unlikely (cairo_win32_font_face_hash_table == NULL))
+    {
+	cairo_win32_font_face_hash_table =
+	_cairo_hash_table_create (_cairo_win32_font_face_keys_equal);
+
+	if (unlikely (cairo_win32_font_face_hash_table == NULL)) {
+	    CAIRO_MUTEX_UNLOCK (_cairo_win32_font_face_mutex);
+	    _cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
+	    return NULL;
+	}
+    }
+
+    return cairo_win32_font_face_hash_table;
+}
+
+static void
+_cairo_win32_font_face_hash_table_unlock (void)
+{
+    CAIRO_MUTEX_UNLOCK (_cairo_win32_font_face_mutex);
+}
+
+static void
+_cairo_win32_font_face_init_key (cairo_win32_font_face_t *key,
+				 LOGFONTW                *logfont,
+				 HFONT                    font)
+{
+    unsigned long hash = _CAIRO_HASH_INIT_VALUE;
+
+    key->logfont = *logfont;
+    key->hfont = font;
+
+    hash = _cairo_hash_bytes (0, logfont->lfFaceName, 2*wcslen(logfont->lfFaceName));
+    hash = _cairo_hash_bytes (hash, &logfont->lfWeight, sizeof(logfont->lfWeight));
+    hash = _cairo_hash_bytes (hash, &logfont->lfItalic, sizeof(logfont->lfItalic));
+
+    key->base.hash_entry.hash = hash;
+}
+
+static int
+_cairo_win32_font_face_keys_equal (const void *key_a,
+				   const void *key_b)
+{
+    const cairo_win32_font_face_t *face_a = key_a;
+    const cairo_win32_font_face_t *face_b = key_b;
+
+    if (face_a->logfont.lfWeight         == face_b->logfont.lfWeight &&
+	face_a->logfont.lfItalic         == face_b->logfont.lfItalic &&
+	face_a->logfont.lfUnderline      == face_b->logfont.lfUnderline &&
+	face_a->logfont.lfStrikeOut      == face_b->logfont.lfStrikeOut &&
+	face_a->logfont.lfCharSet        == face_b->logfont.lfCharSet &&
+	face_a->logfont.lfOutPrecision   == face_b->logfont.lfOutPrecision &&
+	face_a->logfont.lfClipPrecision  == face_b->logfont.lfClipPrecision &&
+	face_a->logfont.lfPitchAndFamily == face_b->logfont.lfPitchAndFamily &&
+	(wcscmp (face_a->logfont.lfFaceName, face_b->logfont.lfFaceName) == 0))
+	return TRUE;
+    else
+	return FALSE;
+}
+
+static void
+_cairo_win32_font_face_destroy (void *abstract_face)
+{
+    cairo_hash_table_t *hash_table;
+    cairo_win32_font_face_t *font_face = abstract_face;
+
+    if (!font_face->hfont) {
+        hash_table = _cairo_win32_font_face_hash_table_lock ();
+        if (unlikely (hash_table == NULL)) {
+            return;
+        }
+        _cairo_hash_table_remove (hash_table, &font_face->base.hash_entry);
+        _cairo_win32_font_face_hash_table_unlock ();
+    }
+}
+
 /**
  * cairo_win32_font_face_create_for_logfontw_hfont:
  * @logfont: A #LOGFONTW structure specifying the font to use.
@@ -1941,20 +2078,59 @@ const cairo_font_face_backend_t _cairo_win32_font_face_backend = {
 cairo_font_face_t *
 cairo_win32_font_face_create_for_logfontw_hfont (LOGFONTW *logfont, HFONT font)
 {
-    cairo_win32_font_face_t *font_face;
+    cairo_win32_font_face_t *font_face, key;
+    cairo_hash_table_t *hash_table;
+    cairo_status_t status;
 
+    if (!font) {
+        hash_table = _cairo_win32_font_face_hash_table_lock ();
+        if (unlikely (hash_table == NULL)) {
+            _cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
+	    return (cairo_font_face_t *)&_cairo_font_face_nil;
+        }
+
+        _cairo_win32_font_face_init_key (&key, logfont, font);
+
+        /* Return existing unscaled font if it exists in the hash table. */
+        font_face = _cairo_hash_table_lookup (hash_table,
+                                              &key.base.hash_entry);
+        if (font_face != NULL) {
+	    cairo_font_face_reference (&font_face->base);
+	    goto DONE;
+        }
+    }
+
+    /* Otherwise create it and insert into hash table. */
     font_face = malloc (sizeof (cairo_win32_font_face_t));
     if (!font_face) {
         _cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
-        return (cairo_font_face_t *)&_cairo_font_face_nil;
+	goto FAIL;
     }
 
-    font_face->logfont = *logfont;
-    font_face->hfont = font;
-
+    _cairo_win32_font_face_init_key (font_face, logfont, font);
     _cairo_font_face_init (&font_face->base, &_cairo_win32_font_face_backend);
 
+    if (!font) {
+        assert (font_face->base.hash_entry.hash == key.base.hash_entry.hash);
+        status = _cairo_hash_table_insert (hash_table,
+                                           &font_face->base.hash_entry);
+        if (unlikely (status))
+	    goto FAIL;
+    }
+
+DONE:
+    if (!font) {
+        _cairo_win32_font_face_hash_table_unlock ();
+    }
+
     return &font_face->base;
+
+FAIL:
+    if (!font) {
+        _cairo_win32_font_face_hash_table_unlock ();
+    }
+
+    return (cairo_font_face_t *)&_cairo_font_face_nil;
 }
 
 /**
@@ -2162,4 +2338,10 @@ cairo_win32_scaled_font_get_device_to_logical (cairo_scaled_font_t *scaled_font,
 	return;
     }
     *device_to_logical = win_font->device_to_logical;
+}
+
+void
+_cairo_win32_font_reset_static_data (void)
+{
+    _cairo_win32_font_face_hash_table_destroy ();
 }

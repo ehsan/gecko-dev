@@ -5,12 +5,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=577974
 -->
 <head>
   <title>Test for Bug 577974</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <style id="style">
 
-  @-moz-keyframes bounce {
+  @keyframes bounce {
     from {
       margin-left: 0
     }
@@ -60,24 +59,24 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=577974
 var sheet = document.getElementById("style").sheet;
 
 var bounce = sheet.cssRules[0];
-is(bounce.type, CSSRule.MOZ_KEYFRAMES_RULE, "bounce.type");
+is(bounce.type, CSSRule.KEYFRAMES_RULE, "bounce.type");
 is(bounce.type, 7, "bounce.type");
 is(bounce.name, "bounce", "bounce.name");
 bounce.name = "bouncier";
 is(bounce.name, "bouncier", "setting bounce.name");
 
-is(bounce.cssRules[0].type, CSSRule.MOZ_KEYFRAME_RULE, "keyframe rule type");
+is(bounce.cssRules[0].type, CSSRule.KEYFRAME_RULE, "keyframe rule type");
 is(bounce.cssRules[0].type, 8, "keyframe rule type");
 is(bounce.cssRules[0].keyText, "0%", "keyframe rule keyText");
 is(bounce.cssRules[1].keyText, "25%", "keyframe rule keyText");
 is(bounce.cssRules[2].keyText, "75%, 85%", "keyframe rule keyText");
 is(bounce.cssRules[3].keyText, "100%", "keyframe rule keyText");
-is(bounce.cssRules[0].style.marginLeft, "0pt", "keyframe rule style");
+is(bounce.cssRules[0].style.marginLeft, "0px", "keyframe rule style");
 is(bounce.cssRules[1].style.marginLeft, "25px", "keyframe rule style");
 
-is(bounce.cssRules[0].cssText, "0% { margin-left: 0pt; }");
-is(bounce.cssText, "@-moz-keyframes bouncier {\n" +
-                   "0% { margin-left: 0pt; }\n" +
+is(bounce.cssRules[0].cssText, "0% { margin-left: 0px; }");
+is(bounce.cssText, "@keyframes bouncier {\n" +
+                   "0% { margin-left: 0px; }\n" +
                    "25% { margin-left: 25px; }\n" +
                    "75%, 85% { margin-left: 90px; }\n" +
                    "100% { margin-left: 100px; }\n" +
@@ -120,14 +119,14 @@ bounce.deleteRule("75%  ,85%");
 is(bounce.cssRules.length, 3, "deleteRule should match keys in order, parsed");
 bounce.deleteRule("0%");
 is(bounce.cssRules.length, 2, "deleteRule should match keys in order, parsed");
-bounce.insertRule("from { color: blue }");
-is(bounce.cssRules.length, 3, "insertRule should append");
-is(bounce.cssRules[2].keyText, "0%", "insertRule should append");
-bounce.insertRule("from { color: blue }");
-is(bounce.cssRules.length, 4, "insertRule should append");
-is(bounce.cssRules[3].keyText, "0%", "insertRule should append");
-bounce.insertRule("from { color: blue } to { color: green }");
-is(bounce.cssRules.length, 4, "insertRule should ignore garbage at end");
+bounce.appendRule("from { color: blue }");
+is(bounce.cssRules.length, 3, "appendRule should append");
+is(bounce.cssRules[2].keyText, "0%", "appendRule should append");
+bounce.appendRule("from { color: blue }");
+is(bounce.cssRules.length, 4, "appendRule should append");
+is(bounce.cssRules[3].keyText, "0%", "appendRule should append");
+bounce.appendRule("from { color: blue } to { color: green }");
+is(bounce.cssRules.length, 4, "appendRule should ignore garbage at end");
 
 </script>
 </pre>

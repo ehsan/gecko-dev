@@ -1,59 +1,22 @@
 /* -*-  Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2; -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Startup Cache.
- *
- * The Initial Developer of the Original Code is 
- * The Mozilla Foundation <http://www.mozilla.org/>.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *  Benedict Hsieh <bhsieh@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef StartupCache_h_
 #define StartupCache_h_
 
-#include "prio.h"
-#include "prtypes.h"
-
 #include "nsClassHashtable.h"
-#include "nsIZipWriter.h"
-#include "nsIZipReader.h"
 #include "nsComponentManagerUtils.h"
 #include "nsZipArchive.h"
 #include "nsIStartupCache.h"
-#include "nsIStorageStream.h"
 #include "nsITimer.h"
 #include "nsIObserverService.h"
 #include "nsIObserver.h"
 #include "nsIOutputStream.h"
 #include "nsIFile.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/MemoryReporting.h"
 
 /**
  * The StartupCache is a persistent cache of simple key-value pairs,
@@ -76,6 +39,12 @@
  *
  * InvalidateCache() may be called if a client suspects data corruption 
  * or wishes to invalidate for any other reason. This will remove all existing cache data.
+ * Additionally, the static method IgnoreDiskCache() can be called if it is
+ * believed that the on-disk cache file is itself corrupt. This call implicitly
+ * calls InvalidateCache (if the singleton has been initialized) to ensure any
+ * data already read from disk is discarded. The cache will not load data from
+ * the disk file until a successful write occurs.
+ *
  * Finally, getDebugObjectOutputStream() allows debug code to wrap an objectstream
  * with a debug objectstream, to check for multiply-referenced objects. These will
  * generally fail to deserialize correctly, unless they are stateless singletons or the 
@@ -95,29 +64,35 @@
  * provide some convenience in writing out data.
  */
 
+class nsIMemoryReporter;
+
 namespace mozilla {
 namespace scache {
 
 struct CacheEntry 
 {
   nsAutoArrayPtr<char> data;
-  PRUint32 size;
+  uint32_t size;
 
-  CacheEntry() : data(nsnull), size(0) { }
+  CacheEntry() : data(nullptr), size(0) { }
 
   // Takes possession of buf
-  CacheEntry(char* buf, PRUint32 len) : data(buf), size(len) { }
+  CacheEntry(char* buf, uint32_t len) : data(buf), size(len) { }
 
   ~CacheEntry()
   {
+  }
+
+  size_t SizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) {
+    return mallocSizeOf(data);
   }
 };
 
 // We don't want to refcount StartupCache, and ObserverService wants to
 // refcount its listeners, so we'll let it refcount this instead.
-class StartupCacheListener : public nsIObserver
+class StartupCacheListener MOZ_FINAL : public nsIObserver
 {
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVER
 };
 
@@ -132,27 +107,44 @@ public:
   // StartupCache methods. See above comments for a more detailed description.
 
   // Returns a buffer that was previously stored, caller takes ownership. 
-  nsresult GetBuffer(const char* id, char** outbuf, PRUint32* length);
+  nsresult GetBuffer(const char* id, char** outbuf, uint32_t* length);
 
   // Stores a buffer. Caller keeps ownership, we make a copy.
-  nsresult PutBuffer(const char* id, const char* inbuf, PRUint32 length);
+  nsresult PutBuffer(const char* id, const char* inbuf, uint32_t length);
 
   // Removes the cache file.
   void InvalidateCache();
+
+  // Signal that data should not be loaded from the cache file
+  static void IgnoreDiskCache();
 
   // In DEBUG builds, returns a stream that will attempt to check for
   // and disallow multiple writes of the same object.
   nsresult GetDebugObjectOutputStream(nsIObjectOutputStream* aStream,
                                       nsIObjectOutputStream** outStream);
 
+  nsresult RecordAgesAlways();
+
   static StartupCache* GetSingleton();
   static void DeleteSingleton();
+
+  // This measures all the heap memory used by the StartupCache, i.e. it
+  // excludes the mapping.
+  size_t HeapSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+
+  size_t SizeOfMapping();
 
 private:
   StartupCache();
   ~StartupCache();
 
-  nsresult LoadArchive();
+  enum TelemetrifyAge {
+    IGNORE_AGE = 0,
+    RECORD_AGE = 1
+  };
+  static enum TelemetrifyAge gPostFlushAgeAction;
+
+  nsresult LoadArchive(enum TelemetrifyAge flag);
   nsresult Init();
   void WriteToDisk();
   nsresult ResetStartupWriteTimer();
@@ -162,29 +154,38 @@ private:
   static void WriteTimeout(nsITimer *aTimer, void *aClosure);
   static void ThreadedWrite(void *aClosure);
 
+  static size_t SizeOfEntryExcludingThis(const nsACString& key,
+                                         const nsAutoPtr<CacheEntry>& data,
+                                         mozilla::MallocSizeOf mallocSizeOf,
+                                         void *);
+
   nsClassHashtable<nsCStringHashKey, CacheEntry> mTable;
-  nsAutoPtr<nsZipArchive> mArchive;
-  nsCOMPtr<nsILocalFile> mFile;
+  nsRefPtr<nsZipArchive> mArchive;
+  nsCOMPtr<nsIFile> mFile;
   
   nsCOMPtr<nsIObserverService> mObserverService;
   nsRefPtr<StartupCacheListener> mListener;
   nsCOMPtr<nsITimer> mTimer;
 
-  PRBool mStartupWriteInitiated;
+  bool mStartupWriteInitiated;
 
   static StartupCache *gStartupCache;
-  static PRBool gShutdownInitiated;
+  static bool gShutdownInitiated;
+  static bool gIgnoreDiskCache;
   PRThread *mWriteThread;
 #ifdef DEBUG
   nsTHashtable<nsISupportsHashKey> mWriteObjectMap;
 #endif
+
+  nsIMemoryReporter* mMappingMemoryReporter;
+  nsIMemoryReporter* mDataMemoryReporter;
 };
 
 // This debug outputstream attempts to detect if clients are writing multiple
 // references to the same object. We only support that if that object
 // is a singleton.
 #ifdef DEBUG
-class StartupCacheDebugOutputStream
+class StartupCacheDebugOutputStream MOZ_FINAL
   : public nsIObjectOutputStream
 {  
   NS_DECL_ISUPPORTS
@@ -197,7 +198,7 @@ class StartupCacheDebugOutputStream
   NS_FORWARD_SAFE_NSIBINARYOUTPUTSTREAM(mBinaryStream)
   NS_FORWARD_SAFE_NSIOUTPUTSTREAM(mBinaryStream)
   
-  PRBool CheckReferences(nsISupports* aObject);
+  bool CheckReferences(nsISupports* aObject);
   
   nsCOMPtr<nsIObjectOutputStream> mBinaryStream;
   nsTHashtable<nsISupportsHashKey> *mObjectMap;
@@ -210,10 +211,10 @@ class StartupCacheDebugOutputStream
       {0xb5, 0x77, 0xf9, 0x23, 0x57, 0xed, 0xa8, 0x84}}
 // contract id: "@mozilla.org/startupcache/cache;1"
 
-class StartupCacheWrapper 
+class StartupCacheWrapper MOZ_FINAL
   : public nsIStartupCache
 {
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSISTARTUPCACHE
 
   static StartupCacheWrapper* GetSingleton();

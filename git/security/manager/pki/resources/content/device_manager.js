@@ -1,41 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2001
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Bob Lord <lord@netscape.com>
- *   Ian McGreer <mcgreer@netscape.com>
- *   Kai Engert <kengert@redhat.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const nsIFilePicker = Components.interfaces.nsIFilePicker;
 const nsFilePicker = "@mozilla.org/filepicker;1";
@@ -58,7 +23,7 @@ var skip_enable_buttons = false;
 /* Do the initial load of all PKCS# modules and list them. */
 function LoadModules()
 {
-  bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
+  bundle = document.getElementById("pippki_bundle");
   secmoddb = Components.classes[nsPKCS11ModuleDB].getService(nsIPKCS11ModuleDB);
   window.crypto.enableSmartCardEvents = true;
   document.addEventListener("smartcard-insert", onSmartCardChange, false);
@@ -74,8 +39,7 @@ function getPKCS11()
 
 function getNSSString(name)
 {
-  return srGetStrBundle("chrome://pipnss/locale/pipnss.properties").
-    GetStringFromName(name);
+  return document.getElementById("pipnss_bundle").getString(name);
 }
 
 function doPrompt(msg)
@@ -144,9 +108,9 @@ function SetFIPSButton()
   var fipsButton = document.getElementById("fipsbutton");
   var label;
   if (secmoddb.isFIPSEnabled) {
-   label = bundle.GetStringFromName("disable_fips"); 
+   label = bundle.getString("disable_fips");
   } else {
-   label = bundle.GetStringFromName("enable_fips"); 
+   label = bundle.getString("enable_fips");
   }
   fipsButton.setAttribute("label", label);
 
@@ -296,45 +260,45 @@ function showSlotInfo()
   ClearInfoList();
   switch (selected_slot.status) {
    case nsIPKCS11Slot.SLOT_DISABLED:
-     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
-                bundle.GetStringFromName("devinfo_stat_disabled"), 
+     AddInfoRow(bundle.getString("devinfo_status"),
+                bundle.getString("devinfo_stat_disabled"),
                 "tok_status");
      present = false;
      break;
    case nsIPKCS11Slot.SLOT_NOT_PRESENT:
-     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
-                bundle.GetStringFromName("devinfo_stat_notpresent"), 
+     AddInfoRow(bundle.getString("devinfo_status"),
+                bundle.getString("devinfo_stat_notpresent"),
                 "tok_status");
      present = false;
      break;
    case nsIPKCS11Slot.SLOT_UNINITIALIZED:
-     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
-                bundle.GetStringFromName("devinfo_stat_uninitialized"), 
+     AddInfoRow(bundle.getString("devinfo_status"),
+                bundle.getString("devinfo_stat_uninitialized"),
                 "tok_status");
      break;
    case nsIPKCS11Slot.SLOT_NOT_LOGGED_IN:
-     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
-                bundle.GetStringFromName("devinfo_stat_notloggedin"), 
+     AddInfoRow(bundle.getString("devinfo_status"),
+                bundle.getString("devinfo_stat_notloggedin"),
                 "tok_status");
      break;
    case nsIPKCS11Slot.SLOT_LOGGED_IN:
-     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
-                bundle.GetStringFromName("devinfo_stat_loggedin"), 
+     AddInfoRow(bundle.getString("devinfo_status"),
+                bundle.getString("devinfo_stat_loggedin"),
                 "tok_status");
      break;
    case nsIPKCS11Slot.SLOT_READY:
-     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
-                bundle.GetStringFromName("devinfo_stat_ready"), 
+     AddInfoRow(bundle.getString("devinfo_status"),
+                bundle.getString("devinfo_stat_ready"),
                 "tok_status");
      break;
   }
-  AddInfoRow(bundle.GetStringFromName("devinfo_desc"), 
+  AddInfoRow(bundle.getString("devinfo_desc"),
              selected_slot.desc, "slot_desc");
-  AddInfoRow(bundle.GetStringFromName("devinfo_manID"), 
+  AddInfoRow(bundle.getString("devinfo_manID"),
              selected_slot.manID, "slot_manID");
-  AddInfoRow(bundle.GetStringFromName("devinfo_hwversion"),
+  AddInfoRow(bundle.getString("devinfo_hwversion"),
              selected_slot.HWVersion, "slot_hwv");
-  AddInfoRow(bundle.GetStringFromName("devinfo_fwversion"),
+  AddInfoRow(bundle.getString("devinfo_fwversion"),
              selected_slot.FWVersion, "slot_fwv");
   if (present) {
      showTokenInfo();
@@ -344,9 +308,9 @@ function showSlotInfo()
 function showModuleInfo()
 {
   ClearInfoList();
-  AddInfoRow(bundle.GetStringFromName("devinfo_modname"),
+  AddInfoRow(bundle.getString("devinfo_modname"),
              selected_module.name, "module_name");
-  AddInfoRow(bundle.GetStringFromName("devinfo_modpath"),
+  AddInfoRow(bundle.getString("devinfo_modpath"),
              selected_module.libName, "module_path");
 }
 
@@ -380,13 +344,13 @@ function doLogin()
     var tok_status = document.getElementById("tok_status");
     if (selected_token.isLoggedIn()) {
       tok_status.setAttribute("label", 
-                          bundle.GetStringFromName("devinfo_stat_loggedin"));
+                              bundle.getString("devinfo_stat_loggedin"));
     } else {
       tok_status.setAttribute("label",
-                       bundle.GetStringFromName("devinfo_stat_notloggedin"));
+                              bundle.getString("devinfo_stat_notloggedin"));
     }
   } catch (e) {
-    doPrompt(bundle.GetStringFromName("login_failed"));
+    doPrompt(bundle.getString("login_failed"));
   }
   enableButtons();
 }
@@ -402,10 +366,10 @@ function doLogout()
     var tok_status = document.getElementById("tok_status");
     if (selected_token.isLoggedIn()) {
       tok_status.setAttribute("label", 
-                          bundle.GetStringFromName("devinfo_stat_loggedin"));
+                              bundle.getString("devinfo_stat_loggedin"));
     } else {
       tok_status.setAttribute("label",
-                       bundle.GetStringFromName("devinfo_stat_notloggedin"));
+                              bundle.getString("devinfo_stat_notloggedin"));
     }
   } catch (e) {
   }
@@ -474,10 +438,10 @@ function changePassword()
 // browse fs for PKCS#11 device
 function doBrowseFiles()
 {
-  var srbundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
+  var srbundle = document.getElementById("pippki_bundle");
   var fp = Components.classes[nsFilePicker].createInstance(nsIFilePicker);
   fp.init(window,
-          srbundle.GetStringFromName("loadPK11TokenDialog"),
+          srbundle.getString("loadPK11TokenDialog"),
           nsIFilePicker.modeOpen);
   fp.appendFilters(nsIFilePicker.filterAll);
   if (fp.show() == nsIFilePicker.returnOK) {
@@ -510,15 +474,15 @@ function showTokenInfo()
 {
   //ClearInfoList();
   var selected_token = selected_slot.getToken();
-  AddInfoRow(bundle.GetStringFromName("devinfo_label"), 
+  AddInfoRow(bundle.getString("devinfo_label"),
              selected_token.tokenLabel, "tok_label");
-  AddInfoRow(bundle.GetStringFromName("devinfo_manID"),
+  AddInfoRow(bundle.getString("devinfo_manID"),
              selected_token.tokenManID, "tok_manID");
-  AddInfoRow(bundle.GetStringFromName("devinfo_serialnum"), 
+  AddInfoRow(bundle.getString("devinfo_serialnum"),
              selected_token.tokenSerialNumber, "tok_sNum");
-  AddInfoRow(bundle.GetStringFromName("devinfo_hwversion"),
+  AddInfoRow(bundle.getString("devinfo_hwversion"),
              selected_token.tokenHWVersion, "tok_hwv");
-  AddInfoRow(bundle.GetStringFromName("devinfo_fwversion"),
+  AddInfoRow(bundle.getString("devinfo_fwversion"),
              selected_token.tokenFWVersion, "tok_fwv");
 }
 
@@ -536,7 +500,7 @@ function toggleFIPS()
       case nsIPKCS11Slot.SLOT_UNINITIALIZED:
       case nsIPKCS11Slot.SLOT_READY:
         // Token has either no or an empty password.
-        doPrompt(bundle.GetStringFromName("fips_nonempty_password_required"));
+        doPrompt(bundle.getString("fips_nonempty_password_required"));
         return;
     }
   }
@@ -545,7 +509,7 @@ function toggleFIPS()
     secmoddb.toggleFIPSMode();
   }
   catch (e) {
-    doPrompt(bundle.GetStringFromName("unable_to_toggle_FIPS"));
+    doPrompt(bundle.getString("unable_to_toggle_FIPS"));
     return;
   }
 

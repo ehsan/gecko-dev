@@ -1,78 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// YY need to pass isMultiple before create called
-
-//#include "nsFormControlFrame.h"
-#include "nsHTMLContainerFrame.h"
+#include "nsCSSAnonBoxes.h"
+#include "nsContainerFrame.h"
 #include "nsLegendFrame.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMHTMLFieldSetElement.h"
-#include "nsIDOMHTMLLegendElement.h"
 #include "nsCSSRendering.h"
-//#include "nsIDOMHTMLCollection.h"
+#include <algorithm>
 #include "nsIContent.h"
 #include "nsIFrame.h"
 #include "nsISupports.h"
 #include "nsIAtom.h"
 #include "nsPresContext.h"
-#include "nsFrameManager.h"
+#include "RestyleManager.h"
 #include "nsHTMLParts.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsFont.h"
 #include "nsCOMPtr.h"
-#ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
-#endif
 #include "nsIServiceManager.h"
 #include "nsDisplayList.h"
 #include "nsRenderingContext.h"
+#include "mozilla/Likely.h"
+
+using namespace mozilla;
+using namespace mozilla::layout;
 
 class nsLegendFrame;
 
-class nsFieldSetFrame : public nsHTMLContainerFrame {
+class nsFieldSetFrame MOZ_FINAL : public nsContainerFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
   nsFieldSetFrame(nsStyleContext* aContext);
-
-  NS_IMETHOD SetInitialChildList(nsIAtom*       aListName,
-                                 nsFrameList&   aChildList);
 
   NS_HIDDEN_(nscoord)
     GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
@@ -82,37 +45,59 @@ public:
   virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             PRBool aShrinkWrap);
+                             uint32_t aFlags) MOZ_OVERRIDE;
   virtual nscoord GetBaseline() const;
+
+  /**
+   * The area to paint box-shadows around.  It's the border rect except
+   * when there's a <legend> we offset the y-position to the center of it.
+   */
+  virtual nsRect VisualBorderRectRelativeToSelf() const MOZ_OVERRIDE {
+    nscoord topBorder = StyleBorder()->GetComputedBorderWidth(NS_SIDE_TOP);
+    nsRect r(nsPoint(0,0), GetSize());
+    if (topBorder < mLegendRect.height) {
+      nscoord yoff = (mLegendRect.height - topBorder) / 2;
+      r.y += yoff;
+      r.height -= yoff;
+    }
+    return r;
+  }
 
   NS_IMETHOD Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
                                
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
+  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   void PaintBorderBackground(nsRenderingContext& aRenderingContext,
-    nsPoint aPt, const nsRect& aDirtyRect, PRUint32 aBGFlags);
+    nsPoint aPt, const nsRect& aDirtyRect, uint32_t aBGFlags);
 
-  NS_IMETHOD AppendFrames(nsIAtom*       aListName,
+  NS_IMETHOD AppendFrames(ChildListID    aListID,
                           nsFrameList&   aFrameList);
-  NS_IMETHOD InsertFrames(nsIAtom*       aListName,
+  NS_IMETHOD InsertFrames(ChildListID    aListID,
                           nsIFrame*      aPrevFrame,
                           nsFrameList&   aFrameList);
-  NS_IMETHOD RemoveFrame(nsIAtom*       aListName,
+  NS_IMETHOD RemoveFrame(ChildListID    aListID,
                          nsIFrame*      aOldFrame);
 
   virtual nsIAtom* GetType() const;
-  virtual PRBool IsContainingBlock() const;
+  virtual bool IsFrameOfType(uint32_t aFlags) const
+  {
+    return nsContainerFrame::IsFrameOfType(aFlags &
+             ~nsIFrame::eCanContainOverflowContainers);
+  }
 
 #ifdef ACCESSIBILITY  
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
 #endif
 
 #ifdef DEBUG
+  NS_IMETHOD SetInitialChildList(ChildListID    aListID,
+                                 nsFrameList&   aChildList);
+
   NS_IMETHOD GetFrameName(nsAString& aResult) const {
     return MakeFrameName(NS_LITERAL_STRING("FieldSet"), aResult);
   }
@@ -120,11 +105,42 @@ public:
 
 protected:
 
-  virtual PRIntn GetSkipSides() const;
   void ReparentFrameList(const nsFrameList& aFrameList);
 
-  nsIFrame* mLegendFrame;
-  nsIFrame* mContentFrame;
+  /**
+   * Return the anonymous frame that contains all descendants except
+   * the legend frame.  This is currently always a block frame with
+   * pseudo nsCSSAnonBoxes::fieldsetContent -- this may change in the
+   * future when we add support for CSS overflow for <fieldset>.
+   */
+  nsIFrame* GetInner() const
+  {
+    nsIFrame* last = mFrames.LastChild();
+    if (last &&
+        last->StyleContext()->GetPseudo() == nsCSSAnonBoxes::fieldsetContent) {
+      return last;
+    }
+    MOZ_ASSERT(mFrames.LastChild() == mFrames.FirstChild());
+    return nullptr;
+  }
+
+  /**
+   * Return the frame that represents the legend if any.  This may be
+   * a nsLegendFrame or a nsHTMLScrollFrame with the nsLegendFrame as the
+   * scrolled frame (aka content insertion frame).
+   */
+  nsIFrame* GetLegend() const
+  {
+    if (mFrames.FirstChild() == GetInner()) {
+      MOZ_ASSERT(mFrames.LastChild() == mFrames.FirstChild());
+      return nullptr;
+    }
+    MOZ_ASSERT(mFrames.FirstChild() &&
+               mFrames.FirstChild()->GetContentInsertionFrame()->GetType() ==
+                 nsGkAtoms::legendFrame);
+    return mFrames.FirstChild();
+  }
+
   nsRect    mLegendRect;
   nscoord   mLegendSpace;
 };
@@ -138,10 +154,8 @@ NS_NewFieldSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsFieldSetFrame)
 
 nsFieldSetFrame::nsFieldSetFrame(nsStyleContext* aContext)
-  : nsHTMLContainerFrame(aContext)
+  : nsContainerFrame(aContext)
 {
-  mContentFrame = nsnull;
-  mLegendFrame  = nsnull;
   mLegendSpace  = 0;
 }
 
@@ -151,29 +165,16 @@ nsFieldSetFrame::GetType() const
   return nsGkAtoms::fieldSetFrame;
 }
 
-PRBool
-nsFieldSetFrame::IsContainingBlock() const
-{
-  return PR_TRUE;
-}
-
+#ifdef DEBUG
 NS_IMETHODIMP
-nsFieldSetFrame::SetInitialChildList(nsIAtom*       aListName,
+nsFieldSetFrame::SetInitialChildList(ChildListID    aListID,
                                      nsFrameList&   aChildList)
 {
-  // Get the content and legend frames.
-  if (!aChildList.OnlyChild()) {
-    NS_ASSERTION(aChildList.GetLength() == 2, "Unexpected child list");
-    mContentFrame = aChildList.LastChild();
-    mLegendFrame  = aChildList.FirstChild();
-  } else {
-    mContentFrame = aChildList.FirstChild();
-    mLegendFrame  = nsnull;
-  }
-
-  // Queue up the frames for the content frame
-  return nsHTMLContainerFrame::SetInitialChildList(nsnull, aChildList);
+  nsresult rv = nsContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
+  MOZ_ASSERT(GetInner());
+  return rv;
 }
+#endif
 
 class nsDisplayFieldSetBorderBackground : public nsDisplayItem {
 public:
@@ -192,6 +193,9 @@ public:
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx);
+  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
+                                         const nsDisplayItemGeometry* aGeometry,
+                                         nsRegion *aInvalidRegion) MOZ_OVERRIDE;
   NS_DISPLAY_DECL_NAME("FieldSetBorderBackground", TYPE_FIELDSET_BORDER_BACKGROUND)
 };
 
@@ -213,7 +217,17 @@ nsDisplayFieldSetBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
                           mVisibleRect, aBuilder->GetBackgroundPaintFlags());
 }
 
-NS_IMETHODIMP
+void
+nsDisplayFieldSetBorderBackground::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
+                                                             const nsDisplayItemGeometry* aGeometry,
+                                                             nsRegion *aInvalidRegion)
+{
+  AddInvalidRegionForSyncDecodeBackgroundImages(aBuilder, aGeometry, aInvalidRegion);
+
+  nsDisplayItem::ComputeInvalidationRegion(aBuilder, aGeometry, aInvalidRegion);
+}
+
+void
 nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                   const nsRect&           aDirtyRect,
                                   const nsDisplayListSet& aLists) {
@@ -221,71 +235,62 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // REVIEW: We don't really need to check frame emptiness here; if it's empty,
   // the background/border display item won't do anything, and if it isn't empty,
   // we need to paint the outline
-  if (IsVisibleForPainting(aBuilder)) {
-    if (GetStyleBorder()->mBoxShadow) {
-      nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-          nsDisplayBoxShadowOuter(aBuilder, this));
-      NS_ENSURE_SUCCESS(rv, rv);
+  if (!(GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER) &&
+      IsVisibleForPainting(aBuilder)) {
+    if (StyleBorder()->mBoxShadow) {
+      aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+        nsDisplayBoxShadowOuter(aBuilder, this));
     }
 
     // don't bother checking to see if we really have a border or background.
     // we usually will have a border.
-    nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-        nsDisplayFieldSetBorderBackground(aBuilder, this));
-    NS_ENSURE_SUCCESS(rv, rv);
+    aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+      nsDisplayFieldSetBorderBackground(aBuilder, this));
   
-    rv = DisplayOutlineUnconditional(aBuilder, aLists);
-    NS_ENSURE_SUCCESS(rv, rv);
+    DisplayOutlineUnconditional(aBuilder, aLists);
 
     DO_GLOBAL_REFLOW_COUNT_DSP("nsFieldSetFrame");
   }
 
-  nsDisplayListCollection contentDisplayItems;
-  if (mContentFrame) {
-    // Collect mContentFrame's display items into their own collection. We need
-    // to be calling BuildDisplayList on mContentFrame before mLegendFrame in
-    // case it contains out-of-flow frames whose placeholders are under
-    // mLegendFrame. However, we want mContentFrame's display items to be
-    // after mLegendFrame's display items in z-order, so we need to save them
-    // and append them later.
-    nsresult rv = BuildDisplayListForChild(aBuilder, mContentFrame, aDirtyRect,
-                                           contentDisplayItems);
-    NS_ENSURE_SUCCESS(rv, rv);
+  if (GetPrevInFlow()) {
+    DisplayOverflowContainers(aBuilder, aDirtyRect, aLists);
   }
-  if (mLegendFrame) {
+
+  nsDisplayListCollection contentDisplayItems;
+  if (nsIFrame* inner = GetInner()) {
+    // Collect the inner frame's display items into their own collection.
+    // We need to be calling BuildDisplayList on it before the legend in
+    // case it contains out-of-flow frames whose placeholders are in the
+    // legend. However, we want the inner frame's display items to be
+    // after the legend's display items in z-order, so we need to save them
+    // and append them later.
+    BuildDisplayListForChild(aBuilder, inner, aDirtyRect, contentDisplayItems);
+  }
+  if (nsIFrame* legend = GetLegend()) {
     // The legend's background goes on our BlockBorderBackgrounds list because
     // it's a block child.
     nsDisplayListSet set(aLists, aLists.BlockBorderBackgrounds());
-    nsresult rv = BuildDisplayListForChild(aBuilder, mLegendFrame, aDirtyRect, set);
-    NS_ENSURE_SUCCESS(rv, rv);
+    BuildDisplayListForChild(aBuilder, legend, aDirtyRect, set);
   }
-  // Put mContentFrame's display items on the master list. Note that
-  // this moves mContentFrame's border/background display items to our
-  // BorderBackground() list, which isn't really correct, but it's OK because
-  // mContentFrame is anonymous and can't have its own border and background.
+  // Put the inner frame's display items on the master list. Note that this
+  // moves its border/background display items to our BorderBackground() list,
+  // which isn't really correct, but it's OK because the inner frame is
+  // anonymous and can't have its own border and background.
   contentDisplayItems.MoveTo(aLists);
-  return NS_OK;
 }
 
 void
 nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
-    nsPoint aPt, const nsRect& aDirtyRect, PRUint32 aBGFlags)
+    nsPoint aPt, const nsRect& aDirtyRect, uint32_t aBGFlags)
 {
-  PRIntn skipSides = GetSkipSides();
-  const nsStyleBorder* borderStyle = GetStyleBorder();
-       
-  nscoord topBorder = borderStyle->GetActualBorderWidth(NS_SIDE_TOP);
-  nscoord yoff = 0;
-  nsPresContext* presContext = PresContext();
-     
   // if the border is smaller than the legend. Move the border down
   // to be centered on the legend. 
   // FIXME: This means border-radius clamping is incorrect; we should
   // override nsIFrame::GetBorderRadii.
-  if (topBorder < mLegendRect.height)
-    yoff = (mLegendRect.height - topBorder)/2;
-      
-  nsRect rect(aPt.x, aPt.y + yoff, mRect.width, mRect.height - yoff);
+  nsRect rect = VisualBorderRectRelativeToSelf();
+  nscoord yoff = rect.y;
+  rect += aPt;
+  nsPresContext* presContext = PresContext();
 
   nsCSSRendering::PaintBackground(presContext, aRenderingContext, this,
                                   aDirtyRect, rect, aBGFlags);
@@ -293,11 +298,12 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
   nsCSSRendering::PaintBoxShadowInner(presContext, aRenderingContext,
                                       this, rect, aDirtyRect);
 
-   if (mLegendFrame) {
+   if (nsIFrame* legend = GetLegend()) {
+     nscoord topBorder = StyleBorder()->GetComputedBorderWidth(NS_SIDE_TOP);
 
     // Use the rect of the legend frame, not mLegendRect, so we draw our
     // border under the legend's left and right margins.
-    nsRect legendRect = mLegendFrame->GetRect() + aPt;
+    nsRect legendRect = legend->GetRect() + aPt;
     
     // we should probably use PaintBorderEdges to do this but for now just use clipping
     // to achieve the same effect.
@@ -310,7 +316,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext, skipSides);
+                                aDirtyRect, rect, mStyleContext);
 
     aRenderingContext.PopState();
 
@@ -324,7 +330,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext, skipSides);
+                                aDirtyRect, rect, mStyleContext);
 
     aRenderingContext.PopState();
 
@@ -337,7 +343,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext, skipSides);
+                                aDirtyRect, rect, mStyleContext);
 
     aRenderingContext.PopState();
   } else {
@@ -345,7 +351,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect,
                                 nsRect(aPt, mRect.Size()),
-                                mStyleContext, skipSides);
+                                mStyleContext);
   }
 }
 
@@ -355,19 +361,17 @@ nsFieldSetFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
 {
   nscoord legendWidth = 0;
   nscoord contentWidth = 0;
-  if (mLegendFrame) {
+  if (nsIFrame* legend = GetLegend()) {
     legendWidth =
-      nsLayoutUtils::IntrinsicForContainer(aRenderingContext, mLegendFrame,
-                                           aType);
+      nsLayoutUtils::IntrinsicForContainer(aRenderingContext, legend, aType);
   }
 
-  if (mContentFrame) {
+  if (nsIFrame* inner = GetInner()) {
     contentWidth =
-      nsLayoutUtils::IntrinsicForContainer(aRenderingContext, mContentFrame,
-                                           aType);
+      nsLayoutUtils::IntrinsicForContainer(aRenderingContext, inner, aType);
   }
       
-  return NS_MAX(legendWidth, contentWidth);
+  return std::max(legendWidth, contentWidth);
 }
 
 
@@ -395,14 +399,18 @@ nsFieldSetFrame::GetPrefWidth(nsRenderingContext* aRenderingContext)
 nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             PRBool aShrinkWrap)
+                             uint32_t aFlags)
 {
   nsSize result =
-    nsHTMLContainerFrame::ComputeSize(aRenderingContext, aCBSize,
-                                      aAvailableWidth,
-                                      aMargin, aBorder, aPadding, aShrinkWrap);
+    nsContainerFrame::ComputeSize(aRenderingContext, aCBSize, aAvailableWidth,
+                                  aMargin, aBorder, aPadding, aFlags);
 
   // Fieldsets never shrink below their min width.
+
+  // If we're a container for font size inflation, then shrink
+  // wrapping inside of us should not apply font size inflation.
+  AutoMaybeDisableFontInflation an(this);
+
   nscoord minWidth = GetMinWidth(aRenderingContext);
   if (minWidth > result.width)
     result.width = minWidth;
@@ -425,30 +433,38 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   // Initialize OUT parameter
   aStatus = NS_FRAME_COMPLETE;
 
-  //------------ Handle Incremental Reflow -----------------
-  PRBool reflowContent;
-  PRBool reflowLegend;
+  nsOverflowAreas ocBounds;
+  nsReflowStatus ocStatus = NS_FRAME_COMPLETE;
+  if (GetPrevInFlow()) {
+    ReflowOverflowContainerChildren(aPresContext, aReflowState, ocBounds, 0,
+                                    ocStatus);
+  }
 
+  //------------ Handle Incremental Reflow -----------------
+  bool reflowInner;
+  bool reflowLegend;
+  nsIFrame* legend = GetLegend();
+  nsIFrame* inner = GetInner();
   if (aReflowState.ShouldReflowAllKids()) {
-    reflowContent = mContentFrame != nsnull;
-    reflowLegend = mLegendFrame != nsnull;
+    reflowInner = inner != nullptr;
+    reflowLegend = legend != nullptr;
   } else {
-    reflowContent = mContentFrame && NS_SUBTREE_DIRTY(mContentFrame);
-    reflowLegend = mLegendFrame && NS_SUBTREE_DIRTY(mLegendFrame);
+    reflowInner = inner && NS_SUBTREE_DIRTY(inner);
+    reflowLegend = legend && NS_SUBTREE_DIRTY(legend);
   }
 
   // We don't allow fieldsets to break vertically. If we did, we'd
   // need logic here to push and pull overflow frames.
   nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
-  NS_ASSERTION(!mContentFrame ||
+  NS_ASSERTION(!inner ||
       nsLayoutUtils::IntrinsicForContainer(aReflowState.rendContext,
-                                           mContentFrame,
+                                           inner,
                                            nsLayoutUtils::MIN_WIDTH) <=
                availSize.width,
                "Bogus availSize.width; should be bigger");
-  NS_ASSERTION(!mLegendFrame ||
+  NS_ASSERTION(!legend ||
       nsLayoutUtils::IntrinsicForContainer(aReflowState.rendContext,
-                                           mLegendFrame,
+                                           legend,
                                            nsLayoutUtils::MIN_WIDTH) <=
                availSize.width,
                "Bogus availSize.width; should be bigger");
@@ -463,17 +479,17 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   // reflow the legend only if needed
   if (reflowLegend) {
     nsHTMLReflowState legendReflowState(aPresContext, aReflowState,
-                                        mLegendFrame, availSize);
+                                        legend, availSize);
 
     nsHTMLReflowMetrics legendDesiredSize;
 
-    ReflowChild(mLegendFrame, aPresContext, legendDesiredSize, legendReflowState,
+    ReflowChild(legend, aPresContext, legendDesiredSize, legendReflowState,
                 0, 0, NS_FRAME_NO_MOVE_FRAME, aStatus);
 #ifdef NOISY_REFLOW
     printf("  returned (%d, %d)\n", legendDesiredSize.width, legendDesiredSize.height);
 #endif
     // figure out the legend's rectangle
-    legendMargin = mLegendFrame->GetUsedMargin();
+    legendMargin = legend->GetUsedMargin();
     mLegendRect.width  = legendDesiredSize.width + legendMargin.left + legendMargin.right;
     mLegendRect.height = legendDesiredSize.height + legendMargin.top + legendMargin.bottom;
     mLegendRect.x = borderPadding.left;
@@ -490,38 +506,38 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
 
     // if the legend space changes then we need to reflow the 
     // content area as well.
-    if (mLegendSpace != oldSpace && mContentFrame) {
-      reflowContent = PR_TRUE;
+    if (mLegendSpace != oldSpace && inner) {
+      reflowInner = true;
     }
 
-    FinishReflowChild(mLegendFrame, aPresContext, &legendReflowState, 
+    FinishReflowChild(legend, aPresContext, &legendReflowState, 
                       legendDesiredSize, 0, 0, NS_FRAME_NO_MOVE_FRAME);    
-  } else if (!mLegendFrame) {
+  } else if (!legend) {
     mLegendRect.SetEmpty();
     mLegendSpace = 0;
   } else {
     // mLegendSpace and mLegendRect haven't changed, but we need
     // the used margin when placing the legend.
-    legendMargin = mLegendFrame->GetUsedMargin();
+    legendMargin = legend->GetUsedMargin();
   }
 
   // reflow the content frame only if needed
-  if (reflowContent) {
-    nsHTMLReflowState kidReflowState(aPresContext, aReflowState, mContentFrame,
+  if (reflowInner) {
+    nsHTMLReflowState kidReflowState(aPresContext, aReflowState, inner,
                                      availSize);
     // Our child is "height:100%" but we actually want its height to be reduced
     // by the amount of content-height the legend is eating up, unless our
     // height is unconstrained (in which case the child's will be too).
     if (aReflowState.ComputedHeight() != NS_UNCONSTRAINEDSIZE) {
-      kidReflowState.SetComputedHeight(NS_MAX(0, aReflowState.ComputedHeight() - mLegendSpace));
+      kidReflowState.SetComputedHeight(std::max(0, aReflowState.ComputedHeight() - mLegendSpace));
     }
 
     kidReflowState.mComputedMinHeight =
-      NS_MAX(0, aReflowState.mComputedMinHeight - mLegendSpace);
+      std::max(0, aReflowState.mComputedMinHeight - mLegendSpace);
 
     if (aReflowState.mComputedMaxHeight != NS_UNCONSTRAINEDSIZE) {
       kidReflowState.mComputedMaxHeight =
-        NS_MAX(0, aReflowState.mComputedMaxHeight - mLegendSpace);
+        std::max(0, aReflowState.mComputedMaxHeight - mLegendSpace);
     }
 
     nsHTMLReflowMetrics kidDesiredSize(aDesiredSize.mFlags);
@@ -529,19 +545,19 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     NS_ASSERTION(kidReflowState.mComputedMargin == nsMargin(0,0,0,0),
                  "Margins on anonymous fieldset child not supported!");
     nsPoint pt(borderPadding.left, borderPadding.top + mLegendSpace);
-    ReflowChild(mContentFrame, aPresContext, kidDesiredSize, kidReflowState,
+    ReflowChild(inner, aPresContext, kidDesiredSize, kidReflowState,
                 pt.x, pt.y, 0, aStatus);
 
-    FinishReflowChild(mContentFrame, aPresContext, &kidReflowState, 
+    FinishReflowChild(inner, aPresContext, &kidReflowState, 
                       kidDesiredSize, pt.x, pt.y, 0);
     NS_FRAME_TRACE_REFLOW_OUT("FieldSet::Reflow", aStatus);
   }
 
   nsRect contentRect(0,0,0,0);
-  if (mContentFrame) {
-    // We don't support margins on mContentFrame, so our "content rect" is just
+  if (inner) {
+    // We don't support margins on inner, so our "content rect" is just
     // its rect.
-    contentRect = mContentFrame->GetRect();
+    contentRect = inner->GetRect();
   }
 
   // use the computed width if the inner content does not fill it
@@ -549,10 +565,11 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     contentRect.width = aReflowState.ComputedWidth();
   }
 
-  if (mLegendFrame) {
+  if (legend) {
     // if the content rect is larger then the  legend we can align the legend
     if (contentRect.width > mLegendRect.width) {
-      PRInt32 align = static_cast<nsLegendFrame*>(mLegendFrame)->GetAlign();
+      int32_t align = static_cast<nsLegendFrame*>
+        (legend->GetContentInsertionFrame())->GetAlign();
 
       switch(align) {
         case NS_STYLE_TEXT_ALIGN_RIGHT:
@@ -572,16 +589,16 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     nsRect actualLegendRect(mLegendRect);
     actualLegendRect.Deflate(legendMargin);
 
-    nsPoint curOrigin = mLegendFrame->GetPosition();
+    nsPoint curOrigin = legend->GetPosition();
 
     // only if the origin changed
-    if ((curOrigin.x != mLegendRect.x) || (curOrigin.y != mLegendRect.y)) {
-      mLegendFrame->SetPosition(nsPoint(actualLegendRect.x , actualLegendRect.y));
-      nsContainerFrame::PositionFrameView(mLegendFrame);
+    if ((curOrigin.x != actualLegendRect.x) || (curOrigin.y != actualLegendRect.y)) {
+      legend->SetPosition(nsPoint(actualLegendRect.x , actualLegendRect.y));
+      nsContainerFrame::PositionFrameView(legend);
 
       // We need to recursively process the legend frame's
       // children since we're moving the frame after Reflow.
-      nsContainerFrame::PositionChildViews(mLegendFrame);
+      nsContainerFrame::PositionChildViews(legend);
     }
   }
 
@@ -599,91 +616,85 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   }
   aDesiredSize.width = contentRect.width + borderPadding.LeftRight();
   aDesiredSize.SetOverflowAreasToDesiredBounds();
-  if (mLegendFrame)
-    ConsiderChildOverflow(aDesiredSize.mOverflowAreas, mLegendFrame);
-  if (mContentFrame)
-    ConsiderChildOverflow(aDesiredSize.mOverflowAreas, mContentFrame);
-  FinishAndStoreOverflow(&aDesiredSize);
+  if (legend)
+    ConsiderChildOverflow(aDesiredSize.mOverflowAreas, legend);
+  if (inner)
+    ConsiderChildOverflow(aDesiredSize.mOverflowAreas, inner);
 
-  Invalidate(aDesiredSize.VisualOverflow());
+  // Merge overflow container bounds and status.
+  aDesiredSize.mOverflowAreas.UnionWith(ocBounds);
+  NS_MergeReflowStatusInto(&aStatus, ocStatus);
+
+  FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus);
+
+  InvalidateFrame();
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   return NS_OK;
 }
 
-PRIntn
-nsFieldSetFrame::GetSkipSides() const
-{
-  return 0;
-}
-
 NS_IMETHODIMP
-nsFieldSetFrame::AppendFrames(nsIAtom*       aListName,
+nsFieldSetFrame::AppendFrames(ChildListID    aListID,
                               nsFrameList&   aFrameList)
 {
   // aFrameList is not allowed to contain "the legend" for this fieldset
   ReparentFrameList(aFrameList);
-  return mContentFrame->AppendFrames(aListName, aFrameList);
+  return GetInner()->AppendFrames(aListID, aFrameList);
 }
 
 NS_IMETHODIMP
-nsFieldSetFrame::InsertFrames(nsIAtom*       aListName,
+nsFieldSetFrame::InsertFrames(ChildListID    aListID,
                               nsIFrame*      aPrevFrame,
                               nsFrameList&   aFrameList)
 {
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this ||
-               aPrevFrame->GetParent() == mContentFrame,
+               aPrevFrame->GetParent() == GetInner(),
                "inserting after sibling frame with different parent");
 
   // aFrameList is not allowed to contain "the legend" for this fieldset
   ReparentFrameList(aFrameList);
-  if (NS_UNLIKELY(aPrevFrame == mLegendFrame)) {
-    aPrevFrame = nsnull;
+  if (MOZ_UNLIKELY(aPrevFrame == GetLegend())) {
+    aPrevFrame = nullptr;
   }
-  return mContentFrame->InsertFrames(aListName, aPrevFrame, aFrameList);
+  return GetInner()->InsertFrames(aListID, aPrevFrame, aFrameList);
 }
 
 NS_IMETHODIMP
-nsFieldSetFrame::RemoveFrame(nsIAtom*       aListName,
+nsFieldSetFrame::RemoveFrame(ChildListID    aListID,
                              nsIFrame*      aOldFrame)
 {
   // For reference, see bug 70648, bug 276104 and bug 236071.
-  NS_ASSERTION(aOldFrame != mLegendFrame, "Cannot remove mLegendFrame here");
-  return mContentFrame->RemoveFrame(aListName, aOldFrame);
+  NS_ASSERTION(aOldFrame != GetLegend(), "Cannot remove legend here");
+  return GetInner()->RemoveFrame(aListID, aOldFrame);
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsFieldSetFrame::CreateAccessible()
+a11y::AccType
+nsFieldSetFrame::AccessibleType()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (accService) {
-    return accService->CreateHTMLGroupboxAccessible(mContent,
-                                                    PresContext()->PresShell());
-  }
-
-  return nsnull;
+  return a11y::eHTMLGroupboxType;
 }
 #endif
 
 void
 nsFieldSetFrame::ReparentFrameList(const nsFrameList& aFrameList)
 {
-  nsFrameManager* frameManager = PresContext()->FrameManager();
+  RestyleManager* restyleManager = PresContext()->RestyleManager();
+  nsIFrame* inner = GetInner();
   for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
-    NS_ASSERTION(mLegendFrame || e.get()->GetType() != nsGkAtoms::legendFrame,
+    NS_ASSERTION(GetLegend() || e.get()->GetType() != nsGkAtoms::legendFrame,
                  "The fieldset's legend is not allowed in this list");
-    e.get()->SetParent(mContentFrame);
-    frameManager->ReparentStyleContext(e.get());
+    e.get()->SetParent(inner);
+    restyleManager->ReparentStyleContext(e.get());
   }
 }
 
 nscoord
 nsFieldSetFrame::GetBaseline() const
 {
-  // We know mContentFrame is a block, so calling GetBaseline() on it will do
+  // We know inner is a block, so calling GetBaseline() on it will do
   // the right thing (that being to return the baseline of the last line).
-  NS_ASSERTION(nsLayoutUtils::GetAsBlock(mContentFrame),
-               "Unexpected mContentFrame");
-  return mContentFrame->GetPosition().y + mContentFrame->GetBaseline();
+  nsIFrame* inner = GetInner();
+  NS_ASSERTION(nsLayoutUtils::GetAsBlock(inner), "Unexpected inner");
+  return inner->GetPosition().y + inner->GetBaseline();
 }

@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=640387
 -->
 <head>
   <title>Test for Bug 640387</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -53,13 +52,13 @@ function run_test() {
 
   // Spin the event loop so we exit the onload handler.
   SimpleTest.executeSoon(function() { gGen.next() });
-  yield;
+  yield undefined;
 
   let origLocation = iframe.location + '';
   callbackOnHashchange = true;
   iframe.location.hash = '#1';
   // Wait for a hashchange event.
-  yield;
+  yield undefined;
 
   ok(true, 'Got hashchange.');
 
@@ -68,16 +67,16 @@ function run_test() {
   // result of the load is a different document than we had previously.
   callbackOnLoad = true;
   errorOnHashchange = true;
-  yield;
+  yield undefined;
 
   ok(true, 'Got final load.');
 
   // Spin the event loop to give hashchange a chance to fire, if it's going to.
   SimpleTest.executeSoon(function() { gGen.next() });
-  yield;
+  yield undefined;
 
   SimpleTest.finish();
-  yield;
+  yield undefined;
 }
 
 callbackOnLoad = true;

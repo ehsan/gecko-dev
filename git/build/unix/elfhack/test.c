@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #ifdef DEF
 DEF(This)
 DEF(is)
@@ -79,6 +83,7 @@ DEF(several)
 DEF(times)
 
 #else
+#pragma GCC visibility push(default)
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -109,23 +114,29 @@ const char *strings2[] = {
 
 static int ret = 1;
 
-__attribute__((visibility("default"))) int print_status() {
+int print_status() {
     fprintf(stderr, "%s\n", ret ? "FAIL" : "PASS");
     return ret;
 }
 
 /* On ARM, this creates a .tbss section before .init_array, which
- * elfhack could then pick instead of .init_array */
+ * elfhack could then pick instead of .init_array.
+ * Also, when .tbss is big enough, elfhack may wrongfully consider
+ * following sections as part of the PT_TLS segment.
+ * Finally, gold makes TLS segments end on an aligned virtual address,
+ * even when the underlying section ends before that, and elfhack
+ * sanity checks may yield an error. */
 __thread int foo;
+__thread long long int bar[512];
 
-__attribute__((constructor)) void end_test() {
+void end_test() {
     static int count = 0;
     /* Only exit when both constructors have been called */
     if (++count == 2)
         ret = 0;
 }
 
-__attribute__((constructor)) void test() {
+void test() {
     int i = 0, j = 0;
 #define DEF_(a,i,w) \
     if (a[i++] != str_ ## w) return;
@@ -147,4 +158,5 @@ __attribute__((constructor)) void test() {
     end_test();
 }
 
+#pragma GCC visibility pop
 #endif

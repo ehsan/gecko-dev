@@ -10,22 +10,23 @@
       function testSteps()
       {
         const name = window.location.pathname;
-        const description = "My Test Database";
 
-        let request = mozIndexedDB.open(name, description);
+        let request = indexedDB.open(name, 1);
         request.onerror = grabEventAndContinueHandler;
         request.onsuccess = grabEventAndContinueHandler;
-        let event = yield;
+        let event = yield undefined;
 
         if (event.type == "success") {
           testResult = event.target.result;
         }
         else {
-          testException = event.target.errorCode;
+          testException = event.target.error.name;
         }
 
+        event.preventDefault();
+
         finishTest()
-        yield;
+        yield undefined;
       }
     </script>
 

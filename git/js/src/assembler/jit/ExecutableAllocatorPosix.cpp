@@ -23,13 +23,15 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#include "ExecutableAllocator.h"
+#include "assembler/jit/ExecutableAllocator.h"
 
-#if ENABLE_ASSEMBLER && WTF_PLATFORM_UNIX && !WTF_PLATFORM_SYMBIAN
+#if ENABLE_ASSEMBLER && WTF_OS_UNIX && !WTF_OS_SYMBIAN
 
 #include <sys/mman.h>
 #include <unistd.h>
-#include <wtf/VMTags.h>
+
+#include "assembler/wtf/Assertions.h"
+#include "assembler/wtf/VMTags.h"
 
 namespace JSC {
 
@@ -74,7 +76,7 @@ void ExecutableAllocator::reprotectRegion(void* start, size_t size, ProtectionSe
 }
 #endif
 
-#if WTF_CPU_ARM_TRADITIONAL && WTF_PLATFORM_LINUX && WTF_COMPILER_RVCT
+#if WTF_CPU_ARM_TRADITIONAL && WTF_OS_LINUX && WTF_COMPILER_RVCT
 __asm void ExecutableAllocator::cacheFlush(void* code, size_t size)
 {
     ARM

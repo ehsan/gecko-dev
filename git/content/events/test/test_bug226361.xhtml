@@ -4,7 +4,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=226361
 -->
 <head>
   <title>Test for Bug 226361</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -31,17 +30,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=226361
 // accessibility.tabfocus must be set to value 7 before running test also
 // on a mac.
 function setOrRestoreTabFocus(newValue) {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  const prefSvcContractID = "@mozilla.org/preferences-service;1";
-  const prefSvcIID = Components.interfaces.nsIPrefService;
-  var prefs = Components.classes[prefSvcContractID].getService(prefSvcIID)
-                                                   .getBranch("accessibility.");
   if (!newValue) {
-    if (prefs.prefHasUserValue("tabfocus")) {
-      prefs.clearUserPref("tabfocus");
-    }
+      SpecialPowers.clearUserPref("accessibility.tabfocus");
   } else {
-    prefs.setIntPref("tabfocus", newValue);
+    SpecialPowers.setIntPref("accessibility.tabfocus", newValue);
   }
 }
 
@@ -49,9 +41,7 @@ function setOrRestoreTabFocus(newValue) {
 
 var doc = document;
 function tab_to(id) {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var wu =  doc.defaultView.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                .getInterface(Components.interfaces.nsIDOMWindowUtils);
+  var wu = SpecialPowers.DOMWindowUtils;
   wu.sendKeyEvent('keypress',  9, 0, 0);
   is(doc.activeElement.id, id, "element with id=" + id + " should have focus");
 }

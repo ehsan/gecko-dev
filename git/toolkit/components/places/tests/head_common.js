@@ -1,43 +1,12 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Places Unit Tests Code.
- *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *  Marco Bonardo <mak77@bonardo.net>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+const CURRENT_SCHEMA_VERSION = 23;
 
 const NS_APP_USER_PROFILE_50_DIR = "ProfD";
 const NS_APP_PROFILE_DIR_STARTUP = "ProfDS";
-const NS_APP_HISTORY_50_FILE = "UHist";
 const NS_APP_BOOKMARKS_50_FILE = "BMarks";
 
 // Shortcuts to transitions type.
@@ -50,27 +19,33 @@ const TRANSITION_REDIRECT_PERMANENT = Ci.nsINavHistoryService.TRANSITION_REDIREC
 const TRANSITION_REDIRECT_TEMPORARY = Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY;
 const TRANSITION_DOWNLOAD = Ci.nsINavHistoryService.TRANSITION_DOWNLOAD;
 
-// This error icon must stay in sync with FAVICON_ERRORPAGE_URL in
-// nsIFaviconService.idl, aboutCertError.xhtml and netError.xhtml.
-const FAVICON_ERRORPAGE_URL = "chrome://global/skin/icons/warning-16.png";
+const TITLE_LENGTH_MAX = 4096;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "Services", function() {
-  Cu.import("resource://gre/modules/Services.jsm");
-  return Services;
-});
+XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
+                                  "resource://gre/modules/FileUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
+                                  "resource://gre/modules/NetUtil.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Promise",
+                                  "resource://gre/modules/commonjs/sdk/core/promise.js");
+XPCOMUtils.defineLazyModuleGetter(this, "Services",
+                                  "resource://gre/modules/Services.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Task",
+                                  "resource://gre/modules/Task.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "BookmarkJSONUtils",
+                                  "resource://gre/modules/BookmarkJSONUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
+                                  "resource://gre/modules/PlacesBackups.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
-  Cu.import("resource://gre/modules/NetUtil.jsm");
-  return NetUtil;
-});
+// This imports various other objects in addition to PlacesUtils.
+Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
-  Cu.import("resource://gre/modules/PlacesUtils.jsm");
-  return PlacesUtils;
+XPCOMUtils.defineLazyGetter(this, "SMALLPNG_DATA_URI", function() {
+  return NetUtil.newURI(
+         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAA" +
+         "AAAA6fptVAAAACklEQVQI12NgAAAAAgAB4iG8MwAAAABJRU5ErkJggg==");
 });
-
 
 function LOG(aMsg) {
   aMsg = ("*** PLACES TESTS: " + aMsg);
@@ -78,38 +53,13 @@ function LOG(aMsg) {
   print(aMsg);
 }
 
-
 let gTestDir = do_get_cwd();
-
-// Ensure history is enabled.
-Services.prefs.setBoolPref("places.history.enabled", true);
 
 // Initialize profile.
 let gProfD = do_get_profile();
 
-// Add our own dirprovider for old history.dat.
-let (provider = {
-      getFile: function(prop, persistent) {
-        persistent.value = true;
-        if (prop == NS_APP_HISTORY_50_FILE) {
-          let histFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
-          histFile.append("history.dat");
-          return histFile;
-        }
-        throw Cr.NS_ERROR_FAILURE;
-      },
-      QueryInterface: XPCOMUtils.generateQI([Ci.nsIDirectoryServiceProvider])
-    })
-{
-  Cc["@mozilla.org/file/directory_service;1"].
-  getService(Ci.nsIDirectoryService).
-  QueryInterface(Ci.nsIDirectoryService).registerProvider(provider);
-}
-
-
 // Remove any old database.
 clearDB();
-
 
 /**
  * Shortcut to create a nsIURI.
@@ -124,45 +74,115 @@ function uri(aSpec) NetUtil.newURI(aSpec);
  * Gets the database connection.  If the Places connection is invalid it will
  * try to create a new connection.
  *
+ * @param [optional] aForceNewConnection
+ *        Forces creation of a new connection to the database.  When a
+ *        connection is asyncClosed it cannot anymore schedule async statements,
+ *        though connectionReady will keep returning true (Bug 726990).
+ *
  * @return The database connection or null if unable to get one.
  */
-function DBConn() {
-  let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
-                              .DBConnection;
-  if (db.connectionReady)
-    return db;
+let gDBConn;
+function DBConn(aForceNewConnection) {
+  if (!aForceNewConnection) {
+    let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
+                                .DBConnection;
+    if (db.connectionReady)
+      return db;
+  }
 
-  // If the database has been closed, then we need to open a new connection.
-  let file = Services.dirsvc.get('ProfD', Ci.nsIFile);
-  file.append("places.sqlite");
-  return Services.storage.openDatabase(file);
+  // If the Places database connection has been closed, create a new connection.
+  if (!gDBConn || aForceNewConnection) {
+    let file = Services.dirsvc.get('ProfD', Ci.nsIFile);
+    file.append("places.sqlite");
+    let dbConn = gDBConn = Services.storage.openDatabase(file);
+
+    // Be sure to cleanly close this connection.
+    Services.obs.addObserver(function DBCloseCallback(aSubject, aTopic, aData) {
+      Services.obs.removeObserver(DBCloseCallback, aTopic);
+      dbConn.asyncClose();
+    }, "profile-before-change", false);
+  }
+
+  return gDBConn.connectionReady ? gDBConn : null;
 };
 
+/**
+ * Reads data from the provided inputstream.
+ *
+ * @return an array of bytes.
+ */ 
+function readInputStreamData(aStream) {
+  let bistream = Cc["@mozilla.org/binaryinputstream;1"].
+                 createInstance(Ci.nsIBinaryInputStream);
+  try {
+    bistream.setInputStream(aStream);
+    let expectedData = [];
+    let avail;
+    while ((avail = bistream.available())) {
+      expectedData = expectedData.concat(bistream.readByteArray(avail));
+    }
+    return expectedData;
+  } finally {
+    bistream.close();
+  }
+}
 
 /**
- * Reads the data from the specified nsIFile, and returns an array of bytes.
+ * Reads the data from the specified nsIFile.
  *
  * @param aFile
  *        The nsIFile to read from.
+ * @return an array of bytes.
  */
 function readFileData(aFile) {
   let inputStream = Cc["@mozilla.org/network/file-input-stream;1"].
                     createInstance(Ci.nsIFileInputStream);
   // init the stream as RD_ONLY, -1 == default permissions.
   inputStream.init(aFile, 0x01, -1, null);
-  let size = inputStream.available();
 
-  // use a binary input stream to grab the bytes.
-  let bis = Cc["@mozilla.org/binaryinputstream;1"].
-            createInstance(Ci.nsIBinaryInputStream);
-  bis.setInputStream(inputStream);
-
-  let bytes = bis.readByteArray(size);
-
-  if (size != bytes.length)
-      throw "Didn't read expected number of bytes";
-
+  // Check the returned size versus the expected size.
+  let size  = inputStream.available();
+  let bytes = readInputStreamData(inputStream);
+  if (size != bytes.length) {
+    throw "Didn't read expected number of bytes";
+  }
   return bytes;
+}
+
+/**
+ * Reads the data from the named file, verifying the expected file length.
+ *
+ * @param aFileName
+ *        This file should be located in the same folder as the test.
+ * @param aExpectedLength
+ *        Expected length of the file.
+ *
+ * @return The array of bytes read from the file.
+ */
+function readFileOfLength(aFileName, aExpectedLength) {
+  let data = readFileData(do_get_file(aFileName));
+  do_check_eq(data.length, aExpectedLength);
+  return data;
+}
+
+
+/**
+ * Returns the base64-encoded version of the given string.  This function is
+ * similar to window.btoa, but is available to xpcshell tests also.
+ *
+ * @param aString
+ *        Each character in this string corresponds to a byte, and must be a
+ *        code point in the range 0-255.
+ *
+ * @return The base64-encoded string.
+ */
+function base64EncodeString(aString) {
+  var stream = Cc["@mozilla.org/io/string-input-stream;1"]
+               .createInstance(Ci.nsIStringInputStream);
+  stream.setData(aString, aString.length);
+  var encoder = Cc["@mozilla.org/scriptablebase64encoder;1"]
+                .createInstance(Ci.nsIScriptableBase64Encoder);
+  return encoder.encodeToString(stream, aString.length);
 }
 
 
@@ -336,40 +356,40 @@ function check_no_bookmarks() {
   root.containerOpen = false;
 }
 
-
-
 /**
- * Sets title synchronously for a page in moz_places.
+ * Allows waiting for an observer notification once.
  *
- * @param aURI
- *        An nsIURI to set the title for.
- * @param aTitle
- *        The title to set the page to.
- * @throws if the page is not found in the database.
+ * @param aTopic
+ *        Notification topic to observe.
  *
- * @note This is just a test compatibility mock.
+ * @return {Promise}
+ * @resolves The array [aSubject, aData] from the observed notification.
+ * @rejects Never.
  */
-function setPageTitle(aURI, aTitle) {
-  PlacesUtils.history.setPageTitle(aURI, aTitle);
+function promiseTopicObserved(aTopic)
+{
+  let deferred = Promise.defer();
+
+  Services.obs.addObserver(
+    function PTO_observe(aSubject, aTopic, aData) {
+      Services.obs.removeObserver(PTO_observe, aTopic);
+      deferred.resolve([aSubject, aData]);
+    }, aTopic, false);
+
+  return deferred.promise;
 }
 
-
 /**
- * Clears history invoking callback when done.
+ * Clears history asynchronously.
  *
- * @param aCallback
- *        Callback function to be called once clear history has finished.
+ * @return {Promise}
+ * @resolves When history has been cleared.
+ * @rejects Never.
  */
-function waitForClearHistory(aCallback) {
-  let observer = {
-    observe: function(aSubject, aTopic, aData) {
-      Services.obs.removeObserver(this, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
-      aCallback();
-    }
-  };
-  Services.obs.addObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
-
-  PlacesUtils.bhistory.removeAllPages();
+function promiseClearHistory() {
+  let promise = promiseTopicObserved(PlacesUtils.TOPIC_EXPIRATION_FINISHED);
+  do_execute_soon(function() PlacesUtils.bhistory.removeAllPages());
+  return promise;
 }
 
 
@@ -383,6 +403,10 @@ function shutdownPlaces(aKeepAliveConnection)
   hs.observe(null, "profile-before-change", null);
 }
 
+const FILENAME_BOOKMARKS_HTML = "bookmarks.html";
+let (backup_date = new Date().toLocaleFormat("%Y-%m-%d")) {
+  const FILENAME_BOOKMARKS_JSON = "bookmarks-" + backup_date + ".json";
+}
 
 /**
  * Creates a bookmarks.html file in the profile folder from a given source file.
@@ -446,18 +470,22 @@ function check_bookmarks_html() {
 function create_JSON_backup(aFilename) {
   if (!aFilename)
     do_throw("you must pass a filename to create_JSON_backup function");
-  remove_all_JSON_backups();
   let bookmarksBackupDir = gProfD.clone();
   bookmarksBackupDir.append("bookmarkbackups");
   if (!bookmarksBackupDir.exists()) {
-    bookmarksBackupDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0777);
+    bookmarksBackupDir.create(Ci.nsIFile.DIRECTORY_TYPE, parseInt("0755", 8));
     do_check_true(bookmarksBackupDir.exists());
+  }
+  let profileBookmarksJSONFile = bookmarksBackupDir.clone();
+  profileBookmarksJSONFile.append(FILENAME_BOOKMARKS_JSON);
+  if (profileBookmarksJSONFile.exists()) {
+    profileBookmarksJSONFile.remove();
   }
   let bookmarksJSONFile = gTestDir.clone();
   bookmarksJSONFile.append(aFilename);
   do_check_true(bookmarksJSONFile.exists());
   bookmarksJSONFile.copyTo(bookmarksBackupDir, FILENAME_BOOKMARKS_JSON);
-  let profileBookmarksJSONFile = bookmarksBackupDir.clone();
+  profileBookmarksJSONFile = bookmarksBackupDir.clone();
   profileBookmarksJSONFile.append(FILENAME_BOOKMARKS_JSON);
   do_check_true(profileBookmarksJSONFile.exists());
   return profileBookmarksJSONFile;
@@ -480,45 +508,32 @@ function remove_all_JSON_backups() {
 /**
  * Check a JSON backup file for today exists in the profile folder.
  *
+ * @param aIsAutomaticBackup The boolean indicates whether it's an automatic
+ *        backup.
  * @return nsIFile object for the file.
  */
-function check_JSON_backup() {
-  let profileBookmarksJSONFile = gProfD.clone();
-  profileBookmarksJSONFile.append("bookmarkbackups");
-  profileBookmarksJSONFile.append(FILENAME_BOOKMARKS_JSON);
+function check_JSON_backup(aIsAutomaticBackup) {
+  let profileBookmarksJSONFile;
+  if (aIsAutomaticBackup) {
+    let bookmarksBackupDir = gProfD.clone();
+    bookmarksBackupDir.append("bookmarkbackups");
+    let files = bookmarksBackupDir.directoryEntries;
+    let backup_date = new Date().toLocaleFormat("%Y-%m-%d");
+    let rx = new RegExp("^bookmarks-" + backup_date + "_[0-9]+\.json$");
+    while (files.hasMoreElements()) {
+      let entry = files.getNext().QueryInterface(Ci.nsIFile);
+      if (entry.leafName.match(rx)) {
+        profileBookmarksJSONFile = entry;
+        break;
+      }
+    }
+  } else {
+    profileBookmarksJSONFile = gProfD.clone();
+    profileBookmarksJSONFile.append("bookmarkbackups");
+    profileBookmarksJSONFile.append(FILENAME_BOOKMARKS_JSON);
+  }
   do_check_true(profileBookmarksJSONFile.exists());
   return profileBookmarksJSONFile;
-}
-
-
-/**
- * Waits for a frecency update then calls back.
- *
- * @param aURI
- *        URI or spec of the page we are waiting frecency for.
- * @param aValidator
- *        Validator function for the current frecency. If it returns true we
- *        have the expected frecency, otherwise we wait for next update.
- * @param aCallback
- *        function invoked when frecency update finishes.
- * @param aCbScope
- *        "this" scope for the callback
- * @param aCbArguments
- *        array of arguments to be passed to the callback
- *
- * @note since frecency is something that can be changed by a bunch of stuff
- *       like adding and removing visits, bookmarks we use a polling strategy.
- */
-function waitForFrecency(aURI, aValidator, aCallback, aCbScope, aCbArguments) {
-  Services.obs.addObserver(function (aSubject, aTopic, aData) {
-    let frecency = frecencyForUrl(aURI);
-    if (!aValidator(frecency)) {
-      print("Has to wait for frecency...");
-      return;
-    }
-    Services.obs.removeObserver(arguments.callee, aTopic);
-    aCallback.apply(aCbScope, aCbArguments);
-  }, "places-frecency-updated", false);
 }
 
 /**
@@ -535,12 +550,14 @@ function frecencyForUrl(aURI)
     "SELECT frecency FROM moz_places WHERE url = ?1"
   );
   stmt.bindByIndex(0, url);
-  if (!stmt.executeStep())
-    throw new Error("No result for frecency.");
-  let frecency = stmt.getInt32(0);
-  stmt.finalize();
-
-  return frecency;
+  try {
+    if (!stmt.executeStep()) {
+      throw new Error("No result for frecency.");
+    }
+    return stmt.getInt32(0);
+  } finally {
+    stmt.finalize();
+  }
 }
 
 /**
@@ -585,15 +602,11 @@ function is_time_ordered(before, after) {
 }
 
 /**
- * Waits for all pending async statements on the default connection, before
- * proceeding with aCallback.
+ * Waits for all pending async statements on the default connection.
  *
- * @param aCallback
- *        Function to be called when done.
- * @param aScope
- *        Scope for the callback.
- * @param aArguments
- *        Arguments array for the callback.
+ * @return {Promise}
+ * @resolves When all pending async statements finished.
+ * @rejects Never.
  *
  * @note The result is achieved by asynchronously executing a query requiring
  *       a write lock.  Since all statements on the same connection are
@@ -601,20 +614,42 @@ function is_time_ordered(before, after) {
  *       complete.  Note that WAL makes so that writers don't block readers, but
  *       this is a problem only across different connections.
  */
-function waitForAsyncUpdates(aCallback, aScope, aArguments)
+function promiseAsyncUpdates()
 {
-  let scope = aScope || this;
-  let args = aArguments || [];
+  let deferred = Promise.defer();
+
   let db = DBConn();
-  db.createAsyncStatement("BEGIN EXCLUSIVE").executeAsync();
-  db.createAsyncStatement("COMMIT").executeAsync({
-    handleResult: function() {},
-    handleError: function() {},
+  let begin = db.createAsyncStatement("BEGIN EXCLUSIVE");
+  begin.executeAsync();
+  begin.finalize();
+
+  let commit = db.createAsyncStatement("COMMIT");
+  commit.executeAsync({
+    handleResult: function () {},
+    handleError: function () {},
     handleCompletion: function(aReason)
     {
-      aCallback.apply(scope, args);
+      deferred.resolve();
     }
   });
+  commit.finalize();
+
+  return deferred.promise;
+}
+
+/**
+ * Shutdowns Places, invoking the callback when the connection has been closed.
+ *
+ * @param aCallback
+ *        Function to be called when done.
+ */
+function waitForConnectionClosed(aCallback)
+{
+  Services.obs.addObserver(function WFCCCallback() {
+    Services.obs.removeObserver(WFCCCallback, "places-connection-closed");
+    aCallback();
+  }, "places-connection-closed", false);
+  shutdownPlaces();
 }
 
 /**
@@ -635,6 +670,34 @@ function do_check_valid_places_guid(aGuid,
 }
 
 /**
+ * Retrieves the guid for a given uri.
+ *
+ * @param aURI
+ *        The uri to check.
+ * @param [optional] aStack
+ *        The stack frame used to report the error.
+ * @return the associated the guid.
+ */
+function do_get_guid_for_uri(aURI,
+                             aStack)
+{
+  if (!aStack) {
+    aStack = Components.stack.caller;
+  }
+  let stmt = DBConn().createStatement(
+    "SELECT guid "
+  + "FROM moz_places "
+  + "WHERE url = :url "
+  );
+  stmt.params.url = aURI.spec;
+  do_check_true(stmt.executeStep(), aStack);
+  let guid = stmt.row.guid;
+  stmt.finalize();
+  do_check_valid_places_guid(guid, aStack);
+  return guid;
+}
+
+/**
  * Tests that a guid was set in moz_places for a given uri.
  *
  * @param aURI
@@ -646,19 +709,58 @@ function do_check_guid_for_uri(aURI,
                                aGUID)
 {
   let caller = Components.stack.caller;
-  let stmt = DBConn().createStatement(
-    "SELECT guid "
-  + "FROM moz_places "
-  + "WHERE url = :url "
-  );
-  stmt.params.url = aURI.spec;
-  do_check_true(stmt.executeStep(), caller);
-  do_check_valid_places_guid(stmt.row.guid, caller);
+  let guid = do_get_guid_for_uri(aURI, caller);
   if (aGUID) {
     do_check_valid_places_guid(aGUID, caller);
-    do_check_eq(stmt.row.guid, aGUID, caller);
+    do_check_eq(guid, aGUID, caller);
   }
+}
+
+/**
+ * Retrieves the guid for a given bookmark.
+ *
+ * @param aId
+ *        The bookmark id to check.
+ * @param [optional] aStack
+ *        The stack frame used to report the error.
+ * @return the associated the guid.
+ */
+function do_get_guid_for_bookmark(aId,
+                                  aStack)
+{
+  if (!aStack) {
+    aStack = Components.stack.caller;
+  }
+  let stmt = DBConn().createStatement(
+    "SELECT guid "
+  + "FROM moz_bookmarks "
+  + "WHERE id = :item_id "
+  );
+  stmt.params.item_id = aId;
+  do_check_true(stmt.executeStep(), aStack);
+  let guid = stmt.row.guid;
   stmt.finalize();
+  do_check_valid_places_guid(guid, aStack);
+  return guid;
+}
+
+/**
+ * Tests that a guid was set in moz_places for a given bookmark.
+ *
+ * @param aId
+ *        The bookmark id to check.
+ * @param [optional] aGUID
+ *        The expected guid in the database.
+ */
+function do_check_guid_for_bookmark(aId,
+                                    aGUID)
+{
+  let caller = Components.stack.caller;
+  let guid = do_get_guid_for_bookmark(aId, caller);
+  if (aGUID) {
+    do_check_valid_places_guid(aGUID, caller);
+    do_check_eq(guid, aGUID, caller);
+  }
 }
 
 /**
@@ -696,3 +798,155 @@ function do_compare_arrays(a1, a2, sorted)
            a2.filter(function (e) a1.indexOf(e) == -1).length == 0;
   }
 }
+
+/**
+ * Generic nsINavBookmarkObserver that doesn't implement anything, but provides
+ * dummy methods to prevent errors about an object not having a certain method.
+ */
+function NavBookmarkObserver() {}
+
+NavBookmarkObserver.prototype = {
+  onBeginUpdateBatch: function () {},
+  onEndUpdateBatch: function () {},
+  onItemAdded: function () {},
+  onItemRemoved: function () {},
+  onItemChanged: function () {},
+  onItemVisited: function () {},
+  onItemMoved: function () {},
+  QueryInterface: XPCOMUtils.generateQI([
+    Ci.nsINavBookmarkObserver,
+  ])
+};
+
+/**
+ * Generic nsINavHistoryObserver that doesn't implement anything, but provides
+ * dummy methods to prevent errors about an object not having a certain method.
+ */
+function NavHistoryObserver() {}
+
+NavHistoryObserver.prototype = {
+  onBeginUpdateBatch: function () {},
+  onEndUpdateBatch: function () {},
+  onVisit: function () {},
+  onTitleChanged: function () {},
+  onDeleteURI: function () {},
+  onClearHistory: function () {},
+  onPageChanged: function () {},
+  onDeleteVisits: function () {},
+  QueryInterface: XPCOMUtils.generateQI([
+    Ci.nsINavHistoryObserver,
+  ])
+};
+
+/**
+ * Generic nsINavHistoryResultObserver that doesn't implement anything, but
+ * provides dummy methods to prevent errors about an object not having a certain
+ * method.
+ */
+function NavHistoryResultObserver() {}
+
+NavHistoryResultObserver.prototype = {
+  batching: function () {},
+  containerClosed: function () {},
+  containerOpened: function () {},
+  containerStateChanged: function () {},
+  invalidateContainer: function () {},
+  nodeAnnotationChanged: function () {},
+  nodeDateAddedChanged: function () {},
+  nodeHistoryDetailsChanged: function () {},
+  nodeIconChanged: function () {},
+  nodeInserted: function () {},
+  nodeKeywordChanged: function () {},
+  nodeLastModifiedChanged: function () {},
+  nodeMoved: function () {},
+  nodeRemoved: function () {},
+  nodeTagsChanged: function () {},
+  nodeTitleChanged: function () {},
+  nodeURIChanged: function () {},
+  sortingChanged: function () {},
+  QueryInterface: XPCOMUtils.generateQI([
+    Ci.nsINavHistoryResultObserver,
+  ])
+};
+
+/**
+ * Asynchronously adds visits to a page.
+ *
+ * @param aPlaceInfo
+ *        Can be an nsIURI, in such a case a single LINK visit will be added.
+ *        Otherwise can be an object describing the visit to add, or an array
+ *        of these objects:
+ *          { uri: nsIURI of the page,
+ *            transition: one of the TRANSITION_* from nsINavHistoryService,
+ *            [optional] title: title of the page,
+ *            [optional] visitDate: visit date in microseconds from the epoch
+ *            [optional] referrer: nsIURI of the referrer for this visit
+ *          }
+ *
+ * @return {Promise}
+ * @resolves When all visits have been added successfully.
+ * @rejects JavaScript exception.
+ */
+function promiseAddVisits(aPlaceInfo)
+{
+  let deferred = Promise.defer();
+  let places = [];
+  if (aPlaceInfo instanceof Ci.nsIURI) {
+    places.push({ uri: aPlaceInfo });
+  }
+  else if (Array.isArray(aPlaceInfo)) {
+    places = places.concat(aPlaceInfo);
+  } else {
+    places.push(aPlaceInfo)
+  }
+
+  // Create mozIVisitInfo for each entry.
+  let now = Date.now();
+  for (let i = 0; i < places.length; i++) {
+    if (!places[i].title) {
+      places[i].title = "test visit for " + places[i].uri.spec;
+    }
+    places[i].visits = [{
+      transitionType: places[i].transition === undefined ? TRANSITION_LINK
+                                                         : places[i].transition,
+      visitDate: places[i].visitDate || (now++) * 1000,
+      referrerURI: places[i].referrer
+    }];
+  }
+
+  PlacesUtils.asyncHistory.updatePlaces(
+    places,
+    {
+      handleError: function AAV_handleError(aResultCode, aPlaceInfo) {
+        let ex = new Components.Exception("Unexpected error in adding visits.",
+                                          aResultCode);
+        deferred.reject(ex);
+      },
+      handleResult: function () {},
+      handleCompletion: function UP_handleCompletion() {
+        deferred.resolve();
+      }
+    }
+  );
+
+  return deferred.promise;
+}
+
+/**
+ * Asynchronously check a url is visited.
+ *
+ * @param aURI The URI.
+ * @return {Promise}
+ * @resolves When the check has been added successfully.
+ * @rejects JavaScript exception.
+ */
+function promiseIsURIVisited(aURI) {
+  let deferred = Promise.defer();
+
+  PlacesUtils.asyncHistory.isURIVisited(aURI, function(aURI, aIsVisited) {
+    deferred.resolve(aIsVisited);
+  });
+
+  return deferred.promise;
+}
+

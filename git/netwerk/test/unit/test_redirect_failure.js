@@ -1,9 +1,21 @@
-do_load_httpd_js();
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
+Cu.import("resource://testing-common/httpd.js");
+
+XPCOMUtils.defineLazyGetter(this, "URL", function() {
+  return "http://localhost:" + httpServer.identity.primaryPort;
+});
 
 var httpServer = null;
 // Need to randomize, because apparently no one clears our cache
 var randomPath = "/redirect/" + Math.random();
-var randomURI = "http://localhost:4444" + randomPath;
+
+XPCOMUtils.defineLazyGetter(this, "randomURI", function() {
+  return URL + randomPath;
+});
 
 function make_channel(url, callback, ctx) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
@@ -14,23 +26,26 @@ function make_channel(url, callback, ctx) {
 function redirectHandler(metadata, response)
 {
   response.setStatusLine(metadata.httpVersion, 301, "Moved");
-  response.setHeader("Location", "httpx://localhost:4444/content", false);
+  response.setHeader("Location", "httpx://localhost:" +
+                     httpServer.identity.primaryPort + "/content", false);
   response.setHeader("Cache-Control", "no-cache", false);
 }
 
 function finish_test(request, buffer)
 {
+  do_check_eq(request.status, Components.results.NS_ERROR_UNKNOWN_PROTOCOL);
+
   do_check_eq(buffer, "");
   httpServer.stop(do_test_finished);
 }
 
 function run_test()
 {
-  httpServer = new nsHttpServer();
+  httpServer = new HttpServer();
   httpServer.registerPathHandler(randomPath, redirectHandler);
-  httpServer.start(4444);
+  httpServer.start(-1);
 
   var chan = make_channel(randomURI);
-  chan.asyncOpen(new ChannelListener(finish_test), null);
+  chan.asyncOpen(new ChannelListener(finish_test, null, CL_EXPECT_FAILURE), null);
   do_test_pending();
 }

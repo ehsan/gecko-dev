@@ -1,40 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Stuart Parmenter <pavlov@netscape.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
  * No magic constructor behaviour, as is de rigeur for XPCOM.
@@ -121,15 +88,55 @@ nsFilePicker.prototype = {
   },
 
   /* readonly attribute nsILocalFile file; */
-  set file(a) { throw "readonly property"; },
   get file()  { return this.mFilesEnumerator.mFiles[0]; },
 
   /* readonly attribute nsISimpleEnumerator files; */
-  set files(a) { throw "readonly property"; },
   get files()  { return this.mFilesEnumerator; },
 
+  /* readonly attribute nsIDOMFile domfile; */
+  get domfile()  {
+    let enumerator = this.domfiles;
+    return enumerator ? enumerator.mFiles[0] : null;
+  },
+
+  /* readonly attribute nsISimpleEnumerator domfiles; */
+  get domfiles()  {
+    if (!this.mFilesEnumerator) {
+      return null;
+    }
+
+    if (!this.mDOMFilesEnumerator) {
+      this.mDOMFilesEnumerator = {
+        QueryInterface: XPCOMUtils.generateQI([Components.interfaces.nsISimpleEnumerator]),
+
+        mFiles: [],
+        mIndex: 0,
+
+        hasMoreElements: function() {
+          return (this.mIndex < this.mFiles.length);
+        },
+
+        getNext: function() {
+          if (this.mIndex >= this.mFiles.length) {
+            throw Components.results.NS_ERROR_FAILURE;
+          }
+          return this.mFiles[this.mIndex++];
+        }
+      };
+
+      var utils = this.mParentWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                                    .getInterface(Components.interfaces.nsIDOMWindowUtils);
+
+      for (var i = 0; i < this.mFilesEnumerator.mFiles.length; ++i) {
+        var file = utils.wrapDOMFile(this.mFilesEnumerator.mFiles[i]);
+        this.mDOMFilesEnumerator.mFiles.push(file);
+      }
+    }
+
+    return this.mDOMFilesEnumerator;
+  },
+
   /* readonly attribute nsIURI fileURL; */
-  set fileURL(a) { throw "readonly property"; },
   get fileURL()  {
     if (this.mFileURL)
       return this.mFileURL;
@@ -161,6 +168,7 @@ nsFilePicker.prototype = {
 
   /* members */
   mFilesEnumerator: undefined,
+  mDOMFilesEnumerator: undefined,
   mParentWindow: null,
 
   /* methods */
@@ -216,6 +224,21 @@ nsFilePicker.prototype = {
     this.mFilters.push(extensions);
   },
 
+  open: function(aFilePickerShownCallback) {
+    var tm = Components.classes["@mozilla.org/thread-manager;1"]
+                       .getService(Components.interfaces.nsIThreadManager);
+    tm.mainThread.dispatch(function() {
+      let result = Components.interfaces.nsIFilePicker.returnCancel;
+      try {
+        result = this.show();
+      } catch(ex) {
+      }
+      if (aFilePickerShownCallback) {
+        aFilePickerShownCallback.done(result);
+      }
+    }.bind(this), Components.interfaces.nsIThread.DISPATCH_NORMAL);
+  },
+
   show: function() {
     var o = new Object();
     o.title = this.mTitle;
@@ -256,14 +279,10 @@ nsFilePicker.prototype = {
       dump("file picker couldn't get base window\n"+ex+"\n");
     }
     try {
-      if (parentWin)
-        parentWin.blurSuppression = true;
       parent.openDialog("chrome://global/content/filepicker.xul",
                         "",
                         "chrome,modal,titlebar,resizable=yes,dependent=yes",
                         o);
-      if (parentWin)
-        parentWin.blurSuppression = false;
 
       this.mFilterIndex = o.retvals.filterIndex;
       this.mFilesEnumerator = o.retvals.files;
@@ -281,7 +300,7 @@ if (DEBUG)
 else
   debug = function (s) {};
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsFilePicker]);
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory([nsFilePicker]);
 
 /* crap from strres.js that I want to use for string bundles since I can't include another .js file.... */
 

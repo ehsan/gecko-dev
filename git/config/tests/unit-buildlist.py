@@ -3,7 +3,7 @@ import unittest
 import os, sys, os.path, time
 from tempfile import mkdtemp
 from shutil import rmtree
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+import mozunit
 
 from buildlist import addEntriesToListFile
 
@@ -33,9 +33,13 @@ class TestBuildList(unittest.TestCase):
     lines = [line.rstrip() for line in f.readlines()]
     f.close()
     for line in lines:
-      self.assert_(len(l) > 0, "ran out of expected lines! (expected '%s', got '%s')" % (l, lines))
+      self.assert_(len(l) > 0,
+                   "ran out of expected lines! (expected '{0}', got '{1}')"
+                   .format(l, lines))
       self.assertEqual(line, l.pop(0))
-    self.assert_(len(l) == 0, "not enough lines in file! (expected '%s', got '%s'" % (l, lines))
+    self.assert_(len(l) == 0, 
+                 "not enough lines in file! (expected '{0}',"
+                 " got '{1}'".format(l, lines))
 
   def test_basic(self):
     "Test that addEntriesToListFile works when file doesn't exist."
@@ -77,4 +81,4 @@ class TestBuildList(unittest.TestCase):
     self.assertFileContains(testfile, ["a","b","c"])
 
 if __name__ == '__main__':
-  unittest.main()
+  mozunit.main()

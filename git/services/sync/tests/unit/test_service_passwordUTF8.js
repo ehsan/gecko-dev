@@ -1,6 +1,10 @@
+/* Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/ */
+
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/service.js");
+Cu.import("resource://testing-common/services/sync/utils.js");
 
 const JAPANESE = "\u34ff\u35ff\u36ff\u37ff";
 const APPLES = "\uf8ff\uf8ff\uf8ff\uf8ff";
@@ -53,7 +57,7 @@ function run_test() {
   let collectionsHelper = track_collections_helper();
   let upd = collectionsHelper.with_updated_collection;
   let collections = collectionsHelper.collections;
-  
+
   do_test_pending();
   let server = httpd_setup({
     "/1.1/johndoe/info/collections":    login_handling(collectionsHelper.handler),
@@ -62,10 +66,8 @@ function run_test() {
     "/user/1.0/johndoe/password":       change_password
   });
 
-  Service.username = "johndoe";
-  Service.password = JAPANESE;
-  Service.passphrase = "cantentsveryrelevantabbbb";
-  Service.serverURL = "http://localhost:8080/";
+  setBasicCredentials("johndoe", JAPANESE, "irrelevant");
+  Service.serverURL = server.baseURI;
 
   try {
     _("Try to log in with the password.");
@@ -73,13 +75,14 @@ function run_test() {
     do_check_false(Service.verifyLogin());
     do_check_eq(server_password, "foobar");
 
-    _("Make the server password the low byte version of our password.  Login should work and have transparently changed the password to the UTF8 version.");
+    _("Make the server password the low byte version of our password.");
     server_password = LOWBYTES;
-    do_check_true(Service.verifyLogin());
-    do_check_eq(server_password, Utils.encodeUTF8(JAPANESE));
+    do_check_false(Service.verifyLogin());
+    do_check_eq(server_password, LOWBYTES);
 
     _("Can't use a password that has the same low bytes as ours.");
-    Service.password = APPLES;
+    server_password = Utils.encodeUTF8(JAPANESE);
+    Service.identity.basicPassword = APPLES;
     do_check_false(Service.verifyLogin());
     do_check_eq(server_password, Utils.encodeUTF8(JAPANESE));
 

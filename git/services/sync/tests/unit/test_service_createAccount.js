@@ -1,9 +1,15 @@
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/service.js");
+Cu.import("resource://testing-common/services/sync/utils.js");
 
 function run_test() {
-  var requestBody;
-  var secretHeader;
+  initTestLogging("Trace");
+
+  let requestBody;
+  let secretHeader;
   function send(statusCode, status, body) {
     return function(request, response) {
       requestBody = readBytesFromInputStream(request.bodyInputStream);
@@ -26,7 +32,7 @@ function run_test() {
     "/user/1.0/vz6fhecgw5t3sgx3a4cektoiokyczkqd": send(500, "Server Error", "Server Error")
   });
   try {
-    Service.serverURL = "http://localhost:8080/";
+    Service.serverURL = server.baseURI;
 
     _("Create an account.");
     let res = Service.createAccount("john@doe.com", "mysecretpw",

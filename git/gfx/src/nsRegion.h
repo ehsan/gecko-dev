@@ -1,46 +1,14 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Dainis Jonitis, <Dainis_Jonitis@swh-t.lv>.
- * Portions created by the Initial Developer are Copyright (C) 2001
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
 #ifndef nsRegion_h__
 #define nsRegion_h__
 
-
 #include "nsRect.h"
 #include "nsPoint.h"
+#include "nsString.h"
 
 class nsIntRegion;
 
@@ -66,13 +34,13 @@ class NS_GFX nsRegion
   struct nsRectFast : public nsRect
   {
     nsRectFast () {}      // No need to call parent constructor to set default values
-    nsRectFast (PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight) : nsRect (aX, aY, aWidth, aHeight) {}
+    nsRectFast (int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight) : nsRect (aX, aY, aWidth, aHeight) {}
     nsRectFast (const nsRect& aRect) : nsRect (aRect) {}
 
     // Override nsRect methods to make them inline. Do not check for emptiness.
-    inline PRBool Contains (const nsRect& aRect) const;
-    inline PRBool Intersects (const nsRect& aRect) const;
-    inline PRBool IntersectRect (const nsRect& aRect1, const nsRect& aRect2);
+    inline bool Contains (const nsRect& aRect) const;
+    inline bool Intersects (const nsRect& aRect) const;
+    inline bool IntersectRect (const nsRect& aRect1, const nsRect& aRect2);
     inline void UnionRect (const nsRect& aRect1, const nsRect& aRect2);
   };
 
@@ -83,7 +51,7 @@ class NS_GFX nsRegion
     RgnRect* next;
 
     RgnRect () {}                           // No need to call parent constructor to set default values
-    RgnRect (PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight) : nsRectFast (aX, aY, aWidth, aHeight) {}
+    RgnRect (int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight) : nsRectFast (aX, aY, aWidth, aHeight) {}
     RgnRect (const nsRectFast& aRect) : nsRectFast (aRect) {}
 
     void* operator new (size_t) CPP_THROW_NEW;
@@ -159,11 +127,11 @@ public:
     return Sub (*this, aRect2);
   }
 
-  PRBool Contains (const nsRect& aRect) const;
-  PRBool Contains (const nsRegion& aRgn) const;
-  PRBool Intersects (const nsRect& aRect) const;
+  bool Contains (const nsRect& aRect) const;
+  bool Contains (const nsRegion& aRgn) const;
+  bool Intersects (const nsRect& aRect) const;
 
-  void MoveBy (PRInt32 aXOffset, PRInt32 aYOffset)
+  void MoveBy (int32_t aXOffset, int32_t aYOffset)
   {
     MoveBy (nsPoint (aXOffset, aYOffset));
   }
@@ -174,20 +142,24 @@ public:
     mBoundRect.SetRect (0, 0, 0, 0);
   }
 
-  PRBool IsEmpty () const { return mRectCount == 0; }
-  PRBool IsComplex () const { return mRectCount > 1; }
-  PRBool IsEqual (const nsRegion& aRegion) const;
-  PRUint32 GetNumRects () const { return mRectCount; }
+  bool IsEmpty () const { return mRectCount == 0; }
+  bool IsComplex () const { return mRectCount > 1; }
+  bool IsEqual (const nsRegion& aRegion) const;
+  uint32_t GetNumRects () const { return mRectCount; }
   const nsRect& GetBounds () const { return mBoundRect; }
+  uint64_t Area () const;
   // Converts this region from aFromAPP, an appunits per pixel ratio, to
   // aToAPP. This applies nsRect::ConvertAppUnitsRoundOut/In to each rect of
   // the region.
-  nsRegion ConvertAppUnitsRoundOut (PRInt32 aFromAPP, PRInt32 aToAPP) const;
-  nsRegion ConvertAppUnitsRoundIn (PRInt32 aFromAPP, PRInt32 aToAPP) const;
+  nsRegion ConvertAppUnitsRoundOut (int32_t aFromAPP, int32_t aToAPP) const;
+  nsRegion ConvertAppUnitsRoundIn (int32_t aFromAPP, int32_t aToAPP) const;
   nsRegion& ScaleRoundOut(float aXScale, float aYScale);
+  nsRegion& ScaleInverseRoundOut(float aXScale, float aYScale);
+  nsIntRegion ScaleToOutsidePixels (float aXScale, float aYScale, nscoord aAppUnitsPerPixel) const;
+  nsIntRegion ScaleToInsidePixels (float aXScale, float aYScale, nscoord aAppUnitsPerPixel) const;
+  nsIntRegion ScaleToNearestPixels (float aXScale, float aYScale, nscoord aAppUnitsPerPixel) const;
   nsIntRegion ToOutsidePixels (nscoord aAppUnitsPerPixel) const;
   nsIntRegion ToNearestPixels (nscoord aAppUnitsPerPixel) const;
-  nsRegion& ExtendForScaling (float aXMult, float aYMult);
 
   /**
    * Gets the largest rectangle contained in the region.
@@ -203,13 +175,13 @@ public:
    * original region. The simplified region's bounding box will be
    * the same as for the current region.
    */
-  void SimplifyOutward (PRUint32 aMaxRects);
+  void SimplifyOutward (uint32_t aMaxRects);
   /**
    * Make sure the region has at most aMaxRects by removing area from
    * it if necessary. The simplified region will be a subset of the
    * original region.
    */
-  void SimplifyInward (PRUint32 aMaxRects);
+  void SimplifyInward (uint32_t aMaxRects);
   /**
    * Efficiently try to remove a rectangle from this region. The actual
    * area removed could be some sub-area contained by the rectangle
@@ -228,6 +200,8 @@ public:
    */
   void SimpleSubtract (const nsRegion& aRegion);
 
+  nsCString ToString() const;
+
   /**
    * Initialize any static data associated with nsRegion.
    */
@@ -239,7 +213,7 @@ public:
   static void ShutdownStatic();
 
 private:
-  PRUint32    mRectCount;
+  uint32_t    mRectCount;
   RgnRect*    mCurRect;
   RgnRect     mRectListHead;
   nsRectFast  mBoundRect;
@@ -249,9 +223,9 @@ private:
   nsRegion& Copy (const nsRect& aRect);
   void InsertBefore (RgnRect* aNewRect, RgnRect* aRelativeRect);
   void InsertAfter (RgnRect* aNewRect, RgnRect* aRelativeRect);
-  void SetToElements (PRUint32 aCount);
+  void SetToElements (uint32_t aCount);
   RgnRect* Remove (RgnRect* aRect);
-  void InsertInPlace (RgnRect* aRect, PRBool aOptimizeOnFly = PR_FALSE);
+  void InsertInPlace (RgnRect* aRect, bool aOptimizeOnFly = false);
   inline void SaveLinkChain ();
   inline void RestoreLinkChain ();
   void Optimize ();
@@ -285,13 +259,13 @@ public:
   const nsRect* Next ()
   {
     mCurPtr = mCurPtr->next;
-    return (mCurPtr != &mRegion->mRectListHead) ? mCurPtr : nsnull;
+    return (mCurPtr != &mRegion->mRectListHead) ? mCurPtr : nullptr;
   }
 
   const nsRect* Prev ()
   {
     mCurPtr = mCurPtr->prev;
-    return (mCurPtr != &mRegion->mRectListHead) ? mCurPtr : nsnull;
+    return (mCurPtr != &mRegion->mRectListHead) ? mCurPtr : nullptr;
   }
 
   void Reset ()
@@ -301,7 +275,7 @@ public:
 };
 
 /**
- * nsIntRegions use PRInt32 coordinates and nsIntRects.
+ * nsIntRegions use int32_t coordinates and nsIntRects.
  */
 class NS_GFX nsIntRegion
 {
@@ -402,20 +376,20 @@ public:
     return Sub (*this, aRect2);
   }
 
-  PRBool Contains (const nsIntRect& aRect) const
+  bool Contains (const nsIntRect& aRect) const
   {
     return mImpl.Contains (ToRect (aRect));
   }
-  PRBool Contains (const nsIntRegion& aRgn) const
+  bool Contains (const nsIntRegion& aRgn) const
   {
     return mImpl.Contains (aRgn.mImpl);
   }
-  PRBool Intersects (const nsIntRect& aRect) const
+  bool Intersects (const nsIntRect& aRect) const
   {
     return mImpl.Intersects (ToRect (aRect));
   }
 
-  void MoveBy (PRInt32 aXOffset, PRInt32 aYOffset)
+  void MoveBy (int32_t aXOffset, int32_t aYOffset)
   {
     MoveBy (nsIntPoint (aXOffset, aYOffset));
   }
@@ -428,14 +402,15 @@ public:
     mImpl.SetEmpty  ();
   }
 
-  PRBool IsEmpty () const { return mImpl.IsEmpty (); }
-  PRBool IsComplex () const { return mImpl.IsComplex (); }
-  PRBool IsEqual (const nsIntRegion& aRegion) const
+  bool IsEmpty () const { return mImpl.IsEmpty (); }
+  bool IsComplex () const { return mImpl.IsComplex (); }
+  bool IsEqual (const nsIntRegion& aRegion) const
   {
     return mImpl.IsEqual (aRegion.mImpl);
   }
-  PRUint32 GetNumRects () const { return mImpl.GetNumRects (); }
+  uint32_t GetNumRects () const { return mImpl.GetNumRects (); }
   nsIntRect GetBounds () const { return FromRect (mImpl.GetBounds ()); }
+  uint64_t Area () const { return mImpl.Area(); }
   nsRegion ToAppUnits (nscoord aAppUnitsPerPixel) const;
   nsIntRect GetLargestRectangle (const nsIntRect& aContainingRect = nsIntRect()) const
   {
@@ -448,19 +423,13 @@ public:
     return *this;
   }
 
-  nsIntRegion& ExtendForScaling (float aXMult, float aYMult)
-  {
-    mImpl.ExtendForScaling(aXMult, aYMult);
-    return *this;
-  }
-
   /**
    * Make sure the region has at most aMaxRects by adding area to it
    * if necessary. The simplified region will be a superset of the
    * original region. The simplified region's bounding box will be
    * the same as for the current region.
    */
-  void SimplifyOutward (PRUint32 aMaxRects)
+  void SimplifyOutward (uint32_t aMaxRects)
   {
     mImpl.SimplifyOutward (aMaxRects);
   }
@@ -469,7 +438,7 @@ public:
    * it if necessary. The simplified region will be a subset of the
    * original region.
    */
-  void SimplifyInward (PRUint32 aMaxRects)
+  void SimplifyInward (uint32_t aMaxRects)
   {
     mImpl.SimplifyInward (aMaxRects);
   }
@@ -497,6 +466,8 @@ public:
     mImpl.SimpleSubtract (aRegion.mImpl);
   }
 
+  nsCString ToString() const { return mImpl.ToString(); }
+
 private:
   nsRegion mImpl;
 
@@ -522,7 +493,7 @@ public:
   {
     const nsRect* r = mImpl.Next();
     if (!r)
-      return nsnull;
+      return nullptr;
     mTmp = nsIntRegion::FromRect (*r);
     return &mTmp;
   }
@@ -531,7 +502,7 @@ public:
   {
     const nsRect* r = mImpl.Prev();
     if (!r)
-      return nsnull;
+      return nullptr;
     mTmp = nsIntRegion::FromRect (*r);
     return &mTmp;
   }

@@ -1,8 +1,16 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ################################################################################
 # Modified versions of macros provided by NSIS
 
 !ifndef OVERRIDES_INCLUDED
 !define OVERRIDES_INCLUDED
+
+!ifndef ___WINVER__NSH___
+!include WinVer.nsh
+!endif
 
 ; When including a file check if its verbose macro is defined to prevent
 ; loading the file a second time.
@@ -14,56 +22,16 @@
 !include FileFunc.nsh
 !endif
 
-!ifndef CallArtificialFunction
-; The CallArtificialFunction and CallArtificialFunction2 macros are from
-; Util.nsh in NSIS v2.46-Unicode and have not been modified. They are needed
-; by TextCompareNoDetail when compiling an installer / uninstaller with NSIS
-; v2.33-Unicode.
-; See <NSIS v2.46-Unicode App Dir >/include/Util.nsh for more information.
-
-# see WinVer.nsh and *Func.nsh for usage examples
-!macro CallArtificialFunction NAME
-  !ifndef __UNINSTALL__
-    !define CallArtificialFunction_TYPE inst
-  !else
-    !define CallArtificialFunction_TYPE uninst
-  !endif
-  Call :.${NAME}${CallArtificialFunction_TYPE}
-  !ifndef ${NAME}${CallArtificialFunction_TYPE}_DEFINED
-    Goto ${NAME}${CallArtificialFunction_TYPE}_DONE
-    !define ${NAME}${CallArtificialFunction_TYPE}_DEFINED
-    .${NAME}${CallArtificialFunction_TYPE}:
-      !insertmacro ${NAME}
-    Return
-    ${NAME}${CallArtificialFunction_TYPE}_DONE:
-  !endif
-  !undef CallArtificialFunction_TYPE
+!macro __MOZ__WinVer_DefineOSTests WinVer
+  !insertmacro __WinVer_DefineOSTest AtLeast ${WinVer} ""
+  !insertmacro __WinVer_DefineOSTest AtMost ${WinVer} ""
+  !insertmacro __WinVer_DefineOSTest Is ${WinVer} ""
 !macroend
-!define CallArtificialFunction `!insertmacro CallArtificialFunction`
 
-# for usage of artificial functions inside artificial functions
-# macro recursion is prohibited
-!macro CallArtificialFunction2 NAME
-  !ifndef __UNINSTALL__
-    !define CallArtificialFunction2_TYPE inst
-  !else
-    !define CallArtificialFunction2_TYPE uninst
-  !endif
-  Call :.${NAME}${CallArtificialFunction2_TYPE}
-  !ifndef ${NAME}${CallArtificialFunction2_TYPE}_DEFINED
-    Goto ${NAME}${CallArtificialFunction2_TYPE}_DONE
-    !define ${NAME}${CallArtificialFunction2_TYPE}_DEFINED
-    .${NAME}${CallArtificialFunction2_TYPE}:
-      !insertmacro ${NAME}
-    Return
-    ${NAME}${CallArtificialFunction2_TYPE}_DONE:
-  !endif
-  !undef CallArtificialFunction2_TYPE
-!macroend
-!define CallArtificialFunction2 `!insertmacro CallArtificialFunction2`
-
+!ifndef WINVER_8
+  !define WINVER_8    0x06020000 ;6.02.????
+  !insertmacro __MOZ__WinVer_DefineOSTests 8
 !endif
-
 
 !verbose push
 !verbose 3
@@ -430,7 +398,6 @@
 ; that is distributed with NSIS v2.46-Unicode. This version has the calls to
 ; SetDetailsPrint commented out.
 ; See <NSIS v2.46-Unicode App Dir>/include/TextFunc.nsh for more information.
-
 !macro TextCompareNoDetailsCall _FILE1 _FILE2 _OPTION _FUNC
   !verbose push
   !verbose ${_OVERRIDE_VERBOSE}

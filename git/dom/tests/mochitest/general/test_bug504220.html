@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=504220
 -->
 <head>
   <title>Test for Bug 504220</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -50,11 +49,11 @@ function run_test() {
     else
       location.hash = "#bar";
 
-    yield;
+    yield undefined;
 
     is(numEvents, 1, "Exactly one hashchange should have been fired.");
     SimpleTest.finish();
-    yield;
+    yield undefined;
   }
 
   var gGen = waitForHashchange();

@@ -2,7 +2,6 @@
 <html>
 <head>
   <title>Media test: play() method</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
   <script type="text/javascript" src="manifest.js"></script>
@@ -38,6 +37,7 @@ function goToNext(v) {
 
 function initTest(test, token) {
   var v = document.createElement('video');
+  v.preload = "metadata";
   v.token = token;
   manager.started(token);
   v._state = 0;

@@ -1,129 +1,82 @@
-/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Novell code.
- *
- * The Initial Developer of the Original Code is
- * Novell Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2006
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Robert O'Callahan <robert@ocallahan.org>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsClientRect.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
 
 #include "nsPresContext.h"
+#include "mozilla/dom/ClientRectListBinding.h"
+#include "mozilla/dom/ClientRectBinding.h"
 
-DOMCI_DATA(ClientRect, nsClientRect)
+using namespace mozilla;
+using namespace mozilla::dom;
 
-NS_INTERFACE_TABLE_HEAD(nsClientRect)
-  NS_INTERFACE_TABLE1(nsClientRect, nsIDOMClientRect)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ClientRect)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsClientRect, mParent)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsClientRect)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsClientRect)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsClientRect)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsIDOMClientRect)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_ADDREF(nsClientRect)
-NS_IMPL_RELEASE(nsClientRect)
+#define FORWARD_GETTER(_name)                                                   \
+  NS_IMETHODIMP                                                                 \
+  nsClientRect::Get ## _name(float* aResult)                                    \
+  {                                                                             \
+    *aResult = _name();                                                         \
+    return NS_OK;                                                               \
+  }
 
-nsClientRect::nsClientRect()
-  : mX(0.0), mY(0.0), mWidth(0.0), mHeight(0.0)
+FORWARD_GETTER(Left)
+FORWARD_GETTER(Top)
+FORWARD_GETTER(Right)
+FORWARD_GETTER(Bottom)
+FORWARD_GETTER(Width)
+FORWARD_GETTER(Height)
+
+JSObject*
+nsClientRect::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
+  MOZ_ASSERT(mParent);
+  return ClientRectBinding::Wrap(aCx, aScope, this);
 }
 
-NS_IMETHODIMP
-nsClientRect::GetLeft(float* aResult)
-{
-  *aResult = mX;
-  return NS_OK;
-}
+// -----------------------------------------------------------------------------
 
-NS_IMETHODIMP
-nsClientRect::GetTop(float* aResult)
-{
-  *aResult = mY;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsClientRect::GetRight(float* aResult)
-{
-  *aResult = mX + mWidth;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsClientRect::GetBottom(float* aResult)
-{
-  *aResult = mY + mHeight;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsClientRect::GetWidth(float* aResult)
-{
-  *aResult = mWidth;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsClientRect::GetHeight(float* aResult)
-{
-  *aResult = mHeight;
-  return NS_OK;
-}
-
-DOMCI_DATA(ClientRectList, nsClientRectList)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(nsClientRectList, mParent, mArray)
 
 NS_INTERFACE_TABLE_HEAD(nsClientRectList)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_TABLE1(nsClientRectList, nsIDOMClientRectList)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ClientRectList)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsClientRectList)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_ADDREF(nsClientRectList)
-NS_IMPL_RELEASE(nsClientRectList)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsClientRectList)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsClientRectList)
 
 
 NS_IMETHODIMP    
-nsClientRectList::GetLength(PRUint32* aLength)
+nsClientRectList::GetLength(uint32_t* aLength)
 {
-  *aLength = mArray.Count();
+  *aLength = Length();
   return NS_OK;
 }
 
 NS_IMETHODIMP    
-nsClientRectList::Item(PRUint32 aIndex, nsIDOMClientRect** aReturn)
+nsClientRectList::Item(uint32_t aIndex, nsIDOMClientRect** aReturn)
 {
-  NS_IF_ADDREF(*aReturn = GetItemAt(aIndex));
+  NS_IF_ADDREF(*aReturn = Item(aIndex));
   return NS_OK;
+}
+
+JSObject*
+nsClientRectList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+{
+  return mozilla::dom::ClientRectListBinding::Wrap(cx, scope, this);
 }
 
 static double

@@ -1,42 +1,11 @@
-# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is the Firefox Preferences System.
-#
-# The Initial Developer of the Original Code is
-# Jeff Walden <jwalden+code@mit.edu>.
-# Portions created by the Initial Developer are Copyright (C) 2006
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#   Ben Goodger <ben@mozilla.org>
-#   Asaf Romano <mozilla.mano@sent.com>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadsCommon",
+                                  "resource:///modules/DownloadsCommon.jsm");
 
 var gMainPane = {
   _pane: null,
@@ -50,14 +19,27 @@ var gMainPane = {
 
     // set up the "use current page" label-changing listener
     this._updateUseCurrentButton();
-    window.addEventListener("focus", this._updateUseCurrentButton, false);
+    window.addEventListener("focus", this._updateUseCurrentButton.bind(this), false);
 
     this.updateBrowserStartupLastSession();
+
+    this.setupDownloadsWindowOptions();
 
     // Notify observers that the UI is now ready
     Components.classes["@mozilla.org/observer-service;1"]
               .getService(Components.interfaces.nsIObserverService)
               .notifyObservers(window, "main-pane-loaded", null);
+  },
+
+  setupDownloadsWindowOptions: function ()
+  {
+    let showWhenDownloading = document.getElementById("showWhenDownloading");
+    let closeWhenDone = document.getElementById("closeWhenDone");
+
+    // These radio buttons should be hidden when the Downloads Panel is enabled.
+    let shouldHide = !DownloadsCommon.useToolkitUI;
+    showWhenDownloading.hidden = shouldHide;
+    closeWhenDone.hidden = shouldHide;
   },
 
   // HOME PAGE
@@ -117,23 +99,13 @@ var gMainPane = {
    */
   setHomePageToCurrent: function ()
   {
-    var win;
-    if (document.documentElement.instantApply) {
-      // If we're in instant-apply mode, use the most recent browser window
-      var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-                         .getService(Components.interfaces.nsIWindowMediator);
-      win = wm.getMostRecentWindow("navigator:browser");
-    }
-    else
-      win = window.opener;
+    let homePage = document.getElementById("browser.startup.homepage");
+    let tabs = this._getTabsForHomePage();
+    function getTabURI(t) t.linkedBrowser.currentURI.spec;
 
-    if (win) {
-      var homePage = document.getElementById("browser.startup.homepage");
-      var tabs = win.gBrowser.visibleTabs;
-      function getTabURI(t) t.linkedBrowser.currentURI.spec;
-      // FIXME Bug 244192: using dangerous "|" joiner!
+    // FIXME Bug 244192: using dangerous "|" joiner!
+    if (tabs.length)
       homePage.value = tabs.map(getTabURI).join("|");
-    }
   },
 
   /**
@@ -159,10 +131,26 @@ var gMainPane = {
    * forms.
    */
   _updateUseCurrentButton: function () {
-    var useCurrent = document.getElementById("useCurrent");
+    let useCurrent = document.getElementById("useCurrent");
 
-    var windowIsPresent;
+    let tabs = this._getTabsForHomePage();
+    if (tabs.length > 1)
+      useCurrent.label = useCurrent.getAttribute("label2");
+    else
+      useCurrent.label = useCurrent.getAttribute("label1");
+
+    // In this case, the button's disabled state is set by preferences.xml.
+    if (document.getElementById
+        ("pref.browser.homepage.disable_button.current_page").locked)
+      return;
+
+    useCurrent.disabled = !tabs.length
+  },
+
+  _getTabsForHomePage: function ()
+  {
     var win;
+    var tabs = [];
     if (document.documentElement.instantApply) {
       const Cc = Components.classes, Ci = Components.interfaces;
       // If we're in instant-apply mode, use the most recent browser window
@@ -170,30 +158,17 @@ var gMainPane = {
                  .getService(Ci.nsIWindowMediator);
       win = wm.getMostRecentWindow("navigator:browser");
     }
-    else
+    else {
       win = window.opener;
+    }
 
     if (win && win.document.documentElement
                   .getAttribute("windowtype") == "navigator:browser") {
-      windowIsPresent = true;
-
-      var tabbrowser = win.document.getElementById("content");
-      if (tabbrowser.browsers.length > 1)
-        useCurrent.label = useCurrent.getAttribute("label2");
-      else
-        useCurrent.label = useCurrent.getAttribute("label1");
-    }
-    else {
-      windowIsPresent = false;
-      useCurrent.label = useCurrent.getAttribute("label1");
+      // We should only include visible & non-pinned tabs
+      tabs = win.gBrowser.visibleTabs.slice(win.gBrowser._numPinnedTabs);
     }
 
-    // In this case, the button's disabled state is set by preferences.xml.
-    if (document.getElementById
-        ("pref.browser.homepage.disable_button.current_page").locked)
-      return;
-
-    useCurrent.disabled = !windowIsPresent;
+    return tabs;
   },
 
   /**
@@ -293,17 +268,29 @@ var gMainPane = {
     const nsIFilePicker = Components.interfaces.nsIFilePicker;
     const nsILocalFile = Components.interfaces.nsILocalFile;
 
-    var fp = Components.classes["@mozilla.org/filepicker;1"]
-                       .createInstance(nsIFilePicker);
-    var bundlePreferences = document.getElementById("bundlePreferences");
-    var title = bundlePreferences.getString("chooseDownloadFolderTitle");
+    let bundlePreferences = document.getElementById("bundlePreferences");
+    let title = bundlePreferences.getString("chooseDownloadFolderTitle");
+    let folderListPref = document.getElementById("browser.download.folderList");
+    let currentDirPref = this._indexToFolder(folderListPref.value); // file
+    let defDownloads = this._indexToFolder(1); // file
+    let fp = Components.classes["@mozilla.org/filepicker;1"].
+             createInstance(nsIFilePicker);
+    let fpCallback = function fpCallback_done(aResult) {
+      if (aResult == nsIFilePicker.returnOK) {
+        let file = fp.file.QueryInterface(nsILocalFile);
+        let downloadDirPref = document.getElementById("browser.download.dir");
+
+        downloadDirPref.value = file;
+        folderListPref.value = this._folderToIndex(file);
+        // Note, the real prefs will not be updated yet, so dnld manager's
+        // userDownloadsDirectory may not return the right folder after
+        // this code executes. displayDownloadDirPref will be called on
+        // the assignment above to update the UI.
+      }
+    }.bind(this);
+
     fp.init(window, title, nsIFilePicker.modeGetFolder);
     fp.appendFilters(nsIFilePicker.filterAll);
-
-    var folderListPref = document.getElementById("browser.download.folderList");
-    var currentDirPref = this._indexToFolder(folderListPref.value); // file
-    var defDownloads = this._indexToFolder(1); // file
-
     // First try to open what's currently configured
     if (currentDirPref && currentDirPref.exists()) {
       fp.displayDirectory = currentDirPref;
@@ -314,18 +301,7 @@ var gMainPane = {
     else {
       fp.displayDirectory = this._indexToFolder(0);
     }
-
-    if (fp.show() == nsIFilePicker.returnOK) {
-      var file = fp.file.QueryInterface(nsILocalFile);
-      var currentDirPref = document.getElementById("browser.download.dir");
-      currentDirPref.value = file;
-      var folderListPref = document.getElementById("browser.download.folderList");
-      folderListPref.value = this._folderToIndex(file);
-      // Note, the real prefs will not be updated yet, so dnld manager's
-      // userDownloadsDirectory may not return the right folder after
-      // this code executes. displayDownloadDirPref will be called on
-      // the assignment above to update the UI.
-    }
+    fp.open(fpCallback);
   },
 
   /**
@@ -367,7 +343,7 @@ var gMainPane = {
     } else {
       // 'Desktop'
       downloadFolder.label = bundlePreferences.getString("desktopFolderName");
-      iconUrlSpec = fph.getURLSpecFromFile(desk);
+      iconUrlSpec = fph.getURLSpecFromFile(this._getDownloadsFolder("Desktop"));
     }
     downloadFolder.image = "moz-icon://" + iconUrlSpec + "?size=16";
     
@@ -472,14 +448,6 @@ var gMainPane = {
         return 0;
       break;
     }
-  },
-
-  /**
-   * Displays the Add-ons Manager.
-   */
-  showAddonsMgr: function ()
-  {
-    openUILinkIn("about:addons", "window");
   },
 
   /**

@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
  * base class for rendering objects that can be split across lines,
@@ -44,23 +12,22 @@
 #include "nsIContent.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
+#include "nsContainerFrame.h"
 
 NS_IMPL_FRAMEARENA_HELPERS(nsSplittableFrame)
 
-NS_IMETHODIMP
+void
 nsSplittableFrame::Init(nsIContent*      aContent,
                         nsIFrame*        aParent,
                         nsIFrame*        aPrevInFlow)
 {
-  nsresult rv = nsFrame::Init(aContent, aParent, aPrevInFlow);
+  nsFrame::Init(aContent, aParent, aPrevInFlow);
 
   if (aPrevInFlow) {
     // Hook the frame into the flow
     SetPrevInFlow(aPrevInFlow);
     aPrevInFlow->SetNextInFlow(this);
   }
-
-  return rv;
 }
 
 void
@@ -131,36 +98,36 @@ nsIFrame* nsSplittableFrame::GetLastContinuation() const
 }
 
 #ifdef DEBUG
-PRBool nsSplittableFrame::IsInPrevContinuationChain(nsIFrame* aFrame1, nsIFrame* aFrame2)
+bool nsSplittableFrame::IsInPrevContinuationChain(nsIFrame* aFrame1, nsIFrame* aFrame2)
 {
-  PRInt32 iterations = 0;
+  int32_t iterations = 0;
   while (aFrame1 && iterations < 10) {
     // Bail out after 10 iterations so we don't bog down debug builds too much
     if (aFrame1 == aFrame2)
-      return PR_TRUE;
+      return true;
     aFrame1 = aFrame1->GetPrevContinuation();
     ++iterations;
   }
-  return PR_FALSE;
+  return false;
 }
 
-PRBool nsSplittableFrame::IsInNextContinuationChain(nsIFrame* aFrame1, nsIFrame* aFrame2)
+bool nsSplittableFrame::IsInNextContinuationChain(nsIFrame* aFrame1, nsIFrame* aFrame2)
 {
-  PRInt32 iterations = 0;
+  int32_t iterations = 0;
   while (aFrame1 && iterations < 10) {
     // Bail out after 10 iterations so we don't bog down debug builds too much
     if (aFrame1 == aFrame2)
-      return PR_TRUE;
+      return true;
     aFrame1 = aFrame1->GetNextContinuation();
     ++iterations;
   }
-  return PR_FALSE;
+  return false;
 }
 #endif
 
 nsIFrame* nsSplittableFrame::GetPrevInFlow() const
 {
-  return (GetStateBits() & NS_FRAME_IS_FLUID_CONTINUATION) ? mPrevContinuation : nsnull;
+  return (GetStateBits() & NS_FRAME_IS_FLUID_CONTINUATION) ? mPrevContinuation : nullptr;
 }
 
 NS_METHOD nsSplittableFrame::SetPrevInFlow(nsIFrame* aFrame)
@@ -175,7 +142,7 @@ NS_METHOD nsSplittableFrame::SetPrevInFlow(nsIFrame* aFrame)
 nsIFrame* nsSplittableFrame::GetNextInFlow() const
 {
   return mNextContinuation && (mNextContinuation->GetStateBits() & NS_FRAME_IS_FLUID_CONTINUATION) ? 
-    mNextContinuation : nsnull;
+    mNextContinuation : nullptr;
 }
 
 NS_METHOD nsSplittableFrame::SetNextInFlow(nsIFrame* aFrame)
@@ -233,22 +200,99 @@ nsSplittableFrame::RemoveFromFlow(nsIFrame* aFrame)
     }
   }
 
-  aFrame->SetPrevInFlow(nsnull);
-  aFrame->SetNextInFlow(nsnull);
+  aFrame->SetPrevInFlow(nullptr);
+  aFrame->SetNextInFlow(nullptr);
+}
+
+nscoord
+nsSplittableFrame::GetConsumedHeight() const
+{
+  nscoord height = 0;
+
+  // Reduce the height by the computed height of prev-in-flows.
+  for (nsIFrame* prev = GetPrevInFlow(); prev; prev = prev->GetPrevInFlow()) {
+    height += prev->GetRect().height;
+  }
+
+  return height;
+}
+
+nscoord
+nsSplittableFrame::GetEffectiveComputedHeight(const nsHTMLReflowState& aReflowState,
+                                              nscoord aConsumedHeight) const
+{
+  nscoord height = aReflowState.ComputedHeight();
+  if (height == NS_INTRINSICSIZE) {
+    return NS_INTRINSICSIZE;
+  }
+
+  if (aConsumedHeight == NS_INTRINSICSIZE) {
+    aConsumedHeight = GetConsumedHeight();
+  }
+
+  height -= aConsumedHeight;
+
+  if (aConsumedHeight != 0 && aConsumedHeight != NS_INTRINSICSIZE) {
+    // We just subtracted our top-border padding, since it was included in the
+    // first frame's height. Add it back to get the content height.
+    height += aReflowState.mComputedBorderPadding.top;
+  }
+
+  // We may have stretched the frame beyond its computed height. Oh well.
+  height = std::max(0, height);
+
+  return height;
+}
+
+int
+nsSplittableFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
+{
+  if (IS_TRUE_OVERFLOW_CONTAINER(this)) {
+    return (1 << NS_SIDE_TOP) | (1 << NS_SIDE_BOTTOM);
+  }
+
+  int skip = 0;
+
+  if (GetPrevInFlow()) {
+    skip |= 1 << NS_SIDE_TOP;
+  }
+
+  if (aReflowState) {
+    // We're in the midst of reflow right now, so it's possible that we haven't
+    // created a nif yet. If our content height is going to exceed our available
+    // height, though, then we're going to need a next-in-flow, it just hasn't
+    // been created yet.
+
+    if (NS_UNCONSTRAINEDSIZE != aReflowState->availableHeight) {
+      nscoord effectiveCH = this->GetEffectiveComputedHeight(*aReflowState);
+      if (effectiveCH > aReflowState->availableHeight) {
+        // Our content height is going to exceed our available height, so we're
+        // going to need a next-in-flow.
+        skip |= 1 << NS_SIDE_BOTTOM;
+      }
+    }
+  } else {
+    nsIFrame* nif = GetNextInFlow();
+    if (nif && !IS_TRUE_OVERFLOW_CONTAINER(nif)) {
+      skip |= 1 << NS_SIDE_BOTTOM;
+    }
+  }
+
+ return skip;
 }
 
 #ifdef DEBUG
 void
-nsSplittableFrame::DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent)
+nsSplittableFrame::DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, int32_t aIndent)
 {
   nsFrame::DumpBaseRegressionData(aPresContext, out, aIndent);
-  if (nsnull != mNextContinuation) {
+  if (nullptr != mNextContinuation) {
     IndentBy(out, aIndent);
-    fprintf(out, "<next-continuation va=\"%ld\"/>\n", PRUptrdiff(mNextContinuation));
+    fprintf(out, "<next-continuation va=\"%p\"/>\n", (void*)mNextContinuation);
   }
-  if (nsnull != mPrevContinuation) {
+  if (nullptr != mPrevContinuation) {
     IndentBy(out, aIndent);
-    fprintf(out, "<prev-continuation va=\"%ld\"/>\n", PRUptrdiff(mPrevContinuation));
+    fprintf(out, "<prev-continuation va=\"%p\"/>\n", (void*)mPrevContinuation);
   }
 
 }

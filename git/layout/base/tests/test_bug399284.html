@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=399284
 -->
 <head>
   <title>Test for Bug 399284</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -30,9 +29,9 @@ while (decoderList.hasMore()) {
     var decoder =  decoderList.getNext();
 
     // encode the content for non-ASCII compatible encodings
-    if (decoder == "UTF-16" || decoder == "UTF-16BE")
+    if (decoder == "UTF-16BE")
         data = encodeUTF16BE(testContent);
-    else if (decoder == "UTF-16LE")
+    else if (decoder == "UTF-16" || decoder == "UTF-16LE")
         data = encodeUTF16LE(testContent);
     else
         data = encodeURI(testContent);

@@ -1,39 +1,8 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Mozilla platform.
- *
- * The Initial Developer of the Original Code is
- * Benjamin Smedberg <benjamin@smedbergs.us>.
- *
- * Portions created by the Initial Developer are Copyright (C) 2006
- * the Mozilla Foundation <http://www.mozilla.org/>. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "base/basictypes.h"
 
 #include "nsLayoutStatics.h"
 #include "nscore.h"
@@ -45,19 +14,17 @@
 #include "nsContentDLF.h"
 #include "nsContentUtils.h"
 #include "nsCSSAnonBoxes.h"
-#include "nsCSSFrameConstructor.h"
+#include "mozilla/css/ErrorReporter.h"
 #include "nsCSSKeywords.h"
 #include "nsCSSParser.h"
 #include "nsCSSProps.h"
 #include "nsCSSPseudoClasses.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSRendering.h"
-#include "nsCSSScanner.h"
-#include "nsDOMAttribute.h"
+#include "mozilla/dom/Attr.h"
 #include "nsDOMClassInfo.h"
 #include "nsEventListenerManager.h"
 #include "nsFrame.h"
-#include "nsGenericElement.h"  // for nsDOMEventRTTearoff
 #include "nsGlobalWindow.h"
 #include "nsGkAtoms.h"
 #include "nsImageFrame.h"
@@ -72,67 +39,92 @@
 #include "nsStyleSet.h"
 #include "nsTextControlFrame.h"
 #include "nsXBLWindowKeyHandler.h"
+#include "nsXBLService.h"
 #include "txMozillaXSLTProcessor.h"
-#include "nsDOMStorage.h"
+#include "nsTreeSanitizer.h"
 #include "nsCellMap.h"
 #include "nsTextFrameTextRunCache.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsCrossSiteListenerProxy.h"
-#include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
-#include "nsCrossSiteListenerProxy.h"
 #include "nsFocusManager.h"
-#include "nsFrameList.h"
 #include "nsListControlFrame.h"
-#include "nsHTMLInputElement.h"
-#ifdef MOZ_SVG
+#include "mozilla/dom/HTMLInputElement.h"
+#include "SVGElementFactory.h"
 #include "nsSVGUtils.h"
-#endif
+#include "nsMathMLAtoms.h"
+#include "nsMathMLOperators.h"
+#include "Navigator.h"
+#include "DOMStorageObserver.h"
+#include "DisplayItemClip.h"
+
+#include "AudioChannelService.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
 #include "nsXULContentUtils.h"
-#include "nsXULElement.h"
 #include "nsXULPrototypeCache.h"
 #include "nsXULTooltipListener.h"
 
 #include "inDOMView.h"
 #endif
 
-#ifdef MOZ_MATHML
-#include "nsMathMLAtoms.h"
-#include "nsMathMLOperators.h"
-#endif
-
 #include "nsHTMLEditor.h"
 #include "nsTextServicesDocument.h"
 
-#ifdef MOZ_MEDIA
-#include "nsMediaDecoder.h"
-#include "nsHTMLMediaElement.h"
+#ifdef MOZ_WEBSPEECH
+#include "nsSynthVoiceRegistry.h"
 #endif
 
-#ifdef MOZ_SYDNEYAUDIO
-#include "nsAudioStream.h"
+#ifdef MOZ_MEDIA_PLUGINS
+#include "MediaPluginHost.h"
+#endif
+
+#ifdef MOZ_WMF
+#include "WMFDecoder.h"
+#endif
+
+#ifdef MOZ_GSTREAMER
+#include "GStreamerFormatHelper.h"
+#endif
+
+#include "AudioStream.h"
+#include "WebAudioUtils.h"
+
+#ifdef MOZ_WIDGET_GONK
+#include "nsVolumeService.h"
+using namespace mozilla::system;
 #endif
 
 #include "nsError.h"
 
-#include "nsCycleCollector.h"
 #include "nsJSEnvironment.h"
 #include "nsContentSink.h"
 #include "nsFrameMessageManager.h"
 #include "nsRefreshDriver.h"
-#include "CanvasImageCache.h"
-
+#include "nsDOMMutationObserver.h"
 #include "nsHyphenationManager.h"
+#include "nsEditorSpellCheck.h"
+#include "nsWindowMemoryReporter.h"
+#include "mozilla/dom/ContentParent.h"
+#include "mozilla/ProcessPriorityManager.h"
+#include "nsPermissionManager.h"
+#include "nsCookieService.h"
+#include "nsApplicationCacheService.h"
+#include "mozilla/dom/time/DateCacheCleaner.h"
+#include "nsIMEStateManager.h"
+#include "nsDocument.h"
+#include "mozilla/dom/HTMLVideoElement.h"
 
-extern void NS_ShutdownChainItemPool();
+extern void NS_ShutdownEventTargetChainItemRecyclePool();
 
 using namespace mozilla;
+using namespace mozilla::dom;
+using namespace mozilla::dom::ipc;
+using namespace mozilla::dom::time;
 
 nsrefcnt nsLayoutStatics::sLayoutStaticRefcnt = 0;
 
@@ -147,6 +139,8 @@ nsLayoutStatics::Initialize()
                 "nsLayoutStatics", 1);
 
   nsresult rv;
+
+  ContentParent::StartUp();
 
   // Register all of our atoms once
   nsCSSAnonBoxes::AddRefAtoms();
@@ -163,6 +157,10 @@ nsLayoutStatics::Initialize()
     NS_ERROR("Could not initialize nsRegion");
     return rv;
   }
+
+  nsGlobalWindow::Init();
+  Navigator::Init();
+  nsXBLService::Init();
 
   rv = nsContentUtils::Init();
   if (NS_FAILED(rv)) {
@@ -182,23 +180,11 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  rv = nsCellMap::Init();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsCellMap");
-    return rv;
-  }
+  nsCellMap::Init();
 
-  rv = nsCSSRendering::Init();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsCSSRendering");
-    return rv;
-  }
+  nsCSSRendering::Init();
 
-  rv = nsTextFrameTextRunCache::Init();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize textframe textrun cache");
-    return rv;
-  }
+  nsTextFrameTextRunCache::Init();
 
   rv = nsHTMLDNSPrefetch::Initialize();
   if (NS_FAILED(rv)) {
@@ -213,13 +199,9 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  inDOMView::InitAtoms();
-
 #endif
 
-#ifdef MOZ_MATHML
   nsMathMLOperators::AddRefTable();
-#endif
 
   nsEditProperty::RegisterAtoms();
   nsTextServicesDocument::RegisterAtoms();
@@ -227,7 +209,7 @@ nsLayoutStatics::Initialize()
 #ifdef DEBUG
   nsFrame::DisplayReflowStartup();
 #endif
-  nsDOMAttribute::Initialize();
+  Attr::Initialize();
 
   rv = txMozillaXSLTProcessor::Startup();
   if (NS_FAILED(rv)) {
@@ -235,9 +217,9 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  rv = nsDOMStorageManager::Initialize();
+  rv = DOMStorageObserver::Init();
   if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsDOMStorageManager");
+    NS_ERROR("Could not initialize DOMStorageObserver");
     return rv;
   }
 
@@ -267,24 +249,32 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-#ifdef MOZ_SYDNEYAUDIO
-  nsAudioStream::InitLibrary();
-#endif
+  AudioStream::InitLibrary();
 
   nsContentSink::InitializeStatics();
   nsHtml5Module::InitializeStatics();
+  nsLayoutUtils::Initialize();
   nsIPresShell::InitializeStatics();
   nsRefreshDriver::InitializeStatics();
 
   nsCORSListenerProxy::Startup();
 
-  rv = nsFrameList::Init();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsFrameList");
-    return rv;
-  }
-
   NS_SealStaticAtomTable();
+
+  nsWindowMemoryReporter::Init();
+
+  SVGElementFactory::Init();
+  nsSVGUtils::Init();
+
+  ProcessPriorityManager::Init();
+
+  nsPermissionManager::AppClearDataObserverInit();
+  nsCookieService::AppClearDataObserverInit();
+  nsApplicationCacheService::AppClearDataObserverInit();
+
+  InitializeDateCacheCleaner();
+
+  HTMLVideoElement::Init();
 
   return NS_OK;
 }
@@ -292,17 +282,19 @@ nsLayoutStatics::Initialize()
 void
 nsLayoutStatics::Shutdown()
 {
-  CanvasImageCache::Shutdown();
+  // Don't need to shutdown nsWindowMemoryReporter, that will be done by the
+  // memory reporter manager.
+
   nsFrameScriptExecutor::Shutdown();
   nsFocusManager::Shutdown();
 #ifdef MOZ_XUL
   nsXULPopupManager::Shutdown();
 #endif
-  nsDOMStorageManager::Shutdown();
+  DOMStorageObserver::Shutdown();
   txMozillaXSLTProcessor::Shutdown();
-  nsDOMAttribute::Shutdown();
-  nsDOMEventRTTearoff::Shutdown();
+  Attr::Shutdown();
   nsEventListenerManager::Shutdown();
+  nsIMEStateManager::Shutdown();
   nsComputedDOMStyle::Shutdown();
   nsCSSParser::Shutdown();
   nsCSSRuleProcessor::Shutdown();
@@ -325,28 +317,22 @@ nsLayoutStatics::Shutdown()
 
 #ifdef MOZ_XUL
   nsXULContentUtils::Finish();
-  nsXULElement::ReleaseGlobals();
   nsXULPrototypeCache::ReleaseGlobals();
   nsSprocketLayout::Shutdown();
 #endif
 
-#ifdef MOZ_MATHML
+  SVGElementFactory::Shutdown();
   nsMathMLOperators::ReleaseTable();
-#endif
 
-  nsCSSFrameConstructor::ReleaseGlobals();
   nsFloatManager::Shutdown();
   nsImageFrame::ReleaseGlobals();
 
-  nsCSSScanner::ReleaseGlobals();
-
-  NS_IF_RELEASE(nsRuleNode::gLangService);
+  mozilla::css::ErrorReporter::ReleaseGlobals();
 
   nsTextFragment::Shutdown();
 
   nsAttrValue::Shutdown();
   nsContentUtils::Shutdown();
-  nsNodeInfo::ClearCache();
   nsLayoutStylesheetCache::Shutdown();
   NS_NameSpaceManagerShutdown();
 
@@ -355,32 +341,59 @@ nsLayoutStatics::Shutdown()
   nsDOMClassInfo::ShutDown();
   nsListControlFrame::Shutdown();
   nsXBLWindowKeyHandler::ShutDown();
+  nsXBLService::Shutdown();
   nsAutoCopyListener::Shutdown();
+  FrameLayerBuilder::Shutdown();
 
-  nsHTMLEditor::Shutdown();
-  nsTextServicesDocument::Shutdown();
+#ifdef MOZ_MEDIA_PLUGINS
+  MediaPluginHost::Shutdown();
+#endif
 
-  nsDOMThreadService::Shutdown();
+#ifdef MOZ_GSTREAMER
+  GStreamerFormatHelper::Shutdown();
+#endif
 
-#ifdef MOZ_SYDNEYAUDIO
-  nsAudioStream::ShutdownLibrary();
+  AudioStream::ShutdownLibrary();
+  WebAudioUtils::Shutdown();
+
+#ifdef MOZ_WMF
+  WMFDecoder::UnloadDLLs();
+#endif
+
+#ifdef MOZ_WIDGET_GONK
+  nsVolumeService::Shutdown();
+#endif
+
+#ifdef MOZ_WEBSPEECH
+  nsSynthVoiceRegistry::Shutdown();
 #endif
 
   nsCORSListenerProxy::Shutdown();
-  
+
   nsIPresShell::ReleaseStatics();
+
+  nsTreeSanitizer::ReleaseStatics();
 
   nsHtml5Module::ReleaseStatics();
 
   nsRegion::ShutdownStatic();
 
-  NS_ShutdownChainItemPool();
+  NS_ShutdownEventTargetChainItemRecyclePool();
 
-  nsFrameList::Shutdown();
-
-  nsHTMLInputElement::DestroyUploadLastDir();
+  HTMLInputElement::DestroyUploadLastDir();
 
   nsLayoutUtils::Shutdown();
 
   nsHyphenationManager::Shutdown();
+  nsDOMMutationObserver::Shutdown();
+
+  AudioChannelService::Shutdown();
+
+  ContentParent::ShutDown();
+
+  nsRefreshDriver::Shutdown();
+
+  DisplayItemClip::Shutdown();
+
+  nsDocument::XPCOMShutdown();
 }

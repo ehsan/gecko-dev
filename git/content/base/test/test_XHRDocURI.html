@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=459470
 -->
 <head>
   <title>XMLHttpRequest return document URIs</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
   <base href="http://example.org/">
@@ -44,7 +43,7 @@ function runTest() {
     }
   };
   xhr.send();
-  yield;
+  yield undefined;
 
 
   xhr = new XMLHttpRequest;
@@ -55,7 +54,7 @@ function runTest() {
       gen.next();
   };
   xhr.send();
-  yield;
+  yield undefined;
 
   xhr = new XMLHttpRequest;
   xhr.open("GET", "http://example.com/tests/content/base/test/file_XHRDocURI.xml");
@@ -70,7 +69,7 @@ function runTest() {
       gen.next();
   };
   xhr.send();
-  yield;
+  yield undefined;
 
   xhr = new XMLHttpRequest;
   xhr.open("GET", "http://example.com/tests/content/base/test/file_XHRDocURI.text");
@@ -80,10 +79,10 @@ function runTest() {
       gen.next();
   };
   xhr.send();
-  yield;
+  yield undefined;
   
   SimpleTest.finish();
-  yield;
+  yield undefined;
 }
 
 </script>

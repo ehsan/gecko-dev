@@ -4,7 +4,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=526178
 -->
 <head>
   <title>Test for Bug 526178</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <style id="sheet">
@@ -17,8 +16,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=526178
     <binding id="binding">
       <implementation>
         <constructor>
-          window.logString += this.localName;
-          window.bindingDone();
+          var win = XPCNativeWrapper.unwrap(window);
+          win.logString += this.localName;
+          win.bindingDone();
         </constructor>
       </implementation>
     </binding>

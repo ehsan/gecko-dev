@@ -1,46 +1,18 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is httpd.js code.
- *
- * The Initial Developer of the Original Code is
- * Jeff Walden <jwalden+code@mit.edu>.
- * Portions created by the Initial Developer are Copyright (C) 2007
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // checks for correct output with the default index handler, mostly to do
 // escaping checks -- highly dependent on the default index handler output
 // format
 
 var srv, dir, dirEntries;
+
+XPCOMUtils.defineLazyGetter(this, 'BASE_URL', function() {
+  return "http://localhost:" + srv.identity.primaryPort + "/";
+});
 
 function run_test()
 {
@@ -52,7 +24,7 @@ function run_test()
   var nameDir = do_get_file("data/name-scheme/");
   srv.registerDirectory("/bar/", nameDir);
 
-  srv.start(4444);
+  srv.start(-1);
 
   function done()
   {
@@ -149,7 +121,7 @@ function hiddenDataCheck(bytes, uri, path)
                    .getElementsByTagName("h1");
   do_check_eq(header.length, 1);
 
-  do_check_eq(header.item(0).QueryInterface(Ci.nsIDOM3Node).textContent, path);
+  do_check_eq(header.item(0).QueryInterface(Ci.nsIDOMNode).textContent, path);
 
   // files
   var lst = body.getElementsByTagName("ol");
@@ -171,7 +143,7 @@ function hiddenDataCheck(bytes, uri, path)
     var link = items.item(i)
                     .childNodes
                     .item(0)
-                    .QueryInterface(Ci.nsIDOM3Node)
+                    .QueryInterface(Ci.nsIDOMNode)
                     .QueryInterface(Ci.nsIDOMElement);
     var f = dirEntries[i];
 
@@ -233,7 +205,7 @@ function dataCheck(bytes, uri, path, dirEntries)
                    .getElementsByTagName("h1");
   do_check_eq(header.length, 1);
 
-  do_check_eq(header.item(0).QueryInterface(Ci.nsIDOM3Node).textContent, path);
+  do_check_eq(header.item(0).QueryInterface(Ci.nsIDOMNode).textContent, path);
 
   // files
   var lst = body.getElementsByTagName("ol");
@@ -251,7 +223,7 @@ function dataCheck(bytes, uri, path, dirEntries)
     var link = items.item(i)
                     .childNodes
                     .item(0)
-                    .QueryInterface(Ci.nsIDOM3Node)
+                    .QueryInterface(Ci.nsIDOMNode)
                     .QueryInterface(Ci.nsIDOMElement);
     var f = dirEntries[i];
 
@@ -287,38 +259,32 @@ function makeFile(name, isDirectory, parentDir, lst)
  * TESTS *
  *********/
 
-var tests = [];
-var test;
+XPCOMUtils.defineLazyGetter(this, "tests", function() {
+  return [
+    new Test(BASE_URL, null, start, stopRootDirectory),
+    new Test(BASE_URL + "foo/", null, start, stopFooDirectory),
+    new Test(BASE_URL + "bar/folder^/", null, start, stopTrailingCaretDirectory),
+  ];
+});
 
 // check top-level directory listing
-test = new Test("http://localhost:4444/",
-                null, start, stopRootDirectory),
-tests.push(test);
 function start(ch)
 {
-  do_check_eq(ch.getResponseHeader("Content-Type"), "text/html");
+  do_check_eq(ch.getResponseHeader("Content-Type"), "text/html;charset=utf-8");
 }
 function stopRootDirectory(ch, cx, status, data)
 {
-  dataCheck(data, "http://localhost:4444/", "/", dirEntries[0]);
+  dataCheck(data, BASE_URL, "/", dirEntries[0]);
 }
-
 
 // check non-top-level, too
-test = new Test("http://localhost:4444/foo/",
-                null, start, stopFooDirectory),
-tests.push(test);
 function stopFooDirectory(ch, cx, status, data)
 {
-  dataCheck(data, "http://localhost:4444/foo/", "/foo/", dirEntries[1]);
+  dataCheck(data, BASE_URL + "foo/", "/foo/", dirEntries[1]);
 }
 
-
 // trailing-caret leaf with hidden files
-test = new Test("http://localhost:4444/bar/folder^/",
-                null, start, stopTrailingCaretDirectory),
-tests.push(test);
 function stopTrailingCaretDirectory(ch, cx, status, data)
 {
-  hiddenDataCheck(data, "http://localhost:4444/bar/folder^/", "/bar/folder^/");
+  hiddenDataCheck(data, BASE_URL + "bar/folder^/", "/bar/folder^/");
 }

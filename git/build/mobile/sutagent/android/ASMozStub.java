@@ -1,60 +1,37 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Android SUTAgent code.
- *
- * The Initial Developer of the Original Code is
- * Bob Moss.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *  Bob Moss <bmoss@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package com.mozilla.SUTAgentAndroid.service;
 
+import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.util.Timer;
 
+import com.mozilla.SUTAgentAndroid.SUTAgentAndroid;
 import com.mozilla.SUTAgentAndroid.R;
 
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
+import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
 import android.view.Gravity;
 import android.widget.Toast;
 
+import javax.jmdns.JmDNS;
+import javax.jmdns.ServiceInfo;
+
 public class ASMozStub extends android.app.Service {
+    private final static int COMMAND_PORT = 20701;
+    private final static int DATA_PORT = 20700;
 
     private ServerSocket cmdChnl = null;
     private ServerSocket dataChnl = null;
@@ -63,17 +40,23 @@ public class ASMozStub extends android.app.Service {
     RunDataThread runDataThrd = null;
     Thread monitor = null;
     Timer timer = null;
+    boolean doZeroConfig = false;
 
     @SuppressWarnings("unchecked")
-    private static final Class[] mStartForegroundSignature = new Class[] {
+    private static final Class<?>[] mSetForegroundSignature = new Class[] {
+    boolean.class};
+    @SuppressWarnings("unchecked")
+    private static final Class<?>[] mStartForegroundSignature = new Class[] {
         int.class, Notification.class};
     @SuppressWarnings("unchecked")
-    private static final Class[] mStopForegroundSignature = new Class[] {
+    private static final Class<?>[] mStopForegroundSignature = new Class[] {
         boolean.class};
 
     private NotificationManager mNM;
+    private Method mSetForeground;
     private Method mStartForeground;
     private Method mStopForeground;
+    private Object[] mSetForegroundArgs = new Object[1];
     private Object[] mStartForegroundArgs = new Object[2];
     private Object[] mStopForegroundArgs = new Object[1];
 
@@ -93,33 +76,130 @@ public class ASMozStub extends android.app.Service {
             mStopForeground = getClass().getMethod("stopForeground", mStopForegroundSignature);
             }
         catch (NoSuchMethodException e) {
-            // Running on an older platform.
+            // Might be running on an older platform.
             mStartForeground = mStopForeground = null;
+            Log.w("SUTAgent", "unable to find start/stopForeground method(s) -- older platform?");
+            }
+
+        try {
+            mSetForeground = getClass().getMethod("setForeground", mSetForegroundSignature);
+            }
+        catch (NoSuchMethodException e) {
+            mSetForeground = null;
+            Log.e("SUTAgent", "unable to find setForeground method!");
             }
 
         doToast("Listener Service created...");
         }
 
+    WifiManager.MulticastLock multicastLock;
+    JmDNS jmdns;
+
+    void startZeroConf() {
+        if (multicastLock == null) {
+            WifiManager wifi = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+            multicastLock = wifi.createMulticastLock("SUTAgent");
+            multicastLock.setReferenceCounted(true);
+        }
+
+        multicastLock.acquire();
+
+        try {
+            InetAddress inetAddress = SUTAgentAndroid.getLocalInetAddress();
+
+            if (jmdns == null) {
+                jmdns = JmDNS.create(inetAddress, null);
+            }
+
+            if (jmdns != null) {
+                String name = "SUTAgent";
+
+                String hwid = SUTAgentAndroid.getHWID(this);
+                if (hwid != null) {
+                    name += " [hwid:" + hwid + "]";
+                }
+
+                // multicast reception is broken for some reason, so
+                // this service can't be resolved; it can only be
+                // broadcast.  So, we cheat -- we put the IP address
+                // in the broadcast that we can pull out later.
+                // However, periods aren't legal, so replace them.
+                // The IP address will show up as [ip:127_0_0_1]
+                name += " [ip:" + inetAddress.getHostAddress().toString().replace('.', '_') + "]";
+
+                final ServiceInfo serviceInfo = ServiceInfo.create("_sutagent._tcp.local.",
+                                                                   name,
+                                                                   COMMAND_PORT,
+                                                                   "Android SUTAgent");
+                final JmDNS dns = jmdns;
+                // we want to call registerService on a new thread, because it can block
+                // for a little while.
+                Thread registerThread = new Thread() {
+                        public void run() {
+                            try {
+                                dns.registerService(serviceInfo);
+                            } catch (IOException e) {
+                                Log.e("SUTAgent", "Failed to register JmDNS service!", e);
+                            }
+                        }
+                    };
+                registerThread.setDaemon(true);
+                registerThread.start();
+            }
+        } catch (IOException e) {
+            Log.e("SUTAgent", "Failed to register JmDNS service!", e);
+        }
+    }
+
+    void stopZeroConf() {
+        if (jmdns != null) {
+            try {
+                jmdns.unregisterAllServices();
+                jmdns.close();
+            } catch (IOException e) {
+                Log.e("SUTAgent", "Failed to close JmDNS service!", e);
+            }
+            jmdns = null;
+        }
+
+        if (multicastLock != null) {
+            multicastLock.release();
+            multicastLock = null;
+        }
+    }
+
     public void onStart(Intent intent, int startId) {
         super.onStart(intent, startId);
 
         try {
-            cmdChnl = new ServerSocket(20701);
+            cmdChnl = new ServerSocket(COMMAND_PORT);
             runCmdThrd = new RunCmdThread(cmdChnl, this, handler);
             runCmdThrd.start();
-            doToast("Command channel port 20701 ...");
+            doToast(String.format("Command channel port %d ...", COMMAND_PORT));
 
-            dataChnl = new ServerSocket(20700);
+            dataChnl = new ServerSocket(DATA_PORT);
             runDataThrd = new RunDataThread(dataChnl, this);
             runDataThrd.start();
-            doToast("Data channel port 20700 ...");
+            doToast(String.format("Data channel port %d ...", DATA_PORT));
+
+            DoCommand tmpdc = new DoCommand(getApplication());
+            File dir = getFilesDir();
+            File iniFile = new File(dir, "SUTAgent.ini");
+            String sIniFile = iniFile.getAbsolutePath();
+            String zeroconf = tmpdc.GetIniData("General", "ZeroConfig", sIniFile);
+            if (zeroconf != "" && Integer.parseInt(zeroconf) == 1) {
+                this.doZeroConfig = true;
+            }
+
+            if (this.doZeroConfig) {
+                startZeroConf();
+            }
 
             Notification notification = new Notification();
             startForegroundCompat(R.string.foreground_service_started, notification);
             }
         catch (Exception e) {
             doToast(e.toString());
-//            Toast.makeText(getApplication().getApplicationContext(), e.toString(), Toast.LENGTH_LONG).show();
             }
 
         return;
@@ -128,6 +208,10 @@ public class ASMozStub extends android.app.Service {
     public void onDestroy()
         {
         super.onDestroy();
+
+        if (this.doZeroConfig) {
+            stopZeroConf();
+        }
 
         if (runCmdThrd.isAlive())
             {
@@ -174,16 +258,30 @@ public class ASMozStub extends android.app.Service {
                 mStartForeground.invoke(this, mStartForegroundArgs);
             } catch (InvocationTargetException e) {
                 // Should not happen.
-                Log.w("ScreenOnWidget", "Unable to invoke startForeground", e);
+                Log.e("SUTAgent", "Unable to invoke startForeground", e);
             } catch (IllegalAccessException e) {
                 // Should not happen.
-                Log.w("ScreenOnWidget", "Unable to invoke startForeground", e);
+                Log.e("SUTAgent", "Unable to invoke startForeground", e);
             }
             return;
         }
 
         // Fall back on the old API.
-        setForeground(true);
+        if  (mSetForeground != null) {
+            try {
+                mSetForegroundArgs[0] = Boolean.TRUE;
+                mSetForeground.invoke(this, mSetForegroundArgs);
+            } catch (IllegalArgumentException e) {
+                Log.e("SUTAgent", "Unable to invoke setForeground", e);
+                e.printStackTrace();
+            } catch (IllegalAccessException e) {
+                Log.e("SUTAgent", "Unable to invoke setForeground", e);
+                e.printStackTrace();
+            } catch (InvocationTargetException e) {
+                Log.e("SUTAgent", "Unable to invoke setForeground", e);
+                e.printStackTrace();
+            }
+        }
         mNM.notify(id, notification);
     }
 
@@ -199,10 +297,10 @@ public class ASMozStub extends android.app.Service {
                 mStopForeground.invoke(this, mStopForegroundArgs);
             } catch (InvocationTargetException e) {
                 // Should not happen.
-                Log.w("ScreenOnWidget", "Unable to invoke stopForeground", e);
+                Log.e("SUTAgent", "Unable to invoke stopForeground", e);
             } catch (IllegalAccessException e) {
                 // Should not happen.
-                Log.w("ScreenOnWidget", "Unable to invoke stopForeground", e);
+                Log.e("SUTAgent", "Unable to invoke stopForeground", e);
             }
             return;
         }
@@ -210,6 +308,20 @@ public class ASMozStub extends android.app.Service {
         // Fall back on the old API.  Note to cancel BEFORE changing the
         // foreground state, since we could be killed at that point.
         mNM.cancel(id);
-        setForeground(false);
+        if  (mSetForeground != null) {
+            try {
+                mSetForegroundArgs[0] = Boolean.FALSE;
+                mSetForeground.invoke(this, mSetForegroundArgs);
+            } catch (IllegalArgumentException e) {
+                Log.e("SUTAgent", "Unable to invoke setForeground", e);
+                e.printStackTrace();
+            } catch (IllegalAccessException e) {
+                Log.e("SUTAgent", "Unable to invoke setForeground", e);
+                e.printStackTrace();
+            } catch (InvocationTargetException e) {
+                Log.e("SUTAgent", "Unable to invoke setForeground", e);
+                e.printStackTrace();
+            }
+        }
     }
 }

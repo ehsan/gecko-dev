@@ -1,43 +1,11 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: sw=4 ts=4 et : */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Plugin App.
- *
- * The Initial Developer of the Original Code is
- * Ben Turner <bent.mozilla@gmail.com>.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Chris Jones <jones.chris.g@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* vim: set sw=4 ts=4 et : */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifdef MOZ_WIDGET_QT
+#include <unistd.h> // for _exit()
 #include <QtCore/QTimer>
 #include "nsQAppInstance.h"
 #include "NestedLoopTimer.h"
@@ -45,11 +13,19 @@
 
 #include "mozilla/plugins/PluginModuleChild.h"
 
-#ifdef MOZ_WIDGET_GTK2
+/* This must occur *after* plugins/PluginModuleChild.h to avoid typedefs conflicts. */
+#include "mozilla/Util.h"
+
+#include "mozilla/ipc/SyncChannel.h"
+
+#ifdef MOZ_WIDGET_GTK
 #include <gtk/gtk.h>
+#if (MOZ_WIDGET_GTK == 3)
+#include <gtk/gtkx.h>
+#endif
 #endif
 
-#include "nsILocalFile.h"
+#include "nsIFile.h"
 
 #include "pratom.h"
 #include "nsDebug.h"
@@ -65,20 +41,27 @@
 #include "mozilla/plugins/BrowserStreamChild.h"
 #include "mozilla/plugins/PluginStreamChild.h"
 #include "PluginIdentifierChild.h"
+#include "mozilla/dom/CrashReporterChild.h"
 
 #include "nsNPAPIPlugin.h"
 
 #ifdef XP_WIN
 #include "COMMessageFilter.h"
 #include "nsWindowsDllInterceptor.h"
+#include "mozilla/widget/AudioSession.h"
 #endif
 
-#ifdef OS_MACOSX
+#ifdef MOZ_WIDGET_COCOA
 #include "PluginInterposeOSX.h"
 #include "PluginUtilsOSX.h"
 #endif
 
+#include "GeckoProfiler.h"
+
+using namespace mozilla;
 using namespace mozilla::plugins;
+using mozilla::dom::CrashReporterChild;
+using mozilla::dom::PCrashReporterChild;
 
 #if defined(XP_WIN)
 const PRUnichar * kFlashFullscreenClass = L"ShockwaveFlashFullScreen";
@@ -86,13 +69,13 @@ const PRUnichar * kMozillaWindowClass = L"MozillaWindowClass";
 #endif
 
 namespace {
-PluginModuleChild* gInstance = nsnull;
+PluginModuleChild* gInstance = nullptr;
 }
 
 #ifdef MOZ_WIDGET_QT
 typedef void (*_gtk_init_fn)(int argc, char **argv);
-static _gtk_init_fn s_gtk_init = nsnull;
-static PRLibrary *sGtkLib = nsnull;
+static _gtk_init_fn s_gtk_init = nullptr;
+static PRLibrary *sGtkLib = nullptr;
 #endif
 
 #ifdef XP_WIN
@@ -113,7 +96,7 @@ PluginModuleChild::PluginModuleChild()
   , mInitializeFunc(0)
 #if defined(OS_WIN) || defined(OS_MACOSX)
   , mGetEntryPointsFunc(0)
-#elif defined(MOZ_WIDGET_GTK2)
+#elif defined(MOZ_WIDGET_GTK)
   , mNestedLoopTimerId(0)
 #elif defined(MOZ_WIDGET_QT)
   , mNestedLoopTimerObject(0)
@@ -127,6 +110,7 @@ PluginModuleChild::PluginModuleChild()
     memset(&mFunctions, 0, sizeof(mFunctions));
     memset(&mSavedData, 0, sizeof(mSavedData));
     gInstance = this;
+    mUserAgent.SetIsVoid(true);
 #ifdef XP_MACOSX
     mac_plugin_interposing::child::SetUpCocoaInterposing();
 #endif
@@ -135,13 +119,13 @@ PluginModuleChild::PluginModuleChild()
 PluginModuleChild::~PluginModuleChild()
 {
     NS_ASSERTION(gInstance == this, "Something terribly wrong here!");
-    if (mLibrary) {
-        PR_UnloadLibrary(mLibrary);
-    }
+
+    // We don't unload the plugin library in case it uses atexit handlers or
+    // other similar hooks.
 
     DeinitGraphics();
 
-    gInstance = nsnull;
+    gInstance = nullptr;
 }
 
 // static
@@ -166,55 +150,47 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 
     NS_ASSERTION(aChannel, "need a channel");
 
-    if (!mObjectMap.Init()) {
-       NS_WARNING("Failed to initialize object hashtable!");
-       return false;
-    }
-
-    if (!mStringIdentifiers.Init()) {
-       NS_ERROR("Failed to initialize string identifier hashtable!");
-       return false;
-    }
-
-    if (!mIntIdentifiers.Init()) {
-       NS_ERROR("Failed to initialize int identifier hashtable!");
-       return false;
-    }
+    mObjectMap.Init();
+    mStringIdentifiers.Init();
+    mIntIdentifiers.Init();
 
     if (!InitGraphics())
         return false;
 
     mPluginFilename = aPluginFilename.c_str();
-    nsCOMPtr<nsILocalFile> localFile;
+    nsCOMPtr<nsIFile> localFile;
     NS_NewLocalFile(NS_ConvertUTF8toUTF16(mPluginFilename),
-                    PR_TRUE,
+                    true,
                     getter_AddRefs(localFile));
 
-    PRBool exists;
+    bool exists;
     localFile->Exists(&exists);
     NS_ASSERTION(exists, "plugin file ain't there");
 
     nsPluginFile pluginFile(localFile);
 
-    nsresult rv;
     // Maemo flash can render with any provided rectangle and so does not
     // require this quirk.
-#if defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)
+#if (defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)) || defined(OS_MACOSX)
     nsPluginInfo info = nsPluginInfo();
-    rv = pluginFile.GetPluginInfo(info, &mLibrary);
-    if (NS_FAILED(rv))
+    if (NS_FAILED(pluginFile.GetPluginInfo(info, &mLibrary)))
         return false;
 
+#if defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)
     NS_NAMED_LITERAL_CSTRING(flash10Head, "Shockwave Flash 10.");
     if (StringBeginsWith(nsDependentCString(info.fDescription), flash10Head)) {
         AddQuirk(QUIRK_FLASH_EXPOSE_COORD_TRANSLATION);
     }
+#else // defined(OS_MACOSX)
+    mozilla::plugins::PluginUtilsOSX::SetProcessName(info.fName);
+#endif
 
     if (!mLibrary)
 #endif
     {
-        rv = pluginFile.LoadPlugin(&mLibrary);
-        NS_ASSERTION(NS_OK == rv, "trouble with mPluginFile");
+        nsresult rv = pluginFile.LoadPlugin(&mLibrary);
+        if (NS_FAILED(rv))
+            return false;
     }
     NS_ASSERTION(mLibrary, "couldn't open shared object");
 
@@ -227,7 +203,7 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 
     // TODO: use PluginPRLibrary here
 
-#if defined(OS_LINUX)
+#if defined(OS_LINUX) || defined(OS_BSD)
     mShutdownFunc =
         (NP_PLUGINSHUTDOWN) PR_FindFunctionSymbol(mLibrary, "NP_Shutdown");
 
@@ -253,10 +229,11 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 #  error Please copy the initialization code from nsNPAPIPlugin.cpp
 
 #endif
+
     return true;
 }
 
-#if defined(MOZ_WIDGET_GTK2)
+#if defined(MOZ_WIDGET_GTK)
 typedef void (*GObjectDisposeFn)(GObject*);
 typedef gboolean (*GtkWidgetScrollEventFn)(GtkWidget*, GdkEventScroll*);
 typedef void (*GtkPlugEmbeddedFn)(GtkPlug*);
@@ -296,16 +273,16 @@ wrap_gtk_plug_dispose(GObject* object) {
 static gboolean
 gtk_plug_scroll_event(GtkWidget *widget, GdkEventScroll *gdk_event)
 {
-    if (!GTK_WIDGET_TOPLEVEL(widget)) // in same process as its GtkSocket
+    if (!gtk_widget_is_toplevel(widget)) // in same process as its GtkSocket
         return FALSE; // event not handled; propagate to GtkSocket
 
-    GdkWindow* socket_window = GTK_PLUG(widget)->socket_window;
+    GdkWindow* socket_window = gtk_plug_get_socket_window(GTK_PLUG(widget));
     if (!socket_window)
         return FALSE;
 
     // Propagate the event to the embedder.
-    GdkScreen* screen = gdk_drawable_get_screen(socket_window);
-    GdkWindow* plug_window = widget->window;
+    GdkScreen* screen = gdk_window_get_screen(socket_window);
+    GdkWindow* plug_window = gtk_widget_get_window(widget);
     GdkWindow* event_window = gdk_event->window;
     gint x = gdk_event->x;
     gint y = gdk_event->y;
@@ -351,9 +328,9 @@ gtk_plug_scroll_event(GtkWidget *widget, GdkEventScroll *gdk_event)
 
     memset(&xevent, 0, sizeof(xevent));
     xevent.xbutton.type = ButtonPress;
-    xevent.xbutton.window = GDK_WINDOW_XWINDOW(socket_window);
-    xevent.xbutton.root = GDK_WINDOW_XWINDOW(gdk_screen_get_root_window(screen));
-    xevent.xbutton.subwindow = GDK_WINDOW_XWINDOW(plug_window);
+    xevent.xbutton.window = gdk_x11_window_get_xid(socket_window);
+    xevent.xbutton.root = gdk_x11_window_get_xid(gdk_screen_get_root_window(screen));
+    xevent.xbutton.subwindow = gdk_x11_window_get_xid(plug_window);
     xevent.xbutton.time = gdk_event->time;
     xevent.xbutton.x = x;
     xevent.xbutton.y = y;
@@ -381,7 +358,7 @@ gtk_plug_scroll_event(GtkWidget *widget, GdkEventScroll *gdk_event)
 
 static void
 wrap_gtk_plug_embedded(GtkPlug* plug) {
-    GdkWindow* socket_window = plug->socket_window;
+    GdkWindow* socket_window = gtk_plug_get_socket_window(plug);
     if (socket_window) {
         if (gtk_check_version(2,18,7) != NULL // older
             && g_object_get_data(G_OBJECT(socket_window),
@@ -504,9 +481,27 @@ PluginModuleChild::ExitedCxxStack()
 #endif
 
 bool
+PluginModuleChild::RecvSetParentHangTimeout(const uint32_t& aSeconds)
+{
+#ifdef XP_WIN
+    SetReplyTimeoutMs(((aSeconds > 0) ? (1000 * aSeconds) : 0));
+#endif
+    return true;
+}
+
+bool
+PluginModuleChild::ShouldContinueFromReplyTimeout()
+{
+#ifdef XP_WIN
+    NS_RUNTIMEABORT("terminating child process");
+#endif
+    return true;
+}
+
+bool
 PluginModuleChild::InitGraphics()
 {
-#if defined(MOZ_WIDGET_GTK2)
+#if defined(MOZ_WIDGET_GTK)
     // Work around plugins that don't interact well with GDK
     // client-side windows.
     PR_SetEnv("GDK_NATIVE_WINDOWS=1");
@@ -549,9 +544,6 @@ PluginModuleChild::InitGraphics()
 #if defined(MOZ_X11)
     if (!sGtkLib)
          sGtkLib = PR_LoadLibrary("libgtk-x11-2.0.so.0");
-#elif defined(MOZ_DFB)
-    if (!sGtkLib)
-         sGtkLib = PR_LoadLibrary("libgtk-directfb-2.0.so.0");
 #endif
     if (sGtkLib) {
          s_gtk_init = (_gtk_init_fn)PR_FindFunctionSymbol(sGtkLib, "gtk_init");
@@ -565,7 +557,6 @@ PluginModuleChild::InitGraphics()
     // Do this after initializing GDK, or GDK will install its own handler.
     XRE_InstallX11ErrorHandler();
 #endif
-
     return true;
 }
 
@@ -576,8 +567,8 @@ PluginModuleChild::DeinitGraphics()
     nsQAppInstance::Release();
     if (sGtkLib) {
         PR_UnloadLibrary(sGtkLib);
-        sGtkLib = nsnull;
-        s_gtk_init = nsnull;
+        sGtkLib = nullptr;
+        s_gtk_init = nullptr;
     }
 #endif
 
@@ -593,6 +584,10 @@ bool
 PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
 {
     AssertPluginThread();
+
+#if defined XP_WIN
+    mozilla::widget::StopAudioSession();
+#endif
 
     // the PluginModuleParent shuts down this process after this RPC
     // call pops off its stack
@@ -649,11 +644,56 @@ PluginModuleChild::AnswerNPP_GetSitesWithData(InfallibleTArray<nsCString>* aResu
     return true;
 }
 
+bool
+PluginModuleChild::RecvSetAudioSessionData(const nsID& aId,
+                                           const nsString& aDisplayName,
+                                           const nsString& aIconPath)
+{
+#if !defined XP_WIN
+    NS_RUNTIMEABORT("Not Reached!");
+    return false;
+#else
+    nsresult rv = mozilla::widget::RecvAudioSessionData(aId, aDisplayName, aIconPath);
+    NS_ENSURE_SUCCESS(rv, true); // Bail early if this fails
+
+    // Ignore failures here; we can't really do anything about them
+    mozilla::widget::StartAudioSession();
+    return true;
+#endif
+}
+
 void
 PluginModuleChild::QuickExit()
 {
     NS_WARNING("plugin process _exit()ing");
     _exit(0);
+}
+
+PCrashReporterChild*
+PluginModuleChild::AllocPCrashReporterChild(mozilla::dom::NativeThreadId* id,
+                                            uint32_t* processType)
+{
+    return new CrashReporterChild();
+}
+
+bool
+PluginModuleChild::DeallocPCrashReporterChild(PCrashReporterChild* actor)
+{
+    delete actor;
+    return true;
+}
+
+bool
+PluginModuleChild::AnswerPCrashReporterConstructor(
+        PCrashReporterChild* actor,
+        mozilla::dom::NativeThreadId* id,
+        uint32_t* processType)
+{
+#ifdef MOZ_CRASHREPORTER
+    *id = CrashReporter::CurrentThreadId();
+    *processType = XRE_GetProcessType();
+#endif
+    return true;
 }
 
 void
@@ -677,7 +717,7 @@ PluginModuleChild::CleanUp()
 const char*
 PluginModuleChild::GetUserAgent()
 {
-    if (!CallNPN_UserAgent(&mUserAgent))
+    if (mUserAgent.IsVoid() && !CallNPN_UserAgent(&mUserAgent))
         return NULL;
 
     return NullableStringGet(mUserAgent);
@@ -708,7 +748,11 @@ PluginModuleChild::UnregisterActorForNPObject(NPObject* aObject)
     NS_ASSERTION(mObjectMap.IsInitialized(), "Not initialized!");
     NS_ASSERTION(aObject, "Null pointer!");
 
-    mObjectMap.GetEntry(aObject)->actor = NULL;
+    NPObjectData* d = mObjectMap.GetEntry(aObject);
+    NS_ASSERTION(d, "NPObject not in object table");
+    if (d) {
+        d->actor = NULL;
+    }
 }
 
 PluginScriptableObjectChild*
@@ -895,6 +939,17 @@ _convertpoint(NPP instance,
 static void NP_CALLBACK
 _urlredirectresponse(NPP instance, void* notifyData, NPBool allow);
 
+static NPError NP_CALLBACK
+_initasyncsurface(NPP instance, NPSize *size,
+                  NPImageFormat format, void *initData,
+                  NPAsyncSurface *surface);
+
+static NPError NP_CALLBACK
+_finalizeasyncsurface(NPP instance, NPAsyncSurface *surface);
+
+static void NP_CALLBACK
+_setcurrentasyncsurface(NPP instance, NPAsyncSurface *surface, NPRect *changed);
+
 } /* namespace child */
 } /* namespace plugins */
 } /* namespace mozilla */
@@ -956,7 +1011,10 @@ const NPNetscapeFuncs PluginModuleChild::sBrowserFuncs = {
     mozilla::plugins::child::_convertpoint,
     NULL, // handleevent, unimplemented
     NULL, // unfocusinstance, unimplemented
-    mozilla::plugins::child::_urlredirectresponse
+    mozilla::plugins::child::_urlredirectresponse,
+    mozilla::plugins::child::_initasyncsurface,
+    mozilla::plugins::child::_finalizeasyncsurface,
+    mozilla::plugins::child::_setcurrentasyncsurface
 };
 
 PluginInstanceChild*
@@ -1022,7 +1080,7 @@ _getvalue(NPP aNPP,
     switch (aVariable) {
         // Copied from nsNPAPIPlugin.cpp
         case NPNVToolkit:
-#if defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)
+#if defined(MOZ_WIDGET_GTK) || defined(MOZ_WIDGET_QT)
             *static_cast<NPNToolkitType*>(aValue) = NPNVGtk2;
             return NPERR_NO_ERROR;
 #endif
@@ -1032,8 +1090,7 @@ _getvalue(NPP aNPP,
         case NPNVasdEnabledBool: // Intentional fall-through
         case NPNVisOfflineBool: // Intentional fall-through
         case NPNVSupportsXEmbedBool: // Intentional fall-through
-        case NPNVSupportsWindowless: // Intentional fall-through
-        case NPNVprivateModeBool: {
+        case NPNVSupportsWindowless: { // Intentional fall-through
             NPError result;
             bool value;
             PluginModuleChild::current()->
@@ -1041,7 +1098,19 @@ _getvalue(NPP aNPP,
             *(NPBool*)aValue = value ? true : false;
             return result;
         }
-
+#if (MOZ_WIDGET_GTK == 2)
+        case NPNVxDisplay: {
+            if (aNPP) {
+                return InstCast(aNPP)->NPN_GetValue(aVariable, aValue);
+            } 
+            else {
+                *(void **)aValue = xt_client_get_display();
+            }          
+            return NPERR_NO_ERROR;
+        }
+        case NPNVxtAppContext:
+            return NPERR_GENERIC_ERROR;
+#endif
         default: {
             if (aNPP) {
                 return InstCast(aNPP)->NPN_GetValue(aVariable, aValue);
@@ -1214,7 +1283,8 @@ _reloadplugins(NPBool aReloadPages)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
     ENSURE_PLUGIN_THREAD_VOID();
-    NS_WARNING("Not yet implemented!");
+
+    PluginModuleChild::current()->SendNPN_ReloadPlugins(!!aReloadPages);
 }
 
 void NP_CALLBACK
@@ -1252,7 +1322,7 @@ const char* NP_CALLBACK
 _useragent(NPP aNPP)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
-    ENSURE_PLUGIN_THREAD(nsnull);
+    ENSURE_PLUGIN_THREAD(nullptr);
     return PluginModuleChild::current()->GetUserAgent();
 }
 
@@ -1483,7 +1553,19 @@ _setexception(NPObject* aNPObj,
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
     ENSURE_PLUGIN_THREAD_VOID();
-    NS_WARNING("Not yet implemented!");
+
+    PluginModuleChild* self = PluginModuleChild::current();
+    PluginScriptableObjectChild* actor = NULL;
+    if (aNPObj) {
+        actor = self->GetActorForNPObject(aNPObj);
+        if (!actor) {
+            NS_ERROR("Failed to get actor!");
+            return;
+        }
+    }
+
+    self->SendNPN_SetException(static_cast<PPluginScriptableObjectChild*>(actor),
+                               NullableString(aMessage));
 }
 
 void NP_CALLBACK
@@ -1641,7 +1723,7 @@ _popupcontextmenu(NPP instance, NPMenu* menu)
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
 
-#ifdef OS_MACOSX
+#ifdef MOZ_WIDGET_COCOA
     double pluginX, pluginY; 
     double screenX, screenY;
 
@@ -1692,7 +1774,10 @@ _convertpoint(NPP instance,
               double *destX, double *destY, NPCoordinateSpace destSpace)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
-    AssertPluginThread();
+    if (!IsPluginThread()) {
+        NS_WARNING("Not running on the plugin's main thread!");
+        return false;
+    }
 
     double rDestX = 0;
     bool ignoreDestX = !destX;
@@ -1717,6 +1802,26 @@ _urlredirectresponse(NPP instance, void* notifyData, NPBool allow)
     InstCast(instance)->NPN_URLRedirectResponse(notifyData, allow);
 }
 
+NPError NP_CALLBACK
+_initasyncsurface(NPP instance, NPSize *size,
+                  NPImageFormat format, void *initData,
+                  NPAsyncSurface *surface)
+{
+    return InstCast(instance)->NPN_InitAsyncSurface(size, format, initData, surface);
+}
+
+NPError NP_CALLBACK
+_finalizeasyncsurface(NPP instance, NPAsyncSurface *surface)
+{
+    return InstCast(instance)->NPN_FinalizeAsyncSurface(surface);
+}
+
+void NP_CALLBACK
+_setcurrentasyncsurface(NPP instance, NPAsyncSurface *surface, NPRect *changed)
+{
+    InstCast(instance)->NPN_SetCurrentAsyncSurface(surface, changed);
+}
+
 } /* namespace child */
 } /* namespace plugins */
 } /* namespace mozilla */
@@ -1729,7 +1834,7 @@ PluginModuleChild::AnswerNP_GetEntryPoints(NPError* _retval)
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
 
-#if defined(OS_LINUX)
+#if defined(OS_LINUX) || defined(OS_BSD)
     return true;
 #elif defined(OS_WIN) || defined(OS_MACOSX)
     *_retval = mGetEntryPointsFunc(&mFunctions);
@@ -1740,29 +1845,25 @@ PluginModuleChild::AnswerNP_GetEntryPoints(NPError* _retval)
 }
 
 bool
-PluginModuleChild::AnswerNP_Initialize(NativeThreadId* tid, NPError* _retval)
+PluginModuleChild::AnswerNP_Initialize(const uint32_t& aFlags, NPError* _retval)
 {
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
 
-#ifdef MOZ_CRASHREPORTER
-    *tid = CrashReporter::CurrentThreadId();
-#else
-    *tid = 0;
-#endif
+    mAsyncDrawingAllowed = aFlags & kAllowAsyncDrawing;
 
 #ifdef OS_WIN
     SetEventHooks();
 #endif
 
 #ifdef MOZ_X11
-    // Send the parent a dup of our X socket, to act as a proxy
-    // reference for our X resources
+    // Send the parent our X socket to act as a proxy reference for our X
+    // resources.
     int xSocketFd = ConnectionNumber(DefaultXDisplay());
-    SendBackUpXResources(FileDescriptor(xSocketFd, false/*don't close*/));
+    SendBackUpXResources(FileDescriptor(xSocketFd));
 #endif
 
-#if defined(OS_LINUX)
+#if defined(OS_LINUX) || defined(OS_BSD)
     *_retval = mInitializeFunc(&sBrowserFuncs, &mFunctions);
     return true;
 #elif defined(OS_WIN) || defined(OS_MACOSX)
@@ -1774,35 +1875,32 @@ PluginModuleChild::AnswerNP_Initialize(NativeThreadId* tid, NPError* _retval)
 }
 
 PPluginIdentifierChild*
-PluginModuleChild::AllocPPluginIdentifier(const nsCString& aString,
-                                          const int32_t& aInt)
+PluginModuleChild::AllocPPluginIdentifierChild(const nsCString& aString,
+                                               const int32_t& aInt,
+                                               const bool& aTemporary)
 {
-    // There's a possibility that we already have an actor that wraps the same
-    // string or int because we do all this identifier construction
-    // asynchronously. Check to see if we've already wrapped here, and then set
-    // canonical actor of the new one to the actor already in our hash.
-    PluginIdentifierChild* newActor;
-    PluginIdentifierChild* existingActor;
-
+    // We cannot call SetPermanent within this function because Manager() isn't
+    // set up yet.
     if (aString.IsVoid()) {
-        newActor = new PluginIdentifierChildInt(aInt);
-        if (mIntIdentifiers.Get(aInt, &existingActor))
-            newActor->SetCanonicalIdentifier(existingActor);
-        else
-            mIntIdentifiers.Put(aInt, newActor);
+        return new PluginIdentifierChildInt(aInt);
     }
-    else {
-        newActor = new PluginIdentifierChildString(aString);
-        if (mStringIdentifiers.Get(aString, &existingActor))
-            newActor->SetCanonicalIdentifier(existingActor);
-        else
-            mStringIdentifiers.Put(aString, newActor);
-    }
-    return newActor;
+    return new PluginIdentifierChildString(aString);
 }
 
 bool
-PluginModuleChild::DeallocPPluginIdentifier(PPluginIdentifierChild* aActor)
+PluginModuleChild::RecvPPluginIdentifierConstructor(PPluginIdentifierChild* actor,
+                                                    const nsCString& aString,
+                                                    const int32_t& aInt,
+                                                    const bool& aTemporary)
+{
+    if (!aTemporary) {
+        static_cast<PluginIdentifierChild*>(actor)->MakePermanent();
+    }
+    return true;
+}
+
+bool
+PluginModuleChild::DeallocPPluginIdentifierChild(PPluginIdentifierChild* aActor)
 {
     delete aActor;
     return true;
@@ -1822,7 +1920,7 @@ PMCGetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
 
   if (!sBrowserHwnd) {
       PRUnichar szClass[20];
-      if (GetClassNameW(hWnd, szClass, NS_ARRAY_LENGTH(szClass)) && 
+      if (GetClassNameW(hWnd, szClass, ArrayLength(szClass)) &&
           !wcscmp(szClass, kMozillaWindowClass)) {
           sBrowserHwnd = hWnd;
       }
@@ -1839,11 +1937,11 @@ PMCGetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
 #endif
 
 PPluginInstanceChild*
-PluginModuleChild::AllocPPluginInstance(const nsCString& aMimeType,
-                                        const uint16_t& aMode,
-                                        const InfallibleTArray<nsCString>& aNames,
-                                        const InfallibleTArray<nsCString>& aValues,
-                                        NPError* rv)
+PluginModuleChild::AllocPPluginInstanceChild(const nsCString& aMimeType,
+                                             const uint16_t& aMode,
+                                             const InfallibleTArray<nsCString>& aNames,
+                                             const InfallibleTArray<nsCString>& aValues,
+                                             NPError* rv)
 {
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
@@ -1851,20 +1949,15 @@ PluginModuleChild::AllocPPluginInstance(const nsCString& aMimeType,
     InitQuirksModes(aMimeType);
 
 #ifdef XP_WIN
-    if (mQuirks & QUIRK_FLASH_HOOK_GETWINDOWINFO) {
+    if ((mQuirks & QUIRK_FLASH_HOOK_GETWINDOWINFO) &&
+        !sGetWindowInfoPtrStub) {
         sUser32Intercept.Init("user32.dll");
         sUser32Intercept.AddHook("GetWindowInfo", reinterpret_cast<intptr_t>(PMCGetWindowInfoHook),
                                  (void**) &sGetWindowInfoPtrStub);
     }
 #endif
 
-    nsAutoPtr<PluginInstanceChild> childInstance(
-        new PluginInstanceChild(&mFunctions));
-    if (!childInstance->Initialize()) {
-        *rv = NPERR_GENERIC_ERROR;
-        return 0;
-    }
-    return childInstance.forget();
+    return new PluginInstanceChild(&mFunctions);
 }
 
 void
@@ -1899,6 +1992,19 @@ PluginModuleChild::InitQuirksModes(const nsCString& aMimeType)
     NS_NAMED_LITERAL_CSTRING(quicktime, "npqtplugin");
     if (FindInReadable(quicktime, mPluginFilename)) {
       mQuirks |= QUIRK_QUICKTIME_AVOID_SETWINDOW;
+    }
+#endif
+
+#ifdef XP_MACOSX
+    // Whitelist Flash and Quicktime to support offline renderer
+    NS_NAMED_LITERAL_CSTRING(flash, "application/x-shockwave-flash");
+    NS_NAMED_LITERAL_CSTRING(quicktime, "QuickTime Plugin.plugin");
+    if (FindInReadable(flash, aMimeType)) {
+      mQuirks |= QUIRK_FLASH_AVOID_CGMODE_CRASHES;
+    }
+    if (FindInReadable(flash, aMimeType) ||
+        FindInReadable(quicktime, mPluginFilename)) {
+        mQuirks |= QUIRK_ALLOW_OFFLINE_RENDERER;
     }
 #endif
 }
@@ -1944,8 +2050,10 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
                           argv,
                           0);
     if (NPERR_NO_ERROR != *rv) {
-        return false;
+        return true;
     }
+
+    childInstance->Initialize();
 
 #if defined(XP_MACOSX) && defined(__i386__)
     // If an i386 Mac OS X plugin has selected the Carbon event model then
@@ -1968,7 +2076,7 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
 }
 
 bool
-PluginModuleChild::DeallocPPluginInstance(PPluginInstanceChild* aActor)
+PluginModuleChild::DeallocPPluginInstanceChild(PPluginInstanceChild* aActor)
 {
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
@@ -1982,7 +2090,7 @@ NPObject* NP_CALLBACK
 PluginModuleChild::NPN_CreateObject(NPP aNPP, NPClass* aClass)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
-    ENSURE_PLUGIN_THREAD(nsnull);
+    ENSURE_PLUGIN_THREAD(nullptr);
 
     PluginInstanceChild* i = InstCast(aNPP);
     if (i->mDeletingHash) {
@@ -2017,7 +2125,10 @@ PluginModuleChild::NPN_RetainObject(NPObject* aNPObj)
 {
     AssertPluginThread();
 
-    int32_t refCnt = PR_ATOMIC_INCREMENT((int32_t*)&aNPObj->referenceCount);
+#ifdef NS_BUILD_REFCNT_LOGGING
+    int32_t refCnt =
+#endif
+    PR_ATOMIC_INCREMENT((int32_t*)&aNPObj->referenceCount);
     NS_LOG_ADDREF(aNPObj, refCnt, "NPObject", sizeof(NPObject));
 
     return aNPObj;
@@ -2102,15 +2213,14 @@ PluginModuleChild::NPN_GetStringIdentifier(const NPUTF8* aName)
     PluginModuleChild* self = PluginModuleChild::current();
     nsDependentCString name(aName);
 
-    PluginIdentifierChild* ident;
-    if (!self->mStringIdentifiers.Get(name, &ident)) {
+    PluginIdentifierChildString* ident = self->mStringIdentifiers.Get(name);
+    if (!ident) {
         nsCString nameCopy(name);
 
         ident = new PluginIdentifierChildString(nameCopy);
-        self->SendPPluginIdentifierConstructor(ident, nameCopy, -1);
-        self->mStringIdentifiers.Put(nameCopy, ident);
+        self->SendPPluginIdentifierConstructor(ident, nameCopy, -1, false);
     }
-
+    ident->MakePermanent();
     return ident;
 }
 
@@ -2134,14 +2244,14 @@ PluginModuleChild::NPN_GetStringIdentifiers(const NPUTF8** aNames,
             continue;
         }
         nsDependentCString name(aNames[index]);
-        PluginIdentifierChild* ident;
-        if (!self->mStringIdentifiers.Get(name, &ident)) {
+        PluginIdentifierChildString* ident = self->mStringIdentifiers.Get(name);
+        if (!ident) {
             nsCString nameCopy(name);
 
             ident = new PluginIdentifierChildString(nameCopy);
-            self->SendPPluginIdentifierConstructor(ident, nameCopy, -1);
-            self->mStringIdentifiers.Put(nameCopy, ident);
+            self->SendPPluginIdentifierConstructor(ident, nameCopy, -1, false);
         }
+        ident->MakePermanent();
         aIdentifiers[index] = ident;
     }
 }
@@ -2164,15 +2274,15 @@ PluginModuleChild::NPN_GetIntIdentifier(int32_t aIntId)
 
     PluginModuleChild* self = PluginModuleChild::current();
 
-    PluginIdentifierChild* ident;
-    if (!self->mIntIdentifiers.Get(aIntId, &ident)) {
+    PluginIdentifierChildInt* ident = self->mIntIdentifiers.Get(aIntId);
+    if (!ident) {
         nsCString voidString;
-        voidString.SetIsVoid(PR_TRUE);
+        voidString.SetIsVoid(true);
 
         ident = new PluginIdentifierChildInt(aIntId);
-        self->SendPPluginIdentifierConstructor(ident, voidString, aIntId);
-        self->mIntIdentifiers.Put(aIntId, ident);
+        self->SendPPluginIdentifierConstructor(ident, voidString, aIntId, false);
     }
+    ident->MakePermanent();
     return ident;
 }
 
@@ -2184,7 +2294,7 @@ PluginModuleChild::NPN_UTF8FromIdentifier(NPIdentifier aIdentifier)
     if (static_cast<PluginIdentifierChild*>(aIdentifier)->IsString()) {
       return static_cast<PluginIdentifierChildString*>(aIdentifier)->ToString();
     }
-    return nsnull;
+    return nullptr;
 }
 
 int32_t NP_CALLBACK
@@ -2195,7 +2305,7 @@ PluginModuleChild::NPN_IntFromIdentifier(NPIdentifier aIdentifier)
     if (!static_cast<PluginIdentifierChild*>(aIdentifier)->IsString()) {
       return static_cast<PluginIdentifierChildInt*>(aIdentifier)->ToInt();
     }
-    return PR_INT32_MIN;
+    return INT32_MIN;
 }
 
 #ifdef OS_WIN
@@ -2209,7 +2319,7 @@ void
 PluginModuleChild::ExitedCall()
 {
     NS_ASSERTION(mIncallPumpingStack.Length(), "mismatched entered/exited");
-    PRUint32 len = mIncallPumpingStack.Length();
+    uint32_t len = mIncallPumpingStack.Length();
     const IncallFrame& f = mIncallPumpingStack[len - 1];
     if (f._spinning)
         MessageLoop::current()->SetNestableTasksAllowed(f._savedNestableTasksAllowed);
@@ -2246,14 +2356,15 @@ LRESULT CALLBACK
 PluginModuleChild::NestedInputEventHook(int nCode, WPARAM wParam, LPARAM lParam)
 {
     PluginModuleChild* self = current();
-    PRUint32 len = self->mIncallPumpingStack.Length();
+    uint32_t len = self->mIncallPumpingStack.Length();
     if (nCode >= 0 && len && !self->mIncallPumpingStack[len - 1]._spinning) {
+        MessageLoop* loop = MessageLoop::current();
         self->SendProcessNativeEventsInRPCCall();
         IncallFrame& f = self->mIncallPumpingStack[len - 1];
         f._spinning = true;
-        MessageLoop* loop = MessageLoop::current();
         f._savedNestableTasksAllowed = loop->NestableTasksAllowed();
         loop->SetNestableTasksAllowed(true);
+        loop->set_os_modal_loop(true);
     }
 
     return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -2310,9 +2421,22 @@ PluginModuleChild::RecvProcessNativeEventsInRPCCall()
 #endif
 }
 
-#ifdef OS_MACOSX
+#ifdef MOZ_WIDGET_COCOA
 void
 PluginModuleChild::ProcessNativeEvents() {
     CallProcessSomeEvents();    
 }
 #endif
+
+bool
+PluginModuleChild::AnswerGeckoGetProfile(nsCString* aProfile) {
+    char* profile = profiler_get_profile();
+    if (profile != NULL) {
+        *aProfile = nsCString(profile, strlen(profile));
+        free(profile);
+    } else {
+        *aProfile = nsCString("", 0);
+    }
+    return true;
+}
+

@@ -1,66 +1,180 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *     Boris Zbarsky <bzbarsky@mit.edu> (original author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
  * A class which manages pending restyles.  This handles keeping track
  * of what nodes restyles need to happen on and so forth.
  */
 
-#ifndef mozilla_css_RestyleTracker_h
-#define mozilla_css_RestyleTracker_h
+#ifndef mozilla_RestyleTracker_h
+#define mozilla_RestyleTracker_h
 
 #include "mozilla/dom/Element.h"
 #include "nsDataHashtable.h"
 #include "nsIFrame.h"
-
-class nsCSSFrameConstructor;
+#include "nsTPriorityQueue.h"
+#include "mozilla/SplayTree.h"
 
 namespace mozilla {
-namespace css {
+
+class RestyleManager;
+
+/** 
+ * Helper class that collects a list of frames that need
+ * UpdateOverflow() called on them, and coalesces them
+ * to avoid walking up the same ancestor tree multiple times.
+ */
+class OverflowChangedTracker
+{
+public:
+
+  ~OverflowChangedTracker()
+  {
+    NS_ASSERTION(mEntryList.empty(), "Need to flush before destroying!");
+  }
+
+  /**
+   * Add a frame that has had a style change, and needs its
+   * overflow updated.
+   *
+   * If there are pre-transform overflow areas stored for this
+   * frame, then we will call FinishAndStoreOverflow with those
+   * areas instead of UpdateOverflow().
+   *
+   * If the overflow area changes, then UpdateOverflow will also
+   * be called on the parent.
+   */
+  void AddFrame(nsIFrame* aFrame) {
+    uint32_t depth = aFrame->GetDepthInFrameTree();
+    if (mEntryList.empty() ||
+        !mEntryList.contains(Entry(aFrame, depth, true))) {
+      mEntryList.insert(new Entry(aFrame, depth, true));
+    }
+  }
+
+  /**
+   * Remove a frame.
+   */
+  void RemoveFrame(nsIFrame* aFrame) {
+    if (mEntryList.empty()) {
+      return;
+    }
+
+    uint32_t depth = aFrame->GetDepthInFrameTree();
+    if (mEntryList.contains(Entry(aFrame, depth, false))) {
+      delete mEntryList.remove(Entry(aFrame, depth, false));
+    }
+  }
+
+  /**
+   * Update the overflow of all added frames, and clear the entry list.
+   *
+   * Start from those deepest in the frame tree and works upwards. This stops 
+   * us from processing the same frame twice.
+   */
+  void Flush() {
+    while (!mEntryList.empty()) {
+      Entry *entry = mEntryList.removeMin();
+
+      nsIFrame *frame = entry->mFrame;
+
+      bool updateParent = false;
+      if (entry->mInitial) {
+        nsOverflowAreas* pre = static_cast<nsOverflowAreas*>
+          (frame->Properties().Get(frame->PreTransformOverflowAreasProperty()));
+        if (pre) {
+          // FinishAndStoreOverflow will change the overflow areas passed in,
+          // so make a copy.
+          nsOverflowAreas overflowAreas = *pre;
+          frame->FinishAndStoreOverflow(overflowAreas, frame->GetSize());
+          // We can't tell if the overflow changed, so update the parent regardless
+          updateParent = true;
+        }
+      }
+
+      // If the overflow changed, then we want to also update the parent's
+      // overflow. We always update the parent for initial frames.
+      if (!updateParent) {
+        updateParent = frame->UpdateOverflow() || entry->mInitial;
+      }
+      if (updateParent) {
+        nsIFrame *parent = frame->GetParent();
+        if (parent) {
+          if (!mEntryList.contains(Entry(parent, entry->mDepth - 1, false))) {
+            mEntryList.insert(new Entry(parent, entry->mDepth - 1, false));
+          }
+        }
+      }
+      delete entry;
+    }
+  }
+  
+private:
+  struct Entry : SplayTreeNode<Entry>
+  {
+    Entry(nsIFrame* aFrame, bool aInitial)
+      : mFrame(aFrame)
+      , mDepth(aFrame->GetDepthInFrameTree())
+      , mInitial(aInitial)
+    {}
+    
+    Entry(nsIFrame* aFrame, uint32_t aDepth, bool aInitial)
+      : mFrame(aFrame)
+      , mDepth(aDepth)
+      , mInitial(aInitial)
+    {}
+
+    bool operator==(const Entry& aOther) const
+    {
+      return mFrame == aOther.mFrame;
+    }
+ 
+    /**
+     * Sort by *reverse* depth in the tree, and break ties with
+     * the frame pointer.
+     */
+    bool operator<(const Entry& aOther) const
+    {
+      if (mDepth == aOther.mDepth) {
+        return mFrame < aOther.mFrame;
+      }
+      return mDepth > aOther.mDepth; /* reverse, want "min" to be deepest */
+    }
+
+    static int compare(const Entry& aOne, const Entry& aTwo)
+    {
+      if (aOne == aTwo) {
+        return 0;
+      } else if (aOne < aTwo) {
+        return -1;
+      } else {
+        return 1;
+      }
+    }
+
+    nsIFrame* mFrame;
+    /* Depth in the frame tree */
+    uint32_t mDepth;
+    /**
+     * True if the frame had the actual style change, and we
+     * want to check for pre-transform overflow areas.
+     */
+    bool mInitial;
+  };
+
+  /* A list of frames to process, sorted by their depth in the frame tree */
+  SplayTree<Entry, Entry> mEntryList;
+};
 
 class RestyleTracker {
 public:
   typedef mozilla::dom::Element Element;
 
-  RestyleTracker(PRUint32 aRestyleBits,
-                 nsCSSFrameConstructor* aFrameConstructor) :
-    mRestyleBits(aRestyleBits), mFrameConstructor(aFrameConstructor),
-    mHaveLaterSiblingRestyles(PR_FALSE)
+  RestyleTracker(uint32_t aRestyleBits) :
+    mRestyleBits(aRestyleBits),
+    mHaveLaterSiblingRestyles(false)
   {
     NS_PRECONDITION((mRestyleBits & ~ELEMENT_ALL_RESTYLE_FLAGS) == 0,
                     "Why do we have these bits set?");
@@ -76,11 +190,12 @@ public:
                     "Shouldn't have both root flags");
   }
 
-  PRBool Init() {
-    return mPendingRestyles.Init();
+  void Init(RestyleManager* aRestyleManager) {
+    mRestyleManager = aRestyleManager;
+    mPendingRestyles.Init();
   }
 
-  PRUint32 Count() const {
+  uint32_t Count() const {
     return mPendingRestyles.Count();
   }
 
@@ -88,21 +203,27 @@ public:
    * Add a restyle for the given element to the tracker.  Returns true
    * if the element already had eRestyle_LaterSiblings set on it.
    */
-  PRBool AddPendingRestyle(Element* aElement, nsRestyleHint aRestyleHint,
+  bool AddPendingRestyle(Element* aElement, nsRestyleHint aRestyleHint,
                            nsChangeHint aMinChangeHint);
 
   /**
    * Process the restyles we've been tracking.
    */
-  void ProcessRestyles();
+  void ProcessRestyles() {
+    // Fast-path the common case (esp. for the animation restyle
+    // tracker) of not having anything to do.
+    if (mPendingRestyles.Count()) {
+      DoProcessRestyles();
+    }
+  }
 
   // Return our ELEMENT_HAS_PENDING_(ANIMATION_)RESTYLE bit
-  PRUint32 RestyleBit() const {
+  uint32_t RestyleBit() const {
     return mRestyleBits & ELEMENT_PENDING_RESTYLE_FLAGS;
   }
 
   // Return our ELEMENT_IS_POTENTIAL_(ANIMATION_)RESTYLE_ROOT bit
-  PRUint32 RootBit() const {
+  uint32_t RootBit() const {
     return mRestyleBits & ~ELEMENT_PENDING_RESTYLE_FLAGS;
   }
   
@@ -122,7 +243,7 @@ public:
    * the element.  If false is returned, then the state of *aData is
    * undefined.
    */
-  PRBool GetRestyleData(Element* aElement, RestyleData* aData);
+  bool GetRestyleData(Element* aElement, RestyleData* aData);
 
   /**
    * The document we're associated with.
@@ -143,13 +264,18 @@ private:
                                 nsRestyleHint aRestyleHint,
                                 nsChangeHint aChangeHint);
 
+  /**
+   * The guts of our restyle processing.
+   */
+  void DoProcessRestyles();
+
   typedef nsDataHashtable<nsISupportsHashKey, RestyleData> PendingRestyleTable;
   typedef nsAutoTArray< nsRefPtr<Element>, 32> RestyleRootArray;
   // Our restyle bits.  These will be a subset of ELEMENT_ALL_RESTYLE_FLAGS, and
   // will include one flag from ELEMENT_PENDING_RESTYLE_FLAGS and one flag
   // that's not in ELEMENT_PENDING_RESTYLE_FLAGS.
-  PRUint32 mRestyleBits;
-  nsCSSFrameConstructor* mFrameConstructor; // Owns us
+  uint32_t mRestyleBits;
+  RestyleManager* mRestyleManager; // Owns us
   // A hashtable that maps elements to RestyleData structs.  The
   // values only make sense if the element's current document is our
   // document and it has our RestyleBit() flag set.  In particular,
@@ -166,10 +292,10 @@ private:
   // True if we have some entries with the eRestyle_LaterSiblings
   // flag.  We need this to avoid enumerating the hashtable looking
   // for such entries when we can't possibly have any.
-  PRBool mHaveLaterSiblingRestyles;
+  bool mHaveLaterSiblingRestyles;
 };
 
-inline PRBool RestyleTracker::AddPendingRestyle(Element* aElement,
+inline bool RestyleTracker::AddPendingRestyle(Element* aElement,
                                                 nsRestyleHint aRestyleHint,
                                                 nsChangeHint aMinChangeHint)
 {
@@ -186,7 +312,7 @@ inline PRBool RestyleTracker::AddPendingRestyle(Element* aElement,
     aElement->SetFlags(RestyleBit());
   }
 
-  PRBool hadRestyleLaterSiblings =
+  bool hadRestyleLaterSiblings =
     (existingData.mRestyleHint & eRestyle_LaterSiblings) != 0;
   existingData.mRestyleHint =
     nsRestyleHint(existingData.mRestyleHint | aRestyleHint);
@@ -232,7 +358,6 @@ inline PRBool RestyleTracker::AddPendingRestyle(Element* aElement,
   return hadRestyleLaterSiblings;
 }
 
-} // namespace css
 } // namespace mozilla
 
-#endif /* mozilla_css_RestyleTracker_h */
+#endif /* mozilla_RestyleTracker_h */

@@ -1,39 +1,8 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
  * Header for JavaScript Debugging support - Internal ONLY declarations
@@ -60,20 +29,7 @@
 #define JSD_USE_NSPR_LOCKS 1
 #endif /* MOZILLA_CLIENT */
 
-
-/* Get jstypes.h included first. After that we can use PR macros for doing
-*  this extern "C" stuff!
-*/
-#ifdef __cplusplus
-extern "C"
-{
-#endif
 #include "jstypes.h"
-#ifdef __cplusplus
-}
-#endif
-
-JS_BEGIN_EXTERN_C
 #include "jsprf.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jshash.h" /* Added by JSIFY */
@@ -86,16 +42,6 @@ JS_BEGIN_EXTERN_C
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef LIVEWIRE
-#include <base/pblock.h>
-#include <base/session.h>
-#include <frame/log.h>
-#include <frame/req.h>
-#endif /* LIVEWIRE */
-JS_END_EXTERN_C
-
-JS_BEGIN_EXTERN_C
 
 #define JSD_MAJOR_VERSION 1
 #define JSD_MINOR_VERSION 1
@@ -136,7 +82,7 @@ struct JSDContext
     JSCList                 links;      /* we are part of a JSCList */
     JSBool                  inited;
     void*                   data;
-    uint32                  flags;
+    uint32_t                flags;
     JSD_ScriptHookProc      scriptHook;
     void*                   scriptHookData;
     JSD_ExecutionHookProc   interruptHook;
@@ -155,7 +101,6 @@ struct JSDContext
     void*                   functionHookData;
     JSD_CallHookProc        toplevelHook;
     void*                   toplevelHookData;
-    JSContext*              dumbContext;
     JSObject*               glob;
     JSD_UserCallbacks       userCallbacks;
     void*                   user;
@@ -163,18 +108,18 @@ struct JSDContext
     JSHashTable*            scriptsTable;
     JSCList                 sources;
     JSCList                 removedSources;
-    uintN                   sourceAlterCount;
+    unsigned                   sourceAlterCount;
     JSHashTable*            atoms;
     JSCList                 objectsList;
     JSHashTable*            objectsTable;
     JSDProfileData*         callingFunctionPData;
-    int64                   lastReturnTime;
+    int64_t                 lastReturnTime;
 #ifdef JSD_THREADSAFE
-    void*                   scriptsLock;
-    void*                   sourceTextLock;
-    void*                   objectsLock;
-    void*                   atomsLock;
-    void*                   threadStatesLock;
+    JSDStaticLock*          scriptsLock;
+    JSDStaticLock*          sourceTextLock;
+    JSDStaticLock*          objectsLock;
+    JSDStaticLock*          atomsLock;
+    JSDStaticLock*          threadStatesLock;
 #endif /* JSD_THREADSAFE */
 #ifdef JSD_HAS_DANGEROUS_THREAD
     void*                   dangerousThread;
@@ -187,36 +132,30 @@ struct JSDScript
     JSCList     links;      /* we are part of a JSCList */
     JSDContext* jsdc;       /* JSDContext for this jsdscript */
     JSScript*   script;     /* script we are wrapping */
-    JSFunction* function;   /* back pointer to owning function (can be NULL) */
-    uintN       lineBase;   /* we cache this */
-    uintN       lineExtent; /* we cache this */
+    unsigned       lineBase;   /* we cache this */
+    unsigned       lineExtent; /* we cache this */
     JSCList     hooks;      /* JSCList of JSDExecHooks for this script */
     char*       url;
-    uint32      flags;
+    uint32_t    flags;
     void*       data;
 
     JSDProfileData  *profileData;
-
-#ifdef LIVEWIRE
-    LWDBGApp*    app;
-    LWDBGScript* lwscript;
-#endif
 };
 
 struct JSDProfileData
 {
     JSDProfileData* caller;
-    int64    lastCallStart;
-    int64    runningTime;
-    uintN    callCount;
-    uintN    recurseDepth;
-    uintN    maxRecurseDepth;
-    jsdouble minExecutionTime;
-    jsdouble maxExecutionTime;
-    jsdouble totalExecutionTime;
-    jsdouble minOwnExecutionTime;
-    jsdouble maxOwnExecutionTime;
-    jsdouble totalOwnExecutionTime;
+    int64_t  lastCallStart;
+    int64_t  runningTime;
+    unsigned    callCount;
+    unsigned    recurseDepth;
+    unsigned    maxRecurseDepth;
+    double minExecutionTime;
+    double maxExecutionTime;
+    double totalExecutionTime;
+    double minOwnExecutionTime;
+    double maxOwnExecutionTime;
+    double totalOwnExecutionTime;
 };
 
 struct JSDSourceText
@@ -224,11 +163,11 @@ struct JSDSourceText
     JSCList          links;      /* we are part of a JSCList */
     char*            url;
     char*            text;
-    uintN            textLength;
-    uintN            textSpace;
+    unsigned            textLength;
+    unsigned            textSpace;
     JSBool           dirty;
     JSDSourceStatus  status;
-    uintN            alterCount;
+    unsigned            alterCount;
     JSBool           doingEval;
 };
 
@@ -236,7 +175,7 @@ struct JSDExecHook
 {
     JSCList               links;        /* we are part of a JSCList */
     JSDScript*            jsdscript;
-    jsuword               pc;
+    uintptr_t             pc;
     JSD_ExecutionHookProc hook;
     void*                 callerdata;
 };
@@ -249,8 +188,8 @@ struct JSDThreadState
     JSContext*          context;
     void*               thread;
     JSCList             stack;
-    uintN               stackDepth;
-    uintN               flags;
+    unsigned               stackDepth;
+    unsigned               flags;
 };
 
 struct JSDStackFrameInfo
@@ -258,8 +197,9 @@ struct JSDStackFrameInfo
     JSCList             links;        /* we are part of a JSCList */
     JSDThreadState*     jsdthreadstate;
     JSDScript*          jsdscript;
-    jsuword             pc;
-    JSStackFrame*       fp;
+    uintptr_t           pc;
+    bool                isConstructing;
+    JSAbstractFramePtr  frame;
 };
 
 #define GOT_PROTO   ((short) (1 << 0))
@@ -270,7 +210,7 @@ struct JSDStackFrameInfo
 struct JSDValue
 {
     jsval       val;
-    intN        nref;
+    int        nref;
     JSCList     props;
     JSString*   string;
     JSString*   funName;
@@ -278,24 +218,23 @@ struct JSDValue
     JSDValue*   proto;
     JSDValue*   parent;
     JSDValue*   ctor;
-    uintN       flags;
+    unsigned       flags;
 };
 
 struct JSDProperty
 {
     JSCList     links;      /* we are part of a JSCList */
-    intN        nref;
+    int        nref;
     JSDValue*   val;
     JSDValue*   name;
     JSDValue*   alias;
-    uintN       slot;
-    uintN       flags;
+    unsigned       flags;
 };
 
 struct JSDAtom
 {
     char* str;      /* must be first element in struct for compare */
-    intN  refcount;
+    int  refcount;
 };
 
 struct JSDObject
@@ -303,9 +242,9 @@ struct JSDObject
     JSCList     links;      /* we are part of a JSCList */
     JSObject*   obj;
     JSDAtom*    newURL;
-    uintN       newLineno;
+    unsigned       newLineno;
     JSDAtom*    ctorURL;
-    uintN       ctorLineno;
+    unsigned       ctorLineno;
     JSDAtom*    ctorName;
 };
 
@@ -380,10 +319,6 @@ jsd_GetErrorReporter(JSDContext*        jsdc,
                      JSD_ErrorReporter* reporter,
                      void**             callerdata);
 
-static JSBool
-jsd_DebugErrorHook(JSContext *cx, const char *message,
-                   JSErrorReport *report, void *closure);
-
 /***************************************************************************/
 /* Script functions */
 
@@ -401,39 +336,39 @@ extern JSDScript*
 jsd_FindOrCreateJSDScript(JSDContext    *jsdc,
                           JSContext     *cx,
                           JSScript      *script,
-                          JSStackFrame  *fp);
+                          JSAbstractFramePtr frame);
 
 extern JSDProfileData*
 jsd_GetScriptProfileData(JSDContext* jsdc, JSDScript *script);
 
-extern uint32
+extern uint32_t
 jsd_GetScriptFlags(JSDContext *jsdc, JSDScript *script);
 
 extern void
-jsd_SetScriptFlags(JSDContext *jsdc, JSDScript *script, uint32 flags);
+jsd_SetScriptFlags(JSDContext *jsdc, JSDScript *script, uint32_t flags);
 
-extern uintN
+extern unsigned
 jsd_GetScriptCallCount(JSDContext* jsdc, JSDScript *script);
 
-extern  uintN
+extern  unsigned
 jsd_GetScriptMaxRecurseDepth(JSDContext* jsdc, JSDScript *script);
 
-extern jsdouble
+extern double
 jsd_GetScriptMinExecutionTime(JSDContext* jsdc, JSDScript *script);
 
-extern jsdouble
+extern double
 jsd_GetScriptMaxExecutionTime(JSDContext* jsdc, JSDScript *script);
 
-extern jsdouble
+extern double
 jsd_GetScriptTotalExecutionTime(JSDContext* jsdc, JSDScript *script);
 
-extern jsdouble
+extern double
 jsd_GetScriptMinOwnExecutionTime(JSDContext* jsdc, JSDScript *script);
 
-extern jsdouble
+extern double
 jsd_GetScriptMaxOwnExecutionTime(JSDContext* jsdc, JSDScript *script);
 
-extern jsdouble
+extern double
 jsd_GetScriptTotalOwnExecutionTime(JSDContext* jsdc, JSDScript *script);
 
 extern void
@@ -463,10 +398,10 @@ jsd_GetScriptFilename(JSDContext* jsdc, JSDScript *jsdscript);
 extern JSString*
 jsd_GetScriptFunctionId(JSDContext* jsdc, JSDScript *jsdscript);
 
-extern uintN
+extern unsigned
 jsd_GetScriptBaseLineNumber(JSDContext* jsdc, JSDScript *jsdscript);
 
-extern uintN
+extern unsigned
 jsd_GetScriptLineExtent(JSDContext* jsdc, JSDScript *jsdscript);
 
 extern JSBool
@@ -475,24 +410,29 @@ jsd_SetScriptHook(JSDContext* jsdc, JSD_ScriptHookProc hook, void* callerdata);
 extern JSBool
 jsd_GetScriptHook(JSDContext* jsdc, JSD_ScriptHookProc* hook, void** callerdata);
 
-extern jsuword
-jsd_GetClosestPC(JSDContext* jsdc, JSDScript* jsdscript, uintN line);
+extern uintptr_t
+jsd_GetClosestPC(JSDContext* jsdc, JSDScript* jsdscript, unsigned line);
 
-extern uintN
-jsd_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, jsuword pc);
+extern unsigned
+jsd_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, uintptr_t pc);
+
+extern JSBool
+jsd_GetLinePCs(JSDContext* jsdc, JSDScript* jsdscript,
+               unsigned startLine, unsigned maxLines,
+               unsigned* count, unsigned** lines, uintptr_t** pcs);
 
 extern void
 jsd_NewScriptHookProc(
                 JSContext   *cx,
                 const char  *filename,      /* URL this script loads from */
-                uintN       lineno,         /* line where this script starts */
+                unsigned       lineno,         /* line where this script starts */
                 JSScript    *script,
                 JSFunction  *fun,
                 void*       callerdata);
 
 extern void
 jsd_DestroyScriptHookProc(
-                JSContext   *cx,
+                JSFreeOp    *fop,
                 JSScript    *script,
                 void*       callerdata);
 
@@ -501,14 +441,14 @@ jsd_DestroyScriptHookProc(
 extern JSBool
 jsd_SetExecutionHook(JSDContext*           jsdc,
                      JSDScript*            jsdscript,
-                     jsuword               pc,
+                     uintptr_t             pc,
                      JSD_ExecutionHookProc hook,
                      void*                 callerdata);
 
 extern JSBool
 jsd_ClearExecutionHook(JSDContext*           jsdc,
                        JSDScript*            jsdscript,
-                       jsuword               pc);
+                       uintptr_t             pc);
 
 extern JSBool
 jsd_ClearAllExecutionHooksForScript(JSDContext* jsdc, JSDScript* jsdscript);
@@ -520,13 +460,13 @@ extern void
 jsd_ScriptCreated(JSDContext* jsdc,
                   JSContext   *cx,
                   const char  *filename,    /* URL this script loads from */
-                  uintN       lineno,       /* line where this script starts */
+                  unsigned       lineno,       /* line where this script starts */
                   JSScript    *script,
                   JSFunction  *fun);
 
 extern void
 jsd_ScriptDestroyed(JSDContext* jsdc,
-                    JSContext   *cx,
+                    JSFreeOp    *fop,
                     JSScript    *script);
 
 /***************************************************************************/
@@ -543,7 +483,7 @@ jsd_GetSourceURL(JSDContext* jsdc, JSDSourceText* jsdsrc);
 
 extern JSBool
 jsd_GetSourceText(JSDContext* jsdc, JSDSourceText* jsdsrc,
-                  const char** ppBuf, intN* pLen);
+                  const char** ppBuf, int* pLen);
 
 extern void
 jsd_ClearSourceText(JSDContext* jsdc, JSDSourceText* jsdsrc);
@@ -557,10 +497,10 @@ jsd_IsSourceDirty(JSDContext* jsdc, JSDSourceText* jsdsrc);
 extern void
 jsd_SetSourceDirty(JSDContext* jsdc, JSDSourceText* jsdsrc, JSBool dirty);
 
-extern uintN
+extern unsigned
 jsd_GetSourceAlterCount(JSDContext* jsdc, JSDSourceText* jsdsrc);
 
-extern uintN
+extern unsigned
 jsd_IncrementSourceAlterCount(JSDContext* jsdc, JSDSourceText* jsdsrc);
 
 extern JSDSourceText*
@@ -634,7 +574,7 @@ jsd_ClearDebuggerHook(JSDContext* jsdc);
 extern JSTrapStatus
 jsd_CallExecutionHook(JSDContext*           jsdc,
                       JSContext*            cx,
-                      uintN                 type,
+                      unsigned                 type,
                       JSD_ExecutionHookProc hook,
                       void*                 hookData,
                       jsval*                rval);
@@ -642,7 +582,7 @@ jsd_CallExecutionHook(JSDContext*           jsdc,
 extern JSBool
 jsd_CallCallHook (JSDContext*      jsdc,
                   JSContext*       cx,
-                  uintN            type,
+                  unsigned            type,
                   JSD_CallHookProc hook,
                   void*            hookData);
 
@@ -680,7 +620,7 @@ jsd_ClearTopLevelHook(JSDContext* jsdc);
 /***************************************************************************/
 /* Stack Frame functions */
 
-extern uintN
+extern unsigned
 jsd_GetCountOfStackFrames(JSDContext* jsdc, JSDThreadState* jsdthreadstate);
 
 extern JSDStackFrameInfo*
@@ -699,7 +639,7 @@ jsd_GetScriptForStackFrame(JSDContext* jsdc,
                            JSDThreadState* jsdthreadstate,
                            JSDStackFrameInfo* jsdframe);
 
-extern jsuword
+extern uintptr_t
 jsd_GetPCForStackFrame(JSDContext* jsdc,
                        JSDThreadState* jsdthreadstate,
                        JSDStackFrameInfo* jsdframe);
@@ -744,17 +684,17 @@ extern JSBool
 jsd_EvaluateUCScriptInStackFrame(JSDContext* jsdc,
                                  JSDThreadState* jsdthreadstate,
                                  JSDStackFrameInfo* jsdframe,
-                                 const jschar *bytes, uintN length,
-                                 const char *filename, uintN lineno,
-                                 JSBool eatExceptions, jsval *rval);
+                                 const jschar *bytes, unsigned length,
+                                 const char *filename, unsigned lineno,
+                                 JSBool eatExceptions, JS::MutableHandleValue rval);
 
 extern JSBool
 jsd_EvaluateScriptInStackFrame(JSDContext* jsdc,
                                JSDThreadState* jsdthreadstate,
                                JSDStackFrameInfo* jsdframe,
-                               const char *bytes, uintN length,
-                               const char *filename, uintN lineno,
-                               JSBool eatExceptions, jsval *rval);
+                               const char *bytes, unsigned length,
+                               const char *filename, unsigned lineno,
+                               JSBool eatExceptions, JS::MutableHandleValue rval);
 
 extern JSString*
 jsd_ValToStringInStackFrame(JSDContext* jsdc,
@@ -792,7 +732,7 @@ jsd_SetException(JSDContext* jsdc, JSDThreadState* jsdthreadstate,
 #ifdef JSD_THREADSAFE
 
 /* the system-wide lock */
-extern void* _jsd_global_lock;
+extern JSDStaticLock* _jsd_global_lock;
 #define JSD_LOCK()                               \
     JS_BEGIN_MACRO                               \
         if(!_jsd_global_lock)                    \
@@ -965,10 +905,10 @@ jsd_IsValueNative(JSDContext* jsdc, JSDValue* jsdval);
 extern JSBool
 jsd_GetValueBoolean(JSDContext* jsdc, JSDValue* jsdval);
 
-extern int32
+extern int32_t
 jsd_GetValueInt(JSDContext* jsdc, JSDValue* jsdval);
 
-extern jsdouble
+extern double
 jsd_GetValueDouble(JSDContext* jsdc, JSDValue* jsdval);
 
 extern JSString*
@@ -982,7 +922,7 @@ jsd_GetValueFunction(JSDContext* jsdc, JSDValue* jsdval);
 
 /**************************************************/
 
-extern uintN
+extern unsigned
 jsd_GetCountOfProperties(JSDContext* jsdc, JSDValue* jsdval);
 
 extern JSDProperty*
@@ -1020,22 +960,19 @@ jsd_GetPropertyValue(JSDContext* jsdc, JSDProperty* jsdprop);
 extern JSDValue*
 jsd_GetPropertyAlias(JSDContext* jsdc, JSDProperty* jsdprop);
 
-extern uintN
+extern unsigned
 jsd_GetPropertyFlags(JSDContext* jsdc, JSDProperty* jsdprop);
-
-extern uintN
-jsd_GetPropertyVarArgSlot(JSDContext* jsdc, JSDProperty* jsdprop);
 
 /**************************************************/
 /* Stepping Functions */
 
 extern void *
-jsd_FunctionCallHook(JSContext *cx, JSStackFrame *fp, JSBool before,
-                     JSBool *ok, void *closure);
+jsd_FunctionCallHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing,
+                     JSBool before, JSBool *ok, void *closure);
 
 extern void *
-jsd_TopLevelCallHook(JSContext *cx, JSStackFrame *fp, JSBool before,
-                     JSBool *ok, void *closure);
+jsd_TopLevelCallHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing,
+                     JSBool before, JSBool *ok, void *closure);
 
 /**************************************************/
 /* Object Functions */
@@ -1051,7 +988,7 @@ jsd_DestroyObjects(JSDContext* jsdc);
 
 extern void
 jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,
-                 JSStackFrame *fp);
+                 JSAbstractFramePtr frame);
 
 extern JSDObject*
 jsd_IterateObjects(JSDContext* jsdc, JSDObject** iterp);
@@ -1062,13 +999,13 @@ jsd_GetWrappedObject(JSDContext* jsdc, JSDObject* jsdobj);
 extern const char*
 jsd_GetObjectNewURL(JSDContext* jsdc, JSDObject* jsdobj);
 
-extern uintN
+extern unsigned
 jsd_GetObjectNewLineNumber(JSDContext* jsdc, JSDObject* jsdobj);
 
 extern const char*
 jsd_GetObjectConstructorURL(JSDContext* jsdc, JSDObject* jsdobj);
 
-extern uintN
+extern unsigned
 jsd_GetObjectConstructorLineNumber(JSDContext* jsdc, JSDObject* jsdobj);
 
 extern const char*
@@ -1106,47 +1043,15 @@ jsd_DropAtom(JSDContext* jsdc, JSDAtom* atom);
 
 #define JSD_ATOM_TO_STRING(a) ((const char*)((a)->str))
 
-/***************************************************************************/
-/* Livewire specific API */
-#ifdef LIVEWIRE
-
-extern LWDBGScript*
-jsdlw_GetLWScript(JSDContext* jsdc, JSDScript* jsdscript);
-
-extern char*
-jsdlw_BuildAppRelativeFilename(LWDBGApp* app, const char* filename);
-
-extern JSDSourceText*
-jsdlw_PreLoadSource(JSDContext* jsdc, LWDBGApp* app,
-                     const char* filename, JSBool clear);
-
-extern JSDSourceText*
-jsdlw_ForceLoadSource(JSDContext* jsdc, JSDSourceText* jsdsrc);
-
-extern JSBool
-jsdlw_UserCodeAtPC(JSDContext* jsdc, JSDScript* jsdscript, jsuword pc);
-
-extern JSBool
-jsdlw_RawToProcessedLineNumber(JSDContext* jsdc, JSDScript* jsdscript,
-                               uintN lineIn, uintN* lineOut);
-
-extern JSBool
-jsdlw_ProcessedToRawLineNumber(JSDContext* jsdc, JSDScript* jsdscript,
-                               uintN lineIn, uintN* lineOut);
-
-
-#if 0
-/* our hook proc for LiveWire app start/stop */
-extern void
-jsdlw_AppHookProc(LWDBGApp* app,
-                  JSBool created,
-                  void *callerdata);
-#endif
-
-
-#endif
-/***************************************************************************/
-
-JS_END_EXTERN_C
+struct AutoSaveExceptionState {
+    AutoSaveExceptionState(JSContext *cx) : mCx(cx) {
+        mState = JS_SaveExceptionState(cx);
+    }
+    ~AutoSaveExceptionState() {
+        JS_RestoreExceptionState(mCx, mState);
+    }
+    JSContext *mCx;
+    JSExceptionState *mState;
+};
 
 #endif /* jsd_h___ */

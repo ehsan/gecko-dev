@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Corporation code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Bas Schouten <bschouten@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef GFX_LAYERMANAGERD3D9_H
 #define GFX_LAYERMANAGERD3D9_H
@@ -54,41 +22,11 @@ namespace layers {
 class LayerD3D9;
 class ThebesLayerD3D9;
 
-/**
- * This structure is used to pass rectangles to our shader constant. We can use
- * this for passing rectangular areas to SetVertexShaderConstant. In the format
- * of a 4 component float(x,y,width,height). Our vertex shader can then use
- * this to construct rectangular positions from the 0,0-1,1 quad that we source
- * it with.
- */
-struct ShaderConstantRect
-{
-  float mX, mY, mWidth, mHeight;
-
-  // Provide all the commonly used argument types to prevent all the local
-  // casts in the code.
-  ShaderConstantRect(float aX, float aY, float aWidth, float aHeight)
-    : mX(aX), mY(aY), mWidth(aWidth), mHeight(aHeight)
-  { }
-
-  ShaderConstantRect(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight)
-    : mX((float)aX), mY((float)aY)
-    , mWidth((float)aWidth), mHeight((float)aHeight)
-  { }
-
-  ShaderConstantRect(PRInt32 aX, PRInt32 aY, float aWidth, float aHeight)
-    : mX((float)aX), mY((float)aY), mWidth(aWidth), mHeight(aHeight)
-  { }
-
-  // For easy passing to SetVertexShaderConstantF.
-  operator float* () { return &mX; }
-};
-
 /*
  * This is the LayerManager used for Direct3D 9. For now this will render on
  * the main thread.
  */
-class THEBES_API LayerManagerD3D9 : public LayerManager {
+class LayerManagerD3D9 : public LayerManager {
 public:
   LayerManagerD3D9(nsIWidget *aWidget);
   virtual ~LayerManagerD3D9();
@@ -101,7 +39,7 @@ public:
    *
    * \return True is initialization was succesful, false when it was not.
    */
-  PRBool Initialize();
+  bool Initialize(bool force = false);
 
   /*
    * Sets the clipping region for this layer manager. This is important on
@@ -125,7 +63,7 @@ public:
 
   void EndConstruction();
 
-  virtual bool EndEmptyTransaction();
+  virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT);
 
   struct CallbackInfo {
     DrawThebesLayerCallback Callback;
@@ -133,11 +71,25 @@ public:
   };
 
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData);
+                              void* aCallbackData,
+                              EndTransactionFlags aFlags = END_DEFAULT);
 
   const CallbackInfo &GetCallbackInfo() { return mCurrentCallbackInfo; }
 
   void SetRoot(Layer* aLayer);
+
+  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize)
+  {
+    if (!mDeviceManager)
+      return false;
+    int32_t maxSize = mDeviceManager->GetMaxTextureSize();
+    return aSize <= gfxIntSize(maxSize, maxSize);
+  }
+
+  virtual int32_t GetMaxTextureSize() const
+  {
+    return mDeviceManager->GetMaxTextureSize();
+  }
 
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
 
@@ -151,8 +103,6 @@ public:
 
   virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer();
 
-  virtual already_AddRefed<ImageContainer> CreateImageContainer();
-
   virtual LayersBackend GetBackendType() { return LAYERS_D3D9; }
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Direct3D 9"); }
   bool DeviceWasRemoved() { return deviceManager()->DeviceWasRemoved(); }
@@ -160,10 +110,11 @@ public:
   /*
    * Helper methods.
    */
-  void SetClippingEnabled(PRBool aEnabled);
+  void SetClippingEnabled(bool aEnabled);
 
-  void SetShaderMode(DeviceManagerD3D9::ShaderMode aMode)
-    { mDeviceManager->SetShaderMode(aMode); }
+  void SetShaderMode(DeviceManagerD3D9::ShaderMode aMode,
+                     Layer* aMask, bool aIs2D = true)
+    { mDeviceManager->SetShaderMode(aMode, aMask, aIs2D); }
 
   IDirect3DDevice9 *device() const { return mDeviceManager->device(); }
   DeviceManagerD3D9 *deviceManager() const { return mDeviceManager; }
@@ -171,11 +122,11 @@ public:
   /** 
    * Return pointer to the Nv3DVUtils instance. Re-direct to mDeviceManager.
    */ 
-  Nv3DVUtils *GetNv3DVUtils()  { return mDeviceManager ? mDeviceManager->GetNv3DVUtils() : NULL; } 
+  Nv3DVUtils *GetNv3DVUtils() { return mDeviceManager ? mDeviceManager->GetNv3DVUtils() : nullptr; } 
 
   static void OnDeviceManagerDestroy(DeviceManagerD3D9 *aDeviceManager) {
     if(aDeviceManager == mDefaultDeviceManager)
-      mDefaultDeviceManager = nsnull;
+      mDefaultDeviceManager = nullptr;
   }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
@@ -183,6 +134,9 @@ public:
 #endif // MOZ_LAYERS_HAVE_LOG
 
   void ReportFailure(const nsACString &aMsg, HRESULT aCode);
+
+  bool CompositingDisabled() { return mCompositingDisabled; }
+  void SetCompositingDisabled(bool aCompositingDisabled) { mCompositingDisabled = aCompositingDisabled; }
 
 private:
   /* Default device manager instance */
@@ -198,7 +152,7 @@ private:
   nsIWidget *mWidget;
 
   /*
-   * Context target, NULL when drawing directly to our swap chain.
+   * Context target, nullptr when drawing directly to our swap chain.
    */
   nsRefPtr<gfxContext> mTarget;
 
@@ -214,7 +168,13 @@ private:
    * Device reset count at last paint. Whenever this changes, we need to
    * do a full layer tree update.
    */
-  PRUint32 mDeviceResetCount;
+  uint32_t mDeviceResetCount;
+
+  /*
+   * True if we should only be drawing layer contents, not
+   * compositing them to the target.
+   */
+  bool mCompositingDisabled;
 
   /*
    * Render the current layer tree to the active target.
@@ -241,7 +201,7 @@ class LayerD3D9
 public:
   LayerD3D9(LayerManagerD3D9 *aManager);
 
-  virtual LayerD3D9 *GetFirstChildD3D9() { return nsnull; }
+  virtual LayerD3D9 *GetFirstChildD3D9() { return nullptr; }
 
   void SetFirstChild(LayerD3D9 *aParent);
 
@@ -279,8 +239,58 @@ public:
     device()->SetPixelShaderConstantF(CBfLayerOpacity, opacity, 1);
   }
 
+  /*
+   * Returns a texture containing the contents of this
+   * layer. Will try to return an existing texture if possible, or a temporary
+   * one if not. It is the callee's responsibility to release the shader
+   * resource view. Will return null if a texture could not be constructed.
+   * The texture will not be transformed, i.e., it will be in the same coord
+   * space as this.
+   * Any layer that can be used as a mask layer should override this method.
+   * If aSize is non-null and a texture is successfully returned, aSize will
+   * contain the size of the texture.
+   */
+  virtual already_AddRefed<IDirect3DTexture9> GetAsTexture(gfxIntSize* aSize)
+  {
+    return nullptr;
+  }
+ 
 protected:
   LayerManagerD3D9 *mD3DManager;
+};
+
+/*
+ * RAII helper for locking D3D9 textures.
+ */
+class LockTextureRectD3D9 
+{
+public:
+  LockTextureRectD3D9(IDirect3DTexture9* aTexture) 
+    : mTexture(aTexture)
+  {
+    mLockResult = mTexture->LockRect(0, &mR, nullptr, 0);
+  }
+
+  ~LockTextureRectD3D9()
+  {
+    mTexture->UnlockRect(0);
+  }
+
+  bool HasLock() {
+    return SUCCEEDED(mLockResult);
+  }
+
+  D3DLOCKED_RECT GetLockRect() 
+  {
+    return mR;
+  }
+private:
+  LockTextureRectD3D9 (const LockTextureRectD3D9&);
+  LockTextureRectD3D9& operator= (const LockTextureRectD3D9&);
+
+  IDirect3DTexture9* mTexture;
+  D3DLOCKED_RECT mR;
+  HRESULT mLockResult;
 };
 
 } /* layers */

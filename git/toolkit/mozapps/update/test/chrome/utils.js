@@ -52,10 +52,13 @@
  *
  * extraDelayedFinishFunction (optional)
  *   The function to call at the end of the delayedDefaultCallback function.
+ *   If the extraDelayedFinishFunction property is defined then the buttonClick
+ *   property can't be specified due to race conditions in some of the tests and
+ *   if both of them are specified the test will intentionally throw.
  *
  * ranTest (should not be specified)
  *   When delayedDefaultCallback is called a property named ranTest is added to
- *   the current test it is possible to verify that each test in the TESTS
+ *   the current test so it is possible to verify that each test in the TESTS
  *   array has ran.
  *
  * prefHasUserValue (optional)
@@ -120,6 +123,7 @@ const PAGEID_CHECKING         = "checking";              // Done
 const PAGEID_PLUGIN_UPDATES   = "pluginupdatesfound";
 const PAGEID_NO_UPDATES_FOUND = "noupdatesfound";        // Done
 const PAGEID_MANUAL_UPDATE    = "manualUpdate"; // Tested on license load failure
+const PAGEID_UNSUPPORTED      = "unsupported";           // Done
 const PAGEID_INCOMPAT_CHECK   = "incompatibleCheck";     // Done
 const PAGEID_FOUND_BASIC      = "updatesfoundbasic";     // Done
 const PAGEID_FOUND_BILLBOARD  = "updatesfoundbillboard"; // Done
@@ -146,15 +150,16 @@ const ADDON_PREP_DIR = "appupdateprep";
 // Preference for storing add-ons that are disabled by the tests to prevent them
 // from interefering with the tests.
 const PREF_DISABLEDADDONS = "app.update.test.disabledAddons";
+const PREF_EM_HOTFIX_ID = "extensions.hotfix.id";
 const TEST_ADDONS = [ "appdisabled_1", "appdisabled_2",
                       "compatible_1", "compatible_2",
                       "noupdate_1", "noupdate_2",
                       "updatecompatibility_1", "updatecompatibility_2",
                       "updateversion_1", "updateversion_2",
-                      "userdisabled_1", "userdisabled_2" ];
+                      "userdisabled_1", "userdisabled_2", "hotfix" ];
 
 
-const TEST_TIMEOUT = 25000; // 25 seconds
+var gTestTimeout = 45000; // 45 seconds
 var gTimeoutTimer;
 
 // The number of SimpleTest.executeSoon calls to perform when waiting on an
@@ -166,11 +171,13 @@ var gCloseWindowTimeoutCounter = 0;
 
 // The following vars are for restoring previous preference values (if present)
 // when the test finishes.
-var gAppUpdateChannel;    // app.update.channel (default prefbranch)
-var gAppUpdateEnabled;    // app.update.enabled
-var gAppUpdateURLDefault; // app.update.url (default prefbranch)
-var gAppUpdateURL;        // app.update.url.override
-var gExtUpdateURL;        // extensions.update.url
+var gAppUpdateEnabled;            // app.update.enabled
+var gAppUpdateMetroEnabled;       // app.update.metro.enabled
+var gAppUpdateServiceEnabled;     // app.update.service.enabled
+var gAppUpdateStagingEnabled;     // app.update.staging.enabled
+var gAppUpdateURLDefault;         // app.update.url (default prefbranch)
+var gAppUpdateURL;                // app.update.url.override
+var gExtUpdateURL;                // extensions.update.url
 
 var gTestCounter = -1;
 var gWin;
@@ -188,7 +195,7 @@ var DEBUG_AUS_TEST = false;
 /**
  * The current test in TESTS array.
  */
-__defineGetter__("gTest", function() {
+this.__defineGetter__("gTest", function() {
   return TESTS[gTestCounter];
 });
 
@@ -197,7 +204,7 @@ __defineGetter__("gTest", function() {
  * the test's overrideCallback property or defaultCallback if the
  * overrideCallback property is undefined.
  */
-__defineGetter__("gCallback", function() {
+this.__defineGetter__("gCallback", function() {
   return gTest.overrideCallback ? gTest.overrideCallback
                                 : defaultCallback;
 });
@@ -206,7 +213,7 @@ __defineGetter__("gCallback", function() {
  * The remotecontent element for the current page if one exists or null if a
  * remotecontent element doesn't exist.
  */
-__defineGetter__("gRemoteContent", function() {
+this.__defineGetter__("gRemoteContent", function() {
   switch (gTest.pageid) {
     case PAGEID_FOUND_BILLBOARD:
       return gWin.document.getElementById("updateMoreInfoContent");
@@ -220,7 +227,7 @@ __defineGetter__("gRemoteContent", function() {
  * The state for the remotecontent element if one exists or null if a
  * remotecontent element doesn't exist.
  */
-__defineGetter__("gRemoteContentState", function() {
+this.__defineGetter__("gRemoteContentState", function() {
   if (gRemoteContent) {
     return gRemoteContent.getAttribute("state");
   }
@@ -230,14 +237,14 @@ __defineGetter__("gRemoteContentState", function() {
 /**
  * The radiogroup for the license page.
  */
-__defineGetter__("gAcceptDeclineLicense", function() {
+this.__defineGetter__("gAcceptDeclineLicense", function() {
   return gWin.document.getElementById("acceptDeclineLicense");
 });
 
 /**
  * The listbox for the incompatibleList page.
  */
-__defineGetter__("gIncompatibleListbox", function() {
+this.__defineGetter__("gIncompatibleListbox", function() {
   return gWin.document.getElementById("incompatibleListbox");
 });
 
@@ -289,6 +296,7 @@ function runTestDefaultWaitForWindowClosed() {
 
     gCloseWindowTimeoutCounter = 0;
 
+    setupFiles();
     setupPrefs();
     removeUpdateDirsAndFiles();
     reloadUpdateManagerData();
@@ -309,9 +317,16 @@ function finishTestDefault() {
     gTimeoutTimer = null;
   }
 
+  if (gChannel) {
+    debugDump("channel = " + gChannel);
+    gChannel = null;
+    gPrefRoot.removeObserver(PREF_APP_UPDATE_CHANNEL, observer);
+  }
+
   verifyTestsRan();
 
   resetPrefs();
+  resetFiles();
   removeUpdateDirsAndFiles();
   reloadUpdateManagerData();
 
@@ -332,7 +347,7 @@ function finishTestDefault() {
  *         The nsITimer that fired.
  */
 function finishTestTimeout(aTimer) {
-  ok(false, "Test timed out. Maximum time allowed is " + (TEST_TIMEOUT / 1000) +
+  ok(false, "Test timed out. Maximum time allowed is " + (gTestTimeout / 1000) +
      " seconds");
 
   try {
@@ -438,6 +453,11 @@ function delayedDefaultCallback() {
     return;
   }
 
+  if (!gTest) {
+    debugDump("gTest is null... returning early");
+    return;
+  }
+
   debugDump("entering - TESTS[" + gTestCounter + "], pageid: " + gTest.pageid);
 
   // Verify the pageid hasn't changed after executeSoon was called.
@@ -534,6 +554,7 @@ function getExpectedButtonStates() {
       return { extra1: { disabled: false, hidden: false } };
     case PAGEID_NO_UPDATES_FOUND:
     case PAGEID_MANUAL_UPDATE:
+    case PAGEID_UNSUPPORTED:
     case PAGEID_ERRORS:
     case PAGEID_ERROR_EXTRA:
     case PAGEID_INSTALLED:
@@ -589,7 +610,7 @@ function waitForRemoteContentLoaded(aEvent) {
   // Return early until the remotecontent has loaded with the state that is
   // expected or isn't the event's originalTarget.
   if (gRemoteContentState != gTest.expectedRemoteContentState ||
-      !aEvent.originalTarget.isSameNode(gRemoteContent)) {
+      aEvent.originalTarget != gRemoteContent) {
     debugDump("returning early\n" +
               "gRemoteContentState: " + gRemoteContentState + "\n" +
               "expectedRemoteContentState: " +
@@ -785,16 +806,31 @@ function verifyTestsRan() {
 }
 
 /**
- * Sets the most common preferences used by tests to values used by the tests
- * and saves some of the preference's original values if present so they can be
- * set back to the original values when each test has finished.
+ * Creates a backup of files the tests need to modify so they can be restored to
+ * the original file when the test has finished and then modifies the files.
+ */
+function setupFiles() {
+  // Backup the updater-settings.ini file if it exists by moving it.
+  let baseAppDir = getAppBaseDir();
+  let updateSettingsIni = baseAppDir.clone();
+  updateSettingsIni.append(FILE_UPDATE_SETTINGS_INI);
+  if (updateSettingsIni.exists()) {
+    updateSettingsIni.moveTo(baseAppDir, FILE_UPDATE_SETTINGS_INI_BAK);
+  }
+  updateSettingsIni = baseAppDir.clone();
+  updateSettingsIni.append(FILE_UPDATE_SETTINGS_INI);
+  writeFile(updateSettingsIni, UPDATE_SETTINGS_CONTENTS);
+}
+
+/**
+ * Sets the most common preferences used by tests to values used by the majority
+ * of the tests and when necessary saves the preference's original values if
+ * present so they can be set back to the original values when the test has
+ * finished.
  */
 function setupPrefs() {
-  gAppUpdateChannel = gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
-  setUpdateChannel();
-
   if (DEBUG_AUS_TEST) {
-    Services.prefs.setBoolPref(PREF_APP_UPDATE_LOG, true)
+    Services.prefs.setBoolPref(PREF_APP_UPDATE_LOG, true);
   }
 
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE)) {
@@ -804,7 +840,22 @@ function setupPrefs() {
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_ENABLED)) {
     gAppUpdateEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_ENABLED);
   }
-  Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, true)
+  Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, true);
+
+  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_METRO_ENABLED)) {
+    gAppUpdateMetroEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_METRO_ENABLED);
+  }
+  Services.prefs.setBoolPref(PREF_APP_UPDATE_METRO_ENABLED, true);
+
+  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_SERVICE_ENABLED)) {
+    gAppUpdateServiceEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED);
+  }
+  Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, false);
+
+  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_STAGING_ENABLED)) {
+    gAppUpdateStagingEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_STAGING_ENABLED);
+  }
+  Services.prefs.setBoolPref(PREF_APP_UPDATE_STAGING_ENABLED, false);
 
   if (Services.prefs.prefHasUserValue(PREF_EXTENSIONS_UPDATE_URL)) {
     gExtUpdateURL = Services.prefs.getCharPref(PREF_EXTENSIONS_UPDATE_URL);
@@ -812,10 +863,39 @@ function setupPrefs() {
   let extUpdateUrl = URL_UPDATE + "?addonID=%ITEM_ID%&platformVersion=" +
                      getNewerPlatformVersion();
   Services.prefs.setCharPref(PREF_EXTENSIONS_UPDATE_URL, extUpdateUrl);
-  debugDump("extensions.update.url: " + extUpdateUrl);
 
   Services.prefs.setIntPref(PREF_APP_UPDATE_IDLETIME, 0);
   Services.prefs.setIntPref(PREF_APP_UPDATE_PROMPTWAITTIME, 0);
+  Services.prefs.setBoolPref(PREF_EXTENSIONS_STRICT_COMPAT, true);
+  Services.prefs.setCharPref(PREF_EM_HOTFIX_ID, "hotfix" + ADDON_ID_SUFFIX);
+}
+
+/**
+ * Restores files that were backed up for the tests and general file cleanup.
+ */
+function resetFiles() {
+  // Restore the backed up updater-settings.ini if it exists.
+  let baseAppDir = getAppBaseDir();
+  let updateSettingsIni = baseAppDir.clone();
+  updateSettingsIni.append(FILE_UPDATE_SETTINGS_INI_BAK);
+  if (updateSettingsIni.exists()) {
+    updateSettingsIni.moveTo(baseAppDir, FILE_UPDATE_SETTINGS_INI);
+  }
+
+  // Not being able to remove the "updated" directory will not adversely affect
+  // subsequent tests so wrap it in a try block and don't test whether its
+  // removal was successful.
+  let updatedDir = getUpdatedDir();
+  if (updatedDir.exists()) {
+    try {
+      removeDirRecursive(updatedDir);
+    }
+    catch (e) {
+      dump("Unable to remove directory\n" +
+           "path: " + updatedDir.path + "\n" +
+           "Exception: " + e + "\n");
+    }
+  }
 }
 
 /**
@@ -833,15 +913,32 @@ function resetPrefs() {
     gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_URL, gAppUpdateURLDefault);
   }
 
-  if (gAppUpdateChannel !== undefined) {
-    setUpdateChannel(gAppUpdateChannel);
-  }
-
   if (gAppUpdateEnabled !== undefined) {
     Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, gAppUpdateEnabled);
   }
   else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_ENABLED)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_ENABLED);
+  }
+
+  if (gAppUpdateMetroEnabled !== undefined) {
+    Services.prefs.setBoolPref(PREF_APP_UPDATE_METRO_ENABLED, gAppUpdateMetroEnabled);
+  }
+  else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_METRO_ENABLED)) {
+    Services.prefs.clearUserPref(PREF_APP_UPDATE_METRO_ENABLED);
+  }
+
+  if (gAppUpdateServiceEnabled !== undefined) {
+    Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, gAppUpdateServiceEnabled);
+  }
+  else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_SERVICE_ENABLED)) {
+    Services.prefs.clearUserPref(PREF_APP_UPDATE_SERVICE_ENABLED);
+  }
+
+  if (gAppUpdateStagingEnabled !== undefined) {
+    Services.prefs.setBoolPref(PREF_APP_UPDATE_STAGING_ENABLED, gAppUpdateStagingEnabled);
+  }
+  else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_STAGING_ENABLED)) {
+    Services.prefs.clearUserPref(PREF_APP_UPDATE_STAGING_ENABLED);
   }
 
   if (gExtUpdateURL !== undefined) {
@@ -865,6 +962,10 @@ function resetPrefs() {
 
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_SHOW_INSTALLED_UI)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_SHOW_INSTALLED_UI);
+  }
+
+  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED)) {
+    Services.prefs.clearUserPref(PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED);
   }
 
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_LOG)) {
@@ -913,6 +1014,26 @@ function resetPrefs() {
   }
   catch(e) {
   }
+
+  if (Services.prefs.prefHasUserValue(PREF_EXTENSIONS_STRICT_COMPAT)) {
+		Services.prefs.clearUserPref(PREF_EXTENSIONS_STRICT_COMPAT);
+  }
+
+  if (Services.prefs.prefHasUserValue(PREF_EM_HOTFIX_ID)) {
+    Services.prefs.clearUserPref(PREF_EM_HOTFIX_ID);
+  }
+}
+
+function setupTimer(aTestTimeout) {
+  gTestTimeout = aTestTimeout;
+  if (gTimeoutTimer) {
+    gTimeoutTimer.cancel();
+    gTimeoutTimer = null;
+  }
+  gTimeoutTimer = AUS_Cc["@mozilla.org/timer;1"].
+                  createInstance(AUS_Ci.nsITimer);
+  gTimeoutTimer.initWithCallback(finishTestTimeout, gTestTimeout,
+                                 AUS_Ci.nsITimer.TYPE_ONE_SHOT);
 }
 
 /**
@@ -950,10 +1071,7 @@ function setupAddons(aCallback) {
       });
       // Start the timout timer before the update window is displayed so it can
       // clean up tests that don't successfully display the update window.
-      gTimeoutTimer = AUS_Cc["@mozilla.org/timer;1"].
-                      createInstance(AUS_Ci.nsITimer);
-      gTimeoutTimer.initWithCallback(finishTestTimeout, TEST_TIMEOUT,
-                                     AUS_Ci.nsITimer.TYPE_ONE_SHOT);
+      setupTimer(gTestTimeout);
       aCallback();
     });
   }
@@ -1204,7 +1322,7 @@ function closeUpdateWindow() {
 /**
  * Gets the update window.
  *
- * @return The nsIDOMWindowInternal for the Update Window if it is open and null
+ * @return The nsIDOMWindow for the Update Window if it is open and null
  *         if it isn't.
  */
 function getUpdateWindow() {

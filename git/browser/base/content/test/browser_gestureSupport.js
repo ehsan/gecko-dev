@@ -1,39 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Firefox Gesture Support Test Code
- *
- * The Initial Developer of the Original Code is
- * Thomas K. Dyas <tdyas@zecador.org>
- * Portions created by the Initial Developer are Copyright (C) 2008
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Edward Lee <edward.lee@engineering.uiuc.edu>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Simple gestures tests
 //
@@ -47,11 +14,11 @@ let test_prefBranch = "browser.gesture.";
 
 function test()
 {
+  waitForExplicitFinish();
+
   // Disable the default gestures support during the test
   gGestureSupport.init(false);
 
-  // Enable privileges so we can use nsIDOMWindowUtils interface
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   test_utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
     getInterface(Components.interfaces.nsIDOMWindowUtils);
 
@@ -68,9 +35,8 @@ function test()
   test_commandset = document.getElementById("mainCommandSet");
   test_swipeGestures();
   test_latchedGesture("pinch", "out", "in", "MozMagnifyGesture");
-  test_latchedGesture("twist", "right", "left", "MozRotateGesture");
   test_thresholdGesture("pinch", "out", "in", "MozMagnifyGesture");
-  test_thresholdGesture("twist", "right", "left", "MozRotateGesture");
+  test_rotateGestures();
 }
 
 let test_eventCount = 0;
@@ -78,6 +44,8 @@ let test_expectedType;
 let test_expectedDirection;
 let test_expectedDelta;
 let test_expectedModifiers;
+let test_expectedClickCount;
+let test_imageTab;
 
 function test_gestureListener(evt)
 {
@@ -99,14 +67,18 @@ function test_gestureListener(evt)
   is(evt.delta, test_expectedDelta,
      "evt.delta (" + evt.delta + ") does not match expected value");
 
-  is(evt.shiftKey, (test_expectedModifiers & Components.interfaces.nsIDOMNSEvent.SHIFT_MASK) != 0,
+  is(evt.shiftKey, (test_expectedModifiers & Components.interfaces.nsIDOMEvent.SHIFT_MASK) != 0,
      "evt.shiftKey did not match expected value");
-  is(evt.ctrlKey, (test_expectedModifiers & Components.interfaces.nsIDOMNSEvent.CONTROL_MASK) != 0,
+  is(evt.ctrlKey, (test_expectedModifiers & Components.interfaces.nsIDOMEvent.CONTROL_MASK) != 0,
      "evt.ctrlKey did not match expected value");
-  is(evt.altKey, (test_expectedModifiers & Components.interfaces.nsIDOMNSEvent.ALT_MASK) != 0,
+  is(evt.altKey, (test_expectedModifiers & Components.interfaces.nsIDOMEvent.ALT_MASK) != 0,
      "evt.altKey did not match expected value");
-  is(evt.metaKey, (test_expectedModifiers & Components.interfaces.nsIDOMNSEvent.META_MASK) != 0,
+  is(evt.metaKey, (test_expectedModifiers & Components.interfaces.nsIDOMEvent.META_MASK) != 0,
      "evt.metaKey did not match expected value");
+
+  if (evt.type == "MozTapGesture") {
+    is(evt.clickCount, test_expectedClickCount, "evt.clickCount does not match");
+  }
 
   test_eventCount++;
 }
@@ -128,9 +100,35 @@ function test_helper1(type, direction, delta, modifiers)
   is(expectedEventCount, test_eventCount, "Event (" + type + ") was never received by event listener");
 }
 
+function test_clicks(type, clicks)
+{
+  // Setup the expected values
+  test_expectedType = type;
+  test_expectedDirection = 0;
+  test_expectedDelta = 0;
+  test_expectedModifiers = 0;
+  test_expectedClickCount = clicks;
+
+  let expectedEventCount = test_eventCount + 1;
+
+  document.addEventListener(type, test_gestureListener, true);
+  test_utils.sendSimpleGestureEvent(type, 20, 20, 0, 0, 0, clicks);
+  document.removeEventListener(type, test_gestureListener, true);
+
+  is(expectedEventCount, test_eventCount, "Event (" + type + ") was never received by event listener");
+}
+
 function test_TestEventListeners()
 {
   let e = test_helper1;  // easier to type this name
+
+  // Swipe gesture animation events
+  e("MozSwipeGestureStart", 0, -0.7, 0);
+  e("MozSwipeGestureUpdate", 0, -0.4, 0);
+  e("MozSwipeGestureEnd", 0, 0, 0);
+  e("MozSwipeGestureStart", 0, 0.6, 0);
+  e("MozSwipeGestureUpdate", 0, 0.3, 0);
+  e("MozSwipeGestureEnd", 0, 1, 0);
 
   // Swipe gesture event
   e("MozSwipeGesture", SimpleGestureEvent.DIRECTION_LEFT, 0.0, 0);
@@ -159,23 +157,30 @@ function test_TestEventListeners()
   e("MozRotateGesture", SimpleGestureEvent.ROTATION_CLOCKWISE, 33.0, 0);
   
   // Tap and presstap gesture events
-  e("MozTapGesture", 0, 0.0, 0);
-  e("MozPressTapGesture", 0, 0.0, 0);
+  test_clicks("MozTapGesture", 1);
+  test_clicks("MozTapGesture", 2);
+  test_clicks("MozTapGesture", 3);
+  test_clicks("MozPressTapGesture", 1);
+
+  // simple delivery test for edgeui gestures
+  e("MozEdgeUIStarted", 0, 0, 0);
+  e("MozEdgeUICanceled", 0, 0, 0);
+  e("MozEdgeUICompleted", 0, 0, 0);
 
   // event.shiftKey
-  let modifier = Components.interfaces.nsIDOMNSEvent.SHIFT_MASK;
+  let modifier = Components.interfaces.nsIDOMEvent.SHIFT_MASK;
   e("MozSwipeGesture", SimpleGestureEvent.DIRECTION_RIGHT, 0, modifier);
 
   // event.metaKey
-  modifier = Components.interfaces.nsIDOMNSEvent.META_MASK;
+  modifier = Components.interfaces.nsIDOMEvent.META_MASK;
   e("MozSwipeGesture", SimpleGestureEvent.DIRECTION_RIGHT, 0, modifier);
 
   // event.altKey
-  modifier = Components.interfaces.nsIDOMNSEvent.ALT_MASK;
+  modifier = Components.interfaces.nsIDOMEvent.ALT_MASK;
   e("MozSwipeGesture", SimpleGestureEvent.DIRECTION_RIGHT, 0, modifier);
 
   // event.ctrlKey
-  modifier = Components.interfaces.nsIDOMNSEvent.CONTROL_MASK;
+  modifier = Components.interfaces.nsIDOMEvent.CONTROL_MASK;
   e("MozSwipeGesture", SimpleGestureEvent.DIRECTION_RIGHT, 0, modifier);
 }
 
@@ -204,7 +209,7 @@ function test_helper2(type, direction, delta, altKey, ctrlKey, shiftKey, metaKey
                                  10, 10, 10, 10,
                                  ctrlKey, altKey, shiftKey, metaKey,
                                  1, window,
-                                 direction, delta);
+                                 0, direction, delta, 0);
     successful = true;
   }
   catch (ex) {
@@ -383,7 +388,7 @@ function test_latchedGesture(gesture, inc, dec, eventPrefix)
 
   // Restore the gesture to its original configuration.
   gPrefService.setBoolPref(branch + "latched", oldLatchedValue);
-  for (dir in cmd)
+  for (let dir in cmd)
     test_removeCommand(cmd[dir]);
 }
 
@@ -513,4 +518,154 @@ function test_swipeGestures()
   test_removeCommand(cmdDown);
   test_removeCommand(cmdLeft);
   test_removeCommand(cmdRight);
+}
+
+
+function test_rotateHelperGetImageRotation(aImageElement)
+{
+  // Get the true image rotation from the transform matrix, bounded
+  // to 0 <= result < 360
+  let transformValue = content.window.getComputedStyle(aImageElement, null)
+                                     .transform;
+  if (transformValue == "none")
+    return 0;
+
+  transformValue = transformValue.split("(")[1]
+                                 .split(")")[0]
+                                 .split(",");
+  var rotation = Math.round(Math.atan2(transformValue[1], transformValue[0]) *
+                            (180 / Math.PI));
+  return (rotation < 0 ? rotation + 360 : rotation);
+}
+
+function test_rotateHelperOneGesture(aImageElement, aCurrentRotation,
+                                     aDirection, aAmount, aStop)
+{
+  if (aAmount <= 0 || aAmount > 90) // Bound to 0 < aAmount <= 90
+    return;
+
+  // easier to type names for the direction constants
+  let clockwise = SimpleGestureEvent.ROTATION_CLOCKWISE;
+  let cclockwise = SimpleGestureEvent.ROTATION_COUNTERCLOCKWISE;
+
+  let delta = aAmount * (aDirection == clockwise ? 1 : -1);
+
+  // Kill transition time on image so test isn't wrong and doesn't take 10 seconds
+  aImageElement.style.transitionDuration = "0s";
+
+  // Start the gesture, perform an update, and force flush
+  test_utils.sendSimpleGestureEvent("MozRotateGestureStart", 0, 0, aDirection, .001, 0);
+  test_utils.sendSimpleGestureEvent("MozRotateGestureUpdate", 0, 0, aDirection, delta, 0);
+  aImageElement.clientTop;
+
+  // If stop, check intermediate
+  if (aStop) {
+    // Send near-zero-delta to stop, and force flush
+    test_utils.sendSimpleGestureEvent("MozRotateGestureUpdate", 0, 0, aDirection, .001, 0);
+    aImageElement.clientTop;
+
+    let stopExpectedRotation = (aCurrentRotation + delta) % 360;
+    if (stopExpectedRotation < 0)
+      stopExpectedRotation += 360;
+
+    is(stopExpectedRotation, test_rotateHelperGetImageRotation(aImageElement),
+       "Image rotation at gesture stop/hold: expected=" + stopExpectedRotation +
+       ", observed=" + test_rotateHelperGetImageRotation(aImageElement) +
+       ", init=" + aCurrentRotation +
+       ", amt=" + aAmount +
+       ", dir=" + (aDirection == clockwise ? "cl" : "ccl"));
+  }
+  // End it and force flush
+  test_utils.sendSimpleGestureEvent("MozRotateGesture", 0, 0, aDirection, 0, 0);
+  aImageElement.clientTop;
+
+  let finalExpectedRotation;
+
+  if (aAmount < 45 && aStop) {
+    // Rotate a bit, then stop.  Expect no change at end of gesture.
+    finalExpectedRotation = aCurrentRotation;
+  }
+  else {
+    // Either not stopping (expect 90 degree change in aDirection), OR
+    // stopping but after 45, (expect 90 degree change in aDirection)
+    finalExpectedRotation = (aCurrentRotation +
+                             (aDirection == clockwise ? 1 : -1) * 90) % 360;
+    if (finalExpectedRotation < 0)
+      finalExpectedRotation += 360;
+  }
+
+  is(finalExpectedRotation, test_rotateHelperGetImageRotation(aImageElement),
+     "Image rotation gesture end: expected=" + finalExpectedRotation +
+     ", observed=" + test_rotateHelperGetImageRotation(aImageElement) +
+     ", init=" + aCurrentRotation +
+     ", amt=" + aAmount +
+     ", dir=" + (aDirection == clockwise ? "cl" : "ccl"));
+}
+
+function test_rotateGesturesOnTab()
+{
+  gBrowser.selectedBrowser.removeEventListener("load", test_rotateGesturesOnTab, true);
+
+  if (!(content.document instanceof ImageDocument)) {
+    ok(false, "Image document failed to open for rotation testing");
+    gBrowser.removeTab(test_imageTab);
+    finish();
+    return;
+  }
+
+  // easier to type names for the direction constants
+  let cl = SimpleGestureEvent.ROTATION_CLOCKWISE;
+  let ccl = SimpleGestureEvent.ROTATION_COUNTERCLOCKWISE;
+
+  let imgElem = content.document.body &&
+                content.document.body.firstElementChild;
+
+  if (!imgElem) {
+    ok(false, "Could not get image element on ImageDocument for rotation!");
+    gBrowser.removeTab(test_imageTab);
+    finish();
+    return;
+  }
+
+  // Quick function to normalize rotation to 0 <= r < 360
+  var normRot = function(rotation) {
+    rotation = rotation % 360;
+    if (rotation < 0)
+      rotation += 360;
+    return rotation;
+  }
+
+  for (var initRot = 0; initRot < 360; initRot += 90) {
+    // Test each case: at each 90 degree snap; cl/ccl;
+    // amount more or less than 45; stop and hold or don't (32 total tests)
+    // The amount added to the initRot is where it is expected to be
+    test_rotateHelperOneGesture(imgElem, normRot(initRot +   0), cl,  35, true );
+    test_rotateHelperOneGesture(imgElem, normRot(initRot +   0), cl,  35, false);
+    test_rotateHelperOneGesture(imgElem, normRot(initRot +  90), cl,  55, true );
+    test_rotateHelperOneGesture(imgElem, normRot(initRot + 180), cl,  55, false);
+    test_rotateHelperOneGesture(imgElem, normRot(initRot + 270), ccl, 35, true );
+    test_rotateHelperOneGesture(imgElem, normRot(initRot + 270), ccl, 35, false);
+    test_rotateHelperOneGesture(imgElem, normRot(initRot + 180), ccl, 55, true );
+    test_rotateHelperOneGesture(imgElem, normRot(initRot +  90), ccl, 55, false);
+
+    // Manually rotate it 90 degrees clockwise to prepare for next iteration,
+    // and force flush
+    test_utils.sendSimpleGestureEvent("MozRotateGestureStart", 0, 0, cl, .001, 0);
+    test_utils.sendSimpleGestureEvent("MozRotateGestureUpdate", 0, 0, cl, 90, 0);
+    test_utils.sendSimpleGestureEvent("MozRotateGestureUpdate", 0, 0, cl, .001, 0);
+    test_utils.sendSimpleGestureEvent("MozRotateGesture", 0, 0, cl, 0, 0);
+    imgElem.clientTop;
+  }
+
+  gBrowser.removeTab(test_imageTab);
+  test_imageTab = null;
+  finish();
+}
+
+function test_rotateGestures()
+{
+  test_imageTab = gBrowser.addTab("chrome://branding/content/about-logo.png");
+  gBrowser.selectedTab = test_imageTab;
+
+  gBrowser.selectedBrowser.addEventListener("load", test_rotateGesturesOnTab, true);
 }

@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=465458
 -->
 <head>
   <title>Test for Bug 465458</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <script type="text/javascript" src="manifest.js"></script>
@@ -35,7 +34,7 @@ function errorHandler(evt) {
   evt.target.parentNode._error++;
 }
 
-var extenstion = {
+var extension = {
   "audio/wav" : "wav",
   "audio/x-wav": "wav",
   "video/ogg" : "ogv",
@@ -54,7 +53,7 @@ function startTest(test, token) {
   
   var s1 = document.createElement("source");
   s1.type = test.type;
-  s1.src = "404." + extenstion[test.type];
+  s1.src = "404." + extension[test.type];
   s1.addEventListener("error", errorHandler, false);
   v.appendChild(s1);
   

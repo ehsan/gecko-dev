@@ -1,39 +1,9 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "mozilla/Util.h"
 
 #include "nsHTMLTags.h"
 #include "nsCRT.h"
@@ -41,6 +11,10 @@
 #include "nsString.h"
 #include "nsStaticAtom.h"
 #include "nsUnicharUtils.h"
+#include "mozilla/HashFunctions.h"
+#include <algorithm>
+
+using namespace mozilla;
 
 // C++ sucks! There's no way to do this with a macro, at least not
 // that I know, if you know how to do this with a macro then please do
@@ -61,10 +35,8 @@ static const PRUnichar sHTMLTagUnicodeName_article[] =
   {'a', 'r', 't', 'i', 'c', 'l', 'e', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_aside[] =
   {'a', 's', 'i', 'd', 'e', '\0'};
-#if defined(MOZ_MEDIA)
 static const PRUnichar sHTMLTagUnicodeName_audio[] =
   {'a', 'u', 'd', 'i', 'o', '\0'};
-#endif
 static const PRUnichar sHTMLTagUnicodeName_b[] =
   {'b', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_base[] =
@@ -77,8 +49,6 @@ static const PRUnichar sHTMLTagUnicodeName_bgsound[] =
   {'b', 'g', 's', 'o', 'u', 'n', 'd', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_big[] =
   {'b', 'i', 'g', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_blink[] =
-  {'b', 'l', 'i', 'n', 'k', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_blockquote[] =
   {'b', 'l', 'o', 'c', 'k', 'q', 'u', 'o', 't', 'e', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_body[] =
@@ -103,6 +73,8 @@ static const PRUnichar sHTMLTagUnicodeName_colgroup[] =
   {'c', 'o', 'l', 'g', 'r', 'o', 'u', 'p', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_counter[] =
   {'c', 'o', 'u', 'n', 't', 'e', 'r', '\0'};
+static const PRUnichar sHTMLTagUnicodeName_data[] =
+  {'d', 'a', 't', 'a', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_datalist[] =
   {'d', 'a', 't', 'a', 'l', 'i', 's', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_dd[] =
@@ -173,8 +145,6 @@ static const PRUnichar sHTMLTagUnicodeName_input[] =
   {'i', 'n', 'p', 'u', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_ins[] =
   {'i', 'n', 's', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_isindex[] =
-  {'i', 's', 'i', 'n', 'd', 'e', 'x', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_kbd[] =
   {'k', 'b', 'd', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_keygen[] =
@@ -189,6 +159,8 @@ static const PRUnichar sHTMLTagUnicodeName_link[] =
   {'l', 'i', 'n', 'k', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_listing[] =
   {'l', 'i', 's', 't', 'i', 'n', 'g', '\0'};
+static const PRUnichar sHTMLTagUnicodeName_main[] =
+  {'m', 'a', 'i', 'n', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_map[] =
   {'m', 'a', 'p', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_mark[] =
@@ -197,8 +169,12 @@ static const PRUnichar sHTMLTagUnicodeName_marquee[] =
   {'m', 'a', 'r', 'q', 'u', 'e', 'e', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_menu[] =
   {'m', 'e', 'n', 'u', '\0'};
+static const PRUnichar sHTMLTagUnicodeName_menuitem[] =
+  {'m', 'e', 'n', 'u', 'i', 't', 'e', 'm', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_meta[] =
   {'m', 'e', 't', 'a', '\0'};
+static const PRUnichar sHTMLTagUnicodeName_meter[] =
+  {'m', 'e', 't', 'e', 'r', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_multicol[] =
   {'m', 'u', 'l', 't', 'i', 'c', 'o', 'l', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_nav[] =
@@ -245,10 +221,8 @@ static const PRUnichar sHTMLTagUnicodeName_select[] =
   {'s', 'e', 'l', 'e', 'c', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_small[] =
   {'s', 'm', 'a', 'l', 'l', '\0'};
-#if defined(MOZ_MEDIA)
 static const PRUnichar sHTMLTagUnicodeName_source[] =
   {'s', 'o', 'u', 'r', 'c', 'e', '\0'};
-#endif
 static const PRUnichar sHTMLTagUnicodeName_spacer[] =
   {'s', 'p', 'a', 'c', 'e', 'r', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_span[] =
@@ -277,10 +251,16 @@ static const PRUnichar sHTMLTagUnicodeName_th[] =
   {'t', 'h', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_thead[] =
   {'t', 'h', 'e', 'a', 'd', '\0'};
+static const PRUnichar sHTMLTagUnicodeName_template[] =
+  {'t', 'e', 'm', 'p', 'l', 'a', 't', 'e', '\0'};
+static const PRUnichar sHTMLTagUnicodeName_time[] =
+  {'t', 'i', 'm', 'e', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_title[] =
   {'t', 'i', 't', 'l', 'e', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_tr[] =
   {'t', 'r', '\0'};
+static const PRUnichar sHTMLTagUnicodeName_track[] =
+  {'t', 'r', 'a', 'c', 'k', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_tt[] =
   {'t', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_u[] =
@@ -289,10 +269,8 @@ static const PRUnichar sHTMLTagUnicodeName_ul[] =
   {'u', 'l', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_var[] =
   {'v', 'a', 'r', '\0'};
-#if defined(MOZ_MEDIA)
 static const PRUnichar sHTMLTagUnicodeName_video[] =
   {'v', 'i', 'd', 'e', 'o', '\0'};
-#endif
 static const PRUnichar sHTMLTagUnicodeName_wbr[] =
   {'w', 'b', 'r', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_xmp[] =
@@ -312,7 +290,7 @@ const PRUnichar* const nsHTMLTags::sTagUnicodeTable[] = {
 // static array of tag atoms
 nsIAtom* nsHTMLTags::sTagAtomTable[eHTMLTag_userdefined - 1];
 
-PRInt32 nsHTMLTags::gTableRefCount;
+int32_t nsHTMLTags::gTableRefCount;
 PLHashTable* nsHTMLTags::gTagTable;
 PLHashTable* nsHTMLTags::gTagAtomTable;
 
@@ -321,12 +299,10 @@ PLHashTable* nsHTMLTags::gTagAtomTable;
 static PLHashNumber
 HTMLTagsHashCodeUCPtr(const void *key)
 {
-  const PRUnichar *str = (const PRUnichar *)key;
-
-  return nsCRT::HashCode(str);
+  return HashString(static_cast<const PRUnichar*>(key));
 }
 
-static PRIntn
+static int
 HTMLTagsKeyCompareUCPtr(const void *key1, const void *key2)
 {
   const PRUnichar *str1 = (const PRUnichar *)key1;
@@ -370,26 +346,26 @@ nsHTMLTags::AddRefTable(void)
 
   if (gTableRefCount++ == 0) {
     // Fill in our static atom pointers
-    NS_RegisterStaticAtoms(sTagAtoms_info, NS_ARRAY_LENGTH(sTagAtoms_info));
+    NS_RegisterStaticAtoms(sTagAtoms_info);
 
 
     NS_ASSERTION(!gTagTable && !gTagAtomTable, "pre existing hash!");
 
     gTagTable = PL_NewHashTable(64, HTMLTagsHashCodeUCPtr,
                                 HTMLTagsKeyCompareUCPtr, PL_CompareValues,
-                                nsnull, nsnull);
+                                nullptr, nullptr);
     NS_ENSURE_TRUE(gTagTable, NS_ERROR_OUT_OF_MEMORY);
 
     gTagAtomTable = PL_NewHashTable(64, HTMLTagsHashCodeAtom,
                                     PL_CompareValues, PL_CompareValues,
-                                    nsnull, nsnull);
+                                    nullptr, nullptr);
     NS_ENSURE_TRUE(gTagAtomTable, NS_ERROR_OUT_OF_MEMORY);
 
     // Fill in gTagTable with the above static PRUnichar strings as
     // keys and the value of the corresponding enum as the value in
     // the table.
 
-    PRInt32 i;
+    int32_t i;
     for (i = 0; i < NS_HTML_TAG_MAX; ++i) {
       PL_HashTableAdd(gTagTable, sTagUnicodeTable[i],
                       NS_INT32_TO_PTR(i + 1));
@@ -419,10 +395,10 @@ nsHTMLTags::AddRefTable(void)
       }
 
       // let's verify that NS_HTMLTAG_NAME_MAX_LENGTH is correct
-      PRUint32 maxTagNameLength = 0;
+      uint32_t maxTagNameLength = 0;
       for (i = 0; i < NS_HTML_TAG_MAX; ++i) {
-        PRUint32 len = nsCRT::strlen(sTagUnicodeTable[i]);
-        maxTagNameLength = NS_MAX(len, maxTagNameLength);        
+        uint32_t len = NS_strlen(sTagUnicodeTable[i]);
+        maxTagNameLength = std::max(len, maxTagNameLength);        
       }
       NS_ASSERTION(maxTagNameLength == NS_HTMLTAG_NAME_MAX_LENGTH,
                    "NS_HTMLTAG_NAME_MAX_LENGTH not set correctly!");
@@ -443,8 +419,8 @@ nsHTMLTags::ReleaseTable(void)
 
       PL_HashTableDestroy(gTagTable);
       PL_HashTableDestroy(gTagAtomTable);
-      gTagTable = nsnull;
-      gTagAtomTable = nsnull;
+      gTagTable = nullptr;
+      gTagAtomTable = nullptr;
     }
   }
 }
@@ -453,7 +429,7 @@ nsHTMLTags::ReleaseTable(void)
 nsHTMLTag
 nsHTMLTags::LookupTag(const nsAString& aTagName)
 {
-  PRUint32 length = aTagName.Length();
+  uint32_t length = aTagName.Length();
 
   if (length > NS_HTMLTAG_NAME_MAX_LENGTH) {
     return eHTMLTag_userdefined;
@@ -462,7 +438,7 @@ nsHTMLTags::LookupTag(const nsAString& aTagName)
   PRUnichar buf[NS_HTMLTAG_NAME_MAX_LENGTH + 1];
 
   nsAString::const_iterator iter;
-  PRUint32 i = 0;
+  uint32_t i = 0;
   PRUnichar c;
 
   aTagName.BeginReading(iter);

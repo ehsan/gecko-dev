@@ -1,48 +1,10 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2001
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Christopher Seawood <cls@seawood.org>
- *   Chris Waterson <waterson@netscape.com>
- *   Benjamin Smedberg <bsmedberg@covad.net>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
-
-#define XPCOM_TRANSLATE_NSGM_ENTRY_POINT 1
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Module.h"
 #include "nsXPCOM.h"
-#include "nsStaticComponents.h"
 #include "nsMemory.h"
 
 #ifdef MOZ_AUTH_EXTENSION
@@ -65,20 +27,20 @@
 #define UNIVERSALCHARDET_MODULE
 #endif
 
-#define GFX_MODULES MODULE(nsGfxModule)
-
 #ifdef XP_WIN
 #  define WIDGET_MODULES MODULE(nsWidgetModule)
 #elif defined(XP_MACOSX)
 #  define WIDGET_MODULES MODULE(nsWidgetMacModule)
 #elif defined(XP_OS2)
 #  define WIDGET_MODULES MODULE(nsWidgetOS2Module)
-#elif defined(MOZ_WIDGET_GTK2)
+#elif defined(MOZ_WIDGET_GTK)
 #  define WIDGET_MODULES MODULE(nsWidgetGtk2Module)
 #elif defined(MOZ_WIDGET_QT)
 #  define WIDGET_MODULES MODULE(nsWidgetQtModule)
 #elif defined(MOZ_WIDGET_ANDROID)
 #  define WIDGET_MODULES MODULE(nsWidgetAndroidModule)
+#elif defined(MOZ_WIDGET_GONK)
+#  define WIDGET_MODULES MODULE(nsWidgetGonkModule)
 #else
 #  error Unknown widget module.
 #endif
@@ -89,20 +51,6 @@
 #define ICON_MODULE
 #endif
 
-#ifdef MOZ_RDF
-#define RDF_MODULES \
-    MODULE(nsRDFModule) \
-    MODULE(nsWindowDataSourceModule)
-#else
-#define RDF_MODULES
-#endif
-
-#ifdef ACCESSIBILITY
-#define ACCESS_MODULES MODULE(nsAccessibilityModule)
-#else
-#define ACCESS_MODULES
-#endif
-
 #ifdef MOZ_ENABLE_XREMOTE
 #define XREMOTE_MODULES MODULE(RemoteServiceModule)
 #else
@@ -110,13 +58,7 @@
 #endif
 
 #ifdef MOZ_PREF_EXTENSIONS
-#ifdef MOZ_ENABLE_GTK2
-#define SYSTEMPREF_MODULES \
-    MODULE(nsSystemPrefModule) \
-    MODULE(nsAutoConfigModule)
-#else
 #define SYSTEMPREF_MODULES MODULE(nsAutoConfigModule)
-#endif
 #else
 #define SYSTEMPREF_MODULES
 #endif
@@ -126,16 +68,6 @@
 #else
 #define LAYOUT_DEBUG_MODULE
 #endif
-
-#if defined(ENABLE_JETPACK_SERVICE)
-#define JETPACK_MODULES \
-    MODULE(jetpack)
-#else
-#define JETPACK_MODULES
-#endif
-
-#define PLUGINS_MODULES \
-    MODULE(nsPluginModule)
 
 #ifdef MOZ_JSDEBUGGER
 #define JSDEBUGGER_MODULES \
@@ -150,12 +82,6 @@
 #define FILEVIEW_MODULE
 #endif
 
-#ifdef MOZ_STORAGE
-#define STORAGE_MODULE MODULE(mozStorageModule)
-#else
-#define STORAGE_MODULE
-#endif
-
 #ifdef MOZ_ZIPWRITER
 #define ZIPWRITER_MODULE MODULE(ZipWriterModule)
 #else
@@ -167,13 +93,6 @@
     MODULE(nsPlacesModule)
 #else
 #define PLACES_MODULES
-#endif
-
-#if (defined(MOZ_MORK) && defined(MOZ_XUL))
-#define MORK_MODULES \
-    MODULE(nsMorkModule)
-#else
-#define MORK_MODULES
 #endif
 
 #ifdef MOZ_XUL
@@ -192,7 +111,7 @@
 #endif
 
 #ifdef MOZ_XUL
-#ifdef MOZ_ENABLE_GTK2
+#ifdef MOZ_WIDGET_GTK
 #define UNIXPROXY_MODULE MODULE(nsUnixProxyModule)
 #endif
 #if defined(MOZ_WIDGET_QT)
@@ -215,13 +134,17 @@
 #define WINDOWSPROXY_MODULE
 #endif
 
+#if defined(MOZ_WIDGET_ANDROID)
+#define ANDROIDPROXY_MODULE MODULE(nsAndroidProxyModule)
+#else
+#define ANDROIDPROXY_MODULE
+#endif
+
 #if defined(BUILD_CTYPES)
 #define JSCTYPES_MODULE MODULE(jsctypes)
 #else
 #define JSCTYPES_MODULE
 #endif
-
-#define SERVICES_CRYPTO_MODULE MODULE(nsServicesCryptoModule)
 
 #ifndef MOZ_APP_COMPONENT_MODULES
 #if defined(MOZ_APP_COMPONENT_INCLUDE)
@@ -230,6 +153,24 @@
 #else
 #define MOZ_APP_COMPONENT_MODULES
 #endif
+#endif
+
+#if defined(MOZ_ENABLE_PROFILER_SPS)
+#define PROFILER_MODULE MODULE(nsProfilerModule)
+#else
+#define PROFILER_MODULE
+#endif
+
+#if defined(MOZ_WEBRTC)
+#define PEERCONNECTION_MODULE MODULE(peerconnection)
+#else
+#define PEERCONNECTION_MODULE
+#endif
+
+#if defined(MOZ_GIO_COMPONENT)
+#define GIO_MODULE MODULE(nsGIOModule)
+#else
+#define GIO_MODULE
 #endif
 
 #define XUL_MODULES                          \
@@ -244,19 +185,20 @@
     ZIPWRITER_MODULE                         \
     MODULE(StartupCacheModule)               \
     MODULE(nsPrefModule)                     \
-    RDF_MODULES                              \
+    MODULE(nsRDFModule)                      \
+    MODULE(nsWindowDataSourceModule)         \
     MODULE(nsParserModule)                   \
-    GFX_MODULES                              \
-    WIDGET_MODULES                           \
     MODULE(nsImageLib2Module)                \
+    MODULE(nsMediaSnifferModule)             \
+    MODULE(nsGfxModule)                      \
+    PROFILER_MODULE                          \
+    WIDGET_MODULES                           \
     ICON_MODULE                              \
-    JETPACK_MODULES                          \
-    PLUGINS_MODULES                          \
+    MODULE(nsPluginModule)                   \
     MODULE(nsLayoutModule)                   \
     MODULE(docshell_provider)                \
     MODULE(embedcomponents)                  \
     MODULE(Browser_Embedding_Module)         \
-    ACCESS_MODULES                           \
     MODULE(appshell)                         \
     MODULE(nsTransactionManagerModule)       \
     MODULE(nsComposerModule)                 \
@@ -264,9 +206,8 @@
     MODULE(Apprunner)                        \
     MODULE(CommandLineModule)                \
     FILEVIEW_MODULE                          \
-    STORAGE_MODULE                           \
+    MODULE(mozStorageModule)                 \
     PLACES_MODULES                           \
-    MORK_MODULES                             \
     XULENABLED_MODULES                       \
     MODULE(nsToolkitCompsModule)             \
     XREMOTE_MODULES                          \
@@ -279,11 +220,19 @@
     UNIXPROXY_MODULE                         \
     OSXPROXY_MODULE                          \
     WINDOWSPROXY_MODULE                      \
+    ANDROIDPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
+    MODULE(jsreflect)                        \
     MODULE(jsperf)                           \
-    SERVICES_CRYPTO_MODULE                   \
+    MODULE(identity)                         \
+    MODULE(nsServicesCryptoModule)           \
     MOZ_APP_COMPONENT_MODULES                \
     MODULE(nsTelemetryModule)                \
+    MODULE(jsinspector)                      \
+    MODULE(jsdebugger)                       \
+    PEERCONNECTION_MODULE                    \
+    GIO_MODULE                               \
+    MODULE(DiskSpaceWatcherModule)           \
     /* end of list */
 
 #define MODULE(_name) \
@@ -296,7 +245,7 @@ XUL_MODULES
 #define MODULE(_name) \
     &NSMODULE_NAME(_name),
 
-const mozilla::Module *const *const kPStaticModules[] = {
+extern const mozilla::Module *const *const kPStaticModules[] = {
   XUL_MODULES
   NULL
 };

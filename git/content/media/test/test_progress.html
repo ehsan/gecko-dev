@@ -2,14 +2,12 @@
 <html>
 <head>
   <title>Media test: progress events</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
   <script type="text/javascript" src="manifest.js"></script>
 </head>
 <body>
 <pre id="test">
-<script src="use_large_cache.js"></script>
 <script class="testbody" type="text/javascript">
 
 var manager = new MediaTestManager;
@@ -41,8 +39,11 @@ function startTest(test, token) {
   document.body.appendChild(v);
 }
 
-manager.runTests(gProgressTests, startTest);
-
+SimpleTest.waitForExplicitFinish();
+SpecialPowers.pushPrefEnv({"set": [["media.cache_size", 40000]]}, beginTest);
+function beginTest() {
+  manager.runTests(gProgressTests, startTest);
+}
 </script>
 </pre>
 </body>

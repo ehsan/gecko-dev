@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* struct containing the output from nsIFrame::Reflow */
 
@@ -44,14 +12,12 @@
 #include "nsISupports.h"
 #include "nsMargin.h"
 #include "nsRect.h"
-#include "nsBoundingMetrics.h" // for MOZ_MATHML
+#include "nsBoundingMetrics.h"
 
 //----------------------------------------------------------------------
 
 // Option flags
-#ifdef MOZ_MATHML
 #define NS_REFLOW_CALC_BOUNDING_METRICS  0x0001
-#endif
 
 /**
  * When we store overflow areas as an array of scrollable and visual
@@ -73,11 +39,11 @@ private:
   nsRect mRects[2];
 public:
   nsRect& Overflow(size_t aIndex) {
-    NS_ASSERTION(0 <= aIndex && aIndex < 2, "index out of range");
+    NS_ASSERTION(aIndex < 2, "index out of range");
     return mRects[aIndex];
   }
   const nsRect& Overflow(size_t aIndex) const {
-    NS_ASSERTION(0 <= aIndex && aIndex < 2, "index out of range");
+    NS_ASSERTION(aIndex < 2, "index out of range");
     return mRects[aIndex];
   }
 
@@ -173,13 +139,13 @@ struct nsCollapsingMargin {
       {
       }
 
-    PRBool operator==(const nsCollapsingMargin& aOther)
+    bool operator==(const nsCollapsingMargin& aOther)
       {
         return mMostPos == aOther.mMostPos &&
           mMostNeg == aOther.mMostNeg;
       }
 
-    PRBool operator!=(const nsCollapsingMargin& aOther)
+    bool operator!=(const nsCollapsingMargin& aOther)
       {
         return !(*this == aOther);
       }
@@ -213,7 +179,7 @@ struct nsCollapsingMargin {
         mMostNeg = 0;
       }
 
-    PRBool IsZero() const
+    bool IsZero() const
       {
         return (mMostPos == 0) && (mMostNeg == 0);
       }
@@ -234,11 +200,10 @@ struct nsHTMLReflowMetrics {
   nscoord width, height;    // [OUT] desired width and height (border-box)
   nscoord ascent;           // [OUT] baseline (from top), or ASK_FOR_BASELINE
 
-  PRUint32 mFlags;
+  uint32_t mFlags;
 
   enum { ASK_FOR_BASELINE = nscoord_MAX };
 
-#ifdef MOZ_MATHML
   // Metrics that _exactly_ enclose the text to allow precise MathML placements.
   // If the NS_REFLOW_CALC_BOUNDING_METRICS flag is set, then the caller is 
   // requesting that you also compute additional details about your inner
@@ -246,7 +211,6 @@ struct nsHTMLReflowMetrics {
   // msup is the smallest rectangle that _exactly_ encloses both the text
   // of the base and the text of the superscript.
   nsBoundingMetrics mBoundingMetrics;  // [OUT]
-#endif
 
   // Carried out bottom margin values. This is the collapsed
   // (generational) bottom margin value.
@@ -283,7 +247,7 @@ struct nsHTMLReflowMetrics {
   // XXX width/height/ascent are OUT parameters and so they shouldn't
   // have to be initialized, but there are some bad frame classes that
   // aren't properly setting them when returning from Reflow()...
-  nsHTMLReflowMetrics(PRUint32 aFlags = 0)
+  nsHTMLReflowMetrics(uint32_t aFlags = 0)
     : width(0), height(0), ascent(ASK_FOR_BASELINE), mFlags(aFlags)
   {}
 };

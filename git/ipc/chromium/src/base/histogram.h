@@ -41,16 +41,12 @@
 #define BASE_METRICS_HISTOGRAM_H_
 #pragma once
 
+#include "mozilla/MemoryReporting.h"
+
 #include <map>
 #include <string>
 #include <vector>
 
-#if defined(CHROMIUM_MOZILLA_BUILD)
-#define BASE_API
-#else
-#include "base/base_api.h"
-#endif
-#include "testing/gtest/include/gtest/gtest_prod.h"
 #include "base/time.h"
 #include "base/lock.h"
 
@@ -264,7 +260,7 @@ class CustomHistogram;
 class Histogram;
 class LinearHistogram;
 
-class BASE_API Histogram {
+class Histogram {
  public:
   typedef int Sample;  // Used for samples (and ranges of samples).
   typedef int Count;  // Used to count samples in a bucket.
@@ -281,6 +277,7 @@ class BASE_API Histogram {
     HISTOGRAM,
     LINEAR_HISTOGRAM,
     BOOLEAN_HISTOGRAM,
+    FLAG_HISTOGRAM,
     CUSTOM_HISTOGRAM,
     NOT_VALID_IN_RENDERER
   };
@@ -294,6 +291,7 @@ class BASE_API Histogram {
   enum Flags {
     kNoFlags = 0,
     kUmaTargetedHistogramFlag = 0x1,  // Histogram should be UMA uploaded.
+    kExtendedStatisticsFlag = 0x2, // OK to gather extended statistics on histograms.
 
     // Indicate that the histogram was pickled to be sent across an IPC Channel.
     // If we observe this flag on a histogram being aggregated into after IPC,
@@ -302,7 +300,7 @@ class BASE_API Histogram {
     // histogram!).
     kIPCSerializationSourceFlag = 0x10,
 
-    kHexRangePrintingFlag = 0x8000,  // Fancy bucket-naming supported.
+    kHexRangePrintingFlag = 0x8000  // Fancy bucket-naming supported.
   };
 
   enum Inconsistencies {
@@ -320,10 +318,12 @@ class BASE_API Histogram {
     const char* description;  // Null means end of a list of pairs.
   };
 
+  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+
   //----------------------------------------------------------------------------
   // Statistic values, developed over the life of the histogram.
 
-  class BASE_API SampleSet {
+  class SampleSet {
    public:
     explicit SampleSet();
     ~SampleSet();
@@ -333,13 +333,21 @@ class BASE_API Histogram {
     void CheckSize(const Histogram& histogram) const;
 
     // Accessor for histogram to make routine additions.
-    void Accumulate(Sample value, Count count, size_t index);
+    void AccumulateWithLinearStats(Sample value, Count count, size_t index);
+    // Alternate routine for exponential histograms.
+    // computeExpensiveStatistics should be true if we want to compute log sums.
+    void AccumulateWithExponentialStats(Sample value, Count count, size_t index,
+					bool computeExtendedStatistics);
 
     // Accessor methods.
     Count counts(size_t i) const { return counts_[i]; }
     Count TotalCount() const;
-    int64 sum() const { return sum_; }
-    int64 redundant_count() const { return redundant_count_; }
+    int64_t sum() const { return sum_; }
+    uint64_t sum_squares() const { return sum_squares_; }
+    double log_sum() const { return log_sum_; }
+    double log_sum_squares() const { return log_sum_squares_; }
+    int64_t redundant_count() const { return redundant_count_; }
+    size_t size() const { return counts_.size(); }
 
     // Arithmetic manipulation of corresponding elements of the set.
     void Add(const SampleSet& other);
@@ -348,6 +356,8 @@ class BASE_API Histogram {
     bool Serialize(Pickle* pickle) const;
     bool Deserialize(void** iter, const Pickle& pickle);
 
+    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+
    protected:
     // Actual histogram data is stored in buckets, showing the count of values
     // that fit into each bucket.
@@ -355,11 +365,17 @@ class BASE_API Histogram {
 
     // Save simple stats locally.  Note that this MIGHT get done in base class
     // without shared memory at some point.
-    int64 sum_;         // sum of samples.
+    int64_t sum_;         // sum of samples.
+    uint64_t sum_squares_; // sum of squares of samples.
+
+    // These fields may or may not be updated at the discretion of the
+    // histogram.  We use the natural log and compute ln(sample+1) so that
+    // zeros are handled sanely.
+    double log_sum_;      // sum of logs of samples.
+    double log_sum_squares_; // sum of squares of logs of samples
 
    private:
-    // Allow tests to corrupt our innards for testing purposes.
-    FRIEND_TEST(HistogramTest, CorruptSampleCounts);
+    void Accumulate(Sample value, Count count, size_t index);
 
     // To help identify memory corruption, we reduntantly save the number of
     // samples we've accumulated into all of our buckets.  We can compare this
@@ -368,7 +384,7 @@ class BASE_API Histogram {
     // updated on several threads simultaneously), the tallies might mismatch,
     // and also the snapshotting code may asynchronously get a mismatch (though
     // generally either race based mismatch cause is VERY rare).
-    int64 redundant_count_;
+    int64_t redundant_count_;
   };
 
   //----------------------------------------------------------------------------
@@ -386,6 +402,7 @@ class BASE_API Histogram {
                                    Flags flags);
 
   void Add(int value);
+  void Subtract(int value);
 
   // This method is an interface, used only by BooleanHistogram.
   virtual void AddBoolean(bool value);
@@ -395,7 +412,9 @@ class BASE_API Histogram {
     Add(static_cast<int>(time.InMilliseconds()));
   }
 
-  void AddSampleSet(const SampleSet& sample);
+  virtual void AddSampleSet(const SampleSet& sample);
+
+  void Clear();
 
   // This method is an interface, used only by LinearHistogram.
   virtual void SetRangeDescriptions(const DescriptionPair descriptions[]);
@@ -442,7 +461,7 @@ class BASE_API Histogram {
   Sample declared_min() const { return declared_min_; }
   Sample declared_max() const { return declared_max_; }
   virtual Sample ranges(size_t i) const;
-  uint32 range_checksum() const { return range_checksum_; }
+  uint32_t range_checksum() const { return range_checksum_; }
   virtual size_t bucket_count() const;
   // Snapshot the current complete set of sample data.
   // Override with atomic/locked snapshot if needed.
@@ -502,22 +521,20 @@ class BASE_API Histogram {
   // values relate properly to the declared_min_ and declared_max_)..
   bool ValidateBucketRanges() const;
 
-  virtual uint32 CalculateRangeChecksum() const;
+  virtual uint32_t CalculateRangeChecksum() const;
+
+  // Finally, provide the state that changes with the addition of each new
+  // sample.
+  SampleSet sample_;
 
  private:
-  // Allow tests to corrupt our innards for testing purposes.
-  FRIEND_TEST(HistogramTest, CorruptBucketBounds);
-  FRIEND_TEST(HistogramTest, CorruptSampleCounts);
-  FRIEND_TEST(HistogramTest, Crc32SampleHash);
-  FRIEND_TEST(HistogramTest, Crc32TableTest);
-
   friend class StatisticsRecorder;  // To allow it to delete duplicates.
 
   // Post constructor initialization.
   void Initialize();
 
   // Checksum function for accumulating range values into a checksum.
-  static uint32 Crc32(uint32 sum, Sample range);
+  static uint32_t Crc32(uint32_t sum, Sample range);
 
   //----------------------------------------------------------------------------
   // Helpers for emitting Ascii graphic.  Each method appends data to output.
@@ -531,8 +548,8 @@ class BASE_API Histogram {
 
   // Write information about previous, current, and next buckets.
   // Information such as cumulative percentage, etc.
-  void WriteAsciiBucketContext(const int64 past, const Count current,
-                               const int64 remaining, const size_t i,
+  void WriteAsciiBucketContext(const int64_t past, const Count current,
+                               const int64_t remaining, const size_t i,
                                std::string* output) const;
 
   // Write textual description of the bucket contents (relative to histogram).
@@ -546,7 +563,7 @@ class BASE_API Histogram {
 
   //----------------------------------------------------------------------------
   // Table for generating Crc32 values.
-  static const uint32 kCrcTable[256];
+  static const uint32_t kCrcTable[256];
   //----------------------------------------------------------------------------
   // Invariant values set at/near construction time
 
@@ -569,11 +586,7 @@ class BASE_API Histogram {
   // For redundancy, we store a checksum of all the sample ranges when ranges
   // are generated.  If ever there is ever a difference, then the histogram must
   // have been corrupted.
-  uint32 range_checksum_;
-
-  // Finally, provide the state that changes with the addition of each new
-  // sample.
-  SampleSet sample_;
+  uint32_t range_checksum_;
 
   DISALLOW_COPY_AND_ASSIGN(Histogram);
 };
@@ -582,7 +595,7 @@ class BASE_API Histogram {
 
 // LinearHistogram is a more traditional histogram, with evenly spaced
 // buckets.
-class BASE_API LinearHistogram : public Histogram {
+class LinearHistogram : public Histogram {
  public:
   virtual ~LinearHistogram();
 
@@ -601,6 +614,8 @@ class BASE_API LinearHistogram : public Histogram {
 
   // Overridden from Histogram:
   virtual ClassType histogram_type() const;
+
+  virtual void Accumulate(Sample value, Count count, size_t index);
 
   // Store a list of number/text values for use in rendering the histogram.
   // The last element in the array has a null in its "description" slot.
@@ -638,7 +653,7 @@ class BASE_API LinearHistogram : public Histogram {
 //------------------------------------------------------------------------------
 
 // BooleanHistogram is a histogram for booleans.
-class BASE_API BooleanHistogram : public LinearHistogram {
+class BooleanHistogram : public LinearHistogram {
  public:
   static Histogram* FactoryGet(const std::string& name, Flags flags);
 
@@ -646,7 +661,9 @@ class BASE_API BooleanHistogram : public LinearHistogram {
 
   virtual void AddBoolean(bool value);
 
- private:
+  virtual void Accumulate(Sample value, Count count, size_t index);
+
+ protected:
   explicit BooleanHistogram(const std::string& name);
 
   DISALLOW_COPY_AND_ASSIGN(BooleanHistogram);
@@ -654,8 +671,29 @@ class BASE_API BooleanHistogram : public LinearHistogram {
 
 //------------------------------------------------------------------------------
 
+// FlagHistogram is like boolean histogram, but only allows a single off/on value.
+class FlagHistogram : public BooleanHistogram
+{
+public:
+  static Histogram *FactoryGet(const std::string &name, Flags flags);
+
+  virtual ClassType histogram_type() const;
+
+  virtual void Accumulate(Sample value, Count count, size_t index);
+
+  virtual void AddSampleSet(const SampleSet& sample);
+
+private:
+  explicit FlagHistogram(const std::string &name);
+  bool mSwitched;
+
+  DISALLOW_COPY_AND_ASSIGN(FlagHistogram);
+};
+
+//------------------------------------------------------------------------------
+
 // CustomHistogram is a histogram for a set of custom integers.
-class BASE_API CustomHistogram : public Histogram {
+class CustomHistogram : public Histogram {
  public:
 
   static Histogram* FactoryGet(const std::string& name,
@@ -681,7 +719,7 @@ class BASE_API CustomHistogram : public Histogram {
 // general place for histograms to register, and supports a global API for
 // accessing (i.e., dumping, or graphing) the data in all the histograms.
 
-class BASE_API StatisticsRecorder {
+class StatisticsRecorder {
  public:
   typedef std::vector<Histogram*> Histograms;
 

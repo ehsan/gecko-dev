@@ -1,45 +1,11 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is TransforMiiX XSLT processor code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2003
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Peter Van der Beken <peterv@propagandism.org>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "txXPathTreeWalker.h"
 #include "nsIAtom.h"
 #include "nsIAttribute.h"
-#include "nsIDOM3Node.h"
 #include "nsIDOMAttr.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMNode.h"
@@ -55,8 +21,11 @@
 #include "nsUnicharUtils.h"
 #include "nsAttrName.h"
 #include "nsTArray.h"
+#include "mozilla/dom/Element.h"
+#include <stdint.h>
+#include <algorithm>
 
-const PRUint32 kUnknownIndex = PRUint32(-1);
+const uint32_t kUnknownIndex = uint32_t(-1);
 
 txXPathTreeWalker::txXPathTreeWalker(const txXPathTreeWalker& aOther)
     : mPosition(aOther.mPosition),
@@ -96,11 +65,11 @@ txXPathTreeWalker::moveToRoot()
     mDescendants.Clear();
 }
 
-PRBool
+bool
 txXPathTreeWalker::moveToElementById(const nsAString& aID)
 {
     if (aID.IsEmpty()) {
-        return PR_FALSE;
+        return false;
     }
 
     nsIDocument* doc = mPosition.mNode->GetCurrentDoc();
@@ -121,7 +90,7 @@ txXPathTreeWalker::moveToElementById(const nsAString& aID)
     }
 
     if (!content) {
-        return PR_FALSE;
+        return false;
     }
 
     mPosition.mIndex = txXPathNode::eContent;
@@ -129,41 +98,41 @@ txXPathTreeWalker::moveToElementById(const nsAString& aID)
     mCurrentIndex = kUnknownIndex;
     mDescendants.Clear();
 
-    return PR_TRUE;
+    return true;
 }
 
-PRBool
+bool
 txXPathTreeWalker::moveToFirstAttribute()
 {
     if (!mPosition.isContent()) {
-        return PR_FALSE;
+        return false;
     }
 
     return moveToValidAttribute(0);
 }
 
-PRBool
+bool
 txXPathTreeWalker::moveToNextAttribute()
 {
     // XXX an assertion should be enough here with the current code
     if (!mPosition.isAttribute()) {
-        return PR_FALSE;
+        return false;
     }
 
     return moveToValidAttribute(mPosition.mIndex + 1);
 }
 
-PRBool
-txXPathTreeWalker::moveToValidAttribute(PRUint32 aStartIndex)
+bool
+txXPathTreeWalker::moveToValidAttribute(uint32_t aStartIndex)
 {
     NS_ASSERTION(!mPosition.isDocument(), "documents doesn't have attrs");
 
-    PRUint32 total = mPosition.Content()->GetAttrCount();
+    uint32_t total = mPosition.Content()->GetAttrCount();
     if (aStartIndex >= total) {
-        return PR_FALSE;
+        return false;
     }
 
-    PRUint32 index;
+    uint32_t index;
     for (index = aStartIndex; index < total; ++index) {
         const nsAttrName* name = mPosition.Content()->GetAttrNameAt(index);
 
@@ -171,36 +140,36 @@ txXPathTreeWalker::moveToValidAttribute(PRUint32 aStartIndex)
         if (name->NamespaceID() != kNameSpaceID_XMLNS) {
             mPosition.mIndex = index;
 
-            return PR_TRUE;
+            return true;
         }
     }
-    return PR_FALSE;
+    return false;
 }
 
-PRBool
-txXPathTreeWalker::moveToNamedAttribute(nsIAtom* aLocalName, PRInt32 aNSID)
+bool
+txXPathTreeWalker::moveToNamedAttribute(nsIAtom* aLocalName, int32_t aNSID)
 {
     if (!mPosition.isContent()) {
-        return PR_FALSE;
+        return false;
     }
 
     const nsAttrName* name;
-    PRUint32 i;
+    uint32_t i;
     for (i = 0; (name = mPosition.Content()->GetAttrNameAt(i)); ++i) {
         if (name->Equals(aLocalName, aNSID)) {
             mPosition.mIndex = i;
 
-            return PR_TRUE;
+            return true;
         }
     }
-    return PR_FALSE;
+    return false;
 }
 
-PRBool
+bool
 txXPathTreeWalker::moveToFirstChild()
 {
     if (mPosition.isAttribute()) {
-        return PR_FALSE;
+        return false;
     }
 
     NS_ASSERTION(!mPosition.isDocument() ||
@@ -209,9 +178,9 @@ txXPathTreeWalker::moveToFirstChild()
     NS_ASSERTION(mCurrentIndex != kUnknownIndex || mDescendants.IsEmpty(),
                  "Index should be known if parents index are");
 
-    nsIContent* child = mPosition.mNode->GetChildAt(0);
+    nsIContent* child = mPosition.mNode->GetFirstChild();
     if (!child) {
-        return PR_FALSE;
+        return false;
     }
     mPosition.mIndex = txXPathNode::eContent;
     mPosition.mNode = child;
@@ -222,14 +191,14 @@ txXPathTreeWalker::moveToFirstChild()
     }
     mCurrentIndex = 0;
 
-    return PR_TRUE;
+    return true;
 }
 
-PRBool
+bool
 txXPathTreeWalker::moveToLastChild()
 {
     if (mPosition.isAttribute()) {
-        return PR_FALSE;
+        return false;
     }
 
     NS_ASSERTION(!mPosition.isDocument() ||
@@ -238,11 +207,11 @@ txXPathTreeWalker::moveToLastChild()
     NS_ASSERTION(mCurrentIndex != kUnknownIndex || mDescendants.IsEmpty(),
                  "Index should be known if parents index are");
 
-    PRUint32 total = mPosition.mNode->GetChildCount();
+    uint32_t total = mPosition.mNode->GetChildCount();
     if (!total) {
-        return PR_FALSE;
+        return false;
     }
-    mPosition.mNode = mPosition.mNode->GetChildAt(total - 1);
+    mPosition.mNode = mPosition.mNode->GetLastChild();
 
     if (mCurrentIndex != kUnknownIndex &&
         !mDescendants.AppendValue(mCurrentIndex)) {
@@ -250,48 +219,48 @@ txXPathTreeWalker::moveToLastChild()
     }
     mCurrentIndex = total - 1;
 
-    return PR_TRUE;
+    return true;
 }
 
-PRBool
+bool
 txXPathTreeWalker::moveToNextSibling()
 {
     if (!mPosition.isContent()) {
-        return PR_FALSE;
+        return false;
     }
 
     return moveToSibling(1);
 }
 
-PRBool
+bool
 txXPathTreeWalker::moveToPreviousSibling()
 {
     if (!mPosition.isContent()) {
-        return PR_FALSE;
+        return false;
     }
 
     return moveToSibling(-1);
 }
 
-PRBool
+bool
 txXPathTreeWalker::moveToParent()
 {
     if (mPosition.isDocument()) {
-        return PR_FALSE;
+        return false;
     }
 
     if (mPosition.isAttribute()) {
         mPosition.mIndex = txXPathNode::eContent;
 
-        return PR_TRUE;
+        return true;
     }
 
-    nsINode* parent = mPosition.mNode->GetNodeParent();
+    nsINode* parent = mPosition.mNode->GetParentNode();
     if (!parent) {
-        return PR_FALSE;
+        return false;
     }
 
-    PRUint32 count = mDescendants.Length();
+    uint32_t count = mDescendants.Length();
     if (count) {
         mCurrentIndex = mDescendants.ValueAt(--count);
         mDescendants.RemoveValueAt(count);
@@ -304,35 +273,35 @@ txXPathTreeWalker::moveToParent()
       txXPathNode::eContent : txXPathNode::eDocument;
     mPosition.mNode = parent;
 
-    return PR_TRUE;
+    return true;
 }
 
-PRBool
-txXPathTreeWalker::moveToSibling(PRInt32 aDir)
+bool
+txXPathTreeWalker::moveToSibling(int32_t aDir)
 {
     NS_ASSERTION(mPosition.isContent(),
                  "moveToSibling should only be called for content");
 
-    nsINode* parent = mPosition.mNode->GetNodeParent();
+    nsINode* parent = mPosition.mNode->GetParentNode();
     if (!parent) {
-        return PR_FALSE;
+        return false;
     }
     if (mCurrentIndex == kUnknownIndex) {
         mCurrentIndex = parent->IndexOf(mPosition.mNode);
     }
 
     // if mCurrentIndex is 0 we rely on GetChildAt returning null for an
-    // index of PRUint32(-1).
-    PRUint32 newIndex = mCurrentIndex + aDir;
+    // index of uint32_t(-1).
+    uint32_t newIndex = mCurrentIndex + aDir;
     nsIContent* newChild = parent->GetChildAt(newIndex);
     if (!newChild) {
-        return PR_FALSE;
+        return false;
     }
 
     mPosition.mNode = newChild;
     mCurrentIndex = newIndex;
 
-    return PR_TRUE;
+    return true;
 }
 
 txXPathNode::txXPathNode(const txXPathNode& aNode)
@@ -356,12 +325,12 @@ txXPathNode::~txXPathNode()
 }
 
 /* static */
-PRBool
+bool
 txXPathNodeUtils::getAttr(const txXPathNode& aNode, nsIAtom* aLocalName,
-                          PRInt32 aNSID, nsAString& aValue)
+                          int32_t aNSID, nsAString& aValue)
 {
     if (aNode.isDocument() || aNode.isAttribute()) {
-        return PR_FALSE;
+        return false;
     }
 
     return aNode.Content()->GetAttr(aNSID, aLocalName, aValue);
@@ -372,15 +341,13 @@ already_AddRefed<nsIAtom>
 txXPathNodeUtils::getLocalName(const txXPathNode& aNode)
 {
     if (aNode.isDocument()) {
-        return nsnull;
+        return nullptr;
     }
 
     if (aNode.isContent()) {
         if (aNode.mNode->IsElement()) {
-            nsIAtom* localName = aNode.Content()->Tag();
-            NS_ADDREF(localName);
-
-            return localName;
+            nsCOMPtr<nsIAtom> localName = aNode.Content()->Tag();
+            return localName.forget();
         }
 
         if (aNode.mNode->IsNodeOfType(nsINode::ePROCESSING_INSTRUCTION)) {
@@ -391,21 +358,20 @@ txXPathNodeUtils::getLocalName(const txXPathNode& aNode)
             return NS_NewAtom(target);
         }
 
-        return nsnull;
+        return nullptr;
     }
 
-    nsIAtom* localName = aNode.Content()->
+    nsCOMPtr<nsIAtom> localName = aNode.Content()->
         GetAttrNameAt(aNode.mIndex)->LocalName();
-    NS_ADDREF(localName);
 
-    return localName;
+    return localName.forget();
 }
 
 nsIAtom*
 txXPathNodeUtils::getPrefix(const txXPathNode& aNode)
 {
     if (aNode.isDocument()) {
-        return nsnull;
+        return nullptr;
     }
 
     if (aNode.isContent()) {
@@ -453,7 +419,7 @@ txXPathNodeUtils::getLocalName(const txXPathNode& aNode, nsAString& aLocalName)
     // Check for html
     if (aNode.Content()->NodeInfo()->NamespaceEquals(kNameSpaceID_None) &&
         aNode.Content()->IsHTML()) {
-        ToUpperCase(aLocalName);
+        nsContentUtils::ASCIIToUpper(aLocalName);
     }
 }
 
@@ -468,16 +434,11 @@ txXPathNodeUtils::getNodeName(const txXPathNode& aNode, nsAString& aName)
     }
 
     if (aNode.isContent()) {
-        if (aNode.mNode->IsElement()) {
-            aName = aNode.Content()->NodeInfo()->QualifiedNameCorrectedCase();
-            return;
-        }
-
-        if (aNode.mNode->IsNodeOfType(nsINode::ePROCESSING_INSTRUCTION)) {
-            // PIs don't have a nodeinfo but do have a name
-            nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aNode.mNode);
-            node->GetNodeName(aName);
-
+        // Elements and PIs have a name
+        if (aNode.mNode->IsElement() ||
+            aNode.mNode->NodeType() ==
+            nsIDOMNode::PROCESSING_INSTRUCTION_NODE) {
+            aName = aNode.Content()->NodeName();
             return;
         }
 
@@ -487,15 +448,10 @@ txXPathNodeUtils::getNodeName(const txXPathNode& aNode, nsAString& aName)
     }
 
     aNode.Content()->GetAttrNameAt(aNode.mIndex)->GetQualifiedName(aName);
-
-    // Check for html
-    if (aNode.Content()->IsHTML()) {
-        ToUpperCase(aName);
-    }
 }
 
 /* static */
-PRInt32
+int32_t
 txXPathNodeUtils::getNamespaceID(const txXPathNode& aNode)
 {
     if (aNode.isDocument()) {
@@ -517,7 +473,7 @@ txXPathNodeUtils::getNamespaceURI(const txXPathNode& aNode, nsAString& aURI)
 }
 
 /* static */
-PRUint16
+uint16_t
 txXPathNodeUtils::getNodeType(const txXPathNode& aNode)
 {
     if (aNode.isDocument()) {
@@ -525,11 +481,7 @@ txXPathNodeUtils::getNodeType(const txXPathNode& aNode)
     }
 
     if (aNode.isContent()) {
-        PRUint16 type;
-        nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aNode.mNode);
-        node->GetNodeType(&type);
-
-        return type;
+        return aNode.mNode->NodeType();
     }
 
     return txXPathNodeType::ATTRIBUTE_NODE;
@@ -559,7 +511,7 @@ txXPathNodeUtils::appendNodeValue(const txXPathNode& aNode, nsAString& aResult)
     if (aNode.isDocument() ||
         aNode.mNode->IsElement() ||
         aNode.mNode->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT)) {
-        nsContentUtils::AppendNodeTextContent(aNode.mNode, PR_TRUE, aResult);
+        nsContentUtils::AppendNodeTextContent(aNode.mNode, true, aResult);
 
         return;
     }
@@ -568,7 +520,7 @@ txXPathNodeUtils::appendNodeValue(const txXPathNode& aNode, nsAString& aResult)
 }
 
 /* static */
-PRBool
+bool
 txXPathNodeUtils::isWhitespace(const txXPathNode& aNode)
 {
     NS_ASSERTION(aNode.isContent() && isText(aNode), "Wrong type!");
@@ -578,28 +530,15 @@ txXPathNodeUtils::isWhitespace(const txXPathNode& aNode)
 
 /* static */
 txXPathNode*
-txXPathNodeUtils::getDocument(const txXPathNode& aNode)
-{
-    nsIDocument* document = aNode.mNode->GetCurrentDoc();
-    return document ? new txXPathNode(document) : nsnull;
-}
-
-/* static */
-txXPathNode*
 txXPathNodeUtils::getOwnerDocument(const txXPathNode& aNode)
 {
-    nsIDocument* document = aNode.mNode->GetOwnerDoc();
-    return document ? new txXPathNode(document) : nsnull;
+    return new txXPathNode(aNode.mNode->OwnerDoc());
 }
 
 #ifndef HAVE_64BIT_OS
-#define kFmtSize 13
-#define kFmtSizeAttr 24
 const char gPrintfFmt[] = "id0x%08p";
 const char gPrintfFmtAttr[] = "id0x%08p-%010i";
 #else
-#define kFmtSize 21
-#define kFmtSizeAttr 32
 const char gPrintfFmt[] = "id0x%016p";
 const char gPrintfFmtAttr[] = "id0x%016p-%010i";
 #endif
@@ -610,13 +549,13 @@ txXPathNodeUtils::getXSLTId(const txXPathNode& aNode,
                             const txXPathNode& aBase,
                             nsAString& aResult)
 {
-    PRUword nodeid = ((PRUword)aNode.mNode) - ((PRUword)aBase.mNode);
+    uintptr_t nodeid = ((uintptr_t)aNode.mNode) - ((uintptr_t)aBase.mNode);
     if (!aNode.isAttribute()) {
-        CopyASCIItoUTF16(nsPrintfCString(kFmtSize, gPrintfFmt, nodeid),
+        CopyASCIItoUTF16(nsPrintfCString(gPrintfFmt, nodeid),
                          aResult);
     }
     else {
-        CopyASCIItoUTF16(nsPrintfCString(kFmtSizeAttr, gPrintfFmtAttr,
+        CopyASCIItoUTF16(nsPrintfCString(gPrintfFmtAttr,
                                          nodeid, aNode.mIndex), aResult);
     }
 
@@ -627,17 +566,11 @@ txXPathNodeUtils::getXSLTId(const txXPathNode& aNode,
 void
 txXPathNodeUtils::getBaseURI(const txXPathNode& aNode, nsAString& aURI)
 {
-    nsCOMPtr<nsIDOM3Node> node = do_QueryInterface(aNode.mNode);
-    if (node) {
-        node->GetBaseURI(aURI);
-    }
-    else {
-        aURI.Truncate();
-    }
+    aNode.mNode->GetBaseURI(aURI);
 }
 
 /* static */
-PRIntn
+int
 txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
                                   const txXPathNode& aOtherNode)
 {
@@ -677,8 +610,8 @@ txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
     nsINode* otherNode = aOtherNode.mNode;
     nsINode* parent, *otherParent;
     while (node && otherNode) {
-        parent = node->GetNodeParent();
-        otherParent = otherNode->GetNodeParent();
+        parent = node->GetParentNode();
+        otherParent = otherNode->GetParentNode();
 
         // Hopefully this is a common case.
         if (parent == otherParent) {
@@ -700,21 +633,21 @@ txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
 
     while (node) {
         parents.AppendElement(node);
-        node = node->GetNodeParent();
+        node = node->GetParentNode();
     }
     while (otherNode) {
         otherParents.AppendElement(otherNode);
-        otherNode = otherNode->GetNodeParent();
+        otherNode = otherNode->GetParentNode();
     }
 
     // Walk back down along the parent-chains until we find where they split.
-    PRInt32 total = parents.Length() - 1;
-    PRInt32 otherTotal = otherParents.Length() - 1;
+    int32_t total = parents.Length() - 1;
+    int32_t otherTotal = otherParents.Length() - 1;
     NS_ASSERTION(total != otherTotal, "Can't have same number of parents");
 
-    PRInt32 lastIndex = PR_MIN(total, otherTotal);
-    PRInt32 i;
-    parent = nsnull;
+    int32_t lastIndex = std::min(total, otherTotal);
+    int32_t i;
+    parent = nullptr;
     for (i = 0; i <= lastIndex; ++i) {
         node = parents.ElementAt(total - i);
         otherNode = otherParents.ElementAt(otherTotal - i);
@@ -725,8 +658,8 @@ txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
                 return node < otherNode ? -1 : 1;
             }
 
-            PRInt32 index = parent->IndexOf(node);
-            PRInt32 otherIndex = parent->IndexOf(otherNode);
+            int32_t index = parent->IndexOf(node);
+            int32_t otherIndex = parent->IndexOf(otherNode);
             NS_ASSERTION(index != otherIndex && index >= 0 && otherIndex >= 0,
                          "invalid index in compareTreePosition");
 
@@ -743,18 +676,18 @@ txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
 
 /* static */
 txXPathNode*
-txXPathNativeNode::createXPathNode(nsIContent* aContent, PRBool aKeepRootAlive)
+txXPathNativeNode::createXPathNode(nsIContent* aContent, bool aKeepRootAlive)
 {
-    nsINode* root = aKeepRootAlive ? txXPathNode::RootOf(aContent) : nsnull;
+    nsINode* root = aKeepRootAlive ? txXPathNode::RootOf(aContent) : nullptr;
 
     return new txXPathNode(aContent, txXPathNode::eContent, root);
 }
 
 /* static */
 txXPathNode*
-txXPathNativeNode::createXPathNode(nsIDOMNode* aNode, PRBool aKeepRootAlive)
+txXPathNativeNode::createXPathNode(nsIDOMNode* aNode, bool aKeepRootAlive)
 {
-    PRUint16 nodeType;
+    uint16_t nodeType;
     aNode->GetNodeType(&nodeType);
 
     if (nodeType == nsIDOMNode::ATTRIBUTE_NODE) {
@@ -764,12 +697,12 @@ txXPathNativeNode::createXPathNode(nsIDOMNode* aNode, PRBool aKeepRootAlive)
         nsINodeInfo *nodeInfo = attr->NodeInfo();
         nsIContent *parent = attr->GetContent();
         if (!parent) {
-            return nsnull;
+            return nullptr;
         }
 
-        nsINode* root = aKeepRootAlive ? txXPathNode::RootOf(parent) : nsnull;
+        nsINode* root = aKeepRootAlive ? txXPathNode::RootOf(parent) : nullptr;
 
-        PRUint32 i, total = parent->GetAttrCount();
+        uint32_t i, total = parent->GetAttrCount();
         for (i = 0; i < total; ++i) {
             const nsAttrName* name = parent->GetAttrNameAt(i);
             if (nodeInfo->Equals(name->LocalName(), name->NamespaceID())) {
@@ -779,12 +712,12 @@ txXPathNativeNode::createXPathNode(nsIDOMNode* aNode, PRBool aKeepRootAlive)
 
         NS_ERROR("Couldn't find the attribute in its parent!");
 
-        return nsnull;
+        return nullptr;
     }
 
     nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-    PRUint32 index;
-    nsINode* root = aKeepRootAlive ? node.get() : nsnull;
+    uint32_t index;
+    nsINode* root = aKeepRootAlive ? node.get() : nullptr;
 
     if (nodeType == nsIDOMNode::DOCUMENT_NODE) {
         index = txXPathNode::eDocument;

@@ -1,41 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Patrick C. Beard <beard@netscape.com>
- *   Josh Aas <josh@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
   nsPluginsDirDarwin.cpp
@@ -104,7 +70,7 @@ static nsresult toCFURLRef(nsIFile* file, CFURLRef& outURL)
   return rv;
 }
 
-PRBool nsPluginsDir::IsPluginFile(nsIFile* file)
+bool nsPluginsDir::IsPluginFile(nsIFile* file)
 {
   nsCString fileName;
   file->GetNativeLeafName(fileName);
@@ -114,9 +80,9 @@ PRBool nsPluginsDir::IsPluginFile(nsIFile* file)
    */
   if (!strcmp(fileName.get(), "VerifiedDownloadPlugin.plugin")) {
     NS_WARNING("Preventing load of VerifiedDownloadPlugin.plugin (see bug 436575)");
-    return PR_FALSE;
+    return false;
   }
-  return PR_TRUE;
+  return true;
 }
 
 // Caller is responsible for freeing returned buffer.
@@ -132,17 +98,17 @@ static char* CFStringRefToUTF8Buffer(CFStringRef cfString)
                                         kCFStringEncodingUTF8) + 1;
   char* newBuffer = static_cast<char*>(NS_Alloc(bufferLength));
   if (!newBuffer) {
-    return nsnull;
+    return nullptr;
   }
 
   if (!::CFStringGetCString(cfString, newBuffer, bufferLength,
                             kCFStringEncodingUTF8)) {
     NS_Free(newBuffer);
-    return nsnull;
+    return nullptr;
   }
 
   newBuffer = static_cast<char*>(NS_Realloc(newBuffer,
-                                            PL_strlen(newBuffer) + 1));
+                                            strlen(newBuffer) + 1));
   return newBuffer;
 }
 
@@ -333,7 +299,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
 #ifdef __LP64__
   char executablePath[PATH_MAX];
   executablePath[0] = '\0';
-  nsCAutoString bundlePath;
+  nsAutoCString bundlePath;
   mPlugin->GetNativePath(bundlePath);
   CFStringRef pathRef = ::CFStringCreateWithCString(NULL, bundlePath.get(), kCFStringEncodingUTF8);
   if (pathRef) {
@@ -354,7 +320,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
     ::CFRelease(pathRef); 
   }
 #else
-  nsCAutoString bundlePath;
+  nsAutoCString bundlePath;
   mPlugin->GetNativePath(bundlePath);
   const char *executablePath = bundlePath.get();
 #endif
@@ -384,17 +350,17 @@ static char* p2cstrdup(StringPtr pstr)
 static char* GetNextPluginStringFromHandle(Handle h, short *index)
 {
   char *ret = p2cstrdup((unsigned char*)(*h + *index));
-  *index += (ret ? PL_strlen(ret) : 0) + 1;
+  *index += (ret ? strlen(ret) : 0) + 1;
   return ret;
 }
 
-static PRBool IsCompatibleArch(nsIFile *file)
+static bool IsCompatibleArch(nsIFile *file)
 {
   CFURLRef pluginURL = NULL;
   if (NS_FAILED(toCFURLRef(file, pluginURL)))
-    return PR_FALSE;
+    return false;
   
-  PRBool isPluginFile = PR_FALSE;
+  bool isPluginFile = false;
 
   CFBundleRef pluginBundle = ::CFBundleCreate(kCFAllocatorDefault, pluginURL);
   if (pluginBundle) {
@@ -408,16 +374,21 @@ static PRBool IsCompatibleArch(nsIFile *file)
         executablePath[0] = '\0';
       }
 
-      uint32 pluginLibArchitectures;
+      uint32_t pluginLibArchitectures;
       nsresult rv = mozilla::ipc::GeckoChildProcessHost::GetArchitecturesForBinary(executablePath, &pluginLibArchitectures);
       if (NS_FAILED(rv)) {
-        return PR_FALSE;
+        return false;
       }
 
-      uint32 containerArchitectures = mozilla::ipc::GeckoChildProcessHost::GetSupportedArchitecturesForProcessType(GeckoProcessType_Plugin);
+      uint32_t supportedArchitectures =
+#ifdef __LP64__
+          mozilla::ipc::GeckoChildProcessHost::GetSupportedArchitecturesForProcessType(GeckoProcessType_Plugin);
+#else
+          base::GetCurrentProcessArchitecture();
+#endif
 
       // Consider the plugin architecture valid if there is any overlap in the masks.
-      isPluginFile = !!(containerArchitectures & pluginLibArchitectures);
+      isPluginFile = !!(supportedArchitectures & pluginLibArchitectures);
     }
     ::CFRelease(pluginBundle);
   }
@@ -431,7 +402,7 @@ static PRBool IsCompatibleArch(nsIFile *file)
  */
 nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
 {
-  *outLibrary = nsnull;
+  *outLibrary = nullptr;
 
   nsresult rv = NS_OK;
 
@@ -443,7 +414,7 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
   memset(&info, 0, sizeof(info));
 
   // Try to get a bundle reference.
-  nsCAutoString path;
+  nsAutoCString path;
   if (NS_FAILED(rv = mPlugin->GetNativePath(path)))
     return rv;
   CFBundleRef bundle = getPluginBundle(path.get());
@@ -452,7 +423,7 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
   info.fFullPath = PL_strdup(path.get());
 
   // fill in file name
-  nsCAutoString fileName;
+  nsAutoCString fileName;
   if (NS_FAILED(rv = mPlugin->GetNativeLeafName(fileName)))
     return rv;
   info.fFileName = PL_strdup(fileName.get());

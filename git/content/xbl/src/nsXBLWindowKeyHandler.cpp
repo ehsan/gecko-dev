@@ -1,51 +1,14 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Original Author: David W. Hyatt (hyatt@netscape.com)
- *   - Mike Pinkerton (pinkerton@netscape.com)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCOMPtr.h"
 #include "nsXBLPrototypeHandler.h"
 #include "nsXBLWindowKeyHandler.h"
 #include "nsIContent.h"
 #include "nsIAtom.h"
-#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMKeyEvent.h"
-#include "nsIDOMEventTarget.h"
-#include "nsIDOMNSEvent.h"
 #include "nsXBLService.h"
 #include "nsIServiceManager.h"
 #include "nsGkAtoms.h"
@@ -54,26 +17,27 @@
 #include "nsINativeKeyBindings.h"
 #include "nsIController.h"
 #include "nsIControllers.h"
-#include "nsIDOMWindowInternal.h"
 #include "nsFocusManager.h"
 #include "nsPIWindowRoot.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsContentUtils.h"
 #include "nsXBLPrototypeBinding.h"
-#include "nsIDOMDocument.h"
-#include "nsIDOMNSDocument.h"
-#include "nsPIWindowRoot.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocShell.h"
 #include "nsIPresShell.h"
-#include "nsIPrivateDOMEvent.h"
 #include "nsISelectionController.h"
 #include "nsGUIEvent.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/dom/Element.h"
+#include "nsEventStateManager.h"
 
-static nsINativeKeyBindings *sNativeEditorBindings = nsnull;
+using namespace mozilla;
+using namespace mozilla::dom;
 
-class nsXBLSpecialDocInfo
+static nsINativeKeyBindings *sNativeEditorBindings = nullptr;
+
+class nsXBLSpecialDocInfo : public nsIObserver
 {
 public:
   nsRefPtr<nsXBLDocumentInfo> mHTMLBindings;
@@ -82,9 +46,12 @@ public:
   static const char sHTMLBindingStr[];
   static const char sUserHTMLBindingStr[];
 
-  PRBool mInitialized;
+  bool mInitialized;
 
 public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIOBSERVER
+
   void LoadDocInfo();
   void GetAllHandlers(const char* aType,
                       nsXBLPrototypeHandler** handler,
@@ -93,22 +60,42 @@ public:
                    const nsACString& aRef,
                    nsXBLPrototypeHandler** aResult);
 
-  nsXBLSpecialDocInfo() : mInitialized(PR_FALSE) {}
+  nsXBLSpecialDocInfo() : mInitialized(false) {}
+
+  virtual ~nsXBLSpecialDocInfo() {}
+
 };
 
 const char nsXBLSpecialDocInfo::sHTMLBindingStr[] =
   "chrome://global/content/platformHTMLBindings.xml";
 
+NS_IMPL_ISUPPORTS1(nsXBLSpecialDocInfo, nsIObserver)
+
+NS_IMETHODIMP
+nsXBLSpecialDocInfo::Observe(nsISupports* aSubject,
+                             const char* aTopic,
+                             const PRUnichar* aData)
+{
+  MOZ_ASSERT(!strcmp(aTopic, "xpcom-shutdown"), "wrong topic");
+
+  // On shutdown, clear our fields to avoid an extra cycle collection.
+  mHTMLBindings = nullptr;
+  mUserHTMLBindings = nullptr;
+  mInitialized = false;
+  nsContentUtils::UnregisterShutdownObserver(this);
+
+  return NS_OK;
+}
+
 void nsXBLSpecialDocInfo::LoadDocInfo()
 {
   if (mInitialized)
     return;
-  mInitialized = PR_TRUE;
+  mInitialized = true;
+  nsContentUtils::RegisterShutdownObserver(this);
 
-  nsresult rv;
-  nsCOMPtr<nsIXBLService> xblService = 
-           do_GetService("@mozilla.org/xbl;1", &rv);
-  if (NS_FAILED(rv) || !xblService)
+  nsXBLService* xblService = nsXBLService::GetInstance();
+  if (!xblService)
     return;
 
   // Obtain the platform doc info
@@ -117,24 +104,24 @@ void nsXBLSpecialDocInfo::LoadDocInfo()
   if (!bindingURI) {
     return;
   }
-  xblService->LoadBindingDocumentInfo(nsnull, nsnull,
+  xblService->LoadBindingDocumentInfo(nullptr, nullptr,
                                       bindingURI,
-                                      nsnull,
-                                      PR_TRUE, 
+                                      nullptr,
+                                      true, 
                                       getter_AddRefs(mHTMLBindings));
 
   const nsAdoptingCString& userHTMLBindingStr =
-    nsContentUtils::GetCharPref("dom.userHTMLBindings.uri");
+    Preferences::GetCString("dom.userHTMLBindings.uri");
   if (!userHTMLBindingStr.IsEmpty()) {
     NS_NewURI(getter_AddRefs(bindingURI), userHTMLBindingStr);
     if (!bindingURI) {
       return;
     }
 
-    xblService->LoadBindingDocumentInfo(nsnull, nsnull,
+    xblService->LoadBindingDocumentInfo(nullptr, nullptr,
                                         bindingURI,
-                                        nsnull,
-                                        PR_TRUE, 
+                                        nullptr,
+                                        true, 
                                         getter_AddRefs(mUserHTMLBindings));
   }
 }
@@ -163,7 +150,7 @@ nsXBLSpecialDocInfo::GetAllHandlers(const char* aType,
                                     nsXBLPrototypeHandler** aUserHandler)
 {
   if (mUserHTMLBindings) {
-    nsCAutoString type(aType);
+    nsAutoCString type(aType);
     type.Append("User");
     GetHandlers(mUserHTMLBindings, type, aUserHandler);
   }
@@ -173,14 +160,14 @@ nsXBLSpecialDocInfo::GetAllHandlers(const char* aType,
 }
 
 // Init statics
-nsXBLSpecialDocInfo* nsXBLWindowKeyHandler::sXBLSpecialDocInfo = nsnull;
-PRUint32 nsXBLWindowKeyHandler::sRefCnt = 0;
+nsXBLSpecialDocInfo* nsXBLWindowKeyHandler::sXBLSpecialDocInfo = nullptr;
+uint32_t nsXBLWindowKeyHandler::sRefCnt = 0;
 
 nsXBLWindowKeyHandler::nsXBLWindowKeyHandler(nsIDOMElement* aElement,
-                                             nsPIDOMEventTarget* aTarget)
+                                             EventTarget* aTarget)
   : mTarget(aTarget),
-    mHandler(nsnull),
-    mUserHandler(nsnull)
+    mHandler(nullptr),
+    mUserHandler(nullptr)
 {
   mWeakPtrForElement = do_GetWeakReference(aElement);
   ++sRefCnt;
@@ -194,32 +181,31 @@ nsXBLWindowKeyHandler::~nsXBLWindowKeyHandler()
 
   --sRefCnt;
   if (!sRefCnt) {
-    delete sXBLSpecialDocInfo;
-    sXBLSpecialDocInfo = nsnull;
+    NS_IF_RELEASE(sXBLSpecialDocInfo);
   }
 }
 
-NS_IMPL_ISUPPORTS2(nsXBLWindowKeyHandler,
-                   nsIDOMKeyListener,
+NS_IMPL_ISUPPORTS1(nsXBLWindowKeyHandler,
                    nsIDOMEventListener)
 
 static void
 BuildHandlerChain(nsIContent* aContent, nsXBLPrototypeHandler** aResult)
 {
-  *aResult = nsnull;
+  *aResult = nullptr;
 
   // Since we chain each handler onto the next handler,
   // we'll enumerate them here in reverse so that when we
   // walk the chain they'll come out in the original order
-  for (PRUint32 j = aContent->GetChildCount(); j--; ) {
-    nsIContent *key = aContent->GetChildAt(j);
+  for (nsIContent* key = aContent->GetLastChild();
+       key;
+       key = key->GetPreviousSibling()) {
 
     if (key->NodeInfo()->Equals(nsGkAtoms::key, kNameSpaceID_XUL)) {
       // Check whether the key element has empty value at key/char attribute.
       // Such element is used by localizers for alternative shortcut key
       // definition on the locale. See bug 426501.
       nsAutoString valKey, valCharCode, valKeyCode;
-      PRBool attrExists =
+      bool attrExists =
         key->GetAttr(kNameSpaceID_None, nsGkAtoms::key, valKey) ||
         key->GetAttr(kNameSpaceID_None, nsGkAtoms::charcode, valCharCode) ||
         key->GetAttr(kNameSpaceID_None, nsGkAtoms::keycode, valKeyCode);
@@ -245,14 +231,14 @@ BuildHandlerChain(nsIContent* aContent, nsXBLPrototypeHandler** aResult)
 // to a particular element rather than the document
 //
 nsresult
-nsXBLWindowKeyHandler::EnsureHandlers(PRBool *aIsEditor)
+nsXBLWindowKeyHandler::EnsureHandlers(bool *aIsEditor)
 {
-  nsCOMPtr<nsIDOMElement> el = GetElement();
+  nsCOMPtr<Element> el = GetElement();
   NS_ENSURE_STATE(!mWeakPtrForElement || el);
   if (el) {
     // We are actually a XUL <keyset>.
     if (aIsEditor)
-      *aIsEditor = PR_FALSE;
+      *aIsEditor = false;
 
     if (mHandler)
       return NS_OK;
@@ -260,18 +246,14 @@ nsXBLWindowKeyHandler::EnsureHandlers(PRBool *aIsEditor)
     nsCOMPtr<nsIContent> content(do_QueryInterface(el));
     BuildHandlerChain(content, &mHandler);
   } else { // We are an XBL file of handlers.
-    if (!sXBLSpecialDocInfo)
-      sXBLSpecialDocInfo = new nsXBLSpecialDocInfo();
     if (!sXBLSpecialDocInfo) {
-      if (aIsEditor) {
-        *aIsEditor = PR_FALSE;
-      }
-      return NS_ERROR_OUT_OF_MEMORY;
+      sXBLSpecialDocInfo = new nsXBLSpecialDocInfo();
+      NS_ADDREF(sXBLSpecialDocInfo);
     }
     sXBLSpecialDocInfo->LoadDocInfo();
 
     // Now determine which handlers we should be using.
-    PRBool isEditor = IsEditor();
+    bool isEditor = IsEditor();
     if (isEditor) {
       sXBLSpecialDocInfo->GetAllHandlers("editor", &mHandler, &mUserHandler);
     }
@@ -289,13 +271,13 @@ nsXBLWindowKeyHandler::EnsureHandlers(PRBool *aIsEditor)
 static nsINativeKeyBindings*
 GetEditorKeyBindings()
 {
-  static PRBool noBindings = PR_FALSE;
+  static bool noBindings = false;
   if (!sNativeEditorBindings && !noBindings) {
     CallGetService(NS_NATIVEKEYBINDINGS_CONTRACTID_PREFIX "editor",
                    &sNativeEditorBindings);
 
     if (!sNativeEditorBindings) {
-      noBindings = PR_TRUE;
+      noBindings = true;
     }
   }
 
@@ -306,44 +288,48 @@ static void
 DoCommandCallback(const char *aCommand, void *aData)
 {
   nsIControllers *controllers = static_cast<nsIControllers*>(aData);
-  if (controllers) {
-    nsCOMPtr<nsIController> controller;
-    controllers->GetControllerForCommand(aCommand, getter_AddRefs(controller));
-    if (controller) {
-      controller->DoCommand(aCommand);
-    }
+  if (!controllers) {
+    return;
+  }
+
+  nsCOMPtr<nsIController> controller;
+  controllers->GetControllerForCommand(aCommand, getter_AddRefs(controller));
+  if (!controller) {
+    return;
+  }
+
+  bool commandEnabled;
+  nsresult rv = controller->IsCommandEnabled(aCommand, &commandEnabled);
+  NS_ENSURE_SUCCESS_VOID(rv);
+  if (commandEnabled) {
+    controller->DoCommand(aCommand);
   }
 }
 
 nsresult
 nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventType)
 {
-  nsCOMPtr<nsIDOMNSUIEvent> evt = do_QueryInterface(aKeyEvent);
-  PRBool prevent;
-  evt->GetPreventDefault(&prevent);
+  bool prevent;
+  aKeyEvent->GetDefaultPrevented(&prevent);
   if (prevent)
     return NS_OK;
 
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aKeyEvent);
-  PRBool trustedEvent = PR_FALSE;
-
-  if (domNSEvent) {
-    //Don't process the event if it was not dispatched from a trusted source
-    domNSEvent->GetIsTrusted(&trustedEvent);
-  }
+  bool trustedEvent = false;
+  // Don't process the event if it was not dispatched from a trusted source
+  aKeyEvent->GetIsTrusted(&trustedEvent);
 
   if (!trustedEvent)
     return NS_OK;
 
-  PRBool isEditor;
+  bool isEditor;
   nsresult rv = EnsureHandlers(&isEditor);
   NS_ENSURE_SUCCESS(rv, rv);
-  
-  nsCOMPtr<nsIDOMElement> el = GetElement();
+
+  nsCOMPtr<Element> el = GetElement();
   if (!el) {
     if (mUserHandler) {
       WalkHandlersInternal(aKeyEvent, aEventType, mUserHandler);
-      evt->GetPreventDefault(&prevent);
+      aKeyEvent->GetDefaultPrevented(&prevent);
       if (prevent)
         return NS_OK; // Handled by the user bindings. Our work here is done.
     }
@@ -367,18 +353,18 @@ nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventTy
       root->GetControllers(getter_AddRefs(controllers));
     }
 
-    PRBool handled = PR_FALSE;
+    bool handled = false;
     if (aEventType == nsGkAtoms::keypress) {
-      if (nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_TRUE))
+      if (nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, true))
         handled = sNativeEditorBindings->KeyPress(nativeEvent,
                                                   DoCommandCallback, controllers);
     } else if (aEventType == nsGkAtoms::keyup) {
-      if (nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_FALSE))
+      if (nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, false))
         handled = sNativeEditorBindings->KeyUp(nativeEvent,
                                                DoCommandCallback, controllers);
     } else {
       NS_ASSERTION(aEventType == nsGkAtoms::keydown, "unknown key event type");
-      if (nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_FALSE))
+      if (nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, false))
         handled = sNativeEditorBindings->KeyDown(nativeEvent,
                                                  DoCommandCallback, controllers);
     }
@@ -391,38 +377,38 @@ nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventTy
   return NS_OK;
 }
 
-nsresult nsXBLWindowKeyHandler::KeyUp(nsIDOMEvent* aEvent)
+NS_IMETHODIMP
+nsXBLWindowKeyHandler::HandleEvent(nsIDOMEvent* aEvent)
 {
   nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
   NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
-  return WalkHandlers(keyEvent, nsGkAtoms::keyup);
-}
 
-nsresult nsXBLWindowKeyHandler::KeyDown(nsIDOMEvent* aEvent)
-{
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
-  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
-  return WalkHandlers(keyEvent, nsGkAtoms::keydown);
-}
+  nsAutoString eventType;
+  aEvent->GetType(eventType);
+  nsCOMPtr<nsIAtom> eventTypeAtom = do_GetAtom(eventType);
+  NS_ENSURE_TRUE(eventTypeAtom, NS_ERROR_OUT_OF_MEMORY);
 
-nsresult nsXBLWindowKeyHandler::KeyPress(nsIDOMEvent* aEvent)
-{
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
-  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
-  return WalkHandlers(keyEvent, nsGkAtoms::keypress);
-}
+  if (!mWeakPtrForElement) {
+    nsCOMPtr<mozilla::dom::Element> originalTarget =
+      do_QueryInterface(aEvent->GetInternalNSEvent()->originalTarget);
+    if (nsEventStateManager::IsRemoteTarget(originalTarget)) {
+      return NS_OK;
+    }
+  }
 
+  return WalkHandlers(keyEvent, eventTypeAtom);
+}
 
 //
 // EventMatched
 //
 // See if the given handler cares about this particular key event
 //
-PRBool
+bool
 nsXBLWindowKeyHandler::EventMatched(nsXBLPrototypeHandler* inHandler,
                                     nsIAtom* inEventType,
                                     nsIDOMKeyEvent* inEvent,
-                                    PRUint32 aCharCode, PRBool aIgnoreShiftKey)
+                                    uint32_t aCharCode, bool aIgnoreShiftKey)
 {
   return inHandler->KeyEventMatched(inEventType, inEvent, aCharCode,
                                     aIgnoreShiftKey);
@@ -439,7 +425,7 @@ nsXBLWindowKeyHandler::ShutDown()
 //
 // Determine if the document we're working with is Editor or Browser
 //
-PRBool
+bool
 nsXBLWindowKeyHandler::IsEditor()
 {
   // XXXndeakin even though this is only used for key events which should be
@@ -447,24 +433,24 @@ nsXBLWindowKeyHandler::IsEditor()
   // to determine if something is an editor.
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
   if (!fm)
-    return PR_FALSE;
+    return false;
 
   nsCOMPtr<nsIDOMWindow> focusedWindow;
   fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
   if (!focusedWindow)
-    return PR_FALSE;
+    return false;
 
   nsCOMPtr<nsPIDOMWindow> piwin(do_QueryInterface(focusedWindow));
   nsIDocShell *docShell = piwin->GetDocShell();
   nsCOMPtr<nsIPresShell> presShell;
   if (docShell)
-    docShell->GetPresShell(getter_AddRefs(presShell));
+    presShell = docShell->GetPresShell();
 
   if (presShell) {
     return presShell->GetSelectionFlags() == nsISelectionDisplay::DISPLAY_ALL;
   }
 
-  return PR_FALSE;
+  return false;
 }
 
 //
@@ -483,11 +469,11 @@ nsXBLWindowKeyHandler::WalkHandlersInternal(nsIDOMKeyEvent* aKeyEvent,
   nsContentUtils::GetAccelKeyCandidates(aKeyEvent, accessKeys);
 
   if (accessKeys.IsEmpty()) {
-    WalkHandlersAndExecute(aKeyEvent, aEventType, aHandler, 0, PR_FALSE);
+    WalkHandlersAndExecute(aKeyEvent, aEventType, aHandler, 0, false);
     return NS_OK;
   }
 
-  for (PRUint32 i = 0; i < accessKeys.Length(); ++i) {
+  for (uint32_t i = 0; i < accessKeys.Length(); ++i) {
     nsShortcutCandidate &key = accessKeys[i];
     if (WalkHandlersAndExecute(aKeyEvent, aEventType, aHandler,
                                key.mCharCode, key.mIgnoreShift))
@@ -496,23 +482,22 @@ nsXBLWindowKeyHandler::WalkHandlersInternal(nsIDOMKeyEvent* aKeyEvent,
   return NS_OK;
 }
 
-PRBool
+bool
 nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
                                               nsIAtom* aEventType,
                                               nsXBLPrototypeHandler* aHandler,
-                                              PRUint32 aCharCode,
-                                              PRBool aIgnoreShiftKey)
+                                              uint32_t aCharCode,
+                                              bool aIgnoreShiftKey)
 {
   nsresult rv;
-  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aKeyEvent));
 
   // Try all of the handlers until we find one that matches the event.
   for (nsXBLPrototypeHandler *currHandler = aHandler; currHandler;
        currHandler = currHandler->GetNextHandler()) {
-    PRBool stopped = privateEvent->IsDispatchStopped();
+    bool stopped = aKeyEvent->IsDispatchStopped();
     if (stopped) {
       // The event is finished, don't execute any more handlers
-      return NS_OK;
+      return false;
     }
 
     if (!EventMatched(currHandler, aEventType, aKeyEvent,
@@ -523,10 +508,10 @@ nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
     // and that it has something to do (oncommand of the <key> or its
     // <command> is non-empty).
     nsCOMPtr<nsIContent> elt = currHandler->GetHandlerElement();
-    nsCOMPtr<nsIDOMElement> commandElt;
+    nsCOMPtr<Element> commandElt;
 
     // See if we're in a XUL doc.
-    nsCOMPtr<nsIDOMElement> el = GetElement();
+    nsCOMPtr<Element> el = GetElement();
     if (el && elt) {
       // We are.  Obtain our command attribute.
       nsAutoString command;
@@ -564,41 +549,36 @@ nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
       }
     }
 
-    nsCOMPtr<nsPIDOMEventTarget> piTarget;
-    nsCOMPtr<nsIDOMElement> element = GetElement();
+    nsCOMPtr<EventTarget> piTarget;
+    nsCOMPtr<Element> element = GetElement();
     if (element) {
-      piTarget = do_QueryInterface(commandElt);
+      piTarget = commandElt;
     } else {
       piTarget = mTarget;
     }
 
     rv = currHandler->ExecuteHandler(piTarget, aKeyEvent);
     if (NS_SUCCEEDED(rv)) {
-      return PR_TRUE;
+      return true;
     }
   }
 
-  return PR_FALSE;
+  return false;
 }
 
-already_AddRefed<nsIDOMElement>
+already_AddRefed<Element>
 nsXBLWindowKeyHandler::GetElement()
 {
-  nsCOMPtr<nsIDOMElement> element = do_QueryReferent(mWeakPtrForElement);
-  nsIDOMElement* el = nsnull;
-  element.swap(el);
-  return el;
+  nsCOMPtr<Element> element = do_QueryReferent(mWeakPtrForElement);
+  return element.forget();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
 
-nsresult
-NS_NewXBLWindowKeyHandler(nsIDOMElement* aElement, nsPIDOMEventTarget* aTarget,
-                          nsXBLWindowKeyHandler** aResult)
+already_AddRefed<nsXBLWindowKeyHandler>
+NS_NewXBLWindowKeyHandler(nsIDOMElement* aElement, EventTarget* aTarget)
 {
-  *aResult = new nsXBLWindowKeyHandler(aElement, aTarget);
-  if (!*aResult)
-    return NS_ERROR_OUT_OF_MEMORY;
-  NS_ADDREF(*aResult);
-  return NS_OK;
+  nsRefPtr<nsXBLWindowKeyHandler> result =
+    new nsXBLWindowKeyHandler(aElement, aTarget);
+  return result.forget();
 }

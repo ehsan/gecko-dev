@@ -1,48 +1,18 @@
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is Mozilla Test Harnesses
-#
-# The Initial Developer of the Original Code is
-# The Mozilla Foundation
-# Portions created by the Initial Developer are Copyright (C) 2008
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#	Serge Gautherie <sgautherie.bz@free.fr>
-#	Ted Mielczarek <ted.mielczarek@gmail.com>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either of the GNU General Public License Version 2 or later (the "GPL"),
-# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
 # Shortcut for mochitest* and xpcshell-tests targets,
 # replaces 'EXTRA_TEST_ARGS=--test-path=...'.
 ifdef TEST_PATH
-TEST_PATH_ARG := --test-path=$(TEST_PATH)
+TEST_PATH_ARG := --test-path="$(TEST_PATH)"
+PEPTEST_PATH_ARG := --test-path="$(TEST_PATH)"
+IPCPLUGINS_PATH_ARG := --test-path="$(TEST_PATH)"
 else
 TEST_PATH_ARG :=
+PEPTEST_PATH_ARG := --test-path=_tests/peptest/tests/firefox/firefox_all.ini
+IPCPLUGINS_PATH_ARG := --test-path=dom/plugins/test
 endif
 
 # include automation-build.mk to get the path to the binary
@@ -55,28 +25,111 @@ SYMBOLS_PATH := --symbols-path=$(DIST)/crashreporter-symbols
 MOCHITESTS := mochitest-plain mochitest-chrome mochitest-a11y mochitest-ipcplugins
 mochitest:: $(MOCHITESTS)
 
+ifndef TEST_PACKAGE_NAME
+TEST_PACKAGE_NAME := $(ANDROID_PACKAGE_NAME)
+endif
+
+RUN_MOCHITEST_B2G_DESKTOP = \
+  rm -f ./$@.log && \
+  $(PYTHON) _tests/testing/mochitest/runtestsb2g.py --autorun --close-when-done \
+    --console-level=INFO --log-file=./$@.log --file-level=INFO \
+    --desktop --profile ${GAIA_PROFILE_DIR} \
+    --failure-file=$(call core_abspath,_tests/testing/mochitest/makefailures.json) \
+    $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+
 RUN_MOCHITEST = \
-	rm -f ./$@.log && \
-	$(PYTHON) _tests/testing/mochitest/runtests.py --autorun --close-when-done \
-	  --console-level=INFO --log-file=./$@.log --file-level=INFO \
-	  $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+  rm -f ./$@.log && \
+  $(PYTHON) _tests/testing/mochitest/runtests.py --autorun --close-when-done \
+    --console-level=INFO --log-file=./$@.log --file-level=INFO \
+    --failure-file=$(call core_abspath,_tests/testing/mochitest/makefailures.json) \
+    --testing-modules-dir=$(call core_abspath,_tests/modules) \
+    --extra-profile-file=$(DIST)/plugins \
+    --build-info-json=$(call core_abspath,$(DEPTH)/mozinfo.json) \
+    $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+
+RERUN_MOCHITEST = \
+  rm -f ./$@.log && \
+  $(PYTHON) _tests/testing/mochitest/runtests.py --autorun --close-when-done \
+    --console-level=INFO --log-file=./$@.log --file-level=INFO \
+    --run-only-tests=makefailures.json \
+    --testing-modules-dir=$(call core_abspath,_tests/modules) \
+    --extra-profile-file=$(DIST)/plugins \
+    --build-info-json=$(call core_abspath,$(DEPTH)/mozinfo.json) \
+    $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+
+RUN_MOCHITEST_REMOTE = \
+  rm -f ./$@.log && \
+  $(PYTHON) _tests/testing/mochitest/runtestsremote.py --autorun --close-when-done \
+    --console-level=INFO --log-file=./$@.log --file-level=INFO $(DM_FLAGS) --dm_trans=$(DM_TRANS) \
+    --app=$(TEST_PACKAGE_NAME) --deviceIP=${TEST_DEVICE} --xre-path=${MOZ_HOST_BIN} \
+    --testing-modules-dir=$(call core_abspath,_tests/modules) --httpd-path=. \
+    $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+
+RUN_MOCHITEST_ROBOCOP = \
+  rm -f ./$@.log && \
+  $(PYTHON) _tests/testing/mochitest/runtestsremote.py \
+    --robocop-apk=$(DEPTH)/build/mobile/robocop/robocop-debug.apk \
+    --robocop-ids=$(DEPTH)/mobile/android/base/fennec_ids.txt \
+    --robocop-ini=$(DEPTH)/build/mobile/robocop/robocop.ini \
+    --console-level=INFO --log-file=./$@.log --file-level=INFO $(DM_FLAGS) --dm_trans=$(DM_TRANS) \
+    --app=$(TEST_PACKAGE_NAME) --deviceIP=${TEST_DEVICE} --xre-path=${MOZ_HOST_BIN} \
+    --httpd-path=. \
+    $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
 
 ifndef NO_FAIL_ON_TEST_ERRORS
-define CHECK_TEST_ERROR
+define check_test_error_internal
   @errors=`grep "TEST-UNEXPECTED-" $@.log` ;\
   if test "$$errors" ; then \
 	  echo "$@ failed:"; \
 	  echo "$$errors"; \
+          $(if $(1),echo $(1)) \
 	  exit 1; \
-  else \
-	  echo "$@ passed"; \
   fi
 endef
+CHECK_TEST_ERROR = $(call check_test_error_internal)
+CHECK_TEST_ERROR_RERUN = $(call check_test_error_internal,"To rerun your failures please run 'make $@-rerun-failures'")
 endif
 
+mochitest-remote: DM_TRANS?=adb
+mochitest-remote:
+	@if [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
+        echo "please prepare your host with the environment variable MOZ_HOST_BIN"; \
+    elif [ "${TEST_DEVICE}" = "" -a "$(DM_TRANS)" != "adb" ]; then \
+        echo "please prepare your host with the environment variable TEST_DEVICE"; \
+    else \
+        $(RUN_MOCHITEST_REMOTE); \
+    fi
+
+mochitest-robotium: mochitest-robocop
+	@echo "mochitest-robotium is deprecated -- please use mochitest-robocop"
+
+mochitest-robocop: DM_TRANS?=adb
+mochitest-robocop:
+	@if [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
+        echo "please prepare your host with the environment variable MOZ_HOST_BIN"; \
+    elif [ "${TEST_DEVICE}" = "" -a "$(DM_TRANS)" != "adb" ]; then \
+        echo "please prepare your host with the environment variable TEST_DEVICE"; \
+    else \
+        $(RUN_MOCHITEST_ROBOCOP); \
+    fi
+
+ifdef MOZ_B2G
+mochitest-plain:
+	@if [ "${GAIA_PROFILE_DIR}"  = "" ]; then \
+        echo "please specify the GAIA_PROFILE_DIR env variable"; \
+    else \
+        $(RUN_MOCHITEST_B2G_DESKTOP); \
+        $(CHECK_TEST_ERROR_RERUN); \
+    fi
+else
 mochitest-plain:
 	$(RUN_MOCHITEST)
-	$(CHECK_TEST_ERROR)
+	$(CHECK_TEST_ERROR_RERUN)
+endif
+
+mochitest-plain-rerun-failures:
+	$(RERUN_MOCHITEST)
+	$(CHECK_TEST_ERROR_RERUN)
 
 # Allow mochitest-1 ... mochitest-5 for developer ease
 mochitest-1 mochitest-2 mochitest-3 mochitest-4 mochitest-5: mochitest-%:
@@ -95,22 +148,54 @@ mochitest-a11y:
 mochitest-ipcplugins:
 ifeq (Darwin,$(OS_ARCH))
 ifeq (i386,$(TARGET_CPU))
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.i386.test.plugin=false --test-path=dom/plugins/test
+	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.i386.test.plugin=false $(IPCPLUGINS_PATH_ARG)
 endif
 ifeq (x86_64,$(TARGET_CPU))
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.x86_64.test.plugin=false --test-path=dom/plugins/test
+	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.x86_64.test.plugin=false $(IPCPLUGINS_PATH_ARG)
 endif
 ifeq (powerpc,$(TARGET_CPU))
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.ppc.test.plugin=false --test-path=dom/plugins/test
+	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.ppc.test.plugin=false $(IPCPLUGINS_PATH_ARG)
 endif
 else
 	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled=false --test-path=dom/plugins/test
 endif
 	$(CHECK_TEST_ERROR)
 
+ifeq ($(OS_ARCH),Darwin)
+webapprt_stub_path = $(TARGET_DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/MacOS/webapprt-stub$(BIN_SUFFIX)
+endif
+ifeq ($(OS_ARCH),WINNT)
+webapprt_stub_path = $(TARGET_DIST)/bin/webapprt-stub$(BIN_SUFFIX)
+endif
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
+webapprt_stub_path = $(TARGET_DIST)/bin/webapprt-stub$(BIN_SUFFIX)
+endif
+
+ifdef webapprt_stub_path
+webapprt-test-content:
+	$(RUN_MOCHITEST) --webapprt-content --appname $(webapprt_stub_path)
+	$(CHECK_TEST_ERROR)
+webapprt-test-chrome:
+	$(RUN_MOCHITEST) --webapprt-chrome --appname $(webapprt_stub_path) --browser-arg -test-mode
+	$(CHECK_TEST_ERROR)
+endif
+
 # Usage: |make [EXTRA_TEST_ARGS=...] *test|.
 RUN_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftest.py \
+  --extra-profile-file=$(DIST)/plugins \
   $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(1) | tee ./$@.log
+
+REMOTE_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/remotereftest.py \
+  --dm_trans=$(DM_TRANS) --ignore-window-size \
+  --app=$(TEST_PACKAGE_NAME) --deviceIP=${TEST_DEVICE} --xre-path=${MOZ_HOST_BIN} \
+  --httpd-path=_tests/reftest/reftest/components \
+  $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) "$(1)" | tee ./$@.log
+
+RUN_REFTEST_B2G = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftestb2g.py \
+  --remote-webserver=10.0.2.2 --b2gpath=${B2G_PATH} --adbpath=${ADB_PATH} \
+  --xre-path=${MOZ_HOST_BIN} $(SYMBOLS_PATH) --ignore-window-size \
+  --httpd-path=_tests/reftest/reftest/components \
+  $(EXTRA_TEST_ARGS) "$(1)" | tee ./$@.log
 
 ifeq ($(OS_ARCH),WINNT) #{
 # GPU-rendered shadow layers are unsupported here
@@ -123,37 +208,69 @@ endif #}
 
 reftest: TEST_PATH?=layout/reftests/reftest.list
 reftest:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH))
+	$(call RUN_REFTEST,"$(topsrcdir)/$(TEST_PATH)")
 	$(CHECK_TEST_ERROR)
+
+reftest-remote: TEST_PATH?=layout/reftests/reftest.list
+reftest-remote: DM_TRANS?=adb
+reftest-remote:
+	@if [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
+        echo "please prepare your host with the environment variable MOZ_HOST_BIN"; \
+    elif [ "${TEST_DEVICE}" = "" -a "$(DM_TRANS)" != "adb" ]; then \
+        echo "please prepare your host with the environment variable TEST_DEVICE"; \
+    else \
+        ln -s $(abspath $(topsrcdir)) _tests/reftest/tests; \
+        $(call REMOTE_REFTEST,tests/$(TEST_PATH)); \
+        $(CHECK_TEST_ERROR); \
+    fi
+
+reftest-b2g: TEST_PATH?=layout/reftests/reftest.list
+reftest-b2g:
+	@if [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
+        echo "please set the MOZ_HOST_BIN environment variable"; \
+	elif [ "${B2G_PATH}" = "" -o "${ADB_PATH}" = "" ]; then \
+		echo "please set the B2G_PATH and ADB_PATH environment variables"; \
+	else \
+        ln -s $(abspath $(topsrcdir)) _tests/reftest/tests; \
+		if [ "${REFTEST_PATH}" != "" ]; then \
+			$(call RUN_REFTEST_B2G,tests/${REFTEST_PATH}); \
+		else \
+			$(call RUN_REFTEST_B2G,tests/$(TEST_PATH)); \
+		fi; \
+        $(CHECK_TEST_ERROR); \
+	fi
 
 reftest-ipc: TEST_PATH?=layout/reftests/reftest.list
 reftest-ipc:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) $(OOP_CONTENT))
+	$(call RUN_REFTEST,"$(topsrcdir)/$(TEST_PATH)" $(OOP_CONTENT))
 	$(CHECK_TEST_ERROR)
 
 reftest-ipc-gpu: TEST_PATH?=layout/reftests/reftest.list
 reftest-ipc-gpu:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) $(OOP_CONTENT) $(GPU_RENDERING))
+	$(call RUN_REFTEST,"$(topsrcdir)/$(TEST_PATH)" $(OOP_CONTENT) $(GPU_RENDERING))
 	$(CHECK_TEST_ERROR)
 
 crashtest: TEST_PATH?=testing/crashtest/crashtests.list
 crashtest:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH))
+	$(call RUN_REFTEST,"$(topsrcdir)/$(TEST_PATH)")
 	$(CHECK_TEST_ERROR)
 
 crashtest-ipc: TEST_PATH?=testing/crashtest/crashtests.list
 crashtest-ipc:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) $(OOP_CONTENT))
+	$(call RUN_REFTEST,"$(topsrcdir)/$(TEST_PATH)" $(OOP_CONTENT))
 	$(CHECK_TEST_ERROR)
 
 crashtest-ipc-gpu: TEST_PATH?=testing/crashtest/crashtests.list
 crashtest-ipc-gpu:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) $(OOP_CONTENT) $(GPU_RENDERING))
+	$(call RUN_REFTEST,"$(topsrcdir)/$(TEST_PATH)" $(OOP_CONTENT) $(GPU_RENDERING))
 	$(CHECK_TEST_ERROR)
 
-jstestbrowser: TEST_PATH?=js/src/tests/jstests.list
+jstestbrowser: TESTS_PATH?=test-package-stage/jsreftest/tests/
 jstestbrowser:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) --extra-profile-file=$(topsrcdir)/js/src/tests/user.js)
+	$(MAKE) -C $(DEPTH)/config
+	$(MAKE) -C $(DEPTH)/js/src/config
+	$(MAKE) stage-jstests
+	$(call RUN_REFTEST,"$(DIST)/$(TESTS_PATH)/jstests.list" --extra-profile-file=$(DIST)/test-package-stage/jsreftest/tests/user.js)
 	$(CHECK_TEST_ERROR)
 
 GARBAGE += $(addsuffix .log,$(MOCHITESTS) reftest crashtest jstestbrowser)
@@ -163,43 +280,133 @@ GARBAGE += $(addsuffix .log,$(MOCHITESTS) reftest crashtest jstestbrowser)
 # Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] xpcshell-tests|.
 xpcshell-tests:
 	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
+	  -I$(DEPTH)/build \
 	  -I$(topsrcdir)/build \
+	  -I$(DEPTH)/_tests/mozbase/mozinfo \
 	  $(topsrcdir)/testing/xpcshell/runxpcshelltests.py \
 	  --manifest=$(DEPTH)/_tests/xpcshell/xpcshell.ini \
+	  --build-info-json=$(DEPTH)/mozinfo.json \
 	  --no-logfiles \
+	  --test-plugin-path="$(DIST)/plugins" \
+	  --tests-root-dir=$(call core_abspath,_tests/xpcshell) \
+	  --testing-modules-dir=$(call core_abspath,_tests/modules) \
+	  --xunit-file=$(call core_abspath,_tests/xpcshell/results.xml) \
+	  --xunit-suite-name=xpcshell \
           $(SYMBOLS_PATH) \
 	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS) \
 	  $(LIBXUL_DIST)/bin/xpcshell
 
-# install and run the mozmill tests
-$(DEPTH)/_tests/mozmill:
-	$(MAKE) -C $(DEPTH)/testing/mozmill install-develop PKG_STAGE=../../_tests
-	$(PYTHON) $(topsrcdir)/testing/mozmill/installmozmill.py --develop $(DEPTH)/_tests/mozmill
+B2G_XPCSHELL = \
+	rm -f ./@.log && \
+	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
+	  -I$(DEPTH)/build \
+	  -I$(topsrcdir)/build \
+	  $(topsrcdir)/testing/xpcshell/runtestsb2g.py \
+	  --manifest=$(DEPTH)/_tests/xpcshell/xpcshell.ini \
+	  --build-info-json=$(DEPTH)/mozinfo.json \
+	  --no-logfiles \
+	  --use-device-libs \
+	  --no-clean \
+	  --objdir=$(DEPTH) \
+	  $$EXTRA_XPCSHELL_ARGS \
+	  --b2gpath=${B2G_HOME} \
+	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
 
-MOZMILL_TEST_PATH = $(DEPTH)/_tests/mozmill/tests/firefox
-mozmill: TEST_PATH?=$(MOZMILL_TEST_PATH)
-mozmill: $(DEPTH)/_tests/mozmill
-	$(SHELL) $(DEPTH)/_tests/mozmill/mozmill.sh -t $(TEST_PATH) -b $(browser_path) --show-all
+xpcshell-tests-b2g: ADB_PATH?=$(shell which adb)
+xpcshell-tests-b2g:
+	@if [ "${B2G_HOME}" = "" ]; then \
+		echo "Please set the B2G_HOME variable"; exit 1; \
+	elif [ ! -f "${ADB_PATH}" ]; then \
+		echo "Please set the ADB_PATH variable"; exit 1; \
+	elif [ "${EMULATOR}" != "" ]; then \
+		EXTRA_XPCSHELL_ARGS=--emulator=${EMULATOR}; \
+		$(call B2G_XPCSHELL); \
+		exit 0; \
+	else \
+		EXTRA_XPCSHELL_ARGS=--address=localhost:2828; \
+		$(call B2G_XPCSHELL); \
+		exit 0; \
+	fi
 
-MOZMILL_RESTART_TEST_PATH = $(DEPTH)/_tests/mozmill/tests/firefox/restartTests
-mozmill-restart: TEST_PATH?=$(MOZMILL_RESTART_TEST_PATH)
-mozmill-restart: $(DEPTH)/_tests/mozmill
-	$(SHELL) $(DEPTH)/_tests/mozmill/mozmill-restart.sh -t $(TEST_PATH) -b $(browser_path) --show-all
+xpcshell-tests-remote: DM_TRANS?=adb
+xpcshell-tests-remote:
+	@if [ "${TEST_DEVICE}" != "" -o "$(DM_TRANS)" = "adb" ]; \
+          then $(PYTHON) -u $(topsrcdir)/testing/xpcshell/remotexpcshelltests.py \
+	    --manifest=$(DEPTH)/_tests/xpcshell/xpcshell_android.ini \
+	    --build-info-json=$(DEPTH)/mozinfo.json \
+	    --no-logfiles \
+	    --testing-modules-dir=$(call core_abspath,_tests/modules) \
+	    --dm_trans=$(DM_TRANS) \
+	    --deviceIP=${TEST_DEVICE} \
+	    --objdir=$(DEPTH) \
+	    $(SYMBOLS_PATH) \
+	    $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS); \
+	    $(CHECK_TEST_ERROR); \
+        else \
+          echo "please prepare your host with environment variables for TEST_DEVICE"; \
+        fi
 
-# in order to have `mozmill-all` ignore TEST_PATH, if it is set, we shell out to call make
-# again, verbosely overriding the TEST_PATH
-# This isn't as neat as having mozmill and mozmill-restart be dependencies, but it 
-# seems to be the make idiom
-mozmill-all: 
-	$(MAKE) mozmill TEST_PATH=$(MOZMILL_TEST_PATH)
-	$(MAKE) mozmill-restart TEST_PATH=$(MOZMILL_RESTART_TEST_PATH)
+# Runs peptest, for usage see: https://developer.mozilla.org/en/Peptest#Running_Tests
+RUN_PEPTEST = \
+	rm -f ./$@.log && \
+	$(PYTHON) _tests/peptest/runtests.py --binary=$(browser_path) \
+          $(PEPTEST_PATH_ARG) \
+	  --proxy=_tests/peptest/tests/firefox/server-locations.txt \
+          --proxy-host-dirs \
+          --server-path=_tests/peptest/tests/firefox/server \
+          --log-file=./$@.log $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS)
+
+peptest:
+	$(RUN_PEPTEST)
+	$(CHECK_TEST_ERROR)
+
+REMOTE_CPPUNITTESTS = \
+	$(PYTHON) -u $(topsrcdir)/testing/remotecppunittests.py \
+	  --xre-path=$(DEPTH)/dist/bin \
+	  --localLib=$(DEPTH)/dist/fennec \
+	  --dm_trans=$(DM_TRANS) \
+	  --deviceIP=${TEST_DEVICE} \
+	  $(TEST_PATH) $(EXTRA_TEST_ARGS)
+
+# Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] cppunittests-remote|.
+cppunittests-remote: DM_TRANS?=adb
+cppunittests-remote:
+	@if [ "${TEST_DEVICE}" != "" -o "$(DM_TRANS)" = "adb" ]; \
+          then $(call REMOTE_CPPUNITTESTS); \
+        else \
+          echo "please prepare your host with environment variables for TEST_DEVICE"; \
+        fi
+
+jetpack-tests:
+	$(PYTHON) $(topsrcdir)/addon-sdk/source/bin/cfx -b $(browser_path) --parseable testpkgs
+
+# -- -register
+# -- --trace-malloc malloc.log --shutdown-leaks=sdleak.log
+leaktest:
+	$(PYTHON) _leaktest/leaktest.py $(LEAKTEST_ARGS)
+
+pgo-profile-run:
+	$(PYTHON) $(topsrcdir)/build/pgo/profileserver.py $(EXTRA_TEST_ARGS)
 
 # Package up the tests and test harnesses
 include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
 ifndef UNIVERSAL_BINARY
 PKG_STAGE = $(DIST)/test-package-stage
-package-tests: stage-mochitest stage-reftest stage-xpcshell stage-jstests stage-mozmill stage-jetpack stage-firebug
+package-tests: \
+  stage-config \
+  stage-mochitest \
+  stage-reftest \
+  stage-xpcshell \
+  stage-jstests \
+  stage-jetpack \
+  stage-peptest \
+  stage-mozbase \
+  stage-tps \
+  stage-modules \
+  stage-marionette \
+  stage-cppunittests \
+  $(NULL)
 else
 # This staging area has been built for us by universal/flight.mk
 PKG_STAGE = $(DIST)/universal/test-package-stage
@@ -213,18 +420,42 @@ else
 	#building tests.jar (bug 543800) fails on unify, so we build tests.jar after unify is run
 	$(MAKE) -C $(DEPTH)/testing/mochitest stage-chromejar PKG_STAGE=$(DIST)/universal
 endif
+	find $(PKG_STAGE) -name "*.pyc" -exec rm {} \;
 	cd $(PKG_STAGE) && \
-	  zip -r9D "$(call core_abspath,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE))" *
+	  zip -rq9D "$(call core_abspath,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE))" \
+	  * -x \*/.mkdir.done
 
-ifeq (Android, $(OS_TARGET))
+ifeq ($(MOZ_WIDGET_TOOLKIT),android)
 package-tests: stage-android
 endif
 
+ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
+package-tests: stage-b2g
+endif
+
 make-stage-dir:
-	rm -rf $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE)/bin && $(NSINSTALL) -D $(PKG_STAGE)/bin/components && $(NSINSTALL) -D $(PKG_STAGE)/certs && $(NSINSTALL) -D $(PKG_STAGE)/jetpack && $(NSINSTALL) -D $(PKG_STAGE)/firebug
+	rm -rf $(PKG_STAGE)
+	$(NSINSTALL) -D $(PKG_STAGE)
+	$(NSINSTALL) -D $(PKG_STAGE)/bin
+	$(NSINSTALL) -D $(PKG_STAGE)/bin/components
+	$(NSINSTALL) -D $(PKG_STAGE)/certs
+	$(NSINSTALL) -D $(PKG_STAGE)/config
+	$(NSINSTALL) -D $(PKG_STAGE)/jetpack
+	$(NSINSTALL) -D $(PKG_STAGE)/peptest
+	$(NSINSTALL) -D $(PKG_STAGE)/mozbase
+	$(NSINSTALL) -D $(PKG_STAGE)/modules
+
+stage-b2g: make-stage-dir
+	$(NSINSTALL) $(topsrcdir)/b2g/test/b2g-unittest-requirements.txt $(PKG_STAGE)/b2g
+
+stage-config: make-stage-dir
+	$(NSINSTALL) $(topsrcdir)/testing/config/mozharness_config.py $(PKG_STAGE)/config
 
 stage-mochitest: make-stage-dir
 	$(MAKE) -C $(DEPTH)/testing/mochitest stage-package
+ifeq ($(MOZ_BUILD_APP),mobile/android)
+	$(NSINSTALL) $(DEPTH)/mobile/android/base/fennec_ids.txt $(PKG_STAGE)/mochitest
+endif
 
 stage-reftest: make-stage-dir
 	$(MAKE) -C $(DEPTH)/layout/tools/reftest stage-package
@@ -235,23 +466,81 @@ stage-xpcshell: make-stage-dir
 stage-jstests: make-stage-dir
 	$(MAKE) -C $(DEPTH)/js/src/tests stage-package
 
-stage-mozmill: make-stage-dir
-	$(MAKE) -C $(DEPTH)/testing/mozmill stage-package
-
 stage-android: make-stage-dir
+ifdef MOZ_ENABLE_SZIP
+# Tinderbox scripts are not unzipping everything, so the file needs to be in a directory it unzips
+	$(NSINSTALL) $(DIST)/host/bin/szip $(PKG_STAGE)/bin/host
+endif
 	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/sutAgentAndroid.apk $(PKG_STAGE)/bin
 	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/watcher/Watcher.apk $(PKG_STAGE)/bin
 	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/fencp/FenCP.apk $(PKG_STAGE)/bin
 	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/ffxcp/FfxCP.apk $(PKG_STAGE)/bin
 
 stage-jetpack: make-stage-dir
-	$(NSINSTALL) $(topsrcdir)/testing/jetpack/jetpack-location.txt $(PKG_STAGE)/jetpack
+	$(MAKE) -C $(DEPTH)/addon-sdk stage-tests-package
 
-stage-firebug: make-stage-dir
-	$(MAKE) -C $(DEPTH)/testing/firebug stage-package
+stage-peptest: make-stage-dir
+	$(MAKE) -C $(DEPTH)/testing/peptest stage-package
+
+stage-tps: make-stage-dir
+	$(NSINSTALL) -D $(PKG_STAGE)/tps/tests
+	@(cd $(topsrcdir)/testing/tps && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/tps && tar -xf -)
+	@(cd $(topsrcdir)/services/sync/tps && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/tps && tar -xf -)
+	(cd $(topsrcdir)/services/sync/tests/tps && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/tps/tests && tar -xf -)
+
+stage-modules: make-stage-dir
+	$(NSINSTALL) -D $(PKG_STAGE)/modules
+	cp -RL $(DEPTH)/_tests/modules $(PKG_STAGE)
+
+CPP_UNIT_TEST_BINS=$(wildcard $(DIST)/cppunittests/*)
+
+stage-cppunittests:
+	$(NSINSTALL) -D $(PKG_STAGE)/cppunittests
+ifdef OBJCOPY
+	$(foreach bin,$(CPP_UNIT_TEST_BINS),$(OBJCOPY) --strip-unneeded $(bin) $(bin:$(DIST)/%=$(PKG_STAGE)/%);)
+else
+	cp -RL $(DIST)/cppunittests $(PKG_STAGE)
+endif
+	$(NSINSTALL) $(topsrcdir)/testing/runcppunittests.py $(PKG_STAGE)/cppunittests
+	$(NSINSTALL) $(topsrcdir)/testing/remotecppunittests.py $(PKG_STAGE)/cppunittests
+
+MARIONETTE_DIR=$(PKG_STAGE)/marionette
+stage-marionette: make-stage-dir
+	$(NSINSTALL) -D $(MARIONETTE_DIR)/tests
+	@(cd $(topsrcdir)/testing/marionette/client && tar --exclude marionette/tests $(TAR_CREATE_FLAGS) - *) | (cd $(MARIONETTE_DIR) && tar -xf -)
+	$(PYTHON) $(topsrcdir)/testing/marionette/client/marionette/tests/print-manifest-dirs.py \
+          $(topsrcdir) \
+          $(topsrcdir)/testing/marionette/client/marionette/tests/unit-tests.ini \
+          | (cd $(topsrcdir) && xargs tar $(TAR_CREATE_FLAGS) -) \
+          | (cd $(MARIONETTE_DIR)/tests && tar -xf -)
+
+stage-mozbase: make-stage-dir
+	$(MAKE) -C $(DEPTH)/testing/mozbase stage-package
 .PHONY: \
-  mochitest mochitest-plain mochitest-chrome mochitest-a11y mochitest-ipcplugins \
-  reftest crashtest \
+  mochitest \
+  mochitest-plain \
+  mochitest-chrome \
+  mochitest-a11y \
+  mochitest-ipcplugins \
+  reftest \
+  crashtest \
   xpcshell-tests \
   jstestbrowser \
-  package-tests make-stage-dir stage-mochitest stage-reftest stage-xpcshell stage-jstests stage-mozmill stage-android stage-jetpack stage-firebug
+  peptest \
+  package-tests \
+  make-stage-dir \
+  stage-b2g \
+  stage-config \
+  stage-mochitest \
+  stage-reftest \
+  stage-xpcshell \
+  stage-jstests \
+  stage-android \
+  stage-jetpack \
+  stage-peptest \
+  stage-mozbase \
+  stage-tps \
+  stage-modules \
+  stage-marionette \
+  $(NULL)
+

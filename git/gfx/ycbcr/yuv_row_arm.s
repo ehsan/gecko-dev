@@ -1,41 +1,12 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is NEON YUV-to-RGB565 scaling code.
- *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Timothy B. Terriberry <tterriberry@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
     .arch   armv7-a
     .fpu    neon
+/* Allow to build on targets not supporting neon, and force the object file
+ * target to avoid bumping the final binary target */
+    .object_arch armv4t
     .text
     .align
 
@@ -89,10 +60,10 @@ YCbCr42xToRGB565_DITHER30_CONSTS_NEON:
 @  yuv2rgb565_row_scale_bilinear_ctx *ctx, int dither);
 @
 @ ctx = {
-@   PRUint16 *rgb_row;       /*r0*/
-@   const PRUint8 *y_row;    /*r1*/
-@   const PRUint8 *u_row;    /*r2*/
-@   const PRUint8 *v_row;    /*r3*/
+@   uint16_t *rgb_row;       /*r0*/
+@   const uint8_t *y_row;    /*r1*/
+@   const uint8_t *u_row;    /*r2*/
+@   const uint8_t *v_row;    /*r3*/
 @   int y_yweight;           /*r4*/
 @   int y_pitch;             /*r5*/
 @   int width;               /*r6*/
@@ -219,12 +190,12 @@ s42xbily_neon_loop:
     VDUP.I32    Q9, r9         @ Q9 = source_uv_xoffs_q16 x 4
     ADD         r14,r2, r12
     VADD.I32    Q10,Q0, Q9
-    VLD1.64     {D8, D9, D10,D11},[r14]        @ Load Cb
+    VLD1.64     {D8, D9, D10,D11},[r14,:128]   @ Load Cb
     PLD         [r14,#64]
     VADD.I32    Q11,Q1, Q9
     ADD         r14,r3, r12
     VADD.I32    Q12,Q2, Q9
-    VLD1.64     {D12,D13,D14,D15},[r14]        @ Load Cr
+    VLD1.64     {D12,D13,D14,D15},[r14,:128]   @ Load Cr
     PLD         [r14,#64]
     VADD.I32    Q13,Q3, Q9
     VRSHRN.S32  D20,Q10,#9     @ Q10 = <xEwExCwCxAwAx8w8x6w6x4w4x2w2x0w0>
@@ -327,3 +298,7 @@ s42xbily_neon_done:
     LDMFD       r13!,{r4-r9,PC}        @ 8 words.
     .fnend
     .size ScaleYCbCr42xToRGB565_BilinearY_Row_NEON, .-ScaleYCbCr42xToRGB565_BilinearY_Row_NEON
+
+#if defined(__ELF__)&&defined(__linux__)
+    .section .note.GNU-stack,"",%progbits
+#endif

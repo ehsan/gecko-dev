@@ -7,7 +7,6 @@
   -->
 <head>
   <title>DOM Traversal: NodeIterator: Basics and Filters</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -38,7 +37,6 @@
                            3, 1, // head
                            3, 1, 3, // title
                            3, 1, // first script tag
-                           3, 1, // second script tag
                            3, 1, // stylesheet tag
                            3,    // close head
                            3, 1, // body
@@ -56,7 +54,7 @@
 
   var iterator = document.createNodeIterator(document,
                                              NodeFilter.SHOW_ALL,
-                                             null, false);
+                                             null);
   var node;
 
   // forwards
@@ -87,7 +85,6 @@
                            1, // head
                            1, // title
                            1, // first script tag
-                           1, // second script tag
                            1, // stylesheet tag
                            // body skipped
                            1, // p#display
@@ -99,7 +96,7 @@
 
   found.length = 0;
   iterator = document.createNodeIterator(document, NodeFilter.SHOW_ALL,
-                                         filter, false);
+                                         filter);
 
   // forwards
   while (node = iterator.nextNode())
@@ -119,13 +116,13 @@
                                     if (n < 0)
                                       iterator.detach();
                                     return NodeFilter.FILTER_ACCEPT;
-                                  }, false);
+                                  });
     while (--n >= 0)
       iterator.nextNode();
     try {
       iterator[method]();
-      ok(false, "Able to call " + method + " on a detached NodeIterator");
-    } catch (x) { ok(true, x) }
+      ok(true, "Able to call " + method + " on a NodeIterator after calling no-op detach()");
+    } catch (x) { ok(false, x) }
   }
   checkBadFilter("nextNode", 2);
   checkBadFilter("previousNode", 3);
@@ -144,8 +141,7 @@
 
       return document.createNodeIterator(grandparent,
                                          NodeFilter.SHOW_ALL,
-                                         filter,
-                                         false);
+                                         filter);
     })(function filter(n) {
       if (n.nodeName != "img")
         return NodeFilter.FILTER_ACCEPT;

@@ -2,7 +2,6 @@
 <html>
 <head>
   <title>Satchel Test for Form Submisstion</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>  
   <script type="text/javascript" src="satchel_common.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -166,6 +165,12 @@
     <button type='submit'>Submit</button>
   </form>
 
+  <!-- Don't save values if the input name is 'searchbar-history' -->
+  <form id="form24" onsubmit="return checkSubmit(24);">
+    <input type='text' name='searchbar-history'>
+    <button type='submit'>Submit</button>
+  </form>
+
   <!-- ===== Things that should be saved ===== -->
 
   <!-- Form 100 is submitted into an iframe, not declared here. -->
@@ -288,10 +293,15 @@ var ccNumbers = {
   ],
 };
 
-function startTest() {
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-  ok(!fh.hasEntries, "checking for initially empty storage");
+function checkInitialState() {
+  countEntries(null, null,
+    function (num) {
+      ok(!num, "checking for initially empty storage");
+      startTest();
+    });
+}
 
+function startTest() {
   // Fill in values for the various fields. We could just set the <input>'s
   // value attribute, but we don't save default form values (and we want to
   // ensure unsaved values are because of autocomplete=off or whatever).
@@ -329,6 +339,7 @@ function startTest() {
   $_(20, "test1").value = "dontSaveThis";
   $_(22, "test1").value = "dontSaveThis";
   $_(23, "test1").value = "dontSaveThis";
+  $_(24, "searchbar-history").value = "dontSaveThis";
 
   $_(101, "test1").value = "savedValue";
   $_(102, "test2").value = "savedValue";
@@ -363,10 +374,9 @@ function checkSubmit(formNum) {
   ok(true, "form " + formNum + " submitted");
   numSubmittedForms++;
 
-
   // Check for expected storage state.
   switch (formNum) {
-    // Test 1-23 should not save anything.
+    // Test 1-24 should not save anything.
     case 1:
     case 2:
     case 3:
@@ -390,7 +400,13 @@ function checkSubmit(formNum) {
     case 21:
     case 22:
     case 23:
-        ok(!fh.hasEntries, "checking for empty storage");
+    case 24:
+      countEntries(null, null,
+        function (num) {
+          ok(!num, "checking for empty storage");
+          submitForm(formNum);
+        });
+        return false;
         break;
     case 100:
         checkForSave("subtest2", "subtestValue", "checking saved subtest value");
@@ -434,19 +450,24 @@ function checkSubmit(formNum) {
         break;
   }
 
+  return submitForm(formNum);
+}
+
+function submitForm(formNum)
+{
   // Forms 13 and 14 would trigger a save-password notification. Temporarily
   // disable pwmgr, then reenable it.
   if (formNum == 12)
-      prefBranch.setBoolPref("signon.rememberSignons", false);
+      SpecialPowers.setBoolPref("signon.rememberSignons", false);
   if (formNum == 14)
-      prefBranch.clearUserPref("signon.rememberSignons");
+      SpecialPowers.clearUserPref("signon.rememberSignons");
 
   // Forms 20 and 21 requires browser.formfill.saveHttpsForms to be false
   if (formNum == 19)
-    prefBranch.setBoolPref("browser.formfill.saveHttpsForms", false);
+    SpecialPowers.setBoolPref("browser.formfill.saveHttpsForms", false);
   // Reset preference now that 20 and 21 are over
   if (formNum == 21)
-    prefBranch.clearUserPref("browser.formfill.saveHttpsForms");
+    SpecialPowers.clearUserPref("browser.formfill.saveHttpsForms");
 
   // End the test now on SeaMonkey.
   if (formNum == 21 && navigator.userAgent.match(/ SeaMonkey\//)) {
@@ -463,15 +484,15 @@ function checkSubmit(formNum) {
   // Form 109 requires browser.formfill.save_https_forms to be true;
   // Form 110 requires it to be false.
   if (formNum == 108)
-    prefBranch.setBoolPref("browser.formfill.saveHttpsForms", true);
+    SpecialPowers.setBoolPref("browser.formfill.saveHttpsForms", true);
   if (formNum == 109)
-    prefBranch.setBoolPref("browser.formfill.saveHttpsForms", false);
+    SpecialPowers.setBoolPref("browser.formfill.saveHttpsForms", false);
   if (formNum == 110)
-    prefBranch.clearUserPref("browser.formfill.saveHttpsForms");
+    SpecialPowers.clearUserPref("browser.formfill.saveHttpsForms");
 
   // End the test at the last form.
   if (formNum == 110) {
-    is(numSubmittedForms, 34, "Ensuring all forms were submitted.");
+    is(numSubmittedForms, 35, "Ensuring all forms were submitted.");
     Services.obs.removeObserver(checkObserver, "satchel-storage-changed");
     SimpleTest.finish();
     return false; // return false to cancel current form submission
@@ -487,9 +508,7 @@ function checkSubmit(formNum) {
   //
   setTimeout(function() {
     checkObserver.waitForChecks(function() {
-      netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-      var nextFormNum = formNum == 23 ? 100 : (formNum + 1);
+      var nextFormNum = formNum == 24 ? 100 : (formNum + 1);
 
       // Submit the next form. Special cases are Forms 21 and 100, which happen
       // from an HTTPS domain in an iframe.
@@ -507,18 +526,9 @@ function checkSubmit(formNum) {
   return false; // cancel current form submission
 }
 
-netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-var fh = Components.classes["@mozilla.org/satchel/form-history;1"].
-         getService(Components.interfaces.nsIFormHistory2);
-ok(fh != null, "Got formHistory service");
-
-var prefBranch = Components.classes["@mozilla.org/preferences-service;1"].
-                 getService(Components.interfaces.nsIPrefBranch);
-
 Services.obs.addObserver(checkObserver, "satchel-storage-changed", false);
 
-window.onload = startTest;
+window.onload = checkInitialState;
 
 SimpleTest.waitForExplicitFinish();
 

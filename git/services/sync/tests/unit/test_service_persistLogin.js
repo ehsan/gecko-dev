@@ -1,15 +1,17 @@
-Cu.import("resource://services-sync/main.js");
-Cu.import("resource://services-sync/util.js");
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
 Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/service.js");
+Cu.import("resource://services-sync/util.js");
+Cu.import("resource://testing-common/services/sync/utils.js");
 
 function run_test() {
   try {
     // Ensure we have a blank slate to start.
     Services.logins.removeAllLogins();
-    
-    Weave.Service.username = "johndoe";
-    Weave.Service.password = "ilovejane";
-    Weave.Service.passphrase = "abbbbbcccccdddddeeeeefffff";
+
+    setBasicCredentials("johndoe", "ilovejane", "abbbbbcccccdddddeeeeefffff");
 
     _("Confirm initial environment is empty.");
     let logins = Services.logins.findLogins({}, PWDMGR_HOST, null,
@@ -20,7 +22,7 @@ function run_test() {
     do_check_eq(logins.length, 0);
 
     _("Persist logins to the login service");
-    Weave.Service.persistLogin();
+    Service.persistLogin();
 
     _("The password has been persisted in the login service.");
     logins = Services.logins.findLogins({}, PWDMGR_HOST, null,
@@ -37,7 +39,7 @@ function run_test() {
     do_check_eq(logins[0].password, "abbbbbcccccdddddeeeeefffff");
 
   } finally {
-    Weave.Svc.Prefs.resetBranch("");
+    Svc.Prefs.resetBranch("");
     Services.logins.removeAllLogins();
   }
 }

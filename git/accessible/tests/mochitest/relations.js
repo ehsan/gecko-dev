@@ -14,6 +14,7 @@ const RELATION_LABEL_FOR = nsIAccessibleRelation.RELATION_LABEL_FOR;
 const RELATION_LABELLED_BY = nsIAccessibleRelation.RELATION_LABELLED_BY;
 const RELATION_MEMBER_OF = nsIAccessibleRelation.RELATION_MEMBER_OF;
 const RELATION_NODE_CHILD_OF = nsIAccessibleRelation.RELATION_NODE_CHILD_OF;
+const RELATION_NODE_PARENT_OF = nsIAccessibleRelation.RELATION_NODE_PARENT_OF;
 const RELATION_PARENT_WINDOW_OF = nsIAccessibleRelation.RELATION_PARENT_WINDOW_OF;
 const RELATION_POPUP_FOR = nsIAccessibleRelation.RELATION_POPUP_FOR;
 const RELATION_SUBWINDOW_OF = nsIAccessibleRelation.RELATION_SUBWINDOW_OF;
@@ -78,7 +79,7 @@ function testRelation(aIdentifier, aRelType, aRelatedIdentifiers)
       }
     }
 
-    ok(isFound, relatedIds[idx] + " is not a target of" + relDescr);
+    ok(isFound, prettyName(relatedIds[idx]) + " is not a target of" + relDescr);
   }
 
   // Check if all obtained targets are given related accessibles.

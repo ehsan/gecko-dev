@@ -1,48 +1,15 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=80: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #ifndef nsHTMLDocument_h___
 #define nsHTMLDocument_h___
 
+#include "mozilla/Attributes.h"
 #include "nsDocument.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDOMHTMLDocument.h"
-#include "nsIDOMNSHTMLDocument.h"
-#include "nsIDOMHTMLBodyElement.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIScriptElement.h"
 #include "jsapi.h"
@@ -52,70 +19,69 @@
 #include "nsIHttpChannel.h"
 #include "nsHTMLStyleSheet.h"
 
-// Document.Write() related
-#include "nsIWyciwygChannel.h"
-#include "nsILoadGroup.h"
-#include "nsNetUtil.h"
-
 #include "nsICommandManager.h"
+#include "mozilla/dom/HTMLSharedElement.h"
+#include "nsDOMEvent.h"
 
 class nsIEditor;
-class nsIEditorDocShell;
 class nsIParser;
 class nsIURI;
 class nsIMarkupDocumentViewer;
-class nsIDocumentCharsetInfo;
+class nsIDocShell;
 class nsICachingChannel;
+class nsIWyciwygChannel;
+class nsILoadGroup;
 
 class nsHTMLDocument : public nsDocument,
                        public nsIHTMLDocument,
-                       public nsIDOMHTMLDocument,
-                       public nsIDOMNSHTMLDocument
+                       public nsIDOMHTMLDocument
 {
 public:
   using nsDocument::SetDocumentURI;
+  using nsDocument::GetPlugins;
 
   nsHTMLDocument();
-  virtual nsresult Init();
+  ~nsHTMLDocument();
+  virtual nsresult Init() MOZ_OVERRIDE;
 
-  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(nsHTMLDocument,
+                                                         nsDocument)
 
-  NS_IMETHOD_(nsrefcnt) AddRef(void);
-  NS_IMETHOD_(nsrefcnt) Release(void);
-
-  virtual void Reset(nsIChannel* aChannel, nsILoadGroup* aLoadGroup);
+  // nsIDocument
+  virtual void Reset(nsIChannel* aChannel, nsILoadGroup* aLoadGroup) MOZ_OVERRIDE;
   virtual void ResetToURI(nsIURI* aURI, nsILoadGroup* aLoadGroup,
-                          nsIPrincipal* aPrincipal);
+                          nsIPrincipal* aPrincipal) MOZ_OVERRIDE;
 
-  virtual nsresult CreateShell(nsPresContext* aContext,
-                               nsIViewManager* aViewManager,
-                               nsStyleSet* aStyleSet,
-                               nsIPresShell** aInstancePtrResult);
+  virtual already_AddRefed<nsIPresShell> CreateShell(nsPresContext* aContext,
+                                                     nsViewManager* aViewManager,
+                                                     nsStyleSet* aStyleSet) MOZ_OVERRIDE;
 
   virtual nsresult StartDocumentLoad(const char* aCommand,
                                      nsIChannel* aChannel,
                                      nsILoadGroup* aLoadGroup,
                                      nsISupports* aContainer,
                                      nsIStreamListener **aDocListener,
-                                     PRBool aReset = PR_TRUE,
-                                     nsIContentSink* aSink = nsnull);
-  virtual void StopDocumentLoad();
+                                     bool aReset = true,
+                                     nsIContentSink* aSink = nullptr) MOZ_OVERRIDE;
+  virtual void StopDocumentLoad() MOZ_OVERRIDE;
 
-  virtual void BeginLoad();
+  virtual void BeginLoad() MOZ_OVERRIDE;
+  virtual void EndLoad() MOZ_OVERRIDE;
 
-  virtual void EndLoad();
-
-  virtual mozilla::dom::Element* GetImageMap(const nsAString& aMapName);
-
-  virtual void SetCompatibilityMode(nsCompatibility aMode);
-
-  virtual PRBool IsWriting()
+  virtual NS_HIDDEN_(void) Destroy() MOZ_OVERRIDE
   {
-    return mWriteLevel != PRUint32(0);
+    mAll = nullptr;
+    nsDocument::Destroy();
   }
 
-  virtual PRBool GetIsFrameset() { return mIsFrameset; }
-  virtual void SetIsFrameset(PRBool aFrameset) { mIsFrameset = aFrameset; }
+  // nsIHTMLDocument
+  virtual void SetCompatibilityMode(nsCompatibility aMode) MOZ_OVERRIDE;
+
+  virtual bool IsWriting() MOZ_OVERRIDE
+  {
+    return mWriteLevel != uint32_t(0);
+  }
 
   virtual NS_HIDDEN_(nsContentList*) GetForms();
  
@@ -124,29 +90,19 @@ public:
   // nsIDOMDocument interface
   NS_FORWARD_NSIDOMDOCUMENT(nsDocument::)
 
+  // And explicitly import the things from nsDocument that we just shadowed
+  using nsDocument::GetImplementation;
+  using nsDocument::GetTitle;
+  using nsDocument::SetTitle;
+  using nsDocument::GetLastStyleSheetSet;
+  using nsDocument::MozSetImageElement;
+  using nsDocument::GetMozFullScreenElement;
+
   // nsIDOMNode interface
-  NS_FORWARD_NSIDOMNODE(nsDocument::)
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
 
   // nsIDOMHTMLDocument interface
-  NS_IMETHOD GetTitle(nsAString & aTitle);
-  NS_IMETHOD SetTitle(const nsAString & aTitle);
-  NS_IMETHOD GetReferrer(nsAString & aReferrer);
-  NS_IMETHOD GetURL(nsAString & aURL);
-  NS_IMETHOD GetBody(nsIDOMHTMLElement * *aBody);
-  NS_IMETHOD SetBody(nsIDOMHTMLElement * aBody);
-  NS_IMETHOD GetImages(nsIDOMHTMLCollection * *aImages);
-  NS_IMETHOD GetApplets(nsIDOMHTMLCollection * *aApplets);
-  NS_IMETHOD GetLinks(nsIDOMHTMLCollection * *aLinks);
-  NS_IMETHOD GetForms(nsIDOMHTMLCollection * *aForms);
-  NS_IMETHOD GetAnchors(nsIDOMHTMLCollection * *aAnchors);
-  NS_IMETHOD GetCookie(nsAString & aCookie);
-  NS_IMETHOD SetCookie(const nsAString & aCookie);
-  NS_IMETHOD Open(void);
-  NS_IMETHOD Close(void);
-  NS_IMETHOD Write(const nsAString & text);
-  NS_IMETHOD Writeln(const nsAString & text);
-  NS_IMETHOD GetElementsByName(const nsAString & elementName,
-                               nsIDOMNodeList **_retval);
+  NS_DECL_NSIDOMHTMLDOCUMENT
 
   /**
    * Returns the result of document.all[aID] which can either be a node
@@ -156,49 +112,32 @@ public:
   nsISupports *GetDocumentAllResult(const nsAString& aID,
                                     nsWrapperCache **aCache,
                                     nsresult *aResult);
+  JSObject* GetAll(JSContext* aCx, mozilla::ErrorResult& aRv);
 
-  nsIContent *GetBody(nsresult *aResult);
-  already_AddRefed<nsContentList> GetElementsByName(const nsAString & aName)
-  {
-    return NS_GetFuncStringContentList(this, MatchNameAttribute, nsnull,
-                                       UseExistingNameString, aName);
-  }
+  nsISupports* ResolveName(const nsAString& aName, nsWrapperCache **aCache);
 
-  // nsIDOMNSHTMLDocument interface
-  NS_DECL_NSIDOMNSHTMLDOCUMENT
-
-  virtual nsresult ResolveName(const nsAString& aName,
-                               nsIContent *aForm,
-                               nsISupports **aResult,
-                               nsWrapperCache **aCache);
-
-  virtual void ScriptLoading(nsIScriptElement *aScript);
-  virtual void ScriptExecuted(nsIScriptElement *aScript);
-
-  virtual void AddedForm();
-  virtual void RemovedForm();
-  virtual PRInt32 GetNumFormsSynchronous();
-  virtual void TearingDownEditor(nsIEditor *aEditor);
-  virtual void SetIsXHTML(PRBool aXHTML) { mIsRegularHTML = !aXHTML; }
-  virtual void SetDocWriteDisabled(PRBool aDisabled)
+  virtual void AddedForm() MOZ_OVERRIDE;
+  virtual void RemovedForm() MOZ_OVERRIDE;
+  virtual int32_t GetNumFormsSynchronous() MOZ_OVERRIDE;
+  virtual void TearingDownEditor(nsIEditor *aEditor) MOZ_OVERRIDE;
+  virtual void SetIsXHTML(bool aXHTML) MOZ_OVERRIDE { mIsRegularHTML = !aXHTML; }
+  virtual void SetDocWriteDisabled(bool aDisabled) MOZ_OVERRIDE
   {
     mDisableDocWrite = aDisabled;
   }
 
-  nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
+  nsresult ChangeContentEditableCount(nsIContent *aElement, int32_t aChange) MOZ_OVERRIDE;
   void DeferredContentEditableCountChange(nsIContent *aElement);
 
-  virtual EditingState GetEditingState()
+  virtual EditingState GetEditingState() MOZ_OVERRIDE
   {
     return mEditingState;
   }
 
-  virtual void DisableCookieAccess()
+  virtual void DisableCookieAccess() MOZ_OVERRIDE
   {
-    mDisableCookieAccess = PR_TRUE;
+    mDisableCookieAccess = true;
   }
-
-  virtual nsIContent* GetBodyContentExternal();
 
   class nsAutoEditingState {
   public:
@@ -216,50 +155,127 @@ public:
   };
   friend class nsAutoEditingState;
 
-  void EndUpdate(nsUpdateType aUpdateType);
+  void EndUpdate(nsUpdateType aUpdateType) MOZ_OVERRIDE;
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLDocument, nsDocument)
+  virtual nsresult SetEditingState(EditingState aState) MOZ_OVERRIDE;
 
-  virtual already_AddRefed<nsIParser> GetFragmentParser() {
-    return mFragmentParser.forget();
-  }
-  virtual void SetFragmentParser(nsIParser* aParser) {
-    mFragmentParser = aParser;
-  }
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
-  virtual nsresult SetEditingState(EditingState aState);
-
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual NS_HIDDEN_(void) RemovedFromDocShell();
+  virtual NS_HIDDEN_(void) RemovedFromDocShell() MOZ_OVERRIDE;
 
   virtual mozilla::dom::Element *GetElementById(const nsAString& aElementId)
   {
     return nsDocument::GetElementById(aElementId);
   }
 
-  virtual nsXPCClassInfo* GetClassInfo();
+  virtual void DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const MOZ_OVERRIDE;
+  // DocSizeOfIncludingThis is inherited from nsIDocument.
+
+  virtual bool WillIgnoreCharsetOverride() MOZ_OVERRIDE;
+
+  // WebIDL API
+  virtual JSObject* WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+    MOZ_OVERRIDE;
+  void GetDomain(nsAString& aDomain, mozilla::ErrorResult& rv);
+  void SetDomain(const nsAString& aDomain, mozilla::ErrorResult& rv);
+  void GetCookie(nsAString& aCookie, mozilla::ErrorResult& rv);
+  void SetCookie(const nsAString& aCookie, mozilla::ErrorResult& rv);
+  JSObject* NamedGetter(JSContext* cx, const nsAString& aName, bool& aFound,
+                        mozilla::ErrorResult& rv);
+  void GetSupportedNames(nsTArray<nsString>& aNames);
+  nsGenericHTMLElement *GetBody();
+  void SetBody(nsGenericHTMLElement* aBody, mozilla::ErrorResult& rv);
+  mozilla::dom::HTMLSharedElement *GetHead() {
+    return static_cast<mozilla::dom::HTMLSharedElement*>(GetHeadElement());
+  }
+  nsIHTMLCollection* Images();
+  nsIHTMLCollection* Embeds();
+  nsIHTMLCollection* Plugins();
+  nsIHTMLCollection* Links();
+  nsIHTMLCollection* Forms()
+  {
+    return nsHTMLDocument::GetForms();
+  }
+  nsIHTMLCollection* Scripts();
+  already_AddRefed<nsContentList> GetElementsByName(const nsAString & aName)
+  {
+    return NS_GetFuncStringNodeList(this, MatchNameAttribute, nullptr,
+                                    UseExistingNameString, aName);
+  }
+  already_AddRefed<nsINodeList> GetItems(const nsAString& aTypeNames);
+  already_AddRefed<nsIDocument> Open(JSContext* cx,
+                                     const nsAString& aType,
+                                     const nsAString& aReplace,
+                                     mozilla::ErrorResult& rv);
+  already_AddRefed<nsIDOMWindow> Open(JSContext* cx,
+                                      const nsAString& aURL,
+                                      const nsAString& aName,
+                                      const nsAString& aFeatures,
+                                      bool aReplace,
+                                      mozilla::ErrorResult& rv);
+  void Close(mozilla::ErrorResult& rv);
+  void Write(JSContext* cx, const mozilla::dom::Sequence<nsString>& aText,
+             mozilla::ErrorResult& rv);
+  void Writeln(JSContext* cx, const mozilla::dom::Sequence<nsString>& aText,
+               mozilla::ErrorResult& rv);
+  // The XPCOM GetDesignMode() works OK for us, since it never throws.
+  void SetDesignMode(const nsAString& aDesignMode, mozilla::ErrorResult& rv);
+  bool ExecCommand(const nsAString& aCommandID, bool aDoShowUI,
+                   const nsAString& aValue, mozilla::ErrorResult& rv);
+  bool QueryCommandEnabled(const nsAString& aCommandID,
+                           mozilla::ErrorResult& rv);
+  bool QueryCommandIndeterm(const nsAString& aCommandID,
+                            mozilla::ErrorResult& rv);
+  bool QueryCommandState(const nsAString& aCommandID, mozilla::ErrorResult& rv);
+  bool QueryCommandSupported(const nsAString& aCommandID);
+  void QueryCommandValue(const nsAString& aCommandID, nsAString& aValue,
+                         mozilla::ErrorResult& rv);
+  // The XPCOM Get/SetFgColor work OK for us, since they never throw.
+  // The XPCOM Get/SetLinkColor work OK for us, since they never throw.
+  // The XPCOM Get/SetVLinkColor work OK for us, since they never throw.
+  // The XPCOM Get/SetALinkColor work OK for us, since they never throw.
+  // The XPCOM Get/SetBgColor work OK for us, since they never throw.
+  nsIHTMLCollection* Anchors();
+  nsIHTMLCollection* Applets();
+  void Clear() const
+  {
+    // Deprecated
+  }
+  already_AddRefed<nsISelection> GetSelection(mozilla::ErrorResult& rv);
+  // The XPCOM CaptureEvents works fine for us.
+  // The XPCOM ReleaseEvents works fine for us.
+  // We're picking up GetLocation from Document
+  already_AddRefed<nsIDOMLocation> GetLocation() const {
+    return nsIDocument::GetLocation();
+  }
+
+  virtual nsHTMLDocument* AsHTMLDocument() MOZ_OVERRIDE { return this; }
+
 protected:
-  nsresult GetBodySize(PRInt32* aWidth,
-                       PRInt32* aHeight);
+  nsresult GetBodySize(int32_t* aWidth,
+                       int32_t* aHeight);
 
   nsIContent *MatchId(nsIContent *aContent, const nsAString& aId);
 
-  static PRBool MatchLinks(nsIContent *aContent, PRInt32 aNamespaceID,
+  static bool MatchLinks(nsIContent *aContent, int32_t aNamespaceID,
                            nsIAtom* aAtom, void* aData);
-  static PRBool MatchAnchors(nsIContent *aContent, PRInt32 aNamespaceID,
+  static bool MatchAnchors(nsIContent *aContent, int32_t aNamespaceID,
                              nsIAtom* aAtom, void* aData);
-  static PRBool MatchNameAttribute(nsIContent* aContent, PRInt32 aNamespaceID,
+  static bool MatchNameAttribute(nsIContent* aContent, int32_t aNamespaceID,
                                    nsIAtom* aAtom, void* aData);
   static void* UseExistingNameString(nsINode* aRootNode, const nsString* aName);
 
   static void DocumentWriteTerminationFunc(nsISupports *aRef);
 
-  void GetDomainURI(nsIURI **uri);
+  already_AddRefed<nsIURI> GetDomainURI();
 
-  nsresult WriteCommon(const nsAString& aText,
-                       PRBool aNewlineTerminate);
-  nsresult OpenCommon(const nsACString& aContentType, PRBool aReplace);
+  nsresult WriteCommon(JSContext *cx, const nsAString& aText,
+                       bool aNewlineTerminate);
+  // A version of WriteCommon used by WebIDL bindings
+  void WriteCommon(JSContext *cx,
+                   const mozilla::dom::Sequence<nsString>& aText,
+                   bool aNewlineTerminate,
+                   mozilla::ErrorResult& rv);
 
   nsresult CreateAndAddWyciwygChannel(void);
   nsresult RemoveWyciwygChannel(void);
@@ -267,88 +283,63 @@ protected:
   /**
    * Like IsEditingOn(), but will flush as needed first.
    */
-  PRBool IsEditingOnAfterFlush();
+  bool IsEditingOnAfterFlush();
 
   void *GenerateParserKey(void);
 
-  virtual PRInt32 GetDefaultNamespaceID() const
-  {
-    return kNameSpaceID_XHTML;
-  }
-
-  nsCOMPtr<nsIDOMHTMLCollection> mImages;
-  nsCOMPtr<nsIDOMHTMLCollection> mApplets;
-  nsCOMPtr<nsIDOMHTMLCollection> mEmbeds;
-  nsCOMPtr<nsIDOMHTMLCollection> mLinks;
-  nsCOMPtr<nsIDOMHTMLCollection> mAnchors;
+  nsRefPtr<nsContentList> mImages;
+  nsRefPtr<nsContentList> mApplets;
+  nsRefPtr<nsContentList> mEmbeds;
+  nsRefPtr<nsContentList> mLinks;
+  nsRefPtr<nsContentList> mAnchors;
+  nsRefPtr<nsContentList> mScripts;
   nsRefPtr<nsContentList> mForms;
   nsRefPtr<nsContentList> mFormControls;
-  nsRefPtr<nsContentList> mImageMaps;
+
+  JS::Heap<JSObject*> mAll;
 
   /** # of forms in the document, synchronously set */
-  PRInt32 mNumForms;
+  int32_t mNumForms;
 
-  static PRUint32 gWyciwygSessionCnt;
+  static uint32_t gWyciwygSessionCnt;
 
-  static PRBool TryHintCharset(nsIMarkupDocumentViewer* aMarkupDV,
-                               PRInt32& aCharsetSource,
-                               nsACString& aCharset);
-  static PRBool TryUserForcedCharset(nsIMarkupDocumentViewer* aMarkupDV,
-                                     nsIDocumentCharsetInfo*  aDocInfo,
-                                     PRInt32& aCharsetSource,
-                                     nsACString& aCharset);
-  static PRBool TryCacheCharset(nsICachingChannel* aCachingChannel,
-                                PRInt32& aCharsetSource,
+  static void TryHintCharset(nsIMarkupDocumentViewer* aMarkupDV,
+                             int32_t& aCharsetSource,
+                             nsACString& aCharset);
+  void TryUserForcedCharset(nsIMarkupDocumentViewer* aMarkupDV,
+                            nsIDocShell*  aDocShell,
+                            int32_t& aCharsetSource,
+                            nsACString& aCharset);
+  static void TryCacheCharset(nsICachingChannel* aCachingChannel,
+                                int32_t& aCharsetSource,
                                 nsACString& aCharset);
   // aParentDocument could be null.
-  PRBool TryParentCharset(nsIDocumentCharsetInfo*  aDocInfo,
-                          nsIDocument* aParentDocument,
-                          PRInt32& charsetSource, nsACString& aCharset);
-  static PRBool UseWeakDocTypeDefault(PRInt32& aCharsetSource,
-                                      nsACString& aCharset);
-  static PRBool TryDefaultCharset(nsIMarkupDocumentViewer* aMarkupDV,
-                                  PRInt32& aCharsetSource,
-                                  nsACString& aCharset);
-
-  void StartAutodetection(nsIDocShell *aDocShell, nsACString& aCharset,
-                          const char* aCommand);
+  void TryParentCharset(nsIDocShell*  aDocShell,
+                        nsIDocument* aParentDocument,
+                        int32_t& charsetSource, nsACString& aCharset);
+  static void TryWeakDocTypeDefault(int32_t& aCharsetSource,
+                                    nsACString& aCharset);
+  static void TryDefaultCharset(nsIMarkupDocumentViewer* aMarkupDV,
+                                int32_t& aCharsetSource,
+                                nsACString& aCharset);
 
   // Override so we can munge the charset on our wyciwyg channel as needed.
-  virtual void SetDocumentCharacterSet(const nsACString& aCharSetID);
-
-  // mWriteState tracks the status of this document if the document is being
-  // entirely created by script. In the normal load case, mWriteState will be
-  // eNotWriting. Once document.open has been called (either implicitly or
-  // explicitly), mWriteState will be eDocumentOpened. When document.close has
-  // been called, mWriteState will become eDocumentClosed if there have been no
-  // external script loads in the meantime. If there have been, then mWriteState
-  // becomes ePendingClose, indicating that we might still be writing, but that
-  // we shouldn't process any further close() calls.
-  enum {
-    eNotWriting,
-    eDocumentOpened,
-    ePendingClose,
-    eDocumentClosed
-  } mWriteState;
+  virtual void SetDocumentCharacterSet(const nsACString& aCharSetID) MOZ_OVERRIDE;
 
   // Tracks if we are currently processing any document.write calls (either
   // implicit or explicit). Note that if a write call writes out something which
   // would block the parser, then mWriteLevel will be incorrect until the parser
   // finishes processing that script.
-  PRUint32 mWriteLevel;
-
-  nsAutoTArray<nsIScriptElement*, 1> mPendingScripts;
+  uint32_t mWriteLevel;
 
   // Load flags of the document's channel
-  PRUint32 mLoadFlags;
+  uint32_t mLoadFlags;
 
-  PRPackedBool mIsFrameset;
+  bool mTooDeepWriteRecursion;
 
-  PRPackedBool mTooDeepWriteRecursion;
+  bool mDisableDocWrite;
 
-  PRPackedBool mDisableDocWrite;
-
-  PRPackedBool mWarnedWidthHeight;
+  bool mWarnedWidthHeight;
 
   nsCOMPtr<nsIWyciwygChannel> mWyciwygChannel;
 
@@ -361,24 +352,26 @@ protected:
   nsresult EditingStateChanged();
   void MaybeEditingStateChanged();
 
-  PRUint32 mContentEditableCount;
+  uint32_t mContentEditableCount;
   EditingState mEditingState;
 
-  nsresult   DoClipboardSecurityCheck(PRBool aPaste);
+  nsresult   DoClipboardSecurityCheck(bool aPaste);
   static jsid        sCutCopyInternal_id;
   static jsid        sPasteInternal_id;
 
   // When false, the .cookies property is completely disabled
-  PRBool mDisableCookieAccess;
+  bool mDisableCookieAccess;
 
-  // Parser used for constructing document fragments.
-  nsCOMPtr<nsIParser> mFragmentParser;
+  /**
+   * Temporary flag that is set in EndUpdate() to ignore
+   * MaybeEditingStateChanged() script runners from a nested scope.
+   */
+  bool mPendingMaybeEditingStateChanged;
 };
 
 #define NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                        \
     NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                                 \
     NS_INTERFACE_TABLE_ENTRY(_class, nsIHTMLDocument)                         \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMHTMLDocument)                      \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMNSHTMLDocument)
+    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMHTMLDocument)
 
 #endif /* nsHTMLDocument_h___ */

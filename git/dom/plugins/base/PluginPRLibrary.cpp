@@ -1,40 +1,8 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=8 et :
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Plugin App.
- *
- * The Initial Developer of the Original Code is
- *   Josh Aas <josh@mozilla.com>
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/PluginPRLibrary.h"
 
@@ -52,12 +20,54 @@ static int gNotOptimized;
 #define CALLING_CONVENTION_HACK
 #endif
 
-namespace mozilla {
+#ifdef MOZ_WIDGET_ANDROID
+#include "AndroidBridge.h"
+#include "android_npapi.h"
+#include <android/log.h>
+#undef ALOG
+#define ALOG(args...) __android_log_print(ANDROID_LOG_INFO, "GeckoJavaEnv", ## args)
+#endif
 
-#if defined(XP_UNIX) && !defined(XP_MACOSX)
+using namespace mozilla::layers;
+
+namespace mozilla {
+#ifdef MOZ_WIDGET_ANDROID
 nsresult
 PluginPRLibrary::NP_Initialize(NPNetscapeFuncs* bFuncs,
 			       NPPluginFuncs* pFuncs, NPError* error)
+{
+  JNIEnv* env = GetJNIForThread();
+  if (!env)
+    return NS_ERROR_FAILURE;
+
+  mozilla::AutoLocalJNIFrame jniFrame(env);
+
+  if (mNP_Initialize) {
+    *error = mNP_Initialize(bFuncs, pFuncs, env);
+  } else {
+    NP_InitializeFunc pfNP_Initialize = (NP_InitializeFunc)
+      PR_FindFunctionSymbol(mLibrary, "NP_Initialize");
+    if (!pfNP_Initialize)
+      return NS_ERROR_FAILURE;
+    *error = pfNP_Initialize(bFuncs, pFuncs, env);
+  }
+
+  // Save pointers to functions that get called through PluginLibrary itself.
+  mNPP_New = pFuncs->newp;
+  mNPP_ClearSiteData = pFuncs->clearsitedata;
+  mNPP_GetSitesWithData = pFuncs->getsiteswithdata;
+  return NS_OK;
+}
+#elif defined(MOZ_WIDGET_GONK)
+nsresult
+PluginPRLibrary::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
+{
+  return NS_OK;
+}
+#elif defined(XP_UNIX) && !defined(XP_MACOSX)
+nsresult
+PluginPRLibrary::NP_Initialize(NPNetscapeFuncs* bFuncs,
+                               NPPluginFuncs* pFuncs, NPError* error)
 {
   if (mNP_Initialize) {
     *error = mNP_Initialize(bFuncs, pFuncs);
@@ -187,6 +197,8 @@ PluginPRLibrary::NPP_New(NPMIMEType pluginType, NPP instance,
 {
   if (!mNPP_New)
     return NS_ERROR_FAILURE;
+
+  MAIN_THREAD_JNI_REF_GUARD;
   *error = mNPP_New(pluginType, instance, mode, argc, argn, argv, saved);
   return NS_OK;
 }
@@ -199,6 +211,7 @@ PluginPRLibrary::NPP_ClearSiteData(const char* site, uint64_t flags,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
+  MAIN_THREAD_JNI_REF_GUARD;
   NPError result = mNPP_ClearSiteData(site, flags, maxAge);
 
   switch (result) {
@@ -222,6 +235,7 @@ PluginPRLibrary::NPP_GetSitesWithData(InfallibleTArray<nsCString>& result)
 
   result.Clear();
 
+  MAIN_THREAD_JNI_REF_GUARD;
   char** sites = mNPP_GetSitesWithData();
   if (!sites) {
     return NS_OK;
@@ -246,28 +260,46 @@ PluginPRLibrary::AsyncSetWindow(NPP instance, NPWindow* window)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
 nsresult
-PluginPRLibrary::GetImage(NPP instance, ImageContainer* aContainer, Image** aImage)
+PluginPRLibrary::HandleGUIEvent(NPP instance, const nsGUIEvent& anEvent,
+                                bool* handled)
 {
+  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
+  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
   return NS_ERROR_NOT_IMPLEMENTED;
 }
+#endif
 
 nsresult
-PluginPRLibrary::GetImageSize(NPP instance, nsIntSize* aSize)
+PluginPRLibrary::GetImageContainer(NPP instance, ImageContainer** aContainer)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 #if defined(XP_MACOSX)
 nsresult
-PluginPRLibrary::IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing)
+PluginPRLibrary::IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing)
 {
   nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
   NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  *aDrawing = PR_FALSE; 
+  *aDrawing = false; 
+  return NS_OK;
+}
+nsresult
+PluginPRLibrary::ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor)
+{
+  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
+  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
   return NS_OK;
 }
 #endif
+
+nsresult
+PluginPRLibrary::GetImageSize(NPP instance, nsIntSize* aSize)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
 
 nsresult
 PluginPRLibrary::SetBackgroundUnknown(NPP instance)
@@ -285,7 +317,7 @@ PluginPRLibrary::BeginUpdateBackground(NPP instance,
   nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
   NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
   NS_ERROR("Unexpected use of async APIs for in-process plugin.");
-  *aCtx = nsnull;
+  *aCtx = nullptr;
   return NS_OK;
 }
 

@@ -4,22 +4,20 @@
   <script>
 var db;
 function startDBWork() {
-  mozIndexedDB.open(parent.location).onsuccess = function(e) {
+  indexedDB.open(parent.location, 1).onupgradeneeded = function(e) {
     db = e.target.result;
-    db.setVersion("1.0").onsuccess = function(e) {
-      var trans = e.target.transaction;
-      if (db.objectStoreNames.contains("mystore")) {
-        db.deleteObjectStore("mystore");
-      }
-      var store = db.createObjectStore("mystore");
-      store.add({ hello: "world" }, 42);
-      trans.oncomplete = madeMod;
-    };
+    var trans = e.target.transaction;
+    if (db.objectStoreNames.contains("mystore")) {
+      db.deleteObjectStore("mystore");
+    }
+    var store = db.createObjectStore("mystore");
+    store.add({ hello: "world" }, 42);
+    e.target.onsuccess = madeMod;
   };
 }
 
 function madeMod() {
-  var trans = db.transaction(["mystore"], IDBTransaction.READ_WRITE);
+  var trans = db.transaction(["mystore"], "readwrite");
   var store = trans.
               objectStore("mystore");
   trans.oncomplete = function() {

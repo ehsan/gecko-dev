@@ -3,9 +3,14 @@
 // heuristic query freshness as defined in RFC 2616 section 13.9
 //
 
-do_load_httpd_js();
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
 
-var httpserver = new nsHttpServer();
+Cu.import("resource://testing-common/httpd.js");
+
+var httpserver = new HttpServer();
 var index = 0;
 var tests = [
     // RFC 2616 section 13.9 2nd paragraph - query-url should be validated
@@ -33,12 +38,6 @@ var tests = [
 
 ];
 
-function getCacheService()
-{
-    return Components.classes["@mozilla.org/network/cache-service;1"].
-                      getService(Components.interfaces.nsICacheService);
-}
-
 function logit(i, data) {
     dump(tests[i].url + "\t requested [" + tests[i].server + "]" +
          " got [" + data + "] expected [" + tests[i].expected + "]");
@@ -50,7 +49,9 @@ function logit(i, data) {
 function setupChannel(suffix, value) {
     var ios = Components.classes["@mozilla.org/network/io-service;1"].
                          getService(Ci.nsIIOService);
-    var chan = ios.newChannel("http://localhost:4444" + suffix, "", null);
+    var chan = ios.newChannel("http://localhost:" +
+                              httpserver.identity.primaryPort +
+                              suffix, "", null);
     var httpChan = chan.QueryInterface(Components.interfaces.nsIHttpChannel);
     httpChan.requestMethod = "GET";
     httpChan.setRequestHeader("x-request", value, false);
@@ -80,11 +81,11 @@ function checkValueAndTrigger(request, data, ctx) {
 
 function run_test() {
     httpserver.registerPathHandler("/freshness", handler);
-    httpserver.start(4444);
+    httpserver.start(-1);
 
     // clear cache
-    getCacheService().
-        evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
+    evict_cache_entries();
+
     triggerNextTest();
 
     do_test_pending();

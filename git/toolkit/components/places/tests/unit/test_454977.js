@@ -1,49 +1,32 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Bug 454977 code.
- *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *  Marco Bonardo <mak77bonardo.net> (Original Author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Cache actual visit_count value, filled by add_visit, used by check_results
 let visit_count = 0;
 
-function add_visit(aURI, aVisitDate, aVisitType) {
-  let isRedirect = aVisitType == TRANSITION_REDIRECT_PERMANENT ||
-                   aVisitType == TRANSITION_REDIRECT_TEMPORARY;
-  let visitId = PlacesUtils.history.addVisit(aURI, aVisitDate, null,
-                                             aVisitType, isRedirect, 0);
+// Returns the Place ID corresponding to an added visit.
+function task_add_visit(aURI, aVisitType)
+{
+  // Add the visit asynchronously, and save its visit ID.
+  let deferUpdatePlaces = Promise.defer();
+  PlacesUtils.asyncHistory.updatePlaces({
+    uri: aURI,
+    visits: [{ transitionType: aVisitType, visitDate: Date.now() * 1000 }]
+  }, {
+    handleError: function TAV_handleError() {
+      deferUpdatePlaces.reject(new Error("Unexpected error in adding visit."));
+    },
+    handleResult: function (aPlaceInfo) {
+      this.visitId = aPlaceInfo.visits[0].visitId;
+    },
+    handleCompletion: function TAV_handleCompletion() {
+      deferUpdatePlaces.resolve(this.visitId);
+    }
+  });
+  let visitId = yield deferUpdatePlaces.promise;
 
   // Increase visit_count if applicable
   if (aVisitType != 0 &&
@@ -62,9 +45,9 @@ function add_visit(aURI, aVisitDate, aVisitType) {
     let placeId = stmt.getInt64(0);
     stmt.finalize();
     do_check_true(placeId > 0);
-    return placeId;
+    throw new Task.Result(placeId);
   }
-  return 0;
+  throw new Task.Result(0);
 }
 
 /**
@@ -74,7 +57,8 @@ function add_visit(aURI, aVisitDate, aVisitType) {
  * @param   aExpectedCountWithHidden
  *          Number of history results we are expecting (included hidden ones)
  */
-function check_results(aExpectedCount, aExpectedCountWithHidden) {
+function check_results(aExpectedCount, aExpectedCountWithHidden)
+{
   let query = PlacesUtils.history.getNewQuery();
   // used to check visit_count
   query.minVisits = visit_count;
@@ -98,25 +82,31 @@ function check_results(aExpectedCount, aExpectedCountWithHidden) {
 }
 
 // main
-function run_test() {
+function run_test()
+{
+  run_next_test();
+}
+
+add_task(function test_execute()
+{
   const TEST_URI = uri("http://test.mozilla.org/");
 
   // Add a visit that force hidden
-  add_visit(TEST_URI, Date.now()*1000, TRANSITION_EMBED);
+  yield task_add_visit(TEST_URI, TRANSITION_EMBED);
   check_results(0, 0);
 
-  let placeId = add_visit(TEST_URI, Date.now()*1000, TRANSITION_FRAMED_LINK);
+  let placeId = yield task_add_visit(TEST_URI, TRANSITION_FRAMED_LINK);
   check_results(0, 1);
 
   // Add a visit that force unhide and check the place id.
   // - We expect that the place gets hidden = 0 while retaining the same
   //   place id and a correct visit_count.
-  do_check_eq(add_visit(TEST_URI, Date.now()*1000, TRANSITION_TYPED), placeId);
+  do_check_eq((yield task_add_visit(TEST_URI, TRANSITION_TYPED)), placeId);
   check_results(1, 1);
 
   // Add a visit, check that hidden is not overwritten
   // - We expect that the place has still hidden = 0, while retaining
   //   correct visit_count.
-  add_visit(TEST_URI, Date.now()*1000, TRANSITION_EMBED);
+  yield task_add_visit(TEST_URI, TRANSITION_EMBED);
   check_results(1, 1);
-}
+});

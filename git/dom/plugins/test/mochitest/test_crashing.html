@@ -1,6 +1,5 @@
 <head>
   <title>Plugin crashing</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
 
 <body>
@@ -8,11 +7,13 @@
   SimpleTest.waitForExplicitFinish();
 
   window.frameLoaded = function frameLoaded_toCrash() {
-    if (!SimpleTest.testPluginIsOOP()) {
+   if (!SimpleTest.testPluginIsOOP()) {
       ok(true, "Skipping this test when test plugin is not OOP.");
       SimpleTest.finish();
       return;
     }
+
+    SimpleTest.expectChildProcessCrash();
 
     var iframe = document.getElementById('iframe1');
     var p = iframe.contentDocument.getElementById('plugin1');

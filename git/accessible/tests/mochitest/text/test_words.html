@@ -6,15 +6,18 @@
   <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <script type="application/javascript"
-          src="chrome://mochikit/content/MochiKit/packed.js"></script>
-  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript"
           src="../common.js"></script>
   <script type="application/javascript"
           src="../text.js"></script>
   <script type="application/javascript">
-    
+    if (navigator.platform.startsWith("Mac")) {
+      SimpleTest.expectAssertions(0, 1);
+    } else {
+      SimpleTest.expectAssertions(0, 1);
+    }
+
     function doTest()
     {
       // "one two"

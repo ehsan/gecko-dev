@@ -18,8 +18,6 @@
 <window title="Application Update test cleanup"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         onload="runTest();">
-<script type="application/javascript" 
-        src="chrome://mochikit/content/MochiKit/packed.js"/>
 <script type="application/javascript"
         src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
 <script type="application/javascript"
@@ -41,20 +39,17 @@ function runTest() {
   closeUpdateWindow();
 
   resetPrefs();
+  resetFiles();
   removeUpdateDirsAndFiles();
   reloadUpdateManagerData();
 
-  let dir = getCurrentProcessDir();
-  let file = dir.clone();
-  file.append(FILE_UPDATE_ACTIVE);
+  let file = getUpdatesXMLFile(true);
   ok(!file.exists(), file.path + " should not exist");
 
-  file = dir.clone();
-  file.append(FILE_UPDATES_DB);
+  file = getUpdatesXMLFile(false);
   ok(!file.exists(), file.path + " should not exist");
 
-  dir.append("updates");
-  dir.append("0");
+  let dir = getUpdatesDir();
 
   file = dir.clone();
   file.append(FILE_UPDATE_STATUS);

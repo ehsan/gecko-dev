@@ -1,10 +1,43 @@
 //
-// Copyright (c) 2002-2011 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2013 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
 
 #include "compiler/ForLoopUnroll.h"
+
+namespace {
+
+class IntegerForLoopUnrollMarker : public TIntermTraverser {
+public:
+
+    virtual bool visitLoop(Visit, TIntermLoop* node)
+    {
+        // This is called after ValidateLimitations pass, so all the ASSERT
+        // should never fail.
+        // See ValidateLimitations::validateForLoopInit().
+        ASSERT(node);
+        ASSERT(node->getType() == ELoopFor);
+        ASSERT(node->getInit());
+        TIntermAggregate* decl = node->getInit()->getAsAggregate();
+        ASSERT(decl && decl->getOp() == EOpDeclaration);
+        TIntermSequence& declSeq = decl->getSequence();
+        ASSERT(declSeq.size() == 1);
+        TIntermBinary* declInit = declSeq[0]->getAsBinaryNode();
+        ASSERT(declInit && declInit->getOp() == EOpInitialize);
+        ASSERT(declInit->getLeft());
+        TIntermSymbol* symbol = declInit->getLeft()->getAsSymbolNode();
+        ASSERT(symbol);
+        TBasicType type = symbol->getBasicType();
+        ASSERT(type == EbtInt || type == EbtFloat);
+        if (type == EbtInt)
+            node->setUnrollFlag(true);
+        return true;
+    }
+
+};
+
+}  // anonymous namepsace
 
 void ForLoopUnroll::FillLoopIndexInfo(TIntermLoop* node, TLoopIndexInfo& info)
 {
@@ -109,6 +142,16 @@ void ForLoopUnroll::Pop()
     mLoopIndexStack.pop_back();
 }
 
+// static
+void ForLoopUnroll::MarkForLoopsWithIntegerIndicesForUnrolling(
+    TIntermNode* root)
+{
+    ASSERT(root);
+
+    IntegerForLoopUnrollMarker marker;
+    root->traverse(&marker);
+}
+
 int ForLoopUnroll::getLoopIncrement(TIntermLoop* node)
 {
     TIntermNode* expr = node->getExpression();
@@ -167,6 +210,6 @@ int ForLoopUnroll::getLoopIncrement(TIntermLoop* node)
 int ForLoopUnroll::evaluateIntConstant(TIntermConstantUnion* node)
 {
     ASSERT((node != NULL) && (node->getUnionArrayPointer() != NULL));
-    return node->getUnionArrayPointer()->getIConst();
+    return node->getIConst(0);
 }
 

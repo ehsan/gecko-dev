@@ -1,7 +1,15 @@
-do_load_httpd_js();
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
+Cu.import("resource://testing-common/httpd.js");
 
 var httpserver = null;
-var uri = "http://localhost:4444/multipart";
+
+XPCOMUtils.defineLazyGetter(this, "uri", function() {
+  return "http://localhost:" + httpserver.identity.primaryPort + "/multipart";
+});
 
 function make_channel(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
@@ -71,14 +79,14 @@ var multipartListener = {
     } catch (ex) {
       do_throw("Error in closure function: " + ex);
     }
-  }  
+  }
 };
 
 function run_test()
 {
-  httpserver = new nsHttpServer();
+  httpserver = new HttpServer();
   httpserver.registerPathHandler("/multipart", contentHandler);
-  httpserver.start(4444);
+  httpserver.start(-1);
 
   var streamConv = Cc["@mozilla.org/streamConverters;1"]
                      .getService(Ci.nsIStreamConverterService);

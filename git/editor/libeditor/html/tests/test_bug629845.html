@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=629845
 -->
 <head>
   <title>Test for Bug 629845</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -27,10 +26,12 @@ function command(aName)
 {
   var frame = document.getElementsByTagName('iframe')[0];
 
+  is(frame.contentDocument.designMode, "on", "design mode should be on!");
   var caught = false;
   try {
     frame.contentDocument.execCommand(aName, false, null);
   } catch (e) {
+    ok(false, "exception " + e + " was thrown");
     caught = true;
   }
 

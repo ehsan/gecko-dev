@@ -1,6 +1,22 @@
 // This file tests bug 250375
 
-do_load_httpd_js();
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
+Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "URL", function() {
+  return "http://localhost:" + httpserv.identity.primaryPort + "/";
+});
+
+function inChildProcess() {
+  return Cc["@mozilla.org/xre/app-info;1"]
+           .getService(Ci.nsIXULRuntime)
+           .processType != Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT;  
+}
 
 function check_request_header(chan, name, value) {
   var chanValue;
@@ -47,7 +63,7 @@ var listener = {
 function makeChan() {
   var ios = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService);
-  var chan = ios.newChannel("http://localhost:4444/", null, null)
+  var chan = ios.newChannel(URL, null, null)
                 .QueryInterface(Components.interfaces.nsIHttpChannel);
 
   return chan;
@@ -56,8 +72,12 @@ function makeChan() {
 var httpserv = null;
 
 function run_test() {
-  httpserv = new nsHttpServer();
-  httpserv.start(4444);
+  // Allow all cookies if the pref service is available in this process.
+  if (!inChildProcess())
+    Services.prefs.setIntPref("network.cookie.cookieBehavior", 0);
+
+  httpserv = new HttpServer();
+  httpserv.start(-1);
 
   var chan = makeChan();
 

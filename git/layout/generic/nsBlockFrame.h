@@ -1,40 +1,8 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 // vim:cindent:ts=2:et:sw=2:
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
  * rendering object for CSS display:block, inline-block, and list-item
@@ -44,9 +12,8 @@
 #ifndef nsBlockFrame_h___
 #define nsBlockFrame_h___
 
-#include "nsHTMLContainerFrame.h"
+#include "nsContainerFrame.h"
 #include "nsHTMLParts.h"
-#include "nsAbsoluteContainingBlock.h"
 #include "nsLineBox.h"
 #include "nsCSSPseudoElements.h"
 #include "nsStyleSet.h"
@@ -80,11 +47,6 @@ class nsBulletFrame;
 class nsLineBox;
 class nsFirstLineFrame;
 class nsIntervalSet;
-/**
- * Child list name indices
- * @see #GetAdditionalChildListName()
- */
-#define NS_BLOCK_LIST_COUNT  (NS_CONTAINER_LIST_COUNT_INCL_OC + 5)
 
 /**
  * Some invariants:
@@ -128,14 +90,27 @@ class nsIntervalSet;
 // (including <BR CLEAR="..."> frames)
 #define NS_BLOCK_HAS_CLEAR_CHILDREN         NS_FRAME_STATE_BIT(27)
 
-#define nsBlockFrameSuper nsHTMLContainerFrame
+// This block has had a child marked dirty, so before we reflow we need
+// to look through the lines to find any such children and mark
+// appropriate lines dirty.
+#define NS_BLOCK_LOOK_FOR_DIRTY_FRAMES      NS_FRAME_STATE_BIT(61)
+
+// Are our cached intrinsic widths intrinsic widths for font size
+// inflation?  i.e., what was the current state of
+// GetPresContext()->mInflationDisabledForShrinkWrap at the time they
+// were computed?
+// nsBlockFrame is the only thing that caches intrinsic widths that
+// needs to track this because it's the only thing that caches intrinsic
+// widths that lives inside of things (form controls) that do intrinsic
+// sizing with font inflation enabled.
+#define NS_BLOCK_FRAME_INTRINSICS_INFLATED  NS_FRAME_STATE_BIT(62)
+
+#define nsBlockFrameSuper nsContainerFrame
 
 /*
  * Base class for block and inline frames.
- * The block frame has an additional named child list:
- * - "Absolute-list" which contains the absolutely positioned frames
- *
- * @see nsGkAtoms::absoluteList
+ * The block frame has an additional child list, kAbsoluteList, which
+ * contains the absolutely positioned frames.
  */ 
 class nsBlockFrame : public nsBlockFrameSuper
 {
@@ -159,59 +134,53 @@ public:
   line_iterator line(nsLineBox* aList) { return mLines.begin(aList); }
   reverse_line_iterator rline(nsLineBox* aList) { return mLines.rbegin(aList); }
 
-  friend nsIFrame* NS_NewBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
-
-  // This is a child list too, but we let nsBlockReflowState get to it
-  // directly too.
-  NS_DECLARE_FRAME_PROPERTY(PushedFloatProperty,
-                            nsContainerFrame::DestroyFrameList)
+  friend nsIFrame* NS_NewBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, uint32_t aFlags);
 
   // nsQueryFrame
   NS_DECL_QUERYFRAME
 
   // nsIFrame
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
-  NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
-                           nsFrameList&    aFrameList);
-  NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
+  virtual void Init(nsIContent*      aContent,
+                    nsIFrame*        aParent,
+                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+                                 nsFrameList&    aChildList) MOZ_OVERRIDE;
+  NS_IMETHOD  AppendFrames(ChildListID     aListID,
+                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
+  NS_IMETHOD  InsertFrames(ChildListID     aListID,
                            nsIFrame*       aPrevFrame,
-                           nsFrameList&    aFrameList);
-  NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
-                          nsIFrame*       aOldFrame);
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
-  virtual nscoord GetBaseline() const;
-  virtual nscoord GetCaretBaseline() const;
-  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
-  virtual nsSplittableType GetSplittableType() const;
-  virtual PRBool IsContainingBlock() const;
-  virtual PRBool IsFloatContainingBlock() const;
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
-  virtual void InvalidateInternal(const nsRect& aDamageRect,
-                                  nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  PRUint32 aFlags);
-  virtual nsIAtom* GetType() const;
-  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
+                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
+  NS_IMETHOD  RemoveFrame(ChildListID     aListID,
+                          nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+  virtual const nsFrameList& GetChildList(ChildListID aListID) const MOZ_OVERRIDE;
+  virtual void GetChildLists(nsTArray<ChildList>* aLists) const MOZ_OVERRIDE;
+  virtual nscoord GetBaseline() const MOZ_OVERRIDE;
+  virtual nscoord GetCaretBaseline() const MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual nsSplittableType GetSplittableType() const MOZ_OVERRIDE;
+  virtual bool IsFloatContainingBlock() const MOZ_OVERRIDE;
+  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
   {
     return nsContainerFrame::IsFrameOfType(aFlags &
              ~(nsIFrame::eCanContainOverflowContainers |
                nsIFrame::eBlockFrame));
   }
 
+  virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
+  virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
+
 #ifdef DEBUG
-  NS_IMETHOD List(FILE* out, PRInt32 aIndent) const;
-  NS_IMETHOD_(nsFrameState) GetDebugStateBits() const;
-  NS_IMETHOD GetFrameName(nsAString& aResult) const;
+  void List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const MOZ_OVERRIDE;
+  NS_IMETHOD_(nsFrameState) GetDebugStateBits() const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
 #endif
 
   // line cursor methods to speed up searching for the line(s)
@@ -228,7 +197,7 @@ public:
 
   // Clear out line cursor because we're disturbing the lines (i.e., Reflow)
   void ClearLineCursor();
-  // Get the first line that might contain y-coord 'y', or nsnull if you must search
+  // Get the first line that might contain y-coord 'y', or nullptr if you must search
   // all lines. If nonnull is returned then we guarantee that the lines'
   // combinedArea.ys and combinedArea.yMosts are non-decreasing.
   // The actual line returned might not contain 'y', but if not, it is guaranteed
@@ -239,69 +208,132 @@ public:
   // are non-decreasing.
   void SetupLineCursor();
 
-  virtual void ChildIsDirty(nsIFrame* aChild);
-  virtual PRBool IsVisibleInSelection(nsISelection* aSelection);
+  virtual void ChildIsDirty(nsIFrame* aChild) MOZ_OVERRIDE;
+  virtual bool IsVisibleInSelection(nsISelection* aSelection) MOZ_OVERRIDE;
 
-  virtual PRBool IsEmpty();
-  virtual PRBool CachedIsEmpty();
-  virtual PRBool IsSelfEmpty();
+  virtual bool IsEmpty() MOZ_OVERRIDE;
+  virtual bool CachedIsEmpty() MOZ_OVERRIDE;
+  virtual bool IsSelfEmpty() MOZ_OVERRIDE;
 
   // Given that we have a bullet, does it actually draw something, i.e.,
   // do we have either a 'list-style-type' or 'list-style-image' that is
   // not 'none'?
-  PRBool BulletIsEmpty() const;
+  bool BulletIsEmpty() const;
 
   /**
    * Return the bullet text equivalent.
    */
-  virtual void GetBulletText(nsAString& aText) const;
+  void GetBulletText(nsAString& aText) const;
 
   /**
    * Return true if there's a bullet.
    */
-  virtual bool HasBullet() const;
+  bool HasBullet() const {
+    return HasOutsideBullet() || HasInsideBullet();
+  }
 
-  virtual void MarkIntrinsicWidthsDirty();
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  /**
+   * @return true if this frame has an inside bullet frame.
+   */
+  bool HasInsideBullet() const {
+    return 0 != (mState & NS_BLOCK_FRAME_HAS_INSIDE_BULLET);
+  }
 
-  virtual nsRect ComputeTightBounds(gfxContext* aContext) const;
+  /**
+   * @return true if this frame has an outside bullet frame.
+   */
+  bool HasOutsideBullet() const {
+    return 0 != (mState & NS_BLOCK_FRAME_HAS_OUTSIDE_BULLET);
+  }
+
+  /**
+   * @return the bullet frame or nullptr if we don't have one.
+   */
+  nsBulletFrame* GetBullet() const {
+    nsBulletFrame* outside = GetOutsideBullet();
+    return outside ? outside : GetInsideBullet();
+  }
+
+  virtual void MarkIntrinsicWidthsDirty() MOZ_OVERRIDE;
+private:
+  void CheckIntrinsicCacheAgainstShrinkWrapState();
+public:
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+
+  virtual nsRect ComputeTightBounds(gfxContext* aContext) const MOZ_OVERRIDE;
   
+  /**
+   * Compute the final height of this frame.
+   *
+   * @param aReflowState Data structure passed from parent during reflow.
+   * @param aReflowStatus A pointed to the reflow status for when we're finished
+   *        doing reflow. this will get set appropriately if the height causes
+   *        us to exceed the current available (page) height.
+   * @param aContentHeight The height of content, precomputed outside of this
+   *        function. The final height that is used in aMetrics will be set to
+   *        either this or the available height, whichever is larger, in the
+   *        case where our available height is constrained, and we overflow that
+   *        available height.
+   * @param aBorderPadding The margins representing the border padding for block
+   *        frames. Can be 0.
+   * @param aMetrics Out parameter for final height. Taken as an
+   *        nsHTMLReflowMetrics object so that aMetrics can be passed in
+   *        directly during reflow.
+   * @param aConsumed The height already consumed by our previous-in-flows.
+   */
+  void ComputeFinalHeight(const nsHTMLReflowState& aReflowState,
+                          nsReflowStatus*          aStatus,
+                          nscoord                  aContentHeight,
+                          const nsMargin&          aBorderPadding,
+                          nsHTMLReflowMetrics&     aMetrics,
+                          nscoord                  aConsumed);
+
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus);
+                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
-  NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
+  NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              PRInt32         aModType);
+                              int32_t         aModType) MOZ_OVERRIDE;
+
+  /**
+   * Move any frames on our overflow list to the end of our principal list.
+   * @return true if there were any overflow frames
+   */
+  virtual bool DrainSelfOverflowList() MOZ_OVERRIDE;
 
   virtual nsresult StealFrame(nsPresContext* aPresContext,
                               nsIFrame*      aChild,
-                              PRBool         aForceNormal = PR_FALSE);
+                              bool           aForceNormal = false) MOZ_OVERRIDE;
 
   virtual void DeleteNextInFlowChild(nsPresContext* aPresContext,
                                      nsIFrame*      aNextInFlow,
-                                     PRBool         aDeletingEmptyFrames);
+                                     bool           aDeletingEmptyFrames) MOZ_OVERRIDE;
 
   /**
    * Determines whether the collapsed margin carried out of the last
    * line includes the margin-top of a line with clearance (in which
    * case we must avoid collapsing that margin with our bottom margin)
    */
-  PRBool CheckForCollapsedBottomMarginFromClearanceLine();
+  bool CheckForCollapsedBottomMarginFromClearanceLine();
 
   static nsresult GetCurrentLine(nsBlockReflowState *aState, nsLineBox **aOutCurrentLine);
 
-  static PRBool BlockIsMarginRoot(nsIFrame* aBlock);
-  static PRBool BlockNeedsFloatManager(nsIFrame* aBlock);
+  /**
+   * Determine if this block is a margin root at the top/bottom edges.
+   */
+  void IsMarginRoot(bool* aTopMarginRoot, bool* aBottomMarginRoot);
+
+  static bool BlockNeedsFloatManager(nsIFrame* aBlock);
 
   /**
    * Returns whether aFrame is a block frame that will wrap its contents
    * around floats intruding on it from the outside.  (aFrame need not
    * be a block frame, but if it's not, the result will be false.)
    */
-  static PRBool BlockCanIntersectFloats(nsIFrame* aFrame);
+  static bool BlockCanIntersectFloats(nsIFrame* aFrame);
 
   /**
    * Returns the width that needs to be cleared past floats for blocks
@@ -336,12 +368,16 @@ public:
    */
   static nsBlockFrame* GetNearestAncestorBlock(nsIFrame* aCandidate);
   
+  struct FrameLines {
+    nsLineList mLines;
+    nsFrameList mFrames;
+  };
+
 protected:
   nsBlockFrame(nsStyleContext* aContext)
-    : nsHTMLContainerFrame(aContext)
+    : nsContainerFrame(aContext)
     , mMinWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
     , mPrefWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
-    , mAbsoluteContainer(nsGkAtoms::absoluteList)
   {
 #ifdef DEBUG
   InitDebugFlags();
@@ -361,41 +397,39 @@ protected:
 #endif
 #endif
 
-  /*
-   * Overides member function of nsHTMLContainerFrame. Needed to handle the 
-   * lines in a nsBlockFrame properly.
-   */
-  virtual void PaintTextDecorationLine(gfxContext* aCtx,
-                                       const nsPoint& aPt,
-                                       nsLineBox* aLine,
-                                       nscolor aColor,
-                                       PRUint8 aStyle,
-                                       gfxFloat aOffset,
-                                       gfxFloat aAscent,
-                                       gfxFloat aSize,
-                                       const PRUint8 aDecoration);
+  NS_DECLARE_FRAME_PROPERTY(LineCursorProperty, nullptr)
+  nsLineBox* GetLineCursor() {
+    return (GetStateBits() & NS_BLOCK_HAS_LINE_CURSOR) ?
+      static_cast<nsLineBox*>(Properties().Get(LineCursorProperty())) : nullptr;
+  }
 
-  virtual void AdjustForTextIndent(const nsLineBox* aLine,
-                                   nscoord& start,
-                                   nscoord& width);
+  nsLineBox* NewLineBox(nsIFrame* aFrame, bool aIsBlock) {
+    return NS_NewLineBox(PresContext()->PresShell(), aFrame, aIsBlock);
+  }
+  nsLineBox* NewLineBox(nsLineBox* aFromLine, nsIFrame* aFrame, int32_t aCount) {
+    return NS_NewLineBox(PresContext()->PresShell(), aFromLine, aFrame, aCount);
+  }
+  void FreeLineBox(nsLineBox* aLine) {
+    if (aLine == GetLineCursor()) {
+      ClearLineCursor();
+    }
+    aLine->Destroy(PresContext()->PresShell());
+  }
+  /**
+   * Helper method for StealFrame.
+   */
+  void RemoveFrameFromLine(nsIFrame* aChild, nsLineList::iterator aLine,
+                           nsFrameList& aFrameList, nsLineList& aLineList);
 
   void TryAllLines(nsLineList::iterator* aIterator,
                    nsLineList::iterator* aStartIterator,
                    nsLineList::iterator* aEndIterator,
-                   PRBool* aInOverflowLines);
+                   bool*        aInOverflowLines,
+                   FrameLines** aOverflowLines);
 
   void SetFlags(nsFrameState aFlags) {
     mState &= ~NS_BLOCK_FLAGS_MASK;
     mState |= aFlags;
-  }
-
-  PRBool HaveOutsideBullet() const {
-#if defined(DEBUG) && !defined(DEBUG_rods)
-    if(mState & NS_BLOCK_FRAME_HAS_OUTSIDE_BULLET) {
-      NS_ASSERTION(mBullet,"NS_BLOCK_FRAME_HAS_OUTSIDE_BULLET flag set and no mBullet");
-    }
-#endif
-    return 0 != (mState & NS_BLOCK_FRAME_HAS_OUTSIDE_BULLET);
   }
 
   /** move the frames contained by aLine by aDY
@@ -404,25 +438,25 @@ protected:
   void SlideLine(nsBlockReflowState& aState,
                  nsLineBox* aLine, nscoord aDY);
 
-  virtual PRIntn GetSkipSides() const;
+  void ComputeFinalSize(const nsHTMLReflowState& aReflowState,
+                        nsBlockReflowState&      aState,
+                        nsHTMLReflowMetrics&     aMetrics,
+                        nscoord*                 aBottomEdgeOfChildren);
 
-  virtual void ComputeFinalSize(const nsHTMLReflowState& aReflowState,
-                                nsBlockReflowState&      aState,
-                                nsHTMLReflowMetrics&     aMetrics,
-                                nscoord*                 aBottomEdgeOfChildren);
+  void ComputeOverflowAreas(const nsRect&         aBounds,
+                            const nsStyleDisplay* aDisplay,
+                            nscoord               aBottomEdgeOfChildren,
+                            nsOverflowAreas&      aOverflowAreas);
 
-  void ComputeOverflowAreas(const nsHTMLReflowState& aReflowState,
-                            nsHTMLReflowMetrics&     aMetrics,
-                            nscoord                  aBottomEdgeOfChildren);
-
-  /** add the frames in aFrameList to this block after aPrevSibling
-    * this block thinks in terms of lines, but the frame construction code
-    * knows nothing about lines at all. So we need to find the line that
-    * contains aPrevSibling and add aFrameList after aPrevSibling on that line.
-    * new lines are created as necessary to handle block data in aFrameList.
-    * This function will clear aFrameList.
-    */
-  virtual nsresult AddFrames(nsFrameList& aFrameList, nsIFrame* aPrevSibling);
+  /**
+   * Add the frames in aFrameList to this block after aPrevSibling.
+   * This block thinks in terms of lines, but the frame construction code
+   * knows nothing about lines at all so we need to find the line that
+   * contains aPrevSibling and add aFrameList after aPrevSibling on that line.
+   * New lines are created as necessary to handle block data in aFrameList.
+   * This function will clear aFrameList.
+   */
+  void AddFrames(nsFrameList& aFrameList, nsIFrame* aPrevSibling);
 
 #ifdef IBMBIDI
   /**
@@ -438,7 +472,7 @@ protected:
    * @param aPresContext the pres context
    * @return whether the frame is a BIDI form control
    */
-  PRBool IsVisualFormControl(nsPresContext* aPresContext);
+  bool IsVisualFormControl(nsPresContext* aPresContext);
 #endif
 
 public:
@@ -456,11 +490,12 @@ public:
     REMOVE_FIXED_CONTINUATIONS = 0x02,
     FRAMES_ARE_EMPTY           = 0x04
   };
-  nsresult DoRemoveFrame(nsIFrame* aDeletedFrame, PRUint32 aFlags);
+  nsresult DoRemoveFrame(nsIFrame* aDeletedFrame, uint32_t aFlags);
 
-  void ReparentFloats(nsIFrame* aFirstFrame,
-                      nsBlockFrame* aOldParent, PRBool aFromOverflow,
-                      PRBool aReparentSiblings);
+  void ReparentFloats(nsIFrame* aFirstFrame, nsBlockFrame* aOldParent,
+                      bool aReparentSiblings);
+
+  virtual bool UpdateOverflow() MOZ_OVERRIDE;
 
   /** Load all of aFrame's floats into the float manager iff aFrame is not a
    *  block formatting context. Handles all necessary float manager translations;
@@ -470,13 +505,59 @@ public:
   static void RecoverFloatsFor(nsIFrame*       aFrame,
                                nsFloatManager& aFloatManager);
 
+  /**
+   * Determine if we have any pushed floats from a previous continuation.
+   *
+   * @returns true, if any of the floats at the beginning of our mFloats list
+   *          have the NS_FRAME_IS_PUSHED_FLOAT bit set; false otherwise.
+   */
+  bool HasPushedFloatsFromPrevContinuation() const {
+    if (!mFloats.IsEmpty()) {
+      // If we have pushed floats, then they should be at the beginning of our
+      // float list.
+      if (mFloats.FirstChild()->GetStateBits() & NS_FRAME_IS_PUSHED_FLOAT) {
+        return true;
+      }
+    }
+
+#ifdef DEBUG
+    // Double-check the above assertion that pushed floats should be at the
+    // beginning of our floats list.
+    for (nsFrameList::Enumerator e(mFloats); !e.AtEnd(); e.Next()) {
+      nsIFrame* f = e.get();
+      NS_ASSERTION(!(f->GetStateBits() & NS_FRAME_IS_PUSHED_FLOAT),
+        "pushed floats must be at the beginning of the float list");
+    }
+#endif
+    return false;
+  }
+
 protected:
 
   /** grab overflow lines from this block's prevInFlow, and make them
     * part of this block's mLines list.
-    * @return PR_TRUE if any lines were drained.
+    * @return true if any lines were drained.
     */
-  PRBool DrainOverflowLines(nsBlockReflowState& aState);
+  bool DrainOverflowLines();
+
+  /**
+   * @return false iff this block does not have a float on any child list.
+   * This function is O(1).
+   */
+  bool MaybeHasFloats() const {
+    if (!mFloats.IsEmpty()) {
+      return true;
+    }
+    // XXX this could be replaced with HasPushedFloats() if we enforced
+    // removing the property when the frame list becomes empty.
+    nsFrameList* list = GetPushedFloats();
+    if (list && !list->IsEmpty()) {
+      return true;
+    }
+    // For the OverflowOutOfFlowsProperty I think we do enforce that, but it's
+    // a mix of out-of-flow frames, so that's why the method name has "Maybe".
+    return GetStateBits() & NS_BLOCK_HAS_OVERFLOW_OUT_OF_FLOWS;
+  }
 
   /** grab pushed floats from this block's prevInFlow, and splice
     * them into this block's mFloats list.
@@ -490,29 +571,39 @@ protected:
 
   /** Reflow pushed floats
    */
-  nsresult ReflowPushedFloats(nsBlockReflowState& aState,
-                              nsOverflowAreas&    aOverflowAreas,
-                              nsReflowStatus&     aStatus);
+  void ReflowPushedFloats(nsBlockReflowState& aState,
+                          nsOverflowAreas&    aOverflowAreas,
+                          nsReflowStatus&     aStatus);
 
   /** Find any trailing BR clear from the last line of the block (or its PIFs)
    */
-  PRUint8 FindTrailingClear();
+  uint8_t FindTrailingClear();
 
   /**
-    * Remove a float from our float list and also the float cache
-    * for the line its placeholder is on.
-    */
-  line_iterator RemoveFloat(nsIFrame* aFloat);
+   * Remove a float from our float list.
+   */
+  void RemoveFloat(nsIFrame* aFloat);
+  /**
+   * Remove a float from the float cache for the line its placeholder is on.
+   */
+  void RemoveFloatFromFloatCache(nsIFrame* aFloat);
 
   void CollectFloats(nsIFrame* aFrame, nsFrameList& aList,
-                     PRBool aFromOverflow, PRBool aCollectFromSiblings);
+                     bool aCollectFromSiblings) {
+    if (MaybeHasFloats()) {
+      DoCollectFloats(aFrame, aList, aCollectFromSiblings);
+    }
+  }
+  void DoCollectFloats(nsIFrame* aFrame, nsFrameList& aList,
+                       bool aCollectFromSiblings);
+
   // Remove a float, abs, rel positioned frame from the appropriate block's list
   static void DoRemoveOutOfFlowFrame(nsIFrame* aFrame);
 
   /** set up the conditions necessary for an resize reflow
     * the primary task is to mark the minimumly sufficient lines dirty. 
     */
-  nsresult PrepareResizeReflow(nsBlockReflowState& aState);
+  void PrepareResizeReflow(nsBlockReflowState& aState);
 
   /** reflow all lines that have been marked dirty */
   nsresult ReflowDirtyLines(nsBlockReflowState& aState);
@@ -531,18 +622,24 @@ protected:
    */
   nsresult ReflowLine(nsBlockReflowState& aState,
                       line_iterator aLine,
-                      PRBool* aKeepReflowGoing);
+                      bool* aKeepReflowGoing);
 
   // Return false if it needs another reflow because of reduced space
   // between floats that are next to it (but not next to its top), and
   // return true otherwise.
-  PRBool PlaceLine(nsBlockReflowState& aState,
+  bool PlaceLine(nsBlockReflowState& aState,
                    nsLineLayout&       aLineLayout,
                    line_iterator       aLine,
                    nsFloatManager::SavedState* aFloatStateBeforeLine,
                    nsRect&             aFloatAvailableSpace, /* in-out */
                    nscoord&            aAvailableSpaceHeight, /* in-out */
-                   PRBool*             aKeepReflowGoing);
+                   bool*             aKeepReflowGoing);
+
+  /**
+    * If NS_BLOCK_LOOK_FOR_DIRTY_FRAMES is set, call MarkLineDirty
+    * on any line with a child frame that is dirty.
+    */
+  void LazyMarkLinesDirty();
 
   /**
    * Mark |aLine| dirty, and, if necessary because of possible
@@ -550,15 +647,13 @@ protected:
    * on those lines because the text in the lines might have changed due to
    * addition/removal of frames.
    * @param aLine the line to mark dirty
-   * @param aLineList the line list containing that line, null means the line
-   *        is in 'mLines' of this frame.
+   * @param aLineList the line list containing that line
    */
-  nsresult MarkLineDirty(line_iterator aLine,
-                         const nsLineList* aLineList = nsnull);
+  void MarkLineDirty(line_iterator aLine, const nsLineList* aLineList);
 
   // XXX where to go
-  PRBool ShouldJustifyLine(nsBlockReflowState& aState,
-                           line_iterator aLine);
+  bool IsLastLine(nsBlockReflowState& aState,
+                  line_iterator aLine);
 
   void DeleteLine(nsBlockReflowState& aState,
                   nsLineList::iterator aLine,
@@ -567,16 +662,16 @@ protected:
   //----------------------------------------
   // Methods for individual frame reflow
 
-  PRBool ShouldApplyTopMargin(nsBlockReflowState& aState,
+  bool ShouldApplyTopMargin(nsBlockReflowState& aState,
                               nsLineBox* aLine);
 
   nsresult ReflowBlockFrame(nsBlockReflowState& aState,
                             line_iterator aLine,
-                            PRBool* aKeepGoing);
+                            bool* aKeepGoing);
 
   nsresult ReflowInlineFrames(nsBlockReflowState& aState,
                               line_iterator aLine,
-                              PRBool* aKeepLineGoing);
+                              bool* aKeepLineGoing);
 
   nsresult DoReflowInlineFrames(nsBlockReflowState& aState,
                                 nsLineLayout& aLineLayout,
@@ -585,9 +680,9 @@ protected:
                                 nscoord& aAvailableSpaceHeight,
                                 nsFloatManager::SavedState*
                                   aFloatStateBeforeLine,
-                                PRBool* aKeepReflowGoing,
+                                bool* aKeepReflowGoing,
                                 LineReflowStatus* aLineReflowStatus,
-                                PRBool aAllowPullUp);
+                                bool aAllowPullUp);
 
   nsresult ReflowInlineFrame(nsBlockReflowState& aState,
                              nsLineLayout& aLineLayout,
@@ -611,10 +706,11 @@ protected:
                        const nsRect&       aAdjustedAvailableSpace,
                        nsIFrame*           aFloat,
                        nsMargin&           aFloatMargin,
+                       nsMargin&           aFloatOffsets,
                        // Whether the float's position
                        // (aAdjustedAvailableSpace) has been pushed down
                        // due to the presence of other floats.
-                       PRBool              aFloatPushedDown,
+                       bool                aFloatPushedDown,
                        nsReflowStatus&     aReflowStatus);
 
   //----------------------------------------
@@ -626,30 +722,31 @@ protected:
    * @param aState the block reflow state
    * @param aLine where to put a new frame
    * @param aFrame the frame
-   * @param aMadeNewFrame PR_TRUE if a new frame was created, PR_FALSE if not
-   * @return NS_OK if a next-in-flow already exists or is successfully created
+   * @return true if a new frame was created, false if not
    */
-  virtual nsresult CreateContinuationFor(nsBlockReflowState& aState,
-                                         nsLineBox*          aLine,
-                                         nsIFrame*           aFrame,
-                                         PRBool&             aMadeNewFrame);
+  bool CreateContinuationFor(nsBlockReflowState& aState,
+                             nsLineBox*          aLine,
+                             nsIFrame*           aFrame);
 
-  // Push aLine, which cannot be placed on this page/column but should
-  // fit on a future one.  Set aKeepReflowGoing to false.
+  /**
+   * Push aLine (and any after it), since it cannot be placed on this
+   * page/column.  Set aKeepReflowGoing to false and set
+   * flag aState.mReflowStatus as incomplete.
+   */
   void PushTruncatedLine(nsBlockReflowState& aState,
                          line_iterator       aLine,
-                         PRBool&             aKeepReflowGoing);
+                         bool*               aKeepReflowGoing);
 
-  nsresult SplitLine(nsBlockReflowState& aState,
-                     nsLineLayout& aLineLayout,
-                     line_iterator aLine,
-                     nsIFrame* aFrame,
-                     LineReflowStatus* aLineReflowStatus);
+  void SplitLine(nsBlockReflowState& aState,
+                 nsLineLayout& aLineLayout,
+                 line_iterator aLine,
+                 nsIFrame* aFrame,
+                 LineReflowStatus* aLineReflowStatus);
 
   /**
    * Pull a frame from the next available location (one of our lines or
    * one of our next-in-flows lines).
-   * @return the pulled frame or nsnull
+   * @return the pulled frame or nullptr
    */
   nsIFrame* PullFrame(nsBlockReflowState& aState,
                       line_iterator       aLine);
@@ -664,14 +761,17 @@ protected:
    * it dirty) and the code at the top of ReflowLine empties the
    * array. So eventually, it will be removed, just not right away.
    *
-   * @return the pulled frame or nsnull
+   * @return the pulled frame or nullptr
    */
-  nsIFrame* PullFrameFrom(nsBlockReflowState&  aState,
-                          nsLineBox*           aLine,
+  nsIFrame* PullFrameFrom(nsLineBox*           aLine,
                           nsBlockFrame*        aFromContainer,
-                          PRBool               aFromOverflowLine,
                           nsLineList::iterator aFromLine);
 
+  /**
+   * Push the line after aLineBefore to the overflow line list.
+   * @param aLineBefore a line in 'mLines' (or begin_lines() when
+   *        pushing the first line)
+   */
   void PushLines(nsBlockReflowState& aState,
                  nsLineList::iterator aLineBefore);
 
@@ -684,41 +784,42 @@ protected:
   //----------------------------------------
   // List handling kludge
 
-  // If this returns PR_TRUE, the block it's called on should get the
+  // If this returns true, the block it's called on should get the
   // NS_FRAME_HAS_DIRTY_CHILDREN bit set on it by the caller; either directly
   // if it's already in reflow, or via calling FrameNeedsReflow() to schedule a
   // reflow.
-  PRBool RenumberLists(nsPresContext* aPresContext);
+  bool RenumberLists(nsPresContext* aPresContext);
 
-  static PRBool RenumberListsInBlock(nsPresContext* aPresContext,
-                                     nsBlockFrame* aBlockFrame,
-                                     PRInt32* aOrdinal,
-                                     PRInt32 aDepth);
+  static bool RenumberListsInBlock(nsPresContext* aPresContext,
+                                   nsBlockFrame* aBlockFrame,
+                                   int32_t* aOrdinal,
+                                   int32_t aDepth,
+                                   int32_t aIncrement);
 
-  static PRBool RenumberListsFor(nsPresContext* aPresContext, nsIFrame* aKid, PRInt32* aOrdinal, PRInt32 aDepth);
+  static bool RenumberListsFor(nsPresContext* aPresContext, nsIFrame* aKid,
+                               int32_t* aOrdinal, int32_t aDepth,
+                               int32_t aIncrement);
 
-  static PRBool FrameStartsCounterScope(nsIFrame* aFrame);
+  static bool FrameStartsCounterScope(nsIFrame* aFrame);
 
-  void ReflowBullet(nsBlockReflowState& aState,
+  void ReflowBullet(nsIFrame* aBulletFrame,
+                    nsBlockReflowState& aState,
                     nsHTMLReflowMetrics& aMetrics,
                     nscoord aLineTop);
 
   //----------------------------------------
 
-  virtual nsILineIterator* GetLineIterator();
+  virtual nsILineIterator* GetLineIterator() MOZ_OVERRIDE;
 
 public:
-  nsLineList* GetOverflowLines() const;
+  bool HasOverflowLines() const {
+    return 0 != (GetStateBits() & NS_BLOCK_HAS_OVERFLOW_LINES);
+  }
+  FrameLines* GetOverflowLines() const;
 protected:
-  nsLineList* RemoveOverflowLines();
-  nsresult SetOverflowLines(nsLineList* aOverflowLines);
-
-  // Determine the computed height that's in effect for this block
-  // frame (that is, our computed height minus the heights of our
-  // previous in-flows).
-  // XXXbz this clearly makes laying out a block with N in-flows
-  // O(N^2)!  Good thing the constant is tiny.
-  nscoord GetEffectiveComputedHeight(const nsHTMLReflowState& aReflowState) const;
+  FrameLines* RemoveOverflowLines();
+  void SetOverflowLines(FrameLines* aOverflowLines);
+  void DestroyOverflowLines();
 
   /**
    * This class is useful for efficiently modifying the out of flow
@@ -748,7 +849,31 @@ protected:
   nsFrameList* GetOverflowOutOfFlows() const;
   void SetOverflowOutOfFlows(const nsFrameList& aList, nsFrameList* aPropValue);
 
-  // Get the pushed floats list
+  /**
+   * @return the inside bullet frame or nullptr if we don't have one.
+   */
+  nsBulletFrame* GetInsideBullet() const;
+
+  /**
+   * @return the outside bullet frame or nullptr if we don't have one.
+   */
+  nsBulletFrame* GetOutsideBullet() const;
+
+  /**
+   * @return the outside bullet frame list frame property.
+   */
+  nsFrameList* GetOutsideBulletList() const;
+
+  /**
+   * @return true if this frame has pushed floats.
+   */
+  bool HasPushedFloats() const {
+    return 0 != (GetStateBits() & NS_BLOCK_HAS_PUSHED_FLOATS);
+  }
+
+  // Get the pushed floats list, which is used for *temporary* storage
+  // of floats during reflow, between when we decide they don't fit in
+  // this block until our next continuation takes them.
   nsFrameList* GetPushedFloats() const;
   // Get the pushed floats list, or if there is not currently one,
   // make a new empty one.
@@ -756,10 +881,10 @@ protected:
   // Remove and return the pushed floats list.
   nsFrameList* RemovePushedFloats();
 
-#ifdef NS_DEBUG
-  void VerifyLines(PRBool aFinalCheckOK);
+#ifdef DEBUG
+  void VerifyLines(bool aFinalCheckOK);
   void VerifyOverflowSituation();
-  PRInt32 GetDepth() const;
+  int32_t GetDepth() const;
 #endif
 
   nscoord mMinWidth, mPrefWidth;
@@ -767,33 +892,26 @@ protected:
   nsLineList mLines;
 
   // List of all floats in this block
+  // XXXmats blocks rarely have floats, make it a frame property
   nsFrameList mFloats;
-
-  // XXX_fix_me: subclass one more time!
-  // For list-item frames, this is the bullet frame.
-  nsBulletFrame* mBullet;
 
   friend class nsBlockReflowState;
   friend class nsBlockInFlowLineIterator;
 
-private:
-  nsAbsoluteContainingBlock mAbsoluteContainer;
-
-
 #ifdef DEBUG
 public:
-  static PRBool gLamePaintMetrics;
-  static PRBool gLameReflowMetrics;
-  static PRBool gNoisy;
-  static PRBool gNoisyDamageRepair;
-  static PRBool gNoisyIntrinsic;
-  static PRBool gNoisyReflow;
-  static PRBool gReallyNoisyReflow;
-  static PRBool gNoisyFloatManager;
-  static PRBool gVerifyLines;
-  static PRBool gDisableResizeOpt;
+  static bool gLamePaintMetrics;
+  static bool gLameReflowMetrics;
+  static bool gNoisy;
+  static bool gNoisyDamageRepair;
+  static bool gNoisyIntrinsic;
+  static bool gNoisyReflow;
+  static bool gReallyNoisyReflow;
+  static bool gNoisyFloatManager;
+  static bool gVerifyLines;
+  static bool gDisableResizeOpt;
 
-  static PRInt32 gNoiseIndent;
+  static int32_t gNoiseIndent;
 
   static const char* kReflowCommandType[];
 
@@ -805,7 +923,7 @@ protected:
 #ifdef DEBUG
 class AutoNoisyIndenter {
 public:
-  AutoNoisyIndenter(PRBool aDoIndent) : mIndented(aDoIndent) {
+  AutoNoisyIndenter(bool aDoIndent) : mIndented(aDoIndent) {
     if (mIndented) {
       nsBlockFrame::gNoiseIndent++;
     }
@@ -816,7 +934,7 @@ public:
     }
   }
 private:
-  PRBool mIndented;
+  bool mIndented;
 };
 #endif
 
@@ -826,14 +944,18 @@ private:
 class nsBlockInFlowLineIterator {
 public:
   typedef nsBlockFrame::line_iterator line_iterator;
-  nsBlockInFlowLineIterator(nsBlockFrame* aFrame, line_iterator aLine, PRBool aInOverflow);
+  /**
+   * Set up the iterator to point to aLine which must be a normal line
+   * in aFrame (not an overflow line).
+   */
+  nsBlockInFlowLineIterator(nsBlockFrame* aFrame, line_iterator aLine);
   /**
    * Set up the iterator to point to the first line found starting from
    * aFrame. Sets aFoundValidLine to false if there is no such line.
    * After aFoundValidLine has returned false, don't call any methods on this
    * object again.
    */
-  nsBlockInFlowLineIterator(nsBlockFrame* aFrame, PRBool* aFoundValidLine);
+  nsBlockInFlowLineIterator(nsBlockFrame* aFrame, bool* aFoundValidLine);
   /**
    * Set up the iterator to point to the line that contains aFindFrame (either
    * directly or indirectly).  If aFrame is out of flow, or contained in an
@@ -843,18 +965,18 @@ public:
    * object again.
    */
   nsBlockInFlowLineIterator(nsBlockFrame* aFrame, nsIFrame* aFindFrame,
-                            PRBool* aFoundValidLine);
+                            bool* aFoundValidLine);
 
   line_iterator GetLine() { return mLine; }
-  PRBool IsLastLineInList();
+  bool IsLastLineInList();
   nsBlockFrame* GetContainer() { return mFrame; }
-  PRBool GetInOverflow() { return mInOverflowLines != nsnull; }
+  bool GetInOverflow() { return mLineList != &mFrame->mLines; }
 
   /**
    * Returns the current line list we're iterating, null means
    * we're iterating |mLines| of the container.
    */
-  nsLineList* GetLineList() { return mInOverflowLines; }
+  nsLineList* GetLineList() { return mLineList; }
 
   /**
    * Returns the end-iterator of whatever line list we're in.
@@ -865,23 +987,27 @@ public:
    * Returns false if there are no more lines. After this has returned false,
    * don't call any methods on this object again.
    */
-  PRBool Next();
+  bool Next();
   /**
    * Returns false if there are no more lines. After this has returned false,
    * don't call any methods on this object again.
    */
-  PRBool Prev();
+  bool Prev();
 
 private:
+  friend class nsBlockFrame;
+  // XXX nsBlockFrame uses this internally in one place.  Try to remove it.
+  nsBlockInFlowLineIterator(nsBlockFrame* aFrame, line_iterator aLine, bool aInOverflow);
+
   nsBlockFrame* mFrame;
   line_iterator mLine;
-  nsLineList*   mInOverflowLines;
+  nsLineList*   mLineList;  // the line list mLine is in
 
   /**
    * Moves iterator to next valid line reachable from the current block.
    * Returns false if there are no valid lines.
    */
-  PRBool FindValidLine();
+  bool FindValidLine();
 };
 
 #endif /* nsBlockFrame_h___ */

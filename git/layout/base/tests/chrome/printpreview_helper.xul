@@ -27,7 +27,7 @@ function printpreview() {
   gWbp = window.frames[1].QueryInterface(Components.interfaces.nsIInterfaceRequestor)
              .getInterface(Components.interfaces.nsIWebBrowserPrint);
   var listener = {
-    onLocationChange: function(webProgress, request, location) { },
+    onLocationChange: function(webProgress, request, location, flags) { },
     onProgressChange: function(webProgress, request, curSelfProgress, 
                                maxSelfProgress, curTotalProgress,
                                maxTotalProgress) { },
@@ -65,6 +65,11 @@ function exitprintpreview() {
    .getInterface(Components.interfaces.nsIWebBrowserPrint).exitPrintPreview(); 
 }
 
+function finish() {
+  SimpleTest.finish();
+  window.close();
+}
+
 function runTests()
 {
   var printService = Components.classes["@mozilla.org/gfx/printsettings-service;1"]
@@ -75,7 +80,7 @@ function runTests()
               .getService(Components.interfaces.nsIPrinterEnumerator);
   } catch(e) {
     todo(false, "Test skipped on MacOSX, as the print preview code doesn't work there");
-    SimpleTest.finish();
+    finish();
     return;
   }
 
@@ -83,7 +88,7 @@ function runTests()
     startTest1();
   } else {
     todo(false, "No printer seems installed on this machine, that is necessary for this test");
-    SimpleTest.finish();
+    finish();
   }
 }
 
@@ -239,8 +244,24 @@ function runTest5() {
     '<input contenteditable="true" style="display: table; page-break-before: left; width: 10000px;">';
   printpreview();
   exitprintpreview();
-  SimpleTest.finish();
-  window.close();
+
+  setTimeout(runTest6, 0);
+}
+
+// Crash test for bug 878037
+function runTest6() {
+  window.frames[0].document.body.innerHTML =
+    '<style> li { list-style-image: url("animated.gif"); } </style>' +
+    '<li>Firefox will crash if you try and print this page</li>';
+
+  setTimeout(runTest6end, 500);
+}
+
+function runTest6end() {
+  printpreview();
+  exitprintpreview();
+
+  finish();
 }
 
 ]]></script>

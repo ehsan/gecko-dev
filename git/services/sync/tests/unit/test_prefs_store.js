@@ -1,10 +1,18 @@
-Cu.import("resource://services-sync/engines/prefs.js");
-Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/ext/Preferences.js");
-Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
 
-const PREFS_GUID = Utils.encodeBase64url(Services.appinfo.ID);
+Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
+Cu.import("resource://gre/modules/Preferences.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://services-common/utils.js");
+Cu.import("resource://services-sync/engines/prefs.js");
+Cu.import("resource://services-sync/service.js");
+Cu.import("resource://services-sync/util.js");
+
+const PREFS_GUID = CommonUtils.encodeBase64URL(Services.appinfo.ID);
+
+loadAddonTestFunctions();
+startupManager();
 
 function makePersona(id) {
   return {
@@ -15,7 +23,7 @@ function makePersona(id) {
 }
 
 function run_test() {
-  let store = new PrefsEngine()._store;
+  let store = Service.engineManager.get("prefs")._store;
   let prefs = new Preferences();
   try {
 
@@ -36,7 +44,7 @@ function run_test() {
 
     _("The GUID corresponds to XUL App ID.");
     let allIDs = store.getAllIDs();
-    let ids = [id for (id in allIDs)];
+    let ids = Object.keys(allIDs);
     do_check_eq(ids.length, 1);
     do_check_eq(ids[0], PREFS_GUID);
     do_check_true(allIDs[PREFS_GUID], true);
@@ -66,7 +74,7 @@ function run_test() {
     do_check_eq(record.value["services.sync.prefs.sync.testing.nonexistent"], true);
 
     _("Update some prefs, including one that's to be reset/deleted.");
-    Svc.Prefs.set("testing.deleteme", "I'm going to be deleted!"); 
+    Svc.Prefs.set("testing.deleteme", "I'm going to be deleted!");
     record = new PrefRec("prefs", PREFS_GUID);
     record.value = {
       "testing.int": 42,

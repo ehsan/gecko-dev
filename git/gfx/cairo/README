@@ -8,11 +8,7 @@ http://www.cairographics.org/.
 VERSIONS:
 
   cairo (12d521df8acc483b2daa844d4f05dc2fe2765ba6)
-  pixman (2f4f2fb4859931bf6dc5632d8c919e7296736427)
-
-***** NOTE FOR VISUAL C++ 6.0 *****
-
-VC6 is not supported.  Please upgrade to VC8.
+  pixman (0.24.2)
 
 ==== Patches ====
 
@@ -29,8 +25,6 @@ buggy-repeat.patch: Unconditionally turn on buggy-repeat handling to bandaid bug
 cairo-version-fixes.patch: fix up cairo-version.c/cairo-version.h for in-place builds
 
 win32-ddb-dib.patch: fix for bug 455513; not upstream yet pending feebdack
-
-wince-fixes.patch: stubs out win32 functions we use but are not supported on win32.  Also implements ExtSelectClipRgn in terms of other functions available on wince.
 
 win32-vertically-offset-glyph.patch: bug 454098; vertical positioning errors when drawing glyph runs including delta-y offsets on screen via GDI
 
@@ -168,6 +162,52 @@ fix-cairo-win32-print-gdi-error.diff: Don't use fwprintf with char* format.  Flu
 
 pixman-image-transform.patch: Reset the transform on pixman images when using them as destinations.
 
+fix-cairo-surface-wrapper-flush-build-warning.patch: Ensures that _cairo_surface_wrapper_flush always returns a status, to silence the build warning
+
+fixup-unbounded.patch: Hack to work around bad assumption.
+
+quartz-get-image-performance: Make cairo_quartz_get_image faster in the failure case by not flushing unless we are going to succeed.
+
+lround-c99-only.patch: Only use lround in C99 programs.
+
+unicode-printing.patch: Print as unicode (bug 454532)
+
+quartz-mark-dirty.patch: Add a quartz implementation of mark_dirty_rectangle (bug 715704)
+
+expose-snapshot.patch: Make functions to add snapshots public, as well as allow creating null surfaces publically. (bug 715658)
+
+fix-build-with-Werror=return-type.patch: Fix builds with -Werror=return-type (bug 737909)
+
+avoid-extend-none.patch: Avoid incorrectly using EXTEND_NONE (bug 751668)
+
+win32-ExtCreatePen-zero-size.patch: Don't pass zero width or dash lengths to ExtCreatePen (bug 768348)
+
+d2d-repeating-gradients.patch: Minimize number of gradient stops added to handle repeating with path fills (bug 768775)
+
+xlib-glyph-clip-region.patch: bug 709477, addressed upstream by be1ff2f45fdbc69537e513834fcffa0435e63073
+
+gdi-RGB24-ARGB32.patch: bug 788794
+
+dwrite-font-printing.patch: bug 468568; don't substitute a GDI font for a DWrite font if the name tables aren't equal
+
+d2d-gradient-ensure-stops.patch: bug 792903, ensure we don't set num_stops to 0
+
+setlcdfilter_in_tree.patch: bug 790139; force cairo to use FT_Library_SetLcdFilter from our in tree library rather than picking it up from the system
+
+dwrite-font-match-robustness.patch: bug 717178, don't crash when _name_tables_match is passed a nil scaled-font
+
+handle-multi-path-clip.patch: bug 813124, handle multiple clip paths correctly
+
+win32-gdi-font-cache.patch: Bug 717178, cache GDI font faces to reduce usage of GDI resources
+
+win32-gdi-font-cache-no-HFONT.patch: Bug 717178, don't cache GDI font faces when an HFONT belonging to the caller is passed in
+
+fix-win32-font-assertion.patch: Bug 838617, fix assertion from bug 717178 that was in the wrong place
+
+xlib-flush-glyphs.patch: bug 839745, flush glyphs when necessary
+
+dasharray-zero-gap.patch: bug 885585, ensure strokes get painted when the gaps in a dash array are all zero length
+
 ==== pixman patches ====
 
 pixman-android-cpu-detect.patch: Add CPU detection support for Android, where we can't reliably access /proc/self/auxv.
@@ -178,6 +218,25 @@ NOTE: we previously supported ARM assembler on MSVC, this has been removed becau
 
 pixman-export.patch: use cairo_public for PIXMAN_EXPORT to make sure pixman symbols are not exported in libxul
 
+pixman-limits.patch: include limits.h for SIZE_MAX
+
+pixman-lowres-interp.patch: Use lower quality interpolation for more speed.
+
+pixman-bilinear-fastpath.patch: Bilinear fast paths for non-neon
+
+pixman-16-bit-pipeline.patch: 16 bit pipeline for dithering
+
+pixman-dither.patch: Add dithering of 16 bit gradients
+
+quartz-support-color-emoji-font.patch: support Apple Color Emoji font in cairo-quartz backend
+
+use-show-text-glyphs-if-glyph-path-fails.patch: fall back to show_text_glyphs even at huge sizes if scaled_font_glyph_path didn't work
+
+pixman-enable-altivec-acceleration.patch: enable building the altivec acceleration
+
 ==== disable printing patch ====
 
 disable-printing.patch:  allows us to use NS_PRINTING to disable printing.
+
+==== cairo clamp bounday patch ====
+cairo-clamp-boundary.patch: don't call pixman_fill with negative starts or negative sizes

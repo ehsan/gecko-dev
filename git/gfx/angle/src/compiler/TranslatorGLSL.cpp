@@ -31,7 +31,14 @@ void TranslatorGLSL::translate(TIntermNode* root) {
     // Write GLSL version.
     writeVersion(getShaderType(), root, sink);
 
+    // Write emulated built-in functions if needed.
+    getBuiltInFunctionEmulator().OutputEmulatedFunctionDefinition(
+        sink, false);
+
+    // Write array bounds clamping emulation if needed.
+    getArrayBoundsClamper().OutputClampingFunctionDefinition(sink);
+
     // Write translated shader.
-    TOutputGLSL outputGLSL(sink);
+    TOutputGLSL outputGLSL(sink, getArrayIndexClampingStrategy(), getHashFunction(), getNameMap(), getSymbolTable());
     root->traverse(&outputGLSL);
 }

@@ -59,13 +59,17 @@ var ADDONS = [{
 const profileDir = gProfD.clone();
 profileDir.append("extensions");
 
+var gIsNightly = false;
+
 function run_test() {
-  do_test_pending();
+  do_test_pending("checkcompatibility.js");
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "2.2.3", "2");
 
   ADDONS.forEach(function(a) {
     writeInstallRDFForExtension(a, profileDir);
   });
+
+  gIsNightly = isNightlyChannel();
 
   startupManager();
 
@@ -126,14 +130,17 @@ function run_test_1() {
                                function([a1, a2, a3, a4, a5]) {
     check_state(false, a1, a2, a3, a4, a5);
 
-    run_test_2();
+    do_execute_soon(run_test_2);
   });
 }
 
 // Tests that with compatibility checking disabled we see the incompatible
 // add-ons enabled
 function run_test_2() {
-  Services.prefs.setBoolPref("extensions.checkCompatibility.2.2", false);
+  if (gIsNightly)
+    Services.prefs.setBoolPref("extensions.checkCompatibility.nightly", false);
+  else
+    Services.prefs.setBoolPref("extensions.checkCompatibility.2.2", false);
   restartManager();
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -144,14 +151,15 @@ function run_test_2() {
                                function([a1, a2, a3, a4, a5]) {
     check_state(true, a1, a2, a3, a4, a5);
 
-    run_test_3();
+    do_execute_soon(run_test_3);
   });
 }
 
 // Tests that with compatibility checking disabled we see the incompatible
 // add-ons enabled.
 function run_test_3() {
-  Services.prefs.setBoolPref("extensions.checkCompatibility.2.1a", false);
+  if (!gIsNightly)
+    Services.prefs.setBoolPref("extensions.checkCompatibility.2.1a", false);
   restartManager("2.1a4");
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -162,14 +170,17 @@ function run_test_3() {
                                function([a1, a2, a3, a4, a5]) {
     check_state(true, a1, a2, a3, a4, a5);
 
-    run_test_4();
+    do_execute_soon(run_test_4);
   });
 }
 
 // Tests that with compatibility checking enabled we see the incompatible
 // add-ons disabled.
 function run_test_4() {
-  Services.prefs.setBoolPref("extensions.checkCompatibility.2.1a", true);
+  if (gIsNightly)
+    Services.prefs.setBoolPref("extensions.checkCompatibility.nightly", true);
+  else
+    Services.prefs.setBoolPref("extensions.checkCompatibility.2.1a", true);
   restartManager();
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -180,6 +191,6 @@ function run_test_4() {
                                function([a1, a2, a3, a4, a5]) {
     check_state(false, a1, a2, a3, a4, a5);
 
-    do_test_finished();
+    do_test_finished("checkcompatibility.js");
   });
 }

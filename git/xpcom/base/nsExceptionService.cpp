@@ -1,51 +1,22 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * ActiveState Tool Corp..
- * Portions created by the Initial Developer are Copyright (C) 2001
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Mark Hammond <MarkH@ActiveState.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "mozilla/Attributes.h"
+#include "mozilla/DebugOnly.h"
 
 #include "nsISupports.h"
 #include "nsExceptionService.h"
 #include "nsIServiceManager.h"
 #include "nsCOMPtr.h"
+#include "pratom.h"
 #include "prthread.h"
 #include "mozilla/Services.h"
 
 using namespace mozilla;
 
-static const PRUintn BAD_TLS_INDEX = (PRUintn) -1;
+static const unsigned BAD_TLS_INDEX = (unsigned) -1;
 
 #define CHECK_SERVICE_USE_OK() if (!sLock) return NS_ERROR_NOT_INITIALIZED
 #define CHECK_MANAGER_USE_OK() if (!mService || !nsExceptionService::sLock) return NS_ERROR_NOT_INITIALIZED
@@ -53,26 +24,26 @@ static const PRUintn BAD_TLS_INDEX = (PRUintn) -1;
 // A key for our registered module providers hashtable
 class nsProviderKey : public nsHashKey {
 protected:
-  PRUint32 mKey;
+  uint32_t mKey;
 public:
-  nsProviderKey(PRUint32 key) : mKey(key) {}
-  PRUint32 HashCode(void) const {
+  nsProviderKey(uint32_t key) : mKey(key) {}
+  uint32_t HashCode(void) const {
     return mKey;
   }
-  PRBool Equals(const nsHashKey *aKey) const {
+  bool Equals(const nsHashKey *aKey) const {
     return mKey == ((const nsProviderKey *) aKey)->mKey;
   }
   nsHashKey *Clone() const {
     return new nsProviderKey(mKey);
   }
-  PRUint32 GetValue() { return mKey; }
+  uint32_t GetValue() { return mKey; }
 };
 
 /** Exception Manager definition **/
-class nsExceptionManager : public nsIExceptionManager
+class nsExceptionManager MOZ_FINAL : public nsIExceptionManager
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIEXCEPTIONMANAGER
 
   nsExceptionManager(nsExceptionService *svc);
@@ -80,8 +51,8 @@ public:
   nsCOMPtr<nsIException> mCurrentException;
   nsExceptionManager *mNextThread; // not ref-counted.
   nsExceptionService *mService; // not ref-counted
-#ifdef NS_DEBUG
-  static PRInt32 totalInstances;
+#ifdef DEBUG
+  static int32_t totalInstances;
 #endif
 
 private:
@@ -89,22 +60,22 @@ private:
 };
 
 
-#ifdef NS_DEBUG
-PRInt32 nsExceptionManager::totalInstances = 0;
+#ifdef DEBUG
+int32_t nsExceptionManager::totalInstances = 0;
 #endif
 
 // Note this object is single threaded - the service itself ensures
 // one per thread.
 // An exception if the destructor, which may be called on
 // the thread shutting down xpcom
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsExceptionManager, nsIExceptionManager)
+NS_IMPL_ISUPPORTS1(nsExceptionManager, nsIExceptionManager)
 
 nsExceptionManager::nsExceptionManager(nsExceptionService *svc) :
-  mNextThread(nsnull),
+  mNextThread(nullptr),
   mService(svc)
 {
   /* member initializers and constructor code */
-#ifdef NS_DEBUG
+#ifdef DEBUG
   PR_ATOMIC_INCREMENT(&totalInstances);
 #endif
 }
@@ -112,9 +83,9 @@ nsExceptionManager::nsExceptionManager(nsExceptionService *svc) :
 nsExceptionManager::~nsExceptionManager()
 {
   /* destructor code */
-#ifdef NS_DEBUG
+#ifdef DEBUG
   PR_ATOMIC_DECREMENT(&totalInstances);
-#endif // NS_DEBUG
+#endif // DEBUG
 }
 
 /* void setCurrentException (in nsIException error); */
@@ -144,30 +115,30 @@ NS_IMETHODIMP nsExceptionManager::GetExceptionFromProvider(nsresult rc, nsIExcep
 
 /* The Exception Service */
 
-PRUintn nsExceptionService::tlsIndex = BAD_TLS_INDEX;
-Mutex *nsExceptionService::sLock = nsnull;
-nsExceptionManager *nsExceptionService::firstThread = nsnull;
+unsigned nsExceptionService::tlsIndex = BAD_TLS_INDEX;
+Mutex *nsExceptionService::sLock = nullptr;
+nsExceptionManager *nsExceptionService::firstThread = nullptr;
 
-#ifdef NS_DEBUG
-PRInt32 nsExceptionService::totalInstances = 0;
+#ifdef DEBUG
+int32_t nsExceptionService::totalInstances = 0;
 #endif
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(nsExceptionService,
-                              nsIExceptionService,
-                              nsIExceptionManager,
-                              nsIObserver)
+NS_IMPL_ISUPPORTS3(nsExceptionService,
+                   nsIExceptionService,
+                   nsIExceptionManager,
+                   nsIObserver)
 
 nsExceptionService::nsExceptionService()
-  : mProviders(4, PR_TRUE) /* small, thread-safe hashtable */
+  : mProviders(4, true) /* small, thread-safe hashtable */
 {
-#ifdef NS_DEBUG
+#ifdef DEBUG
   if (PR_ATOMIC_INCREMENT(&totalInstances)!=1) {
     NS_ERROR("The nsExceptionService is a singleton!");
   }
 #endif
   /* member initializers and constructor code */
   if (tlsIndex == BAD_TLS_INDEX) {
-    PRStatus status;
+    DebugOnly<PRStatus> status;
     status = PR_NewThreadPrivateIndex( &tlsIndex, ThreadDestruct );
     NS_ASSERTION(status==0, "ScriptErrorService could not allocate TLS storage.");
   }
@@ -178,14 +149,14 @@ nsExceptionService::nsExceptionService()
     mozilla::services::GetObserverService();
   NS_ASSERTION(observerService, "Could not get observer service!");
   if (observerService)
-    observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
+    observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
 }
 
 nsExceptionService::~nsExceptionService()
 {
   Shutdown();
   /* destructor code */
-#ifdef NS_DEBUG
+#ifdef DEBUG
   PR_ATOMIC_DECREMENT(&totalInstances);
 #endif
 }
@@ -207,9 +178,9 @@ void nsExceptionService::Shutdown()
   if (sLock) {
     DropAllThreads();
     delete sLock;
-    sLock = nsnull;
+    sLock = nullptr;
   }
-  PR_SetThreadPrivate(tlsIndex, nsnull);
+  PR_SetThreadPrivate(tlsIndex, nullptr);
 }
 
 /* void setCurrentException (in nsIException error); */
@@ -247,7 +218,7 @@ NS_IMETHODIMP nsExceptionService::GetCurrentExceptionManager(nsIExceptionManager
 {
     CHECK_SERVICE_USE_OK();
     nsExceptionManager *mgr = (nsExceptionManager *)PR_GetThreadPrivate(tlsIndex);
-    if (mgr == nsnull) {
+    if (mgr == nullptr) {
         // Stick the new exception object in with no reference count.
         mgr = new nsExceptionManager(this);
         PR_SetThreadPrivate(tlsIndex, mgr);
@@ -259,8 +230,8 @@ NS_IMETHODIMP nsExceptionService::GetCurrentExceptionManager(nsIExceptionManager
     return NS_OK;
 }
 
-/* void registerErrorProvider (in nsIExceptionProvider provider, in PRUint32 moduleCode); */
-NS_IMETHODIMP nsExceptionService::RegisterExceptionProvider(nsIExceptionProvider *provider, PRUint32 errorModule)
+/* void registerErrorProvider (in nsIExceptionProvider provider, in uint32_t moduleCode); */
+NS_IMETHODIMP nsExceptionService::RegisterExceptionProvider(nsIExceptionProvider *provider, uint32_t errorModule)
 {
     CHECK_SERVICE_USE_OK();
 
@@ -271,8 +242,8 @@ NS_IMETHODIMP nsExceptionService::RegisterExceptionProvider(nsIExceptionProvider
     return NS_OK;
 }
 
-/* void unregisterErrorProvider (in nsIExceptionProvider provider, in PRUint32 errorModule); */
-NS_IMETHODIMP nsExceptionService::UnregisterExceptionProvider(nsIExceptionProvider *provider, PRUint32 errorModule)
+/* void unregisterErrorProvider (in nsIExceptionProvider provider, in uint32_t errorModule); */
+NS_IMETHODIMP nsExceptionService::UnregisterExceptionProvider(nsIExceptionProvider *provider, uint32_t errorModule)
 {
     CHECK_SERVICE_USE_OK();
     nsProviderKey key(errorModule);

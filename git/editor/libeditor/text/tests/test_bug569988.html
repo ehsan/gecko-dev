@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=569988
 -->
 <head>
   <title>Test for Bug 569988</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -36,12 +35,13 @@ function runTest()
   os.addObserver(onPromptLoad, "common-dialog-loaded", false);
   os.addObserver(onPromptLoad, "tabmodal-dialog-loaded", false);
 
-  ok(true, "opening prompt...");
+  info("opening prompt...");
   prompt("summary", "text");
-  ok(true, "prompt is closed");
+  info("prompt is closed");
 
   os.removeObserver(onPromptLoad, "tabmodal-dialog-loaded");
   os.removeObserver(onPromptLoad, "common-dialog-loaded");
+  SimpleTest.finish();
 }
 
 function onPromptLoad(subject, topic, data)
@@ -60,25 +60,18 @@ function onPromptFocus() {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   gPromptInput.removeEventListener("focus", onPromptFocus, false);
 
-  var systemGroup =
-    Components.classes["@mozilla.org/eventlistenerservice;1"].
-      getService(Components.interfaces.nsIEventListenerService).
-      systemEventGroup;
-  gPromptInput.QueryInterface(Components.interfaces.nsIDOM3EventTarget);
   var listener = {
     handleEvent: function _hv(aEvent)
     {
-      netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-      var isPrevented = aEvent.getPreventDefault();
+      var isPrevented = aEvent.defaultPrevented;
       ok(!isPrevented, "ESC key event is prevented by editor");
-      gPromptInput.removeGroupedEventListener("keypress", listener, false,
-                                              systemGroup);
-      SimpleTest.finish();
+      SpecialPowers.removeSystemEventListener(gPromptInput, "keypress",
+                                              listener, false);
     }
   };
-  gPromptInput.addGroupedEventListener("keypress", listener, false,
-                                       systemGroup);
-  ok(true, "sending key");
+  SpecialPowers.addSystemEventListener(gPromptInput, "keypress", listener,
+                                       false);
+  info("sending key");
   synthesizeKey("VK_ESCAPE", { }, gPromptInput.ownerDocument.defaultView);
 }
 

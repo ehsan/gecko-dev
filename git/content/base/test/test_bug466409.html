@@ -4,7 +4,6 @@
 https://bugzilla.mozilla.org/show_bug.cgi?id=466409
 -->
 <head>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -22,12 +21,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=466409
 
 function setUniversalDetector(detector)
 {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var pref = Components.classes["@mozilla.org/preferences-service;1"]
-                       .getService(Components.interfaces.nsIPrefBranch);
-
-  var olddetector = pref.getCharPref("intl.charset.detector");
-  pref.setCharPref("intl.charset.detector", detector);
+  var olddetector = SpecialPowers.getCharPref("intl.charset.detector");
+  SpecialPowers.setCharPref("intl.charset.detector", detector);
   return olddetector;
 }
 

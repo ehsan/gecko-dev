@@ -1,41 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Scott Collins <scc@mozilla.org> (original author)
- *   L. David Baron <dbaron@dbaron.org>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef nsCOMPtr_h___
 #define nsCOMPtr_h___
@@ -53,11 +19,15 @@
                        -- scc
 */
 
+#include "mozilla/Attributes.h"
+#include "mozilla/TypeTraits.h"
+#include "mozilla/Assertions.h"
+#include "mozilla/NullPtr.h"
 
   // Wrapping includes can speed up compiles (see "Large Scale C++ Software Design")
 #ifndef nsDebug_h___
 #include "nsDebug.h"
-  // for |NS_PRECONDITION|
+  // for |NS_ABORT_IF_FALSE|, |NS_ASSERTION|
 #endif
 
 #ifndef nsISupportsUtils_h__
@@ -69,6 +39,8 @@
 #include "nscore.h"
   // for |NS_COM_GLUE|
 #endif
+
+#include "nsCycleCollectionNoteChild.h"
 
 
 /*
@@ -91,7 +63,7 @@
 
 #define NSCAP_FEATURE_USE_BASE
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
   #define NSCAP_FEATURE_TEST_DONTQUERY_CASES
   #undef NSCAP_FEATURE_USE_BASE
 //#define NSCAP_FEATURE_TEST_NONNULL_QUERY_SUCCEEDS
@@ -107,7 +79,7 @@
   #undef NSCAP_FEATURE_TEST_DONTQUERY_CASES
 #endif
 
-#if __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)
+#ifdef __GNUC__
   // Our use of nsCOMPtr_base::mRawPtr violates the C++ standard's aliasing
   // rules. Mark it with the may_alias attribute so that gcc 3.3 and higher
   // don't reorder instructions based on aliasing assumptions for
@@ -122,16 +94,6 @@
 #if defined(NSCAP_DISABLE_DEBUG_PTR_TYPES)
   #define NSCAP_FEATURE_USE_BASE
 #endif
-
-
-#ifdef HAVE_CPP_BOOL
-  typedef bool NSCAP_BOOL;
-#else
-  typedef PRBool NSCAP_BOOL;
-#endif
-
-
-
 
   /*
     The following three macros (|NSCAP_ADDREF|, |NSCAP_RELEASE|, and |NSCAP_LOG_ASSIGNMENT|)
@@ -184,6 +146,17 @@ struct already_AddRefed
       |nsCOMPtr_helper|.
     */
   {
+#ifdef MOZ_HAVE_CXX11_NULLPTR
+    /* We use decltype(nullptr) instead of std::nullptr_t because the standard
+     * library might be old, and to save including <cstddef>.  All compilers
+     * that support nullptr seem to support decltype. */
+    already_AddRefed(decltype(nullptr) aNullPtr)
+      : mRawPtr(nullptr)
+    {
+    }
+
+    explicit
+#endif
     already_AddRefed( T* aRawPtr )
         : mRawPtr(aRawPtr)
       {
@@ -212,31 +185,37 @@ struct already_AddRefed
     {
       U* tmp = mRawPtr;
       mRawPtr = NULL;
-      return tmp;
+      return already_AddRefed<U>(tmp);
+    }
+
+    /**
+     * This helper provides a static_cast replacement for already_AddRefed, so
+     * if you have
+     *
+     *   already_AddRefed<Parent> F();
+     *
+     * you can write
+     *
+     *   already_AddRefed<Child>
+     *   G()
+     *   {
+     *     return F().downcast<Child>();
+     *   }
+     *
+     * instead of
+     *
+     *     return dont_AddRef(static_cast<Child*>(F().get()));
+     */
+    template<class U>
+    already_AddRefed<U> downcast()
+    {
+      U* tmp = static_cast<U*>(mRawPtr);
+      mRawPtr = nullptr;
+      return already_AddRefed<U>(tmp);
     }
 
     T* mRawPtr;
   };
-
-template <class T>
-inline
-const already_AddRefed<T>
-getter_AddRefs( T* aRawPtr )
-    /*
-      ...makes typing easier, because it deduces the template type, e.g., 
-      you write |dont_AddRef(fooP)| instead of |already_AddRefed<IFoo>(fooP)|.
-    */
-  {
-    return already_AddRefed<T>(aRawPtr);
-  }
-
-template <class T>
-inline
-const already_AddRefed<T>
-getter_AddRefs( const already_AddRefed<T> aAlreadyAddRefedPtr )
-  {
-    return aAlreadyAddRefedPtr;
-  }
 
 template <class T>
 inline
@@ -286,9 +265,8 @@ class nsCOMPtr_helper
 
 class
   NS_COM_GLUE
-  NS_STACK_CLASS
-  NS_FINAL_CLASS
-nsQueryInterface
+  MOZ_STACK_CLASS
+nsQueryInterface MOZ_FINAL
   {
     public:
       explicit
@@ -445,7 +423,12 @@ nsCOMPtr_base
           // nothing else to do here
         }
 
-      NS_COM_GLUE NS_CONSTRUCTOR_FASTCALL ~nsCOMPtr_base();
+      NS_COM_GLUE NS_CONSTRUCTOR_FASTCALL ~nsCOMPtr_base()
+        {
+          NSCAP_LOG_RELEASE(this, mRawPtr);
+            if ( mRawPtr )
+              NSCAP_RELEASE(this, mRawPtr);
+        }
 
       NS_COM_GLUE void NS_FASTCALL   assign_with_AddRef( nsISupports* );
       NS_COM_GLUE void NS_FASTCALL   assign_from_qi( const nsQueryInterface, const nsIID& );
@@ -483,9 +466,7 @@ nsCOMPtr_base
 // template <class T> class nsGetterAddRefs;
 
 template <class T>
-class
-  NS_FINAL_CLASS
-nsCOMPtr
+class nsCOMPtr MOZ_FINAL
 #ifdef NSCAP_FEATURE_USE_BASE
     : private nsCOMPtr_base
 #endif
@@ -587,6 +568,18 @@ nsCOMPtr
           NSCAP_ASSERT_NO_QUERY_NEEDED();
         }
 
+      template<typename U>
+      nsCOMPtr( const already_AddRefed<U>& aSmartPtr )
+            : NSCAP_CTOR_BASE(static_cast<T*>(aSmartPtr.mRawPtr))
+          // construct from |dont_AddRef(expr)|
+        {
+          // But make sure that U actually inherits from T
+          static_assert(mozilla::IsBaseOf<T, U>::value,
+                        "U is not a subclass of T");
+          NSCAP_LOG_ASSIGNMENT(this, static_cast<T*>(aSmartPtr.mRawPtr));
+          NSCAP_ASSERT_NO_QUERY_NEEDED();
+        }
+
       nsCOMPtr( const nsQueryInterface qi )
             : NSCAP_CTOR_BASE(0)
           // construct from |do_QueryInterface(expr)|
@@ -665,11 +658,15 @@ nsCOMPtr
           return *this;
         }
 
+      template<typename U>
       nsCOMPtr<T>&
-      operator=( const already_AddRefed<T>& rhs )
+      operator=( const already_AddRefed<U>& rhs )
           // assign from |dont_AddRef(expr)|
         {
-          assign_assuming_AddRef(rhs.mRawPtr);
+          // Make sure that U actually inherits from T
+          static_assert(mozilla::IsBaseOf<T, U>::value,
+                        "U is not a subclass of T");
+          assign_assuming_AddRef(static_cast<T*>(rhs.mRawPtr));
           NSCAP_ASSERT_NO_QUERY_NEEDED();
           return *this;
         }
@@ -776,18 +773,21 @@ nsCOMPtr
         {
           T* temp = 0;
           swap(temp);
-          return temp;
+          return already_AddRefed<T>(temp);
         }
 
+      template <typename I>
       void
-      forget( T** rhs NS_OUTPARAM )
+      forget( I** rhs )
           // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
           // Useful to avoid unnecessary AddRef/Release pairs with "out"
-          // parameters.
+          // parameters where rhs bay be a T** or an I** where I is a base class
+          // of T.
         {
           NS_ASSERTION(rhs, "Null pointer passed to forget!");
-          *rhs = 0;
-          swap(*rhs);
+          NSCAP_LOG_RELEASE(this, mRawPtr);
+          *rhs = get();
+          mRawPtr = 0;
         }
 
       T*
@@ -816,22 +816,9 @@ nsCOMPtr
       T*
       operator->() const
         {
-          NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
+          NS_ABORT_IF_FALSE(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
           return get();
         }
-
-#ifdef CANT_RESOLVE_CPP_CONST_AMBIGUITY
-  // broken version for IRIX
-
-      nsCOMPtr<T>*
-      get_address() const
-          // This is not intended to be used by clients.  See |address_of|
-          // below.
-        {
-          return const_cast<nsCOMPtr<T>*>(this);
-        }
-
-#else // CANT_RESOLVE_CPP_CONST_AMBIGUITY
 
       nsCOMPtr<T>*
       get_address()
@@ -849,13 +836,11 @@ nsCOMPtr
           return this;
         }
 
-#endif // CANT_RESOLVE_CPP_CONST_AMBIGUITY
-
     public:
       T&
       operator*() const
         {
-          NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator*().");
+          NS_ABORT_IF_FALSE(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator*().");
           return *get();
         }
 
@@ -882,7 +867,7 @@ nsCOMPtr
     without hassles, through intermediary code that doesn't know the exact type.
   */
 
-NS_SPECIALIZE_TEMPLATE
+template <>
 class nsCOMPtr<nsISupports>
     : private nsCOMPtr_base
   {
@@ -1095,11 +1080,11 @@ class nsCOMPtr<nsISupports>
         {
           nsISupports* temp = 0;
           swap(temp);
-          return temp;
+          return already_AddRefed<nsISupports>(temp);
         }
 
       void
-      forget( nsISupports** rhs NS_OUTPARAM )
+      forget( nsISupports** rhs )
           // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
           // Useful to avoid unnecessary AddRef/Release pairs with "out"
           // parameters.
@@ -1138,22 +1123,9 @@ class nsCOMPtr<nsISupports>
       nsISupports*
       operator->() const
         {
-          NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
+          NS_ABORT_IF_FALSE(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
           return get();
         }
-
-#ifdef CANT_RESOLVE_CPP_CONST_AMBIGUITY
-  // broken version for IRIX
-
-      nsCOMPtr<nsISupports>*
-      get_address() const
-          // This is not intended to be used by clients.  See |address_of|
-          // below.
-        {
-          return const_cast<nsCOMPtr<nsISupports>*>(this);
-        }
-
-#else // CANT_RESOLVE_CPP_CONST_AMBIGUITY
 
       nsCOMPtr<nsISupports>*
       get_address()
@@ -1171,14 +1143,12 @@ class nsCOMPtr<nsISupports>
           return this;
         }
 
-#endif // CANT_RESOLVE_CPP_CONST_AMBIGUITY
-
     public:
 
       nsISupports&
       operator*() const
         {
-          NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator*().");
+          NS_ABORT_IF_FALSE(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator*().");
           return *get();
         }
 
@@ -1193,6 +1163,23 @@ class nsCOMPtr<nsISupports>
 #endif
         }
   };
+
+template <typename T>
+inline void
+ImplCycleCollectionUnlink(nsCOMPtr<T>& aField)
+{
+  aField = nullptr;
+}
+
+template <typename T>
+inline void
+ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
+                            nsCOMPtr<T>& aField,
+                            const char* aName,
+                            uint32_t aFlags = 0)
+{
+  CycleCollectionNoteChild(aCallback, aField.get(), aName, aFlags);
+}
 
 #ifndef NSCAP_FEATURE_USE_BASE
 template <class T>
@@ -1285,20 +1272,6 @@ nsCOMPtr<T>::begin_assignment()
   }
 #endif
 
-#ifdef CANT_RESOLVE_CPP_CONST_AMBIGUITY
-
-// This is the broken version for IRIX, which can't handle the version below.
-
-template <class T>
-inline
-nsCOMPtr<T>*
-address_of( const nsCOMPtr<T>& aPtr )
-  {
-    return aPtr.get_address();
-  }
-
-#else // CANT_RESOLVE_CPP_CONST_AMBIGUITY
-
 template <class T>
 inline
 nsCOMPtr<T>*
@@ -1314,8 +1287,6 @@ address_of( const nsCOMPtr<T>& aPtr )
   {
     return aPtr.get_address();
   }
-
-#endif // CANT_RESOLVE_CPP_CONST_AMBIGUITY
 
 template <class T>
 class nsGetterAddRefs
@@ -1384,7 +1355,7 @@ class nsGetterAddRefs
   };
 
 
-NS_SPECIALIZE_TEMPLATE
+template <>
 class nsGetterAddRefs<nsISupports>
   {
     public:
@@ -1449,7 +1420,7 @@ CallQueryInterface( T* aSource, nsGetterAddRefs<DestinationType> aDestination )
 
 template <class T, class U>
 inline
-NSCAP_BOOL
+bool
 operator==( const nsCOMPtr<T>& lhs, const nsCOMPtr<U>& rhs )
   {
     return static_cast<const T*>(lhs.get()) == static_cast<const U*>(rhs.get());
@@ -1458,7 +1429,7 @@ operator==( const nsCOMPtr<T>& lhs, const nsCOMPtr<U>& rhs )
 
 template <class T, class U>
 inline
-NSCAP_BOOL
+bool
 operator!=( const nsCOMPtr<T>& lhs, const nsCOMPtr<U>& rhs )
   {
     return static_cast<const T*>(lhs.get()) != static_cast<const U*>(rhs.get());
@@ -1469,7 +1440,7 @@ operator!=( const nsCOMPtr<T>& lhs, const nsCOMPtr<U>& rhs )
 
 template <class T, class U>
 inline
-NSCAP_BOOL
+bool
 operator==( const nsCOMPtr<T>& lhs, const U* rhs )
   {
     return static_cast<const T*>(lhs.get()) == rhs;
@@ -1477,7 +1448,7 @@ operator==( const nsCOMPtr<T>& lhs, const U* rhs )
 
 template <class T, class U>
 inline
-NSCAP_BOOL
+bool
 operator==( const U* lhs, const nsCOMPtr<T>& rhs )
   {
     return lhs == static_cast<const T*>(rhs.get());
@@ -1485,7 +1456,7 @@ operator==( const U* lhs, const nsCOMPtr<T>& rhs )
 
 template <class T, class U>
 inline
-NSCAP_BOOL
+bool
 operator!=( const nsCOMPtr<T>& lhs, const U* rhs )
   {
     return static_cast<const T*>(lhs.get()) != rhs;
@@ -1493,7 +1464,7 @@ operator!=( const nsCOMPtr<T>& lhs, const U* rhs )
 
 template <class T, class U>
 inline
-NSCAP_BOOL
+bool
 operator!=( const U* lhs, const nsCOMPtr<T>& rhs )
   {
     return lhs != static_cast<const T*>(rhs.get());
@@ -1506,19 +1477,10 @@ operator!=( const U* lhs, const nsCOMPtr<T>& rhs )
   // |operator==| without the |const| on the raw pointer.
   // See bug 65664 for details.
 
-// This is defined by an autoconf test, but VC++ also has a bug that
-// prevents us from using these.  (It also, fortunately, has the bug
-// that we don't need them either.)
-#if defined(_MSC_VER) && (_MSC_VER < 1310)
-#ifndef NSCAP_DONT_PROVIDE_NONCONST_OPEQ
-#define NSCAP_DONT_PROVIDE_NONCONST_OPEQ
-#endif
-#endif
-
 #ifndef NSCAP_DONT_PROVIDE_NONCONST_OPEQ
 template <class T, class U>
 inline
-NSCAP_BOOL
+bool
 operator==( const nsCOMPtr<T>& lhs, U* rhs )
   {
     return static_cast<const T*>(lhs.get()) == const_cast<const U*>(rhs);
@@ -1526,7 +1488,7 @@ operator==( const nsCOMPtr<T>& lhs, U* rhs )
 
 template <class T, class U>
 inline
-NSCAP_BOOL
+bool
 operator==( U* lhs, const nsCOMPtr<T>& rhs )
   {
     return const_cast<const U*>(lhs) == static_cast<const T*>(rhs.get());
@@ -1534,7 +1496,7 @@ operator==( U* lhs, const nsCOMPtr<T>& rhs )
 
 template <class T, class U>
 inline
-NSCAP_BOOL
+bool
 operator!=( const nsCOMPtr<T>& lhs, U* rhs )
   {
     return static_cast<const T*>(lhs.get()) != const_cast<const U*>(rhs);
@@ -1542,7 +1504,7 @@ operator!=( const nsCOMPtr<T>& lhs, U* rhs )
 
 template <class T, class U>
 inline
-NSCAP_BOOL
+bool
 operator!=( U* lhs, const nsCOMPtr<T>& rhs )
   {
     return const_cast<const U*>(lhs) != static_cast<const T*>(rhs.get());
@@ -1557,7 +1519,7 @@ class NSCAP_Zero;
 
 template <class T>
 inline
-NSCAP_BOOL
+bool
 operator==( const nsCOMPtr<T>& lhs, NSCAP_Zero* rhs )
     // specifically to allow |smartPtr == 0|
   {
@@ -1566,7 +1528,7 @@ operator==( const nsCOMPtr<T>& lhs, NSCAP_Zero* rhs )
 
 template <class T>
 inline
-NSCAP_BOOL
+bool
 operator==( NSCAP_Zero* lhs, const nsCOMPtr<T>& rhs )
     // specifically to allow |0 == smartPtr|
   {
@@ -1575,7 +1537,7 @@ operator==( NSCAP_Zero* lhs, const nsCOMPtr<T>& rhs )
 
 template <class T>
 inline
-NSCAP_BOOL
+bool
 operator!=( const nsCOMPtr<T>& lhs, NSCAP_Zero* rhs )
     // specifically to allow |smartPtr != 0|
   {
@@ -1584,7 +1546,7 @@ operator!=( const nsCOMPtr<T>& lhs, NSCAP_Zero* rhs )
 
 template <class T>
 inline
-NSCAP_BOOL
+bool
 operator!=( NSCAP_Zero* lhs, const nsCOMPtr<T>& rhs )
     // specifically to allow |0 != smartPtr|
   {
@@ -1599,7 +1561,7 @@ operator!=( NSCAP_Zero* lhs, const nsCOMPtr<T>& rhs )
 
 template <class T>
 inline
-NSCAP_BOOL
+bool
 operator==( const nsCOMPtr<T>& lhs, int rhs )
     // specifically to allow |smartPtr == 0|
   {
@@ -1608,7 +1570,7 @@ operator==( const nsCOMPtr<T>& lhs, int rhs )
 
 template <class T>
 inline
-NSCAP_BOOL
+bool
 operator==( int lhs, const nsCOMPtr<T>& rhs )
     // specifically to allow |0 == smartPtr|
   {
@@ -1620,7 +1582,7 @@ operator==( int lhs, const nsCOMPtr<T>& rhs )
   // Comparing any two [XP]COM objects for identity
 
 inline
-NSCAP_BOOL
+bool
 SameCOMIdentity( nsISupports* lhs, nsISupports* rhs )
   {
     return nsCOMPtr<nsISupports>( do_QueryInterface(lhs) ) == nsCOMPtr<nsISupports>( do_QueryInterface(rhs) );

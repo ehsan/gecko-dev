@@ -1,64 +1,35 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   David Hyatt <hyatt@netscape.com> (Original Author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIAtom.h"
 #include "nsString.h"
 #include "jsapi.h"
 #include "nsIContent.h"
-#include "nsIDocument.h"
-#include "nsString.h"
 #include "nsXBLProtoImplProperty.h"
 #include "nsUnicharUtils.h"
+#include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsReadableUtils.h"
 #include "nsIScriptContext.h"
+#include "nsJSUtils.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsContentUtils.h"
+#include "nsXBLPrototypeBinding.h"
+#include "nsXBLSerialize.h"
+#include "xpcpublic.h"
+
+using namespace mozilla;
 
 nsXBLProtoImplProperty::nsXBLProtoImplProperty(const PRUnichar* aName,
                                                const PRUnichar* aGetter, 
                                                const PRUnichar* aSetter,
-                                               const PRUnichar* aReadOnly) :
+                                               const PRUnichar* aReadOnly,
+                                               uint32_t aLineNumber) :
   nsXBLProtoImplMember(aName), 
-  mGetterText(nsnull),
-  mSetterText(nsnull),
   mJSAttributes(JSPROP_ENUMERATE)
 #ifdef DEBUG
-  , mIsCompiled(PR_FALSE)
+  , mIsCompiled(false)
 #endif
 {
   MOZ_COUNT_CTOR(nsXBLProtoImplProperty);
@@ -69,22 +40,48 @@ nsXBLProtoImplProperty::nsXBLProtoImplProperty(const PRUnichar* aName,
       mJSAttributes |= JSPROP_READONLY;
   }
 
-  if (aGetter)
+  if (aGetter) {
     AppendGetterText(nsDependentString(aGetter));
-  if (aSetter)
+    SetGetterLineNumber(aLineNumber);
+  }
+  if (aSetter) {
     AppendSetterText(nsDependentString(aSetter));
+    SetSetterLineNumber(aLineNumber);
+  }
+}
+
+nsXBLProtoImplProperty::nsXBLProtoImplProperty(const PRUnichar* aName,
+                                               const bool aIsReadOnly)
+  : nsXBLProtoImplMember(aName),
+    mJSAttributes(JSPROP_ENUMERATE)
+#ifdef DEBUG
+  , mIsCompiled(false)
+#endif
+{
+  MOZ_COUNT_CTOR(nsXBLProtoImplProperty);
+
+  if (aIsReadOnly)
+    mJSAttributes |= JSPROP_READONLY;
 }
 
 nsXBLProtoImplProperty::~nsXBLProtoImplProperty()
 {
   MOZ_COUNT_DTOR(nsXBLProtoImplProperty);
 
-  if (!(mJSAttributes & JSPROP_GETTER)) {
-    delete mGetterText;
+  if (!mGetter.IsCompiled()) {
+    delete mGetter.GetUncompiled();
   }
 
-  if (!(mJSAttributes & JSPROP_SETTER)) {
-    delete mSetterText;
+  if (!mSetter.IsCompiled()) {
+    delete mSetter.GetUncompiled();
+  }
+}
+
+void nsXBLProtoImplProperty::EnsureUncompiledText(PropertyOp& aPropertyOp)
+{
+  if (!aPropertyOp.GetUncompiled()) {
+    nsXBLTextWithLineNumber* text = new nsXBLTextWithLineNumber();
+    aPropertyOp.SetUncompiled(text);
   }
 }
 
@@ -93,13 +90,8 @@ nsXBLProtoImplProperty::AppendGetterText(const nsAString& aText)
 {
   NS_PRECONDITION(!mIsCompiled,
                   "Must not be compiled when accessing getter text");
-  if (!mGetterText) {
-    mGetterText = new nsXBLTextWithLineNumber();
-    if (!mGetterText)
-      return;
-  }
-
-  mGetterText->AppendText(aText);
+  EnsureUncompiledText(mGetter);
+  mGetter.GetUncompiled()->AppendText(aText);
 }
 
 void 
@@ -107,109 +99,85 @@ nsXBLProtoImplProperty::AppendSetterText(const nsAString& aText)
 {
   NS_PRECONDITION(!mIsCompiled,
                   "Must not be compiled when accessing setter text");
-  if (!mSetterText) {
-    mSetterText = new nsXBLTextWithLineNumber();
-    if (!mSetterText)
-      return;
-  }
-
-  mSetterText->AppendText(aText);
+  EnsureUncompiledText(mSetter);
+  mSetter.GetUncompiled()->AppendText(aText);
 }
 
 void
-nsXBLProtoImplProperty::SetGetterLineNumber(PRUint32 aLineNumber)
+nsXBLProtoImplProperty::SetGetterLineNumber(uint32_t aLineNumber)
 {
   NS_PRECONDITION(!mIsCompiled,
                   "Must not be compiled when accessing getter text");
-  if (!mGetterText) {
-    mGetterText = new nsXBLTextWithLineNumber();
-    if (!mGetterText)
-      return;
-  }
-
-  mGetterText->SetLineNumber(aLineNumber);
+  EnsureUncompiledText(mGetter);
+  mGetter.GetUncompiled()->SetLineNumber(aLineNumber);
 }
 
 void
-nsXBLProtoImplProperty::SetSetterLineNumber(PRUint32 aLineNumber)
+nsXBLProtoImplProperty::SetSetterLineNumber(uint32_t aLineNumber)
 {
   NS_PRECONDITION(!mIsCompiled,
                   "Must not be compiled when accessing setter text");
-  if (!mSetterText) {
-    mSetterText = new nsXBLTextWithLineNumber();
-    if (!mSetterText)
-      return;
-  }
-
-  mSetterText->SetLineNumber(aLineNumber);
+  EnsureUncompiledText(mSetter);
+  mSetter.GetUncompiled()->SetLineNumber(aLineNumber);
 }
 
 const char* gPropertyArgs[] = { "val" };
 
 nsresult
-nsXBLProtoImplProperty::InstallMember(nsIScriptContext* aContext,
-                                      nsIContent* aBoundElement, 
-                                      void* aScriptObject,
-                                      void* aTargetClassObject,
-                                      const nsCString& aClassStr)
+nsXBLProtoImplProperty::InstallMember(JSContext *aCx,
+                                      JS::Handle<JSObject*> aTargetClassObject)
 {
   NS_PRECONDITION(mIsCompiled,
                   "Should not be installing an uncompiled property");
-  JSContext* cx = (JSContext*) aContext->GetNativeContext();
-
-  nsIDocument *ownerDoc = aBoundElement->GetOwnerDoc();
-  nsIScriptGlobalObject *sgo;
-
-  if (!ownerDoc || !(sgo = ownerDoc->GetScopeObject())) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  JSObject * scriptObject = (JSObject *) aScriptObject;
-  NS_ASSERTION(scriptObject, "uh-oh, script Object should NOT be null or bad things will happen");
-  if (!scriptObject)
-    return NS_ERROR_FAILURE;
-
-  JSObject * targetClassObject = (JSObject *) aTargetClassObject;
-  JSObject * globalObject = sgo->GetGlobalJSObject();
+  MOZ_ASSERT(mGetter.IsCompiled() && mSetter.IsCompiled());
+  MOZ_ASSERT(js::IsObjectInContextCompartment(aTargetClassObject, aCx));
+  JS::Rooted<JSObject*> globalObject(aCx, JS_GetGlobalForObject(aCx, aTargetClassObject));
+  JS::Rooted<JSObject*> scopeObject(aCx, xpc::GetXBLScope(aCx, globalObject));
+  NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
 
   // now we want to reevaluate our property using aContext and the script object for this window...
-  if ((mJSGetterObject || mJSSetterObject) && targetClassObject) {
-    JSObject * getter = nsnull;
-    JSAutoRequest ar(cx);
-    JSAutoEnterCompartment ac;
+  if (mGetter.GetJSFunction() || mSetter.GetJSFunction()) {
+    // First, enter the compartment of the scope object and clone the functions.
+    JSAutoCompartment ac(aCx, scopeObject);
 
-    if (!ac.enter(cx, globalObject))
-      return NS_ERROR_UNEXPECTED;
-
-    if (mJSGetterObject)
-      if (!(getter = ::JS_CloneFunctionObject(cx, mJSGetterObject, globalObject)))
+    JS::Rooted<JSObject*> getter(aCx, nullptr);
+    if (mGetter.GetJSFunction()) {
+      if (!(getter = ::JS_CloneFunctionObject(aCx, mGetter.GetJSFunction(), scopeObject)))
         return NS_ERROR_OUT_OF_MEMORY;
+    }
 
-    JSObject * setter = nsnull;
-    if (mJSSetterObject)
-      if (!(setter = ::JS_CloneFunctionObject(cx, mJSSetterObject, globalObject)))
+    JS::Rooted<JSObject*> setter(aCx, nullptr);
+    if (mSetter.GetJSFunction()) {
+      if (!(setter = ::JS_CloneFunctionObject(aCx, mSetter.GetJSFunction(), scopeObject)))
         return NS_ERROR_OUT_OF_MEMORY;
+    }
 
+    // Now, enter the content compartment, wrap the getter/setter, and define
+    // them on the class object.
+    JSAutoCompartment ac2(aCx, aTargetClassObject);
     nsDependentString name(mName);
-    if (!::JS_DefineUCProperty(cx, targetClassObject,
-                               reinterpret_cast<const jschar*>(mName),
+    if (!JS_WrapObject(aCx, getter.address()) ||
+        !JS_WrapObject(aCx, setter.address()) ||
+        !::JS_DefineUCProperty(aCx, aTargetClassObject,
+                               static_cast<const jschar*>(mName),
                                name.Length(), JSVAL_VOID,
-                               JS_DATA_TO_FUNC_PTR(JSPropertyOp, getter),
-                               JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, setter),
+                               JS_DATA_TO_FUNC_PTR(JSPropertyOp, getter.get()),
+                               JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, setter.get()),
                                mJSAttributes))
       return NS_ERROR_OUT_OF_MEMORY;
   }
   return NS_OK;
 }
 
-nsresult 
+nsresult
 nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCString& aClassStr,
-                                      void* aClassObject)
+                                      JS::Handle<JSObject*> aClassObject)
 {
   NS_PRECONDITION(!mIsCompiled,
                   "Trying to compile an already-compiled property");
   NS_PRECONDITION(aClassObject,
                   "Must have class object to compile");
+  MOZ_ASSERT(!mGetter.IsCompiled() && !mSetter.IsCompiled());
 
   if (!mName)
     return NS_ERROR_FAILURE; // Without a valid name, we can't install the member.
@@ -217,44 +185,41 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
   // We have a property.
   nsresult rv = NS_OK;
 
-  nsCAutoString functionUri;
-  if (mGetterText || mSetterText) {
+  nsAutoCString functionUri;
+  if (mGetter.GetUncompiled() || mSetter.GetUncompiled()) {
     functionUri = aClassStr;
-    PRInt32 hash = functionUri.RFindChar('#');
+    int32_t hash = functionUri.RFindChar('#');
     if (hash != kNotFound) {
       functionUri.Truncate(hash);
     }
   }
 
-  PRBool deletedGetter = PR_FALSE;
-  if (mGetterText && mGetterText->GetText()) {
-    nsDependentString getter(mGetterText->GetText());
+  bool deletedGetter = false;
+  nsXBLTextWithLineNumber *getterText = mGetter.GetUncompiled();
+  if (getterText && getterText->GetText()) {
+    nsDependentString getter(getterText->GetText());
     if (!getter.IsEmpty()) {
-      // Compile into a temp object so we don't wipe out mGetterText
-      JSObject* getterObject = nsnull;
-      rv = aContext->CompileFunction(aClassObject,
-                                     NS_LITERAL_CSTRING("get_") +
-                                     NS_ConvertUTF16toUTF8(mName),
-                                     0,
-                                     nsnull,
-                                     getter, 
-                                     functionUri.get(),
-                                     mGetterText->GetLineNumber(),
-                                     JSVERSION_LATEST,
-                                     PR_TRUE,
-                                     (void **) &getterObject);
+      AutoPushJSContext cx(aContext->GetNativeContext());
+      JSAutoCompartment ac(cx, aClassObject);
+      JS::CompileOptions options(cx);
+      options.setFileAndLine(functionUri.get(), getterText->GetLineNumber())
+             .setVersion(JSVERSION_LATEST);
+      nsCString name = NS_LITERAL_CSTRING("get_") + NS_ConvertUTF16toUTF8(mName);
+      JS::RootedObject rootedNull(cx, nullptr); // See bug 781070.
+      JS::RootedObject getterObject(cx);
+      rv = nsJSUtils::CompileFunction(cx, rootedNull, options, name, 0, nullptr,
+                                      getter, getterObject.address());
 
-      // Make sure we free mGetterText here before setting mJSGetterObject, since
-      // that'll overwrite mGetterText
-      delete mGetterText;
-      deletedGetter = PR_TRUE;
-      mJSGetterObject = getterObject;
+      delete getterText;
+      deletedGetter = true;
+
+      mGetter.SetJSFunction(getterObject);
     
-      if (mJSGetterObject && NS_SUCCEEDED(rv)) {
+      if (mGetter.GetJSFunction() && NS_SUCCEEDED(rv)) {
         mJSAttributes |= JSPROP_GETTER | JSPROP_SHARED;
       }
       if (NS_FAILED(rv)) {
-        mJSGetterObject = nsnull;
+        mGetter.SetJSFunction(nullptr);
         mJSAttributes &= ~JSPROP_GETTER;
         /*chaining to return failure*/
       }
@@ -262,8 +227,8 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
   } // if getter is not empty
 
   if (!deletedGetter) {  // Empty getter
-    delete mGetterText;
-    mJSGetterObject = nsnull;
+    delete getterText;
+    mGetter.SetJSFunction(nullptr);
   }
   
   if (NS_FAILED(rv)) {
@@ -276,35 +241,31 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
     return rv;
   }
 
-  PRBool deletedSetter = PR_FALSE;
-  if (mSetterText && mSetterText->GetText()) {
-    nsDependentString setter(mSetterText->GetText());
+  bool deletedSetter = false;
+  nsXBLTextWithLineNumber *setterText = mSetter.GetUncompiled();
+  if (setterText && setterText->GetText()) {
+    nsDependentString setter(setterText->GetText());
     if (!setter.IsEmpty()) {
-      // Compile into a temp object so we don't wipe out mSetterText
-      JSObject* setterObject = nsnull;
-      rv = aContext->CompileFunction(aClassObject,
-                                     NS_LITERAL_CSTRING("set_") +
-                                     NS_ConvertUTF16toUTF8(mName),
-                                     1,
-                                     gPropertyArgs,
-                                     setter, 
-                                     functionUri.get(),
-                                     mSetterText->GetLineNumber(),
-                                     JSVERSION_LATEST,
-                                     PR_TRUE,
-                                     (void **) &setterObject);
+      AutoPushJSContext cx(aContext->GetNativeContext());
+      JSAutoCompartment ac(cx, aClassObject);
+      JS::CompileOptions options(cx);
+      options.setFileAndLine(functionUri.get(), setterText->GetLineNumber())
+             .setVersion(JSVERSION_LATEST);
+      nsCString name = NS_LITERAL_CSTRING("set_") + NS_ConvertUTF16toUTF8(mName);
+      JS::RootedObject rootedNull(cx, nullptr); // See bug 781070.
+      JS::RootedObject setterObject(cx);
+      rv = nsJSUtils::CompileFunction(cx, rootedNull, options, name, 1,
+                                      gPropertyArgs, setter, setterObject.address());
 
-      // Make sure we free mSetterText here before setting mJSGetterObject, since
-      // that'll overwrite mSetterText
-      delete mSetterText;
-      deletedSetter = PR_TRUE;
-      mJSSetterObject = setterObject;
+      delete setterText;
+      deletedSetter = true;
+      mSetter.SetJSFunction(setterObject);
 
-      if (mJSSetterObject && NS_SUCCEEDED(rv)) {
+      if (mSetter.GetJSFunction() && NS_SUCCEEDED(rv)) {
         mJSAttributes |= JSPROP_SETTER | JSPROP_SHARED;
       }
       if (NS_FAILED(rv)) {
-        mJSSetterObject = nsnull;
+        mSetter.SetJSFunction(nullptr);
         mJSAttributes &= ~JSPROP_SETTER;
         /*chaining to return failure*/
       }
@@ -312,27 +273,108 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
   } // if setter wasn't empty....
 
   if (!deletedSetter) {  // Empty setter
-    delete mSetterText;
-    mJSSetterObject = nsnull;
+    delete setterText;
+    mSetter.SetJSFunction(nullptr);
   }
 
 #ifdef DEBUG
   mIsCompiled = NS_SUCCEEDED(rv);
 #endif
-  
+
   return rv;
 }
 
 void
-nsXBLProtoImplProperty::Trace(TraceCallback aCallback, void *aClosure) const
+nsXBLProtoImplProperty::Trace(const TraceCallbacks& aCallbacks, void *aClosure)
 {
   if (mJSAttributes & JSPROP_GETTER) {
-    aCallback(nsIProgrammingLanguage::JAVASCRIPT, mJSGetterObject,
-              "mJSGetterObject", aClosure);
+    aCallbacks.Trace(&mGetter.AsHeapObject(), "mGetter", aClosure);
   }
 
   if (mJSAttributes & JSPROP_SETTER) {
-    aCallback(nsIProgrammingLanguage::JAVASCRIPT, mJSSetterObject,
-              "mJSSetterObject", aClosure);
+    aCallbacks.Trace(&mSetter.AsHeapObject(), "mSetter", aClosure);
   }
+}
+
+nsresult
+nsXBLProtoImplProperty::Read(nsIScriptContext* aContext,
+                             nsIObjectInputStream* aStream,
+                             XBLBindingSerializeDetails aType)
+{
+  MOZ_ASSERT(!mIsCompiled);
+  MOZ_ASSERT(!mGetter.GetUncompiled() && !mSetter.GetUncompiled());
+
+  JSContext *cx = aContext->GetNativeContext();
+
+  JS::Rooted<JSObject*> getterObject(cx);
+  if (aType == XBLBinding_Serialize_GetterProperty ||
+      aType == XBLBinding_Serialize_GetterSetterProperty) {
+    nsresult rv = XBL_DeserializeFunction(aContext, aStream, &getterObject);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    mJSAttributes |= JSPROP_GETTER | JSPROP_SHARED;
+  }
+  mGetter.SetJSFunction(getterObject);
+  
+  JS::Rooted<JSObject*> setterObject(cx);
+  if (aType == XBLBinding_Serialize_SetterProperty ||
+      aType == XBLBinding_Serialize_GetterSetterProperty) {
+    nsresult rv = XBL_DeserializeFunction(aContext, aStream, &setterObject);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    mJSAttributes |= JSPROP_SETTER | JSPROP_SHARED;
+  }
+  mSetter.SetJSFunction(setterObject);
+
+#ifdef DEBUG
+  mIsCompiled = true;
+#endif
+
+  return NS_OK;
+}
+
+nsresult
+nsXBLProtoImplProperty::Write(nsIScriptContext* aContext,
+                              nsIObjectOutputStream* aStream)
+{
+  XBLBindingSerializeDetails type;
+
+  if (mJSAttributes & JSPROP_GETTER) {
+    type = mJSAttributes & JSPROP_SETTER ?
+           XBLBinding_Serialize_GetterSetterProperty :
+           XBLBinding_Serialize_GetterProperty;
+  }
+  else {
+    type = XBLBinding_Serialize_SetterProperty;
+  }
+
+  if (mJSAttributes & JSPROP_READONLY) {
+    type |= XBLBinding_Serialize_ReadOnly;
+  }
+
+  nsresult rv = aStream->Write8(type);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = aStream->WriteWStringZ(mName);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // The calls to fromMarkedLocation() below are safe because mSetter and
+  // mGetter are traced by the Trace() method above, and because their values
+  // are never changed after they have been set to a compiled function.
+  MOZ_ASSERT_IF(mJSAttributes & (JSPROP_GETTER | JSPROP_SETTER), mIsCompiled);
+
+  if (mJSAttributes & JSPROP_GETTER) {
+    JS::Handle<JSObject*> function =
+      JS::Handle<JSObject*>::fromMarkedLocation(mGetter.AsHeapObject().address());
+    rv = XBL_SerializeFunction(aContext, aStream, function);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  if (mJSAttributes & JSPROP_SETTER) {
+     JS::Handle<JSObject*> function =
+      JS::Handle<JSObject*>::fromMarkedLocation(mSetter.AsHeapObject().address());
+    rv = XBL_SerializeFunction(aContext, aStream, function);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  return NS_OK;
 }

@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=504862
 -->
 <head>
   <title>Test for Bug 504862</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -21,17 +20,18 @@ function onMsgRcv(event)
 }
 
 function runTest() {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   window.addEventListener("message", onMsgRcv, false);
 
-  var subsequentDlg = "data:text/html,<html><body onload='opener.is(window.dialogArguments, \'my args\', \'subsequent dialog document did not get the right arguments.\'); close();'>";
-
   var result = window.showModalDialog("file_bug504862.html", "my args");
-  is(result, null, "window sees previous dialog documents return value.");
+  // NB: We used to clear returnValue on each navigation, but now we do a
+  // security check on access, so we can safely make returnValue live on
+  // the browsing context, per spec.
+  is(result, 3, "window sees previous dialog documents return value.");
 
   result = window.showModalDialog("http://test1.example.com/tests/dom/tests/mochitest/bugs/file_bug504862.html", "my args");
 
   is(result, null, "Able to see return value from cross origin dialog.");
+
   SimpleTest.finish();
 }
 

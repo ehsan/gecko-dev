@@ -1,43 +1,12 @@
 /* vim:set ts=4 sw=4 sts=4 et cin: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2002
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Darin Fisher <darin@netscape.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Mutex.h"
+#include "mozilla/Attributes.h"
 #include "nsStreamUtils.h"
+#include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIPipe.h"
 #include "nsIEventTarget.h"
@@ -49,11 +18,11 @@ using namespace mozilla;
 
 //-----------------------------------------------------------------------------
 
-class nsInputStreamReadyEvent : public nsIRunnable
-                              , public nsIInputStreamCallback
+class nsInputStreamReadyEvent MOZ_FINAL : public nsIRunnable
+                                        , public nsIInputStreamCallback
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
 
     nsInputStreamReadyEvent(nsIInputStreamCallback *callback,
                             nsIEventTarget *target)
@@ -74,15 +43,14 @@ private:
         // proxy the Release over the right thread.  if that thread is dead,
         // then there's nothing we can do... better to leak than crash.
         //
-        PRBool val;
+        bool val;
         nsresult rv = mTarget->IsOnCurrentThread(&val);
         if (NS_FAILED(rv) || !val) {
-            nsCOMPtr<nsIInputStreamCallback> event;
-            NS_NewInputStreamReadyEvent(getter_AddRefs(event), mCallback,
-                                        mTarget);
-            mCallback = 0;
+            nsCOMPtr<nsIInputStreamCallback> event =
+                NS_NewInputStreamReadyEvent(mCallback, mTarget);
+            mCallback = nullptr;
             if (event) {
-                rv = event->OnInputStreamReady(nsnull);
+                rv = event->OnInputStreamReady(nullptr);
                 if (NS_FAILED(rv)) {
                     NS_NOTREACHED("leaking stream event");
                     nsISupports *sup = event;
@@ -112,7 +80,7 @@ public:
         if (mCallback) {
             if (mStream)
                 mCallback->OnInputStreamReady(mStream);
-            mCallback = nsnull;
+            mCallback = nullptr;
         }
         return NS_OK;
     }
@@ -123,16 +91,16 @@ private:
     nsCOMPtr<nsIEventTarget>         mTarget;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsInputStreamReadyEvent, nsIRunnable,
-                              nsIInputStreamCallback)
+NS_IMPL_ISUPPORTS2(nsInputStreamReadyEvent, nsIRunnable,
+                   nsIInputStreamCallback)
 
 //-----------------------------------------------------------------------------
 
-class nsOutputStreamReadyEvent : public nsIRunnable
-                               , public nsIOutputStreamCallback
+class nsOutputStreamReadyEvent MOZ_FINAL : public nsIRunnable
+                                         , public nsIOutputStreamCallback
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
 
     nsOutputStreamReadyEvent(nsIOutputStreamCallback *callback,
                              nsIEventTarget *target)
@@ -153,15 +121,14 @@ private:
         // proxy the Release over the right thread.  if that thread is dead,
         // then there's nothing we can do... better to leak than crash.
         //
-        PRBool val;
+        bool val;
         nsresult rv = mTarget->IsOnCurrentThread(&val);
         if (NS_FAILED(rv) || !val) {
-            nsCOMPtr<nsIOutputStreamCallback> event;
-            NS_NewOutputStreamReadyEvent(getter_AddRefs(event), mCallback,
-                                         mTarget);
-            mCallback = 0;
+            nsCOMPtr<nsIOutputStreamCallback> event =
+                NS_NewOutputStreamReadyEvent(mCallback, mTarget);
+            mCallback = nullptr;
             if (event) {
-                rv = event->OnOutputStreamReady(nsnull);
+                rv = event->OnOutputStreamReady(nullptr);
                 if (NS_FAILED(rv)) {
                     NS_NOTREACHED("leaking stream event");
                     nsISupports *sup = event;
@@ -191,7 +158,7 @@ public:
         if (mCallback) {
             if (mStream)
                 mCallback->OnOutputStreamReady(mStream);
-            mCallback = nsnull;
+            mCallback = nullptr;
         }
         return NS_OK;
     }
@@ -202,37 +169,31 @@ private:
     nsCOMPtr<nsIEventTarget>          mTarget;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsOutputStreamReadyEvent, nsIRunnable,
-                              nsIOutputStreamCallback)
+NS_IMPL_ISUPPORTS2(nsOutputStreamReadyEvent, nsIRunnable,
+                   nsIOutputStreamCallback)
 
 //-----------------------------------------------------------------------------
 
-NS_COM nsresult
-NS_NewInputStreamReadyEvent(nsIInputStreamCallback **event,
-                            nsIInputStreamCallback *callback,
+already_AddRefed<nsIInputStreamCallback>
+NS_NewInputStreamReadyEvent(nsIInputStreamCallback *callback,
                             nsIEventTarget *target)
 {
     NS_ASSERTION(callback, "null callback");
     NS_ASSERTION(target, "null target");
-    nsInputStreamReadyEvent *ev = new nsInputStreamReadyEvent(callback, target);
-    if (!ev)
-        return NS_ERROR_OUT_OF_MEMORY;
-    NS_ADDREF(*event = ev);
-    return NS_OK;
+    nsRefPtr<nsInputStreamReadyEvent> ev =
+        new nsInputStreamReadyEvent(callback, target);
+    return ev.forget();
 }
 
-NS_COM nsresult
-NS_NewOutputStreamReadyEvent(nsIOutputStreamCallback **event,
-                             nsIOutputStreamCallback *callback,
+already_AddRefed<nsIOutputStreamCallback>
+NS_NewOutputStreamReadyEvent(nsIOutputStreamCallback *callback,
                              nsIEventTarget *target)
 {
     NS_ASSERTION(callback, "null callback");
     NS_ASSERTION(target, "null target");
-    nsOutputStreamReadyEvent *ev = new nsOutputStreamReadyEvent(callback, target);
-    if (!ev)
-        return NS_ERROR_OUT_OF_MEMORY;
-    NS_ADDREF(*event = ev);
-    return NS_OK;
+    nsRefPtr<nsOutputStreamReadyEvent> ev =
+        new nsOutputStreamReadyEvent(callback, target);
+    return ev.forget();
 }
 
 //-----------------------------------------------------------------------------
@@ -244,18 +205,19 @@ class nsAStreamCopier : public nsIInputStreamCallback
                       , public nsIRunnable
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
 
     nsAStreamCopier()
         : mLock("nsAStreamCopier.mLock")
-        , mCallback(nsnull)
-        , mClosure(nsnull)
+        , mCallback(nullptr)
+        , mProgressCallback(nullptr)
+        , mClosure(nullptr)
         , mChunkSize(0)
-        , mEventInProcess(PR_FALSE)
-        , mEventIsPending(PR_FALSE)
-        , mCloseSource(PR_TRUE)
-        , mCloseSink(PR_TRUE)
-        , mCanceled(PR_FALSE)
+        , mEventInProcess(false)
+        , mEventIsPending(false)
+        , mCloseSource(true)
+        , mCloseSink(true)
+        , mCanceled(false)
         , mCancelStatus(NS_OK)
     {
     }
@@ -271,9 +233,10 @@ public:
                    nsIEventTarget *target,
                    nsAsyncCopyCallbackFun callback,
                    void *closure,
-                   PRUint32 chunksize,
-                   PRBool closeSource,
-                   PRBool closeSink)
+                   uint32_t chunksize,
+                   bool closeSource,
+                   bool closeSink,
+                   nsAsyncCopyProgressFun progressCallback)
     {
         mSource = source;
         mSink = sink;
@@ -283,6 +246,7 @@ public:
         mChunkSize = chunksize;
         mCloseSource = closeSource;
         mCloseSink = closeSink;
+        mProgressCallback = progressCallback;
 
         mAsyncSource = do_QueryInterface(mSource);
         mAsyncSink = do_QueryInterface(mSink);
@@ -292,7 +256,7 @@ public:
 
     // implemented by subclasses, returns number of bytes copied and
     // sets source and sink condition before returning.
-    virtual PRUint32 DoCopy(nsresult *sourceCondition, nsresult *sinkCondition) = 0;
+    virtual uint32_t DoCopy(nsresult *sourceCondition, nsresult *sinkCondition) = 0;
 
     void Process()
     {
@@ -301,7 +265,7 @@ public:
 
         nsresult sourceCondition, sinkCondition;
         nsresult cancelStatus;
-        PRBool canceled;
+        bool canceled;
         {
             MutexAutoLock lock(mLock);
             canceled = mCanceled;
@@ -314,9 +278,12 @@ public:
             // Note: copyFailed will be true if the source or the sink have
             //       reported an error, or if we failed to write any bytes
             //       because we have consumed all of our data.
-            PRBool copyFailed = PR_FALSE;
+            bool copyFailed = false;
             if (!canceled) {
-                PRUint32 n = DoCopy(&sourceCondition, &sinkCondition);
+                uint32_t n = DoCopy(&sourceCondition, &sinkCondition);
+                if (n > 0 && mProgressCallback) {
+                    mProgressCallback(mClosure, n);
+                }
                 copyFailed = NS_FAILED(sourceCondition) ||
                              NS_FAILED(sinkCondition) || n == 0;
 
@@ -328,24 +295,24 @@ public:
                 if (sourceCondition == NS_BASE_STREAM_WOULD_BLOCK && mAsyncSource) {
                     // need to wait for more data from source.  while waiting for
                     // more source data, be sure to observe failures on output end.
-                    mAsyncSource->AsyncWait(this, 0, 0, nsnull);
+                    mAsyncSource->AsyncWait(this, 0, 0, nullptr);
 
                     if (mAsyncSink)
                         mAsyncSink->AsyncWait(this,
                                               nsIAsyncOutputStream::WAIT_CLOSURE_ONLY,
-                                              0, nsnull);
+                                              0, nullptr);
                     break;
                 }
                 else if (sinkCondition == NS_BASE_STREAM_WOULD_BLOCK && mAsyncSink) {
                     // need to wait for more room in the sink.  while waiting for
                     // more room in the sink, be sure to observer failures on the
                     // input end.
-                    mAsyncSink->AsyncWait(this, 0, 0, nsnull);
+                    mAsyncSink->AsyncWait(this, 0, 0, nullptr);
 
                     if (mAsyncSource)
                         mAsyncSource->AsyncWait(this,
                                                 nsIAsyncInputStream::WAIT_CLOSURE_ONLY,
-                                                0, nsnull);
+                                                0, nullptr);
                     break;
                 }
             }
@@ -358,8 +325,8 @@ public:
                     else
                         mSource->Close();
                 }
-                mAsyncSource = nsnull;
-                mSource = nsnull;
+                mAsyncSource = nullptr;
+                mSource = nullptr;
 
                 if (mCloseSink) {
                     // close sink
@@ -379,8 +346,8 @@ public:
                             mSink->Close();
                     }
                 }
-                mAsyncSink = nsnull;
-                mSink = nsnull;
+                mAsyncSink = nullptr;
+                mSink = nullptr;
 
                 // notify state complete...
                 if (mCallback) {
@@ -412,7 +379,7 @@ public:
             aReason = NS_BASE_STREAM_CLOSED;
         }
 
-        mCanceled = PR_TRUE;
+        mCanceled = true;
         mCancelStatus = aReason;
         return NS_OK;
     }
@@ -436,9 +403,9 @@ public:
 
         // clear "in process" flag and post any pending continuation event
         MutexAutoLock lock(mLock);
-        mEventInProcess = PR_FALSE;
+        mEventInProcess = false;
         if (mEventIsPending) {
-            mEventIsPending = PR_FALSE;
+            mEventIsPending = false;
             PostContinuationEvent_Locked();
         }
 
@@ -462,11 +429,11 @@ public:
     {
         nsresult rv = NS_OK;
         if (mEventInProcess)
-            mEventIsPending = PR_TRUE;
+            mEventIsPending = true;
         else {
             rv = mTarget->Dispatch(this, NS_DISPATCH_NORMAL);
             if (NS_SUCCEEDED(rv))
-                mEventInProcess = PR_TRUE;
+                mEventInProcess = true;
             else
                 NS_WARNING("unable to post continuation event");
         }
@@ -481,22 +448,23 @@ protected:
     nsCOMPtr<nsIEventTarget>       mTarget;
     Mutex                          mLock;
     nsAsyncCopyCallbackFun         mCallback;
+    nsAsyncCopyProgressFun         mProgressCallback;
     void                          *mClosure;
-    PRUint32                       mChunkSize;
-    PRPackedBool                   mEventInProcess;
-    PRPackedBool                   mEventIsPending;
-    PRPackedBool                   mCloseSource;
-    PRPackedBool                   mCloseSink;
-    PRPackedBool                   mCanceled;
+    uint32_t                       mChunkSize;
+    bool                           mEventInProcess;
+    bool                           mEventIsPending;
+    bool                           mCloseSource;
+    bool                           mCloseSink;
+    bool                           mCanceled;
     nsresult                       mCancelStatus;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(nsAStreamCopier,
-                              nsIInputStreamCallback,
-                              nsIOutputStreamCallback,
-                              nsIRunnable)
+NS_IMPL_ISUPPORTS3(nsAStreamCopier,
+                   nsIInputStreamCallback,
+                   nsIOutputStreamCallback,
+                   nsIRunnable)
 
-class nsStreamCopierIB : public nsAStreamCopier
+class nsStreamCopierIB MOZ_FINAL : public nsAStreamCopier
 {
 public:
     nsStreamCopierIB() : nsAStreamCopier() {}
@@ -510,9 +478,9 @@ public:
     static NS_METHOD ConsumeInputBuffer(nsIInputStream *inStr,
                                         void *closure,
                                         const char *buffer,
-                                        PRUint32 offset,
-                                        PRUint32 count,
-                                        PRUint32 *countWritten)
+                                        uint32_t offset,
+                                        uint32_t count,
+                                        uint32_t *countWritten)
     {
         ReadSegmentsState *state = (ReadSegmentsState *) closure;
 
@@ -525,13 +493,13 @@ public:
         return state->mSinkCondition;
     }
 
-    PRUint32 DoCopy(nsresult *sourceCondition, nsresult *sinkCondition)
+    uint32_t DoCopy(nsresult *sourceCondition, nsresult *sinkCondition)
     {
         ReadSegmentsState state;
         state.mSink = mSink;
         state.mSinkCondition = NS_OK;
 
-        PRUint32 n;
+        uint32_t n;
         *sourceCondition =
             mSource->ReadSegments(ConsumeInputBuffer, &state, mChunkSize, &n);
         *sinkCondition = state.mSinkCondition;
@@ -539,7 +507,7 @@ public:
     }
 };
 
-class nsStreamCopierOB : public nsAStreamCopier
+class nsStreamCopierOB MOZ_FINAL : public nsAStreamCopier
 {
 public:
     nsStreamCopierOB() : nsAStreamCopier() {}
@@ -553,9 +521,9 @@ public:
     static NS_METHOD FillOutputBuffer(nsIOutputStream *outStr,
                                       void *closure,
                                       char *buffer,
-                                      PRUint32 offset,
-                                      PRUint32 count,
-                                      PRUint32 *countRead)
+                                      uint32_t offset,
+                                      uint32_t count,
+                                      uint32_t *countRead)
     {
         WriteSegmentsState *state = (WriteSegmentsState *) closure;
 
@@ -568,13 +536,13 @@ public:
         return state->mSourceCondition;
     }
 
-    PRUint32 DoCopy(nsresult *sourceCondition, nsresult *sinkCondition)
+    uint32_t DoCopy(nsresult *sourceCondition, nsresult *sinkCondition)
     {
         WriteSegmentsState state;
         state.mSource = mSource;
         state.mSourceCondition = NS_OK;
 
-        PRUint32 n;
+        uint32_t n;
         *sinkCondition =
             mSink->WriteSegments(FillOutputBuffer, &state, mChunkSize, &n);
         *sourceCondition = state.mSourceCondition;
@@ -584,17 +552,18 @@ public:
 
 //-----------------------------------------------------------------------------
 
-NS_COM nsresult
+nsresult
 NS_AsyncCopy(nsIInputStream         *source,
              nsIOutputStream        *sink,
              nsIEventTarget         *target,
              nsAsyncCopyMode         mode,
-             PRUint32                chunkSize,
+             uint32_t                chunkSize,
              nsAsyncCopyCallbackFun  callback,
              void                   *closure,
-             PRBool                  closeSource,
-             PRBool                  closeSink,
-             nsISupports           **aCopierCtx)
+             bool                    closeSource,
+             bool                    closeSink,
+             nsISupports           **aCopierCtx,
+             nsAsyncCopyProgressFun  progressCallback)
 {
     NS_ASSERTION(target, "non-null target required");
 
@@ -612,7 +581,7 @@ NS_AsyncCopy(nsIInputStream         *source,
     // Start() takes an owning ref to the copier...
     NS_ADDREF(copier);
     rv = copier->Start(source, sink, target, callback, closure, chunkSize,
-                       closeSource, closeSink);
+                       closeSource, closeSink, progressCallback);
 
     if (aCopierCtx) {
         *aCopierCtx = static_cast<nsISupports*>(
@@ -626,7 +595,7 @@ NS_AsyncCopy(nsIInputStream         *source,
 
 //-----------------------------------------------------------------------------
 
-NS_COM nsresult
+nsresult
 NS_CancelAsyncCopy(nsISupports *aCopierCtx, nsresult aReason)
 {
   nsAStreamCopier *copier = static_cast<nsAStreamCopier *>(
@@ -636,33 +605,36 @@ NS_CancelAsyncCopy(nsISupports *aCopierCtx, nsresult aReason)
 
 //-----------------------------------------------------------------------------
 
-NS_COM nsresult
-NS_ConsumeStream(nsIInputStream *stream, PRUint32 maxCount, nsACString &result)
+nsresult
+NS_ConsumeStream(nsIInputStream *stream, uint32_t maxCount, nsACString &result)
 {
     nsresult rv = NS_OK;
     result.Truncate();
 
     while (maxCount) {
-        PRUint32 avail;
-        rv = stream->Available(&avail);
+        uint64_t avail64;
+        rv = stream->Available(&avail64);
         if (NS_FAILED(rv)) {
             if (rv == NS_BASE_STREAM_CLOSED)
                 rv = NS_OK;
             break;
         }
-        if (avail == 0)
+        if (avail64 == 0)
             break;
-        if (avail > maxCount)
-            avail = maxCount;
+
+        uint32_t avail = (uint32_t)XPCOM_MIN<uint64_t>(avail64, maxCount);
 
         // resize result buffer
-        PRUint32 length = result.Length();
+        uint32_t length = result.Length();
+        if (avail > UINT32_MAX - length)
+            return NS_ERROR_FILE_TOO_BIG;
+        
         result.SetLength(length + avail);
         if (result.Length() != (length + avail))
             return NS_ERROR_OUT_OF_MEMORY;
         char *buf = result.BeginWriting() + length;
         
-        PRUint32 n;
+        uint32_t n;
         rv = stream->Read(buf, avail, &n);
         if (NS_FAILED(rv))
             break;
@@ -682,20 +654,20 @@ static NS_METHOD
 TestInputStream(nsIInputStream *inStr,
                 void *closure,
                 const char *buffer,
-                PRUint32 offset,
-                PRUint32 count,
-                PRUint32 *countWritten)
+                uint32_t offset,
+                uint32_t count,
+                uint32_t *countWritten)
 {
-    PRBool *result = static_cast<PRBool *>(closure);
-    *result = PR_TRUE;
+    bool *result = static_cast<bool *>(closure);
+    *result = true;
     return NS_ERROR_ABORT;  // don't call me anymore
 }
 
-NS_COM PRBool
+bool
 NS_InputStreamIsBuffered(nsIInputStream *stream)
 {
-    PRBool result = PR_FALSE;
-    PRUint32 n;
+    bool result = false;
+    uint32_t n;
     nsresult rv = stream->ReadSegments(TestInputStream,
                                        &result, 1, &n);
     return result || NS_SUCCEEDED(rv);
@@ -705,38 +677,38 @@ static NS_METHOD
 TestOutputStream(nsIOutputStream *outStr,
                  void *closure,
                  char *buffer,
-                 PRUint32 offset,
-                 PRUint32 count,
-                 PRUint32 *countRead)
+                 uint32_t offset,
+                 uint32_t count,
+                 uint32_t *countRead)
 {
-    PRBool *result = static_cast<PRBool *>(closure);
-    *result = PR_TRUE;
+    bool *result = static_cast<bool *>(closure);
+    *result = true;
     return NS_ERROR_ABORT;  // don't call me anymore
 }
 
-NS_COM PRBool
+bool
 NS_OutputStreamIsBuffered(nsIOutputStream *stream)
 {
-    PRBool result = PR_FALSE;
-    PRUint32 n;
+    bool result = false;
+    uint32_t n;
     stream->WriteSegments(TestOutputStream, &result, 1, &n);
     return result;
 }
 
 //-----------------------------------------------------------------------------
 
-NS_COM NS_METHOD
+NS_METHOD
 NS_CopySegmentToStream(nsIInputStream *inStr,
                        void *closure,
                        const char *buffer,
-                       PRUint32 offset,
-                       PRUint32 count,
-                       PRUint32 *countWritten)
+                       uint32_t offset,
+                       uint32_t count,
+                       uint32_t *countWritten)
 {
     nsIOutputStream *outStr = static_cast<nsIOutputStream *>(closure);
     *countWritten = 0;
     while (count) {
-        PRUint32 n;
+        uint32_t n;
         nsresult rv = outStr->Write(buffer, count, &n);
         if (NS_FAILED(rv))
             return rv;
@@ -747,13 +719,13 @@ NS_CopySegmentToStream(nsIInputStream *inStr,
     return NS_OK;
 }
 
-NS_COM NS_METHOD
+NS_METHOD
 NS_CopySegmentToBuffer(nsIInputStream *inStr,
                        void *closure,
                        const char *buffer,
-                       PRUint32 offset,
-                       PRUint32 count,
-                       PRUint32 *countWritten)
+                       uint32_t offset,
+                       uint32_t count,
+                       uint32_t *countWritten)
 {
     char *toBuf = static_cast<char *>(closure);
     memcpy(&toBuf[offset], buffer, count);
@@ -761,13 +733,27 @@ NS_CopySegmentToBuffer(nsIInputStream *inStr,
     return NS_OK;
 }
 
-NS_COM NS_METHOD
+NS_METHOD
+NS_CopySegmentToBuffer(nsIOutputStream *outStr,
+                       void *closure,
+                       char *buffer,
+                       uint32_t offset,
+                       uint32_t count,
+                       uint32_t *countRead)
+{
+    const char* fromBuf = static_cast<const char*>(closure);
+    memcpy(buffer, &fromBuf[offset], count);
+    *countRead = count;
+    return NS_OK;
+}
+
+NS_METHOD
 NS_DiscardSegment(nsIInputStream *inStr,
                   void *closure,
                   const char *buffer,
-                  PRUint32 offset,
-                  PRUint32 count,
-                  PRUint32 *countWritten)
+                  uint32_t offset,
+                  uint32_t count,
+                  uint32_t *countWritten)
 {
     *countWritten = count;
     return NS_OK;
@@ -775,13 +761,13 @@ NS_DiscardSegment(nsIInputStream *inStr,
 
 //-----------------------------------------------------------------------------
 
-NS_COM NS_METHOD
+NS_METHOD
 NS_WriteSegmentThunk(nsIInputStream *inStr,
                      void *closure,
                      const char *buffer,
-                     PRUint32 offset,
-                     PRUint32 count,
-                     PRUint32 *countWritten)
+                     uint32_t offset,
+                     uint32_t count,
+                     uint32_t *countWritten)
 {
     nsWriteSegmentThunk *thunk = static_cast<nsWriteSegmentThunk *>(closure);
     return thunk->mFun(thunk->mStream, thunk->mClosure, buffer, offset, count,

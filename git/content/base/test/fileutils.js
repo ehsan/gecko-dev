@@ -36,7 +36,7 @@ function testFile(file, contents, test) {
                       [{ name: "hello", value: "world"},
                        { name: "myfile",
                          value: contents,
-                         fileName: file.name || "",
+                         fileName: file.name || "blob",
                          contentType: file.type || "application/octet-stream" }]);
     testHasRun();
   }
@@ -97,8 +97,8 @@ function getXHRLoadHandler(expectedResult, expectedLength, statusWorking, testNa
          "[XHR] no error in test " + testName);
     }
     else {
-      todo(event.target.status, 200,
-           "[XHR] no error in test " + testName);
+      todo_is(event.target.status, 200,
+              "[XHR] no error in test " + testName);
     }
     // Do not use |is(convertXHRBinary(event.target.responseText), expectedResult, "...");| that may output raw binary data.
     var convertedData = convertXHRBinary(event.target.responseText);
@@ -201,25 +201,31 @@ function testSlice(file, size, type, contents, fileType) {
   ok(file instanceof File, fileType + " file is a File");
   ok(file instanceof Blob, fileType + " file is also a Blob");
   
-  var slice = file.mozSlice(0, size);
+  var slice = file.slice(0, size);
+  ok(slice instanceof Blob, fileType + " fullsize slice is a Blob");
+  ok(!(slice instanceof File), fileType + " fullsize slice is not a File");
+
+  // Test that mozSlice works still.
+  slice = file.mozSlice(0, size);
   ok(slice instanceof Blob, fileType + " fullsize slice is a Blob");
   ok(!(slice instanceof File), fileType + " fullsize slice is not a File");
   
-  slice = file.mozSlice(0, 1234);
+  slice = file.slice(0, 1234);
   ok(slice instanceof Blob, fileType + " sized slice is a Blob");
   ok(!(slice instanceof File), fileType + " sized slice is not a File");
   
-  slice = file.mozSlice(0, size, "foo/bar");
+  slice = file.slice(0, size, "foo/bar");
   is(slice.type, "foo/bar", fileType + " fullsize slice foo/bar type");
 
-  slice = file.mozSlice(0, 5432, "foo/bar");
+  slice = file.slice(0, 5432, "foo/bar");
   is(slice.type, "foo/bar", fileType + " sized slice foo/bar type");
   
-  is(slice.mozSlice(0, 10).type, "", fileType + " slice-slice type");
-  is(slice.mozSlice(0, 10).size, 10, fileType + " slice-slice size");
-  is(slice.mozSlice(0, 10, "hello/world").type, "hello/world", fileType + " slice-slice hello/world type");
-  is(slice.mozSlice(0, 10, "hello/world").size, 10, fileType + " slice-slice hello/world size");
+  is(slice.slice(0, 10).type, "", fileType + " slice-slice type");
+  is(slice.slice(0, 10).size, 10, fileType + " slice-slice size");
+  is(slice.slice(0, 10, "hello/world").type, "hello/world", fileType + " slice-slice hello/world type");
+  is(slice.slice(0, 10, "hello/world").size, 10, fileType + " slice-slice hello/world size");
 
+  // Start, end, expected size
   var indexes = [[0, size, size],
                  [0, 1234, 1234],
                  [size-500, size, 500],
@@ -228,6 +234,7 @@ function testSlice(file, size, type, contents, fileType) {
                  [0, 0, 0],
                  [1000, 1000, 0],
                  [size, size, 0],
+                 [undefined, undefined, size],
                  [0, undefined, size],
                  [100, undefined, size-100],
                  [-100, undefined, 100],
@@ -244,13 +251,18 @@ function testSlice(file, size, type, contents, fileType) {
   for (var i = 0; i < indexes.length; ++i) {
     var sliceContents;
     var testName;
-    if (indexes[i][1] == undefined) {
-      slice = file.mozSlice(indexes[i][0]);
+    if (indexes[i][0] == undefined) {
+      slice = file.slice();
+      sliceContents = contents.slice();
+      testName = fileType + " slice()";
+    }
+    else if (indexes[i][1] == undefined) {
+      slice = file.slice(indexes[i][0]);
       sliceContents = contents.slice(indexes[i][0]);
       testName = fileType + " slice(" + indexes[i][0] + ")";
     }
     else {
-      slice = file.mozSlice(indexes[i][0], indexes[i][1]);
+      slice = file.slice(indexes[i][0], indexes[i][1]);
       sliceContents = contents.slice(indexes[i][0], indexes[i][1]);
       testName = fileType + " slice(" + indexes[i][0] + ", " + indexes[i][1] + ")";
     }
@@ -261,11 +273,11 @@ function testSlice(file, size, type, contents, fileType) {
   }
 
   // Slice of slice
-  var slice = file.mozSlice(0, 40000);
-  testFile(slice.mozSlice(5000, 42000), contents.slice(5000, 40000), "file slice slice");
+  var slice = file.slice(0, 40000);
+  testFile(slice.slice(5000, 42000), contents.slice(5000, 40000), "file slice slice");
   
   // ...of slice of slice
-  slice = slice.mozSlice(5000, 42000).mozSlice(400, 700);
+  slice = slice.slice(5000, 42000).slice(400, 700);
   SpecialPowers.gc();
   testFile(slice, contents.slice(5400, 5700), "file slice slice slice");
 }

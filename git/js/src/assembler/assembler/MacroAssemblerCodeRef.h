@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=79:
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009 Apple Inc. All rights reserved.
@@ -27,8 +27,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MacroAssemblerCodeRef_h
-#define MacroAssemblerCodeRef_h
+#ifndef assembler_assembler_MacroAssemblerCodeRef_h
+#define assembler_assembler_MacroAssemblerCodeRef_h
 
 #include "assembler/wtf/Platform.h"
 #include "assembler/jit/ExecutableAllocator.h"
@@ -156,7 +156,7 @@ public:
     void* dataLocation() const { ASSERT_VALID_CODE_POINTER(m_value); return m_value; }
 #endif
 
-    bool operator!()
+    bool operator!() const
     {
         return !m_value;
     }
@@ -164,8 +164,8 @@ public:
     ptrdiff_t operator -(const MacroAssemblerCodePtr &other) const
     {
         JS_ASSERT(m_value);
-        return reinterpret_cast<uint8 *>(m_value) -
-               reinterpret_cast<uint8 *>(other.m_value);
+        return reinterpret_cast<uint8_t *>(m_value) -
+               reinterpret_cast<uint8_t *>(other.m_value);
     }
 
 private:
@@ -180,7 +180,8 @@ private:
 class MacroAssemblerCodeRef {
 public:
     MacroAssemblerCodeRef()
-        : m_size(0)
+        : m_executablePool(NULL),
+          m_size(0)
     {
     }
 
@@ -189,6 +190,27 @@ public:
         , m_executablePool(executablePool)
         , m_size(size)
     {
+    }
+
+    // Release the code memory in this code ref.
+    void release()
+    {
+        if (!m_executablePool)
+            return;
+
+#if defined DEBUG && (defined WTF_CPU_X86 || defined WTF_CPU_X86_64) 
+        void *addr = m_code.executableAddress();
+        memset(addr, 0xcc, m_size);
+#endif
+        m_executablePool->release();
+        m_executablePool = NULL;
+    }
+
+    MacroAssemblerCodePtr code() const {
+        return m_code;
+    }
+    size_t size() const {
+        return m_size;
     }
 
     MacroAssemblerCodePtr m_code;
@@ -200,4 +222,4 @@ public:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif // MacroAssemblerCodeRef_h
+#endif /* assembler_assembler_MacroAssemblerCodeRef_h */

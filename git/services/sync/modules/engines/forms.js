@@ -1,40 +1,8 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Bookmarks Sync.
- *
- * The Initial Developer of the Original Code is Mozilla.
- * Portions created by the Initial Developer are Copyright (C) 2008
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *  Anant Narayanan <anant@kix.in>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const EXPORTED_SYMBOLS = ['FormEngine', 'FormRec'];
+this.EXPORTED_SYMBOLS = ['FormEngine', 'FormRec'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -43,18 +11,19 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/log4moz.js");
+Cu.import("resource://services-common/log4moz.js");
 
 const FORMS_TTL = 5184000; // 60 days
 
-function FormRec(collection, id) {
+this.FormRec = function FormRec(collection, id) {
   CryptoWrapper.call(this, collection, id);
 }
 FormRec.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Record.Form",
+  _logName: "Sync.Record.Form",
   ttl: FORMS_TTL
 };
 
@@ -62,81 +31,71 @@ Utils.deferGetSet(FormRec, "cleartext", ["name", "value"]);
 
 
 let FormWrapper = {
-  _log: Log4Moz.repository.getLogger('Engine.Forms'),
-    
-  getAllEntries: function getAllEntries() {
-    // Sort by (lastUsed - minLast) / (maxLast - minLast) * timesUsed / maxTimes
-    let query = Svc.Form.DBConnection.createAsyncStatement(
-      "SELECT fieldname name, value FROM moz_formhistory " +
-      "ORDER BY 1.0 * (lastUsed - (SELECT lastUsed FROM moz_formhistory ORDER BY lastUsed ASC LIMIT 1)) / " +
-        "((SELECT lastUsed FROM moz_formhistory ORDER BY lastUsed DESC LIMIT 1) - (SELECT lastUsed FROM moz_formhistory ORDER BY lastUsed ASC LIMIT 1)) * " +
-        "timesUsed / (SELECT timesUsed FROM moz_formhistory ORDER BY timesUsed DESC LIMIT 1) DESC " +
-      "LIMIT 500");
-    return Utils.queryAsync(query, ["name", "value"]);
+  _log: Log4Moz.repository.getLogger("Sync.Engine.Forms"),
+
+  _getEntryCols: ["fieldname", "value"],
+  _guidCols:     ["guid"],
+
+  // Do a "sync" search by spinning the event loop until it completes.
+  _searchSpinningly: function(terms, searchData) {
+    let results = [];
+    let cb = Async.makeSpinningCallback();
+    let callbacks = {
+      handleResult: function(result) {
+        results.push(result);
+      },
+      handleCompletion: function(reason) {
+        cb(null, results);
+      }
+    };
+    Svc.FormHistory.search(terms, searchData, callbacks);
+    return cb.wait();
   },
 
-  getEntry: function getEntry(guid) {
-    let query = Svc.Form.DBConnection.createAsyncStatement(
-      "SELECT fieldname name, value FROM moz_formhistory WHERE guid = :guid");
-    query.params.guid = guid;
-    return Utils.queryAsync(query, ["name", "value"])[0];
+  _updateSpinningly: function(changes) {
+    let cb = Async.makeSpinningCallback();
+    let callbacks = {
+      handleCompletion: function(reason) {
+        cb();
+      }
+    };
+    Svc.FormHistory.update(changes, callbacks);
+    return cb.wait();
   },
 
-  getGUID: function getGUID(name, value) {
-    // Query for the provided entry
-    let getQuery = Svc.Form.DBConnection.createAsyncStatement(
-      "SELECT guid FROM moz_formhistory " +
-      "WHERE fieldname = :name AND value = :value");
-    getQuery.params.name = name;
-    getQuery.params.value = value;
-
-    // Give the guid if we found one
-    let item = Utils.queryAsync(getQuery, ["guid"])[0];
-    
-    if (!item) {
-      // Shouldn't happen, but Bug 597400...
-      // Might as well just return.
-      this._log.warn("GUID query returned " + item + "; turn on Trace logging for details.");
-      this._log.trace("getGUID(" + JSON.stringify(name) + ", " +
-                      JSON.stringify(value) + ") => " + item);
+  getEntry: function (guid) {
+    let results = this._searchSpinningly(this._getEntryCols, {guid: guid});
+    if (!results.length) {
       return null;
     }
-    
-    if (item.guid != null)
-      return item.guid;
-
-    // We need to create a guid for this entry
-    let setQuery = Svc.Form.DBConnection.createAsyncStatement(
-      "UPDATE moz_formhistory SET guid = :guid " +
-      "WHERE fieldname = :name AND value = :value");
-    let guid = Utils.makeGUID();
-    setQuery.params.guid = guid;
-    setQuery.params.name = name;
-    setQuery.params.value = value;
-    Utils.queryAsync(setQuery);
-
-    return guid;
+    return {name: results[0].fieldname, value: results[0].value};
   },
 
-  hasGUID: function hasGUID(guid) {
-    let query = Svc.Form.DBConnection.createAsyncStatement(
-      "SELECT guid FROM moz_formhistory WHERE guid = :guid LIMIT 1");
-    query.params.guid = guid;
-    return Utils.queryAsync(query, ["guid"]).length == 1;
+  getGUID: function (name, value) {
+    // Query for the provided entry.
+    let query = { fieldname: name, value: value };
+    let results = this._searchSpinningly(this._guidCols, query);
+    return results.length ? results[0].guid : null;
   },
 
-  replaceGUID: function replaceGUID(oldGUID, newGUID) {
-    let query = Svc.Form.DBConnection.createAsyncStatement(
-      "UPDATE moz_formhistory SET guid = :newGUID WHERE guid = :oldGUID");
-    query.params.oldGUID = oldGUID;
-    query.params.newGUID = newGUID;
-    Utils.queryAsync(query);
+  hasGUID: function (guid) {
+    // We could probably use a count function here, but searchSpinningly exists...
+    return this._searchSpinningly(this._guidCols, {guid: guid}).length != 0;
+  },
+
+  replaceGUID: function (oldGUID, newGUID) {
+    let changes = {
+      op: "update",
+      guid: oldGUID,
+      newGuid: newGUID,
+    }
+    this._updateSpinningly(changes);
   }
 
 };
 
-function FormEngine() {
-  SyncEngine.call(this, "Forms");
+this.FormEngine = function FormEngine(service) {
+  SyncEngine.call(this, "Forms", service);
 }
 FormEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -148,82 +107,101 @@ FormEngine.prototype = {
   get prefName() "history",
 
   _findDupe: function _findDupe(item) {
-    if (Svc.Form.entryExists(item.name, item.value))
-      return FormWrapper.getGUID(item.name, item.value);
+    return FormWrapper.getGUID(item.name, item.value);
   }
 };
 
-function FormStore(name) {
-  Store.call(this, name);
+function FormStore(name, engine) {
+  Store.call(this, name, engine);
 }
 FormStore.prototype = {
   __proto__: Store.prototype,
 
-  applyIncomingBatch: function applyIncomingBatch(records) {
-    return Utils.runInTransaction(Svc.Form.DBConnection, function() {
-      return Store.prototype.applyIncomingBatch.call(this, records);
-    }, this);
+  _processChange: function (change) {
+    // If this._changes is defined, then we are applying a batch, so we
+    // can defer it.
+    if (this._changes) {
+      this._changes.push(change);
+      return;
+    }
+
+    // Otherwise we must handle the change synchronously, right now.
+    FormWrapper._updateSpinningly(change);
   },
 
-  applyIncoming: function applyIncoming(record) {
-    Store.prototype.applyIncoming.call(this, record);
-    this._sleep(0); // Yield back to main thread after synchronous operation.
+  applyIncomingBatch: function (records) {
+    // We collect all the changes to be made then apply them all at once.
+    this._changes = [];
+    let failures = Store.prototype.applyIncomingBatch.call(this, records);
+    if (this._changes.length) {
+      FormWrapper._updateSpinningly(this._changes);
+    }
+    delete this._changes;
+    return failures;
   },
 
-  getAllIDs: function FormStore_getAllIDs() {
+  getAllIDs: function () {
+    let results = FormWrapper._searchSpinningly(["guid"], [])
     let guids = {};
-    for each (let {name, value} in FormWrapper.getAllEntries())
-      guids[FormWrapper.getGUID(name, value)] = true;
+    for (let result of results) {
+      guids[result.guid] = true;
+    }
     return guids;
   },
 
-  changeItemID: function FormStore_changeItemID(oldID, newID) {
+  changeItemID: function (oldID, newID) {
     FormWrapper.replaceGUID(oldID, newID);
   },
 
-  itemExists: function FormStore_itemExists(id) {
+  itemExists: function (id) {
     return FormWrapper.hasGUID(id);
   },
 
-  createRecord: function createRecord(id, collection) {
+  createRecord: function (id, collection) {
     let record = new FormRec(collection, id);
     let entry = FormWrapper.getEntry(id);
     if (entry != null) {
       record.name = entry.name;
       record.value = entry.value;
-    }
-    else
+    } else {
       record.deleted = true;
+    }
     return record;
   },
 
-  create: function FormStore_create(record) {
+  create: function (record) {
     this._log.trace("Adding form record for " + record.name);
-    Svc.Form.addEntry(record.name, record.value);
+    let change = {
+      op: "add",
+      fieldname: record.name,
+      value: record.value
+    };
+    this._processChange(change);
   },
 
-  remove: function FormStore_remove(record) {
+  remove: function (record) {
     this._log.trace("Removing form record: " + record.id);
-
-    // Just skip remove requests for things already gone
-    let entry = FormWrapper.getEntry(record.id);
-    if (entry == null)
-      return;
-
-    Svc.Form.removeEntry(entry.name, entry.value);
+    let change = {
+      op: "remove",
+      guid: record.id
+    };
+    this._processChange(change);
   },
 
-  update: function FormStore_update(record) {
+  update: function (record) {
     this._log.trace("Ignoring form record update request!");
   },
 
-  wipe: function FormStore_wipe() {
-    Svc.Form.removeAllEntries();
+  wipe: function () {
+    let change = {
+      op: "remove"
+    };
+    FormWrapper._updateSpinningly(change);
   }
 };
 
-function FormTracker(name) {
-  Tracker.call(this, name);
+function FormTracker(name, engine) {
+  Tracker.call(this, name, engine);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
 }
@@ -235,19 +213,14 @@ FormTracker.prototype = {
     Ci.nsIObserver,
     Ci.nsISupportsWeakReference]),
 
-  trackEntry: function trackEntry(name, value) {
-    this.addChangedID(FormWrapper.getGUID(name, value));
-    this.score += 10;
-  },
-
   _enabled: false,
-  observe: function observe(subject, topic, data) {
+  observe: function (subject, topic, data) {
     switch (topic) {
       case "weave:engine:start-tracking":
         if (!this._enabled) {
           Svc.Obs.add("form-notifier", this);
           Svc.Obs.add("satchel-storage-changed", this);
-          // nsHTMLFormElement doesn't use the normal observer/observe
+          // HTMLFormElement doesn't use the normal observer/observe
           // pattern and looks up nsIFormSubmitObservers to .notify()
           // them so add manually to observers
           Cc["@mozilla.org/observer-service;1"]
@@ -267,21 +240,23 @@ FormTracker.prototype = {
         }
         break;
       case "satchel-storage-changed":
-        if (data == "addEntry" || data == "before-removeEntry") {
-          subject = subject.QueryInterface(Ci.nsIArray);
-          let name = subject.queryElementAt(0, Ci.nsISupportsString)
-                            .toString();
-          let value = subject.queryElementAt(1, Ci.nsISupportsString)
-                             .toString();
-          this.trackEntry(name, value);
+        if (data == "formhistory-add" || data == "formhistory-remove") {
+          let guid = subject.QueryInterface(Ci.nsISupportsString).toString();
+          this.trackEntry(guid);
         }
         break;
     }
   },
 
-  notify: function FormTracker_notify(formElement, aWindow, actionURI) {
-    if (this.ignoreAll)
+  trackEntry: function (guid) {
+    this.addChangedID(guid);
+    this.score += SCORE_INCREMENT_MEDIUM;
+  },
+
+  notify: function (formElement, aWindow, actionURI) {
+    if (this.ignoreAll) {
       return;
+    }
 
     this._log.trace("Form submission notification for " + actionURI.spec);
 
@@ -308,8 +283,9 @@ FormTracker.prototype = {
 
       // Grab the name for debugging, but check if empty when satchel would
       let name = el.name;
-      if (name === "")
+      if (name === "") {
         name = el.id;
+      }
 
       if (!(el instanceof Ci.nsIDOMHTMLInputElement)) {
         this._log.trace(name + " is not a DOMHTMLInputElement: " + el);
@@ -342,10 +318,13 @@ FormTracker.prototype = {
       }
 
       // Get the GUID on a delay so that it can be added to the DB first...
-      Utils.delay(function() {
+      Utils.nextTick(function() {
         this._log.trace("Logging form element: " + [name, el.value]);
-        this.trackEntry(name, el.value);
-      }, 0, this);
+        let guid = FormWrapper.getGUID(name, el.value);
+        if (guid) {
+          this.trackEntry(guid);
+        }
+      }, this);
     }
   }
 };

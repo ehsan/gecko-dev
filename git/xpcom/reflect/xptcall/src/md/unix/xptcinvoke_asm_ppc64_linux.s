@@ -1,38 +1,6 @@
-## ***** BEGIN LICENSE BLOCK *****
- # Version: MPL 1.1/GPL 2.0/LGPL 2.1
- #
- # The contents of this file are subject to the Mozilla Public License Version
- # 1.1 (the "License"); you may not use this file except in compliance with
- # the License. You may obtain a copy of the License at
- # http://www.mozilla.org/MPL/
- #
- # Software distributed under the License is distributed on an "AS IS" basis,
- # WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- # for the specific language governing rights and limitations under the
- # License.
- #
- # The Original Code is mozilla.org code.
- #
- # The Initial Developer of the Original Code is
- # dwmw2@infradead.org (David Woodhouse).
- # Portions created by the Initial Developer are Copyright (C) 2006
- # the Initial Developer. All Rights Reserved.
- #
- # Contributor(s):
- #
- # Alternatively, the contents of this file may be used under the terms of
- # either the GNU General Public License Version 2 or later (the "GPL"), or
- # the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- # in which case the provisions of the GPL or the LGPL are applicable instead
- # of those above. If you wish to allow use of your version of this file only
- # under the terms of either the GPL or the LGPL, and not to allow others to
- # use your version of this file under the terms of the MPL, indicate your
- # decision by deleting the provisions above and replace them with the notice
- # and other provisions required by the GPL or the LGPL. If you do not delete
- # the provisions above, a recipient may use your version of this file under
- # the terms of any one of the MPL, the GPL or the LGPL.
- #
- # ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 .set r0,0; .set r1,1; .set r2,2; .set r3,3; .set r4,4
 .set r5,5; .set r6,6; .set r7,7; .set r8,8; .set r9,9
@@ -51,21 +19,21 @@
 
 
 #
-# NS_InvokeByIndex_P(nsISupports* that, PRUint32 methodIndex,
-#                    PRUint32 paramCount, nsXPTCVariant* params)
+# NS_InvokeByIndex(nsISupports* that, uint32_t methodIndex,
+#                    uint32_t paramCount, nsXPTCVariant* params)
 #
 
         .section ".toc","aw"
         .section ".text"
         .align 2
-        .globl  NS_InvokeByIndex_P
+        .globl  NS_InvokeByIndex
         .section ".opd","aw"
         .align 3
-NS_InvokeByIndex_P:
-        .quad   .NS_InvokeByIndex_P,.TOC.@tocbase
+NS_InvokeByIndex:
+        .quad   .NS_InvokeByIndex,.TOC.@tocbase
         .previous
-        .type   NS_InvokeByIndex_P,@function
-.NS_InvokeByIndex_P:
+        .type   NS_InvokeByIndex,@function
+.NS_InvokeByIndex:
         mflr    0
         std     0,16(r1)
 
@@ -94,9 +62,9 @@ NS_InvokeByIndex_P:
         stdux   r1,r1,r7
 
 
-        # Call invoke_copy_to_stack(PRUint64* gpregs, double* fpregs,
-        #                           PRUint32 paramCount, nsXPTCVariant* s, 
-        #                           PRUint64* d))
+        # Call invoke_copy_to_stack(uint64_t* gpregs, double* fpregs,
+        #                           uint32_t paramCount, nsXPTCVariant* s, 
+        #                           uint64_t* d))
 
         # r5, r6 are passed through intact (paramCount, params)
         # r7 (d) has to be r1+112 -- where parameters are passed on the stack.
@@ -158,7 +126,7 @@ NS_InvokeByIndex_P:
         mtlr    0
         blr
 
-        .size   NS_InvokeByIndex_P,.-.NS_InvokeByIndex_P
+        .size   NS_InvokeByIndex,.-.NS_InvokeByIndex
 
         # Magic indicating no need for an executable stack
         .section .note.GNU-stack, "", @progbits ; .previous

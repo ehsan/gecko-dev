@@ -1,42 +1,9 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=8 et :
  */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at:
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Code.
- *
- * The Initial Developer of the Original Code is
- *   The Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Chris Jones <jones.chris.g@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef mozilla_${HEADER}_h
 #define mozilla_${HEADER}_h
@@ -44,6 +11,9 @@
 #if _HAS_EXCEPTIONS
 #  error "STL code can only be used with -fno-exceptions"
 #endif
+
+// Suppress windef.h min and max macros - they make std::min/max not compile.
+#define NOMINMAX 1
 
 // Code built with !_HAS_EXCEPTIONS calls std::_Throw(), but the win2k
 // CRT doesn't export std::_Throw().  So we define it.
@@ -93,10 +63,12 @@
 //#  undef _SECURE_SCL
 #endif
 
-// We know that code won't be able to catch exceptions, but that's OK
-// because we're not throwing them.
+// C4275: When _HAS_EXCEPTIONS is set to 0, system STL header
+//        will generate the warning which we can't modify.
+// C4530: We know that code won't be able to catch exceptions,
+//        but that's OK because we're not throwing them.
 #pragma warning( push )
-#pragma warning( disable : 4530 )
+#pragma warning( disable : 4275 4530 )
 
 #include <${HEADER_PATH}>
 

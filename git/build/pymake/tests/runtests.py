@@ -54,7 +54,7 @@ for a in args:
     if os.path.isfile(a):
         makefiles.append(a)
     elif os.path.isdir(a):
-        makefiles.extend(glob.glob(os.path.join(a, '*.mk')))
+        makefiles.extend(sorted(glob.glob(os.path.join(a, '*.mk'))))
 
 def runTest(makefile, make, logfile, options):
     """
@@ -78,12 +78,15 @@ def runTest(makefile, make, logfile, options):
     logfd.close()
 
     if stdout.find('TEST-FAIL') != -1:
+        print stdout
         return False, "FAIL (TEST-FAIL printed)"
 
     if options['grepfor'] and stdout.find(options['grepfor']) == -1:
-            return False, "FAIL (%s not in output)" % options['grepfor']
+        print stdout
+        return False, "FAIL (%s not in output)" % options['grepfor']
 
     if options['returncode'] == 0 and stdout.find('TEST-PASS') == -1:
+        print stdout
         return False, 'FAIL (No TEST-PASS printed)'
 
     if options['returncode'] != 0:
@@ -123,6 +126,7 @@ for makefile in makefiles:
 
     mdata = open(makefile)
     for line in mdata:
+        line = line.strip()
         m = tre.search(line)
         if m is None:
             break
@@ -143,7 +147,7 @@ for makefile in makefiles:
             for k, v in data.iteritems():
                 d['env'][k] = v
         elif key == 'grep-for':
-            grepfor = data
+            d['grepfor'] = data
         elif key == 'fail':
             d['pass'] = False
         elif key == 'skip':

@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 //
 // Eric Vaughan
@@ -47,11 +15,16 @@
 #include "nsGkAtoms.h"
 #include "nsIScrollableFrame.h"
 #include "nsIScrollbarMediator.h"
+#include "mozilla/LookAndFeel.h"
+#include "nsThemeConstants.h"
+#include "nsRenderingContext.h"
+
+using namespace mozilla;
 
 //
-// NS_NewToolbarFrame
+// NS_NewScrollbarFrame
 //
-// Creates a new Toolbar frame and returns it
+// Creates a new scrollbar frame and returns it
 //
 nsIFrame*
 NS_NewScrollbarFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -62,23 +35,21 @@ NS_NewScrollbarFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsScrollbarFrame)
 
 NS_QUERYFRAME_HEAD(nsScrollbarFrame)
-  NS_QUERYFRAME_ENTRY(nsIScrollbarFrame)
+  NS_QUERYFRAME_ENTRY(nsScrollbarFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 
-NS_IMETHODIMP
+void
 nsScrollbarFrame::Init(nsIContent* aContent,
                        nsIFrame*   aParent,
                        nsIFrame*   aPrevInFlow)
 {
-  nsresult  rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
+  nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
 
   // We want to be a reflow root since we use reflows to move the
   // slider.  Any reflow inside the scrollbar frame will be a reflow to
   // move the slider and will thus not change anything outside of the
   // scrollbar or change the size of the scrollbar frame.
   mState |= NS_FRAME_REFLOW_ROOT;
-
-  return rv;
 }
 
 NS_IMETHODIMP
@@ -102,14 +73,6 @@ nsScrollbarFrame::Reflow(nsPresContext*          aPresContext,
   return NS_OK;
 }
 
-/* virtual */ PRBool
-nsScrollbarFrame::IsContainingBlock() const
-{
-  // Return true so that the nsHTMLReflowState code is happy with us
-  // being a reflow root.
-  return PR_TRUE;
-}
-
 nsIAtom*
 nsScrollbarFrame::GetType() const
 {
@@ -117,9 +80,9 @@ nsScrollbarFrame::GetType() const
 }
 
 NS_IMETHODIMP
-nsScrollbarFrame::AttributeChanged(PRInt32 aNameSpaceID,
+nsScrollbarFrame::AttributeChanged(int32_t aNameSpaceID,
                                    nsIAtom* aAttribute,
-                                   PRInt32 aModType)
+                                   int32_t aModType)
 {
   nsresult rv = nsBoxFrame::AttributeChanged(aNameSpaceID, aAttribute,
                                              aModType);
@@ -129,14 +92,11 @@ nsScrollbarFrame::AttributeChanged(PRInt32 aNameSpaceID,
   if (aAttribute != nsGkAtoms::curpos)
     return rv;
 
-  nsIFrame* parent = GetParent();
-  if (!parent)
-    return rv;
-
-  nsIScrollableFrame* scrollable = do_QueryFrame(parent);
+  nsIScrollableFrame* scrollable = do_QueryFrame(GetParent());
   if (!scrollable)
     return rv;
 
+  nsCOMPtr<nsIContent> kungFuDeathGrip(mContent);
   scrollable->CurPosAttributeChanged(mContent);
   return rv;
 }
@@ -153,7 +113,7 @@ NS_IMETHODIMP
 nsScrollbarFrame::HandleMultiplePress(nsPresContext* aPresContext, 
                                       nsGUIEvent*     aEvent,
                                       nsEventStatus*  aEventStatus,
-                                      PRBool aControlHeld)
+                                      bool aControlHeld)
 {
   return NS_OK;
 }
@@ -184,20 +144,49 @@ nsIScrollbarMediator*
 nsScrollbarFrame::GetScrollbarMediator()
 {
   if (!mScrollbarMediator)
-    return nsnull;
+    return nullptr;
   nsIFrame* f = mScrollbarMediator->GetPrimaryFrame();
-  if (!f)
-    return nsnull;
 
   // check if the frame is a scroll frame. If so, get the scrollable frame
   // inside it.
   nsIScrollableFrame* scrollFrame = do_QueryFrame(f);
   if (scrollFrame) {
     f = scrollFrame->GetScrolledFrame();
-    if (!f)
-      return nsnull;
   }
 
   nsIScrollbarMediator* sbm = do_QueryFrame(f);
   return sbm;
+}
+
+NS_IMETHODIMP
+nsScrollbarFrame::GetMargin(nsMargin& aMargin)
+{
+  aMargin.SizeTo(0,0,0,0);
+
+  if (LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars) != 0) {
+    nsPresContext* presContext = PresContext();
+    nsITheme* theme = presContext->GetTheme();
+    if (theme) {
+      nsIntSize size;
+      bool isOverridable;
+      nsRefPtr<nsRenderingContext> rc =
+        presContext->PresShell()->GetReferenceRenderingContext();
+      theme->GetMinimumWidgetSize(rc, this, NS_THEME_SCROLLBAR, &size,
+                                  &isOverridable);
+      if (IsHorizontal()) {
+        aMargin.top = -presContext->DevPixelsToAppUnits(size.height);
+      }
+      else {
+        if (StyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
+          aMargin.right = -presContext->DevPixelsToAppUnits(size.width);
+        }
+        else {
+          aMargin.left = -presContext->DevPixelsToAppUnits(size.width);
+        }
+      }
+      return NS_OK;
+    }
+  }
+
+  return nsBox::GetMargin(aMargin);
 }

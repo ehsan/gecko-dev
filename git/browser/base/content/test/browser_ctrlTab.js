@@ -5,11 +5,11 @@ function test() {
   gBrowser.addTab();
   gBrowser.addTab();
 
-  assertTabs(4);
+  checkTabs(4);
 
   ctrlTabTest([2]      , 1, 0);
   ctrlTabTest([2, 3, 1], 2, 2);
-  ctrlTabTest([]       , 5, 2);
+  ctrlTabTest([]       , 4, 2);
 
   {
     let selectedIndex = gBrowser.tabContainer.selectedIndex;
@@ -28,11 +28,21 @@ function test() {
     releaseCtrl();
   }
 
-  assertTabs(3);
-  ctrlTabTest([2, 1, 0], 9, 1);
+  { // test for bug 667314
+    let tabs = gBrowser.tabs.length;
+    pressCtrlTab();
+    pressCtrlTab(true);
+    EventUtils.synthesizeKey("w", { ctrlKey: true });
+    is(gBrowser.tabs.length, tabs - 1, "Ctrl+Tab -> Ctrl+W removes the selected tab");
+    releaseCtrl();
+  }
 
   gBrowser.addTab();
-  assertTabs(4);
+  checkTabs(3);
+  ctrlTabTest([2, 1, 0], 7, 1);
+
+  gBrowser.addTab();
+  checkTabs(4);
 
   { // test for bug 445369
     selectTabs([1, 2, 0]);
@@ -49,22 +59,22 @@ function test() {
     pressCtrlTab(true);
     pressCtrlTab(true);
     releaseCtrl();
-    ok(gBrowser.selectedTab == selectedTab,
+    ok(selectedTab.selected,
        "Ctrl+Tab*2 -> Ctrl+W -> Ctrl+Shift+Tab*2 keeps the selected tab");
   }
   gBrowser.removeTab(gBrowser.tabContainer.lastChild);
-  assertTabs(2);
+  checkTabs(2);
 
   ctrlTabTest([1], 1, 0);
 
   gBrowser.removeTab(gBrowser.tabContainer.lastChild);
-  assertTabs(1);
+  checkTabs(1);
 
   { // test for bug 445768
     let focusedWindow = document.commandDispatcher.focusedWindow;
     let eventConsumed = true;
     let detectKeyEvent = function (event) {
-      eventConsumed = event.getPreventDefault();
+      eventConsumed = event.defaultPrevented;
     };
     document.addEventListener("keypress", detectKeyEvent, false);
     pressCtrlTab();
@@ -89,7 +99,7 @@ function test() {
   function isOpen()
     ctrlTab.isOpen;
 
-  function assertTabs(aTabs) {
+  function checkTabs(aTabs) {
     var tabs = gBrowser.tabs.length;
     if (tabs != aTabs) {
       while (gBrowser.tabs.length > 1)

@@ -1,182 +1,87 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Sean Echevarria <sean@beatnik.com>
- *   Håkan Waara <hwaara@chello.se>
- *   Josh Aas <josh@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsPluginTags.h"
 
 #include "prlink.h"
 #include "plstr.h"
 #include "nsIPluginInstanceOwner.h"
-#include "nsIDocument.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
 #include "nsPluginsDir.h"
 #include "nsPluginHost.h"
+#include "nsIBlocklistService.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsIPlatformCharset.h"
 #include "nsICharsetConverterManager.h"
 #include "nsPluginLogging.h"
-#include "nsICategoryManager.h"
 #include "nsNPAPIPlugin.h"
 #include "mozilla/TimeStamp.h"
+#include "mozilla/Preferences.h"
+#include <cctype>
 
+using namespace mozilla;
 using mozilla::TimeStamp;
+
+// These legacy flags are used in the plugin registry. The states are now
+// stored in prefs, but we still need to be able to import them.
+#define NS_PLUGIN_FLAG_ENABLED      0x0001    // is this plugin enabled?
+// no longer used                   0x0002    // reuse only if regenerating pluginreg.dat
+#define NS_PLUGIN_FLAG_FROMCACHE    0x0004    // this plugintag info was loaded from cache
+// no longer used                   0x0008    // reuse only if regenerating pluginreg.dat
+#define NS_PLUGIN_FLAG_CLICKTOPLAY  0x0020    // this is a click-to-play plugin
 
 inline char* new_str(const char* str)
 {
-  if (str == nsnull)
-    return nsnull;
+  if (str == nullptr)
+    return nullptr;
   
   char* result = new char[strlen(str) + 1];
-  if (result != nsnull)
+  if (result != nullptr)
     return strcpy(result, str);
   return result;
 }
 
-/* nsPluginTag */
-
-nsPluginTag::nsPluginTag(nsPluginTag* aPluginTag)
-: mPluginHost(nsnull),
-mName(aPluginTag->mName),
-mDescription(aPluginTag->mDescription),
-mMimeTypes(aPluginTag->mMimeTypes),
-mMimeDescriptions(aPluginTag->mMimeDescriptions),
-mExtensions(aPluginTag->mExtensions),
-mLibrary(nsnull),
-mCanUnloadLibrary(PR_TRUE),
-mIsJavaPlugin(aPluginTag->mIsJavaPlugin),
-mIsNPRuntimeEnabledJavaPlugin(aPluginTag->mIsNPRuntimeEnabledJavaPlugin),
-mIsFlashPlugin(aPluginTag->mIsFlashPlugin),
-mFileName(aPluginTag->mFileName),
-mFullPath(aPluginTag->mFullPath),
-mVersion(aPluginTag->mVersion),
-mLastModifiedTime(0),
-mFlags(NS_PLUGIN_FLAG_ENABLED)
+static nsCString
+MakePrefNameForPlugin(const char* const subname, nsPluginTag* aTag)
 {
+  nsCString pref;
+
+  pref.AssignLiteral("plugin.");
+  pref.Append(subname);
+  pref.Append('.');
+  pref.Append(aTag->GetNiceFileName());
+
+  return pref;
 }
 
-nsPluginTag::nsPluginTag(nsPluginInfo* aPluginInfo)
-: mPluginHost(nsnull),
-mName(aPluginInfo->fName),
-mDescription(aPluginInfo->fDescription),
-mLibrary(nsnull),
-#ifdef XP_MACOSX
-mCanUnloadLibrary(PR_FALSE),
-#else
-mCanUnloadLibrary(PR_TRUE),
-#endif
-mIsJavaPlugin(PR_FALSE),
-mIsNPRuntimeEnabledJavaPlugin(PR_FALSE),
-mIsFlashPlugin(PR_FALSE),
-mFileName(aPluginInfo->fFileName),
-mFullPath(aPluginInfo->fFullPath),
-mVersion(aPluginInfo->fVersion),
-mLastModifiedTime(0),
-mFlags(NS_PLUGIN_FLAG_ENABLED)
+static nsCString
+GetStatePrefNameForPlugin(nsPluginTag* aTag)
 {
-  if (!aPluginInfo->fMimeTypeArray) {
-    return;
-  }
+  return MakePrefNameForPlugin("state", aTag);
+}
 
-  for (PRUint32 i = 0; i < aPluginInfo->fVariantCount; i++) {
-    // First fill in the MIME types.
-    char* currentMIMEType = aPluginInfo->fMimeTypeArray[i];
-    if (currentMIMEType) {
-      if (mIsJavaPlugin) {
-        if (strcmp(currentMIMEType, "application/x-java-vm-npruntime") == 0) {
-          // This "magic MIME type" should not be exposed, but is just a signal
-          // to the browser that this is new-style java.
-          // Don't add it or its associated information to our arrays.
-          mIsNPRuntimeEnabledJavaPlugin = PR_TRUE;
-          continue;
-        }
-      }
-      mMimeTypes.AppendElement(nsCString(currentMIMEType));
-      if (nsPluginHost::IsJavaMIMEType(currentMIMEType)) {
-        mIsJavaPlugin = PR_TRUE;
-      }
-      else if (strcmp(currentMIMEType, "application/x-shockwave-flash") == 0) {
-        mIsFlashPlugin = PR_TRUE;
-      }
-    } else {
-      continue;
-    }
+/* nsPluginTag */
 
-    // Now fill in the MIME descriptions.
-    if (aPluginInfo->fMimeDescriptionArray &&
-        aPluginInfo->fMimeDescriptionArray[i]) {
-      // we should cut off the list of suffixes which the mime
-      // description string may have, see bug 53895
-      // it is usually in form "some description (*.sf1, *.sf2)"
-      // so we can search for the opening round bracket
-      char cur = '\0';
-      char pre = '\0';
-      char * p = PL_strrchr(aPluginInfo->fMimeDescriptionArray[i], '(');
-      if (p && (p != aPluginInfo->fMimeDescriptionArray[i])) {
-        if ((p - 1) && *(p - 1) == ' ') {
-          pre = *(p - 1);
-          *(p - 1) = '\0';
-        } else {
-          cur = *p;
-          *p = '\0';
-        }
-      }
-      mMimeDescriptions.AppendElement(nsCString(aPluginInfo->fMimeDescriptionArray[i]));
-      // restore the original string
-      if (cur != '\0')
-        *p = cur;
-      if (pre != '\0')
-        *(p - 1) = pre;      
-    } else {
-      mMimeDescriptions.AppendElement(nsCString());
-    }
-
-    // Now fill in the extensions.
-    if (aPluginInfo->fExtensionArray &&
-        aPluginInfo->fExtensionArray[i]) {
-      mExtensions.AppendElement(nsCString(aPluginInfo->fExtensionArray[i]));
-    } else {
-      mExtensions.AppendElement(nsCString());
-    }
-  }
-
+nsPluginTag::nsPluginTag(nsPluginInfo* aPluginInfo)
+  : mName(aPluginInfo->fName),
+    mDescription(aPluginInfo->fDescription),
+    mLibrary(nullptr),
+    mIsJavaPlugin(false),
+    mIsFlashPlugin(false),
+    mFileName(aPluginInfo->fFileName),
+    mFullPath(aPluginInfo->fFullPath),
+    mVersion(aPluginInfo->fVersion),
+    mLastModifiedTime(0),
+    mNiceFileName(),
+    mCachedBlocklistState(nsIBlocklistService::STATE_NOT_BLOCKED),
+    mCachedBlocklistStateValid(false)
+{
+  InitMime(aPluginInfo->fMimeTypeArray,
+           aPluginInfo->fMimeDescriptionArray,
+           aPluginInfo->fExtensionArray,
+           aPluginInfo->fVariantCount);
   EnsureMembersAreUTF8();
 }
 
@@ -188,37 +93,24 @@ nsPluginTag::nsPluginTag(const char* aName,
                          const char* const* aMimeTypes,
                          const char* const* aMimeDescriptions,
                          const char* const* aExtensions,
-                         PRInt32 aVariants,
-                         PRInt64 aLastModifiedTime,
-                         PRBool aCanUnload,
-                         PRBool aArgsAreUTF8)
-: mPluginHost(nsnull),
-mName(aName),
-mDescription(aDescription),
-mLibrary(nsnull),
-mCanUnloadLibrary(aCanUnload),
-mIsJavaPlugin(PR_FALSE),
-mIsNPRuntimeEnabledJavaPlugin(PR_FALSE),
-mFileName(aFileName),
-mFullPath(aFullPath),
-mVersion(aVersion),
-mLastModifiedTime(aLastModifiedTime),
-mFlags(0) // Caller will read in our flags from cache
+                         int32_t aVariants,
+                         int64_t aLastModifiedTime,
+                         bool aArgsAreUTF8)
+  : mName(aName),
+    mDescription(aDescription),
+    mLibrary(nullptr),
+    mIsJavaPlugin(false),
+    mIsFlashPlugin(false),
+    mFileName(aFileName),
+    mFullPath(aFullPath),
+    mVersion(aVersion),
+    mLastModifiedTime(aLastModifiedTime),
+    mNiceFileName(),
+    mCachedBlocklistState(nsIBlocklistService::STATE_NOT_BLOCKED),
+    mCachedBlocklistStateValid(false)
 {
-  for (PRInt32 i = 0; i < aVariants; i++) {
-    if (mIsJavaPlugin && aMimeTypes[i] &&
-        strcmp(aMimeTypes[i], "application/x-java-vm-npruntime") == 0) {
-      mIsNPRuntimeEnabledJavaPlugin = PR_TRUE;
-      continue;
-    }
-    mMimeTypes.AppendElement(nsCString(aMimeTypes[i]));
-    mMimeDescriptions.AppendElement(nsCString(aMimeDescriptions[i]));
-    mExtensions.AppendElement(nsCString(aExtensions[i]));
-    if (nsPluginHost::IsJavaMIMEType(mMimeTypes[i].get())) {
-      mIsJavaPlugin = PR_TRUE;
-    }
-  }
-
+  InitMime(aMimeTypes, aMimeDescriptions, aExtensions,
+           static_cast<uint32_t>(aVariants));
   if (!aArgsAreUTF8)
     EnsureMembersAreUTF8();
 }
@@ -230,16 +122,80 @@ nsPluginTag::~nsPluginTag()
 
 NS_IMPL_ISUPPORTS1(nsPluginTag, nsIPluginTag)
 
+void nsPluginTag::InitMime(const char* const* aMimeTypes,
+                           const char* const* aMimeDescriptions,
+                           const char* const* aExtensions,
+                           uint32_t aVariantCount)
+{
+  if (!aMimeTypes) {
+    return;
+  }
+
+  for (uint32_t i = 0; i < aVariantCount; i++) {
+    if (!aMimeTypes[i] || !nsPluginHost::IsTypeWhitelisted(aMimeTypes[i])) {
+      continue;
+    }
+
+    // Look for certain special plugins.
+    if (nsPluginHost::IsJavaMIMEType(aMimeTypes[i])) {
+      mIsJavaPlugin = true;
+    } else if (strcmp(aMimeTypes[i], "application/x-shockwave-flash") == 0) {
+      mIsFlashPlugin = true;
+    }
+
+    // Fill in our MIME type array.
+    mMimeTypes.AppendElement(nsCString(aMimeTypes[i]));
+
+    // Now fill in the MIME descriptions.
+    if (aMimeDescriptions && aMimeDescriptions[i]) {
+      // we should cut off the list of suffixes which the mime
+      // description string may have, see bug 53895
+      // it is usually in form "some description (*.sf1, *.sf2)"
+      // so we can search for the opening round bracket
+      char cur = '\0';
+      char pre = '\0';
+      char * p = PL_strrchr(aMimeDescriptions[i], '(');
+      if (p && (p != aMimeDescriptions[i])) {
+        if ((p - 1) && *(p - 1) == ' ') {
+          pre = *(p - 1);
+          *(p - 1) = '\0';
+        } else {
+          cur = *p;
+          *p = '\0';
+        }
+      }
+      mMimeDescriptions.AppendElement(nsCString(aMimeDescriptions[i]));
+      // restore the original string
+      if (cur != '\0') {
+        *p = cur;
+      }
+      if (pre != '\0') {
+        *(p - 1) = pre;
+      }
+    } else {
+      mMimeDescriptions.AppendElement(nsCString());
+    }
+
+    // Now fill in the extensions.
+    if (aExtensions && aExtensions[i]) {
+      mExtensions.AppendElement(nsCString(aExtensions[i]));
+    } else {
+      mExtensions.AppendElement(nsCString());
+    }
+  }
+}
+
+#if !defined(XP_WIN) && !defined(XP_MACOSX)
 static nsresult ConvertToUTF8(nsIUnicodeDecoder *aUnicodeDecoder,
                               nsAFlatCString& aString)
 {
-  PRInt32 numberOfBytes = aString.Length();
-  PRInt32 outUnicodeLen;
+  int32_t numberOfBytes = aString.Length();
+  int32_t outUnicodeLen;
   nsAutoString buffer;
   nsresult rv = aUnicodeDecoder->GetMaxLength(aString.get(), numberOfBytes,
                                               &outUnicodeLen);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (!EnsureStringLength(buffer, outUnicodeLen))
+  if (!buffer.SetLength(outUnicodeLen, fallible_t()))
     return NS_ERROR_OUT_OF_MEMORY;
   rv = aUnicodeDecoder->Convert(aString.get(), &numberOfBytes,
                                 buffer.BeginWriting(), &outUnicodeLen);
@@ -249,6 +205,7 @@ static nsresult ConvertToUTF8(nsIUnicodeDecoder *aUnicodeDecoder,
   
   return NS_OK;
 }
+#endif
 
 nsresult nsPluginTag::EnsureMembersAreUTF8()
 {
@@ -265,7 +222,7 @@ nsresult nsPluginTag::EnsureMembersAreUTF8()
   do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  nsCAutoString charset;
+  nsAutoCString charset;
   rv = pcs->GetCharset(kPlatformCharsetSel_FileName, charset);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!charset.LowerCaseEqualsLiteral("utf-8")) {
@@ -287,17 +244,12 @@ nsresult nsPluginTag::EnsureMembersAreUTF8()
     
     ConvertToUTF8(decoder, mName);
     ConvertToUTF8(decoder, mDescription);
-    for (PRUint32 i = 0; i < mMimeDescriptions.Length(); ++i) {
+    for (uint32_t i = 0; i < mMimeDescriptions.Length(); ++i) {
       ConvertToUTF8(decoder, mMimeDescriptions[i]);
     }
   }
   return NS_OK;
 #endif
-}
-
-void nsPluginTag::SetHost(nsPluginHost * aHost)
-{
-  mPluginHost = aHost;
 }
 
 NS_IMETHODIMP
@@ -335,204 +287,263 @@ nsPluginTag::GetName(nsACString& aName)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsPluginTag::GetDisabled(PRBool* aDisabled)
+bool
+nsPluginTag::IsActive()
 {
-  *aDisabled = !HasFlag(NS_PLUGIN_FLAG_ENABLED);
+  return IsEnabled() && !IsBlocklisted();
+}
+
+bool
+nsPluginTag::IsEnabled()
+{
+  const PluginState state = GetPluginState();
+  return (state == ePluginState_Enabled) || (state == ePluginState_Clicktoplay);
+}
+
+NS_IMETHODIMP
+nsPluginTag::GetDisabled(bool* aDisabled)
+{
+  *aDisabled = !IsEnabled();
+  return NS_OK;
+}
+
+bool
+nsPluginTag::IsBlocklisted()
+{
+  return GetBlocklistState() == nsIBlocklistService::STATE_BLOCKED;
+}
+
+NS_IMETHODIMP
+nsPluginTag::GetBlocklisted(bool* aBlocklisted)
+{
+  *aBlocklisted = IsBlocklisted();
+  return NS_OK;
+}
+
+bool
+nsPluginTag::IsClicktoplay()
+{
+  const PluginState state = GetPluginState();
+  return (state == ePluginState_Clicktoplay);
+}
+
+NS_IMETHODIMP
+nsPluginTag::GetClicktoplay(bool *aClicktoplay)
+{
+  *aClicktoplay = IsClicktoplay();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPluginTag::SetDisabled(PRBool aDisabled)
-{
-  if (HasFlag(NS_PLUGIN_FLAG_ENABLED) == !aDisabled)
+nsPluginTag::GetEnabledState(uint32_t *aEnabledState) {
+  int32_t enabledState;
+  nsresult rv = Preferences::GetInt(GetStatePrefNameForPlugin(this).get(),
+                                    &enabledState);
+  if (NS_SUCCEEDED(rv) &&
+      enabledState >= nsIPluginTag::STATE_DISABLED &&
+      enabledState <= nsIPluginTag::STATE_ENABLED) {
+    *aEnabledState = (uint32_t)enabledState;
+    return rv;
+  }
+
+  enabledState = Preferences::GetInt("plugin.default.state",
+                                     nsIPluginTag::STATE_ENABLED);
+  if (enabledState >= nsIPluginTag::STATE_DISABLED &&
+      enabledState <= nsIPluginTag::STATE_ENABLED) {
+    *aEnabledState = (uint32_t)enabledState;
     return NS_OK;
-  
-  if (aDisabled)
-    UnMark(NS_PLUGIN_FLAG_ENABLED);
-  else
-    Mark(NS_PLUGIN_FLAG_ENABLED);
-  
-  mPluginHost->UpdatePluginInfo(this);
-  return NS_OK;
+  }
+
+  return NS_ERROR_UNEXPECTED;
 }
 
 NS_IMETHODIMP
-nsPluginTag::GetBlocklisted(PRBool* aBlocklisted)
-{
-  *aBlocklisted = HasFlag(NS_PLUGIN_FLAG_BLOCKLISTED);
+nsPluginTag::SetEnabledState(uint32_t aEnabledState) {
+  if (aEnabledState >= ePluginState_MaxValue)
+    return NS_ERROR_ILLEGAL_VALUE;
+  uint32_t oldState = nsIPluginTag::STATE_DISABLED;
+  GetEnabledState(&oldState);
+  if (oldState != aEnabledState) {
+    Preferences::SetInt(GetStatePrefNameForPlugin(this).get(), aEnabledState);
+    if (nsRefPtr<nsPluginHost> host = nsPluginHost::GetInst()) {
+      host->UpdatePluginInfo(this);
+    }
+  }
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsPluginTag::SetBlocklisted(PRBool aBlocklisted)
+nsPluginTag::PluginState
+nsPluginTag::GetPluginState()
 {
-  if (HasFlag(NS_PLUGIN_FLAG_BLOCKLISTED) == aBlocklisted)
-    return NS_OK;
-  
-  if (aBlocklisted)
-    Mark(NS_PLUGIN_FLAG_BLOCKLISTED);
-  else
-    UnMark(NS_PLUGIN_FLAG_BLOCKLISTED);
-  
-  mPluginHost->UpdatePluginInfo(nsnull);
-  return NS_OK;
+  uint32_t enabledState = nsIPluginTag::STATE_DISABLED;
+  GetEnabledState(&enabledState);
+  return (PluginState)enabledState;
 }
 
 void
-nsPluginTag::RegisterWithCategoryManager(PRBool aOverrideInternalTypes,
-                                         nsPluginTag::nsRegisterType aType)
+nsPluginTag::SetPluginState(PluginState state)
 {
-  PLUGIN_LOG(PLUGIN_LOG_NORMAL,
-             ("nsPluginTag::RegisterWithCategoryManager plugin=%s, removing = %s\n",
-              mFileName.get(), aType == ePluginUnregister ? "yes" : "no"));
-  
-  nsCOMPtr<nsICategoryManager> catMan = do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
-  if (!catMan)
-    return;
-  
-  const char *contractId = "@mozilla.org/content/plugin/document-loader-factory;1";
-  
-  nsCOMPtr<nsIPrefBranch> psvc(do_GetService(NS_PREFSERVICE_CONTRACTID));
-  if (!psvc)
-    return; // NS_ERROR_OUT_OF_MEMORY
-  
-  // A preference controls whether or not the full page plugin is disabled for
-  // a particular type. The string must be in the form:
-  //   type1,type2,type3,type4
-  // Note: need an actual interface to control this and subsequent disabling 
-  // (and other plugin host settings) so applications can reliably disable 
-  // plugins - without relying on implementation details such as prefs/category
-  // manager entries.
-  nsXPIDLCString overrideTypes;
-  nsCAutoString overrideTypesFormatted;
-  if (aType != ePluginUnregister) {
-    psvc->GetCharPref("plugin.disable_full_page_plugin_for_types", getter_Copies(overrideTypes));
-    overrideTypesFormatted.Assign(',');
-    overrideTypesFormatted += overrideTypes;
-    overrideTypesFormatted.Append(',');
+  static_assert((uint32_t)nsPluginTag::ePluginState_Disabled == nsIPluginTag::STATE_DISABLED, "nsPluginTag::ePluginState_Disabled must match nsIPluginTag::STATE_DISABLED");
+  static_assert((uint32_t)nsPluginTag::ePluginState_Clicktoplay == nsIPluginTag::STATE_CLICKTOPLAY, "nsPluginTag::ePluginState_Clicktoplay must match nsIPluginTag::STATE_CLICKTOPLAY");
+  static_assert((uint32_t)nsPluginTag::ePluginState_Enabled == nsIPluginTag::STATE_ENABLED, "nsPluginTag::ePluginState_Enabled must match nsIPluginTag::STATE_ENABLED");
+  SetEnabledState((uint32_t)state);
+}
+
+NS_IMETHODIMP
+nsPluginTag::GetMimeTypes(uint32_t* aCount, PRUnichar*** aResults)
+{
+  uint32_t count = mMimeTypes.Length();
+  *aResults = static_cast<PRUnichar**>
+                         (nsMemory::Alloc(count * sizeof(**aResults)));
+  if (!*aResults)
+    return NS_ERROR_OUT_OF_MEMORY;
+  *aCount = count;
+
+  for (uint32_t i = 0; i < count; i++) {
+    (*aResults)[i] = ToNewUnicode(mMimeTypes[i]);
   }
-  
-  nsACString::const_iterator start, end;
-  for (PRUint32 i = 0; i < mMimeTypes.Length(); i++) {
-    if (aType == ePluginUnregister) {
-      nsXPIDLCString value;
-      if (NS_SUCCEEDED(catMan->GetCategoryEntry("Gecko-Content-Viewers",
-                                                mMimeTypes[i].get(),
-                                                getter_Copies(value)))) {
-        // Only delete the entry if a plugin registered for it
-        if (strcmp(value, contractId) == 0) {
-          catMan->DeleteCategoryEntry("Gecko-Content-Viewers",
-                                      mMimeTypes[i].get(),
-                                      PR_TRUE);
-        }
-      }
-    } else {
-      overrideTypesFormatted.BeginReading(start);
-      overrideTypesFormatted.EndReading(end);
-      
-      nsCAutoString commaSeparated; 
-      commaSeparated.Assign(',');
-      commaSeparated += mMimeTypes[i];
-      commaSeparated.Append(',');
-      if (!FindInReadable(commaSeparated, start, end)) {
-        catMan->AddCategoryEntry("Gecko-Content-Viewers",
-                                 mMimeTypes[i].get(),
-                                 contractId,
-                                 PR_FALSE, /* persist: broken by bug 193031 */
-                                 aOverrideInternalTypes, /* replace if we're told to */
-                                 nsnull);
-      }
-    }
-    
-    PLUGIN_LOG(PLUGIN_LOG_NOISY,
-               ("nsPluginTag::RegisterWithCategoryManager mime=%s, plugin=%s\n",
-                mMimeTypes[i].get(), mFileName.get()));
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPluginTag::GetMimeDescriptions(uint32_t* aCount, PRUnichar*** aResults)
+{
+  uint32_t count = mMimeDescriptions.Length();
+  *aResults = static_cast<PRUnichar**>
+                         (nsMemory::Alloc(count * sizeof(**aResults)));
+  if (!*aResults)
+    return NS_ERROR_OUT_OF_MEMORY;
+  *aCount = count;
+
+  for (uint32_t i = 0; i < count; i++) {
+    (*aResults)[i] = ToNewUnicode(mMimeDescriptions[i]);
   }
+
+  return NS_OK;
 }
 
-void nsPluginTag::Mark(PRUint32 mask)
+NS_IMETHODIMP
+nsPluginTag::GetExtensions(uint32_t* aCount, PRUnichar*** aResults)
 {
-  PRBool wasEnabled = IsEnabled();
-  mFlags |= mask;
-  // Update entries in the category manager if necessary.
-  if (mPluginHost && wasEnabled != IsEnabled()) {
-    if (wasEnabled)
-      RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginUnregister);
-    else
-      RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginRegister);
+  uint32_t count = mExtensions.Length();
+  *aResults = static_cast<PRUnichar**>
+                         (nsMemory::Alloc(count * sizeof(**aResults)));
+  if (!*aResults)
+    return NS_ERROR_OUT_OF_MEMORY;
+  *aCount = count;
+
+  for (uint32_t i = 0; i < count; i++) {
+    (*aResults)[i] = ToNewUnicode(mExtensions[i]);
   }
+
+  return NS_OK;
 }
 
-void nsPluginTag::UnMark(PRUint32 mask)
+bool
+nsPluginTag::HasSameNameAndMimes(const nsPluginTag *aPluginTag) const
 {
-  PRBool wasEnabled = IsEnabled();
-  mFlags &= ~mask;
-  // Update entries in the category manager if necessary.
-  if (mPluginHost && wasEnabled != IsEnabled()) {
-    if (wasEnabled)
-      RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginUnregister);
-    else
-      RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginRegister);
-  }
-}
+  NS_ENSURE_TRUE(aPluginTag, false);
 
-PRBool nsPluginTag::HasFlag(PRUint32 flag)
-{
-  return (mFlags & flag) != 0;
-}
-
-PRUint32 nsPluginTag::Flags()
-{
-  return mFlags;
-}
-
-PRBool nsPluginTag::IsEnabled()
-{
-  return HasFlag(NS_PLUGIN_FLAG_ENABLED) && !HasFlag(NS_PLUGIN_FLAG_BLOCKLISTED);
-}
-
-PRBool nsPluginTag::Equals(nsPluginTag *aPluginTag)
-{
-  NS_ENSURE_TRUE(aPluginTag, PR_FALSE);
-  
   if ((!mName.Equals(aPluginTag->mName)) ||
-      (!mDescription.Equals(aPluginTag->mDescription)) ||
       (mMimeTypes.Length() != aPluginTag->mMimeTypes.Length())) {
-    return PR_FALSE;
+    return false;
   }
 
-  for (PRUint32 i = 0; i < mMimeTypes.Length(); i++) {
+  for (uint32_t i = 0; i < mMimeTypes.Length(); i++) {
     if (!mMimeTypes[i].Equals(aPluginTag->mMimeTypes[i])) {
-      return PR_FALSE;
+      return false;
     }
   }
 
-  return PR_TRUE;
+  return true;
 }
 
-void nsPluginTag::TryUnloadPlugin()
+void nsPluginTag::TryUnloadPlugin(bool inShutdown)
 {
-  if (mEntryPoint) {
-    mEntryPoint->Shutdown();
-    mEntryPoint = nsnull;
+  // We never want to send NPP_Shutdown to an in-process plugin unless
+  // this process is shutting down.
+  if (mLibrary && !inShutdown) {
+    return;
   }
-  
-  // before we unload check if we are allowed to, see bug #61388
-  if (mLibrary && mCanUnloadLibrary) {
-    // unload the plugin asynchronously by posting a PLEvent
-    nsPluginHost::PostPluginUnloadEvent(mLibrary);
+
+  if (mPlugin) {
+    mPlugin->Shutdown();
+    mPlugin = nullptr;
   }
-  
-  // we should zero it anyway, it is going to be unloaded by
-  // CleanUnsedLibraries before we need to call the library
-  // again so the calling code should not be fooled and reload
-  // the library fresh
-  mLibrary = nsnull;
-  
-  // Remove mime types added to the category manager
-  // only if we were made 'active' by setting the host
-  if (mPluginHost) {
-    RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginUnregister);
+}
+
+nsCString nsPluginTag::GetNiceFileName() {
+  if (!mNiceFileName.IsEmpty()) {
+    return mNiceFileName;
   }
+
+  if (mIsFlashPlugin) {
+    mNiceFileName.Assign(NS_LITERAL_CSTRING("flash"));
+    return mNiceFileName;
+  }
+
+  if (mIsJavaPlugin) {
+    mNiceFileName.Assign(NS_LITERAL_CSTRING("java"));
+    return mNiceFileName;
+  }
+
+  mNiceFileName.Assign(mFileName);
+  int32_t niceNameLength = mFileName.RFind(".");
+  NS_ASSERTION(niceNameLength != kNotFound, "mFileName doesn't have a '.'?");
+  while (niceNameLength > 0) {
+    char chr = mFileName[niceNameLength - 1];
+    if (!std::isalpha(chr))
+      niceNameLength--;
+    else
+      break;
+  }
+
+  // If it turns out that niceNameLength <= 0, we'll fall back and use the
+  // entire mFileName (which we've already taken care of, a few lines back)
+  if (niceNameLength > 0) {
+    mNiceFileName.Truncate(niceNameLength);
+  }
+
+  ToLowerCase(mNiceFileName);
+  return mNiceFileName;
+}
+
+void nsPluginTag::ImportFlagsToPrefs(uint32_t flags)
+{
+  if (!(flags & NS_PLUGIN_FLAG_ENABLED)) {
+    SetPluginState(ePluginState_Disabled);
+  }
+}
+
+uint32_t
+nsPluginTag::GetBlocklistState()
+{
+  if (mCachedBlocklistStateValid) {
+    return mCachedBlocklistState;
+  }
+
+  nsCOMPtr<nsIBlocklistService> blocklist = do_GetService("@mozilla.org/extensions/blocklist;1");
+  if (!blocklist) {
+    return nsIBlocklistService::STATE_NOT_BLOCKED;
+  }
+
+  // The EmptyString()s are so we use the currently running application
+  // and toolkit versions
+  uint32_t state;
+  if (NS_FAILED(blocklist->GetPluginBlocklistState(this, EmptyString(),
+                                                   EmptyString(), &state))) {
+    return nsIBlocklistService::STATE_NOT_BLOCKED;
+  }
+
+  MOZ_ASSERT(state <= UINT16_MAX);
+  mCachedBlocklistState = (uint16_t) state;
+  mCachedBlocklistStateValid = true;
+  return state;
+}
+
+void
+nsPluginTag::InvalidateBlocklistState()
+{
+  mCachedBlocklistStateValid = false;
 }

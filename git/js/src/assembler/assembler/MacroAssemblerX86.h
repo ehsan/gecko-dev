@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=79:
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2008 Apple Inc. All rights reserved.
@@ -27,23 +27,21 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MacroAssemblerX86_h
-#define MacroAssemblerX86_h
+#ifndef assembler_assembler_MacroAssemblerX86_h
+#define assembler_assembler_MacroAssemblerX86_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER && WTF_CPU_X86
 
-#include "MacroAssemblerX86Common.h"
+#include "assembler/assembler/MacroAssemblerX86Common.h"
 
 namespace JSC {
 
 class MacroAssemblerX86 : public MacroAssemblerX86Common {
 public:
     MacroAssemblerX86()
-        : m_isSSE2Present(isSSE2Present())
-    {
-    }
+    { }
 
     static const Scale ScalePtr = TimesFour;
     static const unsigned int TotalRegisters = 8;
@@ -60,7 +58,7 @@ public:
     using MacroAssemblerX86Common::storeDouble;
     using MacroAssemblerX86Common::convertInt32ToDouble;
 
-    void add32(Imm32 imm, RegisterID src, RegisterID dest)
+    void add32(TrustedImm32 imm, RegisterID src, RegisterID dest)
     {
         m_assembler.leal_mr(imm.m_value, src, dest);
     }
@@ -90,12 +88,12 @@ public:
         m_assembler.andl_im(imm.m_value, address.m_ptr);
     }
     
-    void or32(Imm32 imm, AbsoluteAddress address)
+    void or32(TrustedImm32 imm, AbsoluteAddress address)
     {
         m_assembler.orl_im(imm.m_value, address.m_ptr);
     }
 
-    void sub32(Imm32 imm, AbsoluteAddress address)
+    void sub32(TrustedImm32 imm, AbsoluteAddress address)
     {
         m_assembler.subl_im(imm.m_value, address.m_ptr);
     }
@@ -148,7 +146,7 @@ public:
         addDouble(Address(srcDest), dest);
     }
 
-    void store32(Imm32 imm, void* address)
+    void store32(TrustedImm32 imm, void* address)
     {
         m_assembler.movl_i32m(imm.m_value, address);
     }
@@ -164,7 +162,7 @@ public:
         return Jump(m_assembler.jCC(x86Condition(cond)));
     }
 
-    Jump branch32(Condition cond, AbsoluteAddress left, Imm32 right)
+    Jump branch32(Condition cond, AbsoluteAddress left, TrustedImm32 right)
     {
         m_assembler.cmpl_im(right.m_value, left.m_ptr);
         return Jump(m_assembler.jCC(x86Condition(cond)));
@@ -186,7 +184,7 @@ public:
     }
 
 
-    DataLabelPtr moveWithPatch(ImmPtr initialValue, RegisterID dest)
+    DataLabelPtr moveWithPatch(TrustedImmPtr initialValue, RegisterID dest)
     {
         m_assembler.movl_i32r(initialValue.asIntptr(), dest);
         return DataLabelPtr(this);
@@ -206,7 +204,7 @@ public:
         return Jump(m_assembler.jCC(x86Condition(cond)));
     }
 
-    DataLabelPtr storePtrWithPatch(ImmPtr initialValue, ImplicitAddress address)
+    DataLabelPtr storePtrWithPatch(TrustedImmPtr initialValue, ImplicitAddress address)
     {
         m_assembler.movl_i32m(initialValue.asIntptr(), address.offset, address.base);
         return DataLabelPtr(this);
@@ -229,14 +227,12 @@ public:
         m_assembler.popa();
     }
 
-    bool supportsFloatingPoint() const { return m_isSSE2Present; }
+    static bool supportsFloatingPoint() { return isSSE2Present(); }
     // See comment on MacroAssemblerARMv7::supportsFloatingPointTruncate()
-    bool supportsFloatingPointTruncate() const { return m_isSSE2Present; }
-    bool supportsFloatingPointSqrt() const { return m_isSSE2Present; }
+    static bool supportsFloatingPointTruncate() { return isSSE2Present(); }
+    static bool supportsFloatingPointSqrt() { return isSSE2Present(); }
 
 private:
-    const bool m_isSSE2Present;
-
     friend class LinkBuffer;
     friend class RepatchBuffer;
 
@@ -260,4 +256,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif // MacroAssemblerX86_h
+#endif /* assembler_assembler_MacroAssemblerX86_h */

@@ -14,11 +14,7 @@ try {
 } catch (exc) {}
 
 try {
-    evalcx('var p;', <x/>);
-} catch (exc) {}
-
-try {
-    evalcx('var p;', <x><p/></x>);
+    evalcx('var p;');
 } catch (exc) {}
 
 reportCompare(0, 0, "ok");

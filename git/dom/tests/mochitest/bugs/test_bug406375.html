@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=406375
 -->
 <head>
   <title>Test for Bug 406375</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -18,6 +17,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=406375
 <pre id="test">
 <script type="application/javascript">
 
+if (navigator.platform.startsWith("Mac")) {
+  SimpleTest.expectAssertions(2);
+}
+
 /** Test for Bug 406375 **/
 
 
@@ -26,6 +29,7 @@ SimpleTest.waitForExplicitFinish();
 function runTest() {
   window.showModalDialog("file_bug406375.html");
   ok(true, "This test should not hang");
+
   SimpleTest.finish();
 }
 

@@ -1,106 +1,67 @@
-/* -*- Mode: c++; c-basic-offset: 4; tab-width: 40; indent-tabs-mode: nil -*- */
-/* vim: set ts=40 sw=4 et tw=99: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Mozilla SpiderMonkey property tree implementation
- *
- * The Initial Developer of the Original Code is
- *   Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2002-2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Brendan Eich <brendan@mozilla.org>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <new>
+#include "jspropertytree.h"
 
-#include "jstypes.h"
-#include "jsprf.h"
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsgc.h"
-#include "jspropertytree.h"
-#include "jsscope.h"
+#include "jstypes.h"
 
-#include "jsobjinlines.h"
-#include "jsscopeinlines.h"
+#include "vm/Shape.h"
+
+#include "jsgcinlines.h"
+
+#include "vm/Shape-inl.h"
 
 using namespace js;
 
 inline HashNumber
-ShapeHasher::hash(const Lookup l)
+ShapeHasher::hash(const Lookup &l)
 {
-    return l->hash();
+    return l.hash();
 }
 
 inline bool
-ShapeHasher::match(const Key k, const Lookup l)
+ShapeHasher::match(const Key k, const Lookup &l)
 {
-    return l->matches(k);
+    return k->matches(l);
 }
 
 Shape *
-PropertyTree::newShape(JSContext *cx)
+PropertyTree::newShape(ExclusiveContext *cx)
 {
     Shape *shape = js_NewGCShape(cx);
-    if (!shape) {
-        JS_ReportOutOfMemory(cx);
-        return NULL;
-    }
-    JS_COMPARTMENT_METER(compartment->livePropTreeNodes++);
-    JS_COMPARTMENT_METER(compartment->totalPropTreeNodes++);
+    if (!shape)
+        js_ReportOutOfMemory(cx);
     return shape;
 }
 
 static KidsHash *
 HashChildren(Shape *kid1, Shape *kid2)
 {
-    KidsHash *hash = OffTheBooks::new_<KidsHash>();
+    KidsHash *hash = js_new<KidsHash>();
     if (!hash || !hash->init(2)) {
-        Foreground::delete_(hash);
+        js_delete(hash);
         return NULL;
     }
 
-    JS_ALWAYS_TRUE(hash->putNew(kid1));
-    JS_ALWAYS_TRUE(hash->putNew(kid2));
+    JS_ALWAYS_TRUE(hash->putNew(kid1, kid1));
+    JS_ALWAYS_TRUE(hash->putNew(kid2, kid2));
     return hash;
 }
 
 bool
-PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
+PropertyTree::insertChild(ExclusiveContext *cx, Shape *parent, Shape *child)
 {
     JS_ASSERT(!parent->inDictionary());
     JS_ASSERT(!child->parent);
     JS_ASSERT(!child->inDictionary());
-    JS_ASSERT(!JSID_IS_VOID(parent->propid));
-    JS_ASSERT(!JSID_IS_VOID(child->propid));
-    JS_ASSERT(cx->compartment == compartment);
     JS_ASSERT(child->compartment() == parent->compartment());
+    JS_ASSERT(cx->isInsideCurrentCompartment(this));
 
     KidsPointer *kidp = &parent->kids;
 
@@ -117,7 +78,7 @@ PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
 
         KidsHash *hash = HashChildren(shape, child);
         if (!hash) {
-            JS_ReportOutOfMemory(cx);
+            js_ReportOutOfMemory(cx);
             return false;
         }
         kidp->setHash(hash);
@@ -125,8 +86,8 @@ PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
         return true;
     }
 
-    if (!kidp->toHash()->putNew(child)) {
-        JS_ReportOutOfMemory(cx);
+    if (!kidp->toHash()->putNew(child, child)) {
+        js_ReportOutOfMemory(cx);
         return false;
     }
 
@@ -138,53 +99,98 @@ void
 Shape::removeChild(Shape *child)
 {
     JS_ASSERT(!child->inDictionary());
-    JS_ASSERT(!JSID_IS_VOID(propid));
+    JS_ASSERT(child->parent == this);
 
     KidsPointer *kidp = &kids;
+
     if (kidp->isShape()) {
         JS_ASSERT(kidp->toShape() == child);
-        kids.setNull();
+        kidp->setNull();
+        child->parent = NULL;
         return;
     }
 
-    kidp->toHash()->remove(child);
+    KidsHash *hash = kidp->toHash();
+    JS_ASSERT(hash->count() >= 2);      /* otherwise kidp->isShape() should be true */
+
+    hash->remove(child);
+    child->parent = NULL;
+
+    if (hash->count() == 1) {
+        /* Convert from HASH form back to SHAPE form. */
+        KidsHash::Range r = hash->all();
+        Shape *otherChild = r.front();
+        JS_ASSERT((r.popFront(), r.empty()));    /* No more elements! */
+        kidp->setShape(otherChild);
+        js_delete(hash);
+    }
 }
 
 Shape *
-PropertyTree::getChild(JSContext *cx, Shape *parent, const Shape &child)
+PropertyTree::getChild(ExclusiveContext *cx, Shape *parent_, uint32_t nfixed, const StackShape &child)
 {
-    Shape *shape;
+    {
+        Shape *shape = NULL;
 
-    JS_ASSERT(parent);
-    JS_ASSERT(!JSID_IS_VOID(parent->propid));
+        JS_ASSERT(parent_);
 
-    /*
-     * The property tree has extremely low fan-out below its root in
-     * popular embeddings with real-world workloads. Patterns such as
-     * defining closures that capture a constructor's environment as
-     * getters or setters on the new object that is passed in as
-     * |this| can significantly increase fan-out below the property
-     * tree root -- see bug 335700 for details.
-     */
-    KidsPointer *kidp = &parent->kids;
-    if (kidp->isShape()) {
-        shape = kidp->toShape();
-        if (shape->matches(&child))
-            return shape;
-    } else if (kidp->isHash()) {
-        shape = *kidp->toHash()->lookup(&child);
+        /*
+         * The property tree has extremely low fan-out below its root in
+         * popular embeddings with real-world workloads. Patterns such as
+         * defining closures that capture a constructor's environment as
+         * getters or setters on the new object that is passed in as
+         * |this| can significantly increase fan-out below the property
+         * tree root -- see bug 335700 for details.
+         */
+        KidsPointer *kidp = &parent_->kids;
+        if (kidp->isShape()) {
+            Shape *kid = kidp->toShape();
+            if (kid->matches(child))
+                shape = kid;
+        } else if (kidp->isHash()) {
+            if (KidsHash::Ptr p = kidp->toHash()->lookup(child))
+                shape = *p;
+        } else {
+            /* If kidp->isNull(), we always insert. */
+        }
+
+#ifdef JSGC_INCREMENTAL
+        if (shape) {
+            JS::Zone *zone = shape->zone();
+            if (zone->needsBarrier()) {
+                /*
+                 * We need a read barrier for the shape tree, since these are weak
+                 * pointers.
+                 */
+                Shape *tmp = shape;
+                MarkShapeUnbarriered(zone->barrierTracer(), &tmp, "read barrier");
+                JS_ASSERT(tmp == shape);
+            } else if (zone->isGCSweeping() && !shape->isMarked() &&
+                       !shape->arenaHeader()->allocatedDuringIncremental)
+            {
+                /*
+                 * The shape we've found is unreachable and due to be finalized, so
+                 * remove our weak reference to it and don't use it.
+                 */
+                JS_ASSERT(parent_->isMarked());
+                parent_->removeChild(shape);
+                shape = NULL;
+            }
+        }
+#endif
+
         if (shape)
             return shape;
-    } else {
-        /* If kidp->isNull(), we always insert. */
     }
 
-    shape = newShape(cx);
+    StackShape::AutoRooter childRoot(cx, &child);
+    RootedShape parent(cx, parent_);
+
+    Shape *shape = newShape(cx);
     if (!shape)
         return NULL;
 
-    new (shape) Shape(child.propid, child.rawGetter, child.rawSetter, child.slot, child.attrs,
-                      child.flags, child.shortid, js_GenerateShape(cx));
+    new (shape) Shape(child, nfixed);
 
     if (!insertChild(cx, parent, shape))
         return NULL;
@@ -192,10 +198,49 @@ PropertyTree::getChild(JSContext *cx, Shape *parent, const Shape &child)
     return shape;
 }
 
+void
+Shape::sweep()
+{
+    if (inDictionary())
+        return;
+
+    /*
+     * We detach the child from the parent if the parent is reachable.
+     *
+     * Note that due to incremental sweeping, the parent pointer may point
+     * to the original reachable parent, or it may point to a new live
+     * object allocated in the same cell that used to hold the parent.
+     *
+     * There are three cases:
+     *
+     * Case 1: parent is not marked - parent is unreachable, may have been
+     *         finalized, and the cell may subsequently have been
+     *         reallocated to a compartment that is not being marked (cells
+     *         are marked when allocated in a compartment that is currenly
+     *         being marked by the collector).
+     *
+     * Case 2: parent is marked and is in a different compartment - parent
+     *         has been freed and reallocated to compartment that was being
+     *         marked.
+     *
+     * Case 3: parent is marked and is in the same compartment - parent is
+     *         stil reachable and we need to detach from it.
+     */
+    if (parent && parent->isMarked() && parent->compartment() == compartment())
+        parent->removeChild(this);
+}
+
+void
+Shape::finalize(FreeOp *fop)
+{
+    if (!inDictionary() && kids.isHash())
+        fop->delete_(kids.toHash());
+}
+
 #ifdef DEBUG
 
 void
-KidsPointer::checkConsistency(const Shape *aKid) const
+KidsPointer::checkConsistency(Shape *aKid) const
 {
     if (isShape()) {
         JS_ASSERT(toShape() == aKid);
@@ -210,19 +255,20 @@ KidsPointer::checkConsistency(const Shape *aKid) const
 void
 Shape::dump(JSContext *cx, FILE *fp) const
 {
+    jsid propid = this->propid();
+
     JS_ASSERT(!JSID_IS_VOID(propid));
 
     if (JSID_IS_INT(propid)) {
         fprintf(fp, "[%ld]", (long) JSID_TO_INT(propid));
-    } else if (JSID_IS_DEFAULT_XML_NAMESPACE(propid)) {
-        fprintf(fp, "<default XML namespace>");
     } else {
         JSLinearString *str;
         if (JSID_IS_ATOM(propid)) {
             str = JSID_TO_ATOM(propid);
         } else {
             JS_ASSERT(JSID_IS_OBJECT(propid));
-            JSString *s = js_ValueToString(cx, IdToValue(propid));
+            RootedValue v(cx, IdToValue(propid));
+            JSString *s = ToStringSlow<CanGC>(cx, v);
             fputs("object ", fp);
             str = s ? s->ensureLinear(cx) : NULL;
         }
@@ -232,14 +278,15 @@ Shape::dump(JSContext *cx, FILE *fp) const
             FileEscapedString(fp, str, '"');
     }
 
-    fprintf(fp, " g/s %p/%p slot %u attrs %x ",
-            JS_FUNC_TO_DATA_PTR(void *, rawGetter),
-            JS_FUNC_TO_DATA_PTR(void *, rawSetter),
-            slot, attrs);
+    fprintf(fp, " g/s %p/%p slot %d attrs %x ",
+            JS_FUNC_TO_DATA_PTR(void *, base()->rawGetter),
+            JS_FUNC_TO_DATA_PTR(void *, base()->rawSetter),
+            hasSlot() ? slot() : -1, attrs);
+
     if (attrs) {
         int first = 1;
         fputs("(", fp);
-#define DUMP_ATTR(name, display) if (attrs & JSPROP_##name) fputs(" " #display + first, fp), first = 0
+#define DUMP_ATTR(name, display) if (attrs & JSPROP_##name) fputs(&(" " #display)[first], fp), first = 0
         DUMP_ATTR(ENUMERATE, enumerate);
         DUMP_ATTR(READONLY, readonly);
         DUMP_ATTR(PERMANENT, permanent);
@@ -254,43 +301,14 @@ Shape::dump(JSContext *cx, FILE *fp) const
     if (flags) {
         int first = 1;
         fputs("(", fp);
-#define DUMP_FLAG(name, display) if (flags & name) fputs(" " #display + first, fp), first = 0
-        DUMP_FLAG(ALIAS, alias);
+#define DUMP_FLAG(name, display) if (flags & name) fputs(&(" " #display)[first], fp), first = 0
         DUMP_FLAG(HAS_SHORTID, has_shortid);
-        DUMP_FLAG(METHOD, method);
         DUMP_FLAG(IN_DICTIONARY, in_dictionary);
 #undef  DUMP_FLAG
         fputs(") ", fp);
     }
 
-    fprintf(fp, "shortid %d\n", shortid);
-}
-
-static void
-MeterKidCount(JSBasicStats *bs, uintN nkids)
-{
-    JS_BASIC_STATS_ACCUM(bs, nkids);
-}
-
-void
-js::PropertyTree::meter(JSBasicStats *bs, Shape *node)
-{
-    uintN nkids = 0;
-    const KidsPointer &kidp = node->kids;
-    if (kidp.isShape()) {
-        meter(bs, kidp.toShape());
-        nkids = 1;
-    } else if (kidp.isHash()) {
-        const KidsHash &hash = *kidp.toHash();
-        for (KidsHash::Range range = hash.all(); !range.empty(); range.popFront()) {
-            Shape *kid = range.front();
-            
-            meter(bs, kid);
-            nkids++;
-        }
-    }
-
-    MeterKidCount(bs, nkids);
+    fprintf(fp, "shortid %d\n", maybeShortid());
 }
 
 void
@@ -298,8 +316,8 @@ Shape::dumpSubtree(JSContext *cx, int level, FILE *fp) const
 {
     if (!parent) {
         JS_ASSERT(level == 0);
-        JS_ASSERT(JSID_IS_EMPTY(propid));
-        fprintf(fp, "class %s emptyShape %u\n", clasp->name, shapeid);
+        JS_ASSERT(JSID_IS_EMPTY(propid_));
+        fprintf(fp, "class %s emptyShape\n", getObjectClass()->name);
     } else {
         fprintf(fp, "%*sid ", level, "");
         dump(cx, fp);
@@ -323,176 +341,36 @@ Shape::dumpSubtree(JSContext *cx, int level, FILE *fp) const
     }
 }
 
-#endif /* DEBUG */
-
 void
-Shape::finalize(JSContext *cx)
+js::PropertyTree::dumpShapes(JSRuntime *rt)
 {
-#ifdef DEBUG
-    if ((flags & SHARED_EMPTY) && cx->runtime->meterEmptyShapes())
-        compartment()->emptyShapes.remove((EmptyShape *)this);
-#endif
-
-    if (inDictionary()) {
-        JS_COMPARTMENT_METER(compartment()->liveDictModeNodes--);
-    } else {
-        if (parent && parent->isMarked())
-            parent->removeChild(this);
-
-        if (kids.isHash())
-            cx->delete_(kids.toHash());
-    }
-
-    freeTable(cx);
-    JS_COMPARTMENT_METER(compartment()->livePropTreeNodes--);
-}
-
-void
-js::PropertyTree::dumpShapeStats()
-{
-#ifdef DEBUG
-    JSRuntime *rt = compartment->rt;
-
-    JSBasicStats bs;
-    static FILE *logfp;
-    if (!logfp) {
-        if (const char *filename = rt->propTreeStatFilename)
-            logfp = fopen(filename, "w");
-        if (!logfp)
+    static bool init = false;
+    static FILE *dumpfp = NULL;
+    if (!init) {
+        init = true;
+        const char *name = getenv("JS_DUMP_SHAPES_FILE");
+        if (!name)
             return;
+        dumpfp = fopen(name, "a");
     }
 
-    JS_BASIC_STATS_INIT(&bs);
+    if (!dumpfp)
+        return;
 
-    uint32 empties;
-    {
+    fprintf(dumpfp, "rt->gcNumber = %lu", (unsigned long)rt->gcNumber);
+
+    for (gc::GCCompartmentsIter c(rt); !c.done(); c.next()) {
+        fprintf(dumpfp, "*** Compartment %p ***\n", (void *)c.get());
+
+        /*
         typedef JSCompartment::EmptyShapeSet HS;
-
-        HS &h = compartment->emptyShapes;
-        empties = h.count();
-        MeterKidCount(&bs, empties);
-        for (HS::Range r = h.all(); !r.empty(); r.popFront())
-            meter(&bs, r.front());
-    }
-
-    double nodes = compartment->livePropTreeNodes;
-    double dicts = compartment->liveDictModeNodes;
-
-    /* Empty scope nodes are never hashed, so subtract them from nodes. */
-    JS_ASSERT(nodes - dicts == bs.sum);
-    nodes -= empties;
-
-    double sigma;
-    double mean = JS_MeanAndStdDevBS(&bs, &sigma);
-
-    fprintf(logfp,
-            "nodes %g (dicts %g) meankids %g sigma %g max %u\n",
-            nodes, dicts, mean, sigma, bs.max);
-
-    JS_DumpHistogram(&bs, logfp);
-
-    /* This data is global, so only print it once per GC. */
-    if (compartment == rt->atomsCompartment) {
-        fprintf(logfp,
-                "\nProperty tree stats for gcNumber %lu\n",
-                (unsigned long) rt->gcNumber);
-
-#define RATE(f1, f2) (((double)js_scope_stats.f1 / js_scope_stats.f2) * 100.0)
-
-        fprintf(logfp,
-                "Scope search stats:\n"
-                "  searches:        %6u\n"
-                "  hits:            %6u %5.2f%% of searches\n"
-                "  misses:          %6u %5.2f%%\n"
-                "  hashes:          %6u %5.2f%%\n"
-                "  hashHits:        %6u %5.2f%% (%5.2f%% of hashes)\n"
-                "  hashMisses:      %6u %5.2f%% (%5.2f%%)\n"
-                "  steps:           %6u %5.2f%% (%5.2f%%)\n"
-                "  stepHits:        %6u %5.2f%% (%5.2f%%)\n"
-                "  stepMisses:      %6u %5.2f%% (%5.2f%%)\n"
-                "  initSearches:    %6u\n"
-                "  changeSearches:  %6u\n"
-                "  tableAllocFails: %6u\n"
-                "  toDictFails:     %6u\n"
-                "  wrapWatchFails:  %6u\n"
-                "  adds:            %6u\n"
-                "  addFails:        %6u\n"
-                "  puts:            %6u\n"
-                "  redundantPuts:   %6u\n"
-                "  putFails:        %6u\n"
-                "  changes:         %6u\n"
-                "  changeFails:     %6u\n"
-                "  compresses:      %6u\n"
-                "  grows:           %6u\n"
-                "  removes:         %6u\n"
-                "  removeFrees:     %6u\n"
-                "  uselessRemoves:  %6u\n"
-                "  shrinks:         %6u\n",
-                js_scope_stats.searches,
-                js_scope_stats.hits, RATE(hits, searches),
-                js_scope_stats.misses, RATE(misses, searches),
-                js_scope_stats.hashes, RATE(hashes, searches),
-                js_scope_stats.hashHits, RATE(hashHits, searches), RATE(hashHits, hashes),
-                js_scope_stats.hashMisses, RATE(hashMisses, searches), RATE(hashMisses, hashes),
-                js_scope_stats.steps, RATE(steps, searches), RATE(steps, hashes),
-                js_scope_stats.stepHits, RATE(stepHits, searches), RATE(stepHits, hashes),
-                js_scope_stats.stepMisses, RATE(stepMisses, searches), RATE(stepMisses, hashes),
-                js_scope_stats.initSearches,
-                js_scope_stats.changeSearches,
-                js_scope_stats.tableAllocFails,
-                js_scope_stats.toDictFails,
-                js_scope_stats.wrapWatchFails,
-                js_scope_stats.adds,
-                js_scope_stats.addFails,
-                js_scope_stats.puts,
-                js_scope_stats.redundantPuts,
-                js_scope_stats.putFails,
-                js_scope_stats.changes,
-                js_scope_stats.changeFails,
-                js_scope_stats.compresses,
-                js_scope_stats.grows,
-                js_scope_stats.removes,
-                js_scope_stats.removeFrees,
-                js_scope_stats.uselessRemoves,
-                js_scope_stats.shrinks);
-    }
-
-#undef RATE
-
-    fflush(logfp);
-#endif /* DEBUG */
-}
-
-#ifdef DEBUG
-void
-js::PropertyTree::dumpShapes(JSContext *cx)
-{
-    JSRuntime *rt = cx->runtime;
-
-    if (const char *filename = rt->propTreeDumpFilename) {
-        char pathname[1024];
-        JS_snprintf(pathname, sizeof pathname, "%s.%lu",
-                    filename, (unsigned long)rt->gcNumber);
-        FILE *dumpfp = fopen(pathname, "w");
-        if (dumpfp) {
-            typedef JSCompartment::EmptyShapeSet HS;
-
-            for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
-                if (rt->gcCurrentCompartment != NULL && rt->gcCurrentCompartment != *c)
-                    continue;
-
-                fprintf(dumpfp, "*** Compartment %p ***\n", (void *)*c);
-
-                HS &h = (*c)->emptyShapes;
-                for (HS::Range r = h.all(); !r.empty(); r.popFront()) {
-                    Shape *empty = r.front();
-                    empty->dumpSubtree(cx, 0, dumpfp);
-                    putc('\n', dumpfp);
-                }
-            }
-
-            fclose(dumpfp);
+        HS &h = c->emptyShapes;
+        for (HS::Range r = h.all(); !r.empty(); r.popFront()) {
+            Shape *empty = r.front();
+            empty->dumpSubtree(rt, 0, dumpfp);
+            putc('\n', dumpfp);
         }
+        */
     }
 }
 #endif

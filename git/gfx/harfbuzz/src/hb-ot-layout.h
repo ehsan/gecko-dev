@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007,2008,2009  Red Hat, Inc.
+ * Copyright © 2007,2008,2009  Red Hat, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -24,12 +24,14 @@
  * Red Hat Author(s): Behdad Esfahbod
  */
 
+#ifndef HB_OT_H_IN
+#error "Include <hb-ot.h> instead."
+#endif
+
 #ifndef HB_OT_LAYOUT_H
 #define HB_OT_LAYOUT_H
 
-#include "hb-common.h"
-#include "hb-buffer.h"
-#include "hb-font.h"
+#include "hb.h"
 
 #include "hb-ot-tag.h"
 
@@ -40,12 +42,31 @@ HB_BEGIN_DECLS
 #define HB_OT_TAG_GSUB HB_TAG('G','S','U','B')
 #define HB_OT_TAG_GPOS HB_TAG('G','P','O','S')
 
+
 /*
  * GDEF
  */
 
 hb_bool_t
 hb_ot_layout_has_glyph_classes (hb_face_t *face);
+
+typedef enum {
+  HB_OT_LAYOUT_GLYPH_CLASS_UNCLASSIFIED	= 0,
+  HB_OT_LAYOUT_GLYPH_CLASS_BASE_GLYPH	= 1,
+  HB_OT_LAYOUT_GLYPH_CLASS_LIGATURE	= 2,
+  HB_OT_LAYOUT_GLYPH_CLASS_MARK		= 3,
+  HB_OT_LAYOUT_GLYPH_CLASS_COMPONENT	= 4
+} hb_ot_layout_glyph_class_t;
+
+hb_ot_layout_glyph_class_t
+hb_ot_layout_get_glyph_class (hb_face_t      *face,
+			      hb_codepoint_t  glyph);
+
+void
+hb_ot_layout_get_glyphs_in_class (hb_face_t                  *face,
+				  hb_ot_layout_glyph_class_t  klass,
+				  hb_set_t                   *glyphs /* OUT */);
+
 
 /* Not that useful.  Provides list of attach points for a glyph that a
  * client may want to cache */
@@ -59,12 +80,11 @@ hb_ot_layout_get_attach_points (hb_face_t      *face,
 /* Ligature caret positions */
 unsigned int
 hb_ot_layout_get_ligature_carets (hb_font_t      *font,
-				  hb_face_t      *face,
 				  hb_direction_t  direction,
 				  hb_codepoint_t  glyph,
 				  unsigned int    start_offset,
 				  unsigned int   *caret_count /* IN/OUT */,
-				  int            *caret_array /* OUT */);
+				  hb_position_t  *caret_array /* OUT */);
 
 
 /*
@@ -93,7 +113,8 @@ hb_bool_t
 hb_ot_layout_table_choose_script (hb_face_t      *face,
 				  hb_tag_t        table_tag,
 				  const hb_tag_t *script_tags,
-				  unsigned int   *script_index);
+				  unsigned int   *script_index,
+				  hb_tag_t       *chosen_script);
 
 unsigned int
 hb_ot_layout_table_get_feature_tags (hb_face_t    *face,
@@ -151,12 +172,60 @@ hb_ot_layout_language_find_feature (hb_face_t    *face,
 				    unsigned int *feature_index);
 
 unsigned int
-hb_ot_layout_feature_get_lookup_indexes (hb_face_t    *face,
+hb_ot_layout_feature_get_lookups (hb_face_t    *face,
+				  hb_tag_t      table_tag,
+				  unsigned int  feature_index,
+				  unsigned int  start_offset,
+				  unsigned int *lookup_count /* IN/OUT */,
+				  unsigned int *lookup_indexes /* OUT */);
+
+void
+hb_ot_layout_collect_lookups (hb_face_t      *face,
+			      hb_tag_t        table_tag,
+			      const hb_tag_t *scripts,
+			      const hb_tag_t *languages,
+			      const hb_tag_t *features,
+			      hb_set_t       *lookup_indexes /* OUT */);
+
+void
+hb_ot_shape_plan_collect_lookups (hb_shape_plan_t *shape_plan,
+				  hb_tag_t         table_tag,
+				  hb_set_t        *lookup_indexes /* OUT */);
+
+void
+hb_ot_layout_lookup_collect_glyphs (hb_face_t    *face,
+				    hb_tag_t      table_tag,
+				    unsigned int  lookup_index,
+				    hb_set_t     *glyphs_before, /* OUT. May be NULL */
+				    hb_set_t     *glyphs_input,  /* OUT. May be NULL */
+				    hb_set_t     *glyphs_after,  /* OUT. May be NULL */
+				    hb_set_t     *glyphs_output  /* OUT. May be NULL */);
+
+#ifdef HB_NOT_IMPLEMENTED
+typedef struct
+{
+  const hb_codepoint_t *before,
+  unsigned int          before_length,
+  const hb_codepoint_t *input,
+  unsigned int          input_length,
+  const hb_codepoint_t *after,
+  unsigned int          after_length,
+} hb_ot_layout_glyph_sequence_t;
+
+typedef hb_bool_t
+(*hb_ot_layout_glyph_sequence_func_t) (hb_font_t    *font,
+				       hb_tag_t      table_tag,
+				       unsigned int  lookup_index,
+				       const hb_ot_layout_glyph_sequence_t *sequence,
+				       void         *user_data);
+
+void
+Xhb_ot_layout_lookup_enumerate_sequences (hb_face_t    *face,
 					 hb_tag_t      table_tag,
-					 unsigned int  feature_index,
-					 unsigned int  start_offset,
-					 unsigned int *lookup_count /* IN/OUT */,
-					 unsigned int *lookup_indexes /* OUT */);
+					 unsigned int  lookup_index,
+					 hb_ot_layout_glyph_sequence_func_t callback,
+					 void         *user_data);
+#endif
 
 
 /*
@@ -167,10 +236,30 @@ hb_bool_t
 hb_ot_layout_has_substitution (hb_face_t *face);
 
 hb_bool_t
-hb_ot_layout_substitute_lookup (hb_face_t    *face,
-				hb_buffer_t  *buffer,
-				unsigned int  lookup_index,
-				hb_mask_t     mask);
+hb_ot_layout_lookup_would_substitute (hb_face_t            *face,
+				      unsigned int          lookup_index,
+				      const hb_codepoint_t *glyphs,
+				      unsigned int          glyphs_length,
+				      hb_bool_t             zero_context);
+
+void
+hb_ot_layout_lookup_substitute_closure (hb_face_t    *face,
+				        unsigned int  lookup_index,
+				        hb_set_t     *glyphs
+					/*TODO , hb_bool_t  inclusive */);
+
+#ifdef HB_NOT_IMPLEMENTED
+/* Note: You better have GDEF when using this API, or marks won't do much. */
+hb_bool_t
+Xhb_ot_layout_lookup_substitute (hb_font_t            *font,
+				unsigned int          lookup_index,
+				const hb_ot_layout_glyph_sequence_t *sequence,
+				unsigned int          out_size,
+				hb_codepoint_t       *glyphs_out,   /* OUT */
+				unsigned int         *clusters_out, /* OUT */
+				unsigned int         *out_length    /* OUT */);
+#endif
+
 
 /*
  * GPOS
@@ -179,16 +268,24 @@ hb_ot_layout_substitute_lookup (hb_face_t    *face,
 hb_bool_t
 hb_ot_layout_has_positioning (hb_face_t *face);
 
+#ifdef HB_NOT_IMPLEMENTED
+/* Note: You better have GDEF when using this API, or marks won't do much. */
 hb_bool_t
-hb_ot_layout_position_lookup (hb_font_t    *font,
-			      hb_face_t    *face,
-			      hb_buffer_t  *buffer,
-			      unsigned int  lookup_index,
-			      hb_mask_t     mask);
+Xhb_ot_layout_lookup_position (hb_font_t            *font,
+			      unsigned int          lookup_index,
+			      const hb_ot_layout_glyph_sequence_t *sequence,
+			      hb_glyph_position_t  *positions /* IN / OUT */);
+#endif
 
-/* Should be called after all the position_lookup's are done */
-void
-hb_ot_layout_position_finish (hb_face_t *face, hb_buffer_t *buffer);
+/* Optical 'size' feature info.  Returns true if found.
+ * http://www.microsoft.com/typography/otspec/features_pt.htm#size */
+hb_bool_t
+hb_ot_layout_get_size_params (hb_face_t    *face,
+			      unsigned int *design_size,       /* OUT.  May be NULL */
+			      unsigned int *subfamily_id,      /* OUT.  May be NULL */
+			      unsigned int *subfamily_name_id, /* OUT.  May be NULL */
+			      unsigned int *range_start,       /* OUT.  May be NULL */
+			      unsigned int *range_end          /* OUT.  May be NULL */);
 
 
 HB_END_DECLS

@@ -13,7 +13,8 @@ function test() {
     var pageInfo = BrowserPageInfo(doc, "mediaTab", testImg);
 
     pageInfo.addEventListener("load", function () {
-      pageInfo.onFinished.push(function () {
+      pageInfo.removeEventListener("load", arguments.callee, true);
+      pageInfo.onImagePreviewShown.push(function () {
         executeSoon(function () {
           var pageInfoImg = pageInfo.document.getElementById("thepreviewimage");
 

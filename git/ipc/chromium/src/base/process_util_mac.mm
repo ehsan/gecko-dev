@@ -42,6 +42,17 @@ bool LaunchApp(const std::vector<std::string>& argv,
                const environment_map& env_vars_to_set,
                bool wait, ProcessHandle* process_handle,
                ProcessArchitecture arch) {
+  return LaunchApp(argv, fds_to_remap, env_vars_to_set,
+                   PRIVILEGES_INHERIT,
+                   wait, process_handle);
+}
+
+bool LaunchApp(const std::vector<std::string>& argv,
+               const file_handle_mapping_vector& fds_to_remap,
+               const environment_map& env_vars_to_set,
+               ChildPrivileges privs,
+               bool wait, ProcessHandle* process_handle,
+               ProcessArchitecture arch) {
   bool retval = true;
 
   char* argv_copy[argv.size() + 1];
@@ -177,6 +188,10 @@ bool LaunchApp(const CommandLine& cl,
   return LaunchApp(cl.argv(), no_files, wait, process_handle);
 }
 
+void SetCurrentProcessPrivileges(ChildPrivileges privs) {
+
+}
+
 NamedProcessIterator::NamedProcessIterator(const std::wstring& executable_name,
                                            const ProcessFilter* filter)
   : executable_name_(executable_name),
@@ -186,7 +201,7 @@ NamedProcessIterator::NamedProcessIterator(const std::wstring& executable_name,
   // but trying to find where we were in a constantly changing list is basically
   // impossible.
 
-  int mib[] = { CTL_KERN, KERN_PROC, KERN_PROC_UID, geteuid() };
+  int mib[] = { CTL_KERN, KERN_PROC, KERN_PROC_UID, int(geteuid()) };
 
   // Since more processes could start between when we get the size and when
   // we get the list, we do a loop to keep trying until we get it.

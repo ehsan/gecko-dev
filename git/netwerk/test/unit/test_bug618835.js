@@ -10,14 +10,15 @@
 // /cl", whose cached entries are to be invalidated. The tests verifies that
 // "/redirect" and "/cl" are loaded from server the expected number of times.
 //
-do_load_httpd_js();
+
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
+Cu.import("resource://testing-common/httpd.js");
 
 var httpserv;
-
-function getCacheService() {
-    return Components.classes["@mozilla.org/network/cache-service;1"]
-            .getService(Components.interfaces.nsICacheService);
-}
 
 function setupChannel(path) {
     var ios =
@@ -33,7 +34,8 @@ InitialListener.prototype = {
     onStopRequest: function(request, context, status) {
         do_check_eq(1, numberOfCLHandlerCalls);
         do_execute_soon(function() {
-            var channel = setupChannel("http://localhost:4444/post");
+            var channel = setupChannel("http://localhost:" +
+                                       httpserv.identity.primaryPort + "/post");
             channel.requestMethod = "post";
             channel.asyncOpen(new RedirectingListener(), null);
         });
@@ -47,7 +49,8 @@ RedirectingListener.prototype = {
     onStopRequest: function(request, context, status) {
         do_check_eq(1, numberOfHandlerCalls);
         do_execute_soon(function() {
-            var channel = setupChannel("http://localhost:4444/post");
+            var channel = setupChannel("http://localhost:" +
+                                       httpserv.identity.primaryPort + "/post");
             channel.requestMethod = "post";
             channel.asyncOpen(new VerifyingListener(), null);
         });
@@ -61,7 +64,8 @@ VerifyingListener.prototype = {
     onStartRequest: function(request, context) { },
     onStopRequest: function(request, context, status) {
         do_check_eq(2, numberOfHandlerCalls);
-        var channel = setupChannel("http://localhost:4444/cl");
+        var channel = setupChannel("http://localhost:" +
+                                   httpserv.identity.primaryPort + "/cl");
         channel.asyncOpen(new FinalListener(), null);
     }
 };
@@ -78,18 +82,18 @@ FinalListener.prototype = {
 };
 
 function run_test() {
-  httpserv = new nsHttpServer();
+  httpserv = new HttpServer();
   httpserv.registerPathHandler("/cl", content_location);
   httpserv.registerPathHandler("/post", post_target);
   httpserv.registerPathHandler("/redirect", redirect_target);
-  httpserv.start(4444);
+  httpserv.start(-1);
 
   // Clear cache
-  getCacheService().evictEntries(
-          Components.interfaces.nsICache.STORE_ANYWHERE);
+  evict_cache_entries();
 
   // Load Content-Location URI into cache and start the chain of loads
-  var channel = setupChannel("http://localhost:4444/cl");
+  var channel = setupChannel("http://localhost:" +
+                             httpserv.identity.primaryPort + "/cl");
   channel.asyncOpen(new InitialListener(), null);
 
   do_test_pending();

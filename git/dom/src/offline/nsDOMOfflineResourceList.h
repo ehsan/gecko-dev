@@ -1,40 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Mozilla Corporation
- * Portions created by the Initial Developer are Copyright (C) 2007
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Dave Camp <dcamp@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef nsDOMOfflineResourceList_h___
 #define nsDOMOfflineResourceList_h___
@@ -58,6 +25,8 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsPIDOMWindow.h"
 #include "nsDOMEventTargetHelper.h"
+#include "mozilla/ErrorResult.h"
+#include "nsIDOMDOMStringList.h"
 
 class nsIDOMWindow;
 
@@ -67,6 +36,8 @@ class nsDOMOfflineResourceList : public nsDOMEventTargetHelper,
                                  public nsIOfflineCacheUpdateObserver,
                                  public nsSupportsWeakReference
 {
+  typedef mozilla::ErrorResult ErrorResult;
+
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMOFFLINERESOURCELIST
@@ -78,14 +49,87 @@ public:
 
   nsDOMOfflineResourceList(nsIURI* aManifestURI,
                            nsIURI* aDocumentURI,
-                           nsPIDOMWindow* aWindow,
-                           nsIScriptContext* aScriptContext);
+                           nsPIDOMWindow* aWindow);
   virtual ~nsDOMOfflineResourceList();
 
   void FirePendingEvents();
   void Disconnect();
 
   nsresult Init();
+
+  nsPIDOMWindow* GetParentObject() const
+  {
+    return GetOwner();
+  }
+  virtual JSObject*
+  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+
+  uint16_t GetStatus(ErrorResult& aRv)
+  {
+    uint16_t status = 0;
+    aRv = GetStatus(&status);
+    return status;
+  }
+  void Update(ErrorResult& aRv)
+  {
+    aRv = Update();
+  }
+  void SwapCache(ErrorResult& aRv)
+  {
+    aRv = SwapCache();
+  }
+
+  IMPL_EVENT_HANDLER(checking)
+  IMPL_EVENT_HANDLER(error)
+  IMPL_EVENT_HANDLER(noupdate)
+  IMPL_EVENT_HANDLER(downloading)
+  IMPL_EVENT_HANDLER(progress)
+  IMPL_EVENT_HANDLER(cached)
+  IMPL_EVENT_HANDLER(updateready)
+  IMPL_EVENT_HANDLER(obsolete)
+
+  already_AddRefed<nsIDOMDOMStringList> GetMozItems(ErrorResult& aRv)
+  {
+    nsCOMPtr<nsIDOMDOMStringList> items;
+    aRv = GetMozItems(getter_AddRefs(items));
+    return items.forget();
+  }
+  bool MozHasItem(const nsAString& aURI, ErrorResult& aRv)
+  {
+    bool hasItem = false;
+    aRv = MozHasItem(aURI, &hasItem);
+    return hasItem;
+  }
+  uint32_t GetMozLength(ErrorResult& aRv)
+  {
+    uint32_t length = 0;
+    aRv = GetMozLength(&length);
+    return length;
+  }
+  void MozItem(uint32_t aIndex, nsAString& aURI, ErrorResult& aRv)
+  {
+    aRv = MozItem(aIndex, aURI);
+  }
+  void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aURI,
+                     ErrorResult& aRv)
+  {
+    MozItem(aIndex, aURI, aRv);
+    aFound = !aURI.IsVoid();
+  }
+  uint32_t Length()
+  {
+    ErrorResult rv;
+    uint32_t length = GetMozLength(rv);
+    return rv.Failed() ? 0 : length;
+  }
+  void MozAdd(const nsAString& aURI, ErrorResult& aRv)
+  {
+    aRv = MozAdd(aURI);
+  }
+  void MozRemove(const nsAString& aURI, ErrorResult& aRv)
+  {
+    aRv = MozRemove(aURI);
+  }
 
 private:
   nsresult SendEvent(const nsAString &aEventName);
@@ -102,7 +146,7 @@ private:
   nsresult CacheKeys();
   void ClearCachedKeys();
 
-  PRBool mInitialized;
+  bool mInitialized;
 
   nsCOMPtr<nsIURI> mManifestURI;
   // AsciiSpec of mManifestURI
@@ -113,20 +157,12 @@ private:
   nsCOMPtr<nsIApplicationCache> mAvailableApplicationCache;
   nsCOMPtr<nsIOfflineCacheUpdate> mCacheUpdate;
   bool mExposeCacheUpdateStatus;
-  PRUint16 mStatus;
+  bool mDontSetDocumentCache;
+  uint16_t mStatus;
 
   // The set of dynamic keys for this application cache object.
   char **mCachedKeys;
-  PRUint32 mCachedKeysCount;
-
-  nsRefPtr<nsDOMEventListenerWrapper> mOnCheckingListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnNoUpdateListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnDownloadingListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnProgressListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnCachedListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnUpdateReadyListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnObsoleteListener;
+  uint32_t mCachedKeysCount;
 
   nsCOMArray<nsIDOMEvent> mPendingEvents;
 };

@@ -1,41 +1,8 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mochitest code.
- *
- * The Initial Developer of the Original Code is
- * Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Joel Maher <joel.maher@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
@@ -115,7 +82,6 @@ function getMochitestJarListing(aBasePath, aTestPath, aDir)
 
   var base = "content/" + aDir + "/";
 
-  var singleTestPath;
   if (aTestPath) {
     var extraPath = aTestPath;
     var pathToCheck = base + aTestPath;
@@ -124,21 +90,21 @@ function getMochitestJarListing(aBasePath, aTestPath, aDir)
       if (pathEntry.isDirectory) {
         base = pathToCheck;
       } else {
-        singleTestPath = basePath + '/' + base + aTestPath;
+        var singleTestPath = basePath + '/' + base + aTestPath;
         var singleObject = {};
         singleObject[singleTestPath] = true;
-        return [singleObject, singleTestPath];
+        return singleObject;
       }
     }
     else if (zReader.hasEntry(pathToCheck + "/")) {
       base = pathToCheck + "/";
     }
     else {
-      return [];
+      return null;
     }
   }
   var [links, count] = zList(base, zReader, basePath, true);
-  return [links, null];
+  return links;
 }
 
 /*
@@ -199,13 +165,16 @@ function getFileListing(basePath, testPath, dir, srvScope)
   chromeDir.appendRelativePath(dir);
   basePath += '/' + dir;
 
+  if (testPath == "false" || testPath == false) {
+    testPath = "";
+  }
+
   var ioSvc = Components.classes["@mozilla.org/network/io-service;1"].
               getService(Components.interfaces.nsIIOService);
   var testsDirURI = ioSvc.newFileURI(chromeDir);
   var testsDir = ioSvc.newURI(testPath, null, testsDirURI)
                   .QueryInterface(Components.interfaces.nsIFileURL).file;
 
-  var singleTestPath;
   if (testPath != undefined) {
     var extraPath = testPath;
     
@@ -213,25 +182,24 @@ function getFileListing(basePath, testPath, dir, srvScope)
 
     // Invalid testPath...
     if (!testsDir.exists())
-      return [];
+      return null;
 
-    // If we were passed a speComponents.interfacesfic file, run only that test.
     if (testsDir.isFile()) {
-      if (fileNameRegexp.test(testsDir.leafName))
+      if (fileNameRegexp.test(testsDir.leafName)) {
         var singlePath = basePath + '/' + testPath;
         var links = {};
         links[singlePath] = true;
-        return [links, singlePath];
-
+        return links;
+      }
       // We were passed a file that's not a test...
-      return [];
+      return null;
     }
 
     // otherwise, we were passed a directory of tests
     basePath += "/" + testPath;
   }
   var [links, count] = srvScope.list(basePath, testsDir, true);
-  return [links, null];
+  return links;
 }
 
 
@@ -358,14 +326,16 @@ function buildRelativePath(jarentryname, destdir, basepath)
   return targetFile;
 }
 
-function readConfig() {
+function readConfig(filename) {
+  filename = filename || "testConfig.js";
+
   var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"].
                     getService(Components.interfaces.nsIProperties);
   var configFile = fileLocator.get("ProfD", Components.interfaces.nsIFile);
-  configFile.append("testConfig.js");
+  configFile.append(filename);
 
   if (!configFile.exists())
-    return;
+    return {};
 
   var fileInStream = Components.classes["@mozilla.org/network/file-input-stream;1"].
                      createInstance(Components.interfaces.nsIFileInputStream);
@@ -376,10 +346,29 @@ function readConfig() {
   return JSON.parse(str);
 }
 
-function getTestList() {
-  var params = {};
+function registerTests() {
+  var testsURI = Components.classes["@mozilla.org/file/directory_service;1"].
+                 getService(Components.interfaces.nsIProperties).
+                 get("ProfD", Components.interfaces.nsILocalFile);
+  testsURI.append("tests.manifest");
+  var ioSvc = Components.classes["@mozilla.org/network/io-service;1"].
+              getService(Components.interfaces.nsIIOService);
+  var manifestFile = ioSvc.newFileURI(testsURI).
+                     QueryInterface(Components.interfaces.nsIFileURL).file;
+
+  Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar).
+                     autoRegister(manifestFile);
+}
+
+function getTestList(params, callback) {
+  registerTests();
+
+  var baseurl = 'chrome://mochitests/content';
   if (window.parseQueryString) {
     params = parseQueryString(location.search.substring(1), true);
+  }
+  if (!params.baseurl) {
+    params.baseurl = baseurl;
   }
 
   var config = readConfig();
@@ -393,33 +382,23 @@ function getTestList() {
     }
   }
   params = config;
+  if (params.manifestFile) {
+    getTestManifest("http://mochi.test:8888/" + params.manifestFile, params, callback);
+    return;
+  }
 
-  var baseurl = 'chrome://mochitests/content';
-  var testsURI = Components.classes["@mozilla.org/file/directory_service;1"]
-                      .getService(Components.interfaces.nsIProperties)
-                      .get("ProfD", Components.interfaces.nsILocalFile);
-  testsURI.append("tests.manifest");
-  var ioSvc = Components.classes["@mozilla.org/network/io-service;1"].
-              getService(Components.interfaces.nsIIOService);
-  var manifestFile = ioSvc.newFileURI(testsURI)
-                  .QueryInterface(Components.interfaces.nsIFileURL).file;
-
-  Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar).
-    autoRegister(manifestFile);
-
+  var links = {};
   // load server.js in so we can share template functions
   var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
                        getService(Ci.mozIJSSubScriptLoader);
   var srvScope = {};
   scriptLoader.loadSubScript('chrome://mochikit/content/server.js',
                              srvScope);
-  var singleTestPath;
-  var links;
 
   if (getResolvedURI(baseurl).JARFile) {
-    [links, singleTestPath] = getMochitestJarListing(baseurl, params.testPath, params.testRoot);
+    links = getMochitestJarListing(baseurl, params.testPath, params.testRoot);
   } else {
-    [links, singleTestPath] = getFileListing(baseurl, params.testPath, params.testRoot, srvScope);
+    links = getFileListing(baseurl, params.testPath, params.testRoot, srvScope);
   }
-  return [links, singleTestPath];
+  callback(links);
 }

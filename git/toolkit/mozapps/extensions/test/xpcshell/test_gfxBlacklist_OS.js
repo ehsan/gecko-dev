@@ -6,12 +6,22 @@
 // exactly matches the blacklist entry, is not blocked.
 // Uses test_gfxBlacklist.xml
 
-do_load_httpd_js();
+Components.utils.import("resource://testing-common/httpd.js");
 
-var gTestserver = null;
+var gTestserver = new HttpServer();
+gTestserver.start(-1);
+gPort = gTestserver.identity.primaryPort;
+mapFile("/data/test_gfxBlacklist.xml", gTestserver);
+
+function get_platform() {
+  var xulRuntime = Components.classes["@mozilla.org/xre/app-info;1"]
+                             .getService(Components.interfaces.nsIXULRuntime);
+  return xulRuntime.OS;
+}
 
 function load_blocklist(file) {
-  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:4444/data/" + file);
+  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:" +
+                             gPort + "/data/" + file);
   var blocklist = Cc["@mozilla.org/extensions/blocklist;1"].
                   getService(Ci.nsITimerCallback);
   blocklist.notify(null);
@@ -35,18 +45,33 @@ function run_test() {
   gfxInfo.QueryInterface(Ci.nsIGfxInfoDebug);
 
   // Set the vendor/device ID, etc, to match the test file.
-  gfxInfo.spoofVendorID(0xabcd);
-  gfxInfo.spoofDeviceID(0x1234);
-  gfxInfo.spoofDriverVersion("8.52.322.2201");
-  // Windows Vista
-  gfxInfo.spoofOSVersion(0x60000);
+  switch (get_platform()) {
+    case "WINNT":
+      gfxInfo.spoofVendorID("0xabcd");
+      gfxInfo.spoofDeviceID("0x1234");
+      gfxInfo.spoofDriverVersion("8.52.322.2201");
+      // Windows Vista
+      gfxInfo.spoofOSVersion(0x60000);
+      break;
+    case "Linux":
+      // We don't have any OS versions on Linux, just "Linux".
+      do_test_finished();
+      return;
+    case "Darwin":
+      gfxInfo.spoofVendorID("0xabcd");
+      gfxInfo.spoofDeviceID("0x1234");
+      // Snow Leopard
+      gfxInfo.spoofOSVersion(0x1060);
+      break;
+    case "Android":
+      // On Android, the driver version is used as the OS version (because
+      // there's so many of them).
+      do_test_finished();
+      return;
+  }
 
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "3", "8");
   startupManager();
-
-  gTestserver = new nsHttpServer();
-  gTestserver.registerDirectory("/data/", do_get_file("data"));
-  gTestserver.start(4444);
 
   do_test_pending();
 

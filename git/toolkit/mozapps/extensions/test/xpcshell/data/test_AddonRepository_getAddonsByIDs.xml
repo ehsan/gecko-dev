@@ -10,18 +10,18 @@
     <authors>
       <author>
         <name>Test Creator 1</name>
-        <link>http://localhost:4444/creator1.html</link>
+        <link>http://localhost:%PORT%/creator1.html</link>
       </author>
       <author>
         <name>Test Developer 1</name>
-        <link>http://localhost:4444/developer1.html</link>
+        <link>http://localhost:%PORT%/developer1.html</link>
       </author>
     </authors>
     <summary>Test Summary 1</summary>
     <description>Test Description 1</description>
     <eula>Test EULA 1</eula>
     <developer_comments>Test Developer Comments 1</developer_comments>
-    <icon>http://localhost:4444/icon1.png</icon>
+    <icon size="32">http://localhost:%PORT%/icon1.png</icon>
     <status id="8">Preliminarily Reviewed</status>
     <compatible_applications>
       <application>
@@ -32,31 +32,98 @@
     </compatible_applications>
     <previews>
       <preview primary="1">
-        <full type="image/png">http://localhost:4444/full1-1.png</full>
-        <thumbnail type="image/png">http://localhost:4444/thumbnail1-1.png</thumbnail>
+        <full type="image/png" width="400" height="300">
+          http://localhost:%PORT%/full1-1.png
+        </full>
+        <thumbnail type="image/png" width="200" height="150">
+          http://localhost:%PORT%/thumbnail1-1.png
+        </thumbnail>
         <caption>Caption 1 - 1</caption>
       </preview>
       <preview primary="0">
-        <full type="image/png">http://localhost:4444/full2-1.png</full>
-        <thumbnail type="image/png">http://localhost:4444/thumbnail2-1.png</thumbnail>
+        <full type="image/png">http://localhost:%PORT%/full2-1.png</full>
+        <thumbnail type="image/png">http://localhost:%PORT%/thumbnail2-1.png</thumbnail>
         <caption>Caption 2 - 1</caption>
       </preview>
     </previews>
     <rating>4</rating>
-    <learnmore>http://localhost:4444/learnmore1.html</learnmore>
-    <support>http://localhost:4444/support1.html</support>
+    <learnmore>http://localhost:%PORT%/learnmore1.html</learnmore>
+    <support>http://localhost:%PORT%/support1.html</support>
     <contribution_data>
-      <link>http://localhost:4444/contribution1.html</link>
+      <link>http://localhost:%PORT%/contribution1.html</link>
       <suggested_amount currency="USD">$11.11</suggested_amount>
-      <meet_developers>http://localhost:4444/meetDevelopers1.html</meet_developers>
+      <meet_developers>http://localhost:%PORT%/meetDevelopers1.html</meet_developers>
     </contribution_data>
-    <reviews num="1111">http://localhost:4444/review1.html</reviews>
+    <reviews num="1111">http://localhost:%PORT%/review1.html</reviews>
     <total_downloads>2222</total_downloads>
     <weekly_downloads>3333</weekly_downloads>
     <daily_users>4444</daily_users>
     <last_updated epoch="1265033045">2010-02-01T14:04:05Z</last_updated>
-    <install size="5555">http://localhost:4444/addons/test_AddonRepository_2.xpi</install>
+    <install size="5555">http://localhost:%PORT%/addons/test_AddonRepository_2.xpi</install>
   </addon>
+
+  <addon_compatibility hosted="true" id="123">
+    <guid>test1@tests.mozilla.org</guid>
+    <name>PASS</name>
+    <version_ranges>
+      <!-- Will be included -->
+      <version_range type="incompatible">
+        <min_version>0.1</min_version>
+        <max_version>0.2</max_version>
+        <compatible_applications>
+          <application>
+            <name>XPCShell</name>
+            <application_id>666</application_id>
+            <min_version>3.0</min_version>
+            <max_version>4.0</max_version>
+            <appID>xpcshell@tests.mozilla.org</appID>
+          </application>
+        </compatible_applications>
+      </version_range>
+      <!-- Will be included -->
+      <version_range type="incompatible">
+        <min_version>0.2</min_version>
+        <max_version>0.3</max_version>
+        <compatible_applications>
+          <application>
+            <name>XPCShell</name>
+            <application_id>666</application_id>
+            <min_version>5.0</min_version>
+            <max_version>6.0</max_version>
+            <appID>xpcshell@tests.mozilla.org</appID>
+          </application>
+        </compatible_applications>
+      </version_range>
+      <!-- Won't be included - invalid type attribute -->
+      <version_range type="unknown">
+        <min_version>9</min_version>
+        <max_version>10</max_version>
+        <compatible_applications>
+          <application>
+            <name>XPCShell</name>
+            <application_id>666</application_id>
+            <min_version>10.0</min_version>
+            <max_version>11.0</max_version>
+            <appID>xpcshell@tests.mozilla.org</appID>
+          </application>
+        </compatible_applications>
+      </version_range>
+      <!-- Won't be included - no matching appID -->
+      <version_range type="incompatible">
+        <min_version>0.2</min_version>
+        <max_version>0.3</max_version>
+        <compatible_applications>
+          <application>
+            <name>Unknown App</name>
+            <application_id>123</application_id>
+            <min_version>1.0</min_version>
+            <max_version>999.0</max_version>
+            <appID>unknown-app@tests.mozilla.org</appID>
+          </application>
+        </compatible_applications>
+      </version_range>
+    </version_ranges>
+  </addon_compatibility>
 
   <!-- Fails because guid matches previously successful result -->
   <addon>
@@ -74,7 +141,7 @@
         <max_version>1</max_version>
       </application>
     </compatible_applications>
-    <install>http://localhost:4444/test2.xpi</install>
+    <install>http://localhost:%PORT%/test2.xpi</install>
   </addon>
 
   <!-- Fails because guid was not requested -->
@@ -93,7 +160,7 @@
         <max_version>1</max_version>
       </application>
     </compatible_applications>
-    <install>http://localhost:4444/test3.xpi</install>
+    <install>http://localhost:%PORT%/test3.xpi</install>
   </addon>
 
   <!-- Passes even though guid matches already installed add-on,
@@ -113,8 +180,8 @@
         <max_version>1</max_version>
       </application>
     </compatible_applications>
-    <install os="UNKNOWN1">http://localhost:4444/test4.xpi</install>
-    <install os="UNKNOWN2">http://localhost:4444/test4.xpi</install>
+    <install os="UNKNOWN1">http://localhost:%PORT%/test4.xpi</install>
+    <install os="UNKNOWN2">http://localhost:%PORT%/test4.xpi</install>
   </addon>
 </searchresults>
 

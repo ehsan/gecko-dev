@@ -1,43 +1,12 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Corporation code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Robert O'Callahan <robert@ocallahan.org>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef NSSUBDOCUMENTFRAME_H_
 #define NSSUBDOCUMENTFRAME_H_
 
+#include "mozilla/Attributes.h"
 #include "nsLeafFrame.h"
 #include "nsIReflowCallback.h"
 #include "nsFrameLoader.h"
@@ -55,74 +24,88 @@ public:
   nsSubDocumentFrame(nsStyleContext* aContext);
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const;
+  void List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
   NS_DECL_QUERYFRAME
 
-  virtual nsIAtom* GetType() const;
+  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
-  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
+  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
   {
     // nsLeafFrame is already eReplacedContainsBlock, but that's somewhat bogus
     return nsLeafFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
+  virtual void Init(nsIContent*      aContent,
+                    nsIFrame*        aParent,
+                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
 
-  virtual IntrinsicSize GetIntrinsicSize();
-  virtual nsSize  GetIntrinsicRatio();
+  virtual IntrinsicSize GetIntrinsicSize() MOZ_OVERRIDE;
+  virtual nsSize  GetIntrinsicRatio() MOZ_OVERRIDE;
 
   virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
-                                 nsSize aPadding, PRBool aShrinkWrap);
+                                 nsSize aPadding, bool aShrinkWrap) MOZ_OVERRIDE;
 
   virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             PRBool aShrinkWrap);
+                             uint32_t aFlags) MOZ_OVERRIDE;
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus);
+                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
+  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
+  NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
                               nsIAtom* aAttribute,
-                              PRInt32 aModType);
+                              int32_t aModType) MOZ_OVERRIDE;
 
   // if the content is "visibility:hidden", then just hide the view
   // and all our contents. We don't extend "visibility:hidden" to
   // the child content ourselves, since it belongs to a different
   // document and CSS doesn't inherit in there.
-  virtual PRBool SupportsVisibilityHidden() { return PR_FALSE; }
+  virtual bool SupportsVisibilityHidden() MOZ_OVERRIDE { return false; }
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
 #endif
 
   nsresult GetDocShell(nsIDocShell **aDocShell);
   nsresult BeginSwapDocShells(nsIFrame* aOther);
   void EndSwapDocShells(nsIFrame* aOther);
-  nsIView* EnsureInnerView();
+  nsView* EnsureInnerView();
   nsIFrame* GetSubdocumentRootFrame();
+  nsIntSize GetSubdocumentSize();
 
   // nsIReflowCallback
-  virtual PRBool ReflowFinished();
-  virtual void ReflowCallbackCanceled();
+  virtual bool ReflowFinished() MOZ_OVERRIDE;
+  virtual void ReflowCallbackCanceled() MOZ_OVERRIDE;
+
+  bool ShouldClipSubdocument()
+  {
+    nsFrameLoader* frameLoader = FrameLoader();
+    return !frameLoader || frameLoader->ShouldClipSubdocument();
+  }
+
+  bool ShouldClampScrollPosition()
+  {
+    nsFrameLoader* frameLoader = FrameLoader();
+    return !frameLoader || frameLoader->ShouldClampScrollPosition();
+  }
 
 protected:
   friend class AsyncFrameInit;
@@ -132,15 +115,14 @@ protected:
 
   nsFrameLoader* FrameLoader();
 
-  PRBool IsInline() { return mIsInline; }
+  bool IsInline() { return mIsInline; }
 
-  virtual nscoord GetIntrinsicWidth();
-  virtual nscoord GetIntrinsicHeight();
+  virtual nscoord GetIntrinsicWidth() MOZ_OVERRIDE;
+  virtual nscoord GetIntrinsicHeight() MOZ_OVERRIDE;
 
-  virtual PRIntn GetSkipSides() const;
-
-  // Hide or show our document viewer
-  void HideViewer();
+  // Show our document viewer. The document viewer is hidden via a script
+  // runner, so that we can save and restore the presentation if we're
+  // being reframed.
   void ShowViewer();
 
   /* Obtains the frame we should use for intrinsic size information if we are
@@ -153,12 +135,18 @@ protected:
    */
   nsIFrame* ObtainIntrinsicSizeFrame();
 
+  /**
+   * Return true if pointer event hit-testing should be allowed to target
+   * content in the subdocument.
+   */
+  bool PassPointerEventsToChildren();
+
   nsRefPtr<nsFrameLoader> mFrameLoader;
-  nsIView* mInnerView;
-  PRPackedBool mIsInline;
-  PRPackedBool mPostedReflowCallback;
-  PRPackedBool mDidCreateDoc;
-  PRPackedBool mCallingShow;
+  nsView* mInnerView;
+  bool mIsInline;
+  bool mPostedReflowCallback;
+  bool mDidCreateDoc;
+  bool mCallingShow;
 };
 
 #endif /* NSSUBDOCUMENTFRAME_H_ */

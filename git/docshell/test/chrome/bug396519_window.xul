@@ -1,41 +1,8 @@
 <?xml version="1.0"?>
 
-<!-- ***** BEGIN LICENSE BLOCK *****
-   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
-   -
-   - The contents of this file are subject to the Mozilla Public License Version
-   - 1.1 (the "License"); you may not use this file except in compliance with
-   - the License. You may obtain a copy of the License at
-   - http://www.mozilla.org/MPL/
-   -
-   - Software distributed under the License is distributed on an "AS IS" basis,
-   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-   - for the specific language governing rights and limitations under the
-   - License.
-   -
-   - The Original Code is bug 364461 mochitest
-   -
-   - The Initial Developer of the Original Code is
-   - Sylvain Pasche <sylvain.pasche@gmail.com>.
-   - Portions created by the Initial Developer are Copyright (C) 2007
-   - the Initial Developer. All Rights Reserved.
-   -
-   - Contributor(s):
-   -   Andrew Schultz <ajschult@verizon.net>
-   -
-   - Alternatively, the contents of this file may be used under the terms of
-   - either the GNU General Public License Version 2 or later (the "GPL"), or
-   - the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-   - in which case the provisions of the GPL or the LGPL are applicable instead
-   - of those above. If you wish to allow use of your version of this file only
-   - under the terms of either the GPL or the LGPL, and not to allow others to
-   - use your version of this file under the terms of the MPL, indicate your
-   - decision by deleting the provisions above and replace them with the notice
-   - and other provisions required by the LGPL or the GPL. If you do not delete
-   - the provisions above, a recipient may use your version of this file under
-   - the terms of any one of the MPL, the GPL or the LGPL.
-   -
-   - ***** END LICENSE BLOCK ***** -->
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <?xml-stylesheet href="chrome://global/skin" type="text/css"?>
 
@@ -49,6 +16,9 @@
   <script type="application/javascript"><![CDATA[
 
     const LISTEN_EVENTS = ["pageshow"];
+
+    const Cc = Components.classes;
+    const Ci = Components.interfaces;
 
     var gBrowser;
     var gTestCount = 0;
@@ -96,6 +66,23 @@
                           QueryInterface(Components.interfaces.nsISHEntry);
           is(!!shEntry.contentViewer, gExpected[i], "content viewer "+i+", test "+gTestCount);
         }
+
+        // Make sure none of the SHEntries share bfcache entries with one
+        // another.
+        for (var i = 0; i < history.count; i++) {
+          for (var j = 0; j < history.count; j++) {
+            if (j == i)
+              continue;
+
+            let shentry1 = history.getEntryAtIndex(i, false)
+                                  .QueryInterface(Ci.nsISHEntry);
+            let shentry2 = history.getEntryAtIndex(j, false)
+                                  .QueryInterface(Ci.nsISHEntry);
+            ok(!shentry1.sharesDocumentWith(shentry2),
+               'Test ' + gTestCount + ': shentry[' + i + "] shouldn't " +
+               "share document with shentry[" + j + ']');
+          }
+        }
       }
       else {
         is(history.count, gExpected.length, "Wrong history length in test "+gTestCount);
@@ -123,58 +110,58 @@
       gTestCount++;
       gExpected = [false];
       gBrowser.loadURI(test1Doc);
-      yield;
+      yield undefined;
 
       gTestCount++;
       gExpected = [true, false];
       var test2Doc = test1Doc.replace(/1/,"2");
       gBrowser.loadURI(test2Doc);
-      yield;
+      yield undefined;
 
       gTestCount++;
       gExpected = [true, true, false];
       gBrowser.loadURI(test1Doc);
-      yield;
+      yield undefined;
 
       gTestCount++;
       gExpected = [true, true, true, false];
       gBrowser.loadURI(test2Doc);
-      yield;
+      yield undefined;
 
       gTestCount++;
       gExpected = [false, true, true, true, false];
       gBrowser.loadURI(test1Doc);
-      yield;
+      yield undefined;
 
       gTestCount++;
       gExpected = [false, false, true, true, true, false];
       gBrowser.loadURI(test2Doc);
-      yield;
+      yield undefined;
 
       gTestCount++;
       gExpected = [false, false, true, true, false, true];
       gBrowser.goBack();
-      yield;
+      yield undefined;
 
       gTestCount++;
       gExpected = [false, false, true, true, true, false];
       gBrowser.goForward();
-      yield;
+      yield undefined;
 
       gTestCount++;
       gExpected = [false, false, true, true, true, false];
       gBrowser.gotoIndex(1);
-      yield;
+      yield undefined;
 
       gTestCount++;
       gExpected = [false, true, true, true, false, false];
       gBrowser.goBack();
-      yield;
+      yield undefined;
 
       gTestCount++;
       gExpected = [false, false, true, true, false, false];
       gBrowser.gotoIndex(5);
-      yield;
+      yield undefined;
     }
   ]]></script>
 

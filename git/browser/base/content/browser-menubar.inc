@@ -1,42 +1,7 @@
 # -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is Mozilla.org Code.
-#
-# The Initial Developer of the Original Code is
-# Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 2001
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Rob Campbell <rcampbell@mozilla.com>
-#   Steffen Wilberg <steffen.wilberg@web.de>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
        <menubar id="main-menubar"
                 onpopupshowing="if (event.target.parentNode.parentNode == this &amp;&amp;
@@ -57,6 +22,11 @@
                           accesskey="&newNavigatorCmd.accesskey;"
                           key="key_newNavigator"
                           command="cmd_newNavigator"/>
+                <menuitem id="menu_newPrivateWindow"
+                          label="&newPrivateWindow.label;"
+                          accesskey="&newPrivateWindow.accesskey;"
+                          command="Tools:PrivateBrowsing"
+                          key="key_privatebrowsing"/>
                 <menuitem id="menu_openLocation"
                           class="show-only-for-keyboard"
                           label="&openLocationCmd.label;"
@@ -88,8 +58,8 @@
                           key="key_savePage"
                           command="Browser:SavePage"/>
                 <menuitem id="menu_sendLink"
-                          label="&sendPageCmd.label;"
-                          accesskey="&sendPageCmd.accesskey;"
+                          label="&emailPageCmd.label;"
+                          accesskey="&emailPageCmd.accesskey;"
                           command="Browser:SendLink"/>
                 <menuseparator/>
                 <menuitem id="menu_printSetup"
@@ -108,13 +78,6 @@
                           key="printKb"
                           command="cmd_print"/>
                 <menuseparator/>
-                <menuitem id="menu_import"
-                          label="&import.label;"
-                          accesskey="&import.accesskey;"
-                          oncommand="BrowserImport();"/>
-#ifndef XP_MACOSX
-                <menuseparator/>
-#endif
                 <menuitem id="goOfflineMenuitem"
                           label="&goOfflineCmd.label;"
                           accesskey="&goOfflineCmd.accesskey;"
@@ -215,7 +178,8 @@
 
             <menu id="view-menu" label="&viewMenu.label;"
                   accesskey="&viewMenu.accesskey;">
-              <menupopup id="menu_viewPopup">
+              <menupopup id="menu_viewPopup"
+                         onpopupshowing="updateCharacterEncodingMenuState();">
                 <menu id="viewToolbarsMenu"
                       label="&viewToolbarsMenu.label;"
                       accesskey="&viewToolbarsMenu.accesskey;">
@@ -226,7 +190,6 @@
                               type="checkbox"
                               label="&viewTabsOnTop.label;"
                               accesskey="&viewTabsOnTop.accesskey;"/>
-                    <menuseparator/>
                     <menuitem id="menu_customizeToolbars"
                               label="&viewCustomizeToolbar.label;"
                               accesskey="&viewCustomizeToolbar.accesskey;"
@@ -239,34 +202,18 @@
                   <menupopup id="viewSidebarMenu">
                     <menuitem id="menu_bookmarksSidebar"
                               key="viewBookmarksSidebarKb"
-                              observes="viewBookmarksSidebar"
-                              accesskey="&bookmarksButton.accesskey;"/>
+                              observes="viewBookmarksSidebar"/>
                     <menuitem id="menu_historySidebar"
                               key="key_gotoHistory"
                               observes="viewHistorySidebar"
-                              label="&historyButton.label;"
-                              accesskey="&historySidebarCmd.accesskey;"/>
+                              label="&historyButton.label;"/>
+                    <menuitem id="menu_socialSidebar"
+                              type="checkbox"
+                              autocheck="false"
+                              command="Social:ToggleSidebar"/>
                   </menupopup>
                 </menu>
                 <menuseparator/>
-                <menuitem id="menu_stop"
-                          class="show-only-for-keyboard"
-                          label="&stopCmd.label;"
-                          accesskey="&stopCmd.accesskey;"
-                          command="Browser:Stop"
-#ifdef XP_MACOSX
-                          key="key_stop_mac"/>
-#else
-                          key="key_stop"/>
-#endif
-                <menuitem id="menu_reload"
-                          class="show-only-for-keyboard"
-                          label="&reloadCmd.label;"
-                          accesskey="&reloadCmd.accesskey;"
-                          key="key_reload"
-                          command="Browser:ReloadOrDuplicate"
-                          onclick="checkForMiddleClick(this, event);"/>
-                <menuseparator class="show-only-for-keyboard"/>
                 <menu id="viewFullZoomMenu" label="&fullZoom.label;"
                       accesskey="&fullZoom.accesskey;"
                       onpopupshowing="FullZoom.updateMenu();">
@@ -298,16 +245,16 @@
                 </menu>
                 <menu id="pageStyleMenu" label="&pageStyleMenu.label;"
                       accesskey="&pageStyleMenu.accesskey;" observes="isImage">
-                  <menupopup onpopupshowing="stylesheetFillPopup(this);"
-                             oncommand="stylesheetSwitchAll(window.content, event.target.getAttribute('data')); setStyleDisabled(false);">
+                  <menupopup onpopupshowing="gPageStyleMenu.fillPopup(this);">
                     <menuitem id="menu_pageStyleNoStyle"
                               label="&pageStyleNoStyle.label;"
                               accesskey="&pageStyleNoStyle.accesskey;"
-                              oncommand="setStyleDisabled(true); event.stopPropagation();"
+                              oncommand="gPageStyleMenu.disableStyle();"
                               type="radio"/>
                     <menuitem id="menu_pageStylePersistentOnly"
                               label="&pageStylePersistentOnly.label;"
                               accesskey="&pageStylePersistentOnly.accesskey;"
+                              oncommand="gPageStyleMenu.switchStyleSheet('');"
                               type="radio"
                               checked="true"/>
                     <menuseparator/>
@@ -315,12 +262,30 @@
                 </menu>
 #include browser-charsetmenu.inc
                 <menuseparator/>
+#ifdef XP_MACOSX
+                <menuitem id="enterFullScreenItem"
+                          accesskey="&enterFullScreenCmd.accesskey;"
+                          label="&enterFullScreenCmd.label;"
+                          key="key_fullScreen">
+                  <observes element="View:FullScreen" attribute="oncommand"/>
+                  <observes element="View:FullScreen" attribute="disabled"/>
+                </menuitem>
+                <menuitem id="exitFullScreenItem"
+                          accesskey="&exitFullScreenCmd.accesskey;"
+                          label="&exitFullScreenCmd.label;"
+                          key="key_fullScreen"
+                          hidden="true">
+                  <observes element="View:FullScreen" attribute="oncommand"/>
+                  <observes element="View:FullScreen" attribute="disabled"/>
+                </menuitem>
+#else
                 <menuitem id="fullScreenItem"
                           accesskey="&fullScreenCmd.accesskey;"
                           label="&fullScreenCmd.label;"
                           key="key_fullScreen"
                           type="checkbox"
                           observes="View:FullScreen"/>
+#endif
                 <menuitem id="menu_showAllTabs"
                           hidden="true"
                           accesskey="&showAllTabsCmd.accesskey;"
@@ -349,52 +314,27 @@
                                            new HistoryMenu(event);"
                          tooltip="bhTooltip"
                          popupsinherittooltip="true">
-                <menuitem id="historyMenuBack"
-                          class="show-only-for-keyboard"
-                          label="&backCmd.label;"
-#ifdef XP_MACOSX
-                          key="goBackKb2"
-#else
-                          key="goBackKb"
-#endif
-                          command="Browser:BackOrBackDuplicate"
-                          onclick="checkForMiddleClick(this, event);"/>
-                <menuitem id="historyMenuForward"
-                          class="show-only-for-keyboard"
-                          label="&forwardCmd.label;"
-#ifdef XP_MACOSX
-                          key="goForwardKb2"
-#else
-                          key="goForwardKb"
-#endif
-                          command="Browser:ForwardOrForwardDuplicate"
-                          onclick="checkForMiddleClick(this, event);"/>
-                <menuitem id="historyMenuHome"
-                          class="show-only-for-keyboard"
-                          label="&historyHomeCmd.label;"
-                          oncommand="BrowserGoHome(event);"
-                          onclick="checkForMiddleClick(this, event);"
-                          key="goHome"/>
-                <menuseparator id="historyMenuHomeSeparator"
-                               class="show-only-for-keyboard"/>
                 <menuitem id="menu_showAllHistory"
                           label="&showAllHistoryCmd2.label;"
 #ifndef XP_MACOSX
                           key="showAllHistoryKb"
 #endif
                           command="Browser:ShowAllHistory"/>
-                <menuseparator id="showAllHistorySeparator"/>
+                <menuitem id="sanitizeItem"
+                          label="&clearRecentHistory.label;"
+                          key="key_sanitize"
+                          command="Tools:Sanitize"/>
+                <menuseparator id="sanitizeSeparator"/>
 #ifdef MOZ_SERVICES_SYNC
                 <menuitem id="sync-tabs-menuitem"
-                          label="&syncTabsMenu.label;"
+                          class="syncTabsMenuItem"
+                          label="&syncTabsMenu2.label;"
                           oncommand="BrowserOpenSyncTabs();"
                           disabled="true"/>
 #endif
                 <menuitem id="historyRestoreLastSession"
-                          class="restoreLastSession"
                           label="&historyRestoreLastSession.label;"
-                          oncommand="restoreLastSession();"
-                          disabled="true"/>
+                          command="Browser:RestoreLastSession"/>
                 <menu id="historyUndoMenu"
                       class="recentlyClosedTabsMenu"
                       label="&historyUndoMenu.label;"
@@ -502,14 +442,6 @@
                          onpopupshowing="gSyncUI.updateUI();"
 #endif
                          >
-              <menuitem id="menu_search"
-                        class="show-only-for-keyboard"
-                        label="&search.label;"
-                        accesskey="&search.accesskey;"
-                        key="key_search"
-                        command="Tools:Search"/>
-              <menuseparator id="browserToolsSeparator"
-                             class="show-only-for-keyboard"/>
               <menuitem id="menu_openDownloads"
                         label="&downloads.label;"
                         accesskey="&downloads.accesskey;"
@@ -520,6 +452,49 @@
                         accesskey="&addons.accesskey;"
                         key="key_openAddons"
                         command="Tools:Addons"/>
+              <menu id="menu_socialAmbientMenu"
+                    observes="socialActiveBroadcaster">
+                <menupopup id="menu_social-statusarea-popup">
+                  <menuitem class="social-statusarea-user menuitem-iconic" pack="start" align="center"
+                            observes="socialBroadcaster_userDetails"
+                            oncommand="SocialUI.showProfile(); document.getElementById('social-statusarea-popup').hidePopup();">
+                    <image class="social-statusarea-user-portrait"
+                           observes="socialBroadcaster_userDetails"/>
+                    <vbox>
+                      <label class="social-statusarea-loggedInStatus"
+                             observes="socialBroadcaster_userDetails"/>
+                    </vbox>
+                  </menuitem>
+#ifndef XP_WIN
+                  <menuseparator class="social-statusarea-separator"/>
+#endif
+                  <menuseparator id="socialAmbientMenuSeparator"
+                                 hidden="true"/>
+                  <menuitem class="social-toggle-sidebar-menuitem"
+                            type="checkbox"
+                            autocheck="false"
+                            command="Social:ToggleSidebar"
+                            label="&social.toggleSidebar.label;"
+                            accesskey="&social.toggleSidebar.accesskey;"/>
+                  <menuitem class="social-toggle-notifications-menuitem"
+                            type="checkbox"
+                            autocheck="false"
+                            command="Social:ToggleNotifications"
+                            label="&social.toggleNotifications.label;"
+                            accesskey="&social.toggleNotifications.accesskey;"/>
+                  <menuitem id="menu_focusChatBar"
+                            label="&social.chatBar.label;"
+                            accesskey="&social.chatBar.accesskey;"
+                            key="focusChatBar"
+                            command="Social:FocusChat"
+                            class="show-only-for-keyboard"/>
+                  <menuitem class="social-toggle-menuitem" command="Social:Toggle"/>
+                  <menuseparator class="social-statusarea-separator"/>
+                  <menuseparator class="social-provider-menu" hidden="true"/>
+                  <menuitem class="social-addons-menuitem" command="Social:Addons"
+                            label="&social.addons.label;"/>
+                </menupopup>
+              </menu>
 #ifdef MOZ_SERVICES_SYNC
               <!-- only one of sync-setup or sync-menu will be showing at once -->
               <menuitem id="sync-setup"
@@ -538,40 +513,36 @@
                     label="&webDeveloperMenu.label;"
                     accesskey="&webDeveloperMenu.accesskey;">
                 <menupopup id="menuWebDeveloperPopup">
-                  <menuitem id="webConsole"
-                            label="&webConsoleCmd.label;"
-                            accesskey="&webConsoleCmd.accesskey;"
-                            key="key_webConsole"
-                            oncommand="HUDConsoleUI.toggleHUD();"/>
-                  <menuitem id="menu_pageinspect"
-                            type="checkbox"
-                            hidden="true"
-                            label="&inspectMenu.label;"
-                            accesskey="&inspectMenu.accesskey;"
-                            key="key_inspect"
-                            command="Tools:Inspect"/>
+                  <menuitem id="menu_devToolbox"
+                            observes="devtoolsMenuBroadcaster_DevToolbox"
+                            accesskey="&devToolboxMenuItem.accesskey;"/>
+                  <menuseparator id="menu_devtools_separator"/>
+                  <menuitem id="menu_devToolbar"
+                            observes="devtoolsMenuBroadcaster_DevToolbar"
+                            accesskey="&devToolbarMenu.accesskey;"/>
+                  <menuitem id="menu_chromeDebugger"
+                            observes="devtoolsMenuBroadcaster_ChromeDebugger"/>
+                  <menuitem id="menu_browserConsole"
+                            observes="devtoolsMenuBroadcaster_BrowserConsole"
+                            accesskey="&browserConsoleCmd.accesskey;"/>
+                  <menuitem id="menu_responsiveUI"
+                            observes="devtoolsMenuBroadcaster_ResponsiveUI"
+                            accesskey="&responsiveDesignTool.accesskey;"/>
                   <menuitem id="menu_scratchpad"
-                            hidden="true"
-                            label="&scratchpad.label;"
-                            accesskey="&scratchpad.accesskey;"
-                            key="key_scratchpad"
-                            command="Tools:Scratchpad"/>
+                            observes="devtoolsMenuBroadcaster_Scratchpad"
+                            accesskey="&scratchpad.accesskey;"/>
                   <menuitem id="menu_pageSource"
-                            accesskey="&pageSourceCmd.accesskey;"
-                            label="&pageSourceCmd.label;"
-                            key="key_viewSource"
-                            command="View:PageSource"/>
+                            observes="devtoolsMenuBroadcaster_PageSource"
+                            accesskey="&pageSourceCmd.accesskey;"/>
                   <menuitem id="javascriptConsole"
-                            hidden="true"
-                            label="&errorConsoleCmd.label;"
-                            accesskey="&errorConsoleCmd.accesskey;"
-                            key="key_errorConsole"
-                            oncommand="toJavaScriptConsole();"/>
+                            observes="devtoolsMenuBroadcaster_ErrorConsole"
+                            accesskey="&errorConsoleCmd.accesskey;"/>
+                  <menuitem id="menu_devtools_connect"
+                            observes="devtoolsMenuBroadcaster_connect"/>
                   <menuseparator id="devToolsEndSeparator"/>
                   <menuitem id="getMoreDevtools"
-                            label="&getMoreDevtoolsCmd.label;"
-                            accesskey="&getMoreDevtoolsCmd.accesskey;"
-                            oncommand="openUILinkIn('https://addons.mozilla.org/firefox/collections/mozilla/webdeveloper/', 'tab');"/>
+                            observes="devtoolsMenuBroadcaster_GetMoreTools"
+                            accesskey="&getMoreDevtoolsCmd.accesskey;"/>
                 </menupopup>
               </menu>
               <menuitem id="menu_pageInfo"
@@ -581,21 +552,6 @@
                         key="key_viewInfo"
 #endif
                         command="View:PageInfo"/>
-              <menuseparator id="sanitizeSeparator"/>
-              <menuitem id="privateBrowsingItem"
-                        label="&privateBrowsingCmd.start.label;"
-                        accesskey="&privateBrowsingCmd.start.accesskey;"
-                        startlabel="&privateBrowsingCmd.start.label;"
-                        startaccesskey="&privateBrowsingCmd.start.accesskey;"
-                        stoplabel="&privateBrowsingCmd.stop.label;"
-                        stopaccesskey="&privateBrowsingCmd.stop.accesskey;"
-                        key="key_privatebrowsing"
-                        command="Tools:PrivateBrowsing"/>
-              <menuitem id="sanitizeItem"
-                        accesskey="&clearRecentHistory.accesskey;"
-                        label="&clearRecentHistory.label;"
-                        key="key_sanitize"
-                        command="Tools:Sanitize"/>
 #ifndef XP_UNIX
               <menuseparator id="prefSep"/>
               <menuitem id="menu_preferences"

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -7,6 +7,7 @@
 // main.cpp: DLL entry point and management of thread-local data.
 
 #include "libGLESv2/main.h"
+#include "libGLESv2/utilities.h"
 
 #include "common/debug.h"
 #include "libEGL/Surface.h"
@@ -15,7 +16,7 @@
 
 static DWORD currentTLS = TLS_OUT_OF_INDEXES;
 
-BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
+extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 {
     switch (reason)
     {
@@ -93,6 +94,25 @@ Context *getContext()
     return current->context;
 }
 
+Context *getNonLostContext()
+{
+    Context *context = getContext();
+    
+    if (context)
+    {
+        if (context->isContextLost())
+        {
+            error(GL_OUT_OF_MEMORY);
+            return NULL;
+        }
+        else
+        {
+            return context;
+        }
+    }
+    return NULL;
+}
+
 egl::Display *getDisplay()
 {
     Current *current = (Current*)TlsGetValue(currentTLS);
@@ -105,6 +125,19 @@ IDirect3DDevice9 *getDevice()
     egl::Display *display = getDisplay();
 
     return display->getDevice();
+}
+
+bool checkDeviceLost(HRESULT errorCode)
+{
+    egl::Display *display = NULL;
+
+    if (isDeviceLostError(errorCode))
+    {
+        display = gl::getDisplay();
+        display->notifyDeviceLost();
+        return true;
+    }
+    return false;
 }
 }
 

@@ -6,8 +6,6 @@
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         title="Accessible XUL tree attributes tests">
 
-  <script type="application/javascript" 
-          src="chrome://mochikit/content/MochiKit/packed.js" />
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
@@ -26,7 +24,7 @@
     ////////////////////////////////////////////////////////////////////////////
     // Test
 
-    function doTestAttrs()
+    function doTest()
     {
       var treeNode = getNode("tree");
 
@@ -52,15 +50,8 @@
       SimpleTest.finish();
     }
 
-    function doTest()
-    {
-      var treeNode = getNode("tree");
-      waitForEvent(EVENT_REORDER, treeNode, doTestAttrs);
-      treeNode.view = new nsTreeTreeView();
-    }
-
     SimpleTest.waitForExplicitFinish();
-    addA11yLoadEvent(doTest);
+    addA11yXULTreeLoadEvent(doTest, "tree", new nsTreeTreeView());
   ]]>
   </script>
 

@@ -36,6 +36,7 @@ var gAutoHide = false;
 var gExpectedEventDetails = null;
 var gExpectedTriggerNode = null;
 var gWindowUtils;
+var gPopupWidth = -1, gPopupHeight = -1;
 
 function startPopupTests(tests)
 {
@@ -51,8 +52,7 @@ function startPopupTests(tests)
   document.addEventListener("DOMMenuBarInactive", eventOccurred, false);
 
   gPopupTests = tests;
-  gWindowUtils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                       .getInterface(Components.interfaces.nsIDOMWindowUtils);
+  gWindowUtils = SpecialPowers.getDOMWindowUtils(window);
 
   goNext();
 }
@@ -83,15 +83,11 @@ function is(left, right, message) {
 }
 
 function disableNonTestMouse(aDisable) {
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
   gWindowUtils.disableNonTestMouseEvents(aDisable);
 }
 
 function eventOccurred(event)
 {
-   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
   if (gPopupTests.length <= gTestIndex) {
     ok(false, "Extra " + event.type + " event fired");
     return;
@@ -131,6 +127,16 @@ function eventOccurred(event)
       is(event.target.id, eventitem[1],
          test.testname + " event target ID " + event.target.id);
       matches = eventitem[0] == event.type && eventitem[1] == event.target.id;
+    }
+
+    var modifiersMask = eventitem[2];
+    if (modifiersMask) {
+      var m = "";
+      m += event.altKey ? '1' : '0';
+      m += event.ctrlKey ? '1' : '0';
+      m += event.shiftKey ? '1' : '0';
+      m += event.metaKey ? '1' : '0';
+      is(m, modifiersMask, test.testname + " modifiers mask matches");
     }
 
     var expectedState;
@@ -245,7 +251,7 @@ function openMenu(menu)
   }
   else {
     var bo = menu.boxObject;
-    if (bo instanceof Components.interfaces.nsIMenuBoxObject)
+    if (bo instanceof SpecialPowers.Ci.nsIMenuBoxObject)
       bo.openMenu(true);
     else
       synthesizeMouse(menu, 4, 4, { });
@@ -259,7 +265,7 @@ function closeMenu(menu, popup)
   }
   else {
     var bo = menu.boxObject;
-    if (bo instanceof Components.interfaces.nsIMenuBoxObject)
+    if (bo instanceof SpecialPowers.Ci.nsIMenuBoxObject)
       bo.openMenu(false);
     else
       popup.hidePopup();
@@ -286,7 +292,7 @@ function checkOpen(menuid, testname)
   var menu = document.getElementById(menuid);
   if ("open" in menu)
     ok(menu.open, testname + " " + menuid + " menu is open");
-  else if (menu.boxObject instanceof Components.interfaces.nsIMenuBoxObject)
+  else if (menu.boxObject instanceof SpecialPowers.Ci.nsIMenuBoxObject)
     ok(menu.getAttribute("open") == "true", testname + " " + menuid + " menu is open");
 }
 
@@ -295,7 +301,7 @@ function checkClosed(menuid, testname)
   var menu = document.getElementById(menuid);
   if ("open" in menu)
     ok(!menu.open, testname + " " + menuid + " menu is open");
-  else if (menu.boxObject instanceof Components.interfaces.nsIMenuBoxObject)
+  else if (menu.boxObject instanceof SpecialPowers.Ci.nsIMenuBoxObject)
     ok(!menu.hasAttribute("open"), testname + " " + menuid + " menu is closed");
 }
 
@@ -335,9 +341,15 @@ function compareEdge(anchor, popup, edge, offsetX, offsetY, testname)
   var popuprect = popup.getBoundingClientRect();
   var check1 = false, check2 = false;
 
-  ok((Math.round(popuprect.right) - Math.round(popuprect.left)) &&
-     (Math.round(popuprect.bottom) - Math.round(popuprect.top)),
-     testname + " size");
+  if (gPopupWidth == -1) {
+    ok((Math.round(popuprect.right) - Math.round(popuprect.left)) &&
+       (Math.round(popuprect.bottom) - Math.round(popuprect.top)),
+       testname + " size");
+  }
+  else {
+    is(Math.round(popuprect.width), gPopupWidth, testname + " width");
+    is(Math.round(popuprect.height), gPopupHeight, testname + " height");
+  }
 
   var spaceIdx = edge.indexOf(" ");
   if (spaceIdx > 0) {

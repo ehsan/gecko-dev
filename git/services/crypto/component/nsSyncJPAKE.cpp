@@ -1,40 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Firefox Sync.
- *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- * Brian Smith <bsmith@mozilla.com>
- * Philipp von Weitershausen <philipp@weitershausen.de>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSyncJPAKE.h"
 #include "mozilla/ModuleUtils.h"
@@ -50,7 +16,9 @@
 #include <base64.h>
 #include <nsString.h>
 
-static PRBool
+using mozilla::fallible_t;
+
+static bool
 hex_from_2char(const unsigned char *c2, unsigned char *byteval)
 {
   int i;
@@ -67,26 +35,26 @@ hex_from_2char(const unsigned char *c2, unsigned char *byteval)
       offset = c2[i] - 'A';
       *byteval |= (offset + 10) << 4*(1-i);
     } else {
-      return PR_FALSE;
+      return false;
     }
   }
-  return PR_TRUE;
+  return true;
 }
 
-static PRBool
+static bool
 fromHex(const char * str, unsigned char * p, size_t sLen)
 {
   size_t i;
   if (sLen & 1)
-    return PR_FALSE;
+    return false;
 
   for (i = 0; i < sLen / 2; ++i) {
     if (!hex_from_2char((const unsigned char *) str + (2*i),
                         (unsigned char *) p + i)) {
-      return PR_FALSE;
+      return false;
     }
   }
-  return PR_TRUE;
+  return true;
 }
 
 static nsresult
@@ -101,18 +69,18 @@ fromHexString(const nsACString & str, unsigned char * p, size_t pMaxLen)
   return NS_OK;
 }
 
-static PRBool
+static bool
 toHexString(const unsigned char * str, unsigned len, nsACString & out)
 {
   static const char digits[] = "0123456789ABCDEF";
-  if (!out.SetCapacity(2 * len))
-    return NS_ERROR_OUT_OF_MEMORY;
+  if (!out.SetCapacity(2 * len, fallible_t()))
+    return false;
   out.SetLength(0);
   for (unsigned i = 0; i < len; ++i) {
     out.Append(digits[str[i] >> 4]);
     out.Append(digits[str[i] & 0x0f]);
   }
-  return PR_TRUE;
+  return true;
 }
 
 static nsresult
@@ -157,15 +125,15 @@ static const char g[] =
   "787F7DED3B30E1A22D09F1FBDA1ABBBFBF25CAE05A13F812E34563F99410E73B";
 
 NS_IMETHODIMP nsSyncJPAKE::Round1(const nsACString & aSignerID,
-                                  nsACString & aGX1 NS_OUTPARAM,
-                                  nsACString & aGV1 NS_OUTPARAM,
-                                  nsACString & aR1 NS_OUTPARAM,
-                                  nsACString & aGX2 NS_OUTPARAM,
-                                  nsACString & aGV2 NS_OUTPARAM,
-                                  nsACString & aR2 NS_OUTPARAM)
+                                  nsACString & aGX1,
+                                  nsACString & aGV1,
+                                  nsACString & aR1,
+                                  nsACString & aGX2,
+                                  nsACString & aGV2,
+                                  nsACString & aR2)
 {
   NS_ENSURE_STATE(round == JPAKENotStarted);
-  NS_ENSURE_STATE(key == NULL);
+  NS_ENSURE_STATE(key == nullptr);
 
   static CK_MECHANISM_TYPE mechanisms[] = {
     CKM_NSS_JPAKE_ROUND1_SHA256,
@@ -174,8 +142,9 @@ NS_IMETHODIMP nsSyncJPAKE::Round1(const nsACString & aSignerID,
   };
 
   PK11SlotInfo * slot = PK11_GetBestSlotMultiple(mechanisms,
-                                                 NUM_ELEM(mechanisms), NULL);
-  NS_ENSURE_STATE(slot != NULL);
+                                                 NUM_ELEM(mechanisms),
+                                                 nullptr);
+  NS_ENSURE_STATE(slot != nullptr);
     
   CK_BYTE pBuf[(NUM_ELEM(p) - 1) / 2];
   CK_BYTE qBuf[(NUM_ELEM(q) - 1) / 2];
@@ -210,8 +179,8 @@ NS_IMETHODIMP nsSyncJPAKE::Round1(const nsACString & aSignerID,
   key = PK11_KeyGenWithTemplate(slot, CKM_NSS_JPAKE_ROUND1_SHA256,
                                 CKM_NSS_JPAKE_ROUND1_SHA256,
                                 &paramsItem, keyTemplate,
-                                NUM_ELEM(keyTemplate), NULL);
-  nsresult rv = key != NULL
+                                NUM_ELEM(keyTemplate), nullptr);
+  nsresult rv = key != nullptr
               ? NS_OK
               : mapErrno();
   if (rv == NS_OK) {
@@ -235,21 +204,21 @@ NS_IMETHODIMP nsSyncJPAKE::Round2(const nsACString & aPeerID,
                                   const nsACString & aGX4,
                                   const nsACString & aGV4,
                                   const nsACString & aR4,
-                                  nsACString & aA NS_OUTPARAM,
-                                  nsACString & aGVA NS_OUTPARAM,
-                                  nsACString & aRA NS_OUTPARAM)
+                                  nsACString & aA,
+                                  nsACString & aGVA,
+                                  nsACString & aRA)
 {
   NS_ENSURE_STATE(round == JPAKEBeforeRound2);
-  NS_ENSURE_STATE(key != NULL);
+  NS_ENSURE_STATE(key != nullptr);
   NS_ENSURE_ARG(!aPeerID.IsEmpty());
 
   /* PIN cannot be equal to zero when converted to a bignum. NSS 3.12.9 J-PAKE
      assumes that the caller has already done this check. Future versions of 
      NSS J-PAKE will do this check internally. See Bug 609068 Comment 4 */
-  PRBool foundNonZero = PR_FALSE;
+  bool foundNonZero = false;
   for (size_t i = 0; i < aPIN.Length(); ++i) {
     if (aPIN[i] != 0) {
-      foundNonZero = PR_TRUE;
+      foundNonZero = true;
       break;
     }
   }
@@ -281,10 +250,10 @@ NS_IMETHODIMP nsSyncJPAKE::Round2(const nsACString & aPeerID,
   rp.A.pR    = rABuf;  rp.A  .ulRLen  = sizeof gxABuf;
 
   // Bug 629090: NSS 3.12.9 J-PAKE fails to check that gx^4 != 1, so check here.
-  PRBool gx4Good = PR_FALSE;
+  bool gx4Good = false;
   for (unsigned i = 0; i < rp.gx4.ulGXLen; ++i) {
     if (rp.gx4.pGX[i] > 1 || (rp.gx4.pGX[i] != 0 && i < rp.gx4.ulGXLen - 1)) {
-      gx4Good = PR_TRUE;
+      gx4Good = true;
       break;
     }
   }
@@ -305,8 +274,8 @@ NS_IMETHODIMP nsSyncJPAKE::Round2(const nsACString & aPeerID,
                                                 CKA_DERIVE, 0,
                                                 keyTemplate,
                                                 NUM_ELEM(keyTemplate),
-                                                PR_FALSE);
-  if (newKey != NULL) {
+                                                false);
+  if (newKey != nullptr) {
     if (toHexString(rp.A.pGX, rp.A.ulGXLen, aA) &&
         toHexString(rp.A.pGV, rp.A.ulGVLen, aGVA) &&
         toHexString(rp.A.pR, rp.A.ulRLen, aRA)) {
@@ -330,9 +299,9 @@ setBase64(const unsigned char * data, unsigned len, nsACString & out)
   nsresult rv = NS_OK;
   const char * base64 = BTOA_DataToAscii(data, len);
   
-  if (base64 != NULL) {
+  if (base64 != nullptr) {
     size_t len = PORT_Strlen(base64);
-    if (out.SetCapacity(len)) {
+    if (out.SetCapacity(len, fallible_t())) {
       out.SetLength(0);
       out.Append(base64, len);
       PORT_Free((void*) base64);
@@ -351,7 +320,7 @@ base64KeyValue(PK11SymKey * key, nsACString & keyString)
   nsresult rv = NS_OK;
   if (PK11_ExtractKeyValue(key) == SECSuccess) {
     const SECItem * value = PK11_GetKeyData(key);
-    rv = value != NULL && value->data != NULL && value->len > 0
+    rv = value != nullptr && value->data != nullptr && value->len > 0
        ? setBase64(value->data, value->len, keyString)
        : NS_ERROR_UNEXPECTED;
   } else {
@@ -371,7 +340,7 @@ extractBase64KeyValue(PK11SymKey * keyBlock, CK_ULONG bitPosition,
   PK11SymKey * key = PK11_Derive(keyBlock, CKM_EXTRACT_KEY_FROM_KEY,
                                  &paramsItem, destMech,
                                  CKA_SIGN, keySize);
-  if (key == NULL)
+  if (key == nullptr)
     return mapErrno();
   nsresult rv = base64KeyValue(key, keyString);
   PK11_FreeSymKey(key);
@@ -383,8 +352,8 @@ NS_IMETHODIMP nsSyncJPAKE::Final(const nsACString & aB,
                                  const nsACString & aGVB,
                                  const nsACString & aRB,
                                  const nsACString & aHKDFInfo,
-                                 nsACString & aAES256Key NS_OUTPARAM,
-                                 nsACString & aHMAC256Key NS_OUTPARAM)
+                                 nsACString & aAES256Key,
+                                 nsACString & aHMAC256Key)
 {
   static const unsigned AES256_KEY_SIZE = 256 / 8;
   static const unsigned HMAC_SHA256_KEY_SIZE = 256 / 8;
@@ -392,7 +361,7 @@ NS_IMETHODIMP nsSyncJPAKE::Final(const nsACString & aB,
   CK_EXTRACT_PARAMS hmacBitPosition = aesBitPosition + (AES256_KEY_SIZE * 8);
 
   NS_ENSURE_STATE(round == JPAKEAfterRound2);
-  NS_ENSURE_STATE(key != NULL);
+  NS_ENSURE_STATE(key != nullptr);
 
   CK_BYTE gxBBuf[NUM_ELEM(p)/2], gvBBuf[NUM_ELEM(p)/2], rBBuf [NUM_ELEM(p)/2];
   nsresult         rv = fromHexString(aB,   gxBBuf, sizeof gxBBuf);
@@ -411,15 +380,15 @@ NS_IMETHODIMP nsSyncJPAKE::Final(const nsACString & aB,
   PK11SymKey * keyMaterial = PK11_Derive(key, CKM_NSS_JPAKE_FINAL_SHA256,
                                          &paramsItem, CKM_NSS_HKDF_SHA256,
                                          CKA_DERIVE, 0);
-  PK11SymKey * keyBlock = NULL;
+  PK11SymKey * keyBlock = nullptr;
 
-  if (keyMaterial == NULL)
+  if (keyMaterial == nullptr)
     rv = mapErrno();
 
   if (rv == NS_OK) {
     CK_NSS_HKDFParams hkdfParams;
     hkdfParams.bExtract = CK_TRUE;
-    hkdfParams.pSalt = NULL;
+    hkdfParams.pSalt = nullptr;
     hkdfParams.ulSaltLen = 0;
     hkdfParams.bExpand = CK_TRUE;
     hkdfParams.pInfo = (CK_BYTE *) aHKDFInfo.Data();
@@ -429,7 +398,7 @@ NS_IMETHODIMP nsSyncJPAKE::Final(const nsACString & aB,
     keyBlock = PK11_Derive(keyMaterial, CKM_NSS_HKDF_SHA256,
                            &paramsItem, CKM_EXTRACT_KEY_FROM_KEY,
                            CKA_DERIVE, AES256_KEY_SIZE + HMAC_SHA256_KEY_SIZE);
-    if (keyBlock == NULL)
+    if (keyBlock == nullptr)
       rv = mapErrno();
   }
 
@@ -446,12 +415,12 @@ NS_IMETHODIMP nsSyncJPAKE::Final(const nsACString & aB,
     SECStatus srv = PK11_ExtractKeyValue(keyMaterial);
     NS_ENSURE_TRUE(srv == SECSuccess, NS_ERROR_UNEXPECTED); // XXX leaks
     SECItem * keyMaterialBytes = PK11_GetKeyData(keyMaterial);
-    NS_ENSURE_TRUE(keyMaterialBytes != NULL, NS_ERROR_UNEXPECTED);
+    NS_ENSURE_TRUE(keyMaterialBytes != nullptr, NS_ERROR_UNEXPECTED);
   }
 
-  if (keyBlock != NULL)
+  if (keyBlock != nullptr)
     PK11_FreeSymKey(keyBlock);
-  if (keyMaterial != NULL)
+  if (keyMaterial != nullptr)
     PK11_FreeSymKey(keyMaterial);
 
   return rv;
@@ -460,22 +429,22 @@ NS_IMETHODIMP nsSyncJPAKE::Final(const nsACString & aB,
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSyncJPAKE)
 NS_DEFINE_NAMED_CID(NS_SYNCJPAKE_CID);
 
-nsSyncJPAKE::nsSyncJPAKE() : round(JPAKENotStarted), key(NULL) { }
+nsSyncJPAKE::nsSyncJPAKE() : round(JPAKENotStarted), key(nullptr) { }
 
 nsSyncJPAKE::~nsSyncJPAKE()
 {
-  if (key != NULL)
+  if (key != nullptr)
     PK11_FreeSymKey(key);
 }
 
 static const mozilla::Module::CIDEntry kServicesCryptoCIDs[] = {
-  { &kNS_SYNCJPAKE_CID, false, NULL, nsSyncJPAKEConstructor },
-  { NULL }
+  { &kNS_SYNCJPAKE_CID, false, nullptr, nsSyncJPAKEConstructor },
+  { nullptr }
 };
 
 static const mozilla::Module::ContractIDEntry kServicesCryptoContracts[] = {
   { NS_SYNCJPAKE_CONTRACTID, &kNS_SYNCJPAKE_CID },
-  { NULL }
+  { nullptr }
 };
 
 static const mozilla::Module kServicesCryptoModule = {

@@ -1,42 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Boris Zbarsky <bzbarsky@mit.edu>.
- * Portions created by the Initial Developer are Copyright (C) 2002
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Boris Zbarsky <bzbarsky@mit.edu> (original author)
- *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
- *   Mats Palmgren <mats.palmgren@bredband.net>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef nsLayoutUtils_h__
 #define nsLayoutUtils_h__
@@ -52,12 +17,14 @@ class nsDisplayListBuilder;
 class nsDisplayItem;
 class nsFontMetrics;
 class nsClientRectList;
+class nsFontFaceList;
+class nsIImageLoadingContent;
 
-#include "prtypes.h"
+#include "mozilla/MemoryReporting.h"
+#include "nsChangeHint.h"
 #include "nsStyleContext.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
-#include "nsIView.h"
 #include "nsIFrame.h"
 #include "nsThreadUtils.h"
 #include "nsIPresShell.h"
@@ -67,10 +34,24 @@ class nsClientRectList;
 #include "nsCSSPseudoElements.h"
 #include "nsHTMLReflowState.h"
 #include "nsIFrameLoader.h"
-#include "Layers.h"
+#include "FrameMetrics.h"
+
+#include <limits>
+#include <algorithm>
 
 class nsBlockFrame;
 class gfxDrawable;
+class nsView;
+
+namespace mozilla {
+class SVGImageContext;
+namespace dom {
+class Element;
+class HTMLImageElement;
+class HTMLCanvasElement;
+class HTMLVideoElement;
+} // namespace dom
+} // namespace mozilla
 
 /**
  * nsLayoutUtils is a namespace class used for various helper
@@ -96,15 +77,25 @@ public:
   static nsIContent* FindContentFor(ViewID aId);
 
   /**
+   * Find the scrollable frame for a given ID.
+   */
+  static nsIScrollableFrame* FindScrollableFrameFor(ViewID aId);
+
+  /**
    * Get display port for the given element.
    */
   static bool GetDisplayPort(nsIContent* aContent, nsRect *aResult);
 
   /**
-   * Use heuristics to figure out the name of the child list that
+   * Get the critical display port for the given element.
+   */
+  static bool GetCriticalDisplayPort(nsIContent* aContent, nsRect* aResult);
+
+  /**
+   * Use heuristics to figure out the child list that
    * aChildFrame is currently in.
    */
-  static nsIAtom* GetChildListNameFor(nsIFrame* aChildFrame);
+  static nsIFrame::ChildListID GetChildListNameFor(nsIFrame* aChildFrame);
 
   /**
    * GetBeforeFrame returns the outermost :before frame of the given frame, if
@@ -112,7 +103,7 @@ public:
    * the first-in-flow.
    *
    * @param aFrame the frame whose :before is wanted
-   * @return the :before frame or nsnull if there isn't one
+   * @return the :before frame or nullptr if there isn't one
    */
   static nsIFrame* GetBeforeFrame(nsIFrame* aFrame);
 
@@ -123,7 +114,7 @@ public:
    * frames, following in-flows, etc.
    *
    * @param aFrame the frame whose :after is wanted
-   * @return the :after frame or nsnull if there isn't one
+   * @return the :after frame or nullptr if there isn't one
    */
   static nsIFrame* GetAfterFrame(nsIFrame* aFrame);
 
@@ -133,7 +124,7 @@ public:
    *
    * @param aFrame the frame to start at
    * @param aFrameType the frame type to look for
-   * @return a frame of the given type or nsnull if no
+   * @return a frame of the given type or nullptr if no
    *         such ancestor exists
    */
   static nsIFrame* GetClosestFrameOfType(nsIFrame* aFrame, nsIAtom* aFrameType);
@@ -143,7 +134,7 @@ public:
    * ancestor that (or the frame itself) is a "Page" frame, if any.
    *
    * @param aFrame the frame to start at
-   * @return a frame of type nsGkAtoms::pageFrame or nsnull if no
+   * @return a frame of type nsGkAtoms::pageFrame or nullptr if no
    *         such ancestor exists
    */
   static nsIFrame* GetPageFrame(nsIFrame* aFrame)
@@ -160,7 +151,15 @@ public:
   static nsIFrame* GetStyleFrame(nsIFrame* aPrimaryFrame);
 
   /**
-   * IsGeneratedContentFor returns PR_TRUE if aFrame is the outermost
+   * Given a content node,
+   * return the frame that has the non-psuedoelement style context for
+   * the content.  May return null.
+   * This is aContent->GetPrimaryFrame() except for tableOuter frames.
+   */
+  static nsIFrame* GetStyleFrame(const nsIContent* aContent);
+
+  /**
+   * IsGeneratedContentFor returns true if aFrame is the outermost
    * frame for generated content of type aPseudoElement for aContent.
    * aFrame *might not* have the aPseudoElement pseudo-style! For example
    * it might be a table outer frame and the inner table frame might
@@ -173,7 +172,7 @@ public:
    * @param aPseudoElement the pseudo type we're interested in
    * @return whether aFrame is the generated aPseudoElement frame for aContent
    */
-  static PRBool IsGeneratedContentFor(nsIContent* aContent, nsIFrame* aFrame,
+  static bool IsGeneratedContentFor(nsIContent* aContent, nsIFrame* aFrame,
                                       nsIAtom* aPseudoElement);
 
 #ifdef DEBUG
@@ -196,9 +195,9 @@ public:
    *         0 otherwise (meaning they're the same, or they're in
    *           different documents)
    */
-  static PRInt32 CompareTreePosition(nsIContent* aContent1,
+  static int32_t CompareTreePosition(nsIContent* aContent1,
                                      nsIContent* aContent2,
-                                     const nsIContent* aCommonAncestor = nsnull)
+                                     const nsIContent* aCommonAncestor = nullptr)
   {
     return DoCompareTreePosition(aContent1, aContent2, -1, 1, aCommonAncestor);
   }
@@ -209,11 +208,11 @@ public:
    * for |aIf2Ancestor|.  Passing (-1, 1) gives preorder traversal
    * order, and (1, -1) gives postorder traversal order.
    */
-  static PRInt32 DoCompareTreePosition(nsIContent* aContent1,
+  static int32_t DoCompareTreePosition(nsIContent* aContent1,
                                        nsIContent* aContent2,
-                                       PRInt32 aIf1Ancestor,
-                                       PRInt32 aIf2Ancestor,
-                                       const nsIContent* aCommonAncestor = nsnull);
+                                       int32_t aIf1Ancestor,
+                                       int32_t aIf2Ancestor,
+                                       const nsIContent* aCommonAncestor = nullptr);
 
   /**
    * CompareTreePosition determines whether aFrame1 comes before or
@@ -234,9 +233,9 @@ public:
    *         0 otherwise (meaning they're the same, or they're in
    *           different frame trees)
    */
-  static PRInt32 CompareTreePosition(nsIFrame* aFrame1,
+  static int32_t CompareTreePosition(nsIFrame* aFrame1,
                                      nsIFrame* aFrame2,
-                                     nsIFrame* aCommonAncestor = nsnull)
+                                     nsIFrame* aCommonAncestor = nullptr)
   {
     return DoCompareTreePosition(aFrame1, aFrame2, -1, 1, aCommonAncestor);
   }
@@ -247,11 +246,28 @@ public:
    * for |aIf2Ancestor|.  Passing (-1, 1) gives preorder traversal
    * order, and (1, -1) gives postorder traversal order.
    */
-  static PRInt32 DoCompareTreePosition(nsIFrame* aFrame1,
+  static int32_t DoCompareTreePosition(nsIFrame* aFrame1,
                                        nsIFrame* aFrame2,
-                                       PRInt32 aIf1Ancestor,
-                                       PRInt32 aIf2Ancestor,
-                                       nsIFrame* aCommonAncestor = nsnull);
+                                       int32_t aIf1Ancestor,
+                                       int32_t aIf2Ancestor,
+                                       nsIFrame* aCommonAncestor = nullptr);
+
+  /**
+   * Sorts the given nsFrameList, so that for every two adjacent frames in the
+   * list, the former is less than or equal to the latter, according to the
+   * templated IsLessThanOrEqual method.
+   *
+   * Note: this method uses a stable merge-sort algorithm.
+   */
+  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+  static void SortFrameList(nsFrameList& aFrameList);
+
+  /**
+   * Returns true if the given frame list is already sorted, according to the
+   * templated IsLessThanOrEqual function.
+   */
+  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+  static bool IsFrameListSorted(nsFrameList& aFrameList);
 
   /**
    * GetLastContinuationWithChild gets the last continuation in aFrame's chain
@@ -260,7 +276,7 @@ public:
   static nsIFrame* GetLastContinuationWithChild(nsIFrame* aFrame);
 
   /**
-   * GetLastSibling simply finds the last sibling of aFrame, or returns nsnull if
+   * GetLastSibling simply finds the last sibling of aFrame, or returns nullptr if
    * aFrame is null.
    */
   static nsIFrame* GetLastSibling(nsIFrame* aFrame);
@@ -272,7 +288,7 @@ public:
    * corresponding content is before aFrame's content (view siblings
    * are in reverse content order).
    */
-  static nsIView* FindSiblingViewFor(nsIView* aParentView, nsIFrame* aFrame);
+  static nsView* FindSiblingViewFor(nsView* aParentView, nsIFrame* aFrame);
 
   /**
    * Get the parent of aFrame. If aFrame is the root frame for a document,
@@ -285,17 +301,17 @@ public:
    * than the child document.
    */
   static nsIFrame* GetCrossDocParentFrame(const nsIFrame* aFrame,
-                                          nsPoint* aCrossDocOffset = nsnull);
+                                          nsPoint* aCrossDocOffset = nullptr);
 
   /**
    * IsProperAncestorFrame checks whether aAncestorFrame is an ancestor
    * of aFrame and not equal to aFrame.
-   * @param aCommonAncestor nsnull, or a common ancestor of aFrame and
+   * @param aCommonAncestor nullptr, or a common ancestor of aFrame and
    * aAncestorFrame. If non-null, this can bound the search and speed up
    * the function
    */
-  static PRBool IsProperAncestorFrame(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
-                                      nsIFrame* aCommonAncestor = nsnull);
+  static bool IsProperAncestorFrame(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
+                                      nsIFrame* aCommonAncestor = nullptr);
 
   /**
    * Like IsProperAncestorFrame, but looks across document boundaries.
@@ -303,21 +319,21 @@ public:
    * Just like IsAncestorFrameCrossDoc, except that it returns false when
    * aFrame == aAncestorFrame.
    */
-  static PRBool IsProperAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
-                                              nsIFrame* aCommonAncestor = nsnull);
+  static bool IsProperAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
+                                              nsIFrame* aCommonAncestor = nullptr);
 
   /**
    * IsAncestorFrameCrossDoc checks whether aAncestorFrame is an ancestor
    * of aFrame or equal to aFrame, looking across document boundaries.
-   * @param aCommonAncestor nsnull, or a common ancestor of aFrame and
+   * @param aCommonAncestor nullptr, or a common ancestor of aFrame and
    * aAncestorFrame. If non-null, this can bound the search and speed up
    * the function.
    *
    * Just like IsProperAncestorFrameCrossDoc, except that it returns true when
    * aFrame == aAncestorFrame.
    */
-  static PRBool IsAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
-                                        nsIFrame* aCommonAncestor = nsnull);
+  static bool IsAncestorFrameCrossDoc(const nsIFrame* aAncestorFrame, const nsIFrame* aFrame,
+                                        const nsIFrame* aCommonAncestor = nullptr);
 
   /**
    * Finds the nearest ancestor frame that is the root of an "actively
@@ -327,27 +343,24 @@ public:
    * scrolled together, so we'll place them in the same ThebesLayer.
    */
   static nsIFrame* GetActiveScrolledRootFor(nsIFrame* aFrame,
-                                            nsIFrame* aStopAtAncestor);
+                                            const nsIFrame* aStopAtAncestor);
 
   static nsIFrame* GetActiveScrolledRootFor(nsDisplayItem* aItem,
                                             nsDisplayListBuilder* aBuilder,
-                                            PRBool* aShouldFixToViewport = nsnull);
-
-  static PRBool ScrolledByViewportScrolling(nsIFrame* aActiveScrolledRoot,
-                                            nsDisplayListBuilder* aBuilder);
+                                            bool* aShouldFixToViewport = nullptr);
 
   /**
-    * GetFrameFor returns the root frame for a view
-    * @param aView is the view to return the root frame for
-    * @return the root frame for the view
-    */
-  static nsIFrame* GetFrameFor(nsIView *aView)
-  { return static_cast<nsIFrame*>(aView->GetClientData()); }
+   * Returns true if aActiveScrolledRoot is in a content document,
+   * and its topmost content document ancestor has a root scroll frame with
+   * a displayport set, and aActiveScrolledRoot is scrolled by that scrollframe.
+   */
+  static bool IsScrolledByRootContentDocumentDisplayportScrolling(const nsIFrame* aActiveScrolledRoot,
+                                                                  nsDisplayListBuilder* aBuilder);
 
   /**
     * GetScrollableFrameFor returns the scrollable frame for a scrolled frame
     */
-  static nsIScrollableFrame* GetScrollableFrameFor(nsIFrame *aScrolledFrame);
+  static nsIScrollableFrame* GetScrollableFrameFor(const nsIFrame *aScrolledFrame);
 
   /**
    * GetNearestScrollableFrameForDirection locates the first ancestor of
@@ -359,27 +372,45 @@ public:
    *
    * @param  aFrame the frame to start with
    * @param  aDirection Whether it's for horizontal or vertical scrolling.
-   * @return the nearest scrollable frame or nsnull if not found
+   * @return the nearest scrollable frame or nullptr if not found
    */
   enum Direction { eHorizontal, eVertical };
   static nsIScrollableFrame* GetNearestScrollableFrameForDirection(nsIFrame* aFrame,
                                                                    Direction aDirection);
 
+  enum {
+    SCROLLABLE_SAME_DOC = 0x01,
+    SCROLLABLE_INCLUDE_HIDDEN = 0x02
+  };
   /**
    * GetNearestScrollableFrame locates the first ancestor of aFrame
    * (or aFrame itself) that is scrollable with overflow:scroll or
    * overflow:auto in some direction.
-   * The search extends across document boundaries.
    *
    * @param  aFrame the frame to start with
-   * @return the nearest scrollable frame or nsnull if not found
+   * @param  aFlags if SCROLLABLE_SAME_DOC is set, do not search across
+   * document boundaries. If SCROLLABLE_INCLUDE_HIDDEN is set, include
+   * frames scrollable with overflow:hidden.
+   * @return the nearest scrollable frame or nullptr if not found
    */
-  static nsIScrollableFrame* GetNearestScrollableFrame(nsIFrame* aFrame);
+  static nsIScrollableFrame* GetNearestScrollableFrame(nsIFrame* aFrame,
+                                                       uint32_t aFlags = 0);
 
   /**
-   * HasPseudoStyle returns PR_TRUE if aContent (whose primary style
+   * GetScrolledRect returns the range of allowable scroll offsets
+   * for aScrolledFrame, assuming the scrollable overflow area is
+   * aScrolledFrameOverflowArea and the scrollport size is aScrollPortSize.
+   * aDirection is either NS_STYLE_DIRECTION_LTR or NS_STYLE_DIRECTION_RTL.
+   */
+  static nsRect GetScrolledRect(nsIFrame* aScrolledFrame,
+                                const nsRect& aScrolledFrameOverflowArea,
+                                const nsSize& aScrollPortSize,
+                                uint8_t aDirection);
+
+  /**
+   * HasPseudoStyle returns true if aContent (whose primary style
    * context is aStyleContext) has the aPseudoElement pseudo-style
-   * attached to it; returns PR_FALSE otherwise.
+   * attached to it; returns false otherwise.
    *
    * @param aContent the content node we're looking at
    * @param aStyleContext aContent's style context
@@ -387,20 +418,20 @@ public:
    * @param aPresContext the presentation context
    * @return whether aContent has aPseudoElement style attached to it
    */
-  static PRBool HasPseudoStyle(nsIContent* aContent,
+  static bool HasPseudoStyle(nsIContent* aContent,
                                nsStyleContext* aStyleContext,
                                nsCSSPseudoElements::Type aPseudoElement,
                                nsPresContext* aPresContext);
 
   /**
    * If this frame is a placeholder for a float, then return the float,
-   * otherwise return nsnull.  aPlaceholder must be a placeholder frame.
+   * otherwise return nullptr.  aPlaceholder must be a placeholder frame.
    */
   static nsIFrame* GetFloatFromPlaceholder(nsIFrame* aPlaceholder);
 
   // Combine aNewBreakType with aOrigBreakType, but limit the break types
   // to NS_STYLE_CLEAR_LEFT, RIGHT, LEFT_AND_RIGHT.
-  static PRUint8 CombineBreakType(PRUint8 aOrigBreakType, PRUint8 aNewBreakType);
+  static uint8_t CombineBreakType(uint8_t aOrigBreakType, uint8_t aNewBreakType);
 
   /**
    * Get the coordinates of a given DOM mouse event, relative to a given
@@ -427,6 +458,34 @@ public:
                                                nsIFrame* aFrame);
 
   /**
+   * Get the coordinates of a given point relative to an event and a
+   * given frame.
+   * @param aEvent the event
+   * @param aPoint the point to get the coordinates relative to
+   * @param aFrame the frame to make coordinates relative to
+   * @return the point, or (NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE) if
+   * for some reason the coordinates for the mouse are not known (e.g.,
+   * the event is not a GUI event).
+   */
+  static nsPoint GetEventCoordinatesRelativeTo(const nsEvent* aEvent,
+                                               const nsIntPoint aPoint,
+                                               nsIFrame* aFrame);
+
+  /**
+   * Get the coordinates of a given point relative to a widget and a
+   * given frame.
+   * @param aWidget the event src widget
+   * @param aPoint the point to get the coordinates relative to
+   * @param aFrame the frame to make coordinates relative to
+   * @return the point, or (NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE) if
+   * for some reason the coordinates for the mouse are not known (e.g.,
+   * the event is not a GUI event).
+   */
+  static nsPoint GetEventCoordinatesRelativeTo(nsIWidget* aWidget,
+                                               const nsIntPoint aPoint,
+                                               nsIFrame* aFrame);
+
+  /**
    * Get the popup frame of a given native mouse event.
    * @param aPresContext only check popups within aPresContext or a descendant
    * @param aEvent  the event.
@@ -436,7 +495,7 @@ public:
   static nsIFrame* GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
                                                     const nsEvent* aEvent);
 
-/**
+  /**
    * Translate from widget coordinates to the view's coordinates
    * @param aPresContext the PresContext for the view
    * @param aWidget the widget
@@ -446,7 +505,7 @@ public:
    */
   static nsPoint TranslateWidgetToView(nsPresContext* aPresContext,
                                        nsIWidget* aWidget, nsIntPoint aPt,
-                                       nsIView* aView);
+                                       nsView* aView);
 
   /**
    * Given a matrix and a point, let T be the transformation matrix translating points
@@ -460,7 +519,7 @@ public:
    * @return A matrix equivalent to aMatrix, but operating in the coordinate system with
    *         origin aOrigin.
    */
-  static gfxMatrix ChangeMatrixBasis(const gfxPoint &aOrigin, const gfxMatrix &aMatrix);
+  static gfx3DMatrix ChangeMatrixBasis(const gfxPoint3D &aOrigin, const gfx3DMatrix &aMatrix);
 
   /**
    * Find IDs corresponding to a scrollable content element in the child process.
@@ -477,49 +536,77 @@ public:
   static nsresult GetRemoteContentIds(nsIFrame* aFrame,
                                      const nsRect& aTarget,
                                      nsTArray<ViewID> &aOutIDs,
-                                     PRBool aIgnoreRootScrollFrame);
+                                     bool aIgnoreRootScrollFrame);
+
+  enum FrameForPointFlags {
+    /**
+     * When set, paint suppression is ignored, so we'll return non-root page
+     * elements even if paint suppression is stopping them from painting.
+     */
+    IGNORE_PAINT_SUPPRESSION = 0x01,
+    /**
+     * When set, clipping due to the root scroll frame (and any other viewport-
+     * related clipping) is ignored.
+     */
+    IGNORE_ROOT_SCROLL_FRAME = 0x02
+  };
 
   /**
    * Given aFrame, the root frame of a stacking context, find its descendant
    * frame under the point aPt that receives a mouse event at that location,
-   * or nsnull if there is no such frame.
+   * or nullptr if there is no such frame.
    * @param aPt the point, relative to the frame origin
-   * @param aShouldIgnoreSuppression a boolean to control if the display
-   * list builder should ignore paint suppression or not
-   * @param aIgnoreRootScrollFrame whether or not the display list builder
-   * should ignore the root scroll frame.
+   * @param aFlags some combination of FrameForPointFlags
    */
   static nsIFrame* GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
-                                    PRBool aShouldIgnoreSuppression = PR_FALSE,
-                                    PRBool aIgnoreRootScrollFrame = PR_FALSE);
+                                    uint32_t aFlags = 0);
 
   /**
    * Given aFrame, the root frame of a stacking context, find all descendant
    * frames under the area of a rectangle that receives a mouse event,
-   * or nsnull if there is no such frame.
+   * or nullptr if there is no such frame.
    * @param aRect the rect, relative to the frame origin
    * @param aOutFrames an array to add all the frames found
-   * @param aShouldIgnoreSuppression a boolean to control if the display
-   * list builder should ignore paint suppression or not
-   * @param aIgnoreRootScrollFrame whether or not the display list builder
-   * should ignore the root scroll frame.
+   * @param aFlags some combination of FrameForPointFlags
    */
   static nsresult GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
                                    nsTArray<nsIFrame*> &aOutFrames,
-                                   PRBool aShouldIgnoreSuppression = PR_FALSE,
-                                   PRBool aIgnoreRootScrollFrame = PR_FALSE);
+                                   uint32_t aFlags = 0);
 
   /**
-   * Returns the CTM at the specified frame. This matrix can be used to map
-   * coordinates from aFrame's to aStopAtAncestor's coordinate system.
-   *
-   * @param aFrame The frame at which we should calculate the CTM.
-   * @param aStopAtAncestor is an ancestor frame to stop at. If it's nsnull,
-   * matrix accumulating stops at root.
-   * @return The CTM at the specified frame.
+   * Transform aRect relative to aAncestor down to the coordinate system of
+   * aFrame. Computes the bounding-box of the true quadrilateral.
    */
-  static gfxMatrix GetTransformToAncestor(nsIFrame *aFrame,
-                                          nsIFrame* aStopAtAncestor = nsnull);
+  static nsRect TransformAncestorRectToFrame(nsIFrame* aFrame,
+                                             const nsRect& aRect,
+                                             const nsIFrame* aAncestor);
+
+  /**
+   * Transform aRect relative to aFrame up to the coordinate system of
+   * aAncestor. Computes the bounding-box of the true quadrilateral.
+   * Pass non-null aPreservesAxisAlignedRectangles and it will be set to true if
+   * we only need to use a 2d transform that PreservesAxisAlignedRectangles().
+   */
+  static nsRect TransformFrameRectToAncestor(nsIFrame* aFrame,
+                                             const nsRect& aRect,
+                                             const nsIFrame* aAncestor,
+                                             bool* aPreservesAxisAlignedRectangles = nullptr);
+
+
+  /**
+   * Gets the transform for aFrame relative to aAncestor. Pass null for aAncestor
+   * to go up to the root frame.
+   */
+  static gfx3DMatrix GetTransformToAncestor(nsIFrame *aFrame, const nsIFrame *aAncestor);
+
+  /**
+   * Return true if a "layer transform" could be computed for aFrame,
+   * and optionally return the computed transform.  The returned
+   * transform is what would be set on the layer currently if a layers
+   * transaction were opened at the time this helper is called.
+   */
+  static bool GetLayerTransformForFrame(nsIFrame* aFrame,
+                                        gfx3DMatrix* aTransform);
 
   /**
    * Given a point in the global coordinate space, returns that point expressed
@@ -530,9 +617,19 @@ public:
    * @param aPoint The point, in the global space, to get in the frame-local space.
    * @return aPoint, expressed in aFrame's canonical coordinate space.
    */
-  static nsPoint InvertTransformsToRoot(nsIFrame* aFrame,
-                                        const nsPoint &aPt);
+  static nsPoint TransformRootPointToFrame(nsIFrame* aFrame,
+                                           const nsPoint &aPoint)
+  {
+    return TransformAncestorPointToFrame(aFrame, aPoint, nullptr);
+  }
 
+  /**
+   * Transform aPoint relative to aAncestor down to the coordinate system of
+   * aFrame.
+   */
+  static nsPoint TransformAncestorPointToFrame(nsIFrame* aFrame,
+                                               const nsPoint& aPoint,
+                                               nsIFrame* aAncestor);
 
   /**
    * Helper function that, given a rectangle and a matrix, returns the smallest
@@ -544,7 +641,7 @@ public:
    * @return The smallest rect that contains the image of aBounds.
    */
   static nsRect MatrixTransformRect(const nsRect &aBounds,
-                                    const gfxMatrix &aMatrix, float aFactor);
+                                    const gfx3DMatrix &aMatrix, float aFactor);
 
   /**
    * Helper function that, given a rectangle and a matrix, returns the smallest
@@ -557,7 +654,7 @@ public:
    * @return The smallest rect that contains the image of aBounds.
    */
   static nsRect MatrixTransformRectOut(const nsRect &aBounds,
-                                    const gfxMatrix &aMatrix, float aFactor);
+                                    const gfx3DMatrix &aMatrix, float aFactor);
   /**
    * Helper function that, given a point and a matrix, returns the image
    * of that point under the matrix transform.
@@ -568,7 +665,7 @@ public:
    * @return The image of the point under the transform.
    */
   static nsPoint MatrixTransformPoint(const nsPoint &aPoint,
-                                      const gfxMatrix &aMatrix, float aFactor);
+                                      const gfx3DMatrix &aMatrix, float aFactor);
 
   /**
    * Given a graphics rectangle in graphics space, return a rectangle in
@@ -589,6 +686,15 @@ public:
                                            const nscoord aRadii[8],
                                            const nsRect& aContainedRect);
 
+  /**
+   * Return whether any part of aTestRect is inside of the rounded
+   * rectangle formed by aBounds and aRadii (which are indexed by the
+   * NS_CORNER_* constants in nsStyleConsts.h). This is precise.
+   */
+  static bool RoundedRectIntersectsRect(const nsRect& aRoundedRect,
+                                        const nscoord aRadii[8],
+                                        const nsRect& aTestRect);
+
   enum {
     PAINT_IN_TRANSFORM = 0x01,
     PAINT_SYNC_DECODE_IMAGES = 0x02,
@@ -598,7 +704,8 @@ public:
     PAINT_HIDE_CARET = 0x20,
     PAINT_ALL_CONTINUATIONS = 0x40,
     PAINT_TO_WINDOW = 0x80,
-    PAINT_EXISTING_TRANSACTION = 0x100
+    PAINT_EXISTING_TRANSACTION = 0x100,
+    PAINT_NO_COMPOSITE = 0x200
   };
 
   /**
@@ -645,13 +752,13 @@ public:
    */
   static nsresult PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFrame,
                              const nsRegion& aDirtyRegion, nscolor aBackstop,
-                             PRUint32 aFlags = 0);
+                             uint32_t aFlags = 0);
 
   /**
    * Compute the used z-index of aFrame; returns zero for elements to which
    * z-index does not apply, and for z-index:auto
    */
-  static PRInt32 GetZIndex(nsIFrame* aFrame);
+  static int32_t GetZIndex(nsIFrame* aFrame);
 
   /**
    * Uses a binary search for find where the cursor falls in the line of text
@@ -665,16 +772,16 @@ public:
    * @param aTextWidth returns the (in twips) the length of the text that falls
    * before the cursor aIndex contains the index of the text where the cursor falls
    */
-  static PRBool
+  static bool
   BinarySearchForPosition(nsRenderingContext* acx,
                           const PRUnichar* aText,
-                          PRInt32    aBaseWidth,
-                          PRInt32    aBaseInx,
-                          PRInt32    aStartInx,
-                          PRInt32    aEndInx,
-                          PRInt32    aCursorPos,
-                          PRInt32&   aIndex,
-                          PRInt32&   aTextWidth);
+                          int32_t    aBaseWidth,
+                          int32_t    aBaseInx,
+                          int32_t    aStartInx,
+                          int32_t    aEndInx,
+                          int32_t    aCursorPos,
+                          int32_t&   aIndex,
+                          int32_t&   aTextWidth);
 
   class BoxCallback {
   public:
@@ -695,9 +802,9 @@ public:
   };
 
   struct RectAccumulator : public RectCallback {
-    nsRect       mResultRect;
-    nsRect       mFirstRect;
-    PRPackedBool mSeenFirstRect;
+    nsRect mResultRect;
+    nsRect mFirstRect;
+    bool mSeenFirstRect;
 
     RectAccumulator();
 
@@ -706,14 +813,16 @@ public:
 
   struct RectListBuilder : public RectCallback {
     nsClientRectList* mRectList;
-    nsresult          mRV;
 
     RectListBuilder(nsClientRectList* aList);
-     virtual void AddRect(const nsRect& aRect);
+    virtual void AddRect(const nsRect& aRect);
   };
 
   static nsIFrame* GetContainingBlockForClientRect(nsIFrame* aFrame);
 
+  enum {
+    RECTS_ACCOUNT_FOR_TRANSFORMS = 0x01
+  };
   /**
    * Collect all CSS border-boxes associated with aFrame and its
    * continuations, "drilling down" through outer table frames and
@@ -722,15 +831,22 @@ public:
    * into account) and passed to the callback in frame-tree order.
    * If aFrame is null, no boxes are returned.
    * For SVG frames, returns one rectangle, the bounding box.
+   * If aFlags includes RECTS_ACCOUNT_FOR_TRANSFORMS, then when converting
+   * the boxes into aRelativeTo coordinates, transforms (including CSS
+   * and SVG transforms) are taken into account.
    */
   static void GetAllInFlowRects(nsIFrame* aFrame, nsIFrame* aRelativeTo,
-                                RectCallback* aCallback);
+                                RectCallback* aCallback, uint32_t aFlags = 0);
 
   /**
    * Computes the union of all rects returned by GetAllInFlowRects. If
    * the union is empty, returns the first rect.
+   * If aFlags includes RECTS_ACCOUNT_FOR_TRANSFORMS, then when converting
+   * the boxes into aRelativeTo coordinates, transforms (including CSS
+   * and SVG transforms) are taken into account.
    */
-  static nsRect GetAllInFlowRectsUnion(nsIFrame* aFrame, nsIFrame* aRelativeTo);
+  static nsRect GetAllInFlowRectsUnion(nsIFrame* aFrame, nsIFrame* aRelativeTo,
+                                       uint32_t aFlags = 0);
 
   enum {
     EXCLUDE_BLUR_SHADOWS = 0x01
@@ -742,25 +858,29 @@ public:
    */
   static nsRect GetTextShadowRectsUnion(const nsRect& aTextAndDecorationsRect,
                                         nsIFrame* aFrame,
-                                        PRUint32 aFlags = 0);
+                                        uint32_t aFlags = 0);
 
   /**
    * Get the font metrics corresponding to the frame's style data.
    * @param aFrame the frame
    * @param aFontMetrics the font metrics result
+   * @param aSizeInflation number to multiply font size by
    * @return success or failure code
    */
   static nsresult GetFontMetricsForFrame(const nsIFrame* aFrame,
-                                         nsFontMetrics** aFontMetrics);
+                                         nsFontMetrics** aFontMetrics,
+                                         float aSizeInflation = 1.0f);
 
   /**
    * Get the font metrics corresponding to the given style data.
    * @param aStyleContext the style data
    * @param aFontMetrics the font metrics result
+   * @param aSizeInflation number to multiply font size by
    * @return success or failure code
    */
   static nsresult GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
-                                                nsFontMetrics** aFontMetrics);
+                                                nsFontMetrics** aFontMetrics,
+                                                float aSizeInflation = 1.0f);
 
   /**
    * Find the immediate child of aParent whose frame subtree contains
@@ -786,12 +906,24 @@ public:
    */
   static nsBlockFrame* GetAsBlock(nsIFrame* aFrame);
 
+  /*
+   * Whether the frame is an nsBlockFrame which is not a wrapper block.
+   */
+  static bool IsNonWrapperBlock(nsIFrame* aFrame) {
+    return GetAsBlock(aFrame) && !aFrame->IsBlockWrapper();
+  }
+
   /**
    * If aFrame is an out of flow frame, return its placeholder, otherwise
    * return its parent.
    */
-  static nsIFrame* GetParentOrPlaceholderFor(nsFrameManager* aFrameManager,
-                                             nsIFrame* aFrame);
+  static nsIFrame* GetParentOrPlaceholderFor(nsIFrame* aFrame);
+
+  /**
+   * If aFrame is an out of flow frame, return its placeholder, otherwise
+   * return its (possibly cross-doc) parent.
+   */
+  static nsIFrame* GetParentOrPlaceholderForCrossDoc(nsIFrame* aFrame);
 
   /**
    * Get a frame's next-in-flow, or, if it doesn't have one, its special sibling.
@@ -813,7 +945,7 @@ public:
    * @return if TRUE, the frame is a part of the scrollbar or scrollcorner of
    *         the root content.
    */
-  static PRBool IsViewportScrollbarFrame(nsIFrame* aFrame);
+  static bool IsViewportScrollbarFrame(nsIFrame* aFrame);
 
   /**
    * Get the contribution of aFrame to its containing block's intrinsic
@@ -828,11 +960,12 @@ public:
 
   /*
    * Convert nsStyleCoord to nscoord when percentages depend on the
-   * containing block width.
+   * containing block size.
+   * @param aPercentBasis The width or height of the containing block
+   * (whichever the client wants to use for resolving percentages).
    */
-  static nscoord ComputeWidthDependentValue(
-                   nscoord              aContainingBlockWidth,
-                   const nsStyleCoord&  aCoord);
+  static nscoord ComputeCBDependentValue(nscoord aPercentBasis,
+                                         const nsStyleCoord& aCoord);
 
   /*
    * Convert nsStyleCoord to nscoord when percentages depend on the
@@ -871,16 +1004,20 @@ public:
    * Likewise, but for 'height', 'min-height', or 'max-height'.
    */
   static nscoord ComputeHeightValue(nscoord aContainingBlockHeight,
+                                    nscoord aContentEdgeToBoxSizingBoxEdge,
                                     const nsStyleCoord& aCoord)
   {
+    MOZ_ASSERT(aContainingBlockHeight != NS_AUTOHEIGHT || !aCoord.HasPercent(),
+               "caller must deal with %% of unconstrained height");
+    MOZ_ASSERT(aCoord.IsCoordPercentCalcUnit());
+
     nscoord result =
-      ComputeHeightDependentValue(aContainingBlockHeight, aCoord);
-    if (result < 0)
-      result = 0; // clamp calc()
-    return result;
+      nsRuleNode::ComputeCoordPercentCalc(aCoord, aContainingBlockHeight);
+    // Clamp calc(), and the subtraction for box-sizing.
+    return std::max(0, result - aContentEdgeToBoxSizingBoxEdge);
   }
 
-  static PRBool IsAutoHeight(const nsStyleCoord &aCoord, nscoord aCBHeight)
+  static bool IsAutoHeight(const nsStyleCoord &aCoord, nscoord aCBHeight)
   {
     nsStyleUnit unit = aCoord.GetUnit();
     return unit == eStyleUnit_Auto ||  // only for 'height'
@@ -888,7 +1025,7 @@ public:
            (aCBHeight == NS_AUTOHEIGHT && aCoord.HasPercent());
   }
 
-  static PRBool IsPaddingZero(const nsStyleCoord &aCoord)
+  static bool IsPaddingZero(const nsStyleCoord &aCoord)
   {
     return (aCoord.GetUnit() == eStyleUnit_Coord &&
             aCoord.GetCoordValue() == 0) ||
@@ -900,7 +1037,7 @@ public:
             nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) <= 0);
   }
 
-  static PRBool IsMarginZero(const nsStyleCoord &aCoord)
+  static bool IsMarginZero(const nsStyleCoord &aCoord)
   {
     return (aCoord.GetUnit() == eStyleUnit_Coord &&
             aCoord.GetCoordValue() == 0) ||
@@ -922,6 +1059,16 @@ public:
                     nsSize aIntrinsicRatio, nsSize aCBSize,
                     nsSize aMargin, nsSize aBorder, nsSize aPadding);
 
+  /*
+   * Calculate the used values for 'width' and 'height' when width
+   * and height are 'auto'. The tentWidth and tentHeight arguments should be
+   * the result of applying the rules for computing intrinsic sizes and ratios.
+   * as specified by CSS 2.1 sections 10.3.2 and 10.6.2
+   */
+  static nsSize ComputeAutoSizeWithIntrinsicDimensions(nscoord minWidth, nscoord minHeight,
+                                                       nscoord maxWidth, nscoord maxHeight,
+                                                       nscoord tentWidth, nscoord tentHeight);
+
   // Implement nsIFrame::GetPrefWidth in terms of nsIFrame::AddInlinePrefWidth
   static nscoord PrefWidthFromInline(nsIFrame* aFrame,
                                      nsRenderingContext* aRenderingContext);
@@ -930,17 +1077,41 @@ public:
   static nscoord MinWidthFromInline(nsIFrame* aFrame,
                                     nsRenderingContext* aRenderingContext);
 
+  // Get a suitable foreground color for painting aProperty for aFrame.
+  static nscolor GetColor(nsIFrame* aFrame, nsCSSProperty aProperty);
+
+  // Get a baseline y position in app units that is snapped to device pixels.
+  static gfxFloat GetSnappedBaselineY(nsIFrame* aFrame, gfxContext* aContext,
+                                      nscoord aY, nscoord aAscent);
+
   static void DrawString(const nsIFrame*      aFrame,
                          nsRenderingContext* aContext,
                          const PRUnichar*     aString,
-                         PRInt32              aLength,
+                         int32_t              aLength,
                          nsPoint              aPoint,
-                         PRUint8              aDirection = NS_STYLE_DIRECTION_INHERIT);
+                         uint8_t              aDirection = NS_STYLE_DIRECTION_INHERIT);
 
   static nscoord GetStringWidth(const nsIFrame*      aFrame,
                                 nsRenderingContext* aContext,
                                 const PRUnichar*     aString,
-                                PRInt32              aLength);
+                                int32_t              aLength);
+
+  /**
+   * Helper function for drawing text-shadow. The callback's job
+   * is to draw whatever needs to be blurred onto the given context.
+   */
+  typedef void (* TextShadowCallback)(nsRenderingContext* aCtx,
+                                      nsPoint aShadowOffset,
+                                      const nscolor& aShadowColor,
+                                      void* aData);
+
+  static void PaintTextShadow(const nsIFrame*     aFrame,
+                              nsRenderingContext* aContext,
+                              const nsRect&       aTextRect,
+                              const nsRect&       aDirtyRect,
+                              const nscolor&      aForegroundColor,
+                              TextShadowCallback  aCallback,
+                              void*               aCallbackData);
 
   /**
    * Gets the baseline to vertically center text from a font within a
@@ -959,7 +1130,7 @@ public:
    * Returns true if a baseline was found (and fills in aResult).
    * Otherwise returns false.
    */
-  static PRBool GetFirstLineBaseline(const nsIFrame* aFrame, nscoord* aResult);
+  static bool GetFirstLineBaseline(const nsIFrame* aFrame, nscoord* aResult);
 
   /**
    * Just like GetFirstLineBaseline, except also returns the top and
@@ -979,8 +1150,8 @@ public:
       return result;
     }
   };
-  static PRBool GetFirstLinePosition(const nsIFrame* aFrame,
-                                     LinePosition* aResult);
+  static bool GetFirstLinePosition(const nsIFrame* aFrame,
+                                   LinePosition* aResult);
 
 
   /**
@@ -991,7 +1162,7 @@ public:
    * Returns true if a baseline was found (and fills in aResult).
    * Otherwise returns false.
    */
-  static PRBool GetLastLineBaseline(const nsIFrame* aFrame, nscoord* aResult);
+  static bool GetLastLineBaseline(const nsIFrame* aFrame, nscoord* aResult);
 
   /**
    * Returns a y coordinate relative to this frame's origin that represents
@@ -1021,6 +1192,38 @@ public:
    */
 
   /**
+   * Draw a background image.  The image's dimensions are as specified in aDest;
+   * the image itself is not consulted to determine a size.
+   * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
+   *   @param aRenderingContext Where to draw the image, set up with an
+   *                            appropriate scale and transform for drawing in
+   *                            app units.
+   *   @param aImage            The image.
+   *   @param aImageSize        The unscaled size of the image being drawn.
+   *                            (This might be the image's size if no scaling
+   *                            occurs, or it might be the image's size if
+   *                            the image is a vector image being rendered at
+   *                            that size.)
+   *   @param aDest             The position and scaled area where one copy of
+   *                            the image should be drawn.
+   *   @param aFill             The area to be filled with copies of the
+   *                            image.
+   *   @param aAnchor           A point in aFill which we will ensure is
+   *                            pixel-aligned in the output.
+   *   @param aDirty            Pixels outside this area may be skipped.
+   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
+   */
+  static nsresult DrawBackgroundImage(nsRenderingContext* aRenderingContext,
+                                      imgIContainer*      aImage,
+                                      const nsIntSize&    aImageSize,
+                                      GraphicsFilter      aGraphicsFilter,
+                                      const nsRect&       aDest,
+                                      const nsRect&       aFill,
+                                      const nsPoint&      aAnchor,
+                                      const nsRect&       aDirty,
+                                      uint32_t            aImageFlags);
+
+  /**
    * Draw an image.
    * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
    *   @param aRenderingContext Where to draw the image, set up with an
@@ -1042,13 +1245,13 @@ public:
                             const nsRect&        aFill,
                             const nsPoint&       aAnchor,
                             const nsRect&        aDirty,
-                            PRUint32             aImageFlags);
+                            uint32_t             aImageFlags);
 
   /**
    * Convert an nsRect to a gfxRect.
    */
   static gfxRect RectToGfxRect(const nsRect& aRect,
-                               PRInt32 aAppUnitsPerDevPixel);
+                               int32_t aAppUnitsPerDevPixel);
 
   /**
    * Draw a drawable using the pixel snapping algorithm.
@@ -1094,8 +1297,8 @@ public:
                                           GraphicsFilter       aGraphicsFilter,
                                           const nsPoint&       aDest,
                                           const nsRect*        aDirty,
-                                          PRUint32             aImageFlags,
-                                          const nsRect*        aSourceArea = nsnull);
+                                          uint32_t             aImageFlags,
+                                          const nsRect*        aSourceArea = nullptr);
 
   /**
    * Draw a whole image without tiling.
@@ -1106,25 +1309,33 @@ public:
    *   @param aImage            The image.
    *   @param aDest             The area that the image should fill
    *   @param aDirty            Pixels outside this area may be skipped.
+   *   @param aSVGContext       If non-null, SVG-related rendering context
+   *                            such as overridden attributes on the image
+   *                            document's root <svg> node. Ignored for
+   *                            raster images.
+   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_*
+   *                            variety.
    *   @param aSourceArea       If non-null, this area is extracted from
    *                            the image and drawn in aDest. It's
    *                            in appunits. For best results it should
    *                            be aligned with image pixels.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
-  static nsresult DrawSingleImage(nsRenderingContext* aRenderingContext,
-                                  imgIContainer*       aImage,
-                                  GraphicsFilter       aGraphicsFilter,
-                                  const nsRect&        aDest,
-                                  const nsRect&        aDirty,
-                                  PRUint32             aImageFlags,
-                                  const nsRect*        aSourceArea = nsnull);
+  static nsresult DrawSingleImage(nsRenderingContext*    aRenderingContext,
+                                  imgIContainer*         aImage,
+                                  GraphicsFilter         aGraphicsFilter,
+                                  const nsRect&          aDest,
+                                  const nsRect&          aDirty,
+                                  const mozilla::SVGImageContext* aSVGContext,
+                                  uint32_t               aImageFlags,
+                                  const nsRect*          aSourceArea = nullptr);
 
   /**
    * Given an imgIContainer, this method attempts to obtain an intrinsic
    * px-valued height & width for it.  If the imgIContainer has a non-pixel
    * value for either height or width, this method tries to generate a pixel
-   * value for that dimension using the intrinsic ratio (if available).
+   * value for that dimension using the intrinsic ratio (if available).  The
+   * intrinsic ratio will be assigned to aIntrinsicRatio; if there's no
+   * intrinsic ratio then (0, 0) will be assigned.
    *
    * This method will always set aGotWidth and aGotHeight to indicate whether
    * we were able to successfully obtain (or compute) a value for each
@@ -1136,8 +1347,9 @@ public:
    */
   static void ComputeSizeForDrawing(imgIContainer* aImage,
                                     nsIntSize&     aImageSize,
-                                    PRBool&        aGotWidth,
-                                    PRBool&        aGotHeight);
+                                    nsSize&        aIntrinsicRatio,
+                                    bool&          aGotWidth,
+                                    bool&          aGotHeight);
 
   /**
    * Given a source area of an image (in appunits) and a destination area
@@ -1151,14 +1363,9 @@ public:
                                          const nsRect& aDestArea);
 
   /**
-   * Set the font on aRC based on the style in aSC
-   */
-  static void SetFontFromStyle(nsRenderingContext* aRC, nsStyleContext* aSC);
-
-  /**
    * Determine if any corner radius is of nonzero size
    *   @param aCorners the |nsStyleCorners| object to check
-   *   @return PR_TRUE unless all the coordinates are 0%, 0 or null.
+   *   @return true unless all the coordinates are 0%, 0 or null.
    *
    * A corner radius with one dimension zero and one nonzero is
    * treated as a nonzero-radius corner, even though it will end up
@@ -1166,13 +1373,13 @@ public:
    * corners are not expected to appear outside of test cases, and it's
    * simpler to implement the test this way.
    */
-  static PRBool HasNonZeroCorner(const nsStyleCorners& aCorners);
+  static bool HasNonZeroCorner(const nsStyleCorners& aCorners);
 
   /**
    * Determine if there is any corner radius on corners adjacent to the
    * given side.
    */
-  static PRBool HasNonZeroCornerOnSide(const nsStyleCorners& aCorners,
+  static bool HasNonZeroCornerOnSide(const nsStyleCorners& aCorners,
                                        mozilla::css::Side aSide);
 
   /**
@@ -1192,7 +1399,7 @@ public:
    * A frame is a popup if it has its own floating window. Menus, panels
    * and combobox dropdowns are popups.
    */
-  static PRBool IsPopup(nsIFrame* aFrame);
+  static bool IsPopup(nsIFrame* aFrame);
 
   /**
    * Find the nearest "display root". This is the nearest enclosing
@@ -1207,9 +1414,9 @@ public:
    * -- TEXT_OPTIMIZE_SPEED if the text-rendering CSS property and font size
    * and prefs indicate we should be optimizing for speed over quality
    */
-  static PRUint32 GetTextRunFlagsForStyle(nsStyleContext* aStyleContext,
-                                          const nsStyleText* aStyleText,
-                                          const nsStyleFont* aStyleFont);
+  static uint32_t GetTextRunFlagsForStyle(nsStyleContext* aStyleContext,
+                                          const nsStyleFont* aStyleFont,
+                                          nscoord aLetterSpacing);
 
   /**
    * Takes two rectangles whose origins must be the same, and computes
@@ -1222,11 +1429,11 @@ public:
 
   /**
    * Get a device context that can be used to get up-to-date device
-   * dimensions for the given docshell.  For some reason, this is more
+   * dimensions for the given window. For some reason, this is more
    * complicated than it ought to be in multi-monitor situations.
    */
   static nsDeviceContext*
-  GetDeviceContextForScreenInfo(nsIDocShell* aDocShell);
+  GetDeviceContextForScreenInfo(nsPIDOMWindow* aWindow);
 
   /**
    * Some frames with 'position: fixed' (nsStylePosition::mDisplay ==
@@ -1234,13 +1441,13 @@ public:
    * they're inside an element with -moz-transform.  This function says
    * whether such an element is a real fixed-pos element.
    */
-  static PRBool IsReallyFixedPos(nsIFrame* aFrame);
+  static bool IsReallyFixedPos(nsIFrame* aFrame);
 
   /**
    * Return true if aFrame is in an {ib} split and is NOT one of the
    * continuations of the first inline in it.
    */
-  static PRBool FrameIsNonFirstInIBSplit(const nsIFrame* aFrame) {
+  static bool FrameIsNonFirstInIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
       aFrame->GetFirstContinuation()->
         Properties().Get(nsIFrame::IBSplitSpecialPrevSibling());
@@ -1250,7 +1457,7 @@ public:
    * Return true if aFrame is in an {ib} split and is NOT one of the
    * continuations of the last inline in it.
    */
-  static PRBool FrameIsNonLastInIBSplit(const nsIFrame* aFrame) {
+  static bool FrameIsNonLastInIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
       aFrame->GetFirstContinuation()->
         Properties().Get(nsIFrame::IBSplitSpecialSibling());
@@ -1291,25 +1498,41 @@ public:
   };
 
   struct SurfaceFromElementResult {
-    SurfaceFromElementResult() : mIsWriteOnly(PR_TRUE), mIsStillLoading(PR_FALSE) {}
+    SurfaceFromElementResult() :
+      // Use safe default values here
+      mIsWriteOnly(true), mIsStillLoading(false), mCORSUsed(false) {}
 
     /* mSurface will contain the resulting surface, or will be NULL on error */
     nsRefPtr<gfxASurface> mSurface;
     /* The size of the surface */
     gfxIntSize mSize;
-    /* The principal associated with the element whose surface was returned */
+    /* The principal associated with the element whose surface was returned.
+       If there is a surface, this will never be null. */
     nsCOMPtr<nsIPrincipal> mPrincipal;
     /* The image request, if the element is an nsIImageLoadingContent */
     nsCOMPtr<imgIRequest> mImageRequest;
     /* Whether the element was "write only", that is, the bits should not be exposed to content */
-    PRPackedBool mIsWriteOnly;
+    bool mIsWriteOnly;
     /* Whether the element was still loading.  Some consumers need to handle
        this case specially. */
-    PRPackedBool mIsStillLoading;
+    bool mIsStillLoading;
+    /* Whether the element used CORS when loading. */
+    bool mCORSUsed;
   };
 
-  static SurfaceFromElementResult SurfaceFromElement(nsIDOMElement *aElement,
-                                                     PRUint32 aSurfaceFlags = 0);
+  static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::Element *aElement,
+                                                     uint32_t aSurfaceFlags = 0);
+  static SurfaceFromElementResult SurfaceFromElement(nsIImageLoadingContent *aElement,
+                                                     uint32_t aSurfaceFlags = 0);
+  // Need an HTMLImageElement overload, because otherwise the
+  // nsIImageLoadingContent and mozilla::dom::Element overloads are ambiguous
+  // for HTMLImageElement.
+  static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLImageElement *aElement,
+                                                     uint32_t aSurfaceFlags = 0);
+  static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLCanvasElement *aElement,
+                                                     uint32_t aSurfaceFlags = 0);
+  static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLVideoElement *aElement,
+                                                     uint32_t aSurfaceFlags = 0);
 
   /**
    * When the document is editable by contenteditable attribute of its root
@@ -1338,13 +1561,292 @@ public:
    * Returns true if the passed in prescontext needs the dark grey background
    * that goes behind the page of a print preview presentation.
    */
-  static PRBool NeedsPrintPreviewBackground(nsPresContext* aPresContext) {
+  static bool NeedsPrintPreviewBackground(nsPresContext* aPresContext) {
     return aPresContext->IsRootPaginatedDocument() &&
       (aPresContext->Type() == nsPresContext::eContext_PrintPreview ||
        aPresContext->Type() == nsPresContext::eContext_PageLayout);
   }
 
+  /**
+   * Adds all font faces used in the frame tree starting from aFrame
+   * to the list aFontFaceList.
+   */
+  static nsresult GetFontFacesForFrames(nsIFrame* aFrame,
+                                        nsFontFaceList* aFontFaceList);
+
+  /**
+   * Adds all font faces used within the specified range of text in aFrame,
+   * and optionally its continuations, to the list in aFontFaceList.
+   * Pass 0 and INT32_MAX for aStartOffset and aEndOffset to specify the
+   * entire text is to be considered.
+   */
+  static nsresult GetFontFacesForText(nsIFrame* aFrame,
+                                      int32_t aStartOffset,
+                                      int32_t aEndOffset,
+                                      bool aFollowContinuations,
+                                      nsFontFaceList* aFontFaceList);
+
+  /**
+   * Walks the frame tree starting at aFrame looking for textRuns.
+   * If |clear| is true, just clears the TEXT_RUN_MEMORY_ACCOUNTED flag
+   * on each textRun found (and |aMallocSizeOf| is not used).
+   * If |clear| is false, adds the storage used for each textRun to the
+   * total, and sets the TEXT_RUN_MEMORY_ACCOUNTED flag to avoid double-
+   * accounting. (Runs with this flag already set will be skipped.)
+   * Expected usage pattern is therefore to call twice:
+   *    (void)SizeOfTextRunsForFrames(rootFrame, nullptr, true);
+   *    total = SizeOfTextRunsForFrames(rootFrame, mallocSizeOf, false);
+   */
+  static size_t SizeOfTextRunsForFrames(nsIFrame* aFrame,
+                                        mozilla::MallocSizeOf aMallocSizeOf,
+                                        bool clear);
+
+  /**
+   * Returns true if the content node has animations or transitions that can be
+   * performed on the compositor.
+   */
+  static bool HasAnimationsForCompositor(nsIContent* aContent,
+                                         nsCSSProperty aProperty);
+
+  /**
+   * Checks if off-main-thread animations are enabled.
+   */
+  static bool AreAsyncAnimationsEnabled();
+
+  /**
+   * Checks if we should warn about animations that can't be async
+   */
+  static bool IsAnimationLoggingEnabled();
+
+  /**
+   * Find the maximum scale for an element (aContent) over the course of any
+   * animations and transitions on the element. Will return 1,1 if there is no
+   * animated scaling.
+   */
+  static gfxSize GetMaximumAnimatedScale(nsIContent* aContent);
+
+  /**
+   * Checks if we should forcibly use nearest pixel filtering for the
+   * background.
+   */
+  static bool UseBackgroundNearestFiltering();
+
+  /**
+   * Checks whether we want to use the GPU to scale images when
+   * possible.
+   */
+  static bool GPUImageScalingEnabled();
+
+  /**
+   * Checks whether we want to layerize animated images whenever possible.
+   */
+  static bool AnimatedImageLayersEnabled();
+
+  /**
+   * Checks if we should enable parsing for CSS Filters.
+   */
+  static bool CSSFiltersEnabled();
+
+  /**
+   * Unions the overflow areas of all non-popup children of aFrame with
+   * aOverflowAreas.
+   */
+  static void UnionChildOverflow(nsIFrame* aFrame,
+                                 nsOverflowAreas& aOverflowAreas);
+
+  /**
+   * Return whether this is a frame whose width is used when computing
+   * the font size inflation of its descendants.
+   */
+  static bool IsContainerForFontSizeInflation(const nsIFrame *aFrame)
+  {
+    return aFrame->GetStateBits() & NS_FRAME_FONT_INFLATION_CONTAINER;
+  }
+
+  /**
+   * Return the font size inflation *ratio* for a given frame.  This is
+   * the factor by which font sizes should be inflated; it is never
+   * smaller than 1.
+   */
+  static float FontSizeInflationFor(const nsIFrame *aFrame);
+
+  /**
+   * Perform the first half of the computation of FontSizeInflationFor
+   * (see above).
+   * This includes determining whether inflation should be performed
+   * within this container and returning 0 if it should not be.
+   *
+   * The result is guaranteed not to vary between line participants
+   * (inlines, text frames) within a line.
+   *
+   * The result should not be used directly since font sizes slightly
+   * above the minimum should always be adjusted as done by
+   * FontSizeInflationInner.
+   */
+  static nscoord InflationMinFontSizeFor(const nsIFrame *aFrame);
+
+  /**
+   * Perform the second half of the computation done by
+   * FontSizeInflationFor (see above).
+   *
+   * aMinFontSize must be the result of one of the
+   *   InflationMinFontSizeFor methods above.
+   */
+  static float FontSizeInflationInner(const nsIFrame *aFrame,
+                                      nscoord aMinFontSize);
+
+  static bool FontSizeInflationEnabled(nsPresContext *aPresContext);
+
+  /**
+   * See comment above "font.size.inflation.maxRatio" in
+   * modules/libpref/src/init/all.js .
+   */
+  static uint32_t FontSizeInflationMaxRatio() {
+    return sFontSizeInflationMaxRatio;
+  }
+
+  /**
+   * See comment above "font.size.inflation.emPerLine" in
+   * modules/libpref/src/init/all.js .
+   */
+  static uint32_t FontSizeInflationEmPerLine() {
+    return sFontSizeInflationEmPerLine;
+  }
+
+  /**
+   * See comment above "font.size.inflation.minTwips" in
+   * modules/libpref/src/init/all.js .
+   */
+  static uint32_t FontSizeInflationMinTwips() {
+    return sFontSizeInflationMinTwips;
+  }
+
+  /**
+   * See comment above "font.size.inflation.lineThreshold" in
+   * modules/libpref/src/init/all.js .
+   */
+  static uint32_t FontSizeInflationLineThreshold() {
+    return sFontSizeInflationLineThreshold;
+  }
+
+  static bool FontSizeInflationForceEnabled() {
+    return sFontSizeInflationForceEnabled;
+  }
+
+  static bool FontSizeInflationDisabledInMasterProcess() {
+    return sFontSizeInflationDisabledInMasterProcess;
+  }
+
+  /**
+   * See comment above "font.size.inflation.mappingIntercept" in
+   * modules/libpref/src/init/all.js .
+   */
+  static int32_t FontSizeInflationMappingIntercept() {
+    return sFontSizeInflationMappingIntercept;
+  }
+
+  /**
+   * Returns true if the nglayout.debug.invalidation pref is set to true.
+   * Note that sInvalidationDebuggingIsEnabled is declared outside this function to
+   * allow it to be accessed an manipulated from breakpoint conditions.
+   */
+  static bool InvalidationDebuggingIsEnabled() {
+    return sInvalidationDebuggingIsEnabled || getenv("MOZ_DUMP_INVALIDATION") != 0;
+  }
+
+  static void Initialize();
   static void Shutdown();
+
+  /**
+   * Register an imgIRequest object with a refresh driver.
+   *
+   * @param aPresContext The nsPresContext whose refresh driver we want to
+   *        register with.
+   * @param aRequest A pointer to the imgIRequest object which the client wants
+   *        to register with the refresh driver.
+   * @param aRequestRegistered A pointer to a boolean value which indicates
+   *        whether the given image request is registered. If
+   *        *aRequestRegistered is true, then this request will not be
+   *        registered again. If the request is registered by this function,
+   *        then *aRequestRegistered will be set to true upon the completion of
+   *        this function.
+   *
+   */
+  static void RegisterImageRequest(nsPresContext* aPresContext,
+                                   imgIRequest* aRequest,
+                                   bool* aRequestRegistered);
+
+  /**
+   * Register an imgIRequest object with a refresh driver, but only if the
+   * request is for an image that is animated.
+   *
+   * @param aPresContext The nsPresContext whose refresh driver we want to
+   *        register with.
+   * @param aRequest A pointer to the imgIRequest object which the client wants
+   *        to register with the refresh driver.
+   * @param aRequestRegistered A pointer to a boolean value which indicates
+   *        whether the given image request is registered. If
+   *        *aRequestRegistered is true, then this request will not be
+   *        registered again. If the request is registered by this function,
+   *        then *aRequestRegistered will be set to true upon the completion of
+   *        this function.
+   *
+   */
+  static void RegisterImageRequestIfAnimated(nsPresContext* aPresContext,
+                                             imgIRequest* aRequest,
+                                             bool* aRequestRegistered);
+
+  /**
+   * Deregister an imgIRequest object from a refresh driver.
+   *
+   * @param aPresContext The nsPresContext whose refresh driver we want to
+   *        deregister from.
+   * @param aRequest A pointer to the imgIRequest object with which the client
+   *        previously registered and now wants to deregister from the refresh
+   *        driver.
+   * @param aRequestRegistered A pointer to a boolean value which indicates
+   *        whether the given image request is registered. If
+   *        *aRequestRegistered is false, then this request will not be
+   *        deregistered. If the request is deregistered by this function,
+   *        then *aRequestRegistered will be set to false upon the completion of
+   *        this function.
+   */
+  static void DeregisterImageRequest(nsPresContext* aPresContext,
+                                     imgIRequest* aRequest,
+                                     bool* aRequestRegistered);
+
+  /**
+   * Shim to nsCSSFrameConstructor::PostRestyleEvent. Exists so that we
+   * can avoid including nsCSSFrameConstructor.h and all its dependencies
+   * in content files.
+   */
+  static void PostRestyleEvent(mozilla::dom::Element* aElement,
+                               nsRestyleHint aRestyleHint,
+                               nsChangeHint aMinChangeHint);
+
+  /**
+   * Updates a pair of x and y distances if a given point is closer to a given
+   * rectangle than the original distance values.  If aPoint is closer to
+   * aRect than aClosestXDistance and aClosestYDistance indicate, then those
+   * two variables are updated with the distance between aPoint and aRect,
+   * and true is returned.  If aPoint is not closer, then aClosestXDistance
+   * and aClosestYDistance are left unchanged, and false is returned.
+   *
+   * Distances are measured in the two dimensions separately; a closer x
+   * distance beats a closer y distance.
+   */
+  template<typename PointType, typename RectType, typename CoordType>
+  static bool PointIsCloserToRect(PointType aPoint, const RectType& aRect,
+                                  CoordType& aClosestXDistance,
+                                  CoordType& aClosestYDistance);
+  /**
+   * Computes the box shadow rect for the frame, or returns an empty rect if
+   * there are no shadows.
+   *
+   * @param aFrame Frame to compute shadows for.
+   * @param aFrameSize Size of aFrame (in case it hasn't been set yet).
+   */
+  static nsRect GetBoxShadowRectForFrame(nsIFrame* aFrame, const nsSize& aFrameSize);
 
 #ifdef DEBUG
   /**
@@ -1363,7 +1865,238 @@ public:
   static void
   AssertTreeOnlyEmptyNextInFlows(nsIFrame *aSubtreeRoot);
 #endif
+
+private:
+  // Helper-functions for SortFrameList():
+  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+  static nsIFrame* SortedMerge(nsIFrame *aLeft, nsIFrame *aRight);
+
+  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+  static nsIFrame* MergeSort(nsIFrame *aSource);
+
+  static uint32_t sFontSizeInflationEmPerLine;
+  static uint32_t sFontSizeInflationMinTwips;
+  static uint32_t sFontSizeInflationLineThreshold;
+  static int32_t  sFontSizeInflationMappingIntercept;
+  static uint32_t sFontSizeInflationMaxRatio;
+  static bool sFontSizeInflationForceEnabled;
+  static bool sFontSizeInflationDisabledInMasterProcess;
+  static bool sInvalidationDebuggingIsEnabled;
 };
+
+// Helper-functions for nsLayoutUtils::SortFrameList()
+// ---------------------------------------------------
+
+template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+/* static */ nsIFrame*
+nsLayoutUtils::SortedMerge(nsIFrame *aLeft, nsIFrame *aRight)
+{
+  NS_PRECONDITION(aLeft && aRight, "SortedMerge must have non-empty lists");
+
+  nsIFrame *result;
+  // Unroll first iteration to avoid null-check 'result' inside the loop.
+  if (IsLessThanOrEqual(aLeft, aRight)) {
+    result = aLeft;
+    aLeft = aLeft->GetNextSibling();
+    if (!aLeft) {
+      result->SetNextSibling(aRight);
+      return result;
+    }
+  }
+  else {
+    result = aRight;
+    aRight = aRight->GetNextSibling();
+    if (!aRight) {
+      result->SetNextSibling(aLeft);
+      return result;
+    }
+  }
+
+  nsIFrame *last = result;
+  for (;;) {
+    if (IsLessThanOrEqual(aLeft, aRight)) {
+      last->SetNextSibling(aLeft);
+      last = aLeft;
+      aLeft = aLeft->GetNextSibling();
+      if (!aLeft) {
+        last->SetNextSibling(aRight);
+        return result;
+      }
+    }
+    else {
+      last->SetNextSibling(aRight);
+      last = aRight;
+      aRight = aRight->GetNextSibling();
+      if (!aRight) {
+        last->SetNextSibling(aLeft);
+        return result;
+      }
+    }
+  }
+}
+
+template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+/* static */ nsIFrame*
+nsLayoutUtils::MergeSort(nsIFrame *aSource)
+{
+  NS_PRECONDITION(aSource, "MergeSort null arg");
+
+  nsIFrame *sorted[32] = { nullptr };
+  nsIFrame **fill = &sorted[0];
+  nsIFrame **left;
+  nsIFrame *rest = aSource;
+
+  do {
+    nsIFrame *current = rest;
+    rest = rest->GetNextSibling();
+    current->SetNextSibling(nullptr);
+
+    // Merge it with sorted[0] if present; then merge the result with sorted[1] etc.
+    // sorted[0] is a list of length 1 (or nullptr).
+    // sorted[1] is a list of length 2 (or nullptr).
+    // sorted[2] is a list of length 4 (or nullptr). etc.
+    for (left = &sorted[0]; left != fill && *left; ++left) {
+      current = SortedMerge<IsLessThanOrEqual>(*left, current);
+      *left = nullptr;
+    }
+
+    // Fill the empty slot that we couldn't merge with the last result.
+    *left = current;
+
+    if (left == fill)
+      ++fill;
+  } while (rest);
+
+  // Collect and merge the results.
+  nsIFrame *result = nullptr;
+  for (left = &sorted[0]; left != fill; ++left) {
+    if (*left) {
+      result = result ? SortedMerge<IsLessThanOrEqual>(*left, result) : *left;
+    }
+  }
+  return result;
+}
+
+template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+/* static */ void
+nsLayoutUtils::SortFrameList(nsFrameList& aFrameList)
+{
+  nsIFrame* head = MergeSort<IsLessThanOrEqual>(aFrameList.FirstChild());
+  aFrameList = nsFrameList(head, GetLastSibling(head));
+  MOZ_ASSERT(IsFrameListSorted<IsLessThanOrEqual>(aFrameList),
+             "After we sort a frame list, it should be in sorted order...");
+}
+
+template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+/* static */ bool
+nsLayoutUtils::IsFrameListSorted(nsFrameList& aFrameList)
+{
+  if (aFrameList.IsEmpty()) {
+    // empty lists are trivially sorted.
+    return true;
+  }
+
+  // We'll walk through the list with two iterators, one trailing behind the
+  // other. The list is sorted IFF trailingIter <= iter, across the whole list.
+  nsFrameList::Enumerator trailingIter(aFrameList);
+  nsFrameList::Enumerator iter(aFrameList);
+  iter.Next(); // Skip |iter| past first frame. (List is nonempty, so we can.)
+
+  // Now, advance the iterators in parallel, comparing each adjacent pair.
+  while (!iter.AtEnd()) {
+    MOZ_ASSERT(!trailingIter.AtEnd(), "trailing iter shouldn't finish first");
+    if (!IsLessThanOrEqual(trailingIter.get(), iter.get())) {
+      return false;
+    }
+    trailingIter.Next();
+    iter.Next();
+  }
+
+  // We made it to the end without returning early, so the list is sorted.
+  return true;
+}
+
+template<typename PointType, typename RectType, typename CoordType>
+/* static */ bool
+nsLayoutUtils::PointIsCloserToRect(PointType aPoint, const RectType& aRect,
+                                   CoordType& aClosestXDistance,
+                                   CoordType& aClosestYDistance)
+{
+  CoordType fromLeft = aPoint.x - aRect.x;
+  CoordType fromRight = aPoint.x - aRect.XMost();
+
+  CoordType xDistance;
+  if (fromLeft >= 0 && fromRight <= 0) {
+    xDistance = 0;
+  } else {
+    xDistance = std::min(abs(fromLeft), abs(fromRight));
+  }
+
+  if (xDistance <= aClosestXDistance) {
+    if (xDistance < aClosestXDistance) {
+      aClosestYDistance = std::numeric_limits<CoordType>::max();
+    }
+
+    CoordType fromTop = aPoint.y - aRect.y;
+    CoordType fromBottom = aPoint.y - aRect.YMost();
+
+    CoordType yDistance;
+    if (fromTop >= 0 && fromBottom <= 0) {
+      yDistance = 0;
+    } else {
+      yDistance = std::min(abs(fromTop), abs(fromBottom));
+    }
+
+    if (yDistance < aClosestYDistance) {
+      aClosestXDistance = xDistance;
+      aClosestYDistance = yDistance;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+namespace mozilla {
+  namespace layout {
+
+    /**
+     * An RAII class which will, for the duration of its lifetime,
+     * **if** the frame given is a container for font size inflation,
+     * set the current inflation container on the pres context to null
+     * (and then, in its destructor, restore the old value).
+     */
+    class AutoMaybeDisableFontInflation {
+    public:
+      AutoMaybeDisableFontInflation(nsIFrame *aFrame)
+      {
+        // FIXME: Now that inflation calculations are based on the flow
+        // root's NCA's (nearest common ancestor of its inflatable
+        // descendants) width, we could probably disable inflation in
+        // fewer cases than we currently do.
+        if (nsLayoutUtils::IsContainerForFontSizeInflation(aFrame)) {
+          mPresContext = aFrame->PresContext();
+          mOldValue = mPresContext->mInflationDisabledForShrinkWrap;
+          mPresContext->mInflationDisabledForShrinkWrap = true;
+        } else {
+          // indicate we have nothing to restore
+          mPresContext = nullptr;
+        }
+      }
+
+      ~AutoMaybeDisableFontInflation()
+      {
+        if (mPresContext) {
+          mPresContext->mInflationDisabledForShrinkWrap = mOldValue;
+        }
+      }
+    private:
+      nsPresContext *mPresContext;
+      bool mOldValue;
+    };
+
+  }
+}
 
 class nsSetAttrRunnable : public nsRunnable
 {
@@ -1371,7 +2104,7 @@ public:
   nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
                     const nsAString& aValue);
   nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
-                    PRInt32 aValue);
+                    int32_t aValue);
 
   NS_DECL_NSIRUNNABLE
 

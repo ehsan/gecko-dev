@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=548463
 -->
 <head>
   <title>Test for Bug 548463</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -65,10 +64,10 @@ var thrown = false;
 
 function changeOwnerDocument()
 {
-  elem1.setUserData("foo", null, null);
+  SpecialPowers.wrap(elem1).setUserData("foo", null, null);
   otherDoc.adoptNode(elem1);
 }
-elem1.setUserData("foo", "bar", changeOwnerDocument);
+SpecialPowers.wrap(elem1).setUserData("foo", "bar", changeOwnerDocument);
 try {
   document.adoptNode(elem1);
 }

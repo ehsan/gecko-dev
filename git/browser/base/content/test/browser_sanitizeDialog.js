@@ -1,41 +1,8 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is sanitize dialog test code.
- *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Drew Willcoxon <adw@mozilla.com> (Original Author)
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
  * Tests the sanitize dialog (a.k.a. the clear recent history dialog).
@@ -50,20 +17,22 @@
  * browser/base/content/test/browser_sanitize-timespans.js.
  */
 
-Cc["@mozilla.org/moz/jssubscript-loader;1"].
-  getService(Ci.mozIJSSubScriptLoader).
-  loadSubScript("chrome://mochikit/content/MochiKit/packed.js");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
-Cc["@mozilla.org/moz/jssubscript-loader;1"].
-  getService(Ci.mozIJSSubScriptLoader).
-  loadSubScript("chrome://browser/content/sanitize.js");
+XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
+                                  "resource://gre/modules/FormHistory.jsm");
+
+let tempScope = {};
+Cc["@mozilla.org/moz/jssubscript-loader;1"].getService(Ci.mozIJSSubScriptLoader)
+                                           .loadSubScript("chrome://browser/content/sanitize.js", tempScope);
+let Sanitizer = tempScope.Sanitizer;
 
 const dm = Cc["@mozilla.org/download-manager;1"].
            getService(Ci.nsIDownloadManager);
-const bhist = Cc["@mozilla.org/browser/global-history;2"].
-              getService(Ci.nsIBrowserHistory);
-const formhist = Cc["@mozilla.org/satchel/form-history;1"].
-                 getService(Ci.nsIFormHistory2);
+
+const kUsecPerMin = 60 * 1000000;
+
+let formEntries;
 
 // Add tests here.  Each is a function that's called by doNextTest().
 var gAllTests = [
@@ -90,30 +59,37 @@ var gAllTests = [
   function () {
     // Add history (within the past hour)
     let uris = [];
+    let places = [];
+    let pURI;
     for (let i = 0; i < 30; i++) {
-      uris.push(addHistoryWithMinutesAgo(i));
+      pURI = makeURI("http://" + i + "-minutes-ago.com/");
+      places.push({uri: pURI, visitDate: visitTimeForMinutesAgo(i)});
+      uris.push(pURI);
     }
 
-    let wh = new WindowHelper();
-    wh.onload = function () {
-      this.selectDuration(Sanitizer.TIMESPAN_HOUR);
-      this.checkPrefCheckbox("history", false);
-      this.checkDetails(false);
+    addVisits(places, function() {
+      let wh = new WindowHelper();
+      wh.onload = function () {
+        this.selectDuration(Sanitizer.TIMESPAN_HOUR);
+        this.checkPrefCheckbox("history", false);
+        this.checkDetails(false);
 
-      // Show details
-      this.toggleDetails();
-      this.checkDetails(true);
+        // Show details
+        this.toggleDetails();
+        this.checkDetails(true);
 
-      // Hide details
-      this.toggleDetails();
-      this.checkDetails(false);
-      this.cancelDialog();
-
-      ensureHistoryClearedState(uris, false);
-      blankSlate();
-      ensureHistoryClearedState(uris, true);
-    };
-    wh.open();
+        // Hide details
+        this.toggleDetails();
+        this.checkDetails(false);
+        this.cancelDialog();
+      };
+      wh.onunload = function () {
+        yield promiseHistoryClearedState(uris, false);
+        yield blankSlate();
+        yield promiseHistoryClearedState(uris, true);
+      };
+      wh.open();
+    });
   },
 
   /**
@@ -121,56 +97,85 @@ var gAllTests = [
    * visits and downloads when checked; the dialog respects simple timespan.
    */
   function () {
-    // Add history and downloads (within the past hour).
+    // Add history (within the past hour).
     let uris = [];
+    let places = [];
+    let pURI;
     for (let i = 0; i < 30; i++) {
-      uris.push(addHistoryWithMinutesAgo(i));
+      pURI = makeURI("http://" + i + "-minutes-ago.com/");
+      places.push({uri: pURI, visitDate: visitTimeForMinutesAgo(i)});
+      uris.push(pURI);
     }
-    let downloadIDs = [];
-    for (let i = 0; i < 5; i++) {
-      downloadIDs.push(addDownloadWithMinutesAgo(i));
-    }
-    // Add history and downloads (over an hour ago).
+    // Add history (over an hour ago).
     let olderURIs = [];
     for (let i = 0; i < 5; i++) {
-      olderURIs.push(addHistoryWithMinutesAgo(61 + i));
+      pURI = makeURI("http://" + (61 + i) + "-minutes-ago.com/");
+      places.push({uri: pURI, visitDate: visitTimeForMinutesAgo(61 + i)});
+      olderURIs.push(pURI);
     }
-    let olderDownloadIDs = [];
-    for (let i = 0; i < 5; i++) {
-      olderDownloadIDs.push(addDownloadWithMinutesAgo(61 + i));
-    }
-    let totalHistoryVisits = uris.length + olderURIs.length;
 
-    let wh = new WindowHelper();
-    wh.onload = function () {
-      this.selectDuration(Sanitizer.TIMESPAN_HOUR);
-      this.checkPrefCheckbox("history", true);
-      this.acceptDialog();
+    addVisits(places, function() {
+      // Add downloads (within the past hour).
+      let downloadIDs = [];
+      for (let i = 0; i < 5; i++) {
+        downloadIDs.push(addDownloadWithMinutesAgo(i));
+      }
+      // Add downloads (over an hour ago).
+      let olderDownloadIDs = [];
+      for (let i = 0; i < 5; i++) {
+        olderDownloadIDs.push(addDownloadWithMinutesAgo(61 + i));
+      }
+      let totalHistoryVisits = uris.length + olderURIs.length;
 
-      intPrefIs("sanitize.timeSpan", Sanitizer.TIMESPAN_HOUR,
-                "timeSpan pref should be hour after accepting dialog with " +
-                "hour selected");
-      boolPrefIs("cpd.history", true,
-                 "history pref should be true after accepting dialog with " +
-                 "history checkbox checked");
-      boolPrefIs("cpd.downloads", true,
-                 "downloads pref should be true after accepting dialog with " +
-                 "history checkbox checked");
+      let wh = new WindowHelper();
+      wh.onload = function () {
+        this.selectDuration(Sanitizer.TIMESPAN_HOUR);
+        this.checkPrefCheckbox("history", true);
+        this.acceptDialog();
 
-      // History visits and downloads within one hour should be cleared.
-      ensureHistoryClearedState(uris, true);
-      ensureDownloadsClearedState(downloadIDs, true);
+        intPrefIs("sanitize.timeSpan", Sanitizer.TIMESPAN_HOUR,
+                  "timeSpan pref should be hour after accepting dialog with " +
+                  "hour selected");
+        boolPrefIs("cpd.history", true,
+                   "history pref should be true after accepting dialog with " +
+                   "history checkbox checked");
+        boolPrefIs("cpd.downloads", true,
+                   "downloads pref should be true after accepting dialog with " +
+                   "history checkbox checked");
+      };
+      wh.onunload = function () {
+        // History visits and downloads within one hour should be cleared.
+        yield promiseHistoryClearedState(uris, true);
+        ensureDownloadsClearedState(downloadIDs, true);
 
-      // Visits and downloads > 1 hour should still exist.
-      ensureHistoryClearedState(olderURIs, false);
-      ensureDownloadsClearedState(olderDownloadIDs, false);
+        // Visits and downloads > 1 hour should still exist.
+        yield promiseHistoryClearedState(olderURIs, false);
+        ensureDownloadsClearedState(olderDownloadIDs, false);
 
-      // OK, done, cleanup after ourselves.
-      blankSlate();
-      ensureHistoryClearedState(olderURIs, true);
-      ensureDownloadsClearedState(olderDownloadIDs, true);
-    };
-    wh.open();
+        // OK, done, cleanup after ourselves.
+        yield blankSlate();
+        yield promiseHistoryClearedState(olderURIs, true);
+        ensureDownloadsClearedState(olderDownloadIDs, true);
+      };
+      wh.open();
+    });
+  },
+
+  /**
+   * Add form history entries for the next test.
+   */
+  function () {
+    formEntries = [];
+
+    let iter = function() {
+      for (let i = 0; i < 5; i++) {
+        formEntries.push(addFormEntryWithMinutesAgo(iter, i));
+        yield undefined;
+      }
+      doNextTest();
+    }();
+
+    iter.next();
   },
 
   /**
@@ -180,51 +185,59 @@ var gAllTests = [
   function () {
     // Add history, downloads, form entries (within the past hour).
     let uris = [];
+    let places = [];
+    let pURI;
     for (let i = 0; i < 5; i++) {
-      uris.push(addHistoryWithMinutesAgo(i));
-    }
-    let downloadIDs = [];
-    for (let i = 0; i < 5; i++) {
-      downloadIDs.push(addDownloadWithMinutesAgo(i));
-    }
-    let formEntries = [];
-    for (let i = 0; i < 5; i++) {
-      formEntries.push(addFormEntryWithMinutesAgo(i));
+      pURI = makeURI("http://" + i + "-minutes-ago.com/");
+      places.push({uri: pURI, visitDate: visitTimeForMinutesAgo(i)});
+      uris.push(pURI);
     }
 
-    let wh = new WindowHelper();
-    wh.onload = function () {
-      is(this.isWarningPanelVisible(), false,
-         "Warning panel should be hidden after previously accepting dialog " +
-         "with a predefined timespan");
-      this.selectDuration(Sanitizer.TIMESPAN_HOUR);
+    addVisits(places, function() {
+      let downloadIDs = [];
+      for (let i = 0; i < 5; i++) {
+        downloadIDs.push(addDownloadWithMinutesAgo(i));
+      }
 
-      // Remove only form entries, leave history (including downloads).
-      this.checkPrefCheckbox("history", false);
-      this.checkPrefCheckbox("formdata", true);
-      this.acceptDialog();
+      let wh = new WindowHelper();
+      wh.onload = function () {
+        is(this.isWarningPanelVisible(), false,
+           "Warning panel should be hidden after previously accepting dialog " +
+           "with a predefined timespan");
+        this.selectDuration(Sanitizer.TIMESPAN_HOUR);
 
-      intPrefIs("sanitize.timeSpan", Sanitizer.TIMESPAN_HOUR,
-                "timeSpan pref should be hour after accepting dialog with " +
-                "hour selected");
-      boolPrefIs("cpd.history", false,
-                 "history pref should be false after accepting dialog with " +
-                 "history checkbox unchecked");
-      boolPrefIs("cpd.downloads", false,
-                 "downloads pref should be false after accepting dialog with " +
-                 "history checkbox unchecked");
+        // Remove only form entries, leave history (including downloads).
+        this.checkPrefCheckbox("history", false);
+        this.checkPrefCheckbox("formdata", true);
+        this.acceptDialog();
 
-      // Of the three only form entries should be cleared.
-      ensureHistoryClearedState(uris, false);
-      ensureDownloadsClearedState(downloadIDs, false);
-      ensureFormEntriesClearedState(formEntries, true);
+        intPrefIs("sanitize.timeSpan", Sanitizer.TIMESPAN_HOUR,
+                  "timeSpan pref should be hour after accepting dialog with " +
+                  "hour selected");
+        boolPrefIs("cpd.history", false,
+                   "history pref should be false after accepting dialog with " +
+                   "history checkbox unchecked");
+        boolPrefIs("cpd.downloads", false,
+                   "downloads pref should be false after accepting dialog with " +
+                   "history checkbox unchecked");
+      };
+      wh.onunload = function () {
+        // Of the three only form entries should be cleared.
+        yield promiseHistoryClearedState(uris, false);
+        ensureDownloadsClearedState(downloadIDs, false);
 
-      // OK, done, cleanup after ourselves.
-      blankSlate();
-      ensureHistoryClearedState(uris, true);
-      ensureDownloadsClearedState(downloadIDs, true);
-    };
-    wh.open();
+        formEntries.forEach(function (entry) {
+          let exists = yield formNameExists(entry);
+          is(exists, false, "form entry " + entry + " should no longer exist");
+        });
+
+        // OK, done, cleanup after ourselves.
+        yield blankSlate();
+        yield promiseHistoryClearedState(uris, true);
+        ensureDownloadsClearedState(downloadIDs, true);
+      };
+      wh.open();
+    });
   },
 
   /**
@@ -233,36 +246,44 @@ var gAllTests = [
   function () {
     // Add history.
     let uris = [];
-    uris.push(addHistoryWithMinutesAgo(10));  // within past hour
-    uris.push(addHistoryWithMinutesAgo(70));  // within past two hours
-    uris.push(addHistoryWithMinutesAgo(130)); // within past four hours
-    uris.push(addHistoryWithMinutesAgo(250)); // outside past four hours
+    let places = [];
+    let pURI;
+    // within past hour, within past two hours, within past four hours and 
+    // outside past four hours
+    [10, 70, 130, 250].forEach(function(aValue) {
+      pURI = makeURI("http://" + aValue + "-minutes-ago.com/");
+      places.push({uri: pURI, visitDate: visitTimeForMinutesAgo(aValue)});
+      uris.push(pURI);
+    });
+    addVisits(places, function() {
+      let wh = new WindowHelper();
+      wh.onload = function () {
+        is(this.isWarningPanelVisible(), false,
+           "Warning panel should be hidden after previously accepting dialog " +
+           "with a predefined timespan");
+        this.selectDuration(Sanitizer.TIMESPAN_EVERYTHING);
+        this.checkPrefCheckbox("history", true);
+        this.checkDetails(true);
 
-    let wh = new WindowHelper();
-    wh.onload = function () {
-      is(this.isWarningPanelVisible(), false,
-         "Warning panel should be hidden after previously accepting dialog " +
-         "with a predefined timespan");
-      this.selectDuration(Sanitizer.TIMESPAN_EVERYTHING);
-      this.checkPrefCheckbox("history", true);
-      this.checkDetails(true);
+        // Hide details
+        this.toggleDetails();
+        this.checkDetails(false);
 
-      // Hide details
-      this.toggleDetails();
-      this.checkDetails(false);
+        // Show details
+        this.toggleDetails();
+        this.checkDetails(true);
 
-      // Show details
-      this.toggleDetails();
-      this.checkDetails(true);
+        this.acceptDialog();
 
-      this.acceptDialog();
-
-      intPrefIs("sanitize.timeSpan", Sanitizer.TIMESPAN_EVERYTHING,
-                "timeSpan pref should be everything after accepting dialog " +
-                "with everything selected");
-      ensureHistoryClearedState(uris, true);
-    };
-    wh.open();
+        intPrefIs("sanitize.timeSpan", Sanitizer.TIMESPAN_EVERYTHING,
+                  "timeSpan pref should be everything after accepting dialog " +
+                  "with everything selected");
+      };
+      wh.onunload = function () {
+        yield promiseHistoryClearedState(uris, true);
+      };
+      wh.open();
+    });
   },
 
   /**
@@ -272,27 +293,150 @@ var gAllTests = [
   function () {
     // Add history.
     let uris = [];
-    uris.push(addHistoryWithMinutesAgo(10));  // within past hour
-    uris.push(addHistoryWithMinutesAgo(70));  // within past two hours
-    uris.push(addHistoryWithMinutesAgo(130)); // within past four hours
-    uris.push(addHistoryWithMinutesAgo(250)); // outside past four hours
+    let places = [];
+    let pURI;
+    // within past hour, within past two hours, within past four hours and 
+    // outside past four hours
+    [10, 70, 130, 250].forEach(function(aValue) {
+      pURI = makeURI("http://" + aValue + "-minutes-ago.com/");
+      places.push({uri: pURI, visitDate: visitTimeForMinutesAgo(aValue)});
+      uris.push(pURI);
+    });
+    addVisits(places, function() {
+      let wh = new WindowHelper();
+      wh.onload = function () {
+        is(this.isWarningPanelVisible(), true,
+           "Warning panel should be visible after previously accepting dialog " +
+           "with clearing everything");
+        this.selectDuration(Sanitizer.TIMESPAN_EVERYTHING);
+        this.checkPrefCheckbox("history", true);
+        this.acceptDialog();
 
+        intPrefIs("sanitize.timeSpan", Sanitizer.TIMESPAN_EVERYTHING,
+                  "timeSpan pref should be everything after accepting dialog " +
+                  "with everything selected");
+      };
+      wh.onunload = function () {
+        yield promiseHistoryClearedState(uris, true);
+      };
+      wh.open();
+    });
+  },
+
+  /**
+   * Add form history entry for the next test.
+   */
+  function () {
+    let iter = function() {
+      formEntries = [ addFormEntryWithMinutesAgo(iter, 10) ];
+      yield undefined;
+      doNextTest();
+    }();
+
+    iter.next();
+  },
+
+  /**
+   * The next three tests checks that when a certain history item cannot be
+   * cleared then the checkbox should be both disabled and unchecked.
+   * In addition, we ensure that this behavior does not modify the preferences.
+   */
+  function () {
+    // Add history.
+    let pURI = makeURI("http://" + 10 + "-minutes-ago.com/");
+    addVisits({uri: pURI, visitDate: visitTimeForMinutesAgo(10)}, function() {
+      let uris = [ pURI ];
+
+      let wh = new WindowHelper();
+      wh.onload = function() {
+        // Check that the relevant checkboxes are enabled
+        var cb = this.win.document.querySelectorAll(
+                   "#itemList > [preference='privacy.cpd.formdata']");
+        ok(cb.length == 1 && !cb[0].disabled, "There is formdata, checkbox to " +
+           "clear formdata should be enabled.");
+
+        var cb = this.win.document.querySelectorAll(
+                   "#itemList > [preference='privacy.cpd.history']");
+        ok(cb.length == 1 && !cb[0].disabled, "There is history, checkbox to " +
+           "clear history should be enabled.");
+
+        this.checkAllCheckboxes();
+        this.acceptDialog();
+      };
+      wh.onunload = function () {
+        yield promiseHistoryClearedState(uris, true);
+
+        let exists = yield formNameExists(formEntries[0]);
+        is(exists, false, "form entry " + formEntries[0] + " should no longer exist");
+      };
+      wh.open();
+    });
+  },
+  function () {
     let wh = new WindowHelper();
-    wh.onload = function () {
-      is(this.isWarningPanelVisible(), true,
-         "Warning panel should be visible after previously accepting dialog " +
-         "with clearing everything");
-      this.selectDuration(Sanitizer.TIMESPAN_EVERYTHING);
-      this.checkPrefCheckbox("history", true);
-      this.acceptDialog();
+    wh.onload = function() {
+      boolPrefIs("cpd.history", true,
+                 "history pref should be true after accepting dialog with " +
+                 "history checkbox checked");
+      boolPrefIs("cpd.formdata", true,
+                 "formdata pref should be true after accepting dialog with " +
+                 "formdata checkbox checked");
 
-      intPrefIs("sanitize.timeSpan", Sanitizer.TIMESPAN_EVERYTHING,
-                "timeSpan pref should be everything after accepting dialog " +
-                "with everything selected");
-      ensureHistoryClearedState(uris, true);
+
+      // Even though the formdata pref is true, because there is no history
+      // left to clear, the checkbox will be disabled.
+      var cb = this.win.document.querySelectorAll(
+                 "#itemList > [preference='privacy.cpd.formdata']");
+      ok(cb.length == 1 && cb[0].disabled && !cb[0].checked,
+         "There is no formdata history, checkbox should be disabled and be " +
+         "cleared to reduce user confusion (bug 497664).");
+
+      var cb = this.win.document.querySelectorAll(
+                 "#itemList > [preference='privacy.cpd.history']");
+      ok(cb.length == 1 && !cb[0].disabled && cb[0].checked,
+         "There is no history, but history checkbox should always be enabled " +
+         "and will be checked from previous preference.");
+
+      this.acceptDialog();
+    }
+    wh.open();
+  },
+
+  /**
+   * Add form history entry for the next test.
+   */
+  function () {
+    let iter = function() {
+      formEntries = [ addFormEntryWithMinutesAgo(iter, 10) ];
+      yield undefined;
+      doNextTest();
+    }();
+
+    iter.next();
+  },
+
+  function () {
+    let wh = new WindowHelper();
+    wh.onload = function() {
+      boolPrefIs("cpd.formdata", true,
+                 "formdata pref should persist previous value after accepting " +
+                 "dialog where you could not clear formdata.");
+
+      var cb = this.win.document.querySelectorAll(
+                 "#itemList > [preference='privacy.cpd.formdata']");
+      ok(cb.length == 1 && !cb[0].disabled && cb[0].checked,
+         "There exists formEntries so the checkbox should be in sync with " +
+         "the pref.");
+
+      this.acceptDialog();
+    };
+    wh.onunload = function () {
+      let exists = yield formNameExists(formEntries[0]);
+      is(exists, false, "form entry " + formEntries[0] + " should no longer exist");
     };
     wh.open();
   },
+
 
   /**
    * These next six tests together ensure that toggling details persists
@@ -385,6 +529,111 @@ var gAllTests = [
       this.toggleDetails();
       this.checkDetails(true);
       this.cancelDialog();
+    };
+    wh.open();
+  },
+  function () {
+    // Test for offline cache deletion
+
+    // Prepare stuff, we will work with www.example.com
+    var URL = "http://www.example.com";
+
+    var ios = Cc["@mozilla.org/network/io-service;1"]
+              .getService(Ci.nsIIOService);
+    var URI = ios.newURI(URL, null, null);
+
+    var sm = Cc["@mozilla.org/scriptsecuritymanager;1"]
+             .getService(Ci.nsIScriptSecurityManager);
+    var principal = sm.getNoAppCodebasePrincipal(URI);
+
+    // Give www.example.com privileges to store offline data
+    var pm = Cc["@mozilla.org/permissionmanager;1"]
+             .getService(Ci.nsIPermissionManager);
+    pm.addFromPrincipal(principal, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
+    pm.addFromPrincipal(principal, "offline-app", Ci.nsIOfflineCacheUpdateService.ALLOW_NO_WARN);
+
+    // Store something to the offline cache
+    const nsICache = Components.interfaces.nsICache;
+    var cs = Components.classes["@mozilla.org/network/cache-service;1"]
+             .getService(Components.interfaces.nsICacheService);
+    var session = cs.createSession(URL + "/manifest", nsICache.STORE_OFFLINE, nsICache.STREAM_BASED);
+
+    // Open the dialog
+    let wh = new WindowHelper();
+    wh.onload = function () {
+      this.selectDuration(Sanitizer.TIMESPAN_EVERYTHING);
+      // Show details
+      this.toggleDetails();
+      // Clear only offlineApps
+      this.uncheckAllCheckboxes();
+      this.checkPrefCheckbox("offlineApps", true);
+      this.acceptDialog();
+
+      // Check if the cache has been deleted
+      var size = -1;
+      var visitor = {
+        visitDevice: function (deviceID, deviceInfo)
+        {
+          if (deviceID == "offline")
+            size = deviceInfo.totalSize;
+
+          // Do not enumerate entries
+          return false;
+        },
+
+        visitEntry: function (deviceID, entryInfo)
+        {
+          // Do not enumerate entries.
+          return false;
+        }
+      };
+      cs.visitEntries(visitor);
+      is(size, 0, "offline application cache entries evicted");
+    };
+
+    var cacheListener = {
+      onCacheEntryAvailable: function (entry, access, status) {
+        is(status, Cr.NS_OK);
+        var stream = entry.openOutputStream(0);
+        var content = "content";
+        stream.write(content, content.length);
+        stream.close();
+        entry.close();
+        wh.open();
+      }
+    };
+
+    session.asyncOpenCacheEntry(URL, nsICache.ACCESS_READ_WRITE, cacheListener);
+  },
+  function () {
+    // Test for offline apps permission deletion
+
+    // Prepare stuff, we will work with www.example.com
+    var URL = "http://www.example.com";
+
+    var ios = Cc["@mozilla.org/network/io-service;1"]
+              .getService(Ci.nsIIOService);
+    var URI = ios.newURI(URL, null, null);
+
+    var sm = Cc["@mozilla.org/scriptsecuritymanager;1"]
+             .getService(Ci.nsIScriptSecurityManager);
+    var principal = sm.getNoAppCodebasePrincipal(URI);
+
+    // Open the dialog
+    let wh = new WindowHelper();
+    wh.onload = function () {
+      this.selectDuration(Sanitizer.TIMESPAN_EVERYTHING);
+      // Show details
+      this.toggleDetails();
+      // Clear only offlineApps
+      this.uncheckAllCheckboxes();
+      this.checkPrefCheckbox("siteSettings", true);
+      this.acceptDialog();
+
+      // Check all has been deleted (privileges, data, cache)
+      var pm = Cc["@mozilla.org/permissionmanager;1"]
+               .getService(Ci.nsIPermissionManager);
+      is(pm.testPermissionFromPrincipal(principal, "offline-app"), 0, "offline-app permissions removed");
     };
     wh.open();
   }
@@ -481,14 +730,22 @@ WindowHelper.prototype = {
   /**
    * Makes sure all the checkboxes are checked.
    */
-  checkAllCheckboxes: function () {
+  _checkAllCheckboxesCustom: function (check) {
     var cb = this.win.document.querySelectorAll("#itemList > [preference]");
     ok(cb.length > 1, "found checkboxes for preferences");
     for (var i = 0; i < cb.length; ++i) {
       var pref = this.win.document.getElementById(cb[i].getAttribute("preference"));
-      if (!pref.value)
+      if (!!pref.value ^ check)
         cb[i].click();
     }
+  },
+
+  checkAllCheckboxes: function () {
+    this._checkAllCheckboxesCustom(true);
+  },
+
+  uncheckAllCheckboxes: function () {
+    this._checkAllCheckboxesCustom(false);
   },
 
   /**
@@ -531,7 +788,9 @@ WindowHelper.prototype = {
    * Opens the clear recent history dialog.  Before calling this, set
    * this.onload to a function to execute onload.  It should close the dialog
    * when done so that the tests may continue.  Set this.onunload to a function
-   * to execute onunload.  this.onunload is optional.
+   * to execute onunload.  this.onunload is optional. If it returns true, the
+   * caller is expected to call waitForAsyncUpdates at some point; if false is
+   * returned, waitForAsyncUpdates is called automatically.
    */
   open: function () {
     let wh = this;
@@ -585,9 +844,13 @@ WindowHelper.prototype = {
           // Some exceptions that reach here don't reach the test harness, but
           // ok()/is() do...
           try {
-            if (wh.onunload)
-              wh.onunload();
-            doNextTest();
+            if (wh.onunload) {
+              Task.spawn(wh.onunload).then(function() {
+                waitForAsyncUpdates(doNextTest);
+              });
+            } else {
+              waitForAsyncUpdates(doNextTest);
+            }
           }
           catch (exc) {
             win.close();
@@ -644,8 +907,8 @@ function addDownloadWithMinutesAgo(aMinutesAgo) {
     name:      name,
     source:   "https://bugzilla.mozilla.org/show_bug.cgi?id=480169",
     target:    name,
-    startTime: now_uSec - (aMinutesAgo * 60 * 1000000),
-    endTime:   now_uSec - ((aMinutesAgo + 1) *60 * 1000000),
+    startTime: now_uSec - (aMinutesAgo * kUsecPerMin),
+    endTime:   now_uSec - ((aMinutesAgo + 1) * kUsecPerMin),
     state:     Ci.nsIDownloadManager.DOWNLOAD_FINISHED,
     currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0
   };
@@ -679,45 +942,59 @@ function addDownloadWithMinutesAgo(aMinutesAgo) {
  * @param aMinutesAgo
  *        The entry will be added this many minutes ago
  */
-function addFormEntryWithMinutesAgo(aMinutesAgo) {
+function addFormEntryWithMinutesAgo(then, aMinutesAgo) {
   let name = aMinutesAgo + "-minutes-ago";
-  formhist.addEntry(name, "dummy");
 
   // Artifically age the entry to the proper vintage.
-  let db = formhist.DBConnection;
-  let timestamp = now_uSec - (aMinutesAgo * 60 * 1000000);
-  db.executeSimpleSQL("UPDATE moz_formhistory SET firstUsed = " +
-                      timestamp +  " WHERE fieldname = '" + name + "'");
+  let timestamp = now_uSec - (aMinutesAgo * kUsecPerMin);
 
-  is(formhist.nameExists(name), true,
-     "Sanity check: form entry " + name + " should exist after creating it");
+  FormHistory.update({ op: "add", fieldname: name, value: "dummy", firstUsed: timestamp },
+                     { handleError: function (error) {
+                         do_throw("Error occurred updating form history: " + error);
+                       },
+                       handleCompletion: function (reason) { then.next(); }
+                     });
   return name;
 }
 
 /**
- * Adds a history visit to history.
- *
- * @param aMinutesAgo
- *        The visit will be visited this many minutes ago
+ * Checks if a form entry exists.
  */
-function addHistoryWithMinutesAgo(aMinutesAgo) {
-  let pURI = makeURI("http://" + aMinutesAgo + "-minutes-ago.com/");
-  bhist.addPageWithDetails(pURI,
-                           aMinutesAgo + " minutes ago",
-                           now_uSec - (aMinutesAgo * 60 * 1000 * 1000));
-  is(bhist.isVisited(pURI), true,
-     "Sanity check: history visit " + pURI.spec +
-     " should exist after creating it");
-  return pURI;
+function formNameExists(name)
+{
+  let deferred = Promise.defer();
+
+  let count = 0;
+  FormHistory.count({ fieldname: name },
+                    { handleResult: function (result) count = result,
+                      handleError: function (error) {
+                        do_throw("Error occurred searching form history: " + error);
+                        deferred.reject(error);
+                      },
+                      handleCompletion: function (reason) {
+                          if (!reason) deferred.resolve(count);
+                      }
+                    });
+
+  return deferred.promise;
 }
 
 /**
  * Removes all history visits, downloads, and form entries.
  */
 function blankSlate() {
-  bhist.removeAllPages();
+  PlacesUtils.bhistory.removeAllPages();
   dm.cleanUp();
-  formhist.removeAllEntries();
+
+  let deferred = Promise.defer();
+  FormHistory.update({ op: "remove" },
+                     { handleError: function (error) {
+                         do_throw("Error occurred updating form history: " + error);
+                         deferred.reject(error);
+                       },
+                       handleCompletion: function (reason) { if (!reason) deferred.resolve(); }
+                     });
+  return deferred.promise;
 }
 
 /**
@@ -762,7 +1039,7 @@ function downloadExists(aID)
 function doNextTest() {
   if (gAllTests.length <= gCurrTest) {
     blankSlate();
-    finish();
+    waitForAsyncUpdates(finish);
   }
   else {
     let ct = gCurrTest;
@@ -788,38 +1065,6 @@ function ensureDownloadsClearedState(aDownloadIDs, aShouldBeCleared) {
 }
 
 /**
- * Ensures that the specified form entries are either cleared or not.
- *
- * @param aFormEntries
- *        Array of form entry names
- * @param aShouldBeCleared
- *        True if each form entry should be cleared, false otherwise
- */
-function ensureFormEntriesClearedState(aFormEntries, aShouldBeCleared) {
-  let niceStr = aShouldBeCleared ? "no longer" : "still";
-  aFormEntries.forEach(function (entry) {
-    is(formhist.nameExists(entry), !aShouldBeCleared,
-       "form entry " + entry + " should " + niceStr + " exist");
-  });
-}
-
-/**
- * Ensures that the specified URIs are either cleared or not.
- *
- * @param aURIs
- *        Array of page URIs
- * @param aShouldBeCleared
- *        True if each visit to the URI should be cleared, false otherwise
- */
-function ensureHistoryClearedState(aURIs, aShouldBeCleared) {
-  let niceStr = aShouldBeCleared ? "no longer" : "still";
-  aURIs.forEach(function (aURI) {
-    is(bhist.isVisited(aURI), !aShouldBeCleared,
-       "history visit " + aURI.spec + " should " + niceStr + " exist");
-  });
-}
-
-/**
  * Ensures that the given pref is the expected value.
  *
  * @param aPrefName
@@ -833,12 +1078,22 @@ function intPrefIs(aPrefName, aExpectedVal, aMsg) {
   is(gPrefService.getIntPref("privacy." + aPrefName), aExpectedVal, aMsg);
 }
 
+/**
+ * Creates a visit time.
+ *
+ * @param aMinutesAgo
+ *        The visit will be visited this many minutes ago
+ */
+function visitTimeForMinutesAgo(aMinutesAgo) {
+  return now_uSec - aMinutesAgo * kUsecPerMin;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 function test() {
   requestLongerTimeout(2);
-  blankSlate();
   waitForExplicitFinish();
+  blankSlate();
   // Kick off all the tests in the gAllTests array.
-  doNextTest();
+  waitForAsyncUpdates(doNextTest);
 }

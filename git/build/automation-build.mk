@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 include $(MOZILLA_DIR)/build/binary-location.mk
 
 browser_path := \"$(browser_path)\"
@@ -54,6 +58,12 @@ ifdef MOZ_CRASHREPORTER
 AUTOMATION_PPARGS += -DCRASHREPORTER=1
 else
 AUTOMATION_PPARGS += -DCRASHREPORTER=0
+endif
+
+ifdef MOZ_ASAN
+AUTOMATION_PPARGS += -DIS_ASAN=1
+else
+AUTOMATION_PPARGS += -DIS_ASAN=0
 endif
 
 automation.py: $(MOZILLA_DIR)/build/automation.py.in $(MOZILLA_DIR)/build/automation-build.mk

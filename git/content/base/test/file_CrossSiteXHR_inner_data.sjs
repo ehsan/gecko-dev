@@ -14,7 +14,7 @@ window.addEventListener("message", function(e) {\n\
   };\n\
   \n\
   var xhr = new XMLHttpRequest();\n\
-  for each(type in ["load", "abort", "error", "loadstart", "loadend"]) {\n\
+  for (type of ["load", "abort", "error", "loadstart", "loadend"]) {\n\
     xhr.addEventListener(type, function(e) {\n\
       res.events.push(e.type);\n\
     }, false);\n\
@@ -26,16 +26,9 @@ window.addEventListener("message", function(e) {\n\
     res.progressEvents++;\n\
   }, false);\n\
   if (req.uploadProgress) {\n\
-    if (req.uploadProgress == "uploadProgress") {\n\
-      xhr.addEventListener("uploadProgress", function(e) {\n\
-        res.progressEvents++;\n\
-      }, false);\n\
-    }\n\
-    else {\n\
-      xhr.upload.addEventListener(req.uploadProgress, function(e) {\n\
-        res.progressEvents++;\n\
-      }, false);\n\
-    }\n\
+    xhr.upload.addEventListener(req.uploadProgress, function(e) {\n\
+      res.progressEvents++;\n\
+    }, false);\n\
   }\n\
   xhr.onerror = function(e) {\n\
     res.didFail = true;\n\
@@ -57,7 +50,16 @@ window.addEventListener("message", function(e) {\n\
       res.responseHeaders[responseHeader] =\n\
         xhr.getResponseHeader(responseHeader);\n\
     }\n\
-\n\
+    res.allResponseHeaders = {};\n\
+    var splitHeaders = xhr.getAllResponseHeaders().split("\\r\\n");\n\
+    for (var i = 0; i < splitHeaders.length; i++) {\n\
+      var headerValuePair = splitHeaders[i].split(":");\n\
+        if(headerValuePair[1] != null){\n\
+          var headerName = trimString(headerValuePair[0]);\n\
+          var headerValue = trimString(headerValuePair[1]); \n\
+          res.allResponseHeaders[headerName] = headerValue;\n\
+        }\n\
+    }\n\
     post(e, res);\n\
   }\n\
 \n\
@@ -81,6 +83,9 @@ window.addEventListener("message", function(e) {\n\
 function post(e, res) {\n\
   e.source.postMessage(res.toSource(), "*");\n\
 }\n\
+function trimString(stringValue) {\n\
+  return stringValue.replace("/^\s+|\s+$/g","");\n\
+};\n\
 \n\
 </script>\n\
 </head>\n\

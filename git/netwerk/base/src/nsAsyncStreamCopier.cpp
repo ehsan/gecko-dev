@@ -1,39 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2002
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Darin Fisher <darin@netscape.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIOService.h"
 #include "nsAsyncStreamCopier.h"
@@ -49,7 +16,7 @@ using namespace mozilla;
 //
 // NSPR_LOG_MODULES=nsStreamCopier:5
 //
-static PRLogModuleInfo *gStreamCopierLog = nsnull;
+static PRLogModuleInfo *gStreamCopierLog = nullptr;
 #endif
 #define LOG(args) PR_LOG(gStreamCopierLog, PR_LOG_DEBUG, args)
 
@@ -60,7 +27,7 @@ nsAsyncStreamCopier::nsAsyncStreamCopier()
     , mMode(NS_ASYNCCOPY_VIA_READSEGMENTS)
     , mChunkSize(nsIOService::gDefaultSegmentSize)
     , mStatus(NS_OK)
-    , mIsPending(PR_FALSE)
+    , mIsPending(false)
 {
 #if defined(PR_LOGGING)
     if (!gStreamCopierLog)
@@ -74,7 +41,7 @@ nsAsyncStreamCopier::~nsAsyncStreamCopier()
     LOG(("Destroying nsAsyncStreamCopier @%x\n", this));
 }
 
-PRBool
+bool
 nsAsyncStreamCopier::IsComplete(nsresult *status)
 {
     MutexAutoLock lock(mLock);
@@ -86,23 +53,21 @@ nsAsyncStreamCopier::IsComplete(nsresult *status)
 void
 nsAsyncStreamCopier::Complete(nsresult status)
 {
-    LOG(("nsAsyncStreamCopier::Complete [this=%x status=%x]\n", this, status));
+    LOG(("nsAsyncStreamCopier::Complete [this=%p status=%x]\n", this, status));
 
     nsCOMPtr<nsIRequestObserver> observer;
     nsCOMPtr<nsISupports> ctx;
     {
         MutexAutoLock lock(mLock);
-        mCopierCtx = nsnull;
+        mCopierCtx = nullptr;
 
         if (mIsPending) {
-            mIsPending = PR_FALSE;
+            mIsPending = false;
             mStatus = status;
 
             // setup OnStopRequest callback and release references...
             observer = mObserver;
-            ctx = mObserverContext;
-            mObserver = nsnull;
-            mObserverContext = nsnull;
+            mObserver = nullptr;
         }
     }
 
@@ -123,7 +88,7 @@ nsAsyncStreamCopier::OnAsyncCopyComplete(void *closure, nsresult status)
 //-----------------------------------------------------------------------------
 // nsISupports
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsAsyncStreamCopier,
+NS_IMPL_ISUPPORTS2(nsAsyncStreamCopier,
                               nsIRequest,
                               nsIAsyncStreamCopier)
 
@@ -138,7 +103,7 @@ nsAsyncStreamCopier::GetName(nsACString &name)
 }
 
 NS_IMETHODIMP
-nsAsyncStreamCopier::IsPending(PRBool *result)
+nsAsyncStreamCopier::IsPending(bool *result)
 {
     *result = !IsComplete();
     return NS_OK;
@@ -203,7 +168,7 @@ nsAsyncStreamCopier::SetLoadFlags(nsLoadFlags aLoadFlags)
 NS_IMETHODIMP
 nsAsyncStreamCopier::GetLoadGroup(nsILoadGroup **aLoadGroup)
 {
-    *aLoadGroup = nsnull;
+    *aLoadGroup = nullptr;
     return NS_OK;
 }
 
@@ -220,11 +185,11 @@ NS_IMETHODIMP
 nsAsyncStreamCopier::Init(nsIInputStream *source,
                           nsIOutputStream *sink,
                           nsIEventTarget *target,
-                          PRBool sourceBuffered,
-                          PRBool sinkBuffered,
-                          PRUint32 chunkSize,
-                          PRBool closeSource,
-                          PRBool closeSink)
+                          bool sourceBuffered,
+                          bool sinkBuffered,
+                          uint32_t chunkSize,
+                          bool closeSource,
+                          bool closeSink)
 {
     NS_ASSERTION(sourceBuffered || sinkBuffered, "at least one stream must be buffered");
 
@@ -252,34 +217,36 @@ nsAsyncStreamCopier::Init(nsIInputStream *source,
 NS_IMETHODIMP
 nsAsyncStreamCopier::AsyncCopy(nsIRequestObserver *observer, nsISupports *ctx)
 {
-    LOG(("nsAsyncStreamCopier::AsyncCopy [this=%x observer=%x]\n", this, observer));
+    LOG(("nsAsyncStreamCopier::AsyncCopy [this=%p observer=%x]\n", this, observer));
 
     NS_ASSERTION(mSource && mSink, "not initialized");
     nsresult rv;
 
     if (observer) {
         // build proxy for observer events
-        rv = NS_NewRequestObserverProxy(getter_AddRefs(mObserver), observer);
+        rv = NS_NewRequestObserverProxy(getter_AddRefs(mObserver), observer, ctx);
         if (NS_FAILED(rv)) return rv;
     }
 
     // from this point forward, AsyncCopy is going to return NS_OK.  any errors
     // will be reported via OnStopRequest.
-    mIsPending = PR_TRUE;
+    mIsPending = true;
 
-    mObserverContext = ctx;
     if (mObserver) {
-        rv = mObserver->OnStartRequest(this, mObserverContext);
+        rv = mObserver->OnStartRequest(this, nullptr);
         if (NS_FAILED(rv))
             Cancel(rv);
     }
-    
+
     // we want to receive progress notifications; release happens in
     // OnAsyncCopyComplete.
     NS_ADDREF_THIS();
-    rv = NS_AsyncCopy(mSource, mSink, mTarget, mMode, mChunkSize,
-                      OnAsyncCopyComplete, this, mCloseSource, mCloseSink,
-                      getter_AddRefs(mCopierCtx));
+    {
+      MutexAutoLock lock(mLock);
+      rv = NS_AsyncCopy(mSource, mSink, mTarget, mMode, mChunkSize,
+                        OnAsyncCopyComplete, this, mCloseSource, mCloseSink,
+                        getter_AddRefs(mCopierCtx));
+    }
     if (NS_FAILED(rv)) {
         NS_RELEASE_THIS();
         Cancel(rv);

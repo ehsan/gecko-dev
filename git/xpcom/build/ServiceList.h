@@ -1,3 +1,12 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+// IWYU pragma: private, include "mozilla/Services.h"
+
+#ifdef ACCESSIBILITY
+MOZ_SERVICE(AccessibilityService, nsIAccessibilityService, "@mozilla.org/accessibilityService;1")
+#endif
 MOZ_SERVICE(ChromeRegistryService, nsIChromeRegistry, "@mozilla.org/chrome/chrome-registry;1")
 MOZ_SERVICE(ToolkitChromeRegistryService, nsIToolkitChromeRegistry, "@mozilla.org/chrome/chrome-registry;1")
 MOZ_SERVICE(XULChromeRegistryService, nsIXULChromeRegistry, "@mozilla.org/chrome/chrome-registry;1")

@@ -1,44 +1,11 @@
-# -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is the Feed Stream Converter.
-#
-# The Initial Developer of the Original Code is Google Inc.
-# Portions created by the Initial Developer are Copyright (C) 2006
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#   Ben Goodger <beng@google.com>
-#   Jeff Walden <jwalden+code@mit.edu>
-#   Will Guaraldi <will.guaraldi@pculture.org>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK ***** */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */ 
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/debug.js");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -56,8 +23,6 @@ const TYPE_MAYBE_FEED = "application/vnd.mozilla.maybe.feed";
 const TYPE_MAYBE_VIDEO_FEED = "application/vnd.mozilla.maybe.video.feed";
 const TYPE_MAYBE_AUDIO_FEED = "application/vnd.mozilla.maybe.audio.feed";
 const TYPE_ANY = "*/*";
-
-const FEEDHANDLER_URI = "about:feeds";
 
 const PREF_SELECTED_APP = "browser.feeds.handlers.application";
 const PREF_SELECTED_WEB = "browser.feeds.handlers.webservice";
@@ -280,12 +245,14 @@ FeedConverter.prototype = {
         feedService.addFeedResult(result);
 
         // Now load the actual XUL document.
-        var chromeURI = ios.newURI(FEEDHANDLER_URI, null, null);
-        chromeChannel = ios.newChannelFromURI(chromeURI, null);
+        var aboutFeedsURI = ios.newURI("about:feeds", null, null);
+        chromeChannel = ios.newChannelFromURI(aboutFeedsURI, null);
         chromeChannel.originalURI = result.uri;
-      }
-      else
+        chromeChannel.owner =
+          Services.scriptSecurityManager.getNoAppCodebasePrincipal(aboutFeedsURI);
+      } else {
         chromeChannel = ios.newChannelFromURI(result.uri, null);
+      }
 
       chromeChannel.loadGroup = this._request.loadGroup;
       chromeChannel.asyncOpen(this._listener, null);
@@ -315,6 +282,13 @@ FeedConverter.prototype = {
     // The value doesn't matter.
     try {
       var httpChannel = channel.QueryInterface(Ci.nsIHttpChannel);
+      // Make sure to check requestSucceeded before the potentially-throwing
+      // getResponseHeader.
+      if (!httpChannel.requestSucceeded) {
+        // Just give up, but don't forget to cancel the channel first!
+        request.cancel(Cr.NS_BINDING_ABORTED);
+        return;
+      }
       var noSniff = httpChannel.getResponseHeader("X-Moz-Is-Feed");
     }
     catch (ex) {
@@ -552,14 +526,19 @@ GenericProtocolHandler.prototype = {
 
     var scheme = this._scheme + ":";
     if (spec.substr(0, scheme.length) != scheme)
-      throw Components.results.NS_ERROR_MALFORMED_URI;
+      throw Cr.NS_ERROR_MALFORMED_URI;
 
     var prefix = spec.substr(scheme.length, 2) == "//" ? "http:" : "";
     var inner = Cc["@mozilla.org/network/io-service;1"].
                 getService(Ci.nsIIOService).newURI(spec.replace(scheme, prefix),
                                                    originalCharset, baseURI);
-    var uri = Cc["@mozilla.org/network/util;1"].
-              getService(Ci.nsINetUtil).newSimpleNestedURI(inner);
+    var netutil = Cc["@mozilla.org/network/util;1"].getService(Ci.nsINetUtil);
+    const URI_INHERITS_SECURITY_CONTEXT = Ci.nsIProtocolHandler
+                                            .URI_INHERITS_SECURITY_CONTEXT;
+    if (netutil.URIChainHasFlags(inner, URI_INHERITS_SECURITY_CONTEXT))
+      throw Cr.NS_ERROR_MALFORMED_URI;
+
+    var uri = netutil.newSimpleNestedURI(inner);
     uri.spec = inner.spec.replace(prefix, scheme);
     return uri;
   },
@@ -601,4 +580,4 @@ var components = [FeedConverter,
                   PodCastProtocolHandler];
 
 
-const NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

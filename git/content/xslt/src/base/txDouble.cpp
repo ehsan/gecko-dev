@@ -1,45 +1,16 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is TransforMiiX XSLT processor code.
- *
- * The Initial Developer of the Original Code is
- * The MITRE Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1999
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "mozilla/FloatingPoint.h"
 
 #include "nsString.h"
 #include "txCore.h"
 #include "txXMLUtils.h"
 #include <math.h>
 #include <stdlib.h>
+#include <algorithm>
 #ifdef WIN32
 #include <float.h>
 #endif
@@ -48,42 +19,6 @@
 /*
  * Utility class for doubles
  */
-
-//-- Initialize Double related constants
-const txdpun Double::NaN = TX_DOUBLE_NaN;
-#ifdef IS_BIG_ENDIAN
-const txdpun Double::POSITIVE_INFINITY = {{TX_DOUBLE_HI32_EXPMASK, 0}};
-const txdpun Double::NEGATIVE_INFINITY = {{TX_DOUBLE_HI32_EXPMASK | TX_DOUBLE_HI32_SIGNBIT, 0}};
-#else
-const txdpun Double::POSITIVE_INFINITY = {{0, TX_DOUBLE_HI32_EXPMASK}};
-const txdpun Double::NEGATIVE_INFINITY = {{0, TX_DOUBLE_HI32_EXPMASK | TX_DOUBLE_HI32_SIGNBIT}};
-#endif
-
-/*
- * Determines whether the given double represents positive or negative
- * inifinity
- */
-MBool Double::isInfinite(double aDbl)
-{
-    return ((TX_DOUBLE_HI32(aDbl) & ~TX_DOUBLE_HI32_SIGNBIT) == TX_DOUBLE_HI32_EXPMASK &&
-            !TX_DOUBLE_LO32(aDbl));
-}
-
-/*
- * Determines whether the given double is NaN
- */
-MBool Double::isNaN(double aDbl)
-{
-    return TX_DOUBLE_IS_NaN(aDbl);
-}
-
-/*
- * Determines whether the given double is negative
- */
-MBool Double::isNeg(double aDbl)
-{
-    return (TX_DOUBLE_HI32(aDbl) & TX_DOUBLE_HI32_SIGNBIT) != 0;
-}
 
 /*
  * Converts the given String to a double, if the String value does not
@@ -97,12 +32,12 @@ public:
     txStringToDouble(): mState(eWhitestart), mSign(ePositive) {}
 
     void
-    write(const input_type* aSource, PRUint32 aSourceLength)
+    write(const input_type* aSource, uint32_t aSourceLength)
     {
         if (mState == eIllegal) {
             return;
         }
-        PRUint32 i = 0;
+        uint32_t i = 0;
         PRUnichar c;
         for ( ; i < aSourceLength; ++i) {
             c = aSource[i];
@@ -170,12 +105,12 @@ public:
     {
         if (mState == eIllegal || mBuffer.IsEmpty() ||
             (mBuffer.Length() == 1 && mBuffer[0] == '.')) {
-            return Double::NaN;
+            return mozilla::UnspecifiedNaN();
         }
         return mSign*PR_strtod(mBuffer.get(), 0);
     }
 private:
-    nsCAutoString mBuffer;
+    nsAutoCString mBuffer;
     enum {
         eWhitestart,
         eDecimal,
@@ -189,7 +124,7 @@ private:
     } mSign;
 };
 
-double Double::toDouble(const nsAString& aSrc)
+double txDouble::toDouble(const nsAString& aSrc)
 {
     txStringToDouble sink;
     nsAString::const_iterator fromBegin, fromEnd;
@@ -202,16 +137,16 @@ double Double::toDouble(const nsAString& aSrc)
  * The result into the destination String.
  * @return the given dest string
  */
-void Double::toString(double aValue, nsAString& aDest)
+void txDouble::toString(double aValue, nsAString& aDest)
 {
 
     // check for special cases
 
-    if (isNaN(aValue)) {
+    if (mozilla::IsNaN(aValue)) {
         aDest.AppendLiteral("NaN");
         return;
     }
-    if (isInfinite(aValue)) {
+    if (mozilla::IsInfinite(aValue)) {
         if (aValue < 0)
             aDest.Append(PRUnichar('-'));
         aDest.AppendLiteral("Infinity");
@@ -222,12 +157,12 @@ void Double::toString(double aValue, nsAString& aDest)
     const int buflen = 20;
     char buf[buflen];
 
-    PRIntn intDigits, sign;
+    int intDigits, sign;
     char* endp;
     PR_dtoa(aValue, 0, 0, &intDigits, &sign, &endp, buf, buflen - 1);
 
     // compute length
-    PRInt32 length = endp - buf;
+    int32_t length = endp - buf;
     if (length > intDigits) {
         // decimal point needed
         ++length;
@@ -243,11 +178,11 @@ void Double::toString(double aValue, nsAString& aDest)
     if (aValue < 0)
         ++length;
     // grow the string
-    PRUint32 oldlength = aDest.Length();
-    if (!EnsureStringLength(aDest, oldlength + length))
+    uint32_t oldlength = aDest.Length();
+    if (!aDest.SetLength(oldlength + length, mozilla::fallible_t()))
         return; // out of memory
     nsAString::iterator dest;
-    aDest.BeginWriting(dest).advance(PRInt32(oldlength));
+    aDest.BeginWriting(dest).advance(int32_t(oldlength));
     if (aValue < 0) {
         *dest = '-'; ++dest;
     }
@@ -261,7 +196,7 @@ void Double::toString(double aValue, nsAString& aDest)
         }
     }
     // mantissa
-    int firstlen = PR_MIN(intDigits, endp - buf);
+    int firstlen = std::min<size_t>(intDigits, endp - buf);
     for (i = 0; i < firstlen; i++) {
         *dest = buf[i]; ++dest;
     }

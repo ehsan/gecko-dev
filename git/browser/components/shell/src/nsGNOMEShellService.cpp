@@ -1,44 +1,15 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Shell Service.
- *
- * The Initial Developer of the Original Code is mozilla.org.
- * Portions created by the Initial Developer are Copyright (C) 2004
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
 #include "nsGNOMEShellService.h"
 #include "nsShellService.h"
 #include "nsIServiceManager.h"
-#include "nsILocalFile.h"
+#include "nsIFile.h"
 #include "nsIProperties.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsIPrefService.h"
@@ -56,9 +27,10 @@
 #include "imgIRequest.h"
 #include "imgIContainer.h"
 #include "prprf.h"
-#ifdef MOZ_WIDGET_GTK2
+#if defined(MOZ_WIDGET_GTK)
 #include "nsIImageToPixbuf.h"
 #endif
+#include "nsXULAppAPI.h"
 
 #include <glib.h>
 #include <glib-object.h>
@@ -68,10 +40,12 @@
 #include <limits.h>
 #include <stdlib.h>
 
+using namespace mozilla;
+
 struct ProtocolAssociation
 {
   const char *name;
-  PRBool essential;
+  bool essential;
 };
 
 struct MimeTypeAssociation
@@ -81,18 +55,16 @@ struct MimeTypeAssociation
 };
 
 static const ProtocolAssociation appProtocols[] = {
-  { "http",   PR_TRUE  },
-  { "https",  PR_TRUE  },
-  { "ftp",    PR_FALSE },
-  { "chrome", PR_FALSE }
+  { "http",   true     },
+  { "https",  true     },
+  { "ftp",    false },
+  { "chrome", false }
 };
 
 static const MimeTypeAssociation appTypes[] = {
   { "text/html",             "htm html shtml" },
   { "application/xhtml+xml", "xhtml xht"      }
 };
-
-static const char kDocumentIconPath[] = "firefox-document.png";
 
 // GConf registry key constants
 #define DG_BACKGROUND "/desktop/gnome/background"
@@ -127,7 +99,7 @@ nsGNOMEShellService::Init()
 
   // Check G_BROKEN_FILENAMES.  If it's set, then filenames in glib use
   // the locale encoding.  If it's not set, they use UTF-8.
-  mUseLocaleFilenames = PR_GetEnv("G_BROKEN_FILENAMES") != nsnull;
+  mUseLocaleFilenames = PR_GetEnv("G_BROKEN_FILENAMES") != nullptr;
 
   if (GetAppPathFromLauncher())
     return NS_OK;
@@ -136,12 +108,9 @@ nsGNOMEShellService::Init()
     (do_GetService("@mozilla.org/file/directory_service;1"));
   NS_ENSURE_TRUE(dirSvc, NS_ERROR_NOT_AVAILABLE);
 
-  nsCOMPtr<nsILocalFile> appPath;
-  rv = dirSvc->Get(NS_XPCOM_CURRENT_PROCESS_DIR, NS_GET_IID(nsILocalFile),
+  nsCOMPtr<nsIFile> appPath;
+  rv = dirSvc->Get(XRE_EXECUTABLE_FILE, NS_GET_IID(nsIFile),
                    getter_AddRefs(appPath));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = appPath->AppendNative(NS_LITERAL_CSTRING(MOZ_APP_NAME));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return appPath->GetNativePath(mAppPath);
@@ -149,35 +118,35 @@ nsGNOMEShellService::Init()
 
 NS_IMPL_ISUPPORTS1(nsGNOMEShellService, nsIShellService)
 
-PRBool
+bool
 nsGNOMEShellService::GetAppPathFromLauncher()
 {
   gchar *tmp;
 
   const char *launcher = PR_GetEnv("MOZ_APP_LAUNCHER");
   if (!launcher)
-    return PR_FALSE;
+    return false;
 
   if (g_path_is_absolute(launcher)) {
     mAppPath = launcher;
     tmp = g_path_get_basename(launcher);
     gchar *fullpath = g_find_program_in_path(tmp);
     if (fullpath && mAppPath.Equals(fullpath))
-      mAppIsInPath = PR_TRUE;
+      mAppIsInPath = true;
     g_free(fullpath);
   } else {
     tmp = g_find_program_in_path(launcher);
     if (!tmp)
-      return PR_FALSE;
+      return false;
     mAppPath = tmp;
-    mAppIsInPath = PR_TRUE;
+    mAppIsInPath = true;
   }
 
   g_free(tmp);
-  return PR_TRUE;
+  return true;
 }
 
-PRBool
+bool
 nsGNOMEShellService::KeyMatchesAppName(const char *aKeyValue) const
 {
 
@@ -186,7 +155,7 @@ nsGNOMEShellService::KeyMatchesAppName(const char *aKeyValue) const
     gchar *nativePath = g_filename_from_utf8(aKeyValue, -1, NULL, NULL, NULL);
     if (!nativePath) {
       NS_ERROR("Error converting path to filesystem encoding");
-      return PR_FALSE;
+      return false;
     }
 
     commandPath = g_find_program_in_path(nativePath);
@@ -196,19 +165,19 @@ nsGNOMEShellService::KeyMatchesAppName(const char *aKeyValue) const
   }
 
   if (!commandPath)
-    return PR_FALSE;
+    return false;
 
-  PRBool matches = mAppPath.Equals(commandPath);
+  bool matches = mAppPath.Equals(commandPath);
   g_free(commandPath);
   return matches;
 }
 
-PRBool
+bool
 nsGNOMEShellService::CheckHandlerMatchesAppName(const nsACString &handler) const
 {
   gint argc;
   gchar **argv;
-  nsCAutoString command(handler);
+  nsAutoCString command(handler);
 
   // The string will be something of the form: [/path/to/]browser "%s"
   // We want to remove all of the parameters and get just the binary name.
@@ -219,27 +188,28 @@ nsGNOMEShellService::CheckHandlerMatchesAppName(const nsACString &handler) const
   }
 
   if (!KeyMatchesAppName(command.get()))
-    return PR_FALSE; // the handler is set to another app
+    return false; // the handler is set to another app
 
-  return PR_TRUE;
+  return true;
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::IsDefaultBrowser(PRBool aStartupCheck,
-                                      PRBool* aIsDefaultBrowser)
+nsGNOMEShellService::IsDefaultBrowser(bool aStartupCheck,
+                                      bool aForAllTypes,
+                                      bool* aIsDefaultBrowser)
 {
-  *aIsDefaultBrowser = PR_FALSE;
+  *aIsDefaultBrowser = false;
   if (aStartupCheck)
-    mCheckedThisSession = PR_TRUE;
+    mCheckedThisSession = true;
 
   nsCOMPtr<nsIGConfService> gconf = do_GetService(NS_GCONFSERVICE_CONTRACTID);
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
 
-  PRBool enabled;
-  nsCAutoString handler;
+  bool enabled;
+  nsAutoCString handler;
   nsCOMPtr<nsIGIOMimeApp> gioApp;
 
-  for (unsigned int i = 0; i < NS_ARRAY_LENGTH(appProtocols); ++i) {
+  for (unsigned int i = 0; i < ArrayLength(appProtocols); ++i) {
     if (!appProtocols[i].essential)
       continue;
 
@@ -266,14 +236,14 @@ nsGNOMEShellService::IsDefaultBrowser(PRBool aStartupCheck,
     }
   }
 
-  *aIsDefaultBrowser = PR_TRUE;
+  *aIsDefaultBrowser = true;
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::SetDefaultBrowser(PRBool aClaimAllTypes,
-                                       PRBool aForAllUsers)
+nsGNOMEShellService::SetDefaultBrowser(bool aClaimAllTypes,
+                                       bool aForAllUsers)
 {
 #ifdef DEBUG
   if (aForAllUsers)
@@ -283,7 +253,7 @@ nsGNOMEShellService::SetDefaultBrowser(PRBool aClaimAllTypes,
   nsCOMPtr<nsIGConfService> gconf = do_GetService(NS_GCONFSERVICE_CONTRACTID);
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
   if (gconf) {
-    nsCAutoString appKeyValue;
+    nsAutoCString appKeyValue;
     if (mAppIsInPath) {
       // mAppPath is in the users path, so use only the basename as the launcher
       gchar *tmp = g_path_get_basename(mAppPath.get());
@@ -295,7 +265,7 @@ nsGNOMEShellService::SetDefaultBrowser(PRBool aClaimAllTypes,
 
     appKeyValue.AppendLiteral(" %s");
 
-    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(appProtocols); ++i) {
+    for (unsigned int i = 0; i < ArrayLength(appProtocols); ++i) {
       if (appProtocols[i].essential || aClaimAllTypes) {
         gconf->SetAppForProtocol(nsDependentCString(appProtocols[i].name),
                                  appKeyValue);
@@ -313,11 +283,9 @@ nsGNOMEShellService::SetDefaultBrowser(PRBool aClaimAllTypes,
     rv = bundleService->CreateBundle(BRAND_PROPERTIES, getter_AddRefs(brandBundle));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsString brandShortName, brandFullName;
+    nsString brandShortName;
     brandBundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
                                    getter_Copies(brandShortName));
-    brandBundle->GetStringFromName(NS_LITERAL_STRING("brandFullName").get(),
-                                   getter_Copies(brandFullName));
 
     // use brandShortName as the application id.
     NS_ConvertUTF16toUTF8 id(brandShortName);
@@ -328,7 +296,7 @@ nsGNOMEShellService::SetDefaultBrowser(PRBool aClaimAllTypes,
     NS_ENSURE_SUCCESS(rv, rv);
 
     // set handler for the protocols
-    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(appProtocols); ++i) {
+    for (unsigned int i = 0; i < ArrayLength(appProtocols); ++i) {
       if (appProtocols[i].essential || aClaimAllTypes) {
         appInfo->SetAsDefaultForURIScheme(nsDependentCString(appProtocols[i].name));
       }
@@ -337,7 +305,7 @@ nsGNOMEShellService::SetDefaultBrowser(PRBool aClaimAllTypes,
     // set handler for .html and xhtml files and MIME types:
     if (aClaimAllTypes) {
       // Add mime types for html, xhtml extension and set app to just created appinfo.
-      for (unsigned int i = 0; i < NS_ARRAY_LENGTH(appTypes); ++i) {
+      for (unsigned int i = 0; i < ArrayLength(appTypes); ++i) {
         appInfo->SetAsDefaultForMimeType(nsDependentCString(appTypes[i].mimeType));
         appInfo->SetAsDefaultForFileExtensions(nsDependentCString(appTypes[i].extensions));
       }
@@ -348,12 +316,12 @@ nsGNOMEShellService::SetDefaultBrowser(PRBool aClaimAllTypes,
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::GetShouldCheckDefaultBrowser(PRBool* aResult)
+nsGNOMEShellService::GetShouldCheckDefaultBrowser(bool* aResult)
 {
   // If we've already checked, the browser has been started and this is a 
   // new window open, and we don't want to check again.
   if (mCheckedThisSession) {
-    *aResult = PR_FALSE;
+    *aResult = false;
     return NS_OK;
   }
 
@@ -369,7 +337,7 @@ nsGNOMEShellService::GetShouldCheckDefaultBrowser(PRBool* aResult)
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::SetShouldCheckDefaultBrowser(PRBool aShouldCheck)
+nsGNOMEShellService::SetShouldCheckDefaultBrowser(bool aShouldCheck)
 {
   nsCOMPtr<nsIPrefBranch> prefs;
   nsCOMPtr<nsIPrefService> pserve(do_GetService(NS_PREFSERVICE_CONTRACTID));
@@ -382,10 +350,25 @@ nsGNOMEShellService::SetShouldCheckDefaultBrowser(PRBool aShouldCheck)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsGNOMEShellService::GetCanSetDesktopBackground(bool* aResult)
+{
+  // setting desktop background is currently only supported
+  // for Gnome or desktops using the same GSettings and GConf keys
+  const char* gnomeSession = getenv("GNOME_DESKTOP_SESSION_ID");
+  if (gnomeSession) {
+    *aResult = true;
+  } else {
+    *aResult = false;
+  }
+
+  return NS_OK;
+}
+
 static nsresult
 WriteImage(const nsCString& aPath, imgIContainer* aImage)
 {
-#ifndef MOZ_WIDGET_GTK2
+#if !defined(MOZ_WIDGET_GTK)
   return NS_ERROR_NOT_AVAILABLE;
 #else
   nsCOMPtr<nsIImageToPixbuf> imgToPixbuf =
@@ -406,7 +389,7 @@ WriteImage(const nsCString& aPath, imgIContainer* aImage)
                  
 NS_IMETHODIMP
 nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement, 
-                                          PRInt32 aPosition)
+                                          int32_t aPosition)
 {
   nsresult rv;
   nsCOMPtr<nsIImageLoadingContent> imageContent = do_QueryInterface(aElement, &rv);
@@ -422,16 +405,20 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
   if (!container) return rv;
 
   // Set desktop wallpaper filling style
-  nsCAutoString options;
+  nsAutoCString options;
   if (aPosition == BACKGROUND_TILE)
     options.Assign("wallpaper");
   else if (aPosition == BACKGROUND_STRETCH)
     options.Assign("stretched");
+  else if (aPosition == BACKGROUND_FILL)
+    options.Assign("zoom");
+  else if (aPosition == BACKGROUND_FIT)
+    options.Assign("scaled");
   else
     options.Assign("centered");
 
   // Write the background file to the home directory.
-  nsCAutoString filePath(PR_GetEnv("HOME"));
+  nsAutoCString filePath(PR_GetEnv("HOME"));
 
   // get the product brand name from localized strings
   nsString brandName;
@@ -478,7 +465,7 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
                                      nsDependentCString(file_uri));
       g_free(file_uri);
       background_settings->SetBoolean(NS_LITERAL_CSTRING(kDesktopDrawBGGSKey),
-                                      PR_TRUE);
+                                      true);
       return rv;
     }
   }
@@ -496,7 +483,7 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
                      EmptyCString());
 
     gconf->SetString(NS_LITERAL_CSTRING(kDesktopImageKey), filePath);
-    gconf->SetBool(NS_LITERAL_CSTRING(kDesktopDrawBGKey), PR_TRUE);
+    gconf->SetBool(NS_LITERAL_CSTRING(kDesktopDrawBGKey), true);
   }
 
   return rv;
@@ -506,12 +493,12 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
 #define COLOR_8_TO_16_BIT(_c) ((_c) << 8 | (_c))
 
 NS_IMETHODIMP
-nsGNOMEShellService::GetDesktopBackgroundColor(PRUint32 *aColor)
+nsGNOMEShellService::GetDesktopBackgroundColor(uint32_t *aColor)
 {
   nsCOMPtr<nsIGSettingsService> gsettings = 
     do_GetService(NS_GSETTINGSSERVICE_CONTRACTID);
   nsCOMPtr<nsIGSettingsCollection> background_settings;
-  nsCAutoString background;
+  nsAutoCString background;
 
   if (gsettings) {
     gsettings->GetCollectionForSchema(
@@ -545,25 +532,25 @@ nsGNOMEShellService::GetDesktopBackgroundColor(PRUint32 *aColor)
 }
 
 static void
-ColorToCString(PRUint32 aColor, nsCString& aResult)
+ColorToCString(uint32_t aColor, nsCString& aResult)
 {
   // The #rrrrggggbbbb format is used to match gdk_color_to_string()
   char *buf = aResult.BeginWriting(13);
   if (!buf)
     return;
 
-  PRUint16 red = COLOR_8_TO_16_BIT((aColor >> 16) & 0xff);
-  PRUint16 green = COLOR_8_TO_16_BIT((aColor >> 8) & 0xff);
-  PRUint16 blue = COLOR_8_TO_16_BIT(aColor & 0xff);
+  uint16_t red = COLOR_8_TO_16_BIT((aColor >> 16) & 0xff);
+  uint16_t green = COLOR_8_TO_16_BIT((aColor >> 8) & 0xff);
+  uint16_t blue = COLOR_8_TO_16_BIT(aColor & 0xff);
 
   PR_snprintf(buf, 14, "#%04x%04x%04x", red, green, blue);
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::SetDesktopBackgroundColor(PRUint32 aColor)
+nsGNOMEShellService::SetDesktopBackgroundColor(uint32_t aColor)
 {
   NS_ASSERTION(aColor <= 0xffffff, "aColor has extra bits");
-  nsCAutoString colorString;
+  nsAutoCString colorString;
   ColorToCString(aColor, colorString);
 
   nsCOMPtr<nsIGSettingsService> gsettings =
@@ -589,9 +576,9 @@ nsGNOMEShellService::SetDesktopBackgroundColor(PRUint32 aColor)
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::OpenApplication(PRInt32 aApplication)
+nsGNOMEShellService::OpenApplication(int32_t aApplication)
 {
-  nsCAutoString scheme;
+  nsAutoCString scheme;
   if (aApplication == APPLICATION_MAIL)
     scheme.Assign("mailto");
   else if (aApplication == APPLICATION_NEWS)
@@ -611,8 +598,8 @@ nsGNOMEShellService::OpenApplication(PRInt32 aApplication)
   if (!gconf)
     return NS_ERROR_FAILURE;
 
-  PRBool enabled;
-  nsCAutoString appCommand;
+  bool enabled;
+  nsAutoCString appCommand;
   gconf->GetAppForProtocol(scheme, &enabled, appCommand);
 
   if (!enabled)
@@ -620,7 +607,7 @@ nsGNOMEShellService::OpenApplication(PRInt32 aApplication)
 
   // XXX we don't currently handle launching a terminal window.
   // If the handler requires a terminal, bail.
-  PRBool requiresTerminal;
+  bool requiresTerminal;
   gconf->HandlerRequiresTerminal(scheme, &requiresTerminal);
   if (requiresTerminal)
     return NS_ERROR_FAILURE;
@@ -641,7 +628,7 @@ nsGNOMEShellService::OpenApplication(PRInt32 aApplication)
       newArgv[newArgc++] = argv[i];
   }
 
-  newArgv[newArgc] = nsnull;
+  newArgv[newArgc] = nullptr;
 
   gboolean err = g_spawn_async(NULL, newArgv, NULL, G_SPAWN_SEARCH_PATH,
                                NULL, NULL, NULL, NULL);
@@ -653,7 +640,7 @@ nsGNOMEShellService::OpenApplication(PRInt32 aApplication)
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::OpenApplicationWithURI(nsILocalFile* aApplication, const nsACString& aURI)
+nsGNOMEShellService::OpenApplicationWithURI(nsIFile* aApplication, const nsACString& aURI)
 {
   nsresult rv;
   nsCOMPtr<nsIProcess> process = 
@@ -667,11 +654,11 @@ nsGNOMEShellService::OpenApplicationWithURI(nsILocalFile* aApplication, const ns
 
   const nsCString spec(aURI);
   const char* specStr = spec.get();
-  return process->Run(PR_FALSE, &specStr, 1);
+  return process->Run(false, &specStr, 1);
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::GetDefaultFeedReader(nsILocalFile** _retval)
+nsGNOMEShellService::GetDefaultFeedReader(nsIFile** _retval)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=79:
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009 Apple Inc. All rights reserved.
@@ -28,16 +28,15 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef ARMAssembler_h
-#define ARMAssembler_h
+#ifndef assembler_assembler_ARMv7Assembler_h
+#define assembler_assembler_ARMv7Assembler_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE(ASSEMBLER) && CPU(ARM_THUMB2)
 
-#include "AssemblerBuffer.h"
+#include "assembler/assembler/AssemblerBuffer.h"
 #include "assembler/wtf/Assertions.h"
-#include "assembler/wtf/Vector.h"
 #include <stdint.h>
 
 namespace JSC {
@@ -455,6 +454,10 @@ public:
         JmpSrc()
             : m_offset(-1)
         {
+        }
+
+        bool isSet() const {
+            return m_offset != -1;
         }
 
     private:
@@ -1558,9 +1561,9 @@ public:
         return m_formatter.size();
     }
 
-    void* executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool** poolp)
+    void* executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool** poolp, CodeKind kind)
     {
-        void* copy = m_formatter.executableAllocAndCopy(allocator, poolp);
+        void* copy = m_formatter.executableAllocAndCopy(allocator, poolp, kind);
 
         unsigned jumpCount = m_jumpsToLink.size();
         for (unsigned i = 0; i < jumpCount; ++i) {
@@ -1909,8 +1912,8 @@ private:
         size_t size() const { return m_buffer.size(); }
         bool isAligned(int alignment) const { return m_buffer.isAligned(alignment); }
         void* data() const { return m_buffer.data(); }
-        void* executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool** poolp) {
-            return m_buffer.executableAllocAndCopy(allocator, poolp);
+        void* executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool** poolp, CodeKind kind) {
+            return m_buffer.executableAllocAndCopy(allocator, poolp, kind);
         }
         bool oom() const { return m_buffer.oom(); }
 
@@ -1925,4 +1928,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER) && CPU(ARM_THUMB2)
 
-#endif // ARMAssembler_h
+#endif /* assembler_assembler_ARMv7Assembler_h */

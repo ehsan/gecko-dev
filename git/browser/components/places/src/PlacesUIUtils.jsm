@@ -1,46 +1,9 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Places Command Controller.
- *
- * The Initial Developer of the Original Code is Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2005
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Ben Goodger <beng@google.com>
- *   Myk Melez <myk@mozilla.org>
- *   Asaf Romano <mano@mozilla.com>
- *   Sungjoon Steve Won <stevewon@gmail.com>
- *   Dietrich Ayala <dietrich@mozilla.com>
- *   Marco Bonardo <mak77@bonardo.net>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-var EXPORTED_SYMBOLS = ["PlacesUIUtils"];
+this.EXPORTED_SYMBOLS = ["PlacesUIUtils"];
 
 var Ci = Components.interfaces;
 var Cc = Components.classes;
@@ -50,13 +13,19 @@ var Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
+                                  "resource://gre/modules/PluralForm.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
+                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
+
 XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
   Cu.import("resource://gre/modules/PlacesUtils.jsm");
   return PlacesUtils;
 });
 
-var PlacesUIUtils = {
-  ORGANIZER_LEFTPANE_VERSION: 6,
+this.PlacesUIUtils = {
+  ORGANIZER_LEFTPANE_VERSION: 7,
   ORGANIZER_FOLDER_ANNO: "PlacesOrganizer/OrganizerFolder",
   ORGANIZER_QUERY_ANNO: "PlacesOrganizer/OrganizerQuery",
 
@@ -75,21 +44,33 @@ var PlacesUIUtils = {
     return URIFixup.createFixupURI(aSpec, Ci.nsIURIFixup.FIXUP_FLAG_NONE);
   },
 
-  /**
-   * Wraps a string in a nsISupportsString wrapper
-   * @param   aString
-   *          The string to wrap
-   * @returns A nsISupportsString object containing a string.
-   */
-  _wrapString: function PUIU__wrapString(aString) {
-    var s = Cc["@mozilla.org/supports-string;1"].
-            createInstance(Ci.nsISupportsString);
-    s.data = aString;
-    return s;
-  },
-
   getFormattedString: function PUIU_getFormattedString(key, params) {
     return bundle.formatStringFromName(key, params, params.length);
+  },
+
+  /**
+   * Get a localized plural string for the specified key name and numeric value
+   * substituting parameters.
+   *
+   * @param   aKey
+   *          String, key for looking up the localized string in the bundle
+   * @param   aNumber
+   *          Number based on which the final localized form is looked up
+   * @param   aParams
+   *          Array whose items will substitute #1, #2,... #n parameters
+   *          in the string.
+   *
+   * @see https://developer.mozilla.org/en/Localization_and_Plurals
+   * @return The localized plural string.
+   */
+  getPluralString: function PUIU_getPluralString(aKey, aNumber, aParams) {
+    let str = PluralForm.get(aNumber, bundle.GetStringFromName(aKey));
+
+    // Replace #1 with aParams[0], #2 with aParams[1], and so on.
+    return str.replace(/\#(\d+)/g, function (matchedId, matchedNumber) {
+      let param = aParams[parseInt(matchedNumber, 10) - 1];
+      return param !== undefined ? param : matchedId;
+    });
   },
 
   getString: function PUIU_getString(key) {
@@ -345,238 +326,6 @@ var PlacesUIUtils = {
     return null;
   },
 
-  _reportDeprecatedAddBookmarkMethod:
-  function PUIU__reportDeprecatedAddBookmarkMethod() {
-    // Removes "PUIU_".
-    let oldFuncName = arguments.callee.caller.name.slice(5);
-    Cu.reportError(oldFuncName + " is deprecated and will be removed in a " +
-                   "future release. Use showBookmarkDialog instead.");
-  },
-
-  /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
-   */
-  showAddBookmarkUI: function PUIU_showAddBookmarkUI(
-    aURI, aTitle, aDescription, aDefaultInsertionPoint, aShowPicker,
-    aLoadInSidebar, aKeyword, aPostData, aCharSet) {
-    this._reportDeprecatedAddBookmarkMethod();
-
-    var info = {
-      action: "add",
-      type: "bookmark"
-    };
-
-    if (aURI)
-      info.uri = aURI;
-
-    // allow default empty title
-    if (typeof(aTitle) == "string")
-      info.title = aTitle;
-
-    if (aDescription)
-      info.description = aDescription;
-
-    if (aDefaultInsertionPoint) {
-      info.defaultInsertionPoint = aDefaultInsertionPoint;
-      if (!aShowPicker)
-        info.hiddenRows = ["folderPicker"];
-    }
-
-    if (aLoadInSidebar)
-      info.loadBookmarkInSidebar = true;
-
-    if (typeof(aKeyword) == "string") {
-      info.keyword = aKeyword;
-      if (typeof(aPostData) == "string")
-        info.postData = aPostData;
-      if (typeof(aCharSet) == "string")
-        info.charSet = aCharSet;
-    }
-
-    return this.showBookmarkDialog(info);
-  },
-
-  /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
-   */
-  showMinimalAddBookmarkUI:
-  function PUIU_showMinimalAddBookmarkUI(
-    aURI, aTitle, aDescription, aDefaultInsertionPoint, aShowPicker,
-    aLoadInSidebar, aKeyword, aPostData, aCharSet) {
-    this._reportDeprecatedAddBookmarkMethod();
-
-    var info = {
-      action: "add",
-      type: "bookmark",
-      hiddenRows: ["description"]
-    };
-    if (aURI)
-      info.uri = aURI;
-
-    // allow default empty title
-    if (typeof(aTitle) == "string")
-      info.title = aTitle;
-
-    if (aDescription)
-      info.description = aDescription;
-
-    if (aDefaultInsertionPoint) {
-      info.defaultInsertionPoint = aDefaultInsertionPoint;
-      if (!aShowPicker)
-        info.hiddenRows.push("folderPicker");
-    }
-
-    if (aLoadInSidebar)
-      info.loadBookmarkInSidebar = true;
-    else
-      info.hiddenRows = info.hiddenRows.concat(["location", "loadInSidebar"]);
-
-    if (typeof(aKeyword) == "string") {
-      info.keyword = aKeyword;
-      // Hide the Tags field if we are adding a keyword.
-      info.hiddenRows.push("tags");
-      // Keyword related params.
-      if (typeof(aPostData) == "string")
-        info.postData = aPostData;
-      if (typeof(aCharSet) == "string")
-        info.charSet = aCharSet;
-    }
-    else
-      info.hiddenRows.push("keyword");
-
-    return this.showBookmarkDialog(info, undefined, true);
-  },
-
-  /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
-   */
-  showAddLivemarkUI: function PUIU_showAddLivemarkURI(aFeedURI,
-                                                      aSiteURI,
-                                                      aTitle,
-                                                      aDescription,
-                                                      aDefaultInsertionPoint,
-                                                      aShowPicker) {
-    this._reportDeprecatedAddBookmarkMethod();
-
-    var info = {
-      action: "add",
-      type: "livemark"
-    };
-
-    if (aFeedURI)
-      info.feedURI = aFeedURI;
-    if (aSiteURI)
-      info.siteURI = aSiteURI;
-
-    // allow default empty title
-    if (typeof(aTitle) == "string")
-      info.title = aTitle;
-
-    if (aDescription)
-      info.description = aDescription;
-
-    if (aDefaultInsertionPoint) {
-      info.defaultInsertionPoint = aDefaultInsertionPoint;
-      if (!aShowPicker)
-        info.hiddenRows = ["folderPicker"];
-    }
-    return this.showBookmarkDialog(info);
-  },
-
-  /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
-   */
-  showMinimalAddLivemarkUI:
-  function PUIU_showMinimalAddLivemarkURI(
-    aFeedURI, aSiteURI, aTitle, aDescription, aDefaultInsertionPoint,
-    aShowPicker) {
-
-    this._reportDeprecatedAddBookmarkMethod();
-
-    var info = {
-      action: "add",
-      type: "livemark",
-      hiddenRows: ["feedLocation", "siteLocation", "description"]
-    };
-
-    if (aFeedURI)
-      info.feedURI = aFeedURI;
-    if (aSiteURI)
-      info.siteURI = aSiteURI;
-
-    // allow default empty title
-    if (typeof(aTitle) == "string")
-      info.title = aTitle;
-
-    if (aDescription)
-      info.description = aDescription;
-
-    if (aDefaultInsertionPoint) {
-      info.defaultInsertionPoint = aDefaultInsertionPoint;
-      if (!aShowPicker)
-        info.hiddenRows.push("folderPicker");
-    }
-    return this.showBookmarkDialog(info, undefined, true);
-  },
-
-  /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
-   */
-  showMinimalAddMultiBookmarkUI: function PUIU_showAddMultiBookmarkUI(aURIList) {
-    this._reportDeprecatedAddBookmarkMethod();
-
-    if (aURIList.length == 0)
-      throw("showAddMultiBookmarkUI expects a list of nsIURI objects");
-    var info = {
-      action: "add",
-      type: "folder",
-      hiddenRows: ["description"],
-      URIList: aURIList
-    };
-    return this.showBookmarkDialog(info, undefined, true);
-  },
-
-  /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
-   */
-  showItemProperties: function PUIU_showItemProperties(aItemId, aType, aReadOnly) {
-    this._reportDeprecatedAddBookmarkMethod();
-
-    var info = {
-      action: "edit",
-      type: aType,
-      itemId: aItemId,
-      readOnly: aReadOnly
-    };
-    return this.showBookmarkDialog(info);
-  },
-
-  /**
-   * This is here for compatibility reasons, use ShowBookmarkDialog instead.
-   */
-  showAddFolderUI:
-  function PUIU_showAddFolderUI(aTitle, aDefaultInsertionPoint, aShowPicker) {
-    this._reportDeprecatedAddBookmarkMethod();
-
-    var info = {
-      action: "add",
-      type: "folder",
-      hiddenRows: []
-    };
-
-    // allow default empty title
-    if (typeof(aTitle) == "string")
-      info.title = aTitle;
-
-    if (aDefaultInsertionPoint) {
-      info.defaultInsertionPoint = aDefaultInsertionPoint;
-      if (!aShowPicker)
-        info.hiddenRows.push("folderPicker");
-    }
-    return this.showBookmarkDialog(info);
-  },
-
-
   /**
    * Shows the bookmark dialog corresponding to the specified info.
    *
@@ -585,29 +334,26 @@ var PlacesUIUtils = {
    *        See documentation at the top of bookmarkProperties.js
    * @param aWindow
    *        Owner window for the new dialog.
-   * @param aMinimalUI [optional]
-   *        Whether to open the dialog in "minimal ui" mode. Do not pass this
-   *        for new callers.  It'll be removed in a future release.
    *
    * @see documentation at the top of bookmarkProperties.js
    * @return true if any transaction has been performed, false otherwise.
    */
   showBookmarkDialog:
-  function PUIU_showBookmarkDialog(aInfo, aParentWindow, aMinimalUI) {
-    if (!aParentWindow) {
-      aParentWindow = this._getWindow(null);
-    }
-
+  function PUIU_showBookmarkDialog(aInfo, aParentWindow) {
     // Preserve size attributes differently based on the fact the dialog has
-    // a folder picker or not.
-    let minimalUI = "hiddenRows" in aInfo &&
-                    aInfo.hiddenRows.indexOf("folderPicker") != -1;
-    let dialogURL = aMinimalUI ?
+    // a folder picker or not.  If the picker is visible, the dialog should
+    // be resizable since it may not show enough content for the folders
+    // hierarchy.
+    let hasFolderPicker = !("hiddenRows" in aInfo) ||
+                          aInfo.hiddenRows.indexOf("folderPicker") == -1;
+    // Use a different chrome url, since this allows to persist different sizes,
+    // based on resizability of the dialog.
+    let dialogURL = hasFolderPicker ?
                     "chrome://browser/content/places/bookmarkProperties2.xul" :
                     "chrome://browser/content/places/bookmarkProperties.xul";
 
     let features =
-      "centerscreen,chrome,modal,resizable=" + (aMinimalUI ? "yes" : "no");
+      "centerscreen,chrome,modal,resizable=" + (hasFolderPicker ? "yes" : "no");
 
     aParentWindow.openDialog(dialogURL, "",  features, aInfo);
     return ("performed" in aInfo && aInfo.performed);
@@ -653,8 +399,7 @@ var PlacesUIUtils = {
    * TRANSITION_LINK.
    */
   markPageAsTyped: function PUIU_markPageAsTyped(aURL) {
-    PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory)
-               .markPageAsTyped(this.createFixedURI(aURL));
+    PlacesUtils.history.markPageAsTyped(this.createFixedURI(aURL));
   },
 
   /**
@@ -675,8 +420,7 @@ var PlacesUIUtils = {
    * so automatic visits can be correctly ignored.
    */
   markPageAsFollowedLink: function PUIU_markPageAsFollowedLink(aURL) {
-    PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory)
-               .markPageAsFollowedLink(this.createFixedURI(aURL));
+    PlacesUtils.history.markPageAsFollowedLink(this.createFixedURI(aURL));
   },
 
   /**
@@ -790,17 +534,6 @@ var PlacesUIUtils = {
     if (!aItemsToOpen.length)
       return;
 
-    var urls = [];
-    for (var i = 0; i < aItemsToOpen.length; i++) {
-      var item = aItemsToOpen[i];
-      if (item.isBookmark)
-        this.markPageAsFollowedBookmark(item.uri);
-      else
-        this.markPageAsTyped(item.uri);
-
-      urls.push(item.uri);
-    }
-
     // Prefer the caller window if it's a browser window, otherwise use
     // the top browser window.
     var browserWindow = null;
@@ -808,15 +541,27 @@ var PlacesUIUtils = {
       aWindow && aWindow.document.documentElement.getAttribute("windowtype") == "navigator:browser" ?
       aWindow : this._getTopBrowserWin();
 
+    var urls = [];
+    let skipMarking = browserWindow && PrivateBrowsingUtils.isWindowPrivate(browserWindow);
+    for (let item of aItemsToOpen) {
+      urls.push(item.uri);
+      if (skipMarking) {
+        continue;
+      }
+
+      if (item.isBookmark)
+        this.markPageAsFollowedBookmark(item.uri);
+      else
+        this.markPageAsTyped(item.uri);
+    }
+
     // whereToOpenLink doesn't return "window" when there's no browser window
     // open (Bug 630255).
     var where = browserWindow ?
                 browserWindow.whereToOpenLink(aEvent, false, true) : "window";
     if (where == "window") {
       // There is no browser window open, thus open a new one.
-      var uriList = Cc["@mozilla.org/supports-string;1"].
-                  createInstance(Ci.nsISupportsString);
-      uriList.data = urls.join("|");
+      var uriList = PlacesUtils.toISupportsString(urls.join("|"));
       var args = Cc["@mozilla.org/supports-array;1"].
                   createInstance(Ci.nsISupportsArray);
       args.AppendElement(uriList);      
@@ -827,48 +572,15 @@ var PlacesUIUtils = {
     }
 
     var loadInBackground = where == "tabshifted" ? true : false;
-    var replaceCurrentTab = where == "tab" ? false : true;
-    browserWindow.gBrowser.loadTabs(urls, loadInBackground, replaceCurrentTab);
-  },
-
-  /**
-   * Helper method for methods which are forced to take a view/window
-   * parameter as an optional parameter.  It will be removed post Fx4.
-   */
-  _getWindow: function PUIU__getWindow(aView) {
-    if (aView) {
-      // Pratically, this is the case for places trees.
-      if (aView instanceof Components.interfaces.nsIDOMNode)
-        return aView.ownerDocument.defaultView;
-
-      return Cu.getGlobalForObject(aView);
-    }
-
-    let caller = arguments.callee.caller;
-
-    // If a view wasn't expected, the method should have got a window.
-    if (aView === null) {
-      Components.utils.reportError("The api has changed. A window should be " +
-                                   "passed to " + caller.name + ".  Not " +
-                                   "passing a window will throw in a future " +
-                                   "release.");
-    }
-    else {
-      Components.utils.reportError("The api has changed. A places view " +
-                                   "should be passed to " + caller.name + ". " +
-                                   "Not passing a view will throw in a future " +
-                                   "release.");
-    }
-
-    // This could certainly break in some edge cases (like bug 562998), but
-    // that's the best we should do for those extreme backwards-compatibility cases.
-    let topBrowserWin = this._getTopBrowserWin();
-    return topBrowserWin ? topBrowserWin : focusManager.focusedWindow;
+    // For consistency, we want all the bookmarks to open in new tabs, instead
+    // of having one of them replace the currently focused tab.  Hence we call
+    // loadTabs with aReplace set to false.
+    browserWindow.gBrowser.loadTabs(urls, loadInBackground, false);
   },
 
   openContainerNodeInTabs:
   function PUIU_openContainerInTabs(aNode, aEvent, aView) {
-    let window = this._getWindow(aView);
+    let window = aView.ownerWindow;
 
     let urlsToOpen = PlacesUtils.getURLsForContainerNode(aNode);
     if (!this._confirmOpenInTabs(urlsToOpen.length, window))
@@ -878,7 +590,7 @@ var PlacesUIUtils = {
   },
 
   openURINodesInTabs: function PUIU_openURINodesInTabs(aNodes, aEvent, aView) {
-    let window = this._getWindow(aView);
+    let window = aView.ownerWindow;
 
     let urlsToOpen = [];
     for (var i=0; i < aNodes.length; i++) {
@@ -903,8 +615,8 @@ var PlacesUIUtils = {
    */
   openNodeWithEvent:
   function PUIU_openNodeWithEvent(aNode, aEvent, aView) {
-    let window = this._getWindow(aView);
-    this._openNodeIn(aNode, window.whereToOpenLink(aEvent), window);
+    let window = aView.ownerWindow;
+    this._openNodeIn(aNode, window.whereToOpenLink(aEvent, false, true), window);
   },
 
   /**
@@ -913,7 +625,7 @@ var PlacesUIUtils = {
    * see also openUILinkIn
    */
   openNodeIn: function PUIU_openNodeIn(aNode, aWhere, aView) {
-    let window = this._getWindow(aView);
+    let window = aView.ownerWindow;
     this._openNodeIn(aNode, aWhere, window);
   },
 
@@ -922,10 +634,12 @@ var PlacesUIUtils = {
         this.checkURLSecurity(aNode, aWindow)) {
       let isBookmark = PlacesUtils.nodeIsBookmark(aNode);
 
-      if (isBookmark)
-        this.markPageAsFollowedBookmark(aNode.uri);
-      else
-        this.markPageAsTyped(aNode.uri);
+      if (!PrivateBrowsingUtils.isWindowPrivate(aWindow)) {
+        if (isBookmark)
+          this.markPageAsFollowedBookmark(aNode.uri);
+        else
+          this.markPageAsTyped(aNode.uri);
+      }
 
       // Check whether the node is a bookmark which should be opened as
       // a web panel
@@ -939,7 +653,9 @@ var PlacesUIUtils = {
           }
         }
       }
-      aWindow.openUILinkIn(aNode.uri, aWhere);
+      aWindow.openUILinkIn(aNode.uri, aWhere, {
+        inBackground: Services.prefs.getBoolPref("browser.tabs.loadBookmarksInBackground")
+      });
     }
   },
 
@@ -957,9 +673,9 @@ var PlacesUIUtils = {
     return aUrlString.substr(0, aUrlString.indexOf(":"));
   },
 
-  getBestTitle: function PUIU_getBestTitle(aNode) {
+  getBestTitle: function PUIU_getBestTitle(aNode, aDoNotCutTitle) {
     var title;
-    if (!aNode.title && PlacesUtils.uriTypes.indexOf(aNode.type) != -1) {
+    if (!aNode.title && PlacesUtils.nodeIsURI(aNode)) {
       // if node title is empty, try to set the label using host and filename
       // PlacesUtils._uri() will throw if aNode.uri is not a valid URI
       try {
@@ -967,9 +683,13 @@ var PlacesUIUtils = {
         var host = uri.host;
         var fileName = uri.QueryInterface(Ci.nsIURL).fileName;
         // if fileName is empty, use path to distinguish labels
-        title = host + (fileName ?
-                        (host ? "/" + this.ellipsis + "/" : "") + fileName :
-                        uri.path);
+        if (aDoNotCutTitle) {
+          title = host + uri.path;
+        } else {
+          title = host + (fileName ?
+                           (host ? "/" + this.ellipsis + "/" : "") + fileName :
+                           uri.path);
+        }
       }
       catch (e) {
         // Use (no title) for non-standard URIs (data:, javascript:, ...)
@@ -1001,6 +721,7 @@ var PlacesUIUtils = {
     let queries = {
       "PlacesRoot": { title: "" },
       "History": { title: this.getString("OrganizerQueryHistory") },
+      "Downloads": { title: this.getString("OrganizerQueryDownloads") },
       "Tags": { title: this.getString("OrganizerQueryTags") },
       "AllBookmarks": { title: this.getString("OrganizerQueryAllBookmarks") },
       "BookmarksToolbar":
@@ -1017,7 +738,7 @@ var PlacesUIUtils = {
           concreteId: PlacesUtils.unfiledBookmarksFolderId },
     };
     // All queries but PlacesRoot.
-    const EXPECTED_QUERY_COUNT = 6;
+    const EXPECTED_QUERY_COUNT = 7;
 
     // Removes an item and associated annotations, ignoring eventual errors.
     function safeRemoveItem(aItemId) {
@@ -1190,7 +911,12 @@ var PlacesUIUtils = {
                           "&sort=" +
                           Ci.nsINavHistoryQueryOptions.SORT_BY_DATE_DESCENDING);
 
-        // XXX: Downloads.
+        // Downloads.
+        this.create_query("Downloads", leftPaneRoot,
+                          "place:transition=" +
+                          Ci.nsINavHistoryService.TRANSITION_DOWNLOAD +
+                          "&sort=" +
+                          Ci.nsINavHistoryQueryOptions.SORT_BY_DATE_DESCENDING);
 
         // Tags Query.
         this.create_query("Tags", leftPaneRoot,
@@ -1276,10 +1002,6 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ellipsis", function() {
   return Services.prefs.getComplexValue("intl.ellipsis",
                                         Ci.nsIPrefLocalizedString).data;
 });
-
-XPCOMUtils.defineLazyServiceGetter(PlacesUIUtils, "privateBrowsing",
-                                   "@mozilla.org/privatebrowsing;1",
-                                   "nsIPrivateBrowsingService");
 
 XPCOMUtils.defineLazyServiceGetter(this, "URIFixup",
                                    "@mozilla.org/docshell/urifixup;1",
@@ -1419,10 +1141,10 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ptm", function() {
     //// nsITransactionManager forwarders.
 
     beginBatch: function()
-      PlacesUtils.transactionManager.beginBatch(),
+      PlacesUtils.transactionManager.beginBatch(null),
 
     endBatch: function()
-      PlacesUtils.transactionManager.endBatch(),
+      PlacesUtils.transactionManager.endBatch(false),
 
     doTransaction: function(txn)
       PlacesUtils.transactionManager.doTransaction(txn),

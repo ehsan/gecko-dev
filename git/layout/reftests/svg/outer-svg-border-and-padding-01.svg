@@ -1,6 +1,6 @@
 <!--
      Any copyright is dedicated to the Public Domain.
-     http://creativecommons.org/licenses/publicdomain/
+     http://creativecommons.org/publicdomain/zero/1.0/
 -->
 <svg xmlns="http://www.w3.org/2000/svg" version="1.1" class="reftest-wait"
      style="border: 10px solid lime; padding: 10px; background: lime;">
@@ -42,7 +42,7 @@ function hide_red_rects()
 }
 
 document.addEventListener("MozReftestInvalidate", hide_red_rects, false);
-setTimeout(hide_red_rects, 1000)
+setTimeout(hide_red_rects, 4000); // fallback for running outside reftest
 
   //]]>
   </script>

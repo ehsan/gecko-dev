@@ -6,8 +6,6 @@
   xmlns:html="http://www.w3.org/1999/xhtml"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <title>Plugin Crash Notification Test</title>
-  <script type="application/javascript" 
-   src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
   <script type="application/javascript"
@@ -18,6 +16,7 @@
 <script class="testbody" type="application/javascript">
 <![CDATA[
 SimpleTest.waitForExplicitFinish();
+SimpleTest.ignoreAllUncaughtExceptions();
 
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
@@ -39,6 +38,7 @@ var testObserver = {
        "Subject should be a property bag");
     ok(subject.hasKey("serverCrashID"), "Should have a server crash ID");
     let crashid = subject.getPropertyAsAString("serverCrashID");
+    isnot(crashid, "", "Server crash ID should not be an empty string");
 
     // Verify the data. The SJS script will return the data that was POSTed
     let req = new XMLHttpRequest();
@@ -86,19 +86,14 @@ function onPluginCrashed(aEvent) {
   ok(true, "Plugin crashed notification received");
   is(aEvent.type, "PluginCrashed", "event is correct type");
 
-  let pleaseLink = document.getAnonymousElementByAttribute(
-                            aEvent.target, "class", "pleaseSubmitLink");
+  let submitButton = document.getAnonymousElementByAttribute(aEvent.target,
+                                                             "class",
+                                                             "submitButton");
   // try to submit this report
-  sendMouseEvent({type:'click'}, pleaseLink, window);
+  sendMouseEvent({type:'click'}, submitButton, window);
 }
 
 function runTests() {
-  if (navigator.userAgent.match(/ SeaMonkey\//)) {
-    todo(false, "Skipping this test on Seamonkey ftb. (Bug 604129)");
-    SimpleTest.finish();
-    return;
-  }
-
   if (!SimpleTest.testPluginIsOOP()) {
     todo(false, "Skipping this test when test plugin is not OOP.");
     SimpleTest.finish();
@@ -130,4 +125,3 @@ function runTests() {
 ]]>
 </script>
 </window>
-

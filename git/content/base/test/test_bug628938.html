@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=628938
 -->
 <head>
   <title>Test for Bug 628938</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -88,7 +87,7 @@ function regularWalk()
     [ false, "\n" ],
   ];
   var walker = document.createTreeWalker(document.getElementById('content'),
-                                         NodeFilter.SHOW_ALL, null, true);
+                                         NodeFilter.SHOW_ALL, null);
 
   walkTree(walker);
 
@@ -126,7 +125,7 @@ function noWhiteSpaceWalk()
                                                return NodeFilter.FILTER_REJECT;
                                              return NodeFilter.FILTER_ACCEPT;
                                            }
-                                         }, true);
+                                         });
 
   walkTree(walker);
 
@@ -149,7 +148,7 @@ function onlyElementsWalk()
     [ true, "DIV" ],
   ];
   var walker = document.createTreeWalker(document.getElementById('content'),
-                                         NodeFilter.SHOW_ELEMENT, null, true);
+                                         NodeFilter.SHOW_ELEMENT, null);
 
   walkTree(walker);
 
@@ -188,7 +187,7 @@ function onlyDivSubTreeWalk()
                                              }
                                              return NodeFilter.FILTER_SKIP;
                                            }
-                                         }, true);
+                                         });
 
   walkTree(walker);
 
@@ -221,7 +220,7 @@ function onlyDivDataWalk()
                                                return NodeFilter.FILTER_ACCEPT;
                                              return NodeFilter.FILTER_SKIP;
                                            }
-                                         }, true);
+                                         });
 
   walkTree(walker);
 

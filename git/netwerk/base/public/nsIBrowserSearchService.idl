@@ -1,49 +1,13 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Browser Search Service.
- *
- * The Initial Developer of the Original Code is
- * Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2005-2006
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Ben Goodger <beng@google.com> (Original author)
- *   Gavin Sharp <gavin@gavinsharp.com>
- *   Joe Hughes  <joe@retrovirus.com>
- *   Pamela Greene <pamg.bugs@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
 
 interface nsIURI;
 interface nsIInputStream;
 
-[scriptable, uuid(58e4f602-a7c8-4cd1-9dca-716705e826ef)]
+[scriptable, uuid(82ec6ee8-68b5-49ef-87b7-0d5240f8a183)]
 interface nsISearchSubmission : nsISupports
 {
   /**
@@ -53,12 +17,18 @@ interface nsISearchSubmission : nsISupports
   readonly attribute nsIInputStream postData;
 
   /**
+   * The POST data associated with a search submission as an
+   * application/x-www-form-urlencoded string. May be null.
+   */
+  readonly attribute AString postDataString;
+
+  /**
    * The URI to submit a search to.
    */
   readonly attribute nsIURI uri;
 };
 
-[scriptable, uuid(803e510b-4b27-4ba2-a16d-bb5fa953c166)]
+[scriptable, uuid(ccf6aa20-10a9-4a0c-a81d-31b10ea846de)]
 interface nsISearchEngine : nsISupports
 {
   /**
@@ -73,12 +43,18 @@ interface nsISearchEngine : nsISupports
    *         The MIME type that we'd like to receive in response
    *         to this submission.  If null, will default to "text/html".
    *
+   * @param purpose [optional]
+   *        A string meant to indicate the context of the search request. This
+   *        allows the search service to provide a different nsISearchSubmission
+   *        depending on e.g. where the search is triggered in the UI.
+   *
    * @returns A nsISearchSubmission object that contains information about what
    *          to send to the search engine.  If no submission can be
    *          obtained for the given responseType, returns null.
    */
   nsISearchSubmission getSubmission(in AString data,
-                                    [optional] in AString responseType);
+                                    [optional] in AString responseType,
+                                    [optional] in AString purpose);
 
   /**
    * Adds a parameter to the search engine's submission data. This should only
@@ -162,17 +138,85 @@ interface nsISearchEngine : nsISupports
    */
   readonly attribute long type;
 
+  /**
+   * An optional unique identifier for this search engine within the context of
+   * the distribution, as provided by the distributing entity.
+   */
+  readonly attribute AString identifier;
+
 };
 
-[scriptable, uuid(8307b8f2-08ea-45b8-96bf-b1dc7688fe3b)]
+[scriptable, uuid(9fc39136-f08b-46d3-b232-96f4b7b0e235)]
+interface nsISearchInstallCallback : nsISupports
+{
+  const unsigned long ERROR_UNKNOWN_FAILURE = 0x1;
+  const unsigned long ERROR_DUPLICATE_ENGINE = 0x2;
+
+  /**
+   * Called to indicate that the engine addition process succeeded.
+   *
+   * @param engine
+   *        The nsISearchEngine object that was added (will not be null).
+   */
+  void onSuccess(in nsISearchEngine engine);
+
+  /**
+   * Called to indicate that the engine addition process failed.
+   *
+   * @param errorCode
+   *        One of the ERROR_* values described above indicating the cause of
+   *        the failure.
+   */
+  void onError(in unsigned long errorCode);
+};
+
+/**
+ * Callback for asynchronous initialization of nsIBrowserSearchService
+ */
+[scriptable, function, uuid(02256156-16e4-47f1-9979-76ff98ceb590)]
+interface nsIBrowserSearchInitObserver : nsISupports
+{
+  /**
+   * Called once initialization of the browser search service is complete.
+   *
+   * @param aStatus The status of that service.
+   */
+  void onInitComplete(in nsresult aStatus);
+};
+
+[scriptable, uuid(939d74a4-5b01-463c-80c7-4301f0c0f9ef)]
 interface nsIBrowserSearchService : nsISupports
 {
+  /**
+   * Start asynchronous initialization.
+   *
+   * The callback is triggered once initialization is complete, which may be
+   * immediately, if initialization has already been completed by some previous
+   * call to this method. The callback is always invoked asynchronously.
+   *
+   * @param aObserver An optional object observing the end of initialization.
+   */
+  void init([optional] in nsIBrowserSearchInitObserver aObserver);
+
+  /**
+   * Determine whether initialization has been completed.
+   *
+   * Clients of the service can use this attribute to quickly determine whether
+   * initialization is complete, and decide to trigger some immediate treatment,
+   * to launch asynchronous initialization or to bailout.
+   *
+   * Note that this attribute does not indicate that initialization has succeeded.
+   *
+   * @return |true| if the search service is now initialized, |false| if
+   * initialization has not been triggered yet.
+   */
+  readonly attribute bool isInitialized;
+
   /**
    * Adds a new search engine from the file at the supplied URI, optionally
    * asking the user for confirmation first.  If a confirmation dialog is
    * shown, it will offer the option to begin using the newly added engine
-   * right away; if no confirmation dialog is shown, the new engine will be
-   * used right away automatically.
+   * right away.
    *
    * @param engineURL
    *        The URL to the search engine's description file.
@@ -192,11 +236,16 @@ interface nsIBrowserSearchService : nsISupports
    *        value is false, the engine will be added to the list upon successful
    *        load, but it will not be selected as the current engine.
    *
+   * @param callback
+   *        A nsISearchInstallCallback that will be notified when the
+   *        addition is complete, or if the addition fails. It will not be
+   *        called if addEngine throws an exception.
+   *
    * @throws NS_ERROR_FAILURE if the type is invalid, or if the description
    *         file cannot be successfully loaded.
    */
   void addEngine(in AString engineURL, in long dataType, in AString iconURL,
-                 in boolean confirm);
+                 in boolean confirm, [optional] in nsISearchInstallCallback callback);
 
   /**
    * Adds a new search engine, without asking the user for confirmation and
@@ -315,20 +364,13 @@ interface nsIBrowserSearchService : nsISupports
    * The default search engine. Returns the first visible engine if the default
    * engine is hidden. May be null if there are no visible search engines.
    */
-  readonly attribute nsISearchEngine defaultEngine;
+  attribute nsISearchEngine defaultEngine;
 
   /**
    * The currently active search engine. May be null if there are no visible
    * search engines.
    */
   attribute nsISearchEngine currentEngine;
-
-  /**
-   * The original default engine. This differs from the "defaultEngine"
-   * attribute in that it always returns a given build's default engine,
-   * regardless of whether it is hidden.
-   */
-  readonly attribute nsISearchEngine originalDefaultEngine;
 };
 
 %{ C++
@@ -367,5 +409,12 @@ interface nsIBrowserSearchService : nsISupports
  * Sent when the "current" engine is changed.
  */
 #define SEARCH_ENGINE_CURRENT      "engine-current";
+
+/**
+ * Sent when the "default" engine is changed.
+ */
+#define SEARCH_ENGINE_DEFAULT      "engine-default";
+
+
 
 %}

@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=596333
 -->
 <head>
   <title>Test for Bug 596333</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
@@ -20,17 +19,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=596333
 <script type="application/javascript">
 
 /** Test for Bug 596333 **/
+const Ci = SpecialPowers.Ci;
 
 SimpleTest.waitForExplicitFinish();
-addLoadEvent(function() SimpleTest.executeSoon(runTest));
+addLoadEvent(runTest);
 
 var gMisspeltWords;
 
 function getEditor() {
-  var Ci = Components.interfaces;
-  return document.getElementById("edit")
-                 .QueryInterface(Ci.nsIDOMNSEditableElement)
-                 .editor;
+  return SpecialPowers.wrap(document.getElementById("edit")).editor;
 }
 
 function getSpellCheckSelection() {
@@ -52,12 +49,19 @@ function append(str) {
   }
 }
 
+function getLoadContext() {
+  return window.QueryInterface(Ci.nsIInterfaceRequestor)
+               .getInterface(Ci.nsIWebNavigation)
+               .QueryInterface(Ci.nsILoadContext);
+}
+
 function paste(str) {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
   var edit = document.getElementById("edit");
   var Cc = Components.classes, Ci = Components.interfaces;
   var trans = Cc["@mozilla.org/widget/transferable;1"].createInstance(Ci.nsITransferable);
+  trans.init(getLoadContext());
   var s = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
   s.data = str;
   trans.setTransferData("text/unicode", s, str.length * 2);
@@ -65,13 +69,13 @@ function paste(str) {
   getEditor().pasteTransferable(trans);
 }
 
-function runTest() {
+function runOnFocus() {
+  var edit = document.getElementById("edit");
+
   gMisspeltWords = ["haz", "cheezburger"];
   is(isSpellingCheckOk(), true, "All misspellings before editing are accounted for.");
-
-  var edit = document.getElementById("edit");
   append(" becaz I'm a lolcat!");
-  SimpleTest.executeSoon(function() {
+  onSpellCheck(edit, function () {
     gMisspeltWords.push("becaz");
     gMisspeltWords.push("lolcat");
     is(isSpellingCheckOk(), true, "All misspellings after typing are accounted for.");
@@ -80,7 +84,7 @@ function runTest() {
     // the textarea and see if the spell check after the blur event catches it.
     append(" workd");
     edit.blur();
-    SimpleTest.executeSoon(function() {
+    onSpellCheck(edit, function () {
       gMisspeltWords.push("workd");
       is(isSpellingCheckOk(), true, "All misspellings after blur are accounted for.");
 
@@ -88,7 +92,7 @@ function runTest() {
       gMisspeltWords = ["workd"];
       edit.value = "";
       append("workd ");
-      SimpleTest.executeSoon(function() {
+      onSpellCheck(edit, function () {
         is(isSpellingCheckOk(), true, "Misspelling in the first entered word is accounted for.");
 
         // Make sure that pasting would also trigger spell checking for the previous word
@@ -96,7 +100,7 @@ function runTest() {
         edit.value = "";
         append("workd");
         paste("           x");
-        SimpleTest.executeSoon(function() {
+        onSpellCheck(edit, function () {
           is(isSpellingCheckOk(), true, "Misspelling is accounted for after pasting.");
 
           SimpleTest.finish();
@@ -104,6 +108,15 @@ function runTest() {
       });
     });
   });
+}
+
+function runTest()
+{
+  var edit = document.getElementById("edit");
+  edit.focus();
+
+  SpecialPowers.Cu.import("resource://gre/modules/AsyncSpellCheckTestHelper.jsm", window);
+  onSpellCheck(edit, runOnFocus);
 }
 
 function isSpellingCheckOk() {

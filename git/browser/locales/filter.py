@@ -1,8 +1,13 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 def test(mod, path, entity = None):
   import re
-  # ignore anyhting but Firefox
+  # ignore anything but Firefox
   if mod not in ("netwerk", "dom", "toolkit", "security/manager",
-                 "browser", "extensions/reporter", "extensions/spellcheck",
+                 "browser", "browser/metro", "webapprt",
+                 "extensions/reporter", "extensions/spellcheck",
                  "other-licenses/branding/firefox",
                  "browser/branding/official",
                  "services/sync"):

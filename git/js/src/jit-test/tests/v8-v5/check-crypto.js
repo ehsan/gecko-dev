@@ -1,3 +1,7 @@
+// |jit-test| slow;
+// This test times out in rooting analyis builds, and so is marked slow so that
+// it's not run as part of the rooting analysis tests on tinderbox.
+
 /*
  * Copyright (c) 2003-2005  Tom Wu
  * All Rights Reserved.

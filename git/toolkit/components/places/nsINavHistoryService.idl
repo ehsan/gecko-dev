@@ -1,44 +1,7 @@
 /* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Places code.
- *
- * The Initial Developer of the Original Code is
- * Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2005
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Brett Wilson <brett@gmail.com>
- *   Dietrich Ayala <dietrich@mozilla.com>
- *   Marco Bonardo <mak77@bonardo.net>
- *   Asaf Romano <mano@mozilla.com>
- *   Drew Willcoxon <adw@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
  * Using Places services after quit-application is not reliable, so make
@@ -87,9 +50,19 @@ interface nsINavHistoryResultNode : nsISupports
    * corresponding specialized result node interface.
    */
   const unsigned long RESULT_TYPE_URI = 0;               // nsINavHistoryResultNode
-  const unsigned long RESULT_TYPE_VISIT = 1;             // nsINavHistoryVisitResultNode
-  const unsigned long RESULT_TYPE_FULL_VISIT = 2;        // nsINavHistoryFullVisitResultNode
-  const unsigned long RESULT_TYPE_DYNAMIC_CONTAINER = 4; // nsINavHistoryContainerResultNode
+
+  // Visit nodes are deprecated and unsupported.
+  // This line exists just to avoid reusing the value:
+  // const unsigned long RESULT_TYPE_VISIT = 1;
+
+  // Full visit nodes are deprecated and unsupported.
+  // This line exists just to avoid reusing the value:
+  // const unsigned long RESULT_TYPE_FULL_VISIT = 2;
+
+  // Dynamic containers are deprecated and unsupported.
+  // This const exists just to avoid reusing the value:
+  // const unsigned long RESULT_TYPE_DYNAMIC_CONTAINER = 4; // nsINavHistoryContainerResultNode
+
   const unsigned long RESULT_TYPE_QUERY = 5;             // nsINavHistoryQueryResultNode
   const unsigned long RESULT_TYPE_FOLDER = 6;            // nsINavHistoryQueryResultNode
   const unsigned long RESULT_TYPE_SEPARATOR = 7;         // nsINavHistoryResultNode
@@ -185,54 +158,11 @@ interface nsINavHistoryResultNode : nsISupports
 
 
 /**
- * When you request RESULT_TYPE_VISIT from query options, you will get this
- * interface for each item, which includes the session ID so that we can
- * group items from the same session together.
- */
-[scriptable, uuid(8e2c5a86-b33d-4fa6-944b-559af7e95fcd)]
-interface nsINavHistoryVisitResultNode : nsINavHistoryResultNode
-{
-  /**
-   * This indicates the session ID of the * visit. This is used for session
-   * grouping when a tree view is sorted by date.
-   */
-  readonly attribute long long sessionId;
-};
-
-
-/**
- * This structure will be returned when you request RESULT_TYPE_FULL_VISIT in
- * the query options. This includes uncommonly used information about each
- * visit.
- */
-[scriptable, uuid(c49fd9d5-56e2-43eb-932c-f933f28cba85)]
-interface nsINavHistoryFullVisitResultNode : nsINavHistoryVisitResultNode
-{
-  /**
-   * This indicates the visit ID of the visit.
-   */
-  readonly attribute long long visitId;
-
-  /**
-   * This indicates the referring visit ID of the visit. The referrer should
-   * have the same sessionId.
-   */
-  readonly attribute long long referringVisitId;
-
-  /**
-   * Indicates the transition type of the visit.
-   * One of nsINavHistoryService.TRANSITION_*
-   */
-  readonly attribute long transitionType;
-};
-
-
-/**
  * Base class for container results. This includes all types of groupings.
  * Bookmark folders and places queries will be QueryResultNodes which extends
  * these items.
  */
-[scriptable, uuid(55829318-0f6c-4503-8739-84231f3a6793)]
+[scriptable, uuid(62534d3c-1b3f-401e-b3ba-b911f57f8a29)]
 interface nsINavHistoryContainerResultNode : nsINavHistoryResultNode
 {
 
@@ -322,105 +252,6 @@ interface nsINavHistoryContainerResultNode : nsINavHistoryResultNode
    * been called to override it, and true for non-folder nodes.
    */
   readonly attribute boolean childrenReadOnly;
-
-  // --------------------------------------------------------------------------
-  // Dynamic container
-
-  /**
-   * This is a string representing the dynamic container API service that is
-   * responsible for this container. This throws if if the node is not a dynamic
-   * container.
-   */
-  readonly attribute AUTF8String dynamicContainerType;
-
-  /**
-   * Appends a full visit node to this container and returns it. For the dynamic
-   * container API. TO BE CALLED FROM nsIDynamicContainer::OnContainerOpening()
-   * ONLY, and only for non-bookmark-folder containers.
-   *
-   * @see nsINavHistoryURIResultNode for parameters.
-   */
-  nsINavHistoryResultNode appendURINode(
-      in AUTF8String aURI, in AUTF8String aTitle, in PRUint32 aAccessCount,
-      in PRTime aTime, in AUTF8String aIconURI);
-
-  /**
-   * Appends a full visit node to this container and returns it. For the dynamic
-   * container API. TO BE CALLED FROM nsIDynamicContainer::OnContainerOpening()
-   * ONLY, and only for non-bookmark-folder containers.
-   *
-   * @see nsINavHistoryVisitResultNode for parameters.
-   *
-   * UNTESTED: Container API functions are commented out until we can test
-   */
-  /*nsINavHistoryVisitResultNode appendVisitNode(
-      in AUTF8String aURI, in AUTF8String aTitle, in PRUint32 aAccessCount,
-      in PRTime aTime, in AUTF8String aIconURI, in PRInt64 aSession);*/
-
-  /**
-   * Appends a full visit node to this container and returns it. For the dynamic
-   * container API. TO BE CALLED FROM nsIDynamicContainer::OnContainerOpening()
-   * ONLY, and only for non-bookmark-folder containers.
-   *
-   * @see nsINavHistoryFullVisitResultNode for parameters.
-   *
-   * UNTESTED: Container API functions are commented out until we can test
-   */
-  /*nsINavHistoryFullVisitResultNode appendFullVisitNode(
-      in AUTF8String aURI, in AUTF8String aTitle, in PRUint32 aAccessCount,
-      in PRTime aTime, in AUTF8String aIconURI, in PRInt64 aSession,
-      in PRInt64 aVisitId, in PRInt64 aReferringVisitId,
-      in PRInt32 aTransitionType);*/
-
-  /**
-   * Appends a container node to this container and returns it. For the dynamic
-   * container API. TO BE CALLED FROM nsIDynamicContainer::OnContainerOpening()
-   * ONLY, and only for non-bookmark-folder containers.
-   *
-   * aContainerType should be RESULT_TYPE_DYNAMIC_CONTAINER.
-   * When type is dynamic container you must
-   * specify a dynamic container type, otherwise, the dynamic container type must
-   * be null. Use appendQueryNode and appendFolderNode for the other container
-   * types.
-   *
-   * UNTESTED: Container API functions are commented out until we can test
-   */
-  /*nsINavHistoryContainerResultNode appendContainerNode(
-      in AUTF8String aTitle, in AUTF8String aIconURI, in PRUint32 aContainerType,
-      in AUTF8String aDynamicContainerType);*/
-
-  /**
-   * Appends a query node to this container and returns it. For the dynamic
-   * container API. TO BE CALLED FROM nsIDynamicContainer::OnContainerOpening()
-   * ONLY, and only for non-bookmark-folder containers.
-   *
-   * Normally you should supply an empty string for IconURI and it will take
-   * the default query icon for the current theme.
-   *
-   * UNTESTED: Container API functions are commented out until we can test
-   */
-  /*nsINavHistoryQueryResultNode appendQueryNode(
-      in AUTF8String aQueryURI, in AUTF8String aTitle, in AUTF8String aIconURI);*/
-
-  /**
-   * Appends a bookmark folder node to this container and returns it. For the
-   * dynamic container API. TO BE CALLED FROM nsIDynamicContainer::OnContainerOpening()
-   * ONLY, and only for non-bookmark-folder containers.
-   *
-   * All container attributes will come from the boomkarks service for this
-   * folder.
-   */
-  nsINavHistoryContainerResultNode appendFolderNode(in PRInt64 aFolderId);
-
-  /**
-   * Clears all children of this container. For the dynamic container API.
-   * TO BE CALLED FROM nsIDynamicContainer::OnContainerOpening and
-   * nsIDynamicContainer::OnContainerClosed ONLY, and valid only for
-   * non-bookmark-folder containers.
-   *
-   * UNTESTED: Container API functions are commented out until we can test
-   */
-  /*void clearContents();*/
 };
 
 
@@ -460,7 +291,7 @@ interface nsINavHistoryQueryResultNode : nsINavHistoryContainerResultNode
  * according to history and bookmark system events. Register this observer on a
  * result using nsINavHistoryResult::addObserver.
  */
-[scriptable, uuid(9ea86387-6a30-4ee2-b70d-26fbb718902f)]
+[scriptable, uuid(f62d8b6b-3c4e-4a9f-a897-db605d0b7a0f)]
 interface nsINavHistoryResultObserver : nsISupports
 {
   /**
@@ -598,48 +429,6 @@ interface nsINavHistoryResultObserver : nsISupports
    */
   void nodeLastModifiedChanged(in nsINavHistoryResultNode aNode,
                                in PRTime aNewValue);
-
-  /**
-   * Called when an item is being replaced with another item at the exact
-   * same position.
-   *
-   * @param aParentNode
-   *        the parent node of the node which is being replaced
-   * @param aOldNode
-   *        the node which is being replaced
-   * @param aNewNode
-   *        the new node
-   * @param aParentNode
-   *        the index in aParentNode, at which a node is being replaced
-   */
-  void nodeReplaced(in nsINavHistoryContainerResultNode aParentNode,
-                    in nsINavHistoryResultNode aOldNode,
-                    in nsINavHistoryResultNode aNewNode,
-                    in unsigned long aIndex);
-
-  /**
-   * Called after a container node went from closed to opened.
-   *
-   * @note  This method is DEPRECATED.  In the future only containerStateChanged
-   *        will notify when a container is opened.
-   *
-   * @param aContainerNode
-   *        the container node which was opened
-   */
-  void containerOpened(in nsINavHistoryContainerResultNode aContainerNode);
-
-  /**
-   * Called after a container node went from opened to closed. This will be
-   * called for the topmost container that is closing, and implies that any
-   * child containers have closed as well.
-   *
-   * @note  This method is DEPRECATED.  In the future only containerStateChanged
-   *        will notify when a container is closed.
-   *
-   * @param aContainerNode
-   *        the container node which was closed
-   */
-  void containerClosed(in nsINavHistoryContainerResultNode aContainerNode);
 
   /**
    * Called after a container changes state.
@@ -808,7 +597,7 @@ interface nsINavHistoryResult : nsISupports
  * DANGER! If you are in the middle of a batch transaction, there may be a
  * database transaction active. You can still access the DB, but be careful.
  */
-[scriptable, uuid(0a5ce210-c803-11de-8a39-0800200c9a66)]
+[scriptable, uuid(45e2970b-9b00-4473-9938-39d6beaf4248)]
 interface nsINavHistoryObserver : nsISupports
 {
   /**
@@ -834,17 +623,20 @@ interface nsINavHistoryObserver : nsISupports
    *
    * @param aVisitID        ID of the visit that was just created.
    * @param aTime           Time of the visit
-   * @param aSessionID      The ID of one connected sequence of visits.
+   * @param aSessionID      No longer supported (always set to 0).
    * @param aReferringID    The ID of the visit the user came from. 0 if empty.
    * @param aTransitionType One of nsINavHistory.TRANSITION_*
-   * @param aAdded          Incremented by query nodes when the visited uri
-   *                        belongs to them. If no such query exists, the 
-   *                        history result creates a new query node dynamically.
-   *                        It is used in places views only and can be ignored.
+   * @param aGUID           The unique ID associated with the page.
+   * @param aHidden         Whether the visited page is marked as hidden.
    */
-  void onVisit(in nsIURI aURI, in long long aVisitID, in PRTime aTime,
-               in long long aSessionID, in long long aReferringID,
-               in unsigned long aTransitionType, out unsigned long aAdded);
+  void onVisit(in nsIURI aURI,
+               in long long aVisitID,
+               in PRTime aTime,
+               in long long aSessionID,
+               in long long aReferringID,
+               in unsigned long aTransitionType,
+               in ACString aGUID,
+               in boolean aHidden);
 
   /**
    * Called whenever either the "real" title or the custom title of the page
@@ -859,17 +651,25 @@ interface nsINavHistoryObserver : nsISupports
    * to see whether an empty string is "null" or not (it will always be an
    * empty string in either case).
    *
+   * @param aURI
+   *        The URI of the page.
+   * @param aPageTitle
+   *        The new title of the page.
+   * @param aGUID
+   *        The unique ID associated with the page.
    */
-  void onTitleChanged(in nsIURI aURI, in AString aPageTitle);
+  void onTitleChanged(in nsIURI aURI,
+                      in AString aPageTitle,
+                      in ACString aGUID);
 
   /**
-   * This page and all of its visits are about to be deleted.  Note: the page
-   * may not necessarily have actually existed for this function to be called.
-   *
-   * @param aURI
-   *        The URI being deleted.
+   * Removed by the user.
    */
-  void onBeforeDeleteURI(in nsIURI aURI);
+  const unsigned short REASON_DELETED = 0;
+  /**
+   * Removed by automatic expiration.
+   */
+  const unsigned short REASON_EXPIRED = 1;
 
   /**
    * This page and all of its visits are being deleted. Note: the page may not
@@ -880,8 +680,17 @@ interface nsINavHistoryObserver : nsISupports
    * delete. If there is some error in the middle (for example, out of memory)
    * then you'll get a notification and it won't get deleted. There's no easy
    * way around this.
+   *
+   * @param aURI
+   *        The URI that was deleted.
+   * @param aGUID
+   *        The unique ID associated with the page.
+   * @param aReason
+   *        Indicates the reason for the removal.  see REASON_* constants.
    */
-  void onDeleteURI(in nsIURI aURI);
+  void onDeleteURI(in nsIURI aURI,
+                   in ACString aGUID,
+                   in unsigned short aReason);
 
   /**
    * Notification that all of history is being deleted.
@@ -889,11 +698,27 @@ interface nsINavHistoryObserver : nsISupports
   void onClearHistory();
 
   /**
-   * A page has had some attribute on it changed. Note that for TYPED and
-   * HIDDEN, the page may not necessarily have been added yet.
+   * onPageChanged attribute indicating that favicon has been updated.
+   * aNewValue parameter will be set to the new favicon URI string.
    */
-  const unsigned long ATTRIBUTE_FAVICON = 3; // favicon updated, aString = favicon annotation URI
-  void onPageChanged(in nsIURI aURI, in unsigned long aWhat, in AString aValue);
+  const unsigned long ATTRIBUTE_FAVICON = 3;
+
+  /**
+   * An attribute of this page changed.
+   *
+   * @param aURI
+   *        The URI of the page on which an attribute changed.
+   * @param aChangedAttribute
+   *        The attribute whose value changed.  See ATTRIBUTE_* constants.
+   * @param aNewValue
+   *        The attribute's new value.
+   * @param aGUID
+   *        The unique ID associated with the page.
+   */
+  void onPageChanged(in nsIURI aURI,
+                     in unsigned long aChangedAttribute,
+                     in AString aNewValue,
+                     in ACString aGUID);
 
   /**
    * Called when some visits of an history entry are expired.
@@ -903,13 +728,24 @@ interface nsINavHistoryObserver : nsISupports
    * @param aVisitTime
    *        The largest visit time in microseconds that has been expired.  We
    *        guarantee that we don't have any visit older than this date.
+   * @param aGUID
+   *        The unique ID associated with the page.
    *
    * @note: when all visits for a page are expired and also the full page entry
    *        is expired, you will only get an onDeleteURI notification.  If a
    *        page entry is removed, then you can be sure that we don't have
    *        anymore visits for it.
+   * @param aReason
+   *        Indicates the reason for the removal.  see REASON_* constants.
+   * @param aTransitionType
+   *        If it's a valid TRANSITION_* value, all visits of the specified type
+   *        have been removed.
    */
-  void onDeleteVisits(in nsIURI aURI, in PRTime aVisitTime);
+  void onDeleteVisits(in nsIURI aURI,
+                      in PRTime aVisitTime,
+                      in ACString aGUID,
+                      in unsigned short aReason,
+                      in unsigned long aTransitionType);
 };
 
 
@@ -1099,7 +935,7 @@ interface nsINavHistoryQuery : nsISupports
 /**
  * This object represents the global options for executing a query.
  */
-[scriptable, uuid(2d8ff86b-f8c2-451c-8a1a-1ff0749a074e)]
+[scriptable, uuid(8198dfa7-8061-4766-95cb-fa86b3c00a47)]
 interface nsINavHistoryQueryOptions : nsISupports
 {
   /**
@@ -1248,15 +1084,6 @@ interface nsINavHistoryQueryOptions : nsISupports
   attribute boolean excludeReadOnlyFolders;
 
   /**
-   * This option excludes items from a bookmarks query
-   * if the parent of the item has this annotation.
-   * An example is to exclude livemark items
-   * (parent folders have the "livemark/feedURI" annotation)
-   * Ignored for queries over history.
-   */
-  attribute AUTF8String excludeItemIfParentHasAnnotation;
-
-  /**
    * When set, allows items with "place:" URIs to appear as containers,
    * with the container's contents filled in from the stored query.
    * If not set, these will appear as normal items. Doesn't do anything if
@@ -1269,36 +1096,12 @@ interface nsINavHistoryQueryOptions : nsISupports
   attribute boolean expandQueries;
 
   /**
-   * Most items in history are marked "hidden." Only toplevel pages that the
-   * user sees in the URL bar are not hidden. Hidden things include the content
-   * of iframes and all images on web pages. Normally, you don't want these
-   * things. If you do, set this flag and you'll get all items, even hidden
-   * ones. Does nothing for bookmark queries. Defaults to false.
+   * Some pages in history are marked "hidden" and thus don't appear by default
+   * in queries.  These include automatic framed visits and redirects.  Setting
+   * this attribute will return all pages, even hidden ones.  Does nothing for
+   * bookmark queries. Defaults to false.
    */
   attribute boolean includeHidden;
-
-  /**
-   * Include both redirected-from and redirected-to pages into results.
-   */
-  const unsigned short REDIRECTS_MODE_ALL = 0;
-  /**
-   * Query results will not include redirected-to pages, but will include
-   * redirected-from pages.
-   */
-  const unsigned short REDIRECTS_MODE_SOURCE = 1;
-  /**
-   * Query results will not include redirected-from pages but will include
-   * redirected-to pages.
-   */
-  const unsigned short REDIRECTS_MODE_TARGET = 2;
-
-  /**
-   * Defines how redirects should be handled, see REDIRECTS_MODE_* constants
-   * above.
-   * Defaults to REDIRECTS_MODE_ALL.
-   * Note: this option is effective only on QUERY_TYPE_HISTORY.
-   */
-  attribute unsigned short redirectsMode;
 
   /**
    * This is the maximum number of results that you want. The query is exeucted,
@@ -1341,7 +1144,7 @@ interface nsINavHistoryQueryOptions : nsISupports
   nsINavHistoryQueryOptions clone();
 };
 
-[scriptable, uuid(437f539b-d541-4a0f-a200-6f9a6d45cce2)]
+[scriptable, uuid(baebc597-9daf-4103-a325-e41ef9e7608a)]
 interface nsINavHistoryService : nsISupports
 {
   /**
@@ -1438,6 +1241,7 @@ interface nsINavHistoryService : nsISupports
 
   /**
    * Gets the original title of the page.
+   * @deprecated use mozIAsyncHistory.getPlacesInfo instead.
    */
   AString getPageTitle(in nsIURI aURI);
 
@@ -1449,6 +1253,23 @@ interface nsINavHistoryService : nsISupports
    * as following a bookmark.
    */
   void markPageAsFollowedBookmark(in nsIURI aURI);
+
+  /**
+   * Designates the url as having been explicitly typed in by the user.
+   *
+   * @param aURI
+   *        URI of the page to be marked.
+   */
+  void markPageAsTyped(in nsIURI aURI);
+
+  /**
+   * Designates the url as coming from a link explicitly followed by
+   * the user (for example by clicking on it).
+   *
+   * @param aURI
+   *        URI of the page to be marked.
+   */
+  void markPageAsFollowedLink(in nsIURI aURI);
 
   /**
    * Gets the stored character-set for an URI.
@@ -1471,40 +1292,12 @@ interface nsINavHistoryService : nsISupports
 
   /**
    * Returns true if this URI would be added to the history. You don't have to
-   * worry about calling this, addPageToSession/addURI will always check before
+   * worry about calling this, adding a visit will always check before
    * actually adding the page. This function is public because some components
    * may want to check if this page would go in the history (i.e. for
    * annotations).
    */
   boolean canAddURI(in nsIURI aURI);
-
-  /**
-   * Call to manually add a visit for a specific page. This will probably not
-   * be commonly used other than for backup/restore type operations. If the URI
-   * does not have an entry in the history database already, one will be created
-   * with no visits, no title, hidden, not typed.  Adding a visit will
-   * automatically increment the visit count for the visited page and will unhide
-   * it and/or mark it typed according to the transition type.
-   *
-   * @param aURI             Visited page
-   * @param aTime            Time page was visited (microseconds)
-   * @param aReferringURI    The URI of the visit that generated this one. Use
-   *                         null for no referrer.
-   * @param aTranstitionType Type of transition: one of TRANSITION_* above
-   * @param aIsRedirect      True if the given visit redirects to somewhere else.
-   *                         (ie you will create an visit out of here that is a
-   *                         redirect transition). This causes this page to be
-   *                         hidden in normal history views (unless it has been
-   *                         unhidden by visiting it with a non-redirect).
-   * @param aSessionID       The session ID that this page belongs to. Use 0 for
-   *                         no session.
-   * @return The ID of the created visit. This will be 0 if the URI cannot
-   *         be added to history (canAddURI = false) or the visit is session
-   *         persistent (TRANSITION_EMBED).
-   */
-  long long addVisit(in nsIURI aURI, in PRTime aTime,
-                     in nsIURI aReferringURI, in long aTransitionType,
-                     in boolean aIsRedirect, in long long aSessionID);
 
   /**
    * This returns a new query object that you can pass to executeQuer[y/ies].
@@ -1585,12 +1378,6 @@ interface nsINavHistoryService : nsISupports
    * history is disabled if the places.history.enabled pref is false.
    */
   readonly attribute boolean historyDisabled;
-
-  /**
-   * Import the given Mork history file.
-   *  @param file     The Mork history file to import
-   */
-  void importHistory(in nsIFile file);
 };
 
 /**

@@ -1,57 +1,44 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=8 et tw=80 : */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla IPC.
- *
- * The Initial Developer of the Original Code is
- *   Ben Turner <bent.mozilla@gmail.com>.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef __IPC_GLUE_IPCMESSAGEUTILS_H__
 #define __IPC_GLUE_IPCMESSAGEUTILS_H__
 
+#include "base/process_util.h"
 #include "chrome/common/ipc_message_utils.h"
 
-#include "prtypes.h"
+#include "mozilla/TimeStamp.h"
+#ifdef XP_WIN
+#include "mozilla/TimeStamp_windows.h"
+#endif
+#include "mozilla/Util.h"
+#include "mozilla/gfx/2D.h"
+#include "mozilla/gfx/Point.h"
+
+#include <stdint.h>
+
+#include "nsID.h"
+#include "nsMemory.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "gfx3DMatrix.h"
 #include "gfxColor.h"
 #include "gfxMatrix.h"
 #include "gfxPattern.h"
+#include "gfxPoint.h"
+#include "gfxRect.h"
 #include "nsRect.h"
 #include "nsRegion.h"
 #include "gfxASurface.h"
-#include "Layers.h"
+#include "jsapi.h"
+#include "mozilla/layers/LayersTypes.h"
+#include "mozilla/layers/CompositorTypes.h"
+#include "FrameMetrics.h"
+#include "nsCSSProperty.h"
+#include "ImageLayers.h"
 
 #ifdef _MSC_VER
 #pragma warning( disable : 4800 )
@@ -63,16 +50,21 @@
 // base::FileDescriptor acts as a static assert that we only get one
 // def or the other (or neither, in which case code using
 // FileDescriptor fails to build)
-namespace base { class FileDescriptor { }; }
+namespace base { struct FileDescriptor { }; }
 #endif
-
-using mozilla::layers::LayerManager;
 
 namespace mozilla {
 
-typedef gfxPattern::GraphicsFilter GraphicsFilterType;
+typedef gfxASurface::gfxContentType gfxContentType;
+typedef gfxASurface::gfxImageFormat PixelFormat;
 typedef gfxASurface::gfxSurfaceType gfxSurfaceType;
-typedef LayerManager::LayersBackend LayersBackend;
+typedef gfxPattern::GraphicsFilter GraphicsFilterType;
+typedef layers::LayersBackend LayersBackend;
+typedef layers::ImageLayer::ScaleMode ScaleMode;
+
+// This is a cross-platform approximation to HANDLE, which we expect
+// to be typedef'd to void* or thereabouts.
+typedef uintptr_t WindowsHandle;
 
 // XXX there are out of place and might be generally useful.  Could
 // move to nscore.h or something.
@@ -83,14 +75,98 @@ struct null_t {
   bool operator==(const null_t&) const { return true; }
 };
 
+struct SerializedStructuredCloneBuffer
+{
+  SerializedStructuredCloneBuffer()
+  : data(nullptr), dataLength(0)
+  { }
+
+  SerializedStructuredCloneBuffer(const JSAutoStructuredCloneBuffer& aOther)
+  {
+    *this = aOther;
+  }
+
+  bool
+  operator==(const SerializedStructuredCloneBuffer& aOther) const
+  {
+    return this->data == aOther.data &&
+           this->dataLength == aOther.dataLength;
+  }
+
+  SerializedStructuredCloneBuffer&
+  operator=(const JSAutoStructuredCloneBuffer& aOther)
+  {
+    data = aOther.data();
+    dataLength = aOther.nbytes();
+    return *this;
+  }
+
+  uint64_t* data;
+  size_t dataLength;
+};
+
 } // namespace mozilla
 
 namespace IPC {
 
+/**
+ * Generic enum serializer.
+ *
+ * This is a generic serializer for any enum type used in IPDL.
+ * Programmers can define ParamTraits<E> for enum type E by deriving
+ * EnumSerializer<E, smallestLegal, highGuard>.
+ *
+ * The serializer would check value againts a range specified by
+ * smallestLegal and highGuard.  Only values from smallestLegal to
+ * highGuard are valid, include smallestLegal but highGuard.
+ *
+ * For example, following is definition of serializer for enum type FOO.
+ * \code
+ * enum FOO { FOO_FIRST, FOO_SECOND, FOO_LAST, NUM_FOO };
+ *
+ * template <>
+ * struct ParamTraits<FOO>:
+ *     public EnumSerializer<FOO, FOO_FIRST, NUM_FOO> {};
+ * \endcode
+ * FOO_FIRST, FOO_SECOND, and FOO_LAST are valid value.
+ *
+ * \sa https://developer.mozilla.org/en/IPDL/Type_Serialization
+ */
+template <typename E, E smallestLegal, E highBound>
+struct EnumSerializer {
+  typedef E paramType;
+
+  static bool IsLegalValue(const paramType &aValue) {
+    return smallestLegal <= aValue && aValue < highBound;
+  }
+
+  static void Write(Message* aMsg, const paramType& aValue) {
+    MOZ_ASSERT(IsLegalValue(aValue));
+    WriteParam(aMsg, (int32_t)aValue);
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult) {
+    int32_t value;
+    if(!ReadParam(aMsg, aIter, &value) ||
+       !IsLegalValue(paramType(value))) {
+      return false;
+    }
+    *aResult = paramType(value);
+    return true;
+  }
+};
+
+template <>
+struct ParamTraits<base::ChildPrivileges>
+  : public EnumSerializer<base::ChildPrivileges,
+                          base::PRIVILEGES_DEFAULT,
+                          base::PRIVILEGES_LAST>
+{ };
+
 template<>
-struct ParamTraits<PRInt8>
+struct ParamTraits<int8_t>
 {
-  typedef PRInt8 paramType;
+  typedef int8_t paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -109,9 +185,9 @@ struct ParamTraits<PRInt8>
 };
 
 template<>
-struct ParamTraits<PRUint8>
+struct ParamTraits<uint8_t>
 {
-  typedef PRUint8 paramType;
+  typedef uint8_t paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -159,7 +235,7 @@ struct ParamTraits<nsACString>
       // represents a NULL pointer
       return;
 
-    PRUint32 length = aParam.Length();
+    uint32_t length = aParam.Length();
     WriteParam(aMsg, length);
     aMsg->WriteBytes(aParam.BeginReading(), length);
   }
@@ -171,11 +247,11 @@ struct ParamTraits<nsACString>
       return false;
 
     if (isVoid) {
-      aResult->SetIsVoid(PR_TRUE);
+      aResult->SetIsVoid(true);
       return true;
     }
 
-    PRUint32 length;
+    uint32_t length;
     if (ReadParam(aMsg, aIter, &length)) {
       const char* buf;
       if (aMsg->ReadBytes(aIter, &buf, length)) {
@@ -209,7 +285,7 @@ struct ParamTraits<nsAString>
       // represents a NULL pointer
       return;
 
-    PRUint32 length = aParam.Length();
+    uint32_t length = aParam.Length();
     WriteParam(aMsg, length);
     aMsg->WriteBytes(aParam.BeginReading(), length * sizeof(PRUnichar));
   }
@@ -221,11 +297,11 @@ struct ParamTraits<nsAString>
       return false;
 
     if (isVoid) {
-      aResult->SetIsVoid(PR_TRUE);
+      aResult->SetIsVoid(true);
       return true;
     }
 
-    PRUint32 length;
+    uint32_t length;
     if (ReadParam(aMsg, aIter, &length)) {
       const PRUnichar* buf;
       if (aMsg->ReadBytes(aIter, reinterpret_cast<const char**>(&buf),
@@ -245,8 +321,8 @@ struct ParamTraits<nsAString>
 #ifdef WCHAR_T_IS_UTF16
       aLog->append(reinterpret_cast<const wchar_t*>(aParam.BeginReading()));
 #else
-      PRUint32 length = aParam.Length();
-      for (PRUint32 index = 0; index < length; index++) {
+      uint32_t length = aParam.Length();
+      for (uint32_t index = 0; index < length; index++) {
         aLog->push_back(std::wstring::value_type(aParam[index]));
       }
 #endif
@@ -263,9 +339,9 @@ struct ParamTraits<nsCString> : ParamTraits<nsACString>
 #ifdef MOZILLA_INTERNAL_API
 
 template<>
-struct ParamTraits<nsCAutoString> : ParamTraits<nsCString>
+struct ParamTraits<nsAutoCString> : ParamTraits<nsCString>
 {
-  typedef nsCAutoString paramType;
+  typedef nsAutoCString paramType;
 };
 
 #endif  // MOZILLA_INTERNAL_API
@@ -276,29 +352,29 @@ struct ParamTraits<nsString> : ParamTraits<nsAString>
   typedef nsString paramType;
 };
 
-template <typename E, class A>
-struct ParamTraits<nsTArray<E, A> >
+template <typename E>
+struct ParamTraits<FallibleTArray<E> >
 {
-  typedef nsTArray<E, A> paramType;
+  typedef FallibleTArray<E> paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    PRUint32 length = aParam.Length();
+    uint32_t length = aParam.Length();
     WriteParam(aMsg, length);
-    for (PRUint32 index = 0; index < length; index++) {
+    for (uint32_t index = 0; index < length; index++) {
       WriteParam(aMsg, aParam[index]);
     }
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    PRUint32 length;
+    uint32_t length;
     if (!ReadParam(aMsg, aIter, &length)) {
       return false;
     }
 
     aResult->SetCapacity(length);
-    for (PRUint32 index = 0; index < length; index++) {
+    for (uint32_t index = 0; index < length; index++) {
       E* element = aResult->AppendElement();
       if (!(element && ReadParam(aMsg, aIter, element))) {
         return false;
@@ -310,7 +386,7 @@ struct ParamTraits<nsTArray<E, A> >
 
   static void Log(const paramType& aParam, std::wstring* aLog)
   {
-    for (PRUint32 index = 0; index < aParam.Length(); index++) {
+    for (uint32_t index = 0; index < aParam.Length(); index++) {
       if (index) {
         aLog->append(L" ");
       }
@@ -320,17 +396,19 @@ struct ParamTraits<nsTArray<E, A> >
 };
 
 template<typename E>
-struct ParamTraits<InfallibleTArray<E> > :
-  ParamTraits<nsTArray<E, nsTArrayInfallibleAllocator> >
+struct ParamTraits<InfallibleTArray<E> >
 {
   typedef InfallibleTArray<E> paramType;
 
-  // use nsTArray Write() method
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, static_cast<const FallibleTArray<E>&>(aParam));
+  }
 
   // deserialize the array fallibly, but return an InfallibleTArray
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    nsTArray<E> temp;
+    FallibleTArray<E> temp;
     if (!ReadParam(aMsg, aIter, &temp))
       return false;
 
@@ -338,7 +416,10 @@ struct ParamTraits<InfallibleTArray<E> > :
     return true;
   }
 
-  // use nsTArray Log() method
+  static void Log(const paramType& aParam, std::wstring* aLog)
+  {
+    LogParam(static_cast<const FallibleTArray<E>&>(aParam), aLog);
+  }
 };
 
 template<>
@@ -402,6 +483,87 @@ struct ParamTraits<gfxMatrix>
 };
 
 template<>
+struct ParamTraits<gfxPoint>
+{
+  typedef gfxPoint paramType;
+
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.x);
+    WriteParam(aMsg, aParam.y);
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    return (ReadParam(aMsg, aIter, &aResult->x) &&
+            ReadParam(aMsg, aIter, &aResult->y));
+ }
+};
+
+template<>
+struct ParamTraits<gfxPoint3D>
+{
+  typedef gfxPoint3D paramType;
+
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.x);
+    WriteParam(aMsg, aParam.y);
+    WriteParam(aMsg, aParam.z);
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    return (ReadParam(aMsg, aIter, &aResult->x) &&
+            ReadParam(aMsg, aIter, &aResult->y) &&
+            ReadParam(aMsg, aIter, &aResult->z));
+  }
+};
+
+template<>
+struct ParamTraits<gfxSize>
+{
+  typedef gfxSize paramType;
+
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.width);
+    WriteParam(aMsg, aParam.height);
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    if (ReadParam(aMsg, aIter, &aResult->width) &&
+        ReadParam(aMsg, aIter, &aResult->height))
+      return true;
+
+    return false;
+  }
+};
+
+template<>
+struct ParamTraits<gfxRect>
+{
+  typedef gfxRect paramType;
+
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.x);
+    WriteParam(aMsg, aParam.y);
+    WriteParam(aMsg, aParam.width);
+    WriteParam(aMsg, aParam.height);
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    return ReadParam(aMsg, aIter, &aResult->x) &&
+           ReadParam(aMsg, aIter, &aResult->y) &&
+           ReadParam(aMsg, aIter, &aResult->width) &&
+           ReadParam(aMsg, aIter, &aResult->height);
+  }
+};
+
+template<>
 struct ParamTraits<gfx3DMatrix>
 {
   typedef gfx3DMatrix paramType;
@@ -427,110 +589,55 @@ struct ParamTraits<gfx3DMatrix>
   }
 };
 
- template<>
-struct ParamTraits<mozilla::GraphicsFilterType>
-{
-  typedef mozilla::GraphicsFilterType paramType;
+template <>
+struct ParamTraits<mozilla::gfxContentType>
+  : public EnumSerializer<mozilla::gfxContentType,
+                          gfxASurface::CONTENT_COLOR,
+                          gfxASurface::CONTENT_SENTINEL>
+{};
 
-  static void Write(Message* msg, const paramType& param)
-  {
-    switch (param) {
-    case gfxPattern::FILTER_FAST:
-    case gfxPattern::FILTER_GOOD:
-    case gfxPattern::FILTER_BEST:
-    case gfxPattern::FILTER_NEAREST:
-    case gfxPattern::FILTER_BILINEAR:
-    case gfxPattern::FILTER_GAUSSIAN:
-      WriteParam(msg, int32(param));
-      return;
-
-    default:
-      NS_RUNTIMEABORT("not reached");
-      return;
-    }
-  }
-
-  static bool Read(const Message* msg, void** iter, paramType* result)
-  {
-    int32 filter;
-    if (!ReadParam(msg, iter, &filter))
-      return false;
-
-    switch (filter) {
-    case gfxPattern::FILTER_FAST:
-    case gfxPattern::FILTER_GOOD:
-    case gfxPattern::FILTER_BEST:
-    case gfxPattern::FILTER_NEAREST:
-    case gfxPattern::FILTER_BILINEAR:
-    case gfxPattern::FILTER_GAUSSIAN:
-      *result = paramType(filter);
-      return true;
-
-    default:
-      return false;
-    }
-  }
-};
-
- template<>
+template <>
 struct ParamTraits<mozilla::gfxSurfaceType>
-{
-  typedef mozilla::gfxSurfaceType paramType;
+  : public EnumSerializer<gfxASurface::gfxSurfaceType,
+                          gfxASurface::SurfaceTypeImage,
+                          gfxASurface::SurfaceTypeMax>
+{};
 
-  static void Write(Message* msg, const paramType& param)
-  {
-    if (gfxASurface::SurfaceTypeImage <= param &&
-        param < gfxASurface::SurfaceTypeMax) {
-      WriteParam(msg, int32(param));
-      return;
-    }
-    NS_RUNTIMEABORT("surface type not reached");
-  }
+template <>
+struct ParamTraits<mozilla::GraphicsFilterType>
+  : public EnumSerializer<mozilla::GraphicsFilterType,
+                          gfxPattern::FILTER_FAST,
+                          gfxPattern::FILTER_SENTINEL>
+{};
 
-  static bool Read(const Message* msg, void** iter, paramType* result)
-  {
-    int32 filter;
-    if (!ReadParam(msg, iter, &filter))
-      return false;
+template <>
+struct ParamTraits<mozilla::layers::LayersBackend>
+  : public EnumSerializer<mozilla::layers::LayersBackend,
+                          mozilla::layers::LAYERS_NONE,
+                          mozilla::layers::LAYERS_LAST>
+{};
 
-    if (gfxASurface::SurfaceTypeImage <= filter &&
-        filter < gfxASurface::SurfaceTypeMax) {
-      *result = paramType(filter);
-      return true;
-    }
-    return false;
-  }
-};
+template <>
+struct ParamTraits<mozilla::ScaleMode>
+  : public EnumSerializer<mozilla::ScaleMode,
+                          mozilla::layers::ImageLayer::SCALE_NONE,
+                          mozilla::layers::ImageLayer::SCALE_SENTINEL>
+{};
 
- template<>
-struct ParamTraits<mozilla::LayersBackend>
-{
-  typedef mozilla::LayersBackend paramType;
+template <>
+struct ParamTraits<mozilla::PixelFormat>
+  : public EnumSerializer<mozilla::PixelFormat,
+                          gfxASurface::ImageFormatARGB32,
+                          gfxASurface::ImageFormatUnknown>
+{};
 
-  static void Write(Message* msg, const paramType& param)
-  {
-    if (LayerManager::LAYERS_NONE < param &&
-        param < LayerManager::LAYERS_LAST) {
-      WriteParam(msg, int32(param));
-      return;
-    }
-    NS_RUNTIMEABORT("surface type not reached");
-  }
+template <>
+struct ParamTraits<nsCSSProperty>
+  : public EnumSerializer<nsCSSProperty,
+                          eCSSProperty_UNKNOWN,
+                          eCSSProperty_COUNT>
+{};
 
-  static bool Read(const Message* msg, void** iter, paramType* result)
-  {
-    int32 type;
-    if (!ReadParam(msg, iter, &type))
-      return false;
-
-    if (LayerManager::LAYERS_NONE < type &&
-        type < LayerManager::LAYERS_LAST) {
-      *result = paramType(type);
-      return true;
-    }
-    return false;
-  }
-};
 
 template<>
 struct ParamTraits<gfxRGBA>
@@ -581,10 +688,10 @@ struct ParamTraits<mozilla::null_t>
 };
 
 template<>
-struct ParamTraits<nsIntPoint>
+struct ParamTraits<nsPoint>
 {
-  typedef nsIntPoint paramType;
-  
+  typedef nsPoint paramType;
+
   static void Write(Message* msg, const paramType& param)
   {
     WriteParam(msg, param.x);
@@ -599,10 +706,46 @@ struct ParamTraits<nsIntPoint>
 };
 
 template<>
+struct ParamTraits<nsIntPoint>
+{
+  typedef nsIntPoint paramType;
+
+  static void Write(Message* msg, const paramType& param)
+  {
+    WriteParam(msg, param.x);
+    WriteParam(msg, param.y);
+  }
+
+  static bool Read(const Message* msg, void** iter, paramType* result)
+  {
+    return (ReadParam(msg, iter, &result->x) &&
+            ReadParam(msg, iter, &result->y));
+  }
+};
+
+template<>
+struct ParamTraits<mozilla::gfx::IntSize>
+{
+  typedef mozilla::gfx::IntSize paramType;
+
+  static void Write(Message* msg, const paramType& param)
+  {
+    WriteParam(msg, param.width);
+    WriteParam(msg, param.height);
+  }
+
+  static bool Read(const Message* msg, void** iter, paramType* result)
+  {
+    return (ReadParam(msg, iter, &result->width) &&
+            ReadParam(msg, iter, &result->height));
+  }
+};
+
+template<>
 struct ParamTraits<nsIntRect>
 {
   typedef nsIntRect paramType;
-  
+
   static void Write(Message* msg, const paramType& param)
   {
     WriteParam(msg, param.x);
@@ -651,11 +794,11 @@ template<>
 struct ParamTraits<nsIntSize>
 {
   typedef nsIntSize paramType;
-  
+
   static void Write(Message* msg, const paramType& param)
   {
     WriteParam(msg, param.width);
-    WriteParam(msg, param.height); 
+    WriteParam(msg, param.height);
   }
 
   static bool Read(const Message* msg, void** iter, paramType* result)
@@ -665,11 +808,81 @@ struct ParamTraits<nsIntSize>
   }
 };
 
-template<>
-struct ParamTraits<nsRect>
+template<class T, class U>
+struct ParamTraits< mozilla::gfx::ScaleFactor<T, U> >
 {
-  typedef nsRect paramType;
-  
+  typedef mozilla::gfx::ScaleFactor<T, U> paramType;
+
+  static void Write(Message* msg, const paramType& param)
+  {
+    WriteParam(msg, param.scale);
+  }
+
+  static bool Read(const Message* msg, void** iter, paramType* result)
+  {
+    return (ReadParam(msg, iter, &result->scale));
+  }
+};
+
+template<class T>
+struct ParamTraits< mozilla::gfx::PointTyped<T> >
+{
+  typedef mozilla::gfx::PointTyped<T> paramType;
+
+  static void Write(Message* msg, const paramType& param)
+  {
+    WriteParam(msg, param.x);
+    WriteParam(msg, param.y);
+  }
+
+  static bool Read(const Message* msg, void** iter, paramType* result)
+  {
+    return (ReadParam(msg, iter, &result->x) &&
+            ReadParam(msg, iter, &result->y));
+  }
+};
+
+template<class T>
+struct ParamTraits< mozilla::gfx::IntPointTyped<T> >
+{
+  typedef mozilla::gfx::IntPointTyped<T> paramType;
+
+  static void Write(Message* msg, const paramType& param)
+  {
+    WriteParam(msg, param.x);
+    WriteParam(msg, param.y);
+  }
+
+  static bool Read(const Message* msg, void** iter, paramType* result)
+  {
+    return (ReadParam(msg, iter, &result->x) &&
+            ReadParam(msg, iter, &result->y));
+  }
+};
+
+template<>
+struct ParamTraits<mozilla::gfx::Size>
+{
+  typedef mozilla::gfx::Size paramType;
+
+  static void Write(Message* msg, const paramType& param)
+  {
+    WriteParam(msg, param.width);
+    WriteParam(msg, param.height);
+  }
+
+  static bool Read(const Message* msg, void** iter, paramType* result)
+  {
+    return (ReadParam(msg, iter, &result->width) &&
+            ReadParam(msg, iter, &result->height));
+  }
+};
+
+template<class T>
+struct ParamTraits< mozilla::gfx::RectTyped<T> >
+{
+  typedef mozilla::gfx::RectTyped<T> paramType;
+
   static void Write(Message* msg, const paramType& param)
   {
     WriteParam(msg, param.x);
@@ -686,6 +899,323 @@ struct ParamTraits<nsRect>
             ReadParam(msg, iter, &result->height));
   }
 };
+
+template<class T>
+struct ParamTraits< mozilla::gfx::IntRectTyped<T> >
+{
+  typedef mozilla::gfx::IntRectTyped<T> paramType;
+
+  static void Write(Message* msg, const paramType& param)
+  {
+    WriteParam(msg, param.x);
+    WriteParam(msg, param.y);
+    WriteParam(msg, param.width);
+    WriteParam(msg, param.height);
+  }
+
+  static bool Read(const Message* msg, void** iter, paramType* result)
+  {
+    return (ReadParam(msg, iter, &result->x) &&
+            ReadParam(msg, iter, &result->y) &&
+            ReadParam(msg, iter, &result->width) &&
+            ReadParam(msg, iter, &result->height));
+  }
+};
+
+template<>
+struct ParamTraits<mozilla::gfx::Margin>
+{
+  typedef mozilla::gfx::Margin paramType;
+
+  static void Write(Message* msg, const paramType& param)
+  {
+    WriteParam(msg, param.top);
+    WriteParam(msg, param.right);
+    WriteParam(msg, param.bottom);
+    WriteParam(msg, param.left);
+  }
+
+  static bool Read(const Message* msg, void** iter, paramType* result)
+  {
+    return (ReadParam(msg, iter, &result->top) &&
+            ReadParam(msg, iter, &result->right) &&
+            ReadParam(msg, iter, &result->bottom) &&
+            ReadParam(msg, iter, &result->left));
+  }
+};
+
+template<class T>
+struct ParamTraits< mozilla::gfx::MarginTyped<T> >
+{
+  typedef mozilla::gfx::MarginTyped<T> paramType;
+
+  static void Write(Message* msg, const paramType& param)
+  {
+    WriteParam(msg, param.top);
+    WriteParam(msg, param.right);
+    WriteParam(msg, param.bottom);
+    WriteParam(msg, param.left);
+  }
+
+  static bool Read(const Message* msg, void** iter, paramType* result)
+  {
+    return (ReadParam(msg, iter, &result->top) &&
+            ReadParam(msg, iter, &result->right) &&
+            ReadParam(msg, iter, &result->bottom) &&
+            ReadParam(msg, iter, &result->left));
+  }
+};
+
+template<>
+struct ParamTraits<nsRect>
+{
+  typedef nsRect paramType;
+
+  static void Write(Message* msg, const paramType& param)
+  {
+    WriteParam(msg, param.x);
+    WriteParam(msg, param.y);
+    WriteParam(msg, param.width);
+    WriteParam(msg, param.height);
+  }
+
+  static bool Read(const Message* msg, void** iter, paramType* result)
+  {
+    return (ReadParam(msg, iter, &result->x) &&
+            ReadParam(msg, iter, &result->y) &&
+            ReadParam(msg, iter, &result->width) &&
+            ReadParam(msg, iter, &result->height));
+  }
+};
+
+template<>
+struct ParamTraits<nsID>
+{
+  typedef nsID paramType;
+
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.m0);
+    WriteParam(aMsg, aParam.m1);
+    WriteParam(aMsg, aParam.m2);
+    for (unsigned int i = 0; i < mozilla::ArrayLength(aParam.m3); i++) {
+      WriteParam(aMsg, aParam.m3[i]);
+    }
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    if(!ReadParam(aMsg, aIter, &(aResult->m0)) ||
+       !ReadParam(aMsg, aIter, &(aResult->m1)) ||
+       !ReadParam(aMsg, aIter, &(aResult->m2)))
+      return false;
+
+    for (unsigned int i = 0; i < mozilla::ArrayLength(aResult->m3); i++)
+      if (!ReadParam(aMsg, aIter, &(aResult->m3[i])))
+        return false;
+
+    return true;
+  }
+
+  static void Log(const paramType& aParam, std::wstring* aLog)
+  {
+    aLog->append(L"{");
+    aLog->append(StringPrintf(L"%8.8X-%4.4X-%4.4X-",
+                              aParam.m0,
+                              aParam.m1,
+                              aParam.m2));
+    for (unsigned int i = 0; i < mozilla::ArrayLength(aParam.m3); i++)
+      aLog->append(StringPrintf(L"%2.2X", aParam.m3[i]));
+    aLog->append(L"}");
+  }
+};
+
+template<>
+struct ParamTraits<mozilla::TimeDuration>
+{
+  typedef mozilla::TimeDuration paramType;
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.mValue);
+  }
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    return ReadParam(aMsg, aIter, &aResult->mValue);
+  };
+};
+
+template<>
+struct ParamTraits<mozilla::TimeStamp>
+{
+  typedef mozilla::TimeStamp paramType;
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.mValue);
+  }
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    return ReadParam(aMsg, aIter, &aResult->mValue);
+  };
+};
+
+#ifdef XP_WIN
+
+template<>
+struct ParamTraits<mozilla::TimeStampValue>
+{
+  typedef mozilla::TimeStampValue paramType;
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.mGTC);
+    WriteParam(aMsg, aParam.mQPC);
+    WriteParam(aMsg, aParam.mHasQPC);
+    WriteParam(aMsg, aParam.mIsNull);
+  }
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    return (ReadParam(aMsg, aIter, &aResult->mGTC) &&
+            ReadParam(aMsg, aIter, &aResult->mQPC) &&
+            ReadParam(aMsg, aIter, &aResult->mHasQPC) &&
+            ReadParam(aMsg, aIter, &aResult->mIsNull));
+  }
+};
+
+#endif
+
+template <>
+struct ParamTraits<mozilla::SerializedStructuredCloneBuffer>
+{
+  typedef mozilla::SerializedStructuredCloneBuffer paramType;
+
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.dataLength);
+    if (aParam.dataLength) {
+      // Structured clone data must be 64-bit aligned.
+      aMsg->WriteBytes(aParam.data, aParam.dataLength, sizeof(uint64_t));
+    }
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    if (!ReadParam(aMsg, aIter, &aResult->dataLength)) {
+      return false;
+    }
+
+    if (aResult->dataLength) {
+      const char** buffer =
+        const_cast<const char**>(reinterpret_cast<char**>(&aResult->data));
+      // Structured clone data must be 64-bit aligned.
+      if (!aMsg->ReadBytes(aIter, buffer, aResult->dataLength,
+                           sizeof(uint64_t))) {
+        return false;
+      }
+    } else {
+      aResult->data = NULL;
+    }
+
+    return true;
+  }
+
+  static void Log(const paramType& aParam, std::wstring* aLog)
+  {
+    LogParam(aParam.dataLength, aLog);
+  }
+};
+
+template <>
+struct ParamTraits<mozilla::layers::FrameMetrics>
+{
+  typedef mozilla::layers::FrameMetrics paramType;
+
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.mScrollableRect);
+    WriteParam(aMsg, aParam.mViewport);
+    WriteParam(aMsg, aParam.mScrollOffset);
+    WriteParam(aMsg, aParam.mDisplayPort);
+    WriteParam(aMsg, aParam.mCriticalDisplayPort);
+    WriteParam(aMsg, aParam.mCompositionBounds);
+    WriteParam(aMsg, aParam.mScrollId);
+    WriteParam(aMsg, aParam.mResolution);
+    WriteParam(aMsg, aParam.mZoom);
+    WriteParam(aMsg, aParam.mDevPixelsPerCSSPixel);
+    WriteParam(aMsg, aParam.mMayHaveTouchListeners);
+    WriteParam(aMsg, aParam.mPresShellId);
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    return (ReadParam(aMsg, aIter, &aResult->mScrollableRect) &&
+            ReadParam(aMsg, aIter, &aResult->mViewport) &&
+            ReadParam(aMsg, aIter, &aResult->mScrollOffset) &&
+            ReadParam(aMsg, aIter, &aResult->mDisplayPort) &&
+            ReadParam(aMsg, aIter, &aResult->mCriticalDisplayPort) &&
+            ReadParam(aMsg, aIter, &aResult->mCompositionBounds) &&
+            ReadParam(aMsg, aIter, &aResult->mScrollId) &&
+            ReadParam(aMsg, aIter, &aResult->mResolution) &&
+            ReadParam(aMsg, aIter, &aResult->mZoom) &&
+            ReadParam(aMsg, aIter, &aResult->mDevPixelsPerCSSPixel) &&
+            ReadParam(aMsg, aIter, &aResult->mMayHaveTouchListeners) &&
+            ReadParam(aMsg, aIter, &aResult->mPresShellId));
+  }
+};
+
+template<>
+struct ParamTraits<mozilla::layers::TextureFactoryIdentifier>
+{
+  typedef mozilla::layers::TextureFactoryIdentifier paramType;
+
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.mParentBackend);
+    WriteParam(aMsg, aParam.mMaxTextureSize);
+    WriteParam(aMsg, aParam.mSupportsTextureBlitting);
+    WriteParam(aMsg, aParam.mSupportsPartialUploads);
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    return ReadParam(aMsg, aIter, &aResult->mParentBackend) &&
+           ReadParam(aMsg, aIter, &aResult->mMaxTextureSize) &&
+           ReadParam(aMsg, aIter, &aResult->mSupportsTextureBlitting) &&
+           ReadParam(aMsg, aIter, &aResult->mSupportsPartialUploads);
+  }
+};
+
+template<>
+struct ParamTraits<mozilla::layers::TextureInfo>
+{
+  typedef mozilla::layers::TextureInfo paramType;
+  
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.mCompositableType);
+    WriteParam(aMsg, aParam.mDeprecatedTextureHostFlags);
+    WriteParam(aMsg, aParam.mTextureFlags);
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    return ReadParam(aMsg, aIter, &aResult->mCompositableType) &&
+           ReadParam(aMsg, aIter, &aResult->mDeprecatedTextureHostFlags) &&
+           ReadParam(aMsg, aIter, &aResult->mTextureFlags);
+  }
+};
+
+template <>
+struct ParamTraits<mozilla::layers::CompositableType>
+  : public EnumSerializer<mozilla::layers::CompositableType,
+                          mozilla::layers::BUFFER_UNKNOWN,
+                          mozilla::layers::BUFFER_COUNT>
+{};
+
+template <>
+struct ParamTraits<mozilla::gfx::SurfaceFormat>
+  : public EnumSerializer<mozilla::gfx::SurfaceFormat,
+                          mozilla::gfx::FORMAT_B8G8R8A8,
+                          mozilla::gfx::FORMAT_UNKNOWN>
+{};
 
 } /* namespace IPC */
 

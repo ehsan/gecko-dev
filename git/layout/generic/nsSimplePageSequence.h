@@ -1,47 +1,17 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #ifndef nsSimplePageSequence_h___
 #define nsSimplePageSequence_h___
 
+#include "mozilla/Attributes.h"
 #include "nsIPageSequenceFrame.h"
 #include "nsContainerFrame.h"
 #include "nsIPrintSettings.h"
 #include "nsIPrintOptions.h"
 #include "nsIDateTimeFormat.h"
+#include "mozilla/dom/HTMLCanvasElement.h"
 
 //-----------------------------------------------
 // This class maintains all the data that 
@@ -49,23 +19,23 @@
 // It lives while the nsSimplePageSequenceFrame lives
 class nsSharedPageData {
 public:
-  nsSharedPageData();
-  ~nsSharedPageData();
+  // This object a shared by all the nsPageFrames
+  // parented to a SimplePageSequenceFrame
+  nsSharedPageData() :
+    mPageContentXMost(0),
+    mPageContentSize(0)
+  {
+  }
 
-  PRUnichar * mDateTimeStr;
-  nsFont *    mHeadFootFont;
-  PRUnichar * mPageNumFormat;
-  PRUnichar * mPageNumAndTotalsFormat;
-  PRUnichar * mDocTitle;
-  PRUnichar * mDocURL;
+  nsString    mDateTimeStr;
+  nsString    mPageNumFormat;
+  nsString    mPageNumAndTotalsFormat;
+  nsString    mDocTitle;
+  nsString    mDocURL;
+  nsFont      mHeadFootFont;
 
   nsSize      mReflowSize;
   nsMargin    mReflowMargin;
-  // shadow of page in PrintPreview; drawn around bottom and right edges
-  nsSize      mShadowSize;
-  // Extra Margin between the device area and the edge of the page;
-  // approximates unprintable area
-  nsMargin    mExtraMargin;
   // Margin for headers and footers; it defaults to 4/100 of an inch on UNIX 
   // and 0 elsewhere; I think it has to do with some inconsistency in page size
   // computations
@@ -91,59 +61,69 @@ public:
   NS_IMETHOD  Reflow(nsPresContext*      aPresContext,
                      nsHTMLReflowMetrics& aDesiredSize,
                      const nsHTMLReflowState& aMaxSize,
-                     nsReflowStatus&      aStatus);
+                     nsReflowStatus&      aStatus) MOZ_OVERRIDE;
 
-  NS_IMETHOD  BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                               const nsRect&           aDirtyRect,
-                               const nsDisplayListSet& aLists);
+  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   // nsIPageSequenceFrame
-  NS_IMETHOD SetPageNo(PRInt32 aPageNo) { return NS_OK;}
-  NS_IMETHOD SetSelectionHeight(nscoord aYOffset, nscoord aHeight) { mYSelOffset = aYOffset; mSelectionHeight = aHeight; return NS_OK; }
-  NS_IMETHOD SetTotalNumPages(PRInt32 aTotal) { mTotalPages = aTotal; return NS_OK; }
-
-  // Gets the dead space (the gray area) around the Print Preview Page
-  NS_IMETHOD GetDeadSpaceValue(nscoord* aValue) { *aValue = NS_INCHES_TO_INT_TWIPS(0.25); return NS_OK; }
+  NS_IMETHOD SetPageNo(int32_t aPageNo) { return NS_OK;}
+  NS_IMETHOD SetSelectionHeight(nscoord aYOffset, nscoord aHeight) MOZ_OVERRIDE { mYSelOffset = aYOffset; mSelectionHeight = aHeight; return NS_OK; }
+  NS_IMETHOD SetTotalNumPages(int32_t aTotal) MOZ_OVERRIDE { mTotalPages = aTotal; return NS_OK; }
   
   // For Shrink To Fit
-  NS_IMETHOD GetSTFPercent(float& aSTFPercent);
+  NS_IMETHOD GetSTFPercent(float& aSTFPercent) MOZ_OVERRIDE;
 
   // Async Printing
-  NS_IMETHOD StartPrint(nsPresContext*  aPresContext,
+  NS_IMETHOD StartPrint(nsPresContext*    aPresContext,
                         nsIPrintSettings* aPrintSettings,
-                        PRUnichar*        aDocTitle,
-                        PRUnichar*        aDocURL);
-  NS_IMETHOD PrintNextPage();
-  NS_IMETHOD GetCurrentPageNum(PRInt32* aPageNum);
-  NS_IMETHOD GetNumPages(PRInt32* aNumPages);
-  NS_IMETHOD IsDoingPrintRange(PRBool* aDoing);
-  NS_IMETHOD GetPrintRange(PRInt32* aFromPage, PRInt32* aToPage);
-  NS_IMETHOD DoPageEnd();
+                        const nsAString&  aDocTitle,
+                        const nsAString&  aDocURL) MOZ_OVERRIDE;
+  NS_IMETHOD PrePrintNextPage(nsITimerCallback* aCallback, bool* aDone) MOZ_OVERRIDE;
+  NS_IMETHOD PrintNextPage() MOZ_OVERRIDE;
+  NS_IMETHOD ResetPrintCanvasList() MOZ_OVERRIDE;
+  NS_IMETHOD GetCurrentPageNum(int32_t* aPageNum) MOZ_OVERRIDE;
+  NS_IMETHOD GetNumPages(int32_t* aNumPages) MOZ_OVERRIDE;
+  NS_IMETHOD IsDoingPrintRange(bool* aDoing) MOZ_OVERRIDE;
+  NS_IMETHOD GetPrintRange(int32_t* aFromPage, int32_t* aToPage) MOZ_OVERRIDE;
+  NS_IMETHOD DoPageEnd() MOZ_OVERRIDE;
+
+  // We must allow Print Preview UI to have a background, no matter what the
+  // user's settings
+  virtual bool HonorPrintBackgroundSettings() MOZ_OVERRIDE { return false; }
+
+  virtual bool HasTransformGetter() const MOZ_OVERRIDE { return true; }
 
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::sequenceFrame
    */
-  virtual nsIAtom* GetType() const;
-  
-#ifdef NS_DEBUG
-  NS_IMETHOD  GetFrameName(nsAString& aResult) const;
-#endif
+  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
-  void PaintPageSequence(nsRenderingContext& aRenderingContext,
-                         const nsRect&        aDirtyRect,
-                         nsPoint              aPt);
+#ifdef DEBUG
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+#endif
 
 protected:
   nsSimplePageSequenceFrame(nsStyleContext* aContext);
   virtual ~nsSimplePageSequenceFrame();
 
-  void SetPageNumberFormat(const char* aPropName, const char* aDefPropVal, PRBool aPageNumOnly);
+  void SetPageNumberFormat(const char* aPropName, const char* aDefPropVal, bool aPageNumOnly);
 
   // SharedPageData Helper methods
-  void SetDateTimeStr(PRUnichar * aDateTimeStr);
-  void SetPageNumberFormat(PRUnichar * aFormatStr, PRBool aForPageNumOnly);
+  void SetDateTimeStr(const nsAString& aDateTimeStr);
+  void SetPageNumberFormat(const nsAString& aFormatStr, bool aForPageNumOnly);
+
+  // Sets the frame desired size to the size of the viewport, or the given
+  // nscoords, whichever is larger. Print scaling is applied in this function.
+  void SetDesiredSize(nsHTMLReflowMetrics& aDesiredSize,
+                      const nsHTMLReflowState& aReflowState,
+                      nscoord aWidth, nscoord aHeight);
+
+  void DetermineWhetherToPrintPage();
+  nsIFrame* GetCurrentPageFrame();
 
   nsMargin mMargin;
 
@@ -154,22 +134,27 @@ protected:
   nsSharedPageData* mPageData; // data shared by all the nsPageFrames
 
   // Asynch Printing
-  nsIFrame *   mCurrentPageFrame;
-  PRInt32      mPageNum;
-  PRInt32      mTotalPages;
-  PRInt32      mPrintRangeType;
-  PRInt32      mFromPageNum;
-  PRInt32      mToPageNum;
+  int32_t      mPageNum;
+  int32_t      mTotalPages;
+  int32_t      mPrintRangeType;
+  int32_t      mFromPageNum;
+  int32_t      mToPageNum;
+  nsTArray<int32_t> mPageRanges;
+  nsTArray<nsRefPtr<mozilla::dom::HTMLCanvasElement> > mCurrentCanvasList;
 
   // Selection Printing Info
   nscoord      mSelectionHeight;
   nscoord      mYSelOffset;
 
   // Asynch Printing
-  PRPackedBool mPrintThisPage;
-  PRPackedBool mDoingPageRange;
+  bool mPrintThisPage;
+  bool mDoingPageRange;
 
-  PRPackedBool mIsPrintingSelection;
+  bool mIsPrintingSelection;
+
+  bool mCalledBeginPage;
+
+  bool mCurrentCanvasListSetup;
 };
 
 #endif /* nsSimplePageSequence_h___ */

@@ -1,40 +1,7 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is SVG Testing Code.
- *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Daniel Holbert <dholbert@mozilla.com> (original author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Standard values to use for <img>/<embed> height & width, if requested.
 var HOST_NODE_HEIGHT = "20";
@@ -53,30 +20,49 @@ const MEETORSLICE_VALS = [ "meet", "slice" ];
  * Generates full data URI for an SVG document, with the given parameters
  * on the SVG element.
  *
- * @param aViewboxArr   An array of four numbers, representing the viewBox
- *                      attribute, or null for no viewBox.
- * @param aWidth        The width attribute, or null for no width.
- * @param aHeight       The height attribute, or null for no height.
- * @param aAlign        The 'align' component of the preserveAspectRatio
- *                      attribute, or null for none.
- * @param aMeetOrSlice  The 'meetOrSlice' component of the
- *                      preserveAspectRatio attribute, or null for
- *                      none. (If non-null, implies non-null value for
- *                      aAlign.)
+ * @param aViewboxArr         An array of four numbers, representing the
+ *                            viewBox attribute, or null for no viewBox.
+ * @param aWidth              The width attribute, or null for no width.
+ * @param aHeight             The height attribute, or null for no height.
+ * @param aAlign              The 'align' component of the
+ *                            preserveAspectRatio attribute, or null for none.
+ * @param aMeetOrSlice        The 'meetOrSlice' component of the
+ *                            preserveAspectRatio attribute, or null for
+ *                            none. (If non-null, implies non-null value for
+ *                            aAlign.)
+ * @param aViewParams         Parameters to use for the view element.
+ * @param aFragmentIdentifier The SVG fragment identifier.
  */
 function generateSVGDataURI(aViewboxArr, aWidth, aHeight,
-                            aAlign, aMeetOrSlice) {
+                            aAlign, aMeetOrSlice,
+                            aViewParams, aFragmentIdentifier) {
   // prefix
   var datauri = "data:image/svg+xml,"
   // Begin the SVG tag
   datauri += "%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20shape-rendering%3D%22crispEdges%22";
 
   // Append the custom chunk from our params
+  // If we're working with views, the align customisation is applied there instead
   datauri += generateSVGAttrsForParams(aViewboxArr, aWidth, aHeight,
-                                       aAlign, aMeetOrSlice);
+                                       aViewParams ? null : aAlign,
+                                       aMeetOrSlice);
 
-  // Put closing leftbracket on SVG tag
+  // Add 'font-size' just in case the client wants to use ems
+  datauri += "%20font-size%3D%22" + "10px" + "%22";
+
+  // Put closing right bracket on SVG tag
   datauri += "%3E";
+
+  if (aViewParams) {
+    // Give the view the id of the fragment identifier
+    datauri += "%3Cview%20id%3D%22" + aFragmentIdentifier + "%22";
+
+    // Append the custom chunk from our view params
+    datauri += generateSVGAttrsForParams(aViewParams.viewBox, null, null,
+                                         aAlign, aViewParams.meetOrSlice);
+
+    datauri += "%2F%3E";
+  }
 
   // Add the rest of the SVG document
   datauri += "%3Crect%20x%3D%221%22%20y%3D%221%22%20height%3D%2218%22%20width%3D%2218%22%20stroke-width%3D%222%22%20stroke%3D%22black%22%20fill%3D%22yellow%22%2F%3E%3Ccircle%20cx%3D%2210%22%20cy%3D%2210%22%20r%3D%228%22%20style%3D%22fill%3A%20blue%22%2F%3E%3C%2Fsvg%3E";
@@ -92,8 +78,10 @@ function generateSVGAttrsForParams(aViewboxArr, aWidth, aHeight,
   if (aViewboxArr) {
     str += "%20viewBox%3D%22";
     for (var i in aViewboxArr) {
-        var curVal = aViewboxArr[i];
-        str += curVal + "%20";
+        str += aViewboxArr[i];
+        if (i != aViewboxArr.length - 1) {
+          str += "%20";
+        }
     }
     str += "%22";
   }
@@ -110,9 +98,6 @@ function generateSVGAttrsForParams(aViewboxArr, aWidth, aHeight,
     }
     str += "%22";
   }
-
-  // Add 'font-size' just in case the client wants to use ems
-  str += "%20font-size%3D%22" + "10px" + "%22";
 
   return str;
 }
@@ -165,7 +150,13 @@ function appendSVGSubArrayWithParams(aSVGParams, aHostNodeTagName,
     var uri = generateSVGDataURI(aSVGParams.viewBox,
                                  aSVGParams.width, aSVGParams.height,
                                  alignVal,
-                                 aSVGParams.meetOrSlice);
+                                 aSVGParams.meetOrSlice,
+                                 aSVGParams.view,
+                                 aSVGParams.fragmentIdentifier);
+
+    if (aSVGParams.fragmentIdentifier) {
+      uri += "#" + aSVGParams.fragmentIdentifier;
+    }
 
     // Generate & append the host node element
     var hostNode = generateHostNode(aHostNodeTagName, uri,

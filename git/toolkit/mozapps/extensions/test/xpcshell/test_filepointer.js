@@ -40,12 +40,12 @@ var addon2 = {
 
 const profileDir = gProfD.clone();
 profileDir.append("extensions");
-profileDir.create(AM_Ci.nsILocalFile.DIRECTORY_TYPE, 0755);
+profileDir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, 0755);
 
 const sourceDir = gProfD.clone();
 sourceDir.append("source");
 
-do_load_httpd_js();
+Components.utils.import("resource://testing-common/httpd.js");
 var testserver;
 
 function writePointer(aId, aName) {
@@ -64,6 +64,24 @@ function writePointer(aId, aName) {
   fos.close();
 }
 
+function writeRelativePointer(aId, aName) {
+  let file = profileDir.clone();
+  file.append(aName ? aName : aId);
+
+  let absTarget = sourceDir.clone();
+  absTarget.append(do_get_expected_addon_name(aId));
+
+  var relTarget = absTarget.getRelativeDescriptor(profileDir);
+
+  var fos = AM_Cc["@mozilla.org/network/file-output-stream;1"].
+            createInstance(AM_Ci.nsIFileOutputStream);
+  fos.init(file,
+           FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE | FileUtils.MODE_TRUNCATE,
+           FileUtils.PERMS_FILE, 0);
+  fos.write(relTarget, relTarget.length);
+  fos.close();
+}
+
 function run_test() {
   // pointer files only work with unpacked directories
   if (Services.prefs.getBoolPref("extensions.alwaysUnpack") == false)
@@ -73,10 +91,11 @@ function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1");
 
   // Create and configure the HTTP server.
-  testserver = new nsHttpServer();
+  testserver = new HttpServer();
   testserver.registerDirectory("/data/", do_get_file("data"));
   testserver.registerDirectory("/addons/", do_get_file("addons"));
-  testserver.start(4444);
+  testserver.start(-1);
+  gPort = testserver.identity.primaryPort;
 
   run_test_1();
 }
@@ -118,7 +137,7 @@ function run_test_2() {
     "onNewInstall",
   ]);
 
-  let url = "http://localhost:4444/addons/test_filepointer.xpi";
+  let url = "http://localhost:" + gPort + "/addons/test_filepointer.xpi";
   AddonManager.getInstallForURL(url, function(install) {
     ensure_test_completed();
 
@@ -159,14 +178,14 @@ function check_test_2() {
 
     a1.uninstall();
 
-    restartManager();
-
-    run_test_3();
+    do_execute_soon(run_test_3);
   });
 }
 
 // Tests that uninstalling doesn't clobber the original sources
 function run_test_3() {
+  restartManager();
+
   writePointer(addon1.id);
 
   restartManager();
@@ -183,7 +202,7 @@ function run_test_3() {
     source.append(addon1.id);
     do_check_true(source.exists());
 
-    run_test_4();
+    do_execute_soon(run_test_4);
   });
 }
 
@@ -206,7 +225,7 @@ function run_test_4() {
     pointer.append("addon2@tests.mozilla.org");
     do_check_false(pointer.exists());
 
-    run_test_5();
+    do_execute_soon(run_test_5);
   });
 }
 
@@ -240,7 +259,7 @@ function run_test_5() {
       pointer.append(addon1.id);
       do_check_false(pointer.exists());
 
-      run_test_6();
+      do_execute_soon(run_test_6);
     });
   });
 }
@@ -267,7 +286,7 @@ function run_test_6() {
     AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
       do_check_eq(a1, null);
 
-      run_test_7();
+      do_execute_soon(run_test_7);
     });
   });
 }
@@ -298,7 +317,7 @@ function run_test_7() {
 
       restartManager();
 
-      run_test_8();
+      do_execute_soon(run_test_8);
     });
   });
 }
@@ -325,7 +344,7 @@ function run_test_8() {
 
       restartManager();
 
-      run_test_9();
+      do_execute_soon(run_test_9);
     });
   });
 }
@@ -352,7 +371,33 @@ function run_test_9() {
       pointer.append(addon1.id);
       do_check_false(pointer.exists());
 
-      end_test();
+      do_execute_soon(run_test_10);
     });
+  });
+}
+
+// Tests that installing a new add-on by pointer with a relative path works
+function run_test_10() {
+  writeInstallRDFForExtension(addon1, sourceDir);
+  writeRelativePointer(addon1.id);
+
+  restartManager();
+
+  AddonManager.getAddonByID(addon1.id, function(a1) {
+    do_check_neq(a1, null);
+    do_check_eq(a1.version, "1.0");
+
+    let file = a1.getResourceURI().QueryInterface(AM_Ci.nsIFileURL).file;
+    do_check_eq(file.parent.path, sourceDir.path);
+
+    let rootUri = do_get_addon_root_uri(sourceDir, addon1.id);
+    let uri = a1.getResourceURI("/");
+    do_check_eq(uri.spec, rootUri);
+    uri = a1.getResourceURI("install.rdf");
+    do_check_eq(uri.spec, rootUri + "install.rdf");
+    
+    // Check that upgrade is disabled for addons installed by file-pointers.
+    do_check_eq(a1.permissions & AddonManager.PERM_CAN_UPGRADE, 0);
+    end_test();
   });
 }

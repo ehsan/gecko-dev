@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef nsComponentManager_h__
 #define nsComponentManager_h__
@@ -44,10 +12,11 @@
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
 #include "nsIServiceManager.h"
-#include "nsILocalFile.h"
+#include "nsIFile.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/Module.h"
 #include "mozilla/ModuleLoader.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Mutex.h"
 #include "nsXULAppAPI.h"
 #include "nsNativeComponentLoader.h"
 #include "nsIFactory.h"
@@ -58,7 +27,6 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsWeakReference.h"
-#include "nsIFile.h"
 #include "plarena.h"
 #include "nsCOMArray.h"
 #include "nsDataHashtable.h"
@@ -67,10 +35,11 @@
 #include "nsTArray.h"
 
 #include "mozilla/Omnijar.h"
-#include "nsIZipReader.h"
+#include "mozilla/Attributes.h"
 
 struct nsFactoryEntry;
 class nsIServiceManager;
+class nsIMemoryReporter;
 struct PRThread;
 
 #define NS_COMPONENTMANAGER_CID                      \
@@ -96,13 +65,60 @@ extern const char staticComponentType[];
 
 extern const mozilla::Module kXPCOMModule;
 
-// Array of Loaders and their type strings
-struct nsLoaderdata {
-    nsCOMPtr<mozilla::ModuleLoader> loader;
-    nsCString                 type;
+/**
+ * This is a wrapper around mozilla::Mutex which provides runtime
+ * checking for a deadlock where the same thread tries to lock a mutex while
+ * it is already locked. This checking is present in both debug and release
+ * builds.
+ */
+class SafeMutex
+{
+public:
+    SafeMutex(const char* name)
+        : mMutex(name)
+        , mOwnerThread(nullptr)
+    { }
+    ~SafeMutex()
+    { }
+
+    void Lock()
+    {
+        AssertNotCurrentThreadOwns();
+        mMutex.Lock();
+        MOZ_ASSERT(mOwnerThread == nullptr);
+        mOwnerThread = PR_GetCurrentThread();
+    }
+
+    void Unlock()
+    {
+        MOZ_ASSERT(mOwnerThread == PR_GetCurrentThread());
+        mOwnerThread = nullptr;
+        mMutex.Unlock();
+    }
+
+    void AssertCurrentThreadOwns() const
+    {
+        // This method is a debug-only check
+        MOZ_ASSERT(mOwnerThread == PR_GetCurrentThread());
+    }
+
+    MOZ_NEVER_INLINE void AssertNotCurrentThreadOwns() const
+    {
+        // This method is a release-mode check
+        if (PR_GetCurrentThread() == mOwnerThread) {
+            MOZ_CRASH();
+        }
+    }
+
+private:
+    mozilla::Mutex mMutex;
+    volatile PRThread* mOwnerThread;
 };
 
-class nsComponentManagerImpl
+typedef mozilla::BaseAutoLock<SafeMutex> SafeMutexAutoLock;
+typedef mozilla::BaseAutoUnlock<SafeMutex> SafeMutexAutoUnlock;
+
+class nsComponentManagerImpl MOZ_FINAL
     : public nsIComponentManager
     , public nsIServiceManager
     , public nsSupportsWeakReference
@@ -110,7 +126,7 @@ class nsComponentManagerImpl
     , public nsIInterfaceRequestor
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSICOMPONENTMANAGER
     NS_DECL_NSICOMPONENTREGISTRAR
@@ -120,7 +136,7 @@ public:
     nsresult RegistryLocationForFile(nsIFile* aFile,
                                      nsCString& aResult);
     nsresult FileForRegistryLocation(const nsCString &aLocation,
-                                     nsILocalFile **aSpec);
+                                     nsIFile **aSpec);
 
     NS_DECL_NSISERVICEMANAGER
 
@@ -139,18 +155,18 @@ public:
 
     already_AddRefed<nsIFactory> FindFactory(const nsCID& aClass);
     already_AddRefed<nsIFactory> FindFactory(const char *contractID,
-                                             PRUint32 aContractIDLen);
+                                             uint32_t aContractIDLen);
 
     already_AddRefed<nsIFactory> LoadFactory(nsFactoryEntry *aEntry);
 
     nsFactoryEntry *GetFactoryEntry(const char *aContractID,
-                                    PRUint32 aContractIDLen);
+                                    uint32_t aContractIDLen);
     nsFactoryEntry *GetFactoryEntry(const nsCID &aClass);
 
     nsDataHashtable<nsIDHashKey, nsFactoryEntry*> mFactories;
     nsDataHashtable<nsCStringHashKey, nsFactoryEntry*> mContractIDs;
 
-    mozilla::ReentrantMonitor mMon;
+    SafeMutex mLock;
 
     static void InitializeStaticModules();
     static void InitializeModuleLocations();
@@ -158,13 +174,20 @@ public:
     struct ComponentLocation
     {
         NSLocationType type;
-        nsCOMPtr<nsILocalFile> location;
-        bool jar;
+        mozilla::FileLocation location;
+    };
+
+    class ComponentLocationComparator
+    {
+    public:
+      bool Equals(const ComponentLocation& a, const ComponentLocation& b) const
+      {
+        return (a.type == b.type && a.location.Equals(b.location));
+      }
     };
 
     static nsTArray<const mozilla::Module*>* sStaticModules;
     static nsTArray<ComponentLocation>* sModuleLocations;
-    static nsTArray<ComponentLocation>* sJarModuleLocations;
 
     nsNativeModuleLoader mNativeModuleLoader;
 
@@ -174,25 +197,22 @@ public:
         /**
          * Static or binary module.
          */
-        KnownModule(const mozilla::Module* aModule, nsILocalFile* aFile)
+        KnownModule(const mozilla::Module* aModule, mozilla::FileLocation &aFile)
             : mModule(aModule)
             , mFile(aFile)
             , mLoaded(false)
             , mFailed(false)
         { }
 
-        KnownModule(nsILocalFile* aFile)
-            : mModule(NULL)
-            , mFile(aFile)
-            , mLoader(NULL)
+        KnownModule(const mozilla::Module* aModule)
+            : mModule(aModule)
             , mLoaded(false)
             , mFailed(false)
         { }
 
-        KnownModule(nsILocalFile* aFile, const nsACString& aPath)
+        KnownModule(mozilla::FileLocation &aFile)
             : mModule(NULL)
             , mFile(aFile)
-            , mPath(aPath)
             , mLoader(NULL)
             , mLoaded(false)
             , mFailed(false)
@@ -220,8 +240,7 @@ public:
 
     private:
         const mozilla::Module* mModule;
-        nsCOMPtr<nsILocalFile> mFile;
-        nsCString mPath;
+        mozilla::FileLocation mFile;
         nsCOMPtr<mozilla::ModuleLoader> mLoader;
         bool mLoaded;
         bool mFailed;
@@ -230,49 +249,35 @@ public:
     // The KnownModule is kept alive by these members, it is
     // referenced by pointer from the factory entries.
     nsTArray< nsAutoPtr<KnownModule> > mKnownStaticModules;
-    nsClassHashtable<nsHashableHashKey, KnownModule> mKnownFileModules;
-    // The key is a string in this format "<jar path>|<path within jar>"
-    nsClassHashtable<nsCStringHashKey, KnownModule> mKnownJARModules;
+    // The key is the URI string of the module
+    nsClassHashtable<nsCStringHashKey, KnownModule> mKnownModules;
 
+    // Mutex not held
     void RegisterModule(const mozilla::Module* aModule,
-                        nsILocalFile* aFile);
-    void RegisterCIDEntry(const mozilla::Module::CIDEntry* aEntry,
+                        mozilla::FileLocation* aFile);
+
+
+    // Mutex held
+    void RegisterCIDEntryLocked(const mozilla::Module::CIDEntry* aEntry,
                           KnownModule* aModule);
-    void RegisterContractID(const mozilla::Module::ContractIDEntry* aEntry);
+    void RegisterContractIDLocked(const mozilla::Module::ContractIDEntry* aEntry);
 
-    void RegisterJarManifest(nsIZipReader* aReader,
-                             const char* aPath, bool aChromeOnly);
-
-    void RegisterManifestFile(NSLocationType aType, nsILocalFile* aFile,
-                              bool aChromeOnly);
+    // Mutex not held
+    void RegisterManifest(NSLocationType aType, mozilla::FileLocation &aFile,
+                          bool aChromeOnly);
 
     struct ManifestProcessingContext
     {
-        ManifestProcessingContext(NSLocationType aType, nsILocalFile* aFile, bool aChromeOnly)
+        ManifestProcessingContext(NSLocationType aType, mozilla::FileLocation &aFile, bool aChromeOnly)
             : mType(aType)
             , mFile(aFile)
-            , mPath(NULL)
             , mChromeOnly(aChromeOnly)
         { }
-
-        ManifestProcessingContext(NSLocationType aType, nsIZipReader* aReader, const char* aPath, bool aChromeOnly)
-            : mType(aType)
-            , mReader(aReader)
-            , mPath(aPath)
-            , mChromeOnly(aChromeOnly)
-        {
-            nsCOMPtr<nsIFile> file;
-            aReader->GetFile(getter_AddRefs(file));
-            nsCOMPtr<nsILocalFile> localfile = do_QueryInterface(file);
-            mFile = localfile;
-        }
 
         ~ManifestProcessingContext() { }
 
         NSLocationType mType;
-        nsILocalFile* mFile;
-        nsIZipReader* mReader;
-        const char* mPath;
+        mozilla::FileLocation mFile;
         bool mChromeOnly;
     };
 
@@ -283,7 +288,7 @@ public:
     void ManifestContract(ManifestProcessingContext& cx, int lineno, char* const * argv);
     void ManifestCategory(ManifestProcessingContext& cx, int lineno, char* const * argv);
 
-    void RereadChromeManifests();
+    void RereadChromeManifests(bool aChromeOnly = true);
 
     // Shutdown
     enum {
@@ -292,8 +297,6 @@ public:
         SHUTDOWN_IN_PROGRESS,
         SHUTDOWN_COMPLETE
     } mStatus;
-
-    nsTArray<nsLoaderdata> mLoaderData;
 
     PLArenaPool   mArena;
 
@@ -309,8 +312,12 @@ public:
 
     nsTArray<PendingServiceInfo> mPendingServices;
 
+    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+
 private:
     ~nsComponentManagerImpl();
+
+    nsIMemoryReporter* mReporter;
 };
 
 
@@ -329,6 +336,8 @@ struct nsFactoryEntry
     ~nsFactoryEntry();
 
     already_AddRefed<nsIFactory> GetFactory();
+
+    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
     const mozilla::Module::CIDEntry* mCIDEntry;
     nsComponentManagerImpl::KnownModule* mModule;

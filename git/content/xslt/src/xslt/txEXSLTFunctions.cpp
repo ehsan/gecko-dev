@@ -1,44 +1,13 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Peter Van der Beken.
- * Portions created by the Initial Developer are Copyright (C) 2003
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Peter Van der Beken <peterv@propagandism.org>
- *
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "mozilla/FloatingPoint.h"
+#include "mozilla/Util.h"
 
 #include "nsIAtom.h"
-#include "txAtoms.h"
+#include "nsGkAtoms.h"
 #include "txExecutionState.h"
 #include "txExpr.h"
 #include "txIXPathContext.h"
@@ -47,16 +16,17 @@
 #include "txRtfHandler.h"
 #include "txXPathTreeWalker.h"
 #include "nsPrintfCString.h"
-
-#ifndef TX_EXE
 #include "nsComponentManagerUtils.h"
 #include "nsContentCID.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIContent.h"
 #include "nsIDOMDocumentFragment.h"
-#include "nsIDOMText.h"
 #include "txMozillaXMLOutput.h"
-#endif
+#include "nsTextNode.h"
+#include "mozilla/dom/DocumentFragment.h"
+
+using namespace mozilla;
+using namespace mozilla::dom;
 
 class txStylesheetCompilerState;
 
@@ -77,33 +47,27 @@ convertRtfToNode(txIEvalContext *aContext, txResultTreeFragment *aRtf)
 
     const txXPathNode& document = es->getSourceDocument();
 
-#ifdef TX_EXE
-    return NS_ERROR_NOT_IMPLEMENTED;
-#else
     nsIDocument *doc = txXPathNativeNode::getDocument(document);
-    nsCOMPtr<nsIDOMDocumentFragment> domFragment;
-    nsresult rv = NS_NewDocumentFragment(getter_AddRefs(domFragment),
-                                         doc->NodeInfoManager());
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIDOMDocumentFragment> domFragment =
+      new DocumentFragment(doc->NodeInfoManager());
 
     txOutputFormat format;
-    txMozillaXMLOutput mozHandler(&format, domFragment, PR_TRUE);
+    txMozillaXMLOutput mozHandler(&format, domFragment, true);
 
-    rv = aRtf->flushToHandler(&mozHandler);
+    nsresult rv = aRtf->flushToHandler(&mozHandler);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = mozHandler.closePrevious(PR_TRUE);
+    rv = mozHandler.closePrevious(true);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // The txResultTreeFragment will own this.
     const txXPathNode* node = txXPathNativeNode::createXPathNode(domFragment,
-                                                                 PR_TRUE);
+                                                                 true);
     NS_ENSURE_TRUE(node, NS_ERROR_OUT_OF_MEMORY);
 
     aRtf->setNode(node);
 
     return NS_OK;
-#endif
 }
 
 static nsresult
@@ -120,44 +84,35 @@ createTextNode(txIEvalContext *aContext, nsString& aValue,
 
     const txXPathNode& document = es->getSourceDocument();
 
-#ifdef TX_EXE
-    return NS_ERROR_NOT_IMPLEMENTED;
-#else
     nsIDocument *doc = txXPathNativeNode::getDocument(document);
-    nsCOMPtr<nsIContent> text;
-    nsresult rv = NS_NewTextNode(getter_AddRefs(text), doc->NodeInfoManager());
+    nsCOMPtr<nsIContent> text = new nsTextNode(doc->NodeInfoManager());
+
+    nsresult rv = text->SetText(aValue, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = text->SetText(aValue, PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    *aResult = txXPathNativeNode::createXPathNode(text, PR_TRUE);
+    *aResult = txXPathNativeNode::createXPathNode(text, true);
     NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
 
     return NS_OK;
-#endif
 }
 
-#ifndef TX_EXE
-static nsresult
-createDocFragment(txIEvalContext *aContext, nsIContent** aResult)
+static already_AddRefed<DocumentFragment>
+createDocFragment(txIEvalContext *aContext)
 {
     txExecutionState* es = 
         static_cast<txExecutionState*>(aContext->getPrivateContext());
     if (!es) {
         NS_ERROR("Need txExecutionState!");
 
-        return NS_ERROR_UNEXPECTED;
+        return nullptr;
     }
 
     const txXPathNode& document = es->getSourceDocument();
     nsIDocument *doc = txXPathNativeNode::getDocument(document);
-    nsCOMPtr<nsIDOMDocumentFragment> domFragment;
-    nsresult rv = NS_NewDocumentFragment(getter_AddRefs(domFragment),
-                                         doc->NodeInfoManager());
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsRefPtr<DocumentFragment> fragment =
+      new DocumentFragment(doc->NodeInfoManager());
 
-    return CallQueryInterface(domFragment, aResult);
+    return fragment.forget();
 }
 
 static nsresult
@@ -165,38 +120,35 @@ createAndAddToResult(nsIAtom* aName, const nsSubstring& aValue,
                      txNodeSet* aResultSet, nsIContent* aResultHolder)
 {
     NS_ASSERTION(aResultHolder->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT) &&
-                 aResultHolder->GetOwnerDoc(),
+                 aResultHolder->OwnerDoc(),
                  "invalid result-holder");
 
-    nsIDocument* doc = aResultHolder->GetOwnerDoc();
+    nsIDocument* doc = aResultHolder->OwnerDoc();
     nsCOMPtr<nsIContent> elem;
     nsresult rv = doc->CreateElem(nsDependentAtomString(aName),
-                                  nsnull, kNameSpaceID_None, PR_FALSE,
+                                  nullptr, kNameSpaceID_None,
                                   getter_AddRefs(elem));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIContent> text;
-    rv = NS_NewTextNode(getter_AddRefs(text), doc->NodeInfoManager());
+    nsRefPtr<nsTextNode> text = new nsTextNode(doc->NodeInfoManager());
+
+    rv = text->SetText(aValue, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = text->SetText(aValue, PR_FALSE);
+    rv = elem->AppendChildTo(text, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = elem->AppendChildTo(text, PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = aResultHolder->AppendChildTo(elem, PR_FALSE);
+    rv = aResultHolder->AppendChildTo(elem, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsAutoPtr<txXPathNode> xpathNode(
-          txXPathNativeNode::createXPathNode(elem, PR_TRUE));
+          txXPathNativeNode::createXPathNode(elem, true));
     NS_ENSURE_TRUE(xpathNode, NS_ERROR_OUT_OF_MEMORY);
 
     aResultSet->append(*xpathNode);
 
     return NS_OK;
 }
-#endif
 
 // Need to update this array if types are added to the ResultType enum in
 // txAExprResult.
@@ -214,11 +166,11 @@ static const char * const sTypes[] = {
 
 struct txEXSLTFunctionDescriptor
 {
-    PRInt8 mMinParams;
-    PRInt8 mMaxParams;
+    int8_t mMinParams;
+    int8_t mMaxParams;
     Expr::ResultType mReturnType;
     nsIAtom** mName;
-    PRInt32 mNamespaceID;
+    int32_t mNamespaceID;
     const char* mNamespaceURI;
 };
 
@@ -232,22 +184,22 @@ static const char kEXSLTDatesAndTimesNS[] = "http://exslt.org/dates-and-times";
 // txEXSLTFunctionCall::eType enum
 static txEXSLTFunctionDescriptor descriptTable[] =
 {
-    { 1, 1, Expr::NODESET_RESULT, &txXSLTAtoms::nodeSet, 0, kEXSLTCommonNS }, // NODE_SET
-    { 1, 1, Expr::STRING_RESULT,  &txXSLTAtoms::objectType, 0, kEXSLTCommonNS }, // OBJECT_TYPE
-    { 2, 2, Expr::NODESET_RESULT, &txXSLTAtoms::difference, 0, kEXSLTSetsNS }, // DIFFERENCE
-    { 1, 1, Expr::NODESET_RESULT, &txXSLTAtoms::distinct, 0, kEXSLTSetsNS }, // DISTINCT
-    { 2, 2, Expr::BOOLEAN_RESULT, &txXSLTAtoms::hasSameNode, 0, kEXSLTSetsNS }, // HAS_SAME_NODE
-    { 2, 2, Expr::NODESET_RESULT, &txXSLTAtoms::intersection, 0, kEXSLTSetsNS }, // INTERSECTION
-    { 2, 2, Expr::NODESET_RESULT, &txXSLTAtoms::leading, 0, kEXSLTSetsNS }, // LEADING
-    { 2, 2, Expr::NODESET_RESULT, &txXSLTAtoms::trailing, 0, kEXSLTSetsNS }, // TRAILING
-    { 1, 1, Expr::STRING_RESULT,  &txXSLTAtoms::concat, 0, kEXSLTStringsNS }, // CONCAT
-    { 1, 2, Expr::STRING_RESULT,  &txXSLTAtoms::split, 0, kEXSLTStringsNS }, // SPLIT
-    { 1, 2, Expr::STRING_RESULT,  &txXSLTAtoms::tokenize, 0, kEXSLTStringsNS }, // TOKENIZE
-    { 1, 1, Expr::NUMBER_RESULT,  &txXSLTAtoms::max, 0, kEXSLTMathNS }, // MAX
-    { 1, 1, Expr::NUMBER_RESULT,  &txXSLTAtoms::min, 0, kEXSLTMathNS }, // MIN
-    { 1, 1, Expr::NODESET_RESULT, &txXSLTAtoms::highest, 0, kEXSLTMathNS }, // HIGHEST
-    { 1, 1, Expr::NODESET_RESULT, &txXSLTAtoms::lowest, 0, kEXSLTMathNS }, // LOWEST
-    { 0, 0, Expr::STRING_RESULT,  &txXSLTAtoms::dateTime, 0, kEXSLTDatesAndTimesNS }, // DATE_TIME
+    { 1, 1, Expr::NODESET_RESULT, &nsGkAtoms::nodeSet, 0, kEXSLTCommonNS }, // NODE_SET
+    { 1, 1, Expr::STRING_RESULT,  &nsGkAtoms::objectType, 0, kEXSLTCommonNS }, // OBJECT_TYPE
+    { 2, 2, Expr::NODESET_RESULT, &nsGkAtoms::difference, 0, kEXSLTSetsNS }, // DIFFERENCE
+    { 1, 1, Expr::NODESET_RESULT, &nsGkAtoms::distinct, 0, kEXSLTSetsNS }, // DISTINCT
+    { 2, 2, Expr::BOOLEAN_RESULT, &nsGkAtoms::hasSameNode, 0, kEXSLTSetsNS }, // HAS_SAME_NODE
+    { 2, 2, Expr::NODESET_RESULT, &nsGkAtoms::intersection, 0, kEXSLTSetsNS }, // INTERSECTION
+    { 2, 2, Expr::NODESET_RESULT, &nsGkAtoms::leading, 0, kEXSLTSetsNS }, // LEADING
+    { 2, 2, Expr::NODESET_RESULT, &nsGkAtoms::trailing, 0, kEXSLTSetsNS }, // TRAILING
+    { 1, 1, Expr::STRING_RESULT,  &nsGkAtoms::concat, 0, kEXSLTStringsNS }, // CONCAT
+    { 1, 2, Expr::STRING_RESULT,  &nsGkAtoms::split, 0, kEXSLTStringsNS }, // SPLIT
+    { 1, 2, Expr::STRING_RESULT,  &nsGkAtoms::tokenize, 0, kEXSLTStringsNS }, // TOKENIZE
+    { 1, 1, Expr::NUMBER_RESULT,  &nsGkAtoms::max, 0, kEXSLTMathNS }, // MAX
+    { 1, 1, Expr::NUMBER_RESULT,  &nsGkAtoms::min, 0, kEXSLTMathNS }, // MIN
+    { 1, 1, Expr::NODESET_RESULT, &nsGkAtoms::highest, 0, kEXSLTMathNS }, // HIGHEST
+    { 1, 1, Expr::NODESET_RESULT, &nsGkAtoms::lowest, 0, kEXSLTMathNS }, // LOWEST
+    { 0, 0, Expr::STRING_RESULT,  &nsGkAtoms::dateTime, 0, kEXSLTDatesAndTimesNS }, // DATE_TIME
 
 };
 
@@ -291,7 +243,7 @@ nsresult
 txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
                               txAExprResult **aResult)
 {
-    *aResult = nsnull;
+    *aResult = nullptr;
     if (!requireParams(descriptTable[mType].mMinParams,
                        descriptTable[mType].mMaxParams,
                        aContext)) {
@@ -383,13 +335,13 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             rv = aContext->recycler()->getNodeSet(getter_AddRefs(resultSet));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            PRBool insertOnFound = mType == INTERSECTION;
+            bool insertOnFound = mType == INTERSECTION;
 
-            PRInt32 searchPos = 0;
-            PRInt32 i, len = nodes1->size();
+            int32_t searchPos = 0;
+            int32_t i, len = nodes1->size();
             for (i = 0; i < len; ++i) {
                 const txXPathNode& node = nodes1->get(i);
-                PRInt32 foundPos = nodes2->indexOf(node, searchPos);
+                int32_t foundPos = nodes2->indexOf(node, searchPos);
                 if (foundPos >= 0) {
                     searchPos = foundPos + 1;
                 }
@@ -416,19 +368,15 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             NS_ENSURE_SUCCESS(rv, rv);
 
             nsTHashtable<nsStringHashKey> hash;
-            if (!hash.Init()) {
-                return NS_ERROR_OUT_OF_MEMORY;
-            }
+            hash.Init();
 
-            PRInt32 i, len = nodes->size();
+            int32_t i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 const txXPathNode& node = nodes->get(i);
                 txXPathNodeUtils::appendNodeValue(node, str);
                 if (!hash.GetEntry(str)) {
-                    if (!hash.PutEntry(str)) {
-                        return NS_ERROR_OUT_OF_MEMORY;
-                    }
+                    hash.PutEntry(str);
                     rv = resultSet->append(node);
                     NS_ENSURE_SUCCESS(rv, rv);
                 }
@@ -450,11 +398,11 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
                                    getter_AddRefs(nodes2));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            PRBool found = PR_FALSE;
-            PRInt32 i, len = nodes1->size();
+            bool found = false;
+            int32_t i, len = nodes1->size();
             for (i = 0; i < len; ++i) {
                 if (nodes2->contains(nodes1->get(i))) {
-                    found = PR_TRUE;
+                    found = true;
                     break;
                 }
             }
@@ -487,9 +435,9 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             rv = aContext->recycler()->getNodeSet(getter_AddRefs(resultSet));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            PRInt32 end = nodes1->indexOf(nodes2->get(0));
+            int32_t end = nodes1->indexOf(nodes2->get(0));
             if (end >= 0) {
-                PRInt32 i = 0;
+                int32_t i = 0;
                 if (mType == TRAILING) {
                     i = end + 1;
                     end = nodes1->size();
@@ -512,7 +460,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             NS_ENSURE_SUCCESS(rv, rv);
 
             nsAutoString str;
-            PRInt32 i, len = nodes->size();
+            int32_t i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 txXPathNodeUtils::appendNodeValue(nodes->get(i), str);
             }
@@ -540,22 +488,21 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             }
 
             // Set up holders for the result
-            nsCOMPtr<nsIContent> docFrag;
-            rv = createDocFragment(aContext, getter_AddRefs(docFrag));
-            NS_ENSURE_SUCCESS(rv, rv);
+            nsRefPtr<DocumentFragment> docFrag = createDocFragment(aContext);
+            NS_ENSURE_STATE(docFrag);
 
             nsRefPtr<txNodeSet> resultSet;
             rv = aContext->recycler()->getNodeSet(getter_AddRefs(resultSet));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            PRUint32 tailIndex;
+            uint32_t tailIndex;
 
             // Start splitting
             if (pattern.IsEmpty()) {
                 nsString::const_char_iterator start = string.BeginReading();
                 nsString::const_char_iterator end = string.EndReading();
                 for (; start < end; ++start) {
-                    rv = createAndAddToResult(txXSLTAtoms::token,
+                    rv = createAndAddToResult(nsGkAtoms::token,
                                               Substring(start, start + 1),
                                               resultSet, docFrag);
                     NS_ENSURE_SUCCESS(rv, rv);
@@ -571,7 +518,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
 
                 while (FindInReadable(pattern, start, end)) {
                     if (start != strStart) {
-                        rv = createAndAddToResult(txXSLTAtoms::token,
+                        rv = createAndAddToResult(nsGkAtoms::token,
                                                   Substring(strStart, start),
                                                   resultSet, docFrag);
                         NS_ENSURE_SUCCESS(rv, rv);
@@ -583,11 +530,11 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
                 tailIndex = strStart.get() - string.get();
             }
             else {
-                PRInt32 found, start = 0;
+                int32_t found, start = 0;
                 while ((found = string.FindCharInSet(pattern, start)) !=
                        kNotFound) {
                     if (found != start) {
-                        rv = createAndAddToResult(txXSLTAtoms::token,
+                        rv = createAndAddToResult(nsGkAtoms::token,
                                                   Substring(string, start,
                                                             found - start),
                                                   resultSet, docFrag);
@@ -600,8 +547,8 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             }
 
             // Add tail if needed
-            if (tailIndex != (PRUint32)string.Length()) {
-                rv = createAndAddToResult(txXSLTAtoms::token,
+            if (tailIndex != (uint32_t)string.Length()) {
+                rv = createAndAddToResult(nsGkAtoms::token,
                                           Substring(string, tailIndex),
                                           resultSet, docFrag);
                 NS_ENSURE_SUCCESS(rv, rv);
@@ -621,20 +568,20 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
 
             if (nodes->isEmpty()) {
                 return aContext->recycler()->
-                    getNumberResult(Double::NaN, aResult);
+                    getNumberResult(UnspecifiedNaN(), aResult);
             }
 
-            PRBool findMax = mType == MAX;
+            bool findMax = mType == MAX;
 
-            double res = findMax ? txDouble::NEGATIVE_INFINITY :
-                                   txDouble::POSITIVE_INFINITY;
-            PRInt32 i, len = nodes->size();
+            double res = findMax ? mozilla::NegativeInfinity() :
+                                   mozilla::PositiveInfinity();
+            int32_t i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 txXPathNodeUtils::appendNodeValue(nodes->get(i), str);
-                double val = Double::toDouble(str);
-                if (Double::isNaN(val)) {
-                    res = Double::NaN;
+                double val = txDouble::toDouble(str);
+                if (mozilla::IsNaN(val)) {
+                    res = UnspecifiedNaN();
                     break;
                 }
 
@@ -663,16 +610,16 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             rv = aContext->recycler()->getNodeSet(getter_AddRefs(resultSet));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            PRBool findMax = mType == HIGHEST;
-            double res = findMax ? txDouble::NEGATIVE_INFINITY :
-                                   txDouble::POSITIVE_INFINITY;
-            PRInt32 i, len = nodes->size();
+            bool findMax = mType == HIGHEST;
+            double res = findMax ? mozilla::NegativeInfinity() :
+                                   mozilla::PositiveInfinity();
+            int32_t i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 const txXPathNode& node = nodes->get(i);
                 txXPathNodeUtils::appendNodeValue(node, str);
-                double val = Double::toDouble(str);
-                if (Double::isNaN(val)) {
+                double val = txDouble::toDouble(str);
+                if (mozilla::IsNaN(val)) {
                     resultSet->clear();
                     break;
                 }
@@ -696,22 +643,21 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             // http://exslt.org/date/functions/date-time/
             // format: YYYY-MM-DDTTHH:MM:SS.sss+00:00
             char formatstr[] = "%04hd-%02ld-%02ldT%02ld:%02ld:%02ld.%03ld%c%02ld:%02ld";
-            const size_t max = sizeof("YYYY-MM-DDTHH:MM:SS.sss+00:00");
             
             PRExplodedTime prtime;
             PR_ExplodeTime(PR_Now(), PR_LocalTimeParameters, &prtime);
             
-            PRInt32 offset = (prtime.tm_params.tp_gmt_offset +
+            int32_t offset = (prtime.tm_params.tp_gmt_offset +
               prtime.tm_params.tp_dst_offset) / 60;
               
-            PRBool isneg = offset < 0;
+            bool isneg = offset < 0;
             if (isneg) offset = -offset;
             
             StringResult* strRes;
             rv = aContext->recycler()->getStringResult(&strRes);
             NS_ENSURE_SUCCESS(rv, rv);
             
-            CopyASCIItoUTF16(nsPrintfCString(max, formatstr,
+            CopyASCIItoUTF16(nsPrintfCString(formatstr,
               prtime.tm_year, prtime.tm_month + 1, prtime.tm_mday,
               prtime.tm_hour, prtime.tm_min, prtime.tm_sec,
               prtime.tm_usec / 10000,
@@ -734,7 +680,7 @@ txEXSLTFunctionCall::getReturnType()
     return descriptTable[mType].mReturnType;
 }
 
-PRBool
+bool
 txEXSLTFunctionCall::isSensitiveTo(ContextSensitivity aContext)
 {
     if (mType == NODE_SET || mType == SPLIT || mType == TOKENIZE) {
@@ -754,12 +700,12 @@ txEXSLTFunctionCall::getNameAtom(nsIAtom **aAtom)
 
 extern nsresult
 TX_ConstructEXSLTFunction(nsIAtom *aName,
-                          PRInt32 aNamespaceID,
+                          int32_t aNamespaceID,
                           txStylesheetCompilerState* aState,
                           FunctionCall **aResult)
 {
-    PRUint32 i;
-    for (i = 0; i < NS_ARRAY_LENGTH(descriptTable); ++i) {
+    uint32_t i;
+    for (i = 0; i < ArrayLength(descriptTable); ++i) {
         txEXSLTFunctionDescriptor& desc = descriptTable[i];
         if (aName == *desc.mName && aNamespaceID == desc.mNamespaceID) {
             *aResult = new txEXSLTFunctionCall(
@@ -772,20 +718,20 @@ TX_ConstructEXSLTFunction(nsIAtom *aName,
     return NS_ERROR_XPATH_UNKNOWN_FUNCTION;
 }
 
-extern PRBool
+extern bool
 TX_InitEXSLTFunction()
 {
-    PRUint32 i;
-    for (i = 0; i < NS_ARRAY_LENGTH(descriptTable); ++i) {
+    uint32_t i;
+    for (i = 0; i < ArrayLength(descriptTable); ++i) {
         txEXSLTFunctionDescriptor& desc = descriptTable[i];
         NS_ConvertASCIItoUTF16 namespaceURI(desc.mNamespaceURI);
         desc.mNamespaceID =
             txNamespaceManager::getNamespaceID(namespaceURI);
 
         if (desc.mNamespaceID == kNameSpaceID_Unknown) {
-            return PR_FALSE;
+            return false;
         }
     }
 
-    return PR_TRUE;
+    return true;
 }

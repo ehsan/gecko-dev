@@ -1,42 +1,8 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Bug 378079 unit test code.
- *
- * The Initial Developer of the Original Code is POTI Inc.
- * Portions created by the Initial Developer are Copyright (C) 2007
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Matt Crocker <matt@songbirdnest.com>
- *   Seth Spitzer <sspitzer@mozilla.org>
- *   Edward Lee <edward.lee@engineering.uiuc.edu>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
  * Test for bug 395739 to make sure the feedback to the search results in those
@@ -105,27 +71,23 @@ function ensure_results(expected, searchTerm)
       do_check_eq(controller.getStyleAt(i), expected[i].style);
     }
 
-    next_test();
+    deferEnsureResults.resolve();
   };
 
   controller.startSearch(searchTerm);
 }
 
 /**
- * Bump up the rank for an uri.
+ * Asynchronous task that bumps up the rank for an uri.
  */
-function setCountRank(aURI, aCount, aRank, aSearch, aBookmark)
+function task_setCountRank(aURI, aCount, aRank, aSearch, aBookmark)
 {
-  PlacesUtils.history.runInBatchMode({
-    runBatched: function() {
-      // Bump up the visit count for the uri.
-      for (let i = 0; i < aCount; i++) {
-        PlacesUtils.history.addVisit(aURI, d1, null,
-                                     PlacesUtils.history.TRANSITION_TYPED,
-                                     false, 0);
-      }
-    }
-  }, this);
+  // Bump up the visit count for the uri.
+  let visits = [];
+  for (let i = 0; i < aCount; i++) {
+    visits.push({ uri: aURI, visitDate: d1, transition: TRANSITION_TYPED });
+  }
+  yield promiseAddVisits(visits);
 
   // Make a nsIAutoCompleteController and friends for instrumentation feedback.
   let thing = {
@@ -220,8 +182,8 @@ let tests = [
     ];
     observer.search = s0;
     observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c1, s2);
-    setCountRank(uri2, c1, c2, s2);
+    yield task_setCountRank(uri1, c1, c1, s2);
+    yield task_setCountRank(uri2, c1, c2, s2);
   },
   function() {
     print("Test 1 same count, diff rank, same term; no search");
@@ -231,8 +193,8 @@ let tests = [
     ];
     observer.search = s0;
     observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c2, s2);
-    setCountRank(uri2, c1, c1, s2);
+    yield task_setCountRank(uri1, c1, c2, s2);
+    yield task_setCountRank(uri2, c1, c1, s2);
   },
   function() {
     print("Test 2 diff count, same rank, same term; no search");
@@ -242,8 +204,8 @@ let tests = [
     ];
     observer.search = s0;
     observer.runCount = c1 + c1;
-    setCountRank(uri1, c1, c1, s2);
-    setCountRank(uri2, c2, c1, s2);
+    yield task_setCountRank(uri1, c1, c1, s2);
+    yield task_setCountRank(uri2, c2, c1, s2);
   },
   function() {
     print("Test 3 diff count, same rank, same term; no search");
@@ -253,8 +215,8 @@ let tests = [
     ];
     observer.search = s0;
     observer.runCount = c1 + c1;
-    setCountRank(uri1, c2, c1, s2);
-    setCountRank(uri2, c1, c1, s2);
+    yield task_setCountRank(uri1, c2, c1, s2);
+    yield task_setCountRank(uri2, c1, c1, s2);
   },
 
   // Test things with a search term (exact match one, partial other).
@@ -266,8 +228,8 @@ let tests = [
     ];
     observer.search = s1;
     observer.runCount = c1 + c1;
-    setCountRank(uri1, c1, c1, s1);
-    setCountRank(uri2, c1, c1, s2);
+    yield task_setCountRank(uri1, c1, c1, s1);
+    yield task_setCountRank(uri2, c1, c1, s2);
   },
   function() {
     print("Test 5 same count, same rank, diff term; one exact/one partial search");
@@ -277,8 +239,8 @@ let tests = [
     ];
     observer.search = s1;
     observer.runCount = c1 + c1;
-    setCountRank(uri1, c1, c1, s2);
-    setCountRank(uri2, c1, c1, s1);
+    yield task_setCountRank(uri1, c1, c1, s2);
+    yield task_setCountRank(uri2, c1, c1, s1);
   },
 
   // Test things with a search term (exact match both).
@@ -290,8 +252,8 @@ let tests = [
     ];
     observer.search = s1;
     observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c1, s1);
-    setCountRank(uri2, c1, c2, s1);
+    yield task_setCountRank(uri1, c1, c1, s1);
+    yield task_setCountRank(uri2, c1, c2, s1);
   },
   function() {
     print("Test 7 same count, diff rank, same term; both exact search");
@@ -301,8 +263,8 @@ let tests = [
     ];
     observer.search = s1;
     observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c2, s1);
-    setCountRank(uri2, c1, c1, s1);
+    yield task_setCountRank(uri1, c1, c2, s1);
+    yield task_setCountRank(uri2, c1, c1, s1);
   },
 
   // Test things with a search term (partial match both).
@@ -314,8 +276,8 @@ let tests = [
     ];
     observer.search = s1;
     observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c1, s2);
-    setCountRank(uri2, c1, c2, s2);
+    yield task_setCountRank(uri1, c1, c1, s2);
+    yield task_setCountRank(uri2, c1, c2, s2);
   },
   function() {
     print("Test 9 same count, diff rank, same term; both partial search");
@@ -325,8 +287,8 @@ let tests = [
     ];
     observer.search = s1;
     observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c2, s2);
-    setCountRank(uri2, c1, c1, s2);
+    yield task_setCountRank(uri1, c1, c2, s2);
+    yield task_setCountRank(uri2, c1, c1, s2);
   },
   function() {
     print("Test 10 same count, same rank, same term, decay first; exact match");
@@ -336,9 +298,9 @@ let tests = [
     ];
     observer.search = s1;
     observer.runCount = c1 + c1;
-    setCountRank(uri1, c1, c1, s1);
+    yield task_setCountRank(uri1, c1, c1, s1);
     doAdaptiveDecay();
-    setCountRank(uri2, c1, c1, s1);
+    yield task_setCountRank(uri2, c1, c1, s1);
   },
   function() {
     print("Test 11 same count, same rank, same term, decay second; exact match");
@@ -348,9 +310,9 @@ let tests = [
     ];
     observer.search = s1;
     observer.runCount = c1 + c1;
-    setCountRank(uri2, c1, c1, s1);
+    yield task_setCountRank(uri2, c1, c1, s1);
     doAdaptiveDecay();
-    setCountRank(uri1, c1, c1, s1);
+    yield task_setCountRank(uri1, c1, c1, s1);
   },
   // Test that bookmarks or tags are hidden if the preferences are set right.
   function() {
@@ -363,8 +325,8 @@ let tests = [
     ];
     observer.search = s0;
     observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c1, s2, "bookmark");
-    setCountRank(uri2, c1, c2, s2);
+    yield task_setCountRank(uri1, c1, c1, s2, "bookmark");
+    yield task_setCountRank(uri2, c1, c2, s2);
   },
   function() {
     print("Test 13 same count, diff rank, same term; no search; history only with tag");
@@ -376,31 +338,39 @@ let tests = [
     ];
     observer.search = s0;
     observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c1, s2, "tag");
-    setCountRank(uri2, c1, c2, s2);
+    yield task_setCountRank(uri1, c1, c1, s2, "tag");
+    yield task_setCountRank(uri2, c1, c2, s2);
   },
 ];
 
 /**
+ * This deferred object contains a promise that is resolved when the
+ * ensure_results function has finished its execution.
+ */
+let deferEnsureResults;
+
+/**
  * Test adaptive autocomplete.
  */
-function run_test() {
-  do_test_pending();
-  next_test();
+function run_test()
+{
+  run_next_test();
 }
 
-function next_test() {
-  if (tests.length) {
+add_task(function test_adaptive()
+{
+  for (let [, test] in Iterator(tests)) {
     // Cleanup.
     PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
     PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.tagsFolderId);
     observer.runCount = -1;
 
-    let test = tests.shift();
-    waitForClearHistory(test);
+    yield promiseClearHistory();
+
+    deferEnsureResults = Promise.defer();
+    yield test();
+    yield deferEnsureResults.promise;
   }
-  else {
-    Services.obs.removeObserver(observer, PlacesUtils.TOPIC_FEEDBACK_UPDATED);
-    do_test_finished();
-  }
-}
+
+  Services.obs.removeObserver(observer, PlacesUtils.TOPIC_FEEDBACK_UPDATED);
+});

@@ -42,7 +42,7 @@ TString TType::getCompleteString() const
     if (qualifier != EvqTemporary && qualifier != EvqGlobal)
         stream << getQualifierString() << " " << getPrecisionString() << " ";
     if (array)
-        stream << "array of ";
+        stream << "array[" << getArraySize() << "] of ";
     if (matrix)
         stream << size << "X" << size << " matrix of ";
     else if (size > 1)
@@ -260,6 +260,8 @@ bool TOutputTraverser::visitAggregate(Visit visit, TIntermAggregate* node)
         case EOpReflect:       out << "reflect";                 break;
         case EOpRefract:       out << "refract";                 break;
         case EOpMul:           out << "component-wise multiply"; break;
+
+        case EOpDeclaration:   out << "Declaration: ";   break;
 
         default: out.message(EPrefixError, "Bad aggregation op");
     }

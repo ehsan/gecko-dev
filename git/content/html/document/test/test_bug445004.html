@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=445004
 -->
 <head>
   <title>Test for Bug 445004</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -56,9 +55,7 @@ function checkURI(uri, name, type) {
 
 function checkFrame(num) {
   // Just snarf our data
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
-  var outer = window.frames[num]
+  var outer = SpecialPowers.wrap(window.frames[num]);
   name = outer.name;
 
   is(outer.document.baseURI,

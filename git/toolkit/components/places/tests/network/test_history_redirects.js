@@ -8,19 +8,17 @@
 let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
          getService(Ci.nsINavHistoryService);
 let bh = hs.QueryInterface(Ci.nsIBrowserHistory);
-let ghist3 = hs.QueryInterface(Ci.nsIGlobalHistory3);
 
 const PERMA_REDIR_PATH = "/permaredir";
 const TEMP_REDIR_PATH = "/tempredir";
 const FOUND_PATH = "/found";
 
-const HTTPSVR = new nsHttpServer();
-const PORT = 4444;
+const HTTPSVR = new HttpServer();
+HTTPSVR.start(-1);
+const PORT = HTTPSVR.identity.primaryPort;
 HTTPSVR.registerPathHandler(PERMA_REDIR_PATH, permaRedirHandler);
 HTTPSVR.registerPathHandler(TEMP_REDIR_PATH, tempRedirHandler);
 HTTPSVR.registerPathHandler(FOUND_PATH, foundHandler);
-
-const EXPECTED_SESSION_ID = 1;
 
 const STATUS = {
   REDIRECT_PERMANENT: [301, "Moved Permanently"],
@@ -64,10 +62,7 @@ function PathHandler(aMeta, aResponse, aChannelEvent, aRedirURL) {
 function run_test() {
   do_test_pending();
 
-  HTTPSVR.start(PORT);
-
-  var chan = NetUtil.ioService
-                    .newChannelFromURI(uri("http://localhost:4444/permaredir"));
+  var chan = NetUtil.ioService.newChannelFromURI(uri(PERMA_REDIR_URL));
   var listener = new ChannelListener();
   chan.notificationCallbacks = listener;
   chan.asyncOpen(listener, null);
@@ -76,7 +71,7 @@ function run_test() {
 
 function continue_test() {
   let stmt = DBConn().createStatement(
-    "SELECT v.id, h.url, v.from_visit, v.visit_date, v.visit_type, v.session " +
+    "SELECT v.id, h.url, v.from_visit, v.visit_date, v.visit_type " +
     "FROM moz_historyvisits v " +
     "JOIN moz_places h on h.id = v.place_id " +
     "ORDER BY v.id ASC");
@@ -84,18 +79,15 @@ function continue_test() {
     { id: 1,
       url: PERMA_REDIR_URL,
       from_visit: 0,
-      visit_type: Ci.nsINavHistoryService.TRANSITION_LINK,
-      session: EXPECTED_SESSION_ID },
+      visit_type: Ci.nsINavHistoryService.TRANSITION_LINK },
     { id: 2,
       url: TEMP_REDIR_URL,
       from_visit: 1,
-      visit_type: Ci.nsINavHistoryService.TRANSITION_REDIRECT_PERMANENT,
-      session: EXPECTED_SESSION_ID },
+      visit_type: Ci.nsINavHistoryService.TRANSITION_REDIRECT_PERMANENT },
     { id: 3,
       url: FOUND_URL,
       from_visit: 2,
-      visit_type: Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY,
-      session: EXPECTED_SESSION_ID },
+      visit_type: Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY },
   ];
   try {
     while(stmt.executeStep()) {
@@ -106,7 +98,6 @@ function continue_test() {
       do_check_eq(stmt.row.url, comparator.url);
       do_check_eq(stmt.row.from_visit, comparator.from_visit);
       do_check_eq(stmt.row.visit_type, comparator.visit_type);
-      do_check_eq(stmt.row.session, comparator.session);
     }
   }
   finally {
@@ -181,10 +172,6 @@ ChannelListener.prototype = {
     do_check_true(this._got_onchannelredirect);
     do_check_true(this._buffer.length > 0);
 
-    // The referrer is wrong since it's the first element in the redirects
-    // chain, but this is good, since it will test a special path.
-    ghist3.addURI(uri(FOUND_URL), false, true, uri(PERMA_REDIR_URL));
-
     continue_test();
   },
 
@@ -192,7 +179,6 @@ ChannelListener.prototype = {
   asyncOnChannelRedirect: function (aOldChannel, aNewChannel, aFlags, callback) {
     do_log_info("onChannelRedirect");
     this._got_onchannelredirect = true;
-    ghist3.addDocumentRedirect(aOldChannel, aNewChannel, aFlags, true);
     callback.onRedirectVerifyCallback(Components.results.NS_OK);
   },
 };

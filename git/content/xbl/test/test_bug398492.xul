@@ -1,13 +1,12 @@
 <?xml version="1.0"?>
 <?xml-stylesheet href="chrome://global/skin" type="text/css"?>
-<?xml-stylesheet href="/tests/SimpleTest/test.css" type="text/css"?>
+<?xml-stylesheet href="chrome://mochikit/content/tests/SimpleTest/test.css" type="text/css"?>
 <!--
 https://bugzilla.mozilla.org/show_bug.cgi?id=398492
 -->
 <window title="Mozilla Bug 398492"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
-  <script type="application/javascript" src="/MochiKit/packed.js" />
-  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"/>
+  <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <bindings xmlns="http://www.mozilla.org/xbl">
     <binding id="test">
       <content>
@@ -56,9 +55,16 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=398492
          "Unexpected anonymous nodes after clone");
 
       var n3 = document.createElement("hbox");
+      document.documentElement.appendChild(n3);
       var kid3 = document.createTextNode("Text");
       n3.appendChild(kid3);
-      document.addBinding(n3, document.location.href + "#test");
+
+      // Note - we rely on the fact that the binding is preloaded
+      // by the other hbox here, so that the binding will be applied
+      // sync.
+      n3.style.MozBinding = "url(" + document.location.href + "#test)";
+      n3.getBoundingClientRect(); // Flush styles.
+
       var anonKid3 = document.getAnonymousNodes(n3)[0];
       is(anonKid3 instanceof XULElement, true,
          "Must be a XUL element after addBinding");

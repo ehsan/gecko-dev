@@ -1,7 +1,6 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
@@ -10,11 +9,15 @@ const ABOUT_PERMISSIONS_SPEC = "about:permissions";
 const TEST_URI_1 = NetUtil.newURI("http://mozilla.com/");
 const TEST_URI_2 = NetUtil.newURI("http://mozilla.org/");
 
+const TEST_PRINCIPAL_1 = Services.scriptSecurityManager.getNoAppCodebasePrincipal(TEST_URI_1);
+const TEST_PRINCIPAL_2 = Services.scriptSecurityManager.getNoAppCodebasePrincipal(TEST_URI_2);
+
 // values from DefaultPermissions object
 const PERM_UNKNOWN = 0;
 const PERM_ALLOW = 1;
 const PERM_DENY = 2;
-const PERM_SESION = 8;
+// cookie specific permissions
+const PERM_FIRST_PARTY_ONLY = 9;
 
 // used to set permissions on test sites
 const TEST_PERMS = {
@@ -22,46 +25,52 @@ const TEST_PERMS = {
   "cookie": PERM_ALLOW,
   "geo": PERM_UNKNOWN,
   "indexedDB": PERM_UNKNOWN,
-  "popup": PERM_DENY
+  "popup": PERM_DENY,
+  "fullscreen" : PERM_UNKNOWN,
 };
 
+const NO_GLOBAL_ALLOW = [
+  "geo",
+  "indexedDB",
+  "fullscreen"
+];
+
 // number of managed permissions in the interface
-const TEST_PERMS_COUNT = 5;
+const TEST_PERMS_COUNT = 6;
 
 function test() {
   waitForExplicitFinish();
   registerCleanupFunction(cleanUp);
 
   // add test history visit
-  PlacesUtils.history.addVisit(TEST_URI_1, Date.now() * 1000, null,
-    Ci.nsINavHistoryService.TRANSITION_LINK, false, 0);
-
-  // set permissions ourselves to avoid problems with different defaults
-  // from test harness configuration
-  for (let type in TEST_PERMS) {
-    if (type == "password") {
-      Services.logins.setLoginSavingEnabled(TEST_URI_2.prePath, true);
-    } else {
-      // set permissions on a site without history visits to test enumerateServices
-      Services.perms.add(TEST_URI_2, type, TEST_PERMS[type]);
+  addVisits(TEST_URI_1, function() {
+    // set permissions ourselves to avoid problems with different defaults
+    // from test harness configuration
+    for (let type in TEST_PERMS) {
+      if (type == "password") {
+        Services.logins.setLoginSavingEnabled(TEST_URI_2.prePath, true);
+      } else {
+        // set permissions on a site without history visits to test enumerateServices
+        Services.perms.addFromPrincipal(TEST_PRINCIPAL_2, type, TEST_PERMS[type]);
+      }
     }
-  }
+
+    // open about:permissions
+    gBrowser.selectedTab = gBrowser.addTab("about:permissions");
+  });
 
   function observer() {
-    Services.obs.removeObserver(observer, "browser-permissions-initialized", false);
+    Services.obs.removeObserver(observer, "browser-permissions-initialized");
     runNextTest();
   }
   Services.obs.addObserver(observer, "browser-permissions-initialized", false);
-
-  // open about:permissions
-  gBrowser.selectedTab = gBrowser.addTab("about:permissions");
 }
 
 function cleanUp() {
   for (let type in TEST_PERMS) {
     if (type != "password") {
-      Services.perms.remove(TEST_URI_1.host, type);
-      Services.perms.remove(TEST_URI_2.host, type);
+      Services.perms.removeFromPrincipal(TEST_PRINCIPAL_1, type);
+      Services.perms.removeFromPrincipal(TEST_PRINCIPAL_2, type);
     }
   }
 
@@ -143,10 +152,19 @@ var tests = [
     ok(gBrowser.contentDocument.getElementById("cookies-count").hidden,
        "cookies count is hidden");
 
+    // Test to make sure "Allow" items hidden for certain permission types
+    NO_GLOBAL_ALLOW.forEach(function(aType) {
+      let menuitem = gBrowser.contentDocument.getElementById(aType + "-" + PERM_ALLOW);
+      ok(menuitem.hidden, aType + " allow menuitem hidden for all sites");
+    });
+
     runNextTest();
   },
 
   function test_all_sites_permission() {
+    // apply the old default of allowing all cookies
+    Services.prefs.setIntPref("network.cookie.cookieBehavior", 0);
+  
     // there should be no user-set pref for cookie behavior
     is(Services.prefs.getIntPref("network.cookie.cookieBehavior"), PERM_UNKNOWN,
        "network.cookie.cookieBehavior is expected default");
@@ -195,6 +213,12 @@ var tests = [
     ok(!gBrowser.contentDocument.getElementById("cookies-count").hidden,
        "cookies count is not hidden");
 
+    // Test to make sure "Allow" items are *not* hidden for certain permission types
+    NO_GLOBAL_ALLOW.forEach(function(aType) {
+      let menuitem = gBrowser.contentDocument.getElementById(aType + "-" + PERM_ALLOW);
+      ok(!menuitem.hidden, aType  + " allow menuitem not hidden for single site");
+    });
+
     runNextTest();
   },
 
@@ -219,7 +243,7 @@ var tests = [
     is(geoMenulist.value, PERM_UNKNOWN, "menulist correctly shows that geolocation permission is unspecified");
 
     // change a permission programatically
-    Services.perms.add(TEST_URI_2, "geo", PERM_DENY);
+    Services.perms.addFromPrincipal(TEST_PRINCIPAL_2, "geo", PERM_DENY);
     // check to make sure this change is reflected in the UI
     is(geoMenulist.value, PERM_DENY, "menulist shows that geolocation is blocked");
 
@@ -228,8 +252,20 @@ var tests = [
     geoMenulist.selectedItem = geoAllowItem;
     geoMenulist.doCommand();
     // check to make sure this change is reflected in the permission manager
-    is(Services.perms.testPermission(TEST_URI_2, "geo"), PERM_ALLOW,
+    is(Services.perms.testPermissionFromPrincipal(TEST_PRINCIPAL_2, "geo"), PERM_ALLOW,
        "permission manager shows that geolocation is allowed");
+
+
+    // change a site-specific cookie permission, just for fun
+    let cookieMenuList = getPermissionMenulist("cookie");
+    let cookieItem = gBrowser.contentDocument.getElementById("cookie-" + PERM_FIRST_PARTY_ONLY);
+    cookieMenuList.selectedItem = cookieItem;
+    cookieMenuList.doCommand();
+    is(cookieMenuList.value, PERM_FIRST_PARTY_ONLY, "menulist correctly shows that " +
+       "first party only cookies are allowed");
+    is(Services.perms.testPermissionFromPrincipal(TEST_PRINCIPAL_2, "cookie"),
+       PERM_FIRST_PARTY_ONLY, "permission manager shows that first party cookies " +
+       "are allowed");
 
     runNextTest();
   },
@@ -237,29 +273,30 @@ var tests = [
   function test_forget_site() {
     // click "Forget About This Site" button
     gBrowser.contentDocument.getElementById("forget-site-button").doCommand();
+    waitForClearHistory(function() {
+      is(gSiteLabel.value, "", "site label cleared");
 
-    is(gSiteLabel.value, "", "site label cleared");
+      let allSitesItem = gBrowser.contentDocument.getElementById("all-sites-item");
+      is(gSitesList.selectedItem, allSitesItem,
+         "all sites item selected after forgetting selected site");
 
-    let allSitesItem = gBrowser.contentDocument.getElementById("all-sites-item");
-    is(gSitesList.selectedItem, allSitesItem,
-       "all sites item selected after forgetting selected site");
+      // check to make sure site is gone from sites list
+      let testSiteItem = getSiteItem(TEST_URI_2.host);
+      ok(!testSiteItem, "site removed from sites list");
 
-    // check to make sure site is gone from sites list
-    let testSiteItem = getSiteItem(TEST_URI_2.host);
-    ok(!testSiteItem, "site removed from sites list");
-
-    // check to make sure we forgot all permissions corresponding to site
-    for (let type in TEST_PERMS) {
-      if (type == "password") {
-        ok(Services.logins.getLoginSavingEnabled(TEST_URI_2.prePath),
-           "password saving should be enabled by default");
-      } else {
-        is(Services.perms.testPermission(TEST_URI_2, type), PERM_UNKNOWN,
-           type + " permission should not be set for test site 2");
+      // check to make sure we forgot all permissions corresponding to site
+      for (let type in TEST_PERMS) {
+        if (type == "password") {
+          ok(Services.logins.getLoginSavingEnabled(TEST_URI_2.prePath),
+             "password saving should be enabled by default");
+        } else {
+          is(Services.perms.testPermissionFromPrincipal(TEST_PRINCIPAL_2, type), PERM_UNKNOWN,
+             type + " permission should not be set for test site 2");
+        }
       }
-    }
 
-    runNextTest();
+      runNextTest();
+    });
   }
 ];
 
@@ -279,7 +316,7 @@ function addWindowListener(aURL, aCallback) {
       Services.wm.removeListener(this);
 
       var domwindow = aXULWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIDOMWindowInternal);
+                                .getInterface(Ci.nsIDOMWindow);
       waitForFocus(function() {
         is(domwindow.document.location.href, aURL, "should have seen the right window open");
         domwindow.close();

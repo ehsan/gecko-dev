@@ -10,8 +10,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=485118
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
   <title>Test for Bug 485118</title>
-  <script type="application/javascript" 
-   src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
@@ -54,19 +52,20 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=485118
 
 SimpleTest.waitForExplicitFinish();
 
-SimpleTest.executeSoon(function start() {
+function runTest() {
   ["horizontal", "vertical"].forEach(function (orient) {
     ["", "Small"].forEach(function (size) {
       var elem = document.getElementById(orient + size);
       var thumbRect = document.getAnonymousElementByAttribute(elem, 'sbattr', 'scrollbar-thumb').getBoundingClientRect();
       var sizeToCheck = orient == "horizontal" ? "width" : "height";
-      var expectedSize = size == "Small" ? 19 : 22;
+      // var expectedSize = size == "Small" ? 19 : 26;
+      var expectedSize = 26;
       is(thumbRect[sizeToCheck], expectedSize, size + " scrollbar has wrong minimum " + sizeToCheck);
     });
   });
   SimpleTest.finish();
-});
-
+}
+window.addEventListener("load", runTest, false);
 
 ]]>
 </script>

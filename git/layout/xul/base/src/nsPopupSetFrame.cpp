@@ -1,43 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Original Author: David W. Hyatt (hyatt@netscape.com)
- *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Dean Tessman <dean_tessman@hotmail.com>
- *   Mats Palmgren <matspal@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsPopupSetFrame.h"
 #include "nsGkAtoms.h"
@@ -58,12 +22,12 @@ NS_NewPopupSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsPopupSetFrame)
 
-NS_IMETHODIMP
+void
 nsPopupSetFrame::Init(nsIContent*      aContent,
                       nsIFrame*        aParent,
                       nsIFrame*        aPrevInFlow)
 {
-  nsresult  rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
+  nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
 
   // Normally the root box is our grandparent, but in case of wrapping
   // it can be our great-grandparent.
@@ -71,8 +35,6 @@ nsPopupSetFrame::Init(nsIContent*      aContent,
   if (rootBox) {
     rootBox->SetPopupSetFrame(this);
   }
-
-  return rv;
 }
 
 nsIAtom*
@@ -82,53 +44,53 @@ nsPopupSetFrame::GetType() const
 }
 
 NS_IMETHODIMP
-nsPopupSetFrame::AppendFrames(nsIAtom*        aListName,
+nsPopupSetFrame::AppendFrames(ChildListID     aListID,
                               nsFrameList&    aFrameList)
 {
-  if (aListName == nsGkAtoms::popupList) {
+  if (aListID == kPopupList) {
     AddPopupFrameList(aFrameList);
     return NS_OK;
   }
-  return nsBoxFrame::AppendFrames(aListName, aFrameList);
+  return nsBoxFrame::AppendFrames(aListID, aFrameList);
 }
 
 NS_IMETHODIMP
-nsPopupSetFrame::RemoveFrame(nsIAtom*        aListName,
+nsPopupSetFrame::RemoveFrame(ChildListID     aListID,
                              nsIFrame*       aOldFrame)
 {
-  if (aListName == nsGkAtoms::popupList) {
+  if (aListID == kPopupList) {
     RemovePopupFrame(aOldFrame);
     return NS_OK;
   }
-  return nsBoxFrame::RemoveFrame(aListName, aOldFrame);
+  return nsBoxFrame::RemoveFrame(aListID, aOldFrame);
 }
 
 NS_IMETHODIMP
-nsPopupSetFrame::InsertFrames(nsIAtom*        aListName,
+nsPopupSetFrame::InsertFrames(ChildListID     aListID,
                               nsIFrame*       aPrevFrame,
                               nsFrameList&    aFrameList)
 {
-  if (aListName == nsGkAtoms::popupList) {
+  if (aListID == kPopupList) {
     AddPopupFrameList(aFrameList);
     return NS_OK;
   }
-  return nsBoxFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
+  return nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
 }
 
 NS_IMETHODIMP
-nsPopupSetFrame::SetInitialChildList(nsIAtom*        aListName,
+nsPopupSetFrame::SetInitialChildList(ChildListID     aListID,
                                      nsFrameList&    aChildList)
 {
-  if (aListName == nsGkAtoms::popupList) {
+  if (aListID == kPopupList) {
     // XXXmats this asserts because we don't implement
-    // GetChildList(nsGkAtoms::popupList) so nsCSSFrameConstructor
+    // GetChildList(kPopupList) so nsCSSFrameConstructor
     // believes it's empty and calls us multiple times.
     //NS_ASSERTION(mPopupList.IsEmpty(),
     //             "SetInitialChildList on non-empty child list");
     AddPopupFrameList(aChildList);
     return NS_OK;
   }
-  return nsBoxFrame::SetInitialChildList(aListName, aChildList);
+  return nsBoxFrame::SetInitialChildList(aListID, aChildList);
 }
 
 void
@@ -140,7 +102,7 @@ nsPopupSetFrame::DestroyFrom(nsIFrame* aDestructRoot)
   // it can be our great-grandparent.
   nsIRootBox *rootBox = nsIRootBox::GetRootBox(PresContext()->GetPresShell());
   if (rootBox) {
-    rootBox->SetPopupSetFrame(nsnull);
+    rootBox->SetPopupSetFrame(nullptr);
   }
 
   nsBoxFrame::DestroyFrom(aDestructRoot);
@@ -155,7 +117,7 @@ nsPopupSetFrame::DoLayout(nsBoxLayoutState& aState)
   // lay out all of our currently open popups.
   for (nsFrameList::Enumerator e(mPopupList); !e.AtEnd(); e.Next()) {
     nsMenuPopupFrame* popupChild = static_cast<nsMenuPopupFrame*>(e.get());
-    popupChild->LayoutPopup(aState, nsnull, PR_FALSE);
+    popupChild->LayoutPopup(aState, nullptr, false);
   }
 
   return rv;
@@ -181,85 +143,36 @@ nsPopupSetFrame::AddPopupFrameList(nsFrameList& aPopupFrameList)
                  "adding wrong type of frame in popupset's ::popupList");
   }
 #endif
-  mPopupList.InsertFrames(nsnull, nsnull, aPopupFrameList);
+  mPopupList.InsertFrames(nullptr, nullptr, aPopupFrameList);
 }
 
 #ifdef DEBUG
-NS_IMETHODIMP
-nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
+void
+nsPopupSetFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 {
-  IndentBy(out, aIndent);
-  ListTag(out);
-#ifdef DEBUG_waterson
-  fprintf(out, " [parent=%p]", static_cast<void*>(mParent));
-#endif
-  if (HasView()) {
-    fprintf(out, " [view=%p]", static_cast<void*>(GetView()));
-  }
-  if (GetNextSibling()) {
-    fprintf(out, " next=%p", static_cast<void*>(GetNextSibling()));
-  }
-  if (nsnull != GetPrevContinuation()) {
-    fprintf(out, " prev-continuation=%p", static_cast<void*>(GetPrevContinuation()));
-  }
-  if (nsnull != GetNextContinuation()) {
-    fprintf(out, " next-continuation=%p", static_cast<void*>(GetNextContinuation()));
-  }
-  fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
-  if (0 != mState) {
-    fprintf(out, " [state=%016llx]", mState);
-  }
-  fprintf(out, " [content=%p]", static_cast<void*>(mContent));
-  nsPopupSetFrame* f = const_cast<nsPopupSetFrame*>(this);
-  if (f->HasOverflowAreas()) {
-    nsRect overflowArea = f->GetVisualOverflowRect();
-    fprintf(out, " [vis-overflow=%d,%d,%d,%d]",
-            overflowArea.x, overflowArea.y,
-            overflowArea.width, overflowArea.height);
-    overflowArea = f->GetScrollableOverflowRect();
-    fprintf(out, " [scr-overflow=%d,%d,%d,%d]",
-            overflowArea.x, overflowArea.y,
-            overflowArea.width, overflowArea.height);
-  }
-  fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
-  nsIAtom* pseudoTag = mStyleContext->GetPseudo();
-  if (pseudoTag) {
-    nsAutoString atomString;
-    pseudoTag->ToString(atomString);
-    fprintf(out, " pst=%s",
-            NS_LossyConvertUTF16toASCII(atomString).get());
-  }
+  ListGeneric(out, aIndent, aFlags);
 
   // Output the children
-  nsIAtom* listName = nsnull;
-  PRInt32 listIndex = 0;
-  PRBool outputOneList = PR_FALSE;
-  do {
-    nsIFrame* kid = GetFirstChild(listName);
-    if (nsnull != kid) {
-      if (outputOneList) {
-        IndentBy(out, aIndent);
-      }
-      outputOneList = PR_TRUE;
-      nsAutoString tmp;
-      if (nsnull != listName) {
-        listName->ToString(tmp);
-        fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
-      }
-      fputs("<\n", out);
-      while (nsnull != kid) {
-        // Verify the child frame's parent frame pointer is correct
-        NS_ASSERTION(kid->GetParent() == (nsIFrame*)this, "bad parent frame pointer");
-
-        // Have the child frame list
-        kid->List(out, aIndent + 1);
-        kid = kid->GetNextSibling();
-      }
+  bool outputOneList = false;
+  ChildListIterator lists(this);
+  for (; !lists.IsDone(); lists.Next()) {
+    if (outputOneList) {
       IndentBy(out, aIndent);
-      fputs(">\n", out);
     }
-    listName = GetAdditionalChildListName(listIndex++);
-  } while(nsnull != listName);
+    outputOneList = true;
+    fprintf(out, "%s<\n", mozilla::layout::ChildListName(lists.CurrentID()));
+    nsFrameList::Enumerator childFrames(lists.CurrentList());
+    for (; !childFrames.AtEnd(); childFrames.Next()) {
+      nsIFrame* kid = childFrames.get();
+      // Verify the child frame's parent frame pointer is correct
+      NS_ASSERTION(kid->GetParent() == this, "bad parent frame pointer");
+
+      // Have the child frame list
+      kid->List(out, aIndent + 1, aFlags);
+    }
+    IndentBy(out, aIndent);
+    fputs(">\n", out);
+  }
 
   // XXXmats the above is copy-pasted from nsContainerFrame::List which is lame,
   // clean this up after bug 399111 is implemented.
@@ -268,15 +181,13 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
     fputs("<\n", out);
     ++aIndent;
     IndentBy(out, aIndent);
-    nsAutoString tmp;
-    nsGkAtoms::popupList->ToString(tmp);
-    fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
+    fputs(mozilla::layout::ChildListName(kPopupList), out);
     fputs(" for ", out);
     ListTag(out);
     fputs(" <\n", out);
     ++aIndent;
     for (nsFrameList::Enumerator e(mPopupList); !e.AtEnd(); e.Next()) {
-      e.get()->List(out, aIndent);
+      e.get()->List(out, aIndent, aFlags);
     }
     --aIndent;
     IndentBy(out, aIndent);
@@ -284,13 +195,11 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
     --aIndent;
     IndentBy(out, aIndent);
     fputs(">\n", out);
-    outputOneList = PR_TRUE;
+    outputOneList = true;
   }
 
   if (!outputOneList) {
     fputs("<>\n", out);
   }
-
-  return NS_OK;
 }
 #endif

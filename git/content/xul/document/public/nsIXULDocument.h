@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef nsIXULDocument_h___
 #define nsIXULDocument_h___
@@ -44,13 +12,11 @@
 
 class nsIXULTemplateBuilder;
 class nsIContent;
-class nsIScriptGlobalObjectOwner;
 
 
-// 3e872e97-b678-418e-a7e3-41b8305d4e75
+// 81ba4be5-6cc5-478a-9b08-b3e7ed524455
 #define NS_IXULDOCUMENT_IID \
-{ 0x3e872e97, 0xb678, 0x418e, \
-  { 0xa7, 0xe3, 0x41, 0xb8, 0x30, 0x5d, 0x4e, 0x75 } }
+  {0x81ba4be5, 0x6cc5, 0x478a, {0x9b, 0x08, 0xb3, 0xe7, 0xed, 0x52, 0x44, 0x55}}
 
 
 /*
@@ -69,11 +35,6 @@ public:
    * nsIContent pointers.
    */
   virtual void GetElementsForID(const nsAString& aID, nsCOMArray<nsIContent>& aElements) = 0;
-
-  /**
-   * Get the nsIScriptGlobalObjectOwner for this document.
-   */
-  NS_IMETHOD GetScriptGlobalObjectOwner(nsIScriptGlobalObjectOwner** aGlobalOwner) = 0;
 
   /**
    * Notify the XUL document that a subtree has been added
@@ -108,12 +69,12 @@ public:
    * @param aResumeWalk whether this should also call ResumeWalk().
    * Sometimes the caller of OnPrototypeLoadDone resumes the walk itself
    */
-  NS_IMETHOD OnPrototypeLoadDone(PRBool aResumeWalk) = 0;
+  NS_IMETHOD OnPrototypeLoadDone(bool aResumeWalk) = 0;
 
   /**
    * Callback notifying when a document could not be parsed properly.
    */
-  virtual PRBool OnDocumentParserError() = 0;
+  virtual bool OnDocumentParserError() = 0;
 
   /**
    * Reset the document direction so that it is recomputed.

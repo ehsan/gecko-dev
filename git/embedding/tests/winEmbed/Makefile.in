@@ -27,7 +27,7 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../../..
+DEPTH		= @DEPTH@
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
@@ -36,17 +36,7 @@ include $(DEPTH)/config/autoconf.mk
 
 XPI_NAME	= winembed
 
-PROGRAM		= winEmbed$(BIN_SUFFIX)
 RESFILE		= winEmbed.res
-
-MODULE		= winEmbed
-
-
-CPPSRCS		= \
-		winEmbed.cpp \
-		WebBrowserChrome.cpp \
-		WindowCreator.cpp \
-		$(NULL)
 
 LIBS = \
 	$(DEPTH)/profile/dirserviceprovider/standalone/$(LIB_PREFIX)profdirserviceprovidersa_s.$(LIB_SUFFIX) \
@@ -59,8 +49,6 @@ DEFINES += -DXPCOM_GLUE
 STL_FLAGS=
 
 OS_LIBS		+= $(call EXPAND_LIBNAME,ole32 comdlg32 shell32 version)
-
-include $(topsrcdir)/config/config.mk
 
 include $(topsrcdir)/config/rules.mk
 
@@ -76,10 +64,6 @@ include $(topsrcdir)/config/rules.mk
 #
 ifndef GNU_CC
 LDFLAGS += /HEAP:0x40000
-ifeq ($(OS_TEST),x86_64)
-# set stack to 2MB on x64 build.  See bug 582910
-LDFLAGS += -STACK:2097152
-endif
 endif
 
 # Get rid of console window

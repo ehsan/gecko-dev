@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=640387
 -->
 <head>
   <title>Test for Bug 640387</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -19,7 +18,7 @@ SimpleTest.waitForExplicitFinish();
 function test() {
   /* Spin the event loop so we get out of the onload handler. */
   SimpleTest.executeSoon(function() { gGen.next() });
-  yield;
+  yield undefined;
 
   popup.history.pushState('', '', '#hash1');
   popup.history.pushState('', '', '#hash2');
@@ -32,12 +31,12 @@ function test() {
   // Going back should trigger a hashchange, which will wake us up from the
   // yield.
   popup.history.back();
-  yield;
+  yield undefined;
   ok(true, 'Got first hashchange.');
 
   // Going back should wake us up again.
   popup.history.back();
-  yield;
+  yield undefined;
   ok(true, 'Got second hashchange.');
 
   // Now the history looks like:
@@ -47,7 +46,7 @@ function test() {
 
   // Going forward should trigger a hashchange.
   popup.history.forward();
-  yield;
+  yield undefined;
   ok(true, 'Got third hashchange.');
 
   // Now modify the history so it looks like:
@@ -62,17 +61,17 @@ function test() {
   gHashchangeExpected = false;
   gCallbackOnPopstate = true;
   SimpleTest.executeSoon(function() { popup.history.back() });
-  yield;
+  yield undefined;
   ok(true, 'Got popstate.');
   gCallbackOnPopstate = false;
 
   // Spin the event loop so hashchange has a chance to fire, if it's going to.
   SimpleTest.executeSoon(function() { gGen.next() });
-  yield;
+  yield undefined;
 
   popup.close();
   SimpleTest.finish();
-  yield;
+  yield undefined;
 }
 
 gGen = null;

@@ -6,7 +6,6 @@ http://www.exslt.org/regexp/index.html
 -->
 <head>
   <title>Test for EXSLT Regular Expression Extensions</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -29,7 +28,7 @@ http://www.exslt.org/regexp/index.html
       expResult: "XSLT is great" }
   ];
 
-  for each(test in tests) {
+  for (test of tests) {
     var style =
       '<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" ' +
                       'xmlns:regexp="http://exslt.org/regular-expressions" '+

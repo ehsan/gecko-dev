@@ -1,59 +1,16 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- *      Dave Townsend <dtownsend@oxymoronical.com>.
- *
- * Portions created by the Initial Developer are Copyright (C) 2007
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK *****
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-
-// v0.9 registry field meanings are different on Mac OS X
-const CWD = do_get_cwd();
-function checkOS(os) {
-  const nsILocalFile_ = "nsILocalFile" + os;
-  return nsILocalFile_ in Components.interfaces &&
-         CWD instanceof Components.interfaces[nsILocalFile_];
-}
-const isMac = checkOS("Mac");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
 // Plugin registry uses different field delimeters on different platforms
 var DELIM = ":";
 if ("@mozilla.org/windows-registry-key;1" in Components.classes)
   DELIM = "|";
 
-var gProfD = do_get_profile();
+var gProfD = do_get_profile_startup();
 var gDirSvc = Cc["@mozilla.org/file/directory_service;1"].
              getService(Ci.nsIProperties);
 
@@ -81,26 +38,17 @@ function write_registry(version, info) {
   os.close();
 }
 
-// Finds the test nsIPluginTag
-function get_test_plugintag() {
-  var host = Cc["@mozilla.org/plugin/host;1"].
-             getService(Ci.nsIPluginHost);
-  var tags = host.getPluginTags();
-  for (var i = 0; i < tags.length; i++) {
-    if (tags[i].name == "Test Plug-in")
-      return tags[i];
-  }
-  return null;
-}
-
 function run_test() {
+  var plugin = get_test_plugintag();
+  do_check_true(plugin == null);
+
   var file = get_test_plugin();
   if (!file)
     do_throw("Plugin library not found");
 
   // Write out a 0.9 version registry that marks the test plugin as disabled
   var registry = "";
-  if (isMac) {
+  if (gIsOSX) {
     registry += file.leafName + DELIM + "$\n";
     registry += file.path + DELIM + "$\n";
   } else {
@@ -119,7 +67,10 @@ function run_test() {
               DELIM + "tst" + DELIM + "$\n";
   write_registry("0.9", registry);
 
-  var plugin = get_test_plugintag();
+  // Initialise profile folder
+  do_get_profile();
+
+  plugin = get_test_plugintag();
   if (!plugin)
     do_throw("Plugin tag not found");
 
@@ -133,4 +84,7 @@ function run_test() {
   // If the plugin registry was not read then the plugin will not be disabled
   do_check_true(plugin.disabled);
   do_check_false(plugin.blocklisted);
+
+  // Clean up
+  Services.prefs.clearUserPref("plugin.importedState");
 }

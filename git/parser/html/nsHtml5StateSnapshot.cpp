@@ -27,23 +27,18 @@
 
 #define nsHtml5StateSnapshot_cpp__
 
-#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
-#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
-#include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsHtml5NamedCharacters.h"
-#include "nsHtml5NamedCharactersAccel.h"
+#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
-#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Macros.h"
 
 #include "nsHtml5Tokenizer.h"
@@ -59,9 +54,10 @@
 #include "nsHtml5StateSnapshot.h"
 
 
-nsHtml5StateSnapshot::nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,PRInt32> stack, jArray<nsHtml5StackNode*,PRInt32> listOfActiveFormattingElements, nsIContent** formPointer, nsIContent** headPointer, nsIContent** deepTreeSurrogateParent, PRInt32 mode, PRInt32 originalMode, PRBool framesetOk, PRBool needToDropLF, PRBool quirks)
+nsHtml5StateSnapshot::nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,int32_t> stack, jArray<nsHtml5StackNode*,int32_t> listOfActiveFormattingElements, jArray<int32_t,int32_t> templateModeStack, nsIContent** formPointer, nsIContent** headPointer, nsIContent** deepTreeSurrogateParent, int32_t mode, int32_t originalMode, bool framesetOk, bool needToDropLF, bool quirks)
   : stack(stack),
     listOfActiveFormattingElements(listOfActiveFormattingElements),
+    templateModeStack(templateModeStack),
     formPointer(formPointer),
     headPointer(headPointer),
     deepTreeSurrogateParent(deepTreeSurrogateParent),
@@ -74,13 +70,19 @@ nsHtml5StateSnapshot::nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,PRInt32> sta
   MOZ_COUNT_CTOR(nsHtml5StateSnapshot);
 }
 
-jArray<nsHtml5StackNode*,PRInt32> 
+jArray<nsHtml5StackNode*,int32_t> 
 nsHtml5StateSnapshot::getStack()
 {
   return stack;
 }
 
-jArray<nsHtml5StackNode*,PRInt32> 
+jArray<int32_t,int32_t> 
+nsHtml5StateSnapshot::getTemplateModeStack()
+{
+  return templateModeStack;
+}
+
+jArray<nsHtml5StackNode*,int32_t> 
 nsHtml5StateSnapshot::getListOfActiveFormattingElements()
 {
   return listOfActiveFormattingElements;
@@ -104,56 +106,62 @@ nsHtml5StateSnapshot::getDeepTreeSurrogateParent()
   return deepTreeSurrogateParent;
 }
 
-PRInt32 
+int32_t 
 nsHtml5StateSnapshot::getMode()
 {
   return mode;
 }
 
-PRInt32 
+int32_t 
 nsHtml5StateSnapshot::getOriginalMode()
 {
   return originalMode;
 }
 
-PRBool 
+bool 
 nsHtml5StateSnapshot::isFramesetOk()
 {
   return framesetOk;
 }
 
-PRBool 
+bool 
 nsHtml5StateSnapshot::isNeedToDropLF()
 {
   return needToDropLF;
 }
 
-PRBool 
+bool 
 nsHtml5StateSnapshot::isQuirks()
 {
   return quirks;
 }
 
-PRInt32 
+int32_t 
 nsHtml5StateSnapshot::getListOfActiveFormattingElementsLength()
 {
   return listOfActiveFormattingElements.length;
 }
 
-PRInt32 
+int32_t 
 nsHtml5StateSnapshot::getStackLength()
 {
   return stack.length;
+}
+
+int32_t 
+nsHtml5StateSnapshot::getTemplateModeStackLength()
+{
+  return templateModeStack.length;
 }
 
 
 nsHtml5StateSnapshot::~nsHtml5StateSnapshot()
 {
   MOZ_COUNT_DTOR(nsHtml5StateSnapshot);
-  for (PRInt32 i = 0; i < stack.length; i++) {
+  for (int32_t i = 0; i < stack.length; i++) {
     stack[i]->release();
   }
-  for (PRInt32 i = 0; i < listOfActiveFormattingElements.length; i++) {
+  for (int32_t i = 0; i < listOfActiveFormattingElements.length; i++) {
     if (listOfActiveFormattingElements[i]) {
       listOfActiveFormattingElements[i]->release();
     }

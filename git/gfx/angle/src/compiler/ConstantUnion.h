@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2013 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -11,6 +11,11 @@
 
 class ConstantUnion {
 public:
+    ConstantUnion()
+    {
+        iConst = 0;
+        type = EbtVoid;
+    }
 
     POOL_ALLOCATOR_NEW_DELETE(GlobalPoolAllocator)        
     void setIConst(int i) {iConst = i; type = EbtInt; }
@@ -54,8 +59,6 @@ public:
         default:
             return false;
         }
-
-        return false;
     }
 
     bool operator!=(const int i) const
@@ -89,8 +92,6 @@ public:
         default:
             return false;   // Invalid operation, handled at semantic analysis
         }
-
-        return false;
     }
 
     bool operator<(const ConstantUnion& constant) const
@@ -104,8 +105,6 @@ public:
         default:
             return false;   // Invalid operation, handled at semantic analysis
         }
-
-        return false;
     }
 
     ConstantUnion operator+(const ConstantUnion& constant) const

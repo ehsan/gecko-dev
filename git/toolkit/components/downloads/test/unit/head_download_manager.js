@@ -1,46 +1,22 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Download Manager Test Code.
- *
- * The Initial Developer of the Original Code is
- * Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2007
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // This file tests the download manager backend
 
-do_load_httpd_js();
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 do_get_profile();
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/PlacesUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Promise",
+                                  "resource://gre/modules/commonjs/sdk/core/promise.js");
 
 var downloadUtils = { };
 XPCOMUtils.defineLazyServiceGetter(downloadUtils,
@@ -102,6 +78,7 @@ function importDownloadsFile(aFName)
 var gDownloadCount = 0;
 /**
  * Adds a download to the DM, and starts it.
+ * @param server: a HttpServer used to serve the sourceURI
  * @param aParams (optional): an optional object which contains the function
  *                            parameters:
  *                              resultFileName: leaf node for the target file
@@ -109,9 +86,13 @@ var gDownloadCount = 0;
  *                              sourceURI: the download source URI
  *                              downloadName: the display name of the download
  *                              runBeforeStart: a function to run before starting the download
+ *                              isPrivate: whether the download is private or not
  */
-function addDownload(aParams)
+function addDownload(server, aParams)
 {
+  if (!server)
+    do_throw("Must provide a valid server.");
+  const PORT = server.identity.primaryPort;
   if (!aParams)
     aParams = {};
   if (!("resultFileName" in aParams))
@@ -121,7 +102,7 @@ function addDownload(aParams)
     aParams.targetFile.append(aParams.resultFileName);
   }
   if (!("sourceURI" in aParams))
-    aParams.sourceURI = "http://localhost:4444/head_download_manager.js";
+    aParams.sourceURI = "http://localhost:" + PORT + "/head_download_manager.js";
   if (!("downloadName" in aParams))
     aParams.downloadName = null;
   if (!("runBeforeStart" in aParams))
@@ -137,19 +118,22 @@ function addDownload(aParams)
   // it is part of the active downloads the moment addDownload is called
   gDownloadCount++;
 
+  let dm = downloadUtils.downloadManager;
   var dl = dm.addDownload(Ci.nsIDownloadManager.DOWNLOAD_TYPE_DOWNLOAD,
                           createURI(aParams.sourceURI),
                           createURI(aParams.targetFile), aParams.downloadName, null,
-                          Math.round(Date.now() * 1000), null, persist);
+                          Math.round(Date.now() * 1000), null, persist, aParams.isPrivate);
 
   // This will throw if it isn't found, and that would mean test failure, so no
   // try catch block
-  var test = dm.getDownload(dl.id);
+  if (!aParams.isPrivate)
+    var test = dm.getDownload(dl.id);
 
   aParams.runBeforeStart.call(undefined, dl);
 
   persist.progressListener = dl.QueryInterface(Ci.nsIWebProgressListener);
-  persist.saveURI(dl.source, null, null, null, null, dl.targetFile);
+  persist.savePrivacyAwareURI(dl.source, null, null, null, null, dl.targetFile,
+                              aParams.isPrivate);
 
   return dl;
 }
@@ -181,6 +165,70 @@ function getDownloadListener()
   };
 }
 
+/**
+ * Asynchronously adds visits to a page.
+ *
+ * @param aPlaceInfo
+ *        Can be an nsIURI, in such a case a single LINK visit will be added.
+ *        Otherwise can be an object describing the visit to add, or an array
+ *        of these objects:
+ *          { uri: nsIURI of the page,
+ *            transition: one of the TRANSITION_* from nsINavHistoryService,
+ *            [optional] title: title of the page,
+ *            [optional] visitDate: visit date in microseconds from the epoch
+ *            [optional] referrer: nsIURI of the referrer for this visit
+ *          }
+ *
+ * @return {Promise}
+ * @resolves When all visits have been added successfully.
+ * @rejects JavaScript exception.
+ */
+function promiseAddVisits(aPlaceInfo)
+{
+  let deferred = Promise.defer();
+  let places = [];
+  if (aPlaceInfo instanceof Ci.nsIURI) {
+    places.push({ uri: aPlaceInfo });
+  }
+  else if (Array.isArray(aPlaceInfo)) {
+    places = places.concat(aPlaceInfo);
+  } else {
+    places.push(aPlaceInfo)
+  }
+
+  // Create mozIVisitInfo for each entry.
+  let now = Date.now();
+  for (let i = 0; i < places.length; i++) {
+    if (!places[i].title) {
+      places[i].title = "test visit for " + places[i].uri.spec;
+    }
+    places[i].visits = [{
+      transitionType: places[i].transition === undefined ? Ci.nsINavHistoryService.TRANSITION_LINK
+                                                         : places[i].transition,
+      visitDate: places[i].visitDate || (now++) * 1000,
+      referrerURI: places[i].referrer
+    }];
+  }
+
+  PlacesUtils.asyncHistory.updatePlaces(
+    places,
+    {
+      handleError: function handleError(aResultCode, aPlaceInfo) {
+        let ex = new Components.Exception("Unexpected error in adding visits.",
+                                          aResultCode);
+        deferred.reject(ex);
+      },
+      handleResult: function () {},
+      handleCompletion: function handleCompletion() {
+        deferred.resolve();
+      }
+    }
+  );
+
+  return deferred.promise;
+}
+
+
 XPCOMUtils.defineLazyGetter(this, "Services", function() {
   Cu.import("resource://gre/modules/Services.jsm");
   return Services;
@@ -188,3 +236,7 @@ XPCOMUtils.defineLazyGetter(this, "Services", function() {
 
 // Disable alert service notifications
 Services.prefs.setBoolPref("browser.download.manager.showAlertOnComplete", false);
+
+do_register_cleanup(function() {
+  Services.obs.notifyObservers(null, "quit-application", null);
+});

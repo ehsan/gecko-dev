@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=391777
 -->
 <head>
   <title>Test for Bug 391777</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -20,6 +19,7 @@ arg.testVal = "foo";
 var result = window.showModalDialog("javascript:window.returnValue = window.dialogArguments.testVal; window.close(); 'This window should close on its own.';", arg);
 ok(true, "We should get here without user interaction");
 is(result, "foo", "Unexpected result from showModalDialog");
+
 </script>
 </body>
 </html>

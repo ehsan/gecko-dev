@@ -1,4 +1,8 @@
 <?xml version="1.0"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
 
 <bindings id="scaleBindings"
    xmlns="http://www.mozilla.org/xbl"
@@ -57,8 +61,6 @@
       <property name="pageIncrement" onget="return this._getIntegerAttribute('pageincrement', 10);"
                                      onset="return this._setIntegerAttribute('pageincrement', val);"/>
 
-      <field name="_userChanged">false</field>
-      <field name="_sliderElement"/>
       <property name="_slider" readonly="true">
         <getter>
           if (!this._sliderElement)
@@ -69,6 +71,7 @@
 
       <constructor>
         <![CDATA[
+          this._userChanged = false;
           var value = parseInt(this.getAttribute("value"), 10);
           if (!isNaN(value))
             this.value = value;

@@ -1,49 +1,14 @@
-#
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is mozilla.org code.
-#
-# The Initial Developer of the Original Code is
-# Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2009
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#   Serge Gautherie <sgautherie.bz@free.fr>
-#   Ted Mielczarek <ted.mielczarek@gmail.com>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 """
 Runs the reftest test harness.
 """
 
-import sys, shutil, os, os.path
+import re, sys, shutil, os, os.path
 SCRIPT_DIRECTORY = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
-sys.path.append(SCRIPT_DIRECTORY)
+sys.path.insert(0, SCRIPT_DIRECTORY)
 
 from automation import Automation
 from automationutils import *
@@ -63,10 +28,27 @@ class RefTest(object):
 
   def getManifestPath(self, path):
     "Get the path of the manifest, and for remote testing this function is subclassed to point to remote manifest"
-    return self.getFullPath(path)
+    path = self.getFullPath(path)
+    if os.path.isdir(path):
+      defaultManifestPath = os.path.join(path, 'reftest.list')
+      if os.path.exists(defaultManifestPath):
+        path = defaultManifestPath
+      else:
+        defaultManifestPath = os.path.join(path, 'crashtests.list')
+        if os.path.exists(defaultManifestPath):
+          path = defaultManifestPath
+    return path
 
-  def createReftestProfile(self, options, profileDir, server='localhost'):
-    "Sets up a profile for reftest."
+  def makeJSString(self, s):
+    return '"%s"' % re.sub(r'([\\"])', r'\\\1', s)
+
+  def createReftestProfile(self, options, profileDir, manifest, server='localhost'):
+    """
+      Sets up a profile for reftest.
+      'manifest' is the path to the reftest.list file we want to test with.  This is used in
+      the remote subclass in remotereftest.py so we can write it to a preference for the 
+      bootstrap extension.
+    """
 
     self.automation.setupPermissionsDatabase(profileDir,
       {'allowXULXBL': [(server, True), ('<file>', True)]})
@@ -83,6 +65,11 @@ class RefTest(object):
       prefsFile.write('user_pref("reftest.thisChunk", %d);\n' % options.thisChunk)
     if options.logFile != None:
       prefsFile.write('user_pref("reftest.logFile", "%s");\n' % options.logFile)
+    if options.ignoreWindowSize != False:
+      prefsFile.write('user_pref("reftest.ignoreWindowSize", true);\n')
+    if options.filter != None:
+      prefsFile.write('user_pref("reftest.filter", %s);\n' % self.makeJSString(options.filter))
+    prefsFile.write('user_pref("reftest.focusFilterMode", %s);\n' % self.makeJSString(options.focusFilterMode))
 
     for v in options.extraPrefs:
       thispref = v.split("=")
@@ -98,28 +85,23 @@ class RefTest(object):
                                                   profileDir,
                                                   "reftest@mozilla.org")
 
-
-  def registerExtension(self, browserEnv, options, profileDir, extraArgs = ['-silent']):
-    # run once with -silent to let the extension manager do its thing
-    # and then exit the app
-    self.automation.log.info("REFTEST INFO | runreftest.py | Performing extension manager registration: start.\n")
-    # Don't care about this |status|: |runApp()| reporting it should be enough.
-    status = self.automation.runApp(None, browserEnv, options.app, profileDir,
-                                 extraArgs,
-                                 utilityPath = options.utilityPath,
-                                 xrePath=options.xrePath,
-                                 symbolsPath=options.symbolsPath)
-    # We don't care to call |processLeakLog()| for this step.
-    self.automation.log.info("\nREFTEST INFO | runreftest.py | Performing extension manager registration: end.")
-
-    # Remove the leak detection file so it can't "leak" to the tests run.
-    # The file is not there if leak logging was not enabled in the application build.
-    if os.path.exists(self.leakLogFile):
-      os.remove(self.leakLogFile)
+    # I would prefer to use "--install-extension reftest/specialpowers", but that requires tight coordination with
+    # release engineering and landing on multiple branches at once.
+    if manifest.endswith('crashtests.list'):
+      self.automation.installExtension(os.path.join(SCRIPT_DIRECTORY, "specialpowers"),
+                                                    profileDir,
+                                                    "special-powers@mozilla.org")
 
   def buildBrowserEnv(self, options, profileDir):
     browserEnv = self.automation.environment(xrePath = options.xrePath)
     browserEnv["XPCOM_DEBUG_BREAK"] = "stack"
+
+    for v in options.environment:
+      ix = v.find("=")
+      if ix <= 0:
+        print "Error: syntax error in --setenv=" + v
+        return None
+      browserEnv[v[:ix]] = v[ix + 1:]    
 
     # Enable leaks detection to its own log file.
     self.leakLogFile = os.path.join(profileDir, "runreftest_leaks.log")
@@ -128,29 +110,28 @@ class RefTest(object):
 
   def cleanup(self, profileDir):
     if profileDir:
-      shutil.rmtree(profileDir)
+      shutil.rmtree(profileDir, True)
 
-  def runTests(self, manifest, options):
+  def runTests(self, testPath, options, cmdlineArgs = None):
     debuggerInfo = getDebuggerInfo(self.oldcwd, options.debugger, options.debuggerArgs,
         options.debuggerInteractive);
 
     profileDir = None
     try:
+      reftestlist = self.getManifestPath(testPath)
+      if cmdlineArgs == None:
+        cmdlineArgs = ['-reftest', reftestlist]
       profileDir = mkdtemp()
       self.copyExtraFilesToProfile(options, profileDir)
-      self.createReftestProfile(options, profileDir)
+      self.createReftestProfile(options, profileDir, reftestlist)
       self.installExtensionsToProfile(options, profileDir)
 
       # browser environment
       browserEnv = self.buildBrowserEnv(options, profileDir)
 
-      self.registerExtension(browserEnv, options, profileDir)
-
-      # then again to actually run reftest
       self.automation.log.info("REFTEST INFO | runreftest.py | Running tests: start.\n")
-      reftestlist = self.getManifestPath(manifest)
       status = self.automation.runApp(None, browserEnv, options.app, profileDir,
-                                 ["-reftest", reftestlist],
+                                 cmdlineArgs,
                                  utilityPath = options.utilityPath,
                                  xrePath=options.xrePath,
                                  debuggerInfo=debuggerInfo,
@@ -249,15 +230,61 @@ class ReftestOptions(OptionParser):
                     help = "skip tests marked as slow when running")
     defaults["skipSlowTests"] = False
 
+    self.add_option("--ignore-window-size",
+                    dest = "ignoreWindowSize", action = "store_true",
+                    help = "ignore the window size, which may cause spurious failures and passes")
+    defaults["ignoreWindowSize"] = False
+
     self.add_option("--install-extension",
                     action = "append", dest = "extensionsToInstall",
-                    help = "install the specified extension in the testing profile."
-                           "The extension file's name should be <id>.xpi where <id> is"
-                           "the extension's id as indicated in its install.rdf."
+                    help = "install the specified extension in the testing profile. "
+                           "The extension file's name should be <id>.xpi where <id> is "
+                           "the extension's id as indicated in its install.rdf. "
                            "An optional path can be specified too.")
     defaults["extensionsToInstall"] = []
 
+    self.add_option("--setenv",
+                    action = "append", type = "string",
+                    dest = "environment", metavar = "NAME=VALUE",
+                    help = "sets the given variable in the application's "
+                           "environment")
+    defaults["environment"] = []
+
+    self.add_option("--filter",
+                    action = "store", type="string", dest = "filter",
+                    help = "specifies a regular expression (as could be passed to the JS "
+                           "RegExp constructor) to test against URLs in the reftest manifest; "
+                           "only test items that have a matching test URL will be run.")
+    defaults["filter"] = None
+
+    self.add_option("--focus-filter-mode",
+                    action = "store", type = "string", dest = "focusFilterMode",
+                    help = "filters tests to run by whether they require focus. "
+                           "Valid values are `all', `needs-focus', or `non-needs-focus'. "
+                           "Defaults to `all'.")
+    defaults["focusFilterMode"] = "all"
+
     self.set_defaults(**defaults)
+
+  def verifyCommonOptions(self, options, reftest):
+    if options.totalChunks is not None and options.thisChunk is None:
+      self.error("thisChunk must be specified when totalChunks is specified")
+
+    if options.totalChunks:
+      if not 1 <= options.thisChunk <= options.totalChunks:
+        self.error("thisChunk must be between 1 and totalChunks")
+
+    if options.logFile:
+      options.logFile = reftest.getFullPath(options.logFile)
+
+    if options.xrePath is not None:
+      if not os.access(options.xrePath, os.F_OK):
+        self.error("--xre-path '%s' not found" % options.xrePath)
+      if not os.path.isdir(options.xrePath):
+        self.error("--xre-path '%s' is not a directory" % options.xrePath)
+      options.xrePath = reftest.getFullPath(options.xrePath)
+
+    return options
 
 def main():
   automation = Automation()
@@ -269,6 +296,8 @@ def main():
     print >>sys.stderr, "No reftest.list specified."
     sys.exit(1)
 
+  options = parser.verifyCommonOptions(options, reftest)
+
   options.app = reftest.getFullPath(options.app)
   if not os.path.exists(options.app):
     print """Error: Path %(app)s doesn't exist.
@@ -278,27 +307,12 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
 
   if options.xrePath is None:
     options.xrePath = os.path.dirname(options.app)
-  else:
-    # allow relative paths
-    options.xrePath = reftest.getFullPath(options.xrePath)
 
   if options.symbolsPath and not isURL(options.symbolsPath):
     options.symbolsPath = reftest.getFullPath(options.symbolsPath)
   options.utilityPath = reftest.getFullPath(options.utilityPath)
 
-  if options.totalChunks is not None and options.thisChunk is None:
-    print "thisChunk must be specified when totalChunks is specified"
-    sys.exit(1)
-
-  if options.totalChunks:
-    if not 1 <= options.thisChunk <= options.totalChunks:
-      print "thisChunk must be between 1 and totalChunks"
-      sys.exit(1)
-  
-  if options.logFile:
-    options.logFile = reftest.getFullPath(options.logFile)
-
   sys.exit(reftest.runTests(args[0], options))
-  
+
 if __name__ == "__main__":
   main()

@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=584480
 -->
 <head>
   <title>Test for Bug 584480</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <script type="text/javascript" src="manifest.js"></script> 
@@ -47,7 +46,12 @@ function loadedMetadata(evt) {
 // Create all media objects.
 for (var i=0; i<gSmallTests.length; ++i) {
   var test = gSmallTests[i];
-  var type = /^video/.test(test.type) ? "video" : "audio";
+  var type;
+  if (/^video/.test(test.type)) {
+    type = "video"
+  } else {
+    type = "audio";
+  }
   var v = document.createElement(type);
   if (!v.canPlayType(test.type)) {
     continue;

@@ -1,42 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla MathML Project.
- *
- * The Initial Developer of the Original Code is
- * The University Of Queensland.
- * Portions created by the Initial Developer are Copyright (C) 1999
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Roger B. Sidje <rbs@maths.uq.edu.au>
- *   David J. Fiddes <D.J.Fiddes@hw.ac.uk>
- *   Shyjan Mahamud <mahamud@cs.cmu.edu> (added TeX rendering rules)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
 #include "nsCOMPtr.h"
@@ -46,6 +11,7 @@
 #include "nsStyleConsts.h"
 
 #include "nsMathMLmsubFrame.h"
+#include <algorithm>
 
 //
 // <msub> -- attach a subscript to a base - implementation
@@ -83,22 +49,29 @@ nsMathMLmsubFrame::TransmitAutomaticData()
 
 /* virtual */ nsresult
 nsMathMLmsubFrame::Place (nsRenderingContext& aRenderingContext,
-                          PRBool               aPlaceOrigin,
+                          bool                 aPlaceOrigin,
                           nsHTMLReflowMetrics& aDesiredSize)
 {
   // extra spacing after sup/subscript
   nscoord scriptSpace = nsPresContext::CSSPointsToAppUnits(0.5f); // 0.5pt as in plain TeX
 
-  // check if the subscriptshift attribute is there
+  // subscriptshift
+  //
+  // "Specifies the minimum amount to shift the baseline of subscript down; the
+  // default is for the rendering agent to use its own positioning rules."
+  //
+  // values: length
+  // default: automatic
+  //
+  // We use 0 as the default value so unitless values can be ignored.
+  // As a minimum, negative values can be ignored.
+  //
   nscoord subScriptShift = 0;
   nsAutoString value;
   GetAttribute(mContent, mPresentationData.mstyle,
                nsGkAtoms::subscriptshift_, value);
   if (!value.IsEmpty()) {
-    nsCSSValue cssValue;
-    if (ParseNumericValue(value, cssValue) && cssValue.IsLengthUnit()) {
-      subScriptShift = CalcLength(PresContext(), mStyleContext, cssValue);
-    }
+    ParseNumericValue(value, &subScriptShift, 0, PresContext(), mStyleContext);
   }
 
   return nsMathMLmsubFrame::PlaceSubScript(PresContext(), 
@@ -115,14 +88,14 @@ nsMathMLmsubFrame::Place (nsRenderingContext& aRenderingContext,
 nsresult
 nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
                                    nsRenderingContext& aRenderingContext,
-                                   PRBool               aPlaceOrigin,
+                                   bool                 aPlaceOrigin,
                                    nsHTMLReflowMetrics& aDesiredSize,
                                    nsMathMLContainerFrame* aFrame,
                                    nscoord              aUserSubScriptShift,
                                    nscoord              aScriptSpace)
 {
   // force the scriptSpace to be atleast 1 pixel 
-  aScriptSpace = NS_MAX(nsPresContext::CSSPixelsToAppUnits(1), aScriptSpace);
+  aScriptSpace = std::max(nsPresContext::CSSPixelsToAppUnits(1), aScriptSpace);
 
   ////////////////////////////////////
   // Get the children's desired sizes
@@ -130,12 +103,15 @@ nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
   nsBoundingMetrics bmBase, bmSubScript;
   nsHTMLReflowMetrics baseSize;
   nsHTMLReflowMetrics subScriptSize;
-  nsIFrame* baseFrame = aFrame->GetFirstChild(nsnull);
-  nsIFrame* subScriptFrame = nsnull;
+  nsIFrame* baseFrame = aFrame->GetFirstPrincipalChild();
+  nsIFrame* subScriptFrame = nullptr;
   if (baseFrame)
     subScriptFrame = baseFrame->GetNextSibling();
   if (!baseFrame || !subScriptFrame || subScriptFrame->GetNextSibling()) {
     // report an error, encourage people to get their markups in order
+    if (aPlaceOrigin) {
+      aFrame->ReportChildCountError();
+    }
     return aFrame->ReflowError(aRenderingContext, aDesiredSize);
   }
   GetReflowAndBoundingMetricsFor(baseFrame, baseSize, bmBase);
@@ -153,8 +129,8 @@ nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
   // get min subscript shift limit from x-height
   // = h(x) - 4/5 * sigma_5, Rule 18b, App. G, TeXbook
   nscoord xHeight = 0;
-  nsRefPtr<nsFontMetrics> fm =
-    aPresContext->GetMetricsFor(baseFrame->GetStyleFont()->mFont);
+  nsRefPtr<nsFontMetrics> fm;
+  nsLayoutUtils::GetFontMetricsForFrame(baseFrame, getter_AddRefs(fm));
 
   xHeight = fm->XHeight();
   nscoord minShiftFromXHeight = (nscoord) 
@@ -169,31 +145,31 @@ nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
   GetSubScriptShifts (fm, subScriptShift, dummy);
 
   subScriptShift = 
-    NS_MAX(subScriptShift, aUserSubScriptShift);
+    std::max(subScriptShift, aUserSubScriptShift);
 
   // get actual subscriptshift to be used
   // Rule 18b, App. G, TeXbook
   nscoord actualSubScriptShift = 
-    NS_MAX(minSubScriptShift,NS_MAX(subScriptShift,minShiftFromXHeight));
+    std::max(minSubScriptShift,std::max(subScriptShift,minShiftFromXHeight));
   // get bounding box for base + subscript
   nsBoundingMetrics boundingMetrics;
   boundingMetrics.ascent = 
-    NS_MAX(bmBase.ascent, bmSubScript.ascent - actualSubScriptShift);
+    std::max(bmBase.ascent, bmSubScript.ascent - actualSubScriptShift);
   boundingMetrics.descent = 
-    NS_MAX(bmBase.descent, bmSubScript.descent + actualSubScriptShift);
+    std::max(bmBase.descent, bmSubScript.descent + actualSubScriptShift);
 
   // add aScriptSpace to the subscript's width
   boundingMetrics.width = bmBase.width + bmSubScript.width + aScriptSpace;
   boundingMetrics.leftBearing = bmBase.leftBearing;
-  boundingMetrics.rightBearing = NS_MAX(bmBase.rightBearing, bmBase.width +
-    NS_MAX(bmSubScript.width + aScriptSpace, bmSubScript.rightBearing));
+  boundingMetrics.rightBearing = std::max(bmBase.rightBearing, bmBase.width +
+    std::max(bmSubScript.width + aScriptSpace, bmSubScript.rightBearing));
   aFrame->SetBoundingMetrics (boundingMetrics);
 
   // reflow metrics
   aDesiredSize.ascent = 
-    NS_MAX(baseSize.ascent, subScriptSize.ascent - actualSubScriptShift);
+    std::max(baseSize.ascent, subScriptSize.ascent - actualSubScriptShift);
   aDesiredSize.height = aDesiredSize.ascent +
-    NS_MAX(baseSize.height - baseSize.ascent,
+    std::max(baseSize.height - baseSize.ascent,
            subScriptSize.height - subScriptSize.ascent + actualSubScriptShift);
   aDesiredSize.width = boundingMetrics.width;
   aDesiredSize.mBoundingMetrics = boundingMetrics;
@@ -203,12 +179,14 @@ nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
   if (aPlaceOrigin) {
     nscoord dx, dy;
     // now place the base ...
-    dx = 0; dy = aDesiredSize.ascent - baseSize.ascent;
-    FinishReflowChild (baseFrame, aPresContext, nsnull, baseSize, dx, dy, 0);
+    dx = aFrame->MirrorIfRTL(aDesiredSize.width, baseSize.width, 0);
+    dy = aDesiredSize.ascent - baseSize.ascent;
+    FinishReflowChild (baseFrame, aPresContext, nullptr, baseSize, dx, dy, 0);
     // ... and subscript
-    dx = bmBase.width; 
+    dx = aFrame->MirrorIfRTL(aDesiredSize.width, subScriptSize.width,
+                             bmBase.width);
     dy = aDesiredSize.ascent - (subScriptSize.ascent - actualSubScriptShift);
-    FinishReflowChild (subScriptFrame, aPresContext, nsnull, subScriptSize, dx, dy, 0);
+    FinishReflowChild (subScriptFrame, aPresContext, nullptr, subScriptSize, dx, dy, 0);
   }
 
   return NS_OK;

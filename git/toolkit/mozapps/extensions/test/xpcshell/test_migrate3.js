@@ -2,7 +2,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-// Checks that we migrate data from previous versions of the database. This
+// Checks that we migrate data from the old extensions.rdf database. This
 // matches test_migrate1.js however it runs with a lightweight theme selected
 // so the themes should appear disabled.
 
@@ -112,11 +112,11 @@ function run_test() {
     name: "Test LW Theme",
     description: "A test theme",
     author: "Mozilla",
-    homepageURL: "http://localhost:4444/data/index.html",
-    headerURL: "http://localhost:4444/data/header.png",
-    footerURL: "http://localhost:4444/data/footer.png",
-    previewURL: "http://localhost:4444/data/preview.png",
-    iconURL: "http://localhost:4444/data/icon.png"
+    homepageURL: "http://localhost/data/index.html",
+    headerURL: "http://localhost/data/header.png",
+    footerURL: "http://localhost/data/footer.png",
+    previewURL: "http://localhost/data/preview.png",
+    iconURL: "http://localhost/data/icon.png"
   }]));
   Services.prefs.setBoolPref("lightweightThemes.isThemeSelected", true);
 
@@ -143,6 +143,12 @@ function run_test() {
   Services.prefs.setCharPref("general.skins.selectedSkin", "theme1/1.0");
 
   startupManager();
+  check_startup_changes("installed", []);
+  check_startup_changes("updated", []);
+  check_startup_changes("uninstalled", []);
+  check_startup_changes("disabled", []);
+  check_startup_changes("enabled", []);
+
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
                                "addon3@tests.mozilla.org",

@@ -5,7 +5,6 @@
 https://bugzilla.mozilla.org/show_bug.cgi?id=575946
 -->
   <title>Test for Bug 575946</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="fileutils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -14,8 +13,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=575946
 <body>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=575946">Mozilla Bug 575946</a>
 <p id="display">
-  <canvas id=canvas width=1000 height=1000 hidden></canvas>
-  <canvas id=testcanvas hidden></canvas>
+  <canvas id=canvas width=1100 height=1100 hidden moz-opaque></canvas>
+  <canvas id=testcanvas hidden moz-opaque></canvas>
   <input id="fileList" type="file"></input>
 </p>
 <div id="content" style="display: none">
@@ -23,6 +22,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=575946
 
 <pre id="test">
 <script class="testbody" type="text/javascript">
+const isOSXMtnLion = navigator.userAgent.indexOf("Mac OS X 10.8") != -1;
+
+if (isOSXMtnLion) {
+  todo(false, "Mountain Lion doesn't like this test (bug 788999)");
+} else {
 var fileNum = 1;
 SimpleTest.waitForExplicitFinish();
 
@@ -105,7 +109,7 @@ function imageLoadHandler(event) {
 var imgfile = createFileWithData(testBinaryData + fileData + testBinaryData);
 is(imgfile.size, size + testBinaryData.length * 2, "correct file size (middle)");
 var img = new Image;
-img.src = URL.createObjectURL(imgfile.mozSlice(testBinaryData.length, testBinaryData.length + size));
+img.src = URL.createObjectURL(imgfile.slice(testBinaryData.length, testBinaryData.length + size));
 img.onload = imageLoadHandler;
 expectedTestCount++;
 
@@ -113,7 +117,7 @@ expectedTestCount++;
 var imgfile = createFileWithData(fileData + testBinaryData);
 is(imgfile.size, size + testBinaryData.length, "correct file size (start)");
 var img = new Image;
-img.src = URL.createObjectURL(imgfile.mozSlice(0, size));
+img.src = URL.createObjectURL(imgfile.slice(0, size));
 img.onload = imageLoadHandler;
 expectedTestCount++;
 
@@ -121,7 +125,7 @@ expectedTestCount++;
 var imgfile = createFileWithData(testBinaryData + fileData);
 is(imgfile.size, size + testBinaryData.length, "correct file size (end)");
 var img = new Image;
-img.src = URL.createObjectURL(imgfile.mozSlice(testBinaryData.length, testBinaryData.length + size));
+img.src = URL.createObjectURL(imgfile.slice(testBinaryData.length, testBinaryData.length + size));
 img.onload = imageLoadHandler;
 expectedTestCount++;
 
@@ -129,10 +133,10 @@ expectedTestCount++;
 var imgfile = createFileWithData(testBinaryData + fileData);
 is(imgfile.size, size + testBinaryData.length, "correct file size (past end)");
 var img = new Image;
-img.src = URL.createObjectURL(imgfile.mozSlice(testBinaryData.length, testBinaryData.length + size + 1000));
+img.src = URL.createObjectURL(imgfile.slice(testBinaryData.length, testBinaryData.length + size + 1000));
 img.onload = imageLoadHandler;
 expectedTestCount++;
-
+}
 </script>
 </pre>
 </body> </html>

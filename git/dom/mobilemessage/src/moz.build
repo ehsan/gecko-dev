@@ -1,0 +1,80 @@
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
+    mmsdir = 'android'
+elif CONFIG['MOZ_B2G_RIL']:
+    mmsdir = 'gonk'
+else:
+    mmsdir = 'fallback'
+
+EXPORTS.mozilla.dom.mobilemessage += [
+    'Constants.h',
+    'MobileMessageCallback.h',
+    'MobileMessageService.h',
+    'SmsServicesFactory.h',
+    'Types.h',
+    'ipc/SmsChild.h',
+    'ipc/SmsParent.h',
+]
+
+if CONFIG['MOZ_B2G_RIL']:
+    EXTRA_JS_MODULES = [
+        'gonk/MmsPduHelper.jsm',
+        'gonk/WspPduHelper.jsm',
+        'gonk/mms_consts.js',
+        'gonk/wap_consts.js',
+    ]
+else:
+    EXPORTS.mozilla.dom.mobilemessage += [
+        "%s/%s" % (mmsdir, 'MmsService.h'),
+        "%s/%s" % (mmsdir, 'MobileMessageDatabaseService.h'),
+    ]
+    CPP_SOURCES += [
+        'MobileMessageDatabaseService.cpp',
+        'MmsService.cpp',
+    ]
+
+EXPORTS.mozilla.dom += [
+    'MmsMessage.h',
+    'MobileMessageManager.h',
+    'SmsFilter.h',
+    'SmsMessage.h',
+    'SmsSegmentInfo.h',
+]
+
+CPP_SOURCES += [
+    'Constants.cpp',
+    'MmsMessage.cpp',
+    'MobileMessageCallback.cpp',
+    'MobileMessageCursorCallback.cpp',
+    'MobileMessageManager.cpp',
+    'MobileMessageService.cpp',
+    'MobileMessageThread.cpp',
+    'SmsChild.cpp',
+    'SmsFilter.cpp',
+    'SmsIPCService.cpp',
+    'SmsMessage.cpp',
+    'SmsParent.cpp',
+    'SmsSegmentInfo.cpp',
+    'SmsService.cpp',
+    'SmsServicesFactory.cpp',
+]
+
+if CONFIG['MOZ_B2G_RIL']:
+    EXTRA_COMPONENTS += [
+        'gonk/MmsService.js',
+        'gonk/MmsService.manifest',
+        'gonk/MobileMessageDatabaseService.js',
+        'gonk/MobileMessageDatabaseService.manifest',
+    ]
+
+IPDL_SOURCES += [
+    'ipc/PMobileMessageCursor.ipdl',
+    'ipc/PSms.ipdl',
+    'ipc/PSmsRequest.ipdl',
+    'ipc/SmsTypes.ipdlh',
+]

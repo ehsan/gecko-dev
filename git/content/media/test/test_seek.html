@@ -2,7 +2,6 @@
 <html>
 <head>
   <title>Media test: seek tests</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
   <script type="text/javascript" src="manifest.js"></script>
@@ -25,6 +24,15 @@
 <script class="testbody" type="text/javascript">
 
 var manager = new MediaTestManager;
+
+// https://bugzilla.mozilla.org/show_bug.cgi?id=634747
+if (navigator.platform.startsWith("Win")) {
+  SimpleTest.expectAssertions(0, 5);
+} else {
+  // This is "###!!! ASSERTION: Page read cursor should be inside range: 'mPageOffset <= endOffset'"
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=846769
+  SimpleTest.expectAssertions(0, 5);
+}
 
 const NUM_SEEK_TESTS = 13;
 
@@ -54,6 +62,7 @@ function startTest(test, token) {
   var v = document.createElement('video');
   manager.started(token);
   v.src = test.name;
+  v.preload = "metadata";
   v.token = token;
   document.body.appendChild(v);
   var name = test.name + " seek test " + test.number;

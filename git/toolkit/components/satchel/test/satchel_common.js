@@ -1,44 +1,8 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Satchel Test Code.
- *
- * The Initial Developer of the Original Code is
- * Ehsan Akhgari.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com> (Original Author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
- 
-netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+var Services = SpecialPowers.Services;
 
 /*
  * $_
@@ -73,29 +37,26 @@ function $_(formNum, name) {
 // Mochitest gives us a sendKey(), but it's targeted to a specific element.
 // This basically sends an untargeted key event, to whatever's focused.
 function doKey(aKey, modifier) {
-    // Seems we need to enable this again, or sendKeyEvent() complaints.
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
     var keyName = "DOM_VK_" + aKey.toUpperCase();
-    var key = Components.interfaces.nsIDOMKeyEvent[keyName];
+    var key = SpecialPowers.Ci.nsIDOMKeyEvent[keyName];
 
     // undefined --> null
     if (!modifier)
         modifier = null;
 
     // Window utils for sending fake sey events.
-    var wutils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
-                          getInterface(Components.interfaces.nsIDOMWindowUtils);
+    var wutils = SpecialPowers.getDOMWindowUtils(window);
 
-    wutils.sendKeyEvent("keydown",  key, 0, modifier);
-    wutils.sendKeyEvent("keypress", key, 0, modifier);
+    if (wutils.sendKeyEvent("keydown",  key, 0, modifier)) {
+      wutils.sendKeyEvent("keypress", key, 0, modifier);
+    }
     wutils.sendKeyEvent("keyup",    key, 0, modifier);
 }
 
 
 function getAutocompletePopup() {
-    var Ci = Components.interfaces;
-    chromeWin = window
+    var Ci = SpecialPowers.Ci;
+    chromeWin = SpecialPowers.wrap(window)
                     .QueryInterface(Ci.nsIInterfaceRequestor)
                     .getInterface(Ci.nsIWebNavigation)
                     .QueryInterface(Ci.nsIDocShellTreeItem)
@@ -111,10 +72,7 @@ function getAutocompletePopup() {
 
 
 function cleanUpFormHist() {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var formhist = Components.classes["@mozilla.org/satchel/form-history;1"].
-                 getService(Components.interfaces.nsIFormHistory2);
-  formhist.removeAllEntries();
+  SpecialPowers.formHistory.update({ op : "remove" });
 }
 cleanUpFormHist();
 
@@ -131,9 +89,7 @@ var checkObserver = {
   },
 
   observe: function(subject, topic, data) {
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-    if (data != "addEntry" && data != "modifyEntry")
+    if (data != "formhistory-add" && data != "formhistory-update")
       return;
     ok(this.verifyStack.length > 0, "checking if saved form data was expected");
 
@@ -147,13 +103,16 @@ var checkObserver = {
     // - if there are too many messages, test will error out here
     //
     var expected = this.verifyStack.shift();
-    ok(fh.entryExists(expected.name, expected.value), expected.message);
 
-    if (this.verifyStack.length == 0) {
-      var callback = this.callback;
-      this.callback = null;
-      callback();
-    }
+    countEntries(expected.name, expected.value,
+      function(num) {
+        ok(num > 0, expected.message);
+        if (checkObserver.verifyStack.length == 0) {
+          var callback = checkObserver.callback;
+          checkObserver.callback = null;
+          callback();
+        }
+      });
   }
 };
 
@@ -173,4 +132,31 @@ function getFormSubmitButton(formNum) {
   ok(button != null, "getting form submit button");
 
   return button;
+}
+
+// Count the number of entries with the given name and value, and call then(number)
+// when done. If name or value is null, then the value of that field does not matter.
+function countEntries(name, value, then) {
+  var obj = {};
+  if (name !== null)
+    obj.fieldname = name;
+  if (value !== null)
+    obj.value = value;
+
+  var count = 0;
+  SpecialPowers.formHistory.count(obj, { handleResult: function (result) { count = result },
+                                         handleError: function (error) {
+                                           do_throw("Error occurred searching form history: " + error);
+                                         },
+                                         handleCompletion: function (reason) { if (!reason) then(count); }
+                                       });
+}
+
+// Wrapper around FormHistory.update which handles errors. Calls then() when done.
+function updateFormHistory(changes, then) {
+  SpecialPowers.formHistory.update(changes, { handleError: function (error) {
+                                                do_throw("Error occurred updating form history: " + error);
+                                              },
+                                              handleCompletion: function (reason) { if (!reason) then(); },
+                                            });
 }

@@ -9,7 +9,7 @@ Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 
 const PREF_GETADDONS_GETSEARCHRESULTS = "extensions.getAddons.search.url";
 
-do_load_httpd_js();
+Components.utils.import("resource://testing-common/httpd.js");
 var server;
 
 var TESTS = [
@@ -69,12 +69,15 @@ function run_test()
 
   startupManager();
 
-  server = new nsHttpServer();
+  server = new HttpServer();
   server.registerDirectory("/", do_get_file("data"));
-  server.start(4444);
+  mapFile("/data/test_bug554133.xml", server);
+  server.start(-1);
+  gPort = server.identity.primaryPort;
 
   // Point search to the test server
-  Services.prefs.setCharPref(PREF_GETADDONS_GETSEARCHRESULTS, "http://localhost:4444/test_%TERMS%.xml");
+  Services.prefs.setCharPref(PREF_GETADDONS_GETSEARCHRESULTS,
+                             "http://localhost:" + gPort + "/data/test_%TERMS%.xml");
 
   do_check_neq(AddonRepository, null);
   gCurrentTest = 0;

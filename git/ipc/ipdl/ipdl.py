@@ -1,34 +1,6 @@
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is mozilla.org code.
-#
-# Contributor(s):
-#   Chris Jones <jones.chris.g@gmail.com>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either of the GNU General Public License Version 2 or later (the "GPL"),
-# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import optparse, os, re, sys
 from cStringIO import StringIO
@@ -70,19 +42,78 @@ includedirs = [ os.path.abspath(incdir) for incdir in options.includedirs ]
 if not len(files):
     op.error("No IPDL files specified")
 
+ipcmessagestartpath = os.path.join(headersdir, 'IPCMessageStart.h')
+
+# Compiling the IPDL files can take a long time, even on a fast machine.
+# Check to see whether we need to do any work.
+latestipdlmod = max(os.stat(f).st_mtime for f in files)
+
+def outputModTime(f):
+    # A non-existant file is newer than everything.
+    if not os.path.exists(f):
+        return 0
+    return os.stat(f).st_mtime
+
+# Because the IPDL headers are placed into directories reflecting their
+# namespace, collect a list here so we can easily map output names without
+# parsing the actual IPDL files themselves.
+headersmap = {}
+for (path, dirs, headers) in os.walk(headersdir):
+    for h in headers:
+        base = os.path.basename(h)
+        if base in headersmap:
+            root, ext = os.path.splitext(base)
+            print >>sys.stderr, 'A protocol named', root, 'exists in multiple namespaces'
+            sys.exit(1)
+        headersmap[base] = os.path.join(path, h)
+
+def outputfiles(f):
+    base = os.path.basename(f)
+    root, ext = os.path.splitext(base)
+
+    suffixes = ['']
+    if ext == '.ipdl':
+        suffixes += ['Child', 'Parent']
+
+    for suffix in suffixes:
+        yield os.path.join(cppdir, "%s%s.cpp" % (root, suffix))
+        header = "%s%s.h" % (root, suffix)
+        # If the header already exists on disk, use that.  Otherwise,
+        # just claim that the header is found in headersdir.
+        if header in headersmap:
+            yield headersmap[header]
+        else:
+            yield os.path.join(headersdir, header)
+
+def alloutputfiles():
+    for f in files:
+        for s in outputfiles(f):
+            yield s
+    yield ipcmessagestartpath
+
+earliestoutputmod = min(outputModTime(f) for f in alloutputfiles())
+
+if latestipdlmod < earliestoutputmod:
+    sys.exit(0)
+
 log(2, 'Generated C++ headers will be generated relative to "%s"', headersdir)
 log(2, 'Generated C++ sources will be generated in "%s"', cppdir)
 
 allprotocols = []
 
+def normalizedFilename(f):
+    if f == '-':
+        return '<stdin>'
+    return f
+
+# First pass: parse and type-check all protocols
 for f in files:
-    log(1, os.path.basename(f))
+    log(2, os.path.basename(f))
+    filename = normalizedFilename(f)
     if f == '-':
         fd = sys.stdin
-        filename = '<stdin>'
     else:
         fd = open(f)
-        filename = f
 
     specstring = fd.read()
     fd.close()
@@ -91,8 +122,6 @@ for f in files:
     if ast is None:
         print >>sys.stderr, 'Specification could not be parsed.'
         sys.exit(1)
-
-    allprotocols.append('%sMsgStart' % ast.protocol.name)
 
     log(2, 'checking types')
     if not ipdl.typecheck(ast):
@@ -103,7 +132,16 @@ for f in files:
         log(3, '  pretty printed code:')
         ipdl.genipdl(ast, codedir)
 
+# Second pass: generate code
+for f in files:
+    # Read from parser cache
+    filename = normalizedFilename(f)
+    ast = ipdl.parse(None, filename, includedirs=includedirs)
     ipdl.gencxx(filename, ast, headersdir, cppdir)
+    
+    if ast.protocol:
+        allprotocols.append('%sMsgStart' % ast.protocol.name)
+
 
 allprotocols.sort()
 
@@ -130,5 +168,4 @@ COMPILE_ASSERT(LastMsgIndex <= 65536, need_to_update_IPC_MESSAGE_MACRO);
 #endif // ifndef IPCMessageStart_h
 """
 
-ipdl.writeifmodified(ipcmsgstart.getvalue(),
-                     os.path.join(headersdir, 'IPCMessageStart.h'))
+ipdl.writeifmodified(ipcmsgstart.getvalue(), ipcmessagestartpath)

@@ -1,156 +1,211 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code, released
- * March 31, 1998.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsatominlines_h___
-#define jsatominlines_h___
+#ifndef jsatominlines_h
+#define jsatominlines_h
 
 #include "jsatom.h"
+
+#include "mozilla/PodOperations.h"
+#include "mozilla/RangedPtr.h"
+
+#include "jscntxt.h"
 #include "jsnum.h"
+#include "jsobj.h"
+#include "jsstr.h"
 
-inline bool
-js_ValueToAtom(JSContext *cx, const js::Value &v, JSAtom **atomp)
+#include "gc/Barrier.h"
+#include "vm/String.h"
+
+inline JSAtom *
+js::AtomStateEntry::asPtr() const
 {
-    if (!v.isString()) {
-        JSString *str = js_ValueToString(cx, v);
-        if (!str)
-            return false;
-        JS::Anchor<JSString *> anchor(str);
-        *atomp = js_AtomizeString(cx, str);
-        return !!*atomp;
-    }
-
-    JSString *str = v.toString();
-    if (str->isAtom()) {
-        *atomp = &str->asAtom();
-        return true;
-    }
-
-    *atomp = js_AtomizeString(cx, str);
-    return !!*atomp;
-}
-
-inline bool
-js_ValueToStringId(JSContext *cx, const js::Value &v, jsid *idp)
-{
-    JSAtom *atom;
-    if (js_ValueToAtom(cx, v, &atom)) {
-        *idp = ATOM_TO_JSID(atom);
-        return true;
-    }
-    return false;
-}
-
-inline bool
-js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
-                         jsid *idp)
-{
-    JS_ASSERT(!idval.isInt32() || !INT_FITS_IN_JSID(idval.toInt32()));
-
-#if JS_HAS_XML_SUPPORT
-    extern bool js_InternNonIntElementIdSlow(JSContext *, JSObject *,
-                                             const js::Value &, jsid *);
-    if (idval.isObject())
-        return js_InternNonIntElementIdSlow(cx, obj, idval, idp);
-#endif
-
-    return js_ValueToStringId(cx, idval, idp);
-}
-
-inline bool
-js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
-                         jsid *idp, js::Value *vp)
-{
-    JS_ASSERT(!idval.isInt32() || !INT_FITS_IN_JSID(idval.toInt32()));
-
-#if JS_HAS_XML_SUPPORT
-    extern bool js_InternNonIntElementIdSlow(JSContext *, JSObject *,
-                                             const js::Value &,
-                                             jsid *, js::Value *);
-    if (idval.isObject())
-        return js_InternNonIntElementIdSlow(cx, obj, idval, idp, vp);
-#endif
-
-    JSAtom *atom;
-    if (js_ValueToAtom(cx, idval, &atom)) {
-        *idp = ATOM_TO_JSID(atom);
-        vp->setString(atom);
-        return true;
-    }
-    return false;
-}
-
-inline bool
-js_Int32ToId(JSContext* cx, int32 index, jsid* id)
-{
-    if (INT_FITS_IN_JSID(index)) {
-        *id = INT_TO_JSID(index);
-        return true;
-    }
-
-    JSString* str = js_NumberToString(cx, index);
-    if (!str)
-        return false;
-
-    return js_ValueToStringId(cx, js::StringValue(str), id);
+    JS_ASSERT(bits != 0);
+    JSAtom *atom = reinterpret_cast<JSAtom *>(bits & NO_TAG_MASK);
+    JSString::readBarrier(atom);
+    return atom;
 }
 
 namespace js {
 
+inline jsid
+AtomToId(JSAtom *atom)
+{
+    JS_STATIC_ASSERT(JSID_INT_MIN == 0);
+
+    uint32_t index;
+    if (atom->isIndex(&index) && index <= JSID_INT_MAX)
+        return INT_TO_JSID(int32_t(index));
+
+    return JSID_FROM_BITS(size_t(atom));
+}
+
 inline bool
-IndexToId(JSContext *cx, uint32 index, jsid *idp)
+ValueToIdPure(const Value &v, jsid *id)
+{
+    int32_t i;
+    if (ValueFitsInInt32(v, &i) && INT_FITS_IN_JSID(i)) {
+        *id = INT_TO_JSID(i);
+        return true;
+    }
+
+    if (!v.isString() || !v.toString()->isAtom())
+        return false;
+
+    *id = AtomToId(&v.toString()->asAtom());
+    return true;
+}
+
+template <AllowGC allowGC>
+inline bool
+ValueToId(JSContext* cx, typename MaybeRooted<Value, allowGC>::HandleType v,
+          typename MaybeRooted<jsid, allowGC>::MutableHandleType idp)
+{
+    int32_t i;
+    if (ValueFitsInInt32(v, &i) && INT_FITS_IN_JSID(i)) {
+        idp.set(INT_TO_JSID(i));
+        return true;
+    }
+
+    JSAtom *atom = ToAtom<allowGC>(cx, v);
+    if (!atom)
+        return false;
+
+    idp.set(AtomToId(atom));
+    return true;
+}
+
+/*
+ * Write out character representing |index| to the memory just before |end|.
+ * Thus |*end| is not touched, but |end[-1]| and earlier are modified as
+ * appropriate.  There must be at least js::UINT32_CHAR_BUFFER_LENGTH elements
+ * before |end| to avoid buffer underflow.  The start of the characters written
+ * is returned and is necessarily before |end|.
+ */
+template <typename T>
+inline mozilla::RangedPtr<T>
+BackfillIndexInCharBuffer(uint32_t index, mozilla::RangedPtr<T> end)
+{
+#ifdef DEBUG
+    /*
+     * Assert that the buffer we're filling will hold as many characters as we
+     * could write out, by dereferencing the index that would hold the most
+     * significant digit.
+     */
+    (void) *(end - UINT32_CHAR_BUFFER_LENGTH);
+#endif
+
+    do {
+        uint32_t next = index / 10, digit = index % 10;
+        *--end = '0' + digit;
+        index = next;
+    } while (index > 0);
+
+    return end;
+}
+
+template <AllowGC allowGC>
+bool
+IndexToIdSlow(ExclusiveContext *cx, uint32_t index,
+              typename MaybeRooted<jsid, allowGC>::MutableHandleType idp);
+
+inline bool
+IndexToId(ExclusiveContext *cx, uint32_t index, MutableHandleId idp)
+{
+    MaybeCheckStackRoots(cx);
+
+    if (index <= JSID_INT_MAX) {
+        idp.set(INT_TO_JSID(index));
+        return true;
+    }
+
+    return IndexToIdSlow<CanGC>(cx, index, idp);
+}
+
+inline bool
+IndexToIdPure(uint32_t index, jsid *idp)
 {
     if (index <= JSID_INT_MAX) {
         *idp = INT_TO_JSID(index);
         return true;
     }
 
-    JSString *str = js_NumberToString(cx, index);
-    if (!str)
-        return false;
+    return false;
+}
 
-    JSAtom *atom = js_AtomizeString(cx, str);
-    if (!atom)
+inline bool
+IndexToIdNoGC(JSContext *cx, uint32_t index, jsid *idp)
+{
+    if (IndexToIdPure(index, idp))
+        return true;
+
+    return IndexToIdSlow<NoGC>(cx, index, idp);
+}
+
+static JS_ALWAYS_INLINE JSFlatString *
+IdToString(JSContext *cx, jsid id)
+{
+    if (JSID_IS_STRING(id))
+        return JSID_TO_ATOM(id);
+
+    if (JS_LIKELY(JSID_IS_INT(id)))
+        return Int32ToString<CanGC>(cx, JSID_TO_INT(id));
+
+    RootedValue idv(cx, IdToValue(id));
+    JSString *str = ToStringSlow<CanGC>(cx, idv);
+    if (!str)
+        return NULL;
+
+    return str->ensureFlat(cx);
+}
+
+inline
+AtomHasher::Lookup::Lookup(const JSAtom *atom)
+  : chars(atom->chars()), length(atom->length()), atom(atom)
+{}
+
+inline bool
+AtomHasher::match(const AtomStateEntry &entry, const Lookup &lookup)
+{
+    JSAtom *key = entry.asPtr();
+    if (lookup.atom)
+        return lookup.atom == key;
+    if (key->length() != lookup.length)
         return false;
-    *idp = ATOM_TO_JSID(atom);
-    return true;
+    return mozilla::PodEqual(key->chars(), lookup.chars, lookup.length);
+}
+
+inline Handle<PropertyName*>
+TypeName(JSType type, JSRuntime *rt)
+{
+    JS_ASSERT(type < JSTYPE_LIMIT);
+    JS_STATIC_ASSERT(offsetof(JSAtomState, undefined) +
+                     JSTYPE_LIMIT * sizeof(FixedHeapPtr<PropertyName>) <=
+                     sizeof(JSAtomState));
+    JS_STATIC_ASSERT(JSTYPE_VOID == 0);
+    return (&rt->atomState.undefined)[type];
+}
+
+inline Handle<PropertyName*>
+TypeName(JSType type, JSContext *cx)
+{
+    return TypeName(type, cx->runtime());
+}
+
+inline Handle<PropertyName*>
+ClassName(JSProtoKey key, ExclusiveContext *cx)
+{
+    JS_ASSERT(key < JSProto_LIMIT);
+    JS_STATIC_ASSERT(offsetof(JSAtomState, Null) +
+                     JSProto_LIMIT * sizeof(FixedHeapPtr<PropertyName>) <=
+                     sizeof(JSAtomState));
+    JS_STATIC_ASSERT(JSProto_Null == 0);
+    return (&cx->names().Null)[key];
 }
 
 } // namespace js
 
-#endif /* jsatominlines_h___ */
+#endif /* jsatominlines_h */

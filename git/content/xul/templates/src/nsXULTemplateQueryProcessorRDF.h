@@ -1,50 +1,12 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Robert Churchill <rjc@netscape.com>
- *   David Hyatt <hyatt@netscape.com>
- *   Chris Waterson <waterson@netscape.com>
- *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Neil Deakin <enndeakin@sympatico.ca>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
 #ifndef nsXULTemplateQueryProcessorRDF_h__
 #define nsXULTemplateQueryProcessorRDF_h__
 
-#include "nsIContent.h"
 #include "nsIRDFContainer.h"
 #include "nsIRDFContainerUtils.h"
 #include "nsIRDFDataSource.h"
@@ -52,37 +14,37 @@
 #include "nsIRDFService.h"
 #include "nsIXULTemplateBuilder.h"
 #include "nsIXULTemplateQueryProcessor.h"
-#include "nsICollation.h"
 #include "nsCollationCID.h"
 
-#include "nsFixedSizeAllocator.h"
 #include "nsResourceSet.h"
 #include "nsRuleNetwork.h"
 #include "nsRDFQuery.h"
 #include "nsRDFBinding.h"
 #include "nsXULTemplateResultSetRDF.h"
 #include "nsCOMArray.h"
-#include "nsIArray.h"
 #include "nsString.h"
 #include "nsClassHashtable.h"
 #include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
+#include "mozilla/Attributes.h"
 
 #include "prlog.h"
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gXULTemplateLog;
 #endif
 
+class nsIContent;
 class nsIRDFCompositeDataSource;
 class nsXULTemplateResultRDF;
 
 /**
  * An object that generates results from a query on an RDF graph
  */
-class nsXULTemplateQueryProcessorRDF : public nsIXULTemplateQueryProcessor,
-                                       public nsIRDFObserver
+class nsXULTemplateQueryProcessorRDF MOZ_FINAL : public nsIXULTemplateQueryProcessor,
+                                                 public nsIRDFObserver
 {
 public:
+    typedef nsTArray<nsCOMPtr<nsXULTemplateResultRDF> > ResultArray;
 
     nsXULTemplateQueryProcessorRDF();
 
@@ -133,20 +95,20 @@ public:
      */
     nsresult
     CheckContainer(nsIRDFResource* aTargetResource,
-                   PRBool* aIsContainer);
+                   bool* aIsContainer);
 
     /*
      * Check if a resource does not have any children
      */
     nsresult
     CheckEmpty(nsIRDFResource* aTargetResource,
-               PRBool* aIsEmpty);
+               bool* aIsEmpty);
 
     /**
      * Check if a resource is a separator
      */
     nsresult
-    CheckIsSeparator(nsIRDFResource* aResource, PRBool* aIsSeparator);
+    CheckIsSeparator(nsIRDFResource* aResource, bool* aIsSeparator);
 
     /*
      * Compute the containment properties which are additional arcs which
@@ -237,14 +199,14 @@ public:
      * assertion is added to or removed from the graph involving that
      * resource, that result must be recalculated.
      */
-    nsresult
+    void
     AddBindingDependency(nsXULTemplateResultRDF* aResult,
                          nsIRDFResource* aResource);
 
     /**
      * Remove a dependency a result has on a particular resource.
      */
-    nsresult
+    void
     RemoveBindingDependency(nsXULTemplateResultRDF* aResult,
                             nsIRDFResource* aResource);
 
@@ -277,7 +239,7 @@ public:
     /**
      * Return the index of a result's resource in its RDF container
      */
-    PRInt32
+    int32_t
     GetContainerIndexOf(nsIXULTemplateResult* aResult);
 
     /**
@@ -320,15 +282,15 @@ protected:
     nsIXULTemplateBuilder* mBuilder;
 
     // true if the query processor has been initialized
-    PRBool mQueryProcessorRDFInited;
+    bool mQueryProcessorRDFInited;
 
     // true if results have been generated. Once set, bindings can no longer
     // be added. If they were, the binding value arrays for results that have
     // already been generated would be the wrong size
-    PRBool mGenerationStarted;
+    bool mGenerationStarted;
 
     // nesting level for RDF batch notifications
-    PRInt32 mUpdateBatchNest;
+    int32_t mUpdateBatchNest;
 
     // containment properties that are checked to determine if a resource is
     // a container
@@ -350,8 +312,7 @@ protected:
      * in this binding map. If it exists, the corresponding results must then
      * be synchronized.
      */
-    nsClassHashtable<nsISupportsHashKey,
-                     nsCOMArray<nsXULTemplateResultRDF> > mBindingDependencies;
+    nsClassHashtable<nsISupportsHashKey, ResultArray> mBindingDependencies;
 
     /**
      * A map between memory elements and an array of nsIXULTemplateResults.
@@ -369,7 +330,7 @@ protected:
     /**
      * The queries
      */
-    nsCOMArray<nsITemplateRDFQuery> mQueries;
+    nsTArray<nsCOMPtr<nsITemplateRDFQuery> > mQueries;
 
     /**
      * All of the RDF tests in the rule network, which are checked when a new

@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=523771
 -->
 <head>
   <title>Test for Bug 523771</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -186,7 +185,7 @@ function runTest() {
     else {
       clickImage(elem, 10, 7);
     }
-    yield;
+    yield undefined;
 
     var submission = JSON.parse(iframe.contentDocument.documentElement.textContent);
     checkSubmission(submission, expectedSub[i]);
@@ -205,7 +204,7 @@ function runTest() {
     else {
       clickImage(elem, 10, 7);
     }
-    yield;
+    yield undefined;
 
     is(elem.disabled, true, "didn't disable");
     elem.disabled = false;
@@ -216,7 +215,7 @@ function runTest() {
   }
 
   SimpleTest.finish();
-  yield;
+  yield undefined;
 }
 
 </script>

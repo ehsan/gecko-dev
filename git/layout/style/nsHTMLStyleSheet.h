@@ -1,41 +1,8 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Pierre Phaneuf <pp@ludusdesign.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
  * style sheet and style rule processor representing data from presentational
@@ -45,53 +12,47 @@
 #ifndef nsHTMLStyleSheet_h_
 #define nsHTMLStyleSheet_h_
 
-#include "nsIStyleSheet.h"
-#include "nsIStyleRuleProcessor.h"
-#include "nsIStyleRule.h"
-#include "pldhash.h"
-#include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
 #include "nsColor.h"
+#include "nsCOMPtr.h"
+#include "nsIStyleRule.h"
+#include "nsIStyleRuleProcessor.h"
+#include "nsIStyleSheet.h"
+#include "pldhash.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/MemoryReporting.h"
+#include "nsString.h"
+
 class nsMappedAttributes;
 
-class nsHTMLStyleSheet : public nsIStyleSheet, public nsIStyleRuleProcessor {
+class nsHTMLStyleSheet MOZ_FINAL : public nsIStyleRuleProcessor
+{
 public:
-  nsHTMLStyleSheet(void);
-  nsresult Init();
+  nsHTMLStyleSheet(nsIDocument* aDocument);
+
+  void SetOwningDocument(nsIDocument* aDocument);
 
   NS_DECL_ISUPPORTS
 
-  // nsIStyleSheet api
-  virtual nsIURI* GetSheetURI() const;
-  virtual nsIURI* GetBaseURI() const;
-  virtual void GetTitle(nsString& aTitle) const;
-  virtual void GetType(nsString& aType) const;
-  virtual PRBool HasRules() const;
-  virtual PRBool IsApplicable() const;
-  virtual void SetEnabled(PRBool aEnabled);
-  virtual PRBool IsComplete() const;
-  virtual void SetComplete();
-  virtual nsIStyleSheet* GetParentSheet() const;  // will be null
-  virtual nsIDocument* GetOwningDocument() const;
-  virtual void SetOwningDocument(nsIDocument* aDocumemt);
-#ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
-#endif
-
   // nsIStyleRuleProcessor API
-  virtual void RulesMatching(ElementRuleProcessorData* aData);
-  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
-  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
+  virtual void RulesMatching(ElementRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual void RulesMatching(PseudoElementRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual void RulesMatching(AnonBoxRuleProcessorData* aData) MOZ_OVERRIDE;
 #ifdef MOZ_XUL
-  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
+  virtual void RulesMatching(XULTreeRuleProcessorData* aData) MOZ_OVERRIDE;
 #endif
-  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
-  virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
+  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual bool HasDocumentStateDependentStyle(StateRuleProcessorData* aData) MOZ_OVERRIDE;
   virtual nsRestyleHint
-    HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
-  virtual PRBool MediumFeaturesChanged(nsPresContext* aPresContext);
+    HasAttributeDependentStyle(AttributeRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual bool MediumFeaturesChanged(nsPresContext* aPresContext) MOZ_OVERRIDE;
+  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+    const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+    const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
+  size_t DOMSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
-  nsresult Init(nsIURI* aURL, nsIDocument* aDocument);
-  void Reset(nsIURI* aURL);
+  void Reset();
   nsresult SetLinkColor(nscolor aColor);
   nsresult SetActiveLinkColor(nscolor aColor);
   nsresult SetVisitedLinkColor(nscolor aColor);
@@ -101,26 +62,26 @@ public:
     UniqueMappedAttributes(nsMappedAttributes* aMapped);
   void DropMappedAttributes(nsMappedAttributes* aMapped);
 
+  nsIStyleRule* LangRuleFor(const nsString& aLanguage);
 
 private: 
-  // These are not supported and are not implemented! 
-  nsHTMLStyleSheet(const nsHTMLStyleSheet& aCopy); 
-  nsHTMLStyleSheet& operator=(const nsHTMLStyleSheet& aCopy); 
+  nsHTMLStyleSheet(const nsHTMLStyleSheet& aCopy) MOZ_DELETE;
+  nsHTMLStyleSheet& operator=(const nsHTMLStyleSheet& aCopy) MOZ_DELETE;
 
   ~nsHTMLStyleSheet();
 
   class HTMLColorRule;
   friend class HTMLColorRule;
-  class HTMLColorRule : public nsIStyleRule {
+  class HTMLColorRule MOZ_FINAL : public nsIStyleRule {
   public:
     HTMLColorRule() {}
 
     NS_DECL_ISUPPORTS
 
     // nsIStyleRule interface
-    virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+    virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
   #ifdef DEBUG
-    virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+    virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
   #endif
 
     nscolor             mColor;
@@ -131,46 +92,67 @@ private:
 
   class GenericTableRule;
   friend class GenericTableRule;
-  class GenericTableRule: public nsIStyleRule {
+  class GenericTableRule : public nsIStyleRule {
   public:
     GenericTableRule() {}
+    virtual ~GenericTableRule() {}
 
     NS_DECL_ISUPPORTS
 
     // nsIStyleRule interface
-    virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+    virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE = 0;
   #ifdef DEBUG
-    virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+    virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
   #endif
   };
 
   // this rule handles <th> inheritance
   class TableTHRule;
   friend class TableTHRule;
-  class TableTHRule: public GenericTableRule {
+  class TableTHRule MOZ_FINAL : public GenericTableRule {
   public:
     TableTHRule() {}
 
-    virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+    virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
   };
 
-  nsCOMPtr<nsIURI>        mURL;
+  // Rule to handle quirk table colors
+  class TableQuirkColorRule MOZ_FINAL : public GenericTableRule {
+  public:
+    TableQuirkColorRule() {}
+
+    virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  };
+
+public: // for mLangRuleTable structures only
+
+  // Rule to handle xml:lang attributes, of which we have exactly one
+  // per language string, maintained in mLangRuleTable.
+  class LangRule MOZ_FINAL : public nsIStyleRule {
+  public:
+    LangRule(const nsSubstring& aLang) : mLang(aLang) {}
+
+    NS_DECL_ISUPPORTS
+
+    // nsIStyleRule interface
+    virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  #ifdef DEBUG
+    virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  #endif
+
+    nsString mLang;
+  };
+
+private:
   nsIDocument*            mDocument;
   nsRefPtr<HTMLColorRule> mLinkRule;
   nsRefPtr<HTMLColorRule> mVisitedRule;
   nsRefPtr<HTMLColorRule> mActiveRule;
-  nsRefPtr<HTMLColorRule> mDocumentColorRule;
+  nsRefPtr<TableQuirkColorRule> mTableQuirkColorRule;
   nsRefPtr<TableTHRule>   mTableTHRule;
 
   PLDHashTable            mMappedAttrTable;
+  PLDHashTable            mLangRuleTable;
 };
-
-// XXX convenience method. Calls Initialize() automatically.
-nsresult
-NS_NewHTMLStyleSheet(nsHTMLStyleSheet** aInstancePtrResult, nsIURI* aURL, 
-                     nsIDocument* aDocument);
-
-nsresult
-NS_NewHTMLStyleSheet(nsHTMLStyleSheet** aInstancePtrResult);
 
 #endif /* !defined(nsHTMLStyleSheet_h_) */

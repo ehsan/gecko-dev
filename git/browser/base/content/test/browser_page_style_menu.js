@@ -3,7 +3,10 @@ function test() {
 
   var tab = gBrowser.addTab();
   gBrowser.selectedTab = tab;
-  tab.linkedBrowser.addEventListener("load", checkPageStyleMenu, true);
+  tab.linkedBrowser.addEventListener("load", function () {
+    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
+    checkPageStyleMenu();
+  }, true);
   let rootDir = getRootDirectory(gTestPath);
   content.location = rootDir + "page_style_sample.html";
 }
@@ -11,7 +14,7 @@ function test() {
 function checkPageStyleMenu() {
   var menupopup = document.getElementById("pageStyleMenu")
                           .getElementsByTagName("menupopup")[0];
-  stylesheetFillPopup(menupopup);
+  gPageStyleMenu.fillPopup(menupopup);
 
   var items = [];
   var current = menupopup.getElementsByTagName("menuseparator")[0];

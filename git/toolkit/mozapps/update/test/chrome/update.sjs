@@ -20,6 +20,7 @@ const URL_UPDATE = URL_HOST + URL_PATH + "update.sjs";
 const SERVICE_URL = URL_HOST + URL_PATH + FILE_SIMPLE_MAR;
 
 const SLOW_MAR_DOWNLOAD_INTERVAL = 100;
+var gTimer;
 
 function handleRequest(aRequest, aResponse) {
   var params = { };
@@ -53,9 +54,9 @@ function handleRequest(aRequest, aResponse) {
     for(var i = 0; i < pathParts.length; ++i)
       marFile.append(pathParts[i]);
     var contents = readFileBytes(marFile);
-    var timer = AUS_Cc["@mozilla.org/timer;1"].
-                createInstance(AUS_Ci.nsITimer);
-    timer.initWithCallback(function(aTimer) {
+    gTimer = AUS_Cc["@mozilla.org/timer;1"].
+             createInstance(AUS_Ci.nsITimer);
+    gTimer.initWithCallback(function(aTimer) {
       aResponse.write(contents);
       aResponse.finish();
     }, SLOW_MAR_DOWNLOAD_INTERVAL, AUS_Ci.nsITimer.TYPE_ONE_SHOT);
@@ -83,6 +84,14 @@ function handleRequest(aRequest, aResponse) {
 
   if (params.noUpdates) {
     aResponse.write(getRemoteUpdatesXMLString(""));
+    return;
+  }
+
+  if (params.unsupported) {
+    aResponse.write(getRemoteUpdatesXMLString("  <update type=\"major\" " +
+                                              "unsupported=\"true\" " +
+                                              "detailsURL=\"" + URL_HOST +
+                                              "\"></update>\n"));
     return;
   }
 
@@ -122,6 +131,7 @@ function handleRequest(aRequest, aResponse) {
     licenseURL = URL_HOST + URL_PATH + "missing.html";
   var showPrompt = params.showPrompt ? "true" : null;
   var showNever = params.showNever ? "true" : null;
+  var promptWaitTime = params.promptWaitTime ? params.promptWaitTime : null;
   var showSurvey = params.showSurvey ? "true" : null;
 
   // For testing the deprecated update xml format
@@ -144,8 +154,8 @@ function handleRequest(aRequest, aResponse) {
                                       displayVersion, appVersion,
                                       platformVersion, buildID, detailsURL,
                                       billboardURL, licenseURL, showPrompt,
-                                      showNever, showSurvey, version,
-                                      extensionVersion);
+                                      showNever, promptWaitTime, showSurvey,
+                                      version, extensionVersion);
 
   aResponse.write(getRemoteUpdatesXMLString(updates));
 }

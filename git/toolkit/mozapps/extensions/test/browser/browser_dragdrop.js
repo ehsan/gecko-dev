@@ -8,7 +8,13 @@
 // Tests are only simulations of the drag and drop events, we cannot really do
 // this automatically.
 
+// Instead of loading ChromeUtils.js into the test scope in browser-test.js for all tests,
+// we only need ChromeUtils.js for a few files which is why we are using loadSubScript.
 var gManagerWindow;
+var ChromeUtils = {};
+this._scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
+                     getService(Ci.mozIJSSubScriptLoader);
+this._scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/ChromeUtils.js", ChromeUtils);
 
 // This listens for the next opened window and checks it is of the right url.
 // opencallback is called when the new window is fully loaded
@@ -48,7 +54,7 @@ WindowOpenListener.prototype = {
 
     this.window = window;
     this.domwindow = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                           .getInterface(Components.interfaces.nsIDOMWindowInternal);
+                           .getInterface(Components.interfaces.nsIDOMWindow);
     this.domwindow.addEventListener("load", this, false);
   },
 
@@ -69,6 +75,17 @@ WindowOpenListener.prototype = {
   }
 };
 
+var gSawInstallNotification = false;
+var gInstallNotificationObserver = {
+  observe: function(aSubject, aTopic, aData) {
+    var installInfo = aSubject.QueryInterface(Ci.amIWebInstallInfo);
+    isnot(installInfo.originatingWindow, null, "Notification should have non-null originatingWindow");
+    gSawInstallNotification = true;
+    Services.obs.removeObserver(this, "addon-install-started");
+  }
+};
+
+
 function test() {
   waitForExplicitFinish();
 
@@ -88,17 +105,16 @@ function test_confirmation(aWindow, aExpectedURLs) {
   var list = aWindow.document.getElementById("itemList");
   is(list.childNodes.length, aExpectedURLs.length, "Should be the right number of installs");
 
-  aExpectedURLs.forEach(function(aURL) {
-    var node = list.firstChild;
-    while (node) {
-      if (node.url == aURL) {
-        ok(true, "Should have seen " + aURL + " in the list");
-        return;
+  for (let url of aExpectedURLs) {
+    let found = false;
+    for (let node of list.children) {
+      if (node.url == url) {
+        found = true;
+        break;
       }
-      node = node.nextSibling;
     }
-    ok(false, "Should have seen " + aURL + " in the list");
-  });
+    ok(found, "Should have seen " + url + " in the list");
+  }
 
   aWindow.document.documentElement.cancelDialog();
 }
@@ -107,12 +123,18 @@ function test_confirmation(aWindow, aExpectedURLs) {
 add_test(function() {
   var url = TESTROOT + "addons/browser_dragdrop1.xpi";
 
+  Services.obs.addObserver(gInstallNotificationObserver,
+                           "addon-install-started", false);
+
   new WindowOpenListener(INSTALL_URI, function(aWindow) {
     test_confirmation(aWindow, [url]);
-  }, run_next_test);
+  }, function() {
+    is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
+    run_next_test();
+  });
 
   var viewContainer = gManagerWindow.document.getElementById("view-port");
-  var effect = EventUtils.synthesizeDrop(viewContainer, viewContainer,
+  var effect = ChromeUtils.synthesizeDrop(viewContainer, viewContainer,
                [[{type: "text/x-moz-url", data: url}]],
                "copy", gManagerWindow);
   is(effect, "copy", "Drag should be accepted");
@@ -122,12 +144,18 @@ add_test(function() {
 add_test(function() {
   var fileurl = get_addon_file_url("browser_dragdrop1.xpi");
 
+  Services.obs.addObserver(gInstallNotificationObserver,
+                           "addon-install-started", false);
+
   new WindowOpenListener(INSTALL_URI, function(aWindow) {
     test_confirmation(aWindow, [fileurl.spec]);
-  }, run_next_test);
+  }, function() {
+    is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
+    run_next_test();
+  });
 
   var viewContainer = gManagerWindow.document.getElementById("view-port");
-  var effect = EventUtils.synthesizeDrop(viewContainer, viewContainer,
+  var effect = ChromeUtils.synthesizeDrop(viewContainer, viewContainer,
                [[{type: "application/x-moz-file", data: fileurl.file}]],
                "copy", gManagerWindow);
   is(effect, "copy", "Drag should be accepted");
@@ -138,12 +166,18 @@ add_test(function() {
   var url1 = TESTROOT + "addons/browser_dragdrop1.xpi";
   var url2 = TESTROOT2 + "addons/browser_dragdrop2.xpi";
 
+  Services.obs.addObserver(gInstallNotificationObserver,
+                           "addon-install-started", false);
+
   new WindowOpenListener(INSTALL_URI, function(aWindow) {
     test_confirmation(aWindow, [url1, url2]);
-  }, run_next_test);
+  }, function() {
+    is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
+    run_next_test();
+  });
 
   var viewContainer = gManagerWindow.document.getElementById("view-port");
-  var effect = EventUtils.synthesizeDrop(viewContainer, viewContainer,
+  var effect = ChromeUtils.synthesizeDrop(viewContainer, viewContainer,
                [[{type: "text/x-moz-url", data: url1}],
                 [{type: "text/x-moz-url", data: url2}]],
                "copy", gManagerWindow);
@@ -155,12 +189,18 @@ add_test(function() {
   var fileurl1 = get_addon_file_url("browser_dragdrop1.xpi");
   var fileurl2 = get_addon_file_url("browser_dragdrop2.xpi");
 
+  Services.obs.addObserver(gInstallNotificationObserver,
+                           "addon-install-started", false);
+
   new WindowOpenListener(INSTALL_URI, function(aWindow) {
     test_confirmation(aWindow, [fileurl1.spec, fileurl2.spec]);
-  }, run_next_test);
+  }, function() {
+    is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
+    run_next_test();
+  });
 
   var viewContainer = gManagerWindow.document.getElementById("view-port");
-  var effect = EventUtils.synthesizeDrop(viewContainer, viewContainer,
+  var effect = ChromeUtils.synthesizeDrop(viewContainer, viewContainer,
                [[{type: "application/x-moz-file", data: fileurl1.file}],
                 [{type: "application/x-moz-file", data: fileurl2.file}]],
                "copy", gManagerWindow);
@@ -172,12 +212,18 @@ add_test(function() {
   var url = TESTROOT + "addons/browser_dragdrop1.xpi";
   var fileurl = get_addon_file_url("browser_dragdrop2.xpi");
 
+  Services.obs.addObserver(gInstallNotificationObserver,
+                           "addon-install-started", false);
+
   new WindowOpenListener(INSTALL_URI, function(aWindow) {
     test_confirmation(aWindow, [url, fileurl.spec]);
-  }, run_next_test);
+  }, function() {
+    is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
+    run_next_test();
+  });
 
   var viewContainer = gManagerWindow.document.getElementById("view-port");
-  var effect = EventUtils.synthesizeDrop(viewContainer, viewContainer,
+  var effect = ChromeUtils.synthesizeDrop(viewContainer, viewContainer,
                [[{type: "text/x-moz-url", data: url}],
                 [{type: "application/x-moz-file", data: fileurl.file}]],
                "copy", gManagerWindow);

@@ -2,7 +2,6 @@
 <head>
 <title>localStorage basic test</title>
 
-<script type="text/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
 <script type="text/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
@@ -15,12 +14,12 @@ function startTest()
     .getService(Components.interfaces.nsIIOService);
   var ssm = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
     .getService(Components.interfaces.nsIScriptSecurityManager);
-  var dsm = Components.classes["@mozilla.org/dom/storagemanager;1"]
+  var dsm = Components.classes["@mozilla.org/dom/localStorage-manager;1"]
     .getService(Components.interfaces.nsIDOMStorageManager);
 
   var uri = ios.newURI(url, "", null);
-  var principal = ssm.getCodebasePrincipal(uri);
-  var storage = dsm.getLocalStorageForPrincipal(principal, "");
+  var principal = ssm.getNoAppCodebasePrincipal(uri);
+  var storage = dsm.createStorage(principal, "");
   
   storage.setItem("chromekey", "chromevalue");
   

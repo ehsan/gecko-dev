@@ -1,40 +1,7 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Oracle Corporation code.
- *
- * The Initial Developer of the Original Code is Oracle Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2005
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Stuart Parmenter <pavlov@pavlov.net>
- *   Vladimir Vukicevic <vladimir@pobox.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef GFX_CONTEXT_H
 #define GFX_CONTEXT_H
@@ -49,8 +16,13 @@
 #include "gfxPattern.h"
 #include "gfxPath.h"
 #include "nsISupportsImpl.h"
+#include "nsTArray.h"
+
+#include "mozilla/gfx/2D.h"
 
 typedef struct _cairo cairo_t;
+struct GlyphBufferAzure;
+template <typename T> class FallibleTArray;
 
 /**
  * This is the main class for doing actual drawing. It is initialized using
@@ -66,7 +38,7 @@ typedef struct _cairo cairo_t;
  * Note that the gfxContext takes coordinates in device pixels,
  * as opposed to app units.
  */
-class THEBES_API gfxContext {
+class gfxContext {
     NS_INLINE_DECL_REFCOUNTING(gfxContext)
 
 public:
@@ -74,6 +46,12 @@ public:
      * Initialize this context from a surface.
      */
     gfxContext(gfxASurface *surface);
+
+    /**
+     * Initialize this context from a DrawTarget.
+     */
+    gfxContext(mozilla::gfx::DrawTarget *aTarget);
+
     ~gfxContext();
 
     /**
@@ -89,19 +67,21 @@ public:
      */
     already_AddRefed<gfxASurface> CurrentSurface(gfxFloat *dx, gfxFloat *dy);
     already_AddRefed<gfxASurface> CurrentSurface() {
-        return CurrentSurface(NULL, NULL);
+        return CurrentSurface(nullptr, nullptr);
     }
 
     /**
      * Return the raw cairo_t object.
      * XXX this should go away at some point.
      */
-    cairo_t *GetCairo() { return mCairo; }
+    cairo_t *GetCairo();
+
+    mozilla::gfx::DrawTarget *GetDrawTarget() { return mDT; }
 
     /**
      * Returns true if the cairo context is in an error state.
      */
-    PRBool HasError();
+    bool HasError();
 
     /**
      ** State
@@ -173,7 +153,7 @@ public:
     /**
      * Returns the current point in the current path.
      */
-    gfxPoint CurrentPoint() const;
+    gfxPoint CurrentPoint();
 
     /**
      * Draws a line from the current point to pt.
@@ -223,7 +203,8 @@ public:
      * Draws the rectangle given by rect.
      * @param snapToPixels ?
      */
-    void Rectangle(const gfxRect& rect, PRBool snapToPixels = PR_FALSE);
+    void Rectangle(const gfxRect& rect, bool snapToPixels = false);
+    void SnappedRectangle(const gfxRect& rect) { return Rectangle(rect, true); }
 
     /**
      * Draw an ellipse at the center corner with the given dimensions.
@@ -236,19 +217,19 @@ public:
     /**
      * Draw a polygon from the given points
      */
-    void Polygon(const gfxPoint *points, PRUint32 numPoints);
+    void Polygon(const gfxPoint *points, uint32_t numPoints);
 
     /*
      * Draw a rounded rectangle, with the given outer rect and
      * corners.  The corners specify the radii of the two axes of an
      * ellipse (the horizontal and vertical directions given by the
      * width and height, respectively).  By default the ellipse is
-     * drawn in a clockwise direction; if draw_clockwise is PR_FALSE,
+     * drawn in a clockwise direction; if draw_clockwise is false,
      * then it's drawn counterclockwise.
      */
     void RoundedRectangle(const gfxRect& rect,
                           const gfxCornerSizes& corners,
-                          PRBool draw_clockwise = PR_TRUE);
+                          bool draw_clockwise = true);
 
     /**
      ** Transformation Matrix manipulation
@@ -280,6 +261,12 @@ public:
      * transformations.
      */
     void Multiply(const gfxMatrix& other);
+    /**
+     * As "Multiply", but also nudges any entries in the resulting matrix that
+     * are close to an integer to that integer, to correct for
+     * compounded rounding errors.
+     */
+    void MultiplyAndNudgeToIntegers(const gfxMatrix& other);
 
     /**
      * Replaces the current transformation matrix with matrix.
@@ -343,29 +330,29 @@ public:
 
     /**
      * Takes the given rect and tries to align it to device pixels.  If
-     * this succeeds, the method will return PR_TRUE, and the rect will
+     * this succeeds, the method will return true, and the rect will
      * be in device coordinates (already transformed by the CTM).  If it 
-     * fails, the method will return PR_FALSE, and the rect will not be
+     * fails, the method will return false, and the rect will not be
      * changed.
      *
-     * If ignoreScale is PR_TRUE, then snapping will take place even if
+     * If ignoreScale is true, then snapping will take place even if
      * the CTM has a scale applied.  Snapping never takes place if
      * there is a rotation in the CTM.
      */
-    PRBool UserToDevicePixelSnapped(gfxRect& rect, PRBool ignoreScale = PR_FALSE) const;
+    bool UserToDevicePixelSnapped(gfxRect& rect, bool ignoreScale = false) const;
 
     /**
      * Takes the given point and tries to align it to device pixels.  If
-     * this succeeds, the method will return PR_TRUE, and the point will
+     * this succeeds, the method will return true, and the point will
      * be in device coordinates (already transformed by the CTM).  If it 
-     * fails, the method will return PR_FALSE, and the point will not be
+     * fails, the method will return false, and the point will not be
      * changed.
      *
-     * If ignoreScale is PR_TRUE, then snapping will take place even if
+     * If ignoreScale is true, then snapping will take place even if
      * the CTM has a scale applied.  Snapping never takes place if
      * there is a rotation in the CTM.
      */
-    PRBool UserToDevicePixelSnapped(gfxPoint& pt, PRBool ignoreScale = PR_FALSE) const;
+    bool UserToDevicePixelSnapped(gfxPoint& pt, bool ignoreScale = false) const;
 
     /**
      * Attempts to pixel snap the rectangle, add it to the current
@@ -388,10 +375,10 @@ public:
 
     /**
      * Gets the current color.  It's returned in the device color space.
-     * returns PR_FALSE if there is something other than a color
+     * returns false if there is something other than a color
      *         set as the current source (pattern, surface, etc)
      */
-    PRBool GetDeviceColor(gfxRGBA& c);
+    bool GetDeviceColor(gfxRGBA& c);
 
     /**
      * Set a solid color in the sRGB color space to use for drawing.
@@ -465,7 +452,12 @@ public:
 
     void SetDash(gfxLineType ltype);
     void SetDash(gfxFloat *dashes, int ndash, gfxFloat offset);
-    //void getDash() const;
+    // Return true if dashing is set, false if it's not enabled or the
+    // context is in an error state.  |offset| can be nullptr to mean
+    // "don't care".
+    bool CurrentDash(FallibleTArray<gfxFloat>& dashes, gfxFloat* offset) const;
+    // Returns 0.0 if dashing isn't enabled.
+    gfxFloat CurrentDashOffset() const;
 
     /**
      * Sets the line width that's used for line drawing.
@@ -538,7 +530,23 @@ public:
 
         OPERATOR_XOR,
         OPERATOR_ADD,
-        OPERATOR_SATURATE
+        OPERATOR_SATURATE,
+
+        OPERATOR_MULTIPLY,
+        OPERATOR_SCREEN,
+        OPERATOR_OVERLAY,
+        OPERATOR_DARKEN,
+        OPERATOR_LIGHTEN,
+        OPERATOR_COLOR_DODGE,
+        OPERATOR_COLOR_BURN,
+        OPERATOR_HARD_LIGHT,
+        OPERATOR_SOFT_LIGHT,
+        OPERATOR_DIFFERENCE,
+        OPERATOR_EXCLUSION,
+        OPERATOR_HUE,
+        OPERATOR_SATURATION,
+        OPERATOR_COLOR,
+        OPERATOR_LUMINOSITY
     };
     /**
      * Sets the operator used for all further drawing. The operator affects
@@ -600,6 +608,13 @@ public:
     gfxRect GetClipExtents();
 
     /**
+     * Returns true if the given rectangle is fully contained in the current clip. 
+     * This is conservative; it may return false even when the given rectangle is 
+     * fully contained by the current clip.
+     */
+    bool ClipContainsRect(const gfxRect& aRect);
+
+    /**
      * Groups
      */
     void PushGroup(gfxASurface::gfxContentType content = gfxASurface::CONTENT_COLOR);
@@ -621,8 +636,8 @@ public:
     /**
      ** Hit Testing - check if given point is in the current path
      **/
-    PRBool PointInFill(const gfxPoint& pt);
-    PRBool PointInStroke(const gfxPoint& pt);
+    bool PointInFill(const gfxPoint& pt);
+    bool PointInStroke(const gfxPoint& pt);
 
     /**
      ** Extents - returns user space extent of current path
@@ -664,26 +679,132 @@ public:
         FLAG_DISABLE_COPY_BACKGROUND = (1 << 2)
     };
 
-    void SetFlag(PRInt32 aFlag) { mFlags |= aFlag; }
-    void ClearFlag(PRInt32 aFlag) { mFlags &= ~aFlag; }
-    PRInt32 GetFlags() const { return mFlags; }
+    void SetFlag(int32_t aFlag) { mFlags |= aFlag; }
+    void ClearFlag(int32_t aFlag) { mFlags &= ~aFlag; }
+    int32_t GetFlags() const { return mFlags; }
+
+    bool IsCairo() const { return !mDT; }
+
+    // Work out whether cairo will snap inter-glyph spacing to pixels.
+    void GetRoundOffsetsToPixels(bool *aRoundX, bool *aRoundY);
+
+#ifdef MOZ_DUMP_PAINTING
+    /**
+     * Debug functions to encode the current surface as a PNG and export it.
+     */
+
+    /**
+     * Writes a binary PNG file.
+     */
+    void WriteAsPNG(const char* aFile);
+
+    /**
+     * Write as a PNG encoded Data URL to stdout.
+     */
+    void DumpAsDataURL();
+
+    /**
+     * Copy a PNG encoded Data URL to the clipboard.
+     */
+    void CopyAsDataURL();
+#endif
 
 private:
-    cairo_t *mCairo;
-    nsRefPtr<gfxASurface> mSurface;
-    PRInt32 mFlags;
-};
+  friend class GeneralPattern;
+  friend struct GlyphBufferAzure;
 
+  typedef mozilla::gfx::Matrix Matrix;
+  typedef mozilla::gfx::DrawTarget DrawTarget;
+  typedef mozilla::gfx::Color Color;
+  typedef mozilla::gfx::StrokeOptions StrokeOptions;
+  typedef mozilla::gfx::Float Float;
+  typedef mozilla::gfx::Rect Rect;
+  typedef mozilla::gfx::CompositionOp CompositionOp;
+  typedef mozilla::gfx::Path Path;
+  typedef mozilla::gfx::PathBuilder PathBuilder;
+  typedef mozilla::gfx::SourceSurface SourceSurface;
+  
+  struct AzureState {
+    AzureState()
+      : op(mozilla::gfx::OP_OVER)
+      , opIsClear(false)
+      , color(0, 0, 0, 1.0f)
+      , clipWasReset(false)
+      , fillRule(mozilla::gfx::FILL_WINDING)
+      , aaMode(mozilla::gfx::AA_SUBPIXEL)
+      , patternTransformChanged(false)
+    {}
+
+    mozilla::gfx::CompositionOp op;
+    bool opIsClear;
+    Color color;
+    nsRefPtr<gfxPattern> pattern;
+    nsRefPtr<gfxASurface> sourceSurfCairo;
+    mozilla::RefPtr<SourceSurface> sourceSurface;
+    Matrix surfTransform;
+    Matrix transform;
+    struct PushedClip {
+      mozilla::RefPtr<Path> path;
+      Rect rect;
+      Matrix transform;
+    };
+    nsTArray<PushedClip> pushedClips;
+    nsTArray<Float> dashPattern;
+    bool clipWasReset;
+    mozilla::gfx::FillRule fillRule;
+    StrokeOptions strokeOptions;
+    mozilla::RefPtr<DrawTarget> drawTarget;
+    mozilla::RefPtr<DrawTarget> parentTarget;
+    mozilla::gfx::AntialiasMode aaMode;
+    bool patternTransformChanged;
+    Matrix patternTransform;
+    // This is used solely for using minimal intermediate surface size.
+    mozilla::gfx::Point deviceOffset;
+  };
+
+  // This ensures mPath contains a valid path (in user space!)
+  void EnsurePath();
+  // This ensures mPathBuilder contains a valid PathBuilder (in user space!)
+  void EnsurePathBuilder();
+  void FillAzure(mozilla::gfx::Float aOpacity);
+  void PushClipsToDT(mozilla::gfx::DrawTarget *aDT);
+  CompositionOp GetOp();
+  void ChangeTransform(const mozilla::gfx::Matrix &aNewMatrix, bool aUpdatePatternTransform = true);
+  Rect GetAzureDeviceSpaceClipBounds();
+  Matrix GetDeviceTransform() const;
+  Matrix GetDTTransform() const;
+  void PushNewDT(gfxASurface::gfxContentType content);
+
+  bool mPathIsRect;
+  bool mTransformChanged;
+  Matrix mPathTransform;
+  Rect mRect;
+  mozilla::RefPtr<PathBuilder> mPathBuilder;
+  mozilla::RefPtr<Path> mPath;
+  Matrix mTransform;
+  nsTArray<AzureState> mStateStack;
+
+  AzureState &CurrentState() { return mStateStack[mStateStack.Length() - 1]; }
+  const AzureState &CurrentState() const { return mStateStack[mStateStack.Length() - 1]; }
+
+  cairo_t *mCairo;
+  cairo_t *mRefCairo;
+  nsRefPtr<gfxASurface> mSurface;
+  int32_t mFlags;
+
+  mozilla::RefPtr<DrawTarget> mDT;
+  mozilla::RefPtr<DrawTarget> mOriginalDT;
+};
 
 /**
  * Sentry helper class for functions with multiple return points that need to
  * call Save() on a gfxContext and have Restore() called automatically on the
  * gfxContext before they return.
  */
-class THEBES_API gfxContextAutoSaveRestore
+class gfxContextAutoSaveRestore
 {
 public:
-  gfxContextAutoSaveRestore() : mContext(nsnull) {}
+  gfxContextAutoSaveRestore() : mContext(nullptr) {}
 
   gfxContextAutoSaveRestore(gfxContext *aContext) : mContext(aContext) {
     mContext->Save();
@@ -722,12 +843,12 @@ private:
  * be the same when Save and Restore are called. The calling function must
  * ensure that this is the case or the path will be copied incorrectly.
  */
-class THEBES_API gfxContextPathAutoSaveRestore
+class gfxContextPathAutoSaveRestore
 {
 public:
-    gfxContextPathAutoSaveRestore() : mContext(nsnull) {}
+    gfxContextPathAutoSaveRestore() : mContext(nullptr) {}
 
-    gfxContextPathAutoSaveRestore(gfxContext *aContext, PRBool aSave = PR_TRUE) : mContext(aContext)
+    gfxContextPathAutoSaveRestore(gfxContext *aContext, bool aSave = true) : mContext(aContext)
     {
         if (aSave)
             Save();       
@@ -738,7 +859,7 @@ public:
         Restore();
     }
 
-    void SetContext(gfxContext *aContext, PRBool aSave = PR_TRUE)
+    void SetContext(gfxContext *aContext, bool aSave = true)
     {
         mContext = aContext;
         if (aSave)
@@ -765,7 +886,7 @@ public:
         if (mPath) {
             mContext->NewPath();
             mContext->AppendPath(mPath);
-            mPath = nsnull;
+            mPath = nullptr;
         }
     }
 
@@ -780,7 +901,7 @@ private:
  * back up the current matrix of a context and have it automatically restored
  * before they return.
  */
-class THEBES_API gfxContextMatrixAutoSaveRestore
+class gfxContextMatrixAutoSaveRestore
 {
 public:
     gfxContextMatrixAutoSaveRestore(gfxContext *aContext) :
@@ -804,26 +925,39 @@ private:
 };
 
 
-class THEBES_API gfxContextAutoDisableSubpixelAntialiasing {
+class gfxContextAutoDisableSubpixelAntialiasing {
 public:
-    gfxContextAutoDisableSubpixelAntialiasing(gfxContext *aContext, PRBool aDisable)
+    gfxContextAutoDisableSubpixelAntialiasing(gfxContext *aContext, bool aDisable)
     {
         if (aDisable) {
-            mSurface = aContext->CurrentSurface();
-            mSubpixelAntialiasingEnabled = mSurface->GetSubpixelAntialiasingEnabled();
-            mSurface->SetSubpixelAntialiasingEnabled(PR_FALSE);
+            if (aContext->IsCairo()) {
+                mSurface = aContext->CurrentSurface();
+                if (!mSurface) {
+                  return;
+                }
+                mSubpixelAntialiasingEnabled = mSurface->GetSubpixelAntialiasingEnabled();
+                mSurface->SetSubpixelAntialiasingEnabled(false);
+            } else {
+                mDT = aContext->GetDrawTarget();
+
+                mSubpixelAntialiasingEnabled = mDT->GetPermitSubpixelAA();
+                mDT->SetPermitSubpixelAA(false);
+            }
         }
     }
     ~gfxContextAutoDisableSubpixelAntialiasing()
     {
         if (mSurface) {
             mSurface->SetSubpixelAntialiasingEnabled(mSubpixelAntialiasingEnabled);
+        } else if (mDT) {
+            mDT->SetPermitSubpixelAA(mSubpixelAntialiasingEnabled);
         }
     }
 
 private:
     nsRefPtr<gfxASurface> mSurface;
-    PRPackedBool mSubpixelAntialiasingEnabled;
+    mozilla::RefPtr<mozilla::gfx::DrawTarget> mDT;
+    bool mSubpixelAntialiasingEnabled;
 };
 
 #endif /* GFX_CONTEXT_H */

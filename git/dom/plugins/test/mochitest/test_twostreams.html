@@ -2,8 +2,6 @@
 <head>
   <title>Dual NPAPI NP_ASFILEONLY NPStream Test</title>
   <script type="text/javascript" 
-          src="/MochiKit/packed.js"></script>
-  <script type="text/javascript" 
           src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" 
         href="/tests/SimpleTest/test.css" />
@@ -12,6 +10,8 @@
   <p id="display"></p>
 
   <script type="text/javascript">
+  SimpleTest.expectAssertions(0, 2);
+
   SimpleTest.waitForExplicitFinish();
 
   var framesToLoad = 2;

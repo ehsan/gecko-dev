@@ -1,4 +1,24 @@
-Cu.import("resource://services-sync/ext/Preferences.js");
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+Cu.import("resource://gre/modules/Preferences.jsm");
+Cu.import("resource://services-sync/util.js");
+
+function test_migrate_logging() {
+  _("Testing log pref migration.");
+  Svc.Prefs.set("log.appender.debugLog", "Warn");
+  Svc.Prefs.set("log.appender.debugLog.enabled", true);
+  do_check_true(Svc.Prefs.get("log.appender.debugLog.enabled"));
+  do_check_eq(Svc.Prefs.get("log.appender.file.level"), "Trace");
+  do_check_eq(Svc.Prefs.get("log.appender.file.logOnSuccess"), false);
+
+  Service._migratePrefs();
+
+  do_check_eq("Warn", Svc.Prefs.get("log.appender.file.level"));
+  do_check_true(Svc.Prefs.get("log.appender.file.logOnSuccess"));
+  do_check_eq(Svc.Prefs.get("log.appender.debugLog"), undefined);
+  do_check_eq(Svc.Prefs.get("log.appender.debugLog.enabled"), undefined);
+};
 
 function run_test() {
   _("Set some prefs on the old branch");
@@ -45,4 +65,6 @@ function run_test() {
   _("Clearing out pref changes for other tests");
   globalPref.resetBranch("extensions.weave.");
   globalPref.resetBranch("services.sync.");
+
+  test_migrate_logging();
 }

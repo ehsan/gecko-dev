@@ -1,10 +1,15 @@
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
 _("Make sure the form store follows the Store api and correctly accesses the backend form storage");
 Cu.import("resource://services-sync/engines/forms.js");
+Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
 
 function run_test() {
   let baseuri = "http://fake/uri/";
-  let store = new FormEngine()._store;
+  let engine = new FormEngine(Service);
+  let store = engine._store;
 
   function applyEnsureNoFailures(records) {
     do_check_eq(store.applyIncomingBatch(records).length, 0);
@@ -32,6 +37,9 @@ function run_test() {
       do_throw("Should have only gotten one!");
   }
   do_check_true(store.itemExists(id));
+
+  _("Should be able to find this entry as a dupe");
+  do_check_eq(engine._findDupe({name: "name!!", value: "value??"}), id);
 
   let rec = store.createRecord(id);
   _("Got record for id", id, rec);
@@ -82,6 +90,42 @@ function run_test() {
   store.remove({
     id: "newid"
   });
+  for (let id in store.getAllIDs()) {
+    do_throw("Shouldn't get any ids!");
+  }
+
+  _("Add another entry to delete using applyIncomingBatch");
+  let toDelete = {
+    id: Utils.makeGUID(),
+    name: "todelete",
+    value: "entry"
+  };
+  applyEnsureNoFailures([toDelete]);
+  id = "";
+  for (let _id in store.getAllIDs()) {
+    if (id == "")
+      id = _id;
+    else
+      do_throw("Should have only gotten one!");
+  }
+  do_check_true(store.itemExists(id));
+  // mark entry as deleted
+  toDelete.id = id;
+  toDelete.deleted = true;
+  applyEnsureNoFailures([toDelete]);
+  for (let id in store.getAllIDs()) {
+    do_throw("Shouldn't get any ids!");
+  }
+
+  _("Add an entry to wipe");
+  applyEnsureNoFailures([{
+    id: Utils.makeGUID(),
+    name: "towipe",
+    value: "entry"
+  }]);
+
+  store.wipe();
+
   for (let id in store.getAllIDs()) {
     do_throw("Shouldn't get any ids!");
   }

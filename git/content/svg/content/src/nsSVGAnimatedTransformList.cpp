@@ -1,184 +1,327 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Mozilla SVG project.
- *
- * The Initial Developer of the Original Code is
- * Crocodile Clips Ltd..
- * Portions created by the Initial Developer are Copyright (C) 2001
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Alex Fritze <alex.fritze@crocodile-clips.com> (original author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSVGAnimatedTransformList.h"
-#include "nsSVGTransformList.h"
-#include "nsContentUtils.h"
+#include "mozilla/dom/SVGAnimatedTransformList.h"
+#include "mozilla/dom/SVGAnimationElement.h"
+#include "nsSMILValue.h"
+#include "prdtoa.h"
+#include "SVGContentUtils.h"
+#include "nsSVGTransform.h"
+#include "SVGTransformListSMILType.h"
 
-//----------------------------------------------------------------------
-// Implementation
+namespace mozilla {
 
-nsSVGAnimatedTransformList::~nsSVGAnimatedTransformList()
+using namespace dom;
+
+nsresult
+nsSVGAnimatedTransformList::SetBaseValueString(const nsAString& aValue)
 {
-  if (!mBaseVal) return;
-  nsCOMPtr<nsISVGValue> val = do_QueryInterface(mBaseVal);
-  if (!val) return;
-  val->RemoveObserver(this);
+  SVGTransformList newBaseValue;
+  nsresult rv = newBaseValue.SetValueFromString(aValue);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  return SetBaseValue(newBaseValue);
+}
+
+nsresult
+nsSVGAnimatedTransformList::SetBaseValue(const SVGTransformList& aValue)
+{
+  SVGAnimatedTransformList *domWrapper =
+    SVGAnimatedTransformList::GetDOMWrapperIfExists(this);
+  if (domWrapper) {
+    // We must send this notification *before* changing mBaseVal! If the length
+    // of our baseVal is being reduced, our baseVal's DOM wrapper list may have
+    // to remove DOM items from itself, and any removed DOM items need to copy
+    // their internal counterpart values *before* we change them.
+    //
+    domWrapper->InternalBaseValListWillChangeLengthTo(aValue.Length());
+  }
+
+  // We don't need to call DidChange* here - we're only called by
+  // nsSVGElement::ParseAttribute under Element::SetAttr,
+  // which takes care of notifying.
+
+  nsresult rv = mBaseVal.CopyFrom(aValue);
+  if (NS_FAILED(rv) && domWrapper) {
+    // Attempting to increase mBaseVal's length failed - reduce domWrapper
+    // back to the same length:
+    domWrapper->InternalBaseValListWillChangeLengthTo(mBaseVal.Length());
+  } else {
+    mIsAttrSet = true;
+  }
+  return rv;
 }
 
 void
-nsSVGAnimatedTransformList::Init(nsIDOMSVGTransformList* baseVal)
+nsSVGAnimatedTransformList::ClearBaseValue()
 {
-  mBaseVal = baseVal;
-  if (!mBaseVal) return;
-  nsCOMPtr<nsISVGValue> val = do_QueryInterface(mBaseVal);
-  if (!val) return;
-  val->AddObserver(this);
+  SVGAnimatedTransformList *domWrapper =
+    SVGAnimatedTransformList::GetDOMWrapperIfExists(this);
+  if (domWrapper) {
+    // We must send this notification *before* changing mBaseVal! (See above.)
+    domWrapper->InternalBaseValListWillChangeLengthTo(0);
+  }
+  mBaseVal.Clear();
+  mIsAttrSet = false;
+  // Caller notifies
 }
-
-//----------------------------------------------------------------------
-// nsISupports methods:
-
-NS_IMPL_ADDREF(nsSVGAnimatedTransformList)
-NS_IMPL_RELEASE(nsSVGAnimatedTransformList)
-
-DOMCI_DATA(SVGAnimatedTransformList, nsSVGAnimatedTransformList)
-
-NS_INTERFACE_MAP_BEGIN(nsSVGAnimatedTransformList)
-  NS_INTERFACE_MAP_ENTRY(nsISVGValue)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedTransformList)
-  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
-  NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedTransformList)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
-NS_INTERFACE_MAP_END
-
-
-//----------------------------------------------------------------------
-// nsISVGValue methods:
-
-NS_IMETHODIMP
-nsSVGAnimatedTransformList::SetValueString(const nsAString& aValue)
-{
-  nsCOMPtr<nsISVGValue> value = do_QueryInterface(mBaseVal);
-  return value->SetValueString(aValue);
-}
-
-NS_IMETHODIMP
-nsSVGAnimatedTransformList::GetValueString(nsAString& aValue)
-{
-  nsCOMPtr<nsISVGValue> value = do_QueryInterface(mBaseVal);
-  return value->GetValueString(aValue);
-}
-
-//----------------------------------------------------------------------
-// nsIDOMSVGAnimatedTransformList methods:
-
-/* readonly attribute nsIDOMSVGTransformList baseVal; */
-NS_IMETHODIMP
-nsSVGAnimatedTransformList::GetBaseVal(nsIDOMSVGTransformList** aBaseVal)
-{
-  *aBaseVal = mBaseVal;
-  NS_ADDREF(*aBaseVal);
-  return NS_OK;
-}
-
-/* readonly attribute nsIDOMSVGTransformList animVal; */
-NS_IMETHODIMP
-nsSVGAnimatedTransformList::GetAnimVal(nsIDOMSVGTransformList** aAnimVal)
-{
-  *aAnimVal = mAnimVal ? mAnimVal : mBaseVal;
-  NS_ADDREF(*aAnimVal);
-  return NS_OK;
-}
-
-//----------------------------------------------------------------------
-// nsISVGValueObserver methods
-
-NS_IMETHODIMP
-nsSVGAnimatedTransformList::WillModifySVGObservable(nsISVGValue* observable,
-                                                    modificationType aModType)
-{
-  WillModify(aModType);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSVGAnimatedTransformList::DidModifySVGObservable (nsISVGValue* observable,
-                                                    modificationType aModType)
-{
-  DidModify(aModType);
-  return NS_OK;
-}
-
-//----------------------------------------------------------------------
-// Misc nsSVGAnimatedTransformList methods
-
-PRBool
-nsSVGAnimatedTransformList::IsExplicitlySet() const
-{
-  // XXX Dummy implementation until bug 602759 is fixed.
-  // Like other methods of this name, we need to know when a transform value has
-  // been explicitly set (either by markup, a DOM call, or animation).
-  // Given our current implementation, we can say that's the case so long as
-  // mBaseVal has something in it or mAnimVal exists.
-  // It's not quite right because, for example, if we have transform="" we
-  // should probably behave as if the value is set, but for now it will do until
-  // bug 602759 is fixed.
-  if (mAnimVal)
-    return PR_TRUE;
-
-  if (!mBaseVal)
-    return PR_FALSE;
-
-  PRUint32 numItems = 0;
-  nsIDOMSVGTransformList *list = mBaseVal.get();
-  list->GetNumberOfItems(&numItems);
-  return numItems > 0;
-}
-
-////////////////////////////////////////////////////////////////////////
-// Exported creation functions:
 
 nsresult
-NS_NewSVGAnimatedTransformList(nsIDOMSVGAnimatedTransformList** result,
-                               nsIDOMSVGTransformList* baseVal)
+nsSVGAnimatedTransformList::SetAnimValue(const SVGTransformList& aValue,
+                                         nsSVGElement *aElement)
 {
-  *result = nsnull;
-  
-  nsSVGAnimatedTransformList* animatedTransformList = new nsSVGAnimatedTransformList();
-  if(!animatedTransformList) return NS_ERROR_OUT_OF_MEMORY;
-  NS_ADDREF(animatedTransformList);
-
-  animatedTransformList->Init(baseVal);
-  
-  *result = (nsIDOMSVGAnimatedTransformList*) animatedTransformList;
-  
+  SVGAnimatedTransformList *domWrapper =
+    SVGAnimatedTransformList::GetDOMWrapperIfExists(this);
+  if (domWrapper) {
+    // A new animation may totally change the number of items in the animVal
+    // list, replacing what was essentially a mirror of the baseVal list, or
+    // else replacing and overriding an existing animation. When this happens
+    // we must try and keep our animVal's DOM wrapper in sync (see the comment
+    // in SVGAnimatedTransformList::InternalBaseValListWillChangeLengthTo).
+    //
+    // It's not possible for us to reliably distinguish between calls to this
+    // method that are setting a new sample for an existing animation, and
+    // calls that are setting the first sample of an animation that will
+    // override an existing animation. Happily it's cheap to just blindly
+    // notify our animVal's DOM wrapper of its internal counterpart's new value
+    // each time this method is called, so that's what we do.
+    //
+    // Note that we must send this notification *before* setting or changing
+    // mAnimVal! (See the comment in SetBaseValueString above.)
+    //
+    domWrapper->InternalAnimValListWillChangeLengthTo(aValue.Length());
+  }
+  if (!mAnimVal) {
+    mAnimVal = new SVGTransformList();
+  }
+  nsresult rv = mAnimVal->CopyFrom(aValue);
+  if (NS_FAILED(rv)) {
+    // OOM. We clear the animation, and, importantly, ClearAnimValue() ensures
+    // that mAnimVal and its DOM wrapper (if any) will have the same length!
+    ClearAnimValue(aElement);
+    return rv;
+  }
+  aElement->DidAnimateTransformList();
   return NS_OK;
 }
 
+void
+nsSVGAnimatedTransformList::ClearAnimValue(nsSVGElement *aElement)
+{
+  SVGAnimatedTransformList *domWrapper =
+    SVGAnimatedTransformList::GetDOMWrapperIfExists(this);
+  if (domWrapper) {
+    // When all animation ends, animVal simply mirrors baseVal, which may have
+    // a different number of items to the last active animated value. We must
+    // keep the length of our animVal's DOM wrapper list in sync, and again we
+    // must do that before touching mAnimVal. See comments above.
+    //
+    domWrapper->InternalAnimValListWillChangeLengthTo(mBaseVal.Length());
+  }
+  mAnimVal = nullptr;
+  aElement->DidAnimateTransformList();
+}
+
+bool
+nsSVGAnimatedTransformList::IsExplicitlySet() const
+{
+  // Like other methods of this name, we need to know when a transform value has
+  // been explicitly set.
+  //
+  // There are three ways an animated list can become set:
+  // 1) Markup -- we set mIsAttrSet to true on any successful call to
+  //    SetBaseValueString and clear it on ClearBaseValue (as called by
+  //    nsSVGElement::UnsetAttr or a failed nsSVGElement::ParseAttribute)
+  // 2) DOM call -- simply fetching the baseVal doesn't mean the transform value
+  //    has been set. It is set if that baseVal has one or more transforms in
+  //    the list.
+  // 3) Animation -- which will cause the mAnimVal member to be allocated
+  return mIsAttrSet || !mBaseVal.IsEmpty() || mAnimVal;
+}
+
+nsISMILAttr*
+nsSVGAnimatedTransformList::ToSMILAttr(nsSVGElement* aSVGElement)
+{
+  return new SMILAnimatedTransformList(this, aSVGElement);
+}
+
+nsresult
+nsSVGAnimatedTransformList::SMILAnimatedTransformList::ValueFromString(
+  const nsAString& aStr,
+  const dom::SVGAnimationElement* aSrcElement,
+  nsSMILValue& aValue,
+  bool& aPreventCachingOfSandwich) const
+{
+  NS_ENSURE_TRUE(aSrcElement, NS_ERROR_FAILURE);
+  NS_ABORT_IF_FALSE(aValue.IsNull(),
+    "aValue should have been cleared before calling ValueFromString");
+
+  const nsAttrValue* typeAttr = aSrcElement->GetAnimAttr(nsGkAtoms::type);
+  const nsIAtom* transformType = nsGkAtoms::translate; // default val
+  if (typeAttr) {
+    if (typeAttr->Type() != nsAttrValue::eAtom) {
+      // Recognized values of |type| are parsed as an atom -- so if we have
+      // something other than an atom, then we know already our |type| is
+      // invalid.
+      return NS_ERROR_FAILURE;
+    }
+    transformType = typeAttr->GetAtomValue();
+  }
+
+  ParseValue(aStr, transformType, aValue);
+  aPreventCachingOfSandwich = false;
+  return aValue.IsNull() ? NS_ERROR_FAILURE : NS_OK;
+}
+
+void
+nsSVGAnimatedTransformList::SMILAnimatedTransformList::ParseValue(
+  const nsAString& aSpec,
+  const nsIAtom* aTransformType,
+  nsSMILValue& aResult)
+{
+  NS_ABORT_IF_FALSE(aResult.IsNull(), "Unexpected type for SMIL value");
+
+  // nsSVGSMILTransform constructor should be expecting array with 3 params
+  PR_STATIC_ASSERT(SVGTransformSMILData::NUM_SIMPLE_PARAMS == 3);
+
+  float params[3] = { 0.f };
+  int32_t numParsed = ParseParameterList(aSpec, params, 3);
+  uint16_t transformType;
+
+  if (aTransformType == nsGkAtoms::translate) {
+    // tx [ty=0]
+    if (numParsed != 1 && numParsed != 2)
+      return;
+    transformType = SVG_TRANSFORM_TRANSLATE;
+  } else if (aTransformType == nsGkAtoms::scale) {
+    // sx [sy=sx]
+    if (numParsed != 1 && numParsed != 2)
+      return;
+    if (numParsed == 1) {
+      params[1] = params[0];
+    }
+    transformType = SVG_TRANSFORM_SCALE;
+  } else if (aTransformType == nsGkAtoms::rotate) {
+    // r [cx=0 cy=0]
+    if (numParsed != 1 && numParsed != 3)
+      return;
+    transformType = SVG_TRANSFORM_ROTATE;
+  } else if (aTransformType == nsGkAtoms::skewX) {
+    // x-angle
+    if (numParsed != 1)
+      return;
+    transformType = SVG_TRANSFORM_SKEWX;
+  } else if (aTransformType == nsGkAtoms::skewY) {
+    // y-angle
+    if (numParsed != 1)
+      return;
+    transformType = SVG_TRANSFORM_SKEWY;
+  } else {
+    return;
+  }
+
+  nsSMILValue val(SVGTransformListSMILType::Singleton());
+  SVGTransformSMILData transform(transformType, params);
+  if (NS_FAILED(SVGTransformListSMILType::AppendTransform(transform, val))) {
+    return; // OOM
+  }
+
+  // Success! Populate our outparam with parsed value.
+  aResult.Swap(val);
+}
+
+namespace
+{
+  inline void
+  SkipWsp(nsACString::const_iterator& aIter,
+          const nsACString::const_iterator& aIterEnd)
+  {
+    while (aIter != aIterEnd && IsSVGWhitespace(*aIter))
+      ++aIter;
+  }
+} // end anonymous namespace block
+
+int32_t
+nsSVGAnimatedTransformList::SMILAnimatedTransformList::ParseParameterList(
+  const nsAString& aSpec,
+  float* aVars,
+  int32_t aNVars)
+{
+  NS_ConvertUTF16toUTF8 spec(aSpec);
+
+  nsACString::const_iterator start, end;
+  spec.BeginReading(start);
+  spec.EndReading(end);
+
+  SkipWsp(start, end);
+
+  int numArgsFound = 0;
+
+  while (start != end) {
+    char const *arg = start.get();
+    char *argend;
+    float f = float(PR_strtod(arg, &argend));
+    if (arg == argend || argend > end.get() || !NS_finite(f))
+      return -1;
+
+    if (numArgsFound < aNVars) {
+      aVars[numArgsFound] = f;
+    }
+
+    start.advance(argend - arg);
+    numArgsFound++;
+
+    SkipWsp(start, end);
+    if (*start == ',') {
+      ++start;
+      SkipWsp(start, end);
+    }
+  }
+
+  return numArgsFound;
+}
+
+nsSMILValue
+nsSVGAnimatedTransformList::SMILAnimatedTransformList::GetBaseValue() const
+{
+  // To benefit from Return Value Optimization and avoid copy constructor calls
+  // due to our use of return-by-value, we must return the exact same object
+  // from ALL return points. This function must only return THIS variable:
+  nsSMILValue val(SVGTransformListSMILType::Singleton());
+  if (!SVGTransformListSMILType::AppendTransforms(mVal->mBaseVal, val)) {
+    val = nsSMILValue();
+  }
+
+  return val;
+}
+
+nsresult
+nsSVGAnimatedTransformList::SMILAnimatedTransformList::SetAnimValue(
+  const nsSMILValue& aNewAnimValue)
+{
+  NS_ABORT_IF_FALSE(
+    aNewAnimValue.mType == SVGTransformListSMILType::Singleton(),
+    "Unexpected type to assign animated value");
+  SVGTransformList animVal;
+  if (!SVGTransformListSMILType::GetTransforms(aNewAnimValue,
+                                               animVal.mItems)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return mVal->SetAnimValue(animVal, mElement);
+}
+
+void
+nsSVGAnimatedTransformList::SMILAnimatedTransformList::ClearAnimValue()
+{
+  if (mVal->mAnimVal) {
+    mVal->ClearAnimValue(mElement);
+  }
+}
+
+} // namespace mozilla

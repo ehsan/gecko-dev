@@ -1,51 +1,18 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include <stdio.h>
 #include <string.h>
 
 #include "secutil.h"
+#include "basicutil.h"
 
 #if defined(XP_UNIX)
 #include <unistd.h>
 #endif
 #include <stdlib.h>
-#if !defined(_WIN32_WCE)
 #include <errno.h>
 #include <fcntl.h>
-#endif
 #include <stdarg.h>
 
 #include "plgetopt.h"
@@ -154,19 +121,21 @@ static PRInt32 numUsed;
 static SSL3Statistics * ssl3stats;
 
 static int failed_already = 0;
-static PRBool disableSSL2     = PR_FALSE;
-static PRBool disableSSL3     = PR_FALSE;
-static PRBool disableTLS      = PR_FALSE;
+static SSLVersionRange enabledVersions;
+static PRBool enableSSL2      = PR_TRUE;
 static PRBool bypassPKCS11    = PR_FALSE;
 static PRBool disableLocking  = PR_FALSE;
 static PRBool ignoreErrors    = PR_FALSE;
 static PRBool enableSessionTickets = PR_FALSE;
 static PRBool enableCompression    = PR_FALSE;
 static PRBool enableFalseStart     = PR_FALSE;
+static PRBool enableCertStatus     = PR_FALSE;
 
 PRIntervalTime maxInterval    = PR_INTERVAL_NO_TIMEOUT;
 
 char * progName;
+
+secuPWData pwdata = { PW_NONE, 0 };
 
 int	stopping;
 int	verbose;
@@ -180,9 +149,9 @@ Usage(const char *progName)
 {
     fprintf(stderr, 
     	"Usage: %s [-n nickname] [-p port] [-d dbdir] [-c connections]\n"
- 	"          [-23BDNTovqs] [-f filename] [-N | -P percentage]\n"
+ 	"          [-BDNovqs] [-f filename] [-N | -P percentage]\n"
 	"          [-w dbpasswd] [-C cipher(s)] [-t threads] [-W pwfile]\n"
-        "          [-a sniHostName] hostname\n"
+        "          [-V [min-version]:[max-version]] [-a sniHostName] hostname\n"
 	" where -v means verbose\n"
         "       -o flag is interpreted as follows:\n"
         "          1 -o   means override the result of server certificate validation.\n"
@@ -192,11 +161,13 @@ Usage(const char *progName)
 	"       -s means disable SSL socket locking\n"
 	"       -N means no session reuse\n"
 	"       -P means do a specified percentage of full handshakes (0-100)\n"
-        "       -2 means disable SSL2\n"
-        "       -3 means disable SSL3\n"
-        "       -T means disable TLS\n"
+        "       -V [min]:[max] restricts the set of enabled SSL/TLS protocols versions.\n"
+        "          All versions are enabled by default.\n"
+        "          Possible values for min/max: ssl2 ssl3 tls1.0 tls1.1 tls1.2\n"
+        "          Example: \"-V ssl3:\" enables SSL 3 and newer.\n"
         "       -U means enable throttling up threads\n"
 	"       -B bypasses the PKCS11 layer for SSL encryption and MACing\n"
+	"       -T enable the cert_status extension (OCSP stapling)\n"
 	"       -u enable TLS Session Ticket extension\n"
 	"       -z enable compression\n"
 	"       -g enable false start\n",
@@ -257,6 +228,7 @@ mySSLAuthCertificate(void *arg, PRFileDesc *fd, PRBool checkSig,
 {
     SECStatus rv;
     CERTCertificate *    peerCert;
+    const SECItemArray *csa;
 
     if (MakeCertOK>=2) {
         return SECSuccess;
@@ -265,6 +237,11 @@ mySSLAuthCertificate(void *arg, PRFileDesc *fd, PRBool checkSig,
 
     PRINTF("strsclnt: Subject: %s\nstrsclnt: Issuer : %s\n", 
            peerCert->subjectName, peerCert->issuerName); 
+    csa = SSL_PeerStapledOCSPResponses(fd);
+    if (csa) {
+        PRINTF("Received %d Cert Status items (OCSP stapled data)\n",
+               csa->len);
+    }
     /* invoke the "default" AuthCert handler. */
     rv = SSL_AuthCertificate(arg, fd, checkSig, isServer);
 
@@ -280,7 +257,7 @@ mySSLAuthCertificate(void *arg, PRFileDesc *fd, PRBool checkSig,
 static SECStatus
 myBadCertHandler( void *arg, PRFileDesc *fd)
 {
-    int err = PR_GetError();
+    PRErrorCode err = PR_GetError();
     if (!MakeCertOK)
 	fprintf(stderr, 
 	    "strsclnt: -- SSL: Server Certificate Invalid, err %d.\n%s\n", 
@@ -360,7 +337,7 @@ printSecurityInfo(PRFileDesc *fd)
 
 #define MAX_THREADS 128
 
-typedef int startFn(void *a, void *b, int c, int d);
+typedef int startFn(void *a, void *b, int c);
 
 
 static PRInt32     numConnected;
@@ -374,7 +351,6 @@ typedef struct perThreadStr {
     startFn  *  startFunc;
     PRThread *  prThread;
     PRBool	inUse;
-    PRInt32     socketDomain;
 } perThread;
 
 perThread threads[MAX_THREADS];
@@ -430,8 +406,7 @@ thread_wrapper(void * arg)
         }
         PR_Unlock(threadLock);
         if (doop) {
-            slot->rv = (* slot->startFunc)(slot->a, slot->b, slot->tid,
-                                           slot->socketDomain);
+            slot->rv = (* slot->startFunc)(slot->a, slot->b, slot->tid);
             PRINTF("strsclnt: Thread in slot %d returned %d\n", 
                    slot->tid, slot->rv);
         }
@@ -446,8 +421,7 @@ launch_thread(
     startFn *	startFunc,
     void *	a,
     void *	b,
-    int         tid,
-    int         sockDom)
+    int         tid)
 {
     PRUint32 i;
     perThread * slot;
@@ -465,8 +439,7 @@ launch_thread(
     slot->a = a;
     slot->b = b;
     slot->tid = tid;
-    slot->socketDomain = sockDom;
-    
+
     slot->startFunc = startFunc;
 
     slot->prThread      = PR_CreateThread(PR_USER_THREAD,
@@ -589,8 +562,7 @@ int
 do_writes(
     void *       a,
     void *       b,
-    int          c,
-    int          d)
+    int          c)
 {
     PRFileDesc *	ssl_sock	= (PRFileDesc *)a;
     lockedVars *	lv 		= (lockedVars *)b;
@@ -632,7 +604,7 @@ handle_fdx_connection( PRFileDesc * ssl_sock, int connection)
     lockedVars_AddToCount(&lv, 1);
 
     /* Attempt to launch the writer thread. */
-    result = launch_thread(do_writes, ssl_sock, &lv, connection, -1 /*not used*/);
+    result = launch_thread(do_writes, ssl_sock, &lv, connection);
 
     if (result != SECSuccess) 
     	goto cleanup;
@@ -751,8 +723,7 @@ int
 do_connects(
     void *	a,
     void *	b,
-    int         tid,
-    PRInt32     socketDomain)
+    int         tid)
 {
     PRNetAddr  *        addr		= (PRNetAddr *)  a;
     PRFileDesc *        model_sock	= (PRFileDesc *) b;
@@ -766,7 +737,7 @@ do_connects(
 
 retry:
 
-    tcp_sock = PR_OpenTCPSocket(socketDomain);
+    tcp_sock = PR_OpenTCPSocket(addr->raw.family);
     if (tcp_sock == NULL) {
 	errExit("PR_OpenTCPSocket");
     }
@@ -1094,7 +1065,6 @@ client_main(
     int         rv;
     PRStatus    status;
     PRNetAddr   addr;
-    PRInt32    socketDomain;
 
     status = PR_StringToNetAddr(hostName, &addr);
     if (status == PR_SUCCESS) {
@@ -1120,13 +1090,6 @@ client_main(
 	    SECU_PrintError(progName, "error looking up host address");
 	    return;
 	}
-    }
-
-    /* check if SDP is going to be used */
-    if (!PR_GetEnv("NSS_USE_SDP")) {
-        socketDomain = addr.raw.family;
-    } else {
-        socketDomain = PR_AF_INET_SDP;
     }
 
     /* all suites except RSA_NULL_MD5 are enabled by Domestic Policy */
@@ -1185,8 +1148,8 @@ client_main(
     }
 
     /* configure model SSL socket. */
-    
-    model_sock = PR_OpenTCPSocket(socketDomain);
+
+    model_sock = PR_OpenTCPSocket(addr.raw.family);
     if (model_sock == NULL) {
 	errExit("PR_OpenTCPSocket for model socket");
     }
@@ -1199,25 +1162,24 @@ client_main(
     /* do SSL configuration. */
 
     rv = SSL_OptionSet(model_sock, SSL_SECURITY,
-        !(disableSSL2 && disableSSL3 && disableTLS));
+                       enableSSL2 || enabledVersions.min != 0);
     if (rv < 0) {
 	errExit("SSL_OptionSet SSL_SECURITY");
     }
 
-    /* disabling SSL2 compatible hellos also disables SSL2 */
-    rv = SSL_OptionSet(model_sock, SSL_V2_COMPATIBLE_HELLO, !disableSSL2);
+    rv = SSL_VersionRangeSet(model_sock, &enabledVersions);
     if (rv != SECSuccess) {
-	errExit("error enabling SSLv2 compatible hellos ");
+        errExit("error setting SSL/TLS version range ");
     }
 
-    rv = SSL_OptionSet(model_sock, SSL_ENABLE_SSL3, !disableSSL3);
+    rv = SSL_OptionSet(model_sock, SSL_ENABLE_SSL2, enableSSL2);
     if (rv != SECSuccess) {
-	errExit("error enabling SSLv3 ");
+       errExit("error enabling SSLv2 ");
     }
 
-    rv = SSL_OptionSet(model_sock, SSL_ENABLE_TLS, !disableTLS);
+    rv = SSL_OptionSet(model_sock, SSL_V2_COMPATIBLE_HELLO, enableSSL2);
     if (rv != SECSuccess) {
-	errExit("error enabling TLS ");
+        errExit("error enabling SSLv2 compatible hellos ");
     }
 
     if (bigBuf.data) { /* doing FDX */
@@ -1266,6 +1228,14 @@ client_main(
 	    errExit("SSL_OptionSet SSL_ENABLE_FALSE_START");
     }
 
+    if (enableCertStatus) {
+	rv = SSL_OptionSet(model_sock, SSL_ENABLE_OCSP_STAPLING, PR_TRUE);
+	if (rv != SECSuccess)
+	    errExit("SSL_OptionSet SSL_ENABLE_OCSP_STAPLING");
+    }
+
+    SSL_SetPKCS11PinArg(model_sock, &pwdata);
+
     SSL_SetURL(model_sock, hostName);
 
     SSL_AuthCertificateHook(model_sock, mySSLAuthCertificate, 
@@ -1290,7 +1260,7 @@ client_main(
 
     if (!NoReuse) {
         remaining_connections = 1;
-	rv = launch_thread(do_connects, &addr, model_sock, 0, socketDomain);
+	rv = launch_thread(do_connects, &addr, model_sock, 0);
 	/* wait for the first connection to terminate, then launch the rest. */
 	reap_threads();
         remaining_connections = total_connections - 1 ;
@@ -1299,7 +1269,7 @@ client_main(
         active_threads  = PR_MIN(active_threads, remaining_connections);
 	/* Start up the threads */
 	for (i=0;i<active_threads;i++) {
-	    rv = launch_thread(do_connects, &addr, model_sock, i, socketDomain);
+	    rv = launch_thread(do_connects, &addr, model_sock, i);
 	}
 	reap_threads();
     }
@@ -1363,11 +1333,11 @@ main(int argc, char **argv)
     PLOptState *         optstate;
     PLOptStatus          status;
     cert_and_key         Cert_And_Key;
-    secuPWData           pwdata  = { PW_NONE, 0 };
     char *               sniHostName = NULL;
 
     /* Call the NSPR initialization routines */
     PR_Init( PR_SYSTEM_THREAD, PR_PRIORITY_NORMAL, 1);
+    SSL_VersionRangeGetSupported(ssl_variant_stream, &enabledVersions);
 
     tmp      = strrchr(argv[0], '/');
     tmp      = tmp ? tmp + 1 : argv[0];
@@ -1376,27 +1346,31 @@ main(int argc, char **argv)
  
 
     optstate = PL_CreateOptState(argc, argv,
-                                 "23BC:DNP:TUW:a:c:d:f:gin:op:qst:uvw:z");
+                                 "BC:DNP:TUV:W:a:c:d:f:gin:op:qst:uvw:z");
     while ((status = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
 	switch(optstate->option) {
-
-	case '2': disableSSL2 = PR_TRUE; break;
-
-	case '3': disableSSL3 = PR_TRUE; break;
-
 	case 'B': bypassPKCS11 = PR_TRUE; break;
 
 	case 'C': cipherString = optstate->value; break;
 
 	case 'D': NoDelay = PR_TRUE; break;
 
+	case 'I': /* reserved for OCSP multi-stapling */ break;
+
 	case 'N': NoReuse = 1; break;
         
 	case 'P': fullhs = PORT_Atoi(optstate->value); break;
 
-	case 'T': disableTLS = PR_TRUE; break;
-            
+	case 'T': enableCertStatus = PR_TRUE; break;
+
 	case 'U': ThrottleUp = PR_TRUE; break;
+        
+        case 'V': if (SECU_ParseSSLVersionRangeString(optstate->value,
+                          enabledVersions, enableSSL2,
+                          &enabledVersions, &enableSSL2) != SECSuccess) {
+                      Usage(progName);
+                  }
+                  break;
 
 	case 'a': sniHostName = PL_strdup(optstate->value); break;
 

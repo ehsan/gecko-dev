@@ -1,100 +1,180 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Mozilla SVG project.
- *
- * The Initial Developer of the Original Code is
- * Crocodile Clips Ltd..
- * Portions created by the Initial Developer are Copyright (C) 2001
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Alex Fritze <alex.fritze@crocodile-clips.com> (original author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef __NS_SVGTRANSFORM_H__
-#define __NS_SVGTRANSFORM_H__
+#ifndef MOZILLA_SVGTRANSFORM_H__
+#define MOZILLA_SVGTRANSFORM_H__
 
-#include "nsIDOMSVGTransform.h"
-#include "nsSVGValue.h"
-#include "nsISVGValueObserver.h"
+#include "gfxMatrix.h"
+#include "nsDebug.h"
 
-////////////////////////////////////////////////////////////////////////
-// nsSVGTransform
+namespace mozilla {
 
-class nsSVGTransform : public nsIDOMSVGTransform,
-                       public nsSVGValue,
-                       public nsISVGValueObserver
+// Transform Types
+static const unsigned short SVG_TRANSFORM_UNKNOWN = 0;
+static const unsigned short SVG_TRANSFORM_MATRIX = 1;
+static const unsigned short SVG_TRANSFORM_TRANSLATE = 2;
+static const unsigned short SVG_TRANSFORM_SCALE = 3;
+static const unsigned short SVG_TRANSFORM_ROTATE = 4;
+static const unsigned short SVG_TRANSFORM_SKEWX = 5;
+static const unsigned short SVG_TRANSFORM_SKEWY = 6;
+
+/*
+ * The DOM wrapper class for this class is DOMSVGTransformMatrix.
+ */
+class nsSVGTransform
 {
 public:
-  static nsresult Create(nsIDOMSVGTransform** aResult);
-  
-protected:
-  nsSVGTransform();
-  ~nsSVGTransform();
-  nsresult Init();
-public:
-  // nsISupports interface:
-  NS_DECL_ISUPPORTS
+  // Default ctor initialises to matrix type with identity matrix
+  nsSVGTransform()
+    : mMatrix() // Initialises to identity
+    , mAngle(0.f)
+    , mOriginX(0.f)
+    , mOriginY(0.f)
+    , mType(SVG_TRANSFORM_MATRIX)
+  { }
 
-  // nsIDOMSVGTransform interface:
-  NS_DECL_NSIDOMSVGTRANSFORM
+  nsSVGTransform(const gfxMatrix& aMatrix)
+    : mMatrix(aMatrix)
+    , mAngle(0.f)
+    , mOriginX(0.f)
+    , mOriginY(0.f)
+    , mType(SVG_TRANSFORM_MATRIX)
+  { }
 
-  // nsISVGValue interface:
-  NS_IMETHOD SetValueString(const nsAString& aValue);
-  NS_IMETHOD GetValueString(nsAString& aValue);
+  bool operator==(const nsSVGTransform& rhs) const {
+    return mType == rhs.mType &&
+      MatricesEqual(mMatrix, rhs.mMatrix) &&
+      mAngle == rhs.mAngle &&
+      mOriginX == rhs.mOriginX &&
+      mOriginY == rhs.mOriginY;
+  }
 
-  // nsISVGValueObserver
-  NS_IMETHOD WillModifySVGObservable(nsISVGValue* observable,
-                                     modificationType aModType);
-  NS_IMETHOD DidModifySVGObservable (nsISVGValue* observable,
-                                     modificationType aModType);
+  void GetValueAsString(nsAString& aValue) const;
 
-#ifdef MOZ_SMIL
-  // Additional methods needed for animation
-  void GetRotationOrigin(float& aOriginX, float& aOriginY) const
-  {
+  float Angle() const {
+    return mAngle;
+  }
+  void GetRotationOrigin(float& aOriginX, float& aOriginY) const {
     aOriginX = mOriginX;
     aOriginY = mOriginY;
   }
-#endif // MOZ_SMIL
+  uint16_t Type() const {
+    return mType;
+  }
+
+  const gfxMatrix& Matrix() const { return mMatrix; }
+  void SetMatrix(const gfxMatrix& aMatrix);
+  void SetTranslate(float aTx, float aTy);
+  void SetScale(float aSx, float aSy);
+  void SetRotate(float aAngle, float aCx, float aCy);
+  nsresult SetSkewX(float aAngle);
+  nsresult SetSkewY(float aAngle);
+
+  static bool MatricesEqual(const gfxMatrix& a, const gfxMatrix& b)
+  {
+    return a.xx == b.xx &&
+           a.yx == b.yx &&
+           a.xy == b.xy &&
+           a.yy == b.yy &&
+           a.x0 == b.x0 &&
+           a.y0 == b.y0;
+  }
 
 protected:
-  nsCOMPtr<nsIDOMSVGMatrix> mMatrix;
+  gfxMatrix mMatrix;
   float mAngle, mOriginX, mOriginY;
-  PRUint16 mType;
+  uint16_t mType;
 };
 
-nsresult
-NS_NewSVGTransform(nsIDOMSVGTransform** result);
+/*
+ * A slightly more light-weight version of nsSVGTransform for SMIL animation.
+ *
+ * Storing the parameters in an array (rather than a matrix) also allows simpler
+ * (transform type-agnostic) interpolation and addition.
+ *
+ * The meaning of the mParams array depends on the transform type as follows:
+ *
+ * Type                | mParams[0], mParams[1], mParams[2], ...
+ * --------------------+-----------------------------------------
+ * translate           | tx, ty
+ * scale               | sx, sy
+ * rotate              | rotation-angle (in degrees), cx, cy
+ * skewX               | skew-angle (in degrees)
+ * skewY               | skew-angle (in degrees)
+ * matrix              | a, b, c, d, e, f
+ *
+ * The matrix type is never generated by animation code (it is only produced
+ * when the user inserts one via the DOM) and often requires special handling
+ * when we do encounter it. Therefore many users of this class are only
+ * interested in the first three parameters and so we provide a special
+ * constructor for setting those parameters only.
+ */
+class SVGTransformSMILData
+{
+public:
+  // Number of float-params required in constructor, if constructing one of the
+  // 'simple' transform types (all but matrix type)
+  static const uint32_t NUM_SIMPLE_PARAMS = 3;
 
-// XXX we'll need this prototype-based stuff to support unsetting:
-//nsresult NS_NewSVGTransform(nsIDOMSVGTransform** result,
-//                            nsIDOMSVGTransform*  prototype);
+  // Number of float-params required in constructor for matrix type.
+  // This is also the number of params we actually store, regardless of type.
+  static const uint32_t NUM_STORED_PARAMS = 6;
 
+  explicit SVGTransformSMILData(uint16_t aType)
+  : mTransformType(aType)
+  {
+    NS_ABORT_IF_FALSE(aType >= SVG_TRANSFORM_MATRIX &&
+                      aType <= SVG_TRANSFORM_SKEWY,
+                      "Unexpected transform type");
+    for (uint32_t i = 0; i < NUM_STORED_PARAMS; ++i) {
+      mParams[i] = 0.f;
+    }
+  }
 
-#endif //__NS_SVGTRANSFORM_H__
+  SVGTransformSMILData(uint16_t aType, float (&aParams)[NUM_SIMPLE_PARAMS])
+  : mTransformType(aType)
+  {
+    NS_ABORT_IF_FALSE(aType >= SVG_TRANSFORM_TRANSLATE &&
+                      aType <= SVG_TRANSFORM_SKEWY,
+                      "Expected 'simple' transform type");
+    for (uint32_t i = 0; i < NUM_SIMPLE_PARAMS; ++i) {
+      mParams[i] = aParams[i];
+    }
+    for (uint32_t i = NUM_SIMPLE_PARAMS; i < NUM_STORED_PARAMS; ++i) {
+      mParams[i] = 0.f;
+    }
+  }
+
+  // Conversion to/from a fully-fledged nsSVGTransform
+  SVGTransformSMILData(const nsSVGTransform& aTransform);
+  nsSVGTransform ToSVGTransform() const;
+
+  bool operator==(const SVGTransformSMILData& aOther) const
+  {
+    if (mTransformType != aOther.mTransformType)
+      return false;
+
+    for (uint32_t i = 0; i < NUM_STORED_PARAMS; ++i) {
+      if (mParams[i] != aOther.mParams[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  bool operator!=(const SVGTransformSMILData& aOther) const
+  {
+    return !(*this == aOther);
+  }
+
+  uint16_t mTransformType;
+  float    mParams[NUM_STORED_PARAMS];
+};
+
+} // namespace mozilla
+
+#endif // MOZILLA_SVGTRANSFORM_H__

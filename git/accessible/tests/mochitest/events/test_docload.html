@@ -7,8 +7,6 @@
         href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <script type="application/javascript"
-          src="chrome://mochikit/content/MochiKit/packed.js"></script>
-  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
@@ -17,6 +15,25 @@
           src="../role.js"></script>
   <script type="application/javascript"
           src="../states.js"></script>
+
+  <script type="application/javascript">
+    // Front end stuff sometimes likes to stuff things in the hidden window(s)
+    // in which case there's accessibles for that content.
+    Components.utils.import("resource://gre/modules/Services.jsm");
+
+    // Force the creation of an accessible for the hidden window's document.
+    var doc = Services.appShell.hiddenDOMWindow.document;
+    gAccRetrieval.getAccessibleFor(doc);
+
+    // The private hidden window will be lazily created that's why we need to do
+    // it here *before* loading '../events.js' or else we'll have a duplicate
+    // reorder event.
+    var privateDoc = Services.appShell.hiddenPrivateDOMWindow.document;
+
+    // Force the creation of an accessible for the private hidden window's doc.
+    gAccRetrieval.getAccessibleFor(privateDoc);
+  </script>
+
   <script type="application/javascript"
           src="../events.js"></script>
 
@@ -29,7 +46,8 @@
       this.DOMNode = getNode(aIdentifier);
 
       this.eventSeq = [
-        new invokerChecker(EVENT_REORDER, getAccessible(this.DOMNode))
+        new invokerChecker(EVENT_REORDER, getAccessible(this.DOMNode)),
+        new asyncInvokerChecker(EVENT_DOCUMENT_LOAD_COMPLETE, getIframeDoc)
       ];
 
       this.invoke = function changeIframeSrc_invoke()
@@ -55,6 +73,11 @@
       this.getID = function changeIframeSrc_getID()
       {
         return "change iframe src on " + aURL;
+      }
+
+      function getIframeDoc()
+      {
+        return getAccessible(getNode(aIdentifier).contentDocument);
       }
     }
 
@@ -170,6 +193,12 @@
         var accTree = {
           role: ROLE_APP_ROOT,
           children: [
+            {
+              role: ROLE_CHROME_WINDOW
+            },
+            {
+              role: ROLE_CHROME_WINDOW
+            },
             {
               role: ROLE_CHROME_WINDOW
             },
@@ -309,6 +338,11 @@
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=658185"
      title="The DOM document loaded before it's shown shouldn't have busy state">
     Mozilla Bug 658185
+  </a>
+  <a target="_blank"
+     href="https://bugzilla.mozilla.org/show_bug.cgi?id=754165"
+     title="Fire document load events on iframes too">
+    Mozilla Bug 754165
   </a>
 
   <p id="display"></p>

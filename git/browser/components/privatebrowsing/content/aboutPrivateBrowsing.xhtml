@@ -1,40 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is Private Browsing.
-#
-# The Initial Developer of the Original Code is
-# Ehsan Akhgari <ehsan.akhgari@gmail.com>
-# Portions created by the Initial Developer are Copyright (C) 2008
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 -->
 <!DOCTYPE html [
   <!ENTITY % htmlDTD PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "DTD/xhtml1-strict.dtd">
@@ -46,9 +14,9 @@
   <!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
   %browserDTD;
 #ifdef XP_MACOSX
-  <!ENTITY basePBMenu.label   "&toolsMenu.label;">
+  <!ENTITY basePBMenu.label   "&fileMenu.label;">
 #else
-  <!ENTITY basePBMenu.label   "<span class='appMenuButton'>&brandShortName;</span><span class='toolsMenu'>&toolsMenu.label;</span>">
+  <!ENTITY basePBMenu.label   "<span class='appMenuButton'>&brandShortName;</span><span class='fileMenu'>&fileMenu.label;</span>">
 #endif
   <!ENTITY % privatebrowsingpageDTD SYSTEM "chrome://browser/locale/aboutPrivateBrowsing.dtd">
   %privatebrowsingpageDTD;
@@ -63,7 +31,7 @@
       body.private .showNormal {
         display: none;
       }
-      body.appMenuButtonVisible .toolsMenu {
+      body.appMenuButtonVisible .fileMenu {
         display: none;
       }
       body.appMenuButtonInvisible .appMenuButton {
@@ -74,10 +42,9 @@
       const Cc = Components.classes;
       const Ci = Components.interfaces;
 
-      var pb = Cc["@mozilla.org/privatebrowsing;1"].
-               getService(Ci.nsIPrivateBrowsingService);
+      Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-      if (!pb.privateBrowsingEnabled) {
+      if (!PrivateBrowsingUtils.isWindowPrivate(window)) {
         document.title = "]]>&privatebrowsingpage.title.normal;<![CDATA[";
         setFavIcon("chrome://global/skin/icons/question-16.png");
       } else {
@@ -97,12 +64,6 @@
       // Focus the location bar
       mainWindow.focusAndSelectUrlBar();
 
-      function openSanitizeDialog() {
-        let browserGlue = Cc["@mozilla.org/browser/browserglue;1"].
-                          getService(Ci.nsIBrowserGlue);
-        browserGlue.sanitize(mainWindow);
-      }
-
       function setFavIcon(url) {
         var icon = document.createElement("link");
         icon.setAttribute("rel", "icon");
@@ -113,7 +74,7 @@
       }
 
       document.addEventListener("DOMContentLoaded", function () {
-        if (!pb.privateBrowsingEnabled) {
+        if (!PrivateBrowsingUtils.isWindowPrivate(window)) {
           document.body.setAttribute("class", "normal");
         }
 
@@ -132,9 +93,9 @@
         document.body.classList.add(appMenuButtonIsVisible ? "appMenuButtonVisible" :
                                                              "appMenuButtonInvisible");
       }, false);
-      
-      function togglePrivateBrowsing() {
-        mainWindow.gPrivateBrowsingUI.toggleMode();
+
+      function openPrivateWindow() {
+        mainWindow.OpenBrowserWindow({private: true});
       }
     ]]></script>
   </head>
@@ -156,27 +117,27 @@
 
         <!-- Short Description -->
         <div id="errorShortDesc">
-          <p id="errorShortDescText" class="showPrivate">&privatebrowsingpage.issueDesc;</p>
-          <p id="errorShortDescTextNormal" class="showNormal">&privatebrowsingpage.issueDesc.normal;</p>
+          <p id="errorShortDescText" class="showPrivate">&privatebrowsingpage.perwindow.issueDesc;</p>
+          <p id="errorShortDescTextNormal" class="showNormal">&privatebrowsingpage.perwindow.issueDesc.normal;</p>
         </div>
 
         <!-- Long Description -->
         <div id="errorLongDesc">
-          <p id="errorLongDescText">&privatebrowsingpage.description;</p>
+          <p id="errorLongDescText">&privatebrowsingpage.perwindow.description;</p>
         </div>
 
         <!-- Start Private Browsing -->
         <div id="startPrivateBrowsingDesc" class="showNormal">
           <button xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-                  id="startPrivateBrowsing" label="&privatebrowsingpage.startPrivateBrowsing.label;"
-                  accesskey="&privatebrowsingpage.startPrivateBrowsing.accesskey;"
-                  oncommand="togglePrivateBrowsing();"/>
+                  id="startPrivateBrowsing" label="&privatebrowsingpage.openPrivateWindow.label;"
+                  accesskey="&privatebrowsingpage.openPrivateWindow.accesskey;"
+                  oncommand="openPrivateWindow();"/>
         </div>
 
         <!-- Footer -->
         <div id="footerDesc">
-          <p id="footerText" class="showPrivate">&privatebrowsingpage.howToStop2;</p>
-          <p id="footerTextNormal" class="showNormal">&privatebrowsingpage.howToStart2;</p>
+          <p id="footerText" class="showPrivate">&privatebrowsingpage.howToStop3;</p>
+          <p id="footerTextNormal" class="showNormal">&privatebrowsingpage.howToStart3;</p>
         </div>
 
         <!-- More Info -->

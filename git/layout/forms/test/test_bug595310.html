@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=595310
 -->
 <head>
   <title>Test for Bug 595310</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/WindowSnapshot.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -31,7 +30,7 @@ addLoadEvent(function() {
 
   var content = document.getElementById('content');
   var i = document.getElementById('i');
-  var t = document.getElementById('t');
+  var t = SpecialPowers.wrap(document.getElementById('t'));
   i.value = ""; i.placeholder = "foo";
   t.value = ""; t.placeholder = "foo";
 
@@ -43,11 +42,10 @@ addLoadEvent(function() {
 
   function synthesizeDropText(aElement, aText)
   {
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-    var Ci = Components.interfaces;
-    var editor = aElement.QueryInterface(Ci.nsIDOMNSEditableElement)
-                         .editor
-                         .QueryInterface(Ci.nsIPlaintextEditor);
+    var editor = SpecialPowers.wrap(aElement)
+                              .QueryInterface(SpecialPowers.Ci.nsIDOMNSEditableElement)
+                              .editor
+                              .QueryInterface(SpecialPowers.Ci.nsIPlaintextEditor);
 
     editor.insertText(aText);
   }

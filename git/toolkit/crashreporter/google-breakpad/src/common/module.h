@@ -38,19 +38,24 @@
 #ifndef COMMON_LINUX_MODULE_H__
 #define COMMON_LINUX_MODULE_H__
 
-#include <stdio.h>
-
+#include <iostream>
 #include <map>
 #include <set>
 #include <string>
 #include <vector>
 
+#include <assert.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+#include "common/symbol_data.h"
+#include "common/using_std_string.h"
+#include "common/unique_string.h"
 #include "google_breakpad/common/breakpad_types.h"
 
 namespace google_breakpad {
 
 using std::set;
-using std::string;
 using std::vector;
 using std::map;
 
@@ -61,10 +66,11 @@ using std::map;
 class Module {
  public:
   // The type of addresses and sizes in a symbol table.
-  typedef u_int64_t Address;
+  typedef uint64_t Address;
   struct File;
   struct Function;
   struct Line;
+  struct Extern;
 
   // Addresses appearing in File, Function, and Line structures are
   // absolute, not relative to the the module's load address.  That
@@ -117,11 +123,152 @@ class Module {
     int number;                // The source line number.
   };
 
-  // A map from register names to postfix expressions that recover
-  // their their values. This can represent a complete set of rules to
+  // An exported symbol.
+  struct Extern {
+    Address address;
+    string name;
+  };
+
+  // Representation of an expression.  This can either be a postfix
+  // expression, in which case it is stored as a string, or a simple
+  // expression of the form (identifier + imm) or *(identifier + imm).
+  // It can also be invalid (denoting "no value").
+  enum ExprHow {
+    kExprInvalid = 1,
+    kExprPostfix,
+    kExprSimple,
+    kExprSimpleMem
+  };
+  struct Expr {
+    // Construct a simple-form expression
+    Expr(const UniqueString* ident, long offset, bool deref) {
+      if (ident == ustr__empty()) {
+        Expr();
+      } else {
+        postfix_ = "";
+        ident_ = ident;
+        offset_ = offset;
+        how_ = deref ? kExprSimpleMem : kExprSimple;
+      }
+    }
+    // Construct an expression from a postfix string
+    Expr(string postfix) {
+      if (postfix.empty()) {
+        Expr();
+      } else {
+        postfix_ = postfix;
+        ident_ = NULL;
+        offset_ = 0;
+        how_ = kExprPostfix;
+      }
+    }
+    // Construct an invalid expression
+    Expr() {
+      postfix_ = "";
+      ident_ = NULL;
+      offset_ = 0;
+      how_ = kExprInvalid;
+    }
+    bool isExprInvalid() const { return how_ == kExprInvalid; }
+
+    // Return the postfix expression string, either directly,
+    // if this is a postfix expression, or by synthesising it
+    // for a simple expression.
+    string getExprPostfix() const {
+      switch (how_) {
+        case kExprPostfix:
+          return postfix_;
+        case kExprSimple:
+        case kExprSimpleMem: {
+          char buf[40];
+          sprintf(buf, " %ld %c%s", labs(offset_), offset_ < 0 ? '-' : '+',
+                                    how_ == kExprSimple ? "" : " ^");
+          return string(FromUniqueString(ident_)) + string(buf);
+        }
+        case kExprInvalid:
+        default:
+          assert(0 && "getExprPostfix: invalid Module::Expr type");
+          return "Expr::genExprPostfix: kExprInvalid";
+      }
+    }
+
+    bool operator==(const Expr& other) const {
+      return how_ == other.how_ &&
+          ident_ == other.ident_ &&
+          offset_ == other.offset_ &&
+          postfix_ == other.postfix_;
+    }
+
+    // Returns an Expr which evaluates to |this| + |delta|
+    Expr add_delta(long delta) {
+      if (delta == 0) {
+        return *this;
+      }
+      // If it's a simple form expression of the form "identifier + offset",
+      // simply add |delta| on to |offset|.  In the other two possible
+      // cases:
+      //    *(identifier + offset)
+      //    completely arbitrary postfix expression string
+      // the only option is to "downgrade" it to a postfix expression and add
+      // "+/- delta" at the end of the string, since the result can't be
+      // represented in the simple form.
+      switch (how_) {
+        case kExprSimpleMem:
+        case kExprPostfix: {
+          char buf[40];
+          sprintf(buf, " %ld %c", labs(delta), delta < 0 ? '-' : '+');
+          return Expr(getExprPostfix() + string(buf));
+        }
+        case kExprSimple:
+          return Expr(ident_, offset_ + delta, false);
+        case kExprInvalid:
+        default:
+          assert(0 && "add_delta: invalid Module::Expr type");
+          // Invalid inputs produce an invalid result
+          return Expr();
+      }
+    }
+
+    // Returns an Expr which evaluates to *|this|
+    Expr deref() {
+      // In the simplest case, a kExprSimple can be changed into a
+      // kExprSimpleMem.  In all other cases it has to be dumped as a
+      // postfix string, and " ^" added at the end.
+      switch (how_) {
+        case kExprSimple: {
+          Expr t = *this;
+          t.how_ = kExprSimpleMem;
+          return t;
+        }
+        case kExprSimpleMem:
+        case kExprPostfix: {
+          return Expr(getExprPostfix() + " ^");
+        }
+        case kExprInvalid:
+        default:
+          assert(0 && "deref: invalid Module::Expr type");
+          // Invalid inputs produce an invalid result
+          return Expr();
+      }
+    }
+
+    // The identifier that gives the starting value for simple expressions.
+    const UniqueString* ident_;
+    // The offset to add for simple expressions.
+    long    offset_;
+    // The Postfix expression string to evaluate for non-simple expressions.
+    string  postfix_;
+    // The operation expressed by this expression.
+    ExprHow how_;
+
+    friend std::ostream& operator<<(std::ostream& stream, const Expr& expr);
+  };
+
+  // A map from register names to expressions that recover
+  // their values. This can represent a complete set of rules to
   // follow at some address, or a set of changes to be applied to an
   // extant set of rules.
-  typedef map<string, string> RuleMap;
+  typedef map<const UniqueString*, Expr> RuleMap;
 
   // A map from addresses to RuleMaps, representing changes that take
   // effect at given addresses.
@@ -155,6 +302,20 @@ class Module {
     }
   };
 
+  struct ExternCompare {
+    bool operator() (const Extern *lhs,
+                     const Extern *rhs) const {
+      return lhs->address < rhs->address;
+    }
+  };
+
+  struct StackFrameEntryCompare {
+    bool operator() (const StackFrameEntry* lhs,
+                     const StackFrameEntry* rhs) const {
+      return lhs->address < rhs->address;
+    }
+  };
+
   // Create a new module with the given name, operating system,
   // architecture, and ID string.
   Module(const string &name, const string &os, const string &architecture,
@@ -175,7 +336,7 @@ class Module {
   // Write is used.
   void SetLoadAddress(Address load_address);
 
-  // Add FUNCTION to the module.
+  // Add FUNCTION to the module. FUNCTION's name must not be empty.
   // This module owns all Function objects added with this function:
   // destroying the module destroys them as well.
   void AddFunction(Function *function);
@@ -187,10 +348,14 @@ class Module {
                     vector<Function *>::iterator end);
 
   // Add STACK_FRAME_ENTRY to the module.
-  //
   // This module owns all StackFrameEntry objects added with this
   // function: destroying the module destroys them as well.
   void AddStackFrameEntry(StackFrameEntry *stack_frame_entry);
+
+  // Add PUBLIC to the module.
+  // This module owns all Extern objects added with this function:
+  // destroying the module destroys them as well.
+  void AddExtern(Extern *ext);
 
   // If this module has a file named NAME, return a pointer to it. If
   // it has none, then create one and return a pointer to the new
@@ -210,6 +375,21 @@ class Module {
   // appropriate interface.)
   void GetFunctions(vector<Function *> *vec, vector<Function *>::iterator i);
 
+  // If this module has a function at ADDRESS, return a pointer to it.
+  // Otherwise, return NULL.
+  Function* FindFunctionByAddress(Address address);
+
+  // Insert pointers to the externs added to this module at I in
+  // VEC. The pointed-to Externs are still owned by this module.
+  // (Since this is effectively a copy of the extern list, this is
+  // mostly useful for testing; other uses should probably get a more
+  // appropriate interface.)
+  void GetExterns(vector<Extern *> *vec, vector<Extern *>::iterator i);
+
+  // If this module has an extern whose base address is less than ADDRESS,
+  // return a pointer to it. Otherwise, return NULL.
+  Extern* FindExternByAddress(Address address);
+
   // Clear VEC and fill it with pointers to the Files added to this
   // module, sorted by name. The pointed-to Files are still owned by
   // this module. (Since this is effectively a copy of the file list,
@@ -224,6 +404,10 @@ class Module {
   // a more appropriate interface.)
   void GetStackFrameEntries(vector<StackFrameEntry *> *vec);
 
+  // If this module has a StackFrameEntry whose address range covers
+  // ADDRESS, return it. Otherwise return NULL.
+  StackFrameEntry* FindStackFrameEntryByAddress(Address address);
+
   // Find those files in this module that are actually referred to by
   // functions' line number data, and assign them source id numbers.
   // Set the source id numbers for all other files --- unused by the
@@ -235,14 +419,17 @@ class Module {
   // breakpad symbol format. Return true if all goes well, or false if
   // an error occurs. This method writes out:
   // - a header based on the values given to the constructor,
-  // - the source files added via FindFile, and finally
-  // - the functions added via AddFunctions, each with its lines.
+  // If symbol_data is not ONLY_CFI then:
+  // - the source files added via FindFile,
+  // - the functions added via AddFunctions, each with its lines,
+  // - all public records,
+  // If symbol_data is not NO_CFI then:
+  // - all CFI records.
   // Addresses in the output are all relative to the load address
   // established by SetLoadAddress.
-  bool Write(FILE *stream);
+  bool Write(std::ostream &stream, SymbolData symbol_data);
 
  private:
-
   // Report an error that has occurred writing the symbol file, using
   // errno to find the appropriate cause.  Return false.
   static bool ReportError();
@@ -250,7 +437,7 @@ class Module {
   // Write RULE_MAP to STREAM, in the form appropriate for 'STACK CFI'
   // records, without a final newline. Return true if all goes well;
   // if an error occurs, return false, and leave errno set.
-  static bool WriteRuleMap(const RuleMap &rule_map, FILE *stream);
+  static bool WriteRuleMap(const RuleMap &rule_map, std::ostream &stream);
 
   // Module header entries.
   string name_, os_, architecture_, id_;
@@ -263,13 +450,21 @@ class Module {
   // Relation for maps whose keys are strings shared with some other
   // structure.
   struct CompareStringPtrs {
-    bool operator()(const string *x, const string *y) { return *x < *y; };
+    bool operator()(const string *x, const string *y) const { return *x < *y; }
   };
 
   // A map from filenames to File structures.  The map's keys are
   // pointers to the Files' names.
   typedef map<const string *, File *, CompareStringPtrs> FileByNameMap;
+
+  // A set containing Function structures, sorted by address.
   typedef set<Function *, FunctionCompare> FunctionSet;
+
+  // A set containing Extern structures, sorted by address.
+  typedef set<Extern *, ExternCompare> ExternSet;
+
+  // A set containing StackFrameEntry structures, sorted by address.
+  typedef set<StackFrameEntry*, StackFrameEntryCompare> StackFrameEntrySet;
 
   // The module owns all the files and functions that have been added
   // to it; destroying the module frees the Files and Functions these
@@ -279,9 +474,13 @@ class Module {
 
   // The module owns all the call frame info entries that have been
   // added to it.
-  vector<StackFrameEntry *> stack_frame_entries_;
+  StackFrameEntrySet stack_frame_entries_;
+
+  // The module owns all the externs that have been added to it;
+  // destroying the module frees the Externs these point to.
+  ExternSet externs_;
 };
 
-} // namespace google_breakpad
+}  // namespace google_breakpad
 
 #endif  // COMMON_LINUX_MODULE_H__

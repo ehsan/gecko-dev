@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=625722
 -->
 <head>
   <title>Test for Bug 625722</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -28,7 +27,7 @@ function testNodeFilter(n) {
 
 tw = document.createTreeWalker(document.getElementById("root"),
                                NodeFilter.SHOW_ELEMENT,
-                               testNodeFilter, false);
+                               testNodeFilter);
 
 node = tw.firstChild();
 is(node.id, 'B', "First accepted child of root not B");

@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Corporation code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Robert O'Callahan <robert@ocallahan.org>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef GFX_BASICLAYERS_H
 #define GFX_BASICLAYERS_H
@@ -42,10 +10,10 @@
 
 #include "gfxContext.h"
 #include "gfxCachedTempSurface.h"
+#include "mozilla/layers/ShadowLayers.h"
+#include "mozilla/WidgetUtils.h"
 #include "nsAutoRef.h"
 #include "nsThreadUtils.h"
-
-#include "mozilla/layers/ShadowLayers.h"
 
 class nsIWidget;
 
@@ -53,12 +21,14 @@ namespace mozilla {
 namespace layers {
 
 class BasicShadowableLayer;
-class ShadowThebesLayer;
-class ShadowContainerLayer;
-class ShadowImageLayer;
-class ShadowCanvasLayer;
-class ShadowColorLayer;
+class ThebesLayerComposite;
+class ContainerLayerComposite;
+class ImageLayerComposite;
+class CanvasLayerComposite;
+class ColorLayerComposite;
 class ReadbackProcessor;
+class ImageFactory;
+class PaintLayerContext;
 
 /**
  * This is a cairo/Thebes-only, main-thread-only implementation of layers.
@@ -68,8 +38,8 @@ class ReadbackProcessor;
  * context (with appropriate clipping and Push/PopGroups performed
  * between layers).
  */
-class THEBES_API BasicLayerManager :
-    public ShadowLayerManager
+class BasicLayerManager :
+    public LayerManager
 {
 public:
   /**
@@ -108,36 +78,24 @@ public:
    * mode we always completely overwrite the contents of aContext's
    * destination surface (within the clip region) using OPERATOR_SOURCE.
    */
-  enum BufferMode {
-    BUFFER_NONE,
-    BUFFER_BUFFERED
-  };
-  void SetDefaultTarget(gfxContext* aContext, BufferMode aDoubleBuffering);
+  void SetDefaultTarget(gfxContext* aContext);
+  virtual void SetDefaultTargetConfiguration(BufferMode aDoubleBuffering, ScreenRotation aRotation);
   gfxContext* GetDefaultTarget() { return mDefaultTarget; }
 
-  /**
-   * Set a target resolution for managed layers that are scalable.  It
-   * might make sense to call this outside of a transaction, but
-   * currently it's only allowed during the construction phase of
-   * transactions.
-   */
-  void SetResolution(float aXResolution, float aYResolution)
-  {
-    NS_ASSERTION(InConstruction(), "resolution must be set before drawing");
-    mXResolution = aXResolution;
-    mYResolution = aYResolution;
-  }
-  float XResolution() const { return mXResolution; }
-  float YResolution() const { return mYResolution; }
-
   nsIWidget* GetRetainerWidget() { return mWidget; }
-  void ClearRetainerWidget() { mWidget = nsnull; }
+  void ClearRetainerWidget() { mWidget = nullptr; }
+
+  virtual bool IsWidgetLayerManager() { return mWidget != nullptr; }
 
   virtual void BeginTransaction();
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
-  virtual bool EndEmptyTransaction();
+  virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT);
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData);
+                              void* aCallbackData,
+                              EndTransactionFlags aFlags = END_DEFAULT);
+  virtual bool AreComponentAlphaLayersEnabled() { return HasShadowManager() || !IsWidgetLayerManager(); }
+
+  void AbortTransaction();
 
   virtual void SetRoot(Layer* aLayer);
 
@@ -145,55 +103,64 @@ public:
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
   virtual already_AddRefed<ImageLayer> CreateImageLayer();
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
-  virtual already_AddRefed<ImageContainer> CreateImageContainer();
   virtual already_AddRefed<ColorLayer> CreateColorLayer();
   virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer();
-  virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer()
-  { return nsnull; }
-  virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer()
-  { return nsnull; }
-  virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer()
-  { return nsnull; }
-  virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer()
-  { return nsnull; }
-  virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer()
-  { return nsnull; }
+  virtual ImageFactory *GetImageFactory();
 
   virtual LayersBackend GetBackendType() { return LAYERS_BASIC; }
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Basic"); }
 
 #ifdef DEBUG
-  PRBool InConstruction() { return mPhase == PHASE_CONSTRUCTION; }
-  PRBool InDrawing() { return mPhase == PHASE_DRAWING; }
-  PRBool InForward() { return mPhase == PHASE_FORWARD; }
-  PRBool InTransaction() { return mPhase != PHASE_NONE; }
+  bool InConstruction() { return mPhase == PHASE_CONSTRUCTION; }
+  bool InDrawing() { return mPhase == PHASE_DRAWING; }
+  bool InForward() { return mPhase == PHASE_FORWARD; }
 #endif
+  bool InTransaction() { return mPhase != PHASE_NONE; }
+
   gfxContext* GetTarget() { return mTarget; }
-  PRBool IsRetained() { return mWidget != nsnull; }
+  void SetTarget(gfxContext* aTarget) { mUsingDefaultTarget = false; mTarget = aTarget; }
+  bool IsRetained() { return mWidget != nullptr; }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const { return "Basic"; }
 #endif // MOZ_LAYERS_HAVE_LOG
 
-  // Clear the cached contents of this layer.
-  void ClearCachedResources();
+  // Clear the cached contents of this layer tree.
+  virtual void ClearCachedResources(Layer* aSubtree = nullptr) MOZ_OVERRIDE;
 
   void SetTransactionIncomplete() { mTransactionIncomplete = true; }
+  bool IsTransactionIncomplete() { return mTransactionIncomplete; }
 
-  virtual PRBool IsCompositingCheap() { return PR_FALSE; }
-  virtual bool HasShadowManagerInternal() const { return false; }
-  bool HasShadowManager() const { return HasShadowManagerInternal(); }
+  already_AddRefed<gfxContext> PushGroupForLayer(gfxContext* aContext, Layer* aLayer,
+                                                 const nsIntRegion& aRegion,
+                                                 bool* aNeedsClipToVisibleRegion);
+  already_AddRefed<gfxContext> PushGroupWithCachedSurface(gfxContext *aTarget,
+                                                          gfxASurface::gfxContentType aContent);
+  void PopGroupToSourceWithCachedSurface(gfxContext *aTarget, gfxContext *aPushed);
+
+  virtual bool IsCompositingCheap() { return false; }
+  virtual int32_t GetMaxTextureSize() const { return INT32_MAX; }
+  bool CompositorMightResample() { return mCompositorMightResample; }
+  bool HasShadowTarget() { return !!mShadowTarget; }
 
 protected:
-#ifdef DEBUG
   enum TransactionPhase {
     PHASE_NONE, PHASE_CONSTRUCTION, PHASE_DRAWING, PHASE_FORWARD
   };
   TransactionPhase mPhase;
-#endif
+
+  // This is the main body of the PaintLayer routine which will if it has
+  // children, recurse into PaintLayer() otherwise it will paint using the
+  // underlying Paint() method of the Layer. It will not do both.
+  void PaintSelfOrChildren(PaintLayerContext& aPaintContext, gfxContext* aGroupTarget);
+
+  // Paint the group onto the underlying target. This is used by PaintLayer to
+  // flush the group to the underlying target.
+  void FlushGroup(PaintLayerContext& aPaintContext, bool aNeedsClipToVisibleRegion);
 
   // Paints aLayer to mTarget.
-  void PaintLayer(Layer* aLayer,
+  void PaintLayer(gfxContext* aTarget,
+                  Layer* aLayer,
                   DrawThebesLayerCallback aCallback,
                   void* aCallbackData,
                   ReadbackProcessor* aReadback);
@@ -201,18 +168,11 @@ protected:
   // Clear the contents of a layer
   void ClearLayer(Layer* aLayer);
 
-  already_AddRefed<gfxContext> PushGroupWithCachedSurface(gfxContext *aTarget,
-                                                          gfxASurface::gfxContentType aContent,
-                                                          gfxPoint *aSavedOffset);
-  void PopGroupWithCachedSurface(gfxContext *aTarget,
-                                 const gfxPoint& aSavedOffset);
-
   bool EndTransactionInternal(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData);
+                              void* aCallbackData,
+                              EndTransactionFlags aFlags = END_DEFAULT);
 
-  // Target resolution for scalable content.
-  float mXResolution;
-  float mYResolution;
+  void FlashWidgetUpdateArea(gfxContext* aContext);
 
   // Widget whose surface should be used as the basis for ThebesLayer
   // buffers.
@@ -221,118 +181,37 @@ protected:
   nsRefPtr<gfxContext> mDefaultTarget;
   // The context to draw into.
   nsRefPtr<gfxContext> mTarget;
+  // When we're doing a transaction in order to draw to a non-default
+  // target, the layers transaction is only performed in order to send
+  // a PLayerTransaction:Update.  We save the original non-default target to
+  // mShadowTarget, and then perform the transaction using
+  // mDummyTarget as the render target.  After the transaction ends,
+  // we send a message to our remote side to capture the actual pixels
+  // being drawn to the default target, and then copy those pixels
+  // back to mShadowTarget.
+  nsRefPtr<gfxContext> mShadowTarget;
+  nsRefPtr<gfxContext> mDummyTarget;
+  // Image factory we use.
+  nsRefPtr<ImageFactory> mFactory;
 
   // Cached surface for double buffering
   gfxCachedTempSurface mCachedSurface;
 
-  BufferMode   mDoubleBuffering;
-  PRPackedBool mUsingDefaultTarget;
-  bool         mTransactionIncomplete;
+  BufferMode mDoubleBuffering;
+  bool mUsingDefaultTarget;
+  bool mCachedSurfaceInUse;
+  bool mTransactionIncomplete;
+  bool mCompositorMightResample;
 };
- 
 
-class BasicShadowLayerManager : public BasicLayerManager,
-                                public ShadowLayerForwarder
-{
-  typedef nsTArray<nsRefPtr<Layer> > LayerRefArray;
-
-public:
-  BasicShadowLayerManager(nsIWidget* aWidget);
-  virtual ~BasicShadowLayerManager();
-
-  virtual void BeginTransactionWithTarget(gfxContext* aTarget);
-  virtual bool EndEmptyTransaction();
-  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData);
-
-  virtual void SetRoot(Layer* aLayer);
-
-  virtual void Mutated(Layer* aLayer);
-
-  virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
-  virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
-  virtual already_AddRefed<ImageLayer> CreateImageLayer();
-  virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
-  virtual already_AddRefed<ColorLayer> CreateColorLayer();
-  virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer();
-  virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer();
-  virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer();
-  virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer();
-  virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer();
-
-  ShadowableLayer* Hold(Layer* aLayer);
-
-  bool HasShadowManager() const { return ShadowLayerForwarder::HasShadowManager(); }
-  PLayersChild* GetShadowManager() const { return mShadowManager; }
-
-  void SetShadowManager(PLayersChild* aShadowManager)
-  {
-    mShadowManager = aShadowManager;
-  }
-
-  virtual PRBool IsCompositingCheap();
-  virtual bool HasShadowManagerInternal() const { return HasShadowManager(); }
-
-private:
-  /**
-   * Forward transaction results to the parent context.
-   */
-  void ForwardTransaction();
-
-  LayerRefArray mKeepAlive;
-};
+void
+PaintContext(gfxPattern* aPattern,
+             const nsIntRegion& aVisible,
+             float aOpacity,
+             gfxContext* aContext,
+             Layer* aMaskLayer);
 
 }
 }
-
-/**
- * We need to be able to hold a reference to a gfxASurface from Image
- * subclasses. This is potentially a problem since Images can be addrefed
- * or released off the main thread. We can ensure that we never AddRef
- * a gfxASurface off the main thread, but we might want to Release due
- * to an Image being destroyed off the main thread.
- * 
- * We use nsCountedRef<nsMainThreadSurfaceRef> to reference the
- * gfxASurface. When AddRefing, we assert that we're on the main thread.
- * When Releasing, if we're not on the main thread, we post an event to
- * the main thread to do the actual release.
- */
-class nsMainThreadSurfaceRef;
-
-NS_SPECIALIZE_TEMPLATE
-class nsAutoRefTraits<nsMainThreadSurfaceRef> {
-public:
-  typedef gfxASurface* RawRef;
-
-  /**
-   * The XPCOM event that will do the actual release on the main thread.
-   */
-  class SurfaceReleaser : public nsRunnable {
-  public:
-    SurfaceReleaser(RawRef aRef) : mRef(aRef) {}
-    NS_IMETHOD Run() {
-      mRef->Release();
-      return NS_OK;
-    }
-    RawRef mRef;
-  };
-
-  static RawRef Void() { return nsnull; }
-  static void Release(RawRef aRawRef)
-  {
-    if (NS_IsMainThread()) {
-      aRawRef->Release();
-      return;
-    }
-    nsCOMPtr<nsIRunnable> runnable = new SurfaceReleaser(aRawRef);
-    NS_DispatchToMainThread(runnable);
-  }
-  static void AddRef(RawRef aRawRef)
-  {
-    NS_ASSERTION(NS_IsMainThread(),
-                 "Can only add a reference on the main thread");
-    aRawRef->AddRef();
-  }
-};
 
 #endif /* GFX_BASICLAYERS_H */

@@ -29,14 +29,15 @@ function run_test() {
   do_check_eq(PlacesUtils.history.databaseStatus,
               PlacesUtils.history.DATABASE_STATUS_CREATE);
 
-  // A migrator would run before nsBrowserGlue, so we mimic that behavior
-  // adding a bookmark.
+  // A migrator would run before nsBrowserGlue Places initialization, so mimic
+  // that behavior adding a bookmark and notifying the migration.
+  let bg = Cc["@mozilla.org/browser/browserglue;1"].
+           getService(Ci.nsIObserver);
+
+  bg.observe(null, "initial-migration-will-import-default-bookmarks", null);
+
   PlacesUtils.bookmarks.insertBookmark(PlacesUtils.bookmarks.bookmarksMenuFolder, uri("http://mozilla.org/"),
                     PlacesUtils.bookmarks.DEFAULT_INDEX, "migrated");
-
-  // Initialize nsBrowserGlue.
-  let bg = Cc["@mozilla.org/browser/browserglue;1"].
-           getService(Ci.nsIBrowserGlue);
 
   let bookmarksObserver = {
     onBeginUpdateBatch: function() {},
@@ -51,7 +52,6 @@ function run_test() {
       }
     },
     onItemAdded: function() {},
-    onBeforeItemRemoved: function(id) {},
     onItemRemoved: function(id, folder, index, itemType) {},
     onItemChanged: function() {},
     onItemVisited: function(id, visitID, time) {},
@@ -61,6 +61,8 @@ function run_test() {
   // The test will continue once import has finished and smart bookmarks
   // have been created.
   PlacesUtils.bookmarks.addObserver(bookmarksObserver, false);
+
+  bg.observe(null, "initial-migration-did-import-default-bookmarks", null);
 }
 
 function onSmartBookmarksCreation() {

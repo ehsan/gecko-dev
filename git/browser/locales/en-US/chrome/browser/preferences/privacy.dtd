@@ -1,7 +1,16 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
 <!ENTITY tracking.label                 "Tracking">
 
-<!ENTITY doNotTrack.label               "Tell web sites I do not want to be tracked">
-<!ENTITY doNotTrack.accesskey           "d">
+<!ENTITY dntTrackingNopref.label2       "Do not tell sites anything about my tracking preferences">
+<!ENTITY dntTrackingNopref.accesskey    "o">
+<!ENTITY dntTrackingNotOkay.label2      "Tell sites that I do not want to be tracked">
+<!ENTITY dntTrackingNotOkay.accesskey   "n">
+<!ENTITY dntTrackingOkay.label2         "Tell sites that I want to be tracked">
+<!ENTITY dntTrackingOkay.accesskey      "t">
+<!ENTITY doNotTrackInfo.label           "Learn More">
 
 <!ENTITY  history.label                 "History">
 
@@ -15,12 +24,14 @@
 <!ENTITY  locbar.bookmarks.label        "Bookmarks">
 <!ENTITY  locbar.nothing.label          "Nothing">
 
-
 <!ENTITY  acceptCookies.label           "Accept cookies from sites">
 <!ENTITY  acceptCookies.accesskey       "A">
 
-<!ENTITY  acceptThirdParty.label        "Accept third-party cookies">
-<!ENTITY  acceptThirdParty.accesskey    "c">
+<!ENTITY  acceptThirdParty.pre.label      "Accept third-party cookies:">
+<!ENTITY  acceptThirdParty.pre.accesskey  "c">
+<!ENTITY  acceptThirdParty.always.label   "Always">
+<!ENTITY  acceptThirdParty.never.label    "Never">
+<!ENTITY  acceptThirdParty.visited.label  "From visited">
 
 <!ENTITY  keepUntil.label               "Keep until:">
 <!ENTITY  keepUntil.accesskey           "K">
@@ -42,7 +53,7 @@
 <!ENTITY  historyHeader.custom.label       "Use custom settings for history">
 <!ENTITY  historyHeader.post.label         "">
 
-<!ENTITY  rememberDescription.label      "&brandShortName; will remember your browsing, download, form and search history, and keep cookies from Web sites you visit.">
+<!ENTITY  rememberDescription.label      "&brandShortName; will remember your browsing, download, form and search history, and keep cookies from websites you visit.">
 
 <!-- LOCALIZATION NOTE (rememberActions.pre.label): include a trailing space as needed -->
 <!-- LOCALIZATION NOTE (rememberActions.middle.label): include a starting and trailing space as needed -->
@@ -61,14 +72,11 @@
 <!ENTITY  dontrememberActions.clearHistory.label "clear all current history">
 <!ENTITY  dontrememberActions.post.label         ".">
 
-<!ENTITY  privateBrowsingPermanent.label "Permanent Private Browsing mode">
-<!ENTITY  privateBrowsingPermanent.accesskey "P">
+<!ENTITY  privateBrowsingPermanent2.label "Always use private browsing mode">
+<!ENTITY  privateBrowsingPermanent2.accesskey "p">
 
-<!ENTITY  rememberHistory.label      "Remember my browsing history">
-<!ENTITY  rememberHistory.accesskey  "b">
-
-<!ENTITY  rememberDownload.label         "Remember download history">
-<!ENTITY  rememberDownload.accesskey     "d">
+<!ENTITY  rememberHistory2.label      "Remember my browsing and download history">
+<!ENTITY  rememberHistory2.accesskey  "b">
 
 <!ENTITY  rememberSearchForm.label       "Remember search and form history">
 <!ENTITY  rememberSearchForm.accesskey   "f">

@@ -1,45 +1,14 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Weave.
- *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2008
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *  Dan Mills <thunder@mozilla.com>
- *  Philipp von Weitershausen <philipp@weitershausen.de>
- *  Richard Newman <rnewman@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const EXPORTED_SYMBOLS = ["WBORecord", "RecordManager", "Records",
-                          "CryptoWrapper", "CollectionKeys", "BulkKeyBundle",
-                          "SyncKeyBundle", "Collection"];
+this.EXPORTED_SYMBOLS = [
+  "WBORecord",
+  "RecordManager",
+  "CryptoWrapper",
+  "CollectionKeyManager",
+  "Collection",
+];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -49,20 +18,20 @@ const Cu = Components.utils;
 const CRYPTO_COLLECTION = "crypto";
 const KEYS_WBO = "keys";
 
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/identity.js");
-Cu.import("resource://services-sync/log4moz.js");
+Cu.import("resource://services-sync/keys.js");
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
 
-function WBORecord(collection, id) {
+this.WBORecord = function WBORecord(collection, id) {
   this.data = {};
   this.payload = {};
   this.collection = collection;      // Optional.
   this.id = id;                      // Optional.
 }
 WBORecord.prototype = {
-  _logName: "Record.WBO",
+  _logName: "Sync.Record.WBO",
 
   get sortindex() {
     if (this.data.sortindex)
@@ -72,8 +41,12 @@ WBORecord.prototype = {
 
   // Get thyself from your URI, then deserialize.
   // Set thine 'response' field.
-  fetch: function fetch(uri) {
-    let r = new Resource(uri).get();
+  fetch: function fetch(resource) {
+    if (!resource instanceof Resource) {
+      throw new Error("First argument must be a Resource instance.");
+    }
+
+    let r = resource.get();
     if (r.success) {
       this.deserialize(r);   // Warning! Muffles exceptions!
     }
@@ -81,15 +54,22 @@ WBORecord.prototype = {
     return this;
   },
 
-  upload: function upload(uri) {
-    return new Resource(uri).put(this);
+  upload: function upload(resource) {
+    if (!resource instanceof Resource) {
+      throw new Error("First argument must be a Resource instance.");
+    }
+
+    return resource.put(this);
   },
 
   // Take a base URI string, with trailing slash, and return the URI of this
   // WBO based on collection and ID.
   uri: function(base) {
-    if (this.collection && this.id)
-      return Utils.makeURL(base + this.collection + "/" + this.id);
+    if (this.collection && this.id) {
+      let url = Utils.makeURI(base + this.collection + "/" + this.id);
+      url.QueryInterface(Ci.nsIURL);
+      return url;
+    }
     return null;
   },
 
@@ -112,35 +92,38 @@ WBORecord.prototype = {
     return obj;
   },
 
-  toString: function WBORec_toString() "{ " + [
-      "id: " + this.id,
-      "index: " + this.sortindex,
-      "modified: " + this.modified,
-      "ttl: " + this.ttl,
-      "payload: " + JSON.stringify(this.payload)
-    ].join("\n  ") + " }",
+  toString: function toString() {
+    return "{ " +
+      "id: "       + this.id        + "  " +
+      "index: "    + this.sortindex + "  " +
+      "modified: " + this.modified  + "  " +
+      "ttl: "      + this.ttl       + "  " +
+      "payload: "  + JSON.stringify(this.payload) +
+      " }";
+  }
 };
 
 Utils.deferGetSet(WBORecord, "data", ["id", "modified", "sortindex", "payload"]);
 
-XPCOMUtils.defineLazyGetter(this, "Records", function () {
-  return new RecordManager();
-});
+/**
+ * An interface and caching layer for records.
+ */
+this.RecordManager = function RecordManager(service) {
+  this.service = service;
 
-function RecordManager() {
   this._log = Log4Moz.repository.getLogger(this._logName);
   this._records = {};
 }
 RecordManager.prototype = {
   _recordType: WBORecord,
-  _logName: "RecordMgr",
+  _logName: "Sync.RecordManager",
 
   import: function RecordMgr_import(url) {
     this._log.trace("Importing record: " + (url.spec ? url.spec : url));
     try {
       // Clear out the last response with empty object if GET fails
       this.response = {};
-      this.response = new Resource(url).get();
+      this.response = this.service.resource(url).get();
 
       // Don't parse and save the record on failure
       if (!this.response.success)
@@ -184,7 +167,7 @@ RecordManager.prototype = {
   }
 };
 
-function CryptoWrapper(collection, id) {
+this.CryptoWrapper = function CryptoWrapper(collection, id) {
   this.cleartext = {};
   WBORecord.call(this, collection, id);
   this.ciphertext = null;
@@ -192,12 +175,13 @@ function CryptoWrapper(collection, id) {
 }
 CryptoWrapper.prototype = {
   __proto__: WBORecord.prototype,
-  _logName: "Record.CryptoWrapper",
+  _logName: "Sync.Record.CryptoWrapper",
 
   ciphertextHMAC: function ciphertextHMAC(keyBundle) {
     let hasher = keyBundle.sha256HMACHasher;
-    if (!hasher)
+    if (!hasher) {
       throw "Cannot compute HMAC without an HMAC key.";
+    }
 
     return Utils.bytesAsHex(Utils.digestUTF8(this.ciphertext, hasher));
   },
@@ -212,13 +196,13 @@ CryptoWrapper.prototype = {
    * Optional key bundle overrides the collection key lookup.
    */
   encrypt: function encrypt(keyBundle) {
-    keyBundle = keyBundle || CollectionKeys.keyForCollection(this.collection);
-    if (!keyBundle)
-      throw new Error("Key bundle is null for " + this.uri.spec);
+    if (!keyBundle) {
+      throw new Error("A key bundle must be supplied to encrypt.");
+    }
 
     this.IV = Svc.Crypto.generateRandomIV();
     this.ciphertext = Svc.Crypto.encrypt(JSON.stringify(this.cleartext),
-                                         keyBundle.encryptionKey, this.IV);
+                                         keyBundle.encryptionKeyB64, this.IV);
     this.hmac = this.ciphertextHMAC(keyBundle);
     this.cleartext = null;
   },
@@ -229,9 +213,9 @@ CryptoWrapper.prototype = {
       throw "No ciphertext: nothing to decrypt?";
     }
 
-    keyBundle = keyBundle || CollectionKeys.keyForCollection(this.collection);
-    if (!keyBundle)
-      throw new Error("Key bundle is null for " + this.collection + "/" + this.id);
+    if (!keyBundle) {
+      throw new Error("A key bundle must be supplied to decrypt.");
+    }
 
     // Authenticate the encrypted blob with the expected HMAC
     let computedHMAC = this.ciphertextHMAC(keyBundle);
@@ -242,7 +226,7 @@ CryptoWrapper.prototype = {
 
     // Handle invalid data here. Elsewhere we assume that cleartext is an object.
     let cleartext = Svc.Crypto.decrypt(this.ciphertext,
-                                       keyBundle.encryptionKey, this.IV);
+                                       keyBundle.encryptionKeyB64, this.IV);
     let json_result = JSON.parse(cleartext);
 
     if (json_result && (json_result instanceof Object)) {
@@ -259,14 +243,18 @@ CryptoWrapper.prototype = {
     return this.cleartext;
   },
 
-  toString: function CryptoWrap_toString() "{ " + [
-      "id: " + this.id,
-      "index: " + this.sortindex,
-      "modified: " + this.modified,
-      "ttl: " + this.ttl,
-      "payload: " + (this.deleted ? "DELETED" : JSON.stringify(this.cleartext)),
-      "collection: " + (this.collection || "undefined")
-    ].join("\n  ") + " }",
+  toString: function toString() {
+    let payload = this.deleted ? "DELETED" : JSON.stringify(this.cleartext);
+
+    return "{ " +
+      "id: "         + this.id          + "  " +
+      "index: "      + this.sortindex   + "  " +
+      "modified: "   + this.modified    + "  " +
+      "ttl: "        + this.ttl         + "  " +
+      "payload: "    + payload          + "  " +
+      "collection: " + (this.collection || "undefined") +
+      " }";
+  },
 
   // The custom setter below masks the parent's getter, so explicitly call it :(
   get id() WBORecord.prototype.__lookupGetter__("id").call(this),
@@ -281,24 +269,19 @@ CryptoWrapper.prototype = {
 Utils.deferGetSet(CryptoWrapper, "payload", ["ciphertext", "IV", "hmac"]);
 Utils.deferGetSet(CryptoWrapper, "cleartext", "deleted");
 
-XPCOMUtils.defineLazyGetter(this, "CollectionKeys", function () {
-  return new CollectionKeyManager();
-});
-
 
 /**
- * Keeps track of mappings between collection names ('tabs') and
- * keyStrs, which you can feed into KeyBundle to get encryption tokens.
+ * Keeps track of mappings between collection names ('tabs') and KeyBundles.
  *
  * You can update this thing simply by giving it /info/collections. It'll
  * use the last modified time to bring itself up to date.
  */
-function CollectionKeyManager() {
+this.CollectionKeyManager = function CollectionKeyManager() {
   this.lastModified = 0;
   this._collections = {};
   this._default = null;
 
-  this._log = Log4Moz.repository.getLogger("CollectionKeys");
+  this._log = Log4Moz.repository.getLogger("Sync.CollectionKeyManager");
 }
 
 // TODO: persist this locally as an Identity. Bug 610913.
@@ -337,7 +320,7 @@ CollectionKeyManager.prototype = {
   },
 
   clear: function clear() {
-    this._log.info("Clearing CollectionKeys...");
+    this._log.info("Clearing collection keys...");
     this.lastModified = 0;
     this._collections = {};
     this._default = null;
@@ -359,10 +342,10 @@ CollectionKeyManager.prototype = {
     let wbo = new CryptoWrapper(CRYPTO_COLLECTION, KEYS_WBO);
     let c = {};
     for (let k in collections) {
-      c[k] = collections[k].keyPair;
+      c[k] = collections[k].keyPairB64;
     }
     wbo.cleartext = {
-      "default":     defaultBundle ? defaultBundle.keyPair : null,
+      "default":     defaultBundle ? defaultBundle.keyPairB64 : null,
       "collections": c,
       "collection":  CRYPTO_COLLECTION,
       "id":          KEYS_WBO
@@ -380,13 +363,13 @@ CollectionKeyManager.prototype = {
    * Compute a new default key, and new keys for any specified collections.
    */
   newKeys: function(collections) {
-    let newDefaultKey = new BulkKeyBundle(null, DEFAULT_KEYBUNDLE_NAME);
+    let newDefaultKey = new BulkKeyBundle(DEFAULT_KEYBUNDLE_NAME);
     newDefaultKey.generateRandom();
 
     let newColls = {};
     if (collections) {
       collections.forEach(function (c) {
-        let b = new BulkKeyBundle(null, c);
+        let b = new BulkKeyBundle(c);
         b.generateRandom();
         newColls[c] = b;
       });
@@ -440,21 +423,21 @@ CollectionKeyManager.prototype = {
 
     let self = this;
 
-    this._log.info("Setting CollectionKeys contents. Our last modified: " +
+    this._log.info("Setting collection keys contents. Our last modified: " +
                    this.lastModified + ", input modified: " + modified + ".");
 
     if (!payload)
-      throw "No payload in CollectionKeys.setContents().";
+      throw "No payload in CollectionKeyManager.setContents().";
 
     if (!payload.default) {
       this._log.warn("No downloaded default key: this should not occur.");
       this._log.warn("Not clearing local keys.");
-      throw "No default key in CollectionKeys.setContents(). Cannot proceed.";
+      throw "No default key in CollectionKeyManager.setContents(). Cannot proceed.";
     }
 
     // Process the incoming default key.
-    let b = new BulkKeyBundle(null, DEFAULT_KEYBUNDLE_NAME);
-    b.keyPair = payload.default;
+    let b = new BulkKeyBundle(DEFAULT_KEYBUNDLE_NAME);
+    b.keyPairB64 = payload.default;
     let newDefault = b;
 
     // Process the incoming collections.
@@ -465,8 +448,8 @@ CollectionKeyManager.prototype = {
       for (let k in colls) {
         let v = colls[k];
         if (v) {
-          let keyObj = new BulkKeyBundle(null, k);
-          keyObj.keyPair = v;
+          let keyObj = new BulkKeyBundle(k);
+          keyObj.keyPairB64 = v;
           if (keyObj) {
             newCollections[k] = keyObj;
           }
@@ -522,205 +505,19 @@ CollectionKeyManager.prototype = {
   }
 }
 
-/**
- * Abuse Identity: store the collection name (or default) in the
- * username field, and the keyStr in the password field.
- *
- * We very rarely want to override the realm, so pass null and
- * it'll default to PWDMGR_KEYBUNDLE_REALM.
- *
- * KeyBundle is the base class for two similar classes:
- *
- * SyncKeyBundle:
- *
- *   A key string is provided, and it must be hashed to derive two different
- *   keys (one HMAC, one AES).
- *
- * BulkKeyBundle:
- *
- *   Two independent keys are provided, or randomly generated on request.
- *
- */
-function KeyBundle(realm, collectionName, keyStr) {
-  let realm = realm || PWDMGR_KEYBUNDLE_REALM;
-
-  if (keyStr && !keyStr.charAt)
-    // Ensure it's valid.
-    throw "KeyBundle given non-string key.";
-
-  Identity.call(this, realm, collectionName, keyStr);
-}
-KeyBundle.prototype = {
-  __proto__: Identity.prototype,
-
-  _encrypt: null,
-  _hmac: null,
-  _hmacObj: null,
-  _sha256HMACHasher: null,
-
-  equals: function equals(bundle) {
-    return bundle &&
-           (bundle.hmacKey == this.hmacKey) &&
-           (bundle.encryptionKey == this.encryptionKey);
-  },
-
-  /*
-   * Accessors for the two keys.
-   */
-  get encryptionKey() {
-    return this._encrypt;
-  },
-
-  set encryptionKey(value) {
-    this._encrypt = value;
-  },
-
-  get hmacKey() {
-    return this._hmac;
-  },
-
-  set hmacKey(value) {
-    this._hmac = value;
-    this._hmacObj = value ? Utils.makeHMACKey(value) : null;
-    this._sha256HMACHasher = value ? Utils.makeHMACHasher(
-      Ci.nsICryptoHMAC.SHA256, this._hmacObj) : null;
-  },
-
-  get hmacKeyObject() {
-    return this._hmacObj;
-  },
-
-  get sha256HMACHasher() {
-    return this._sha256HMACHasher;
+this.Collection = function Collection(uri, recordObj, service) {
+  if (!service) {
+    throw new Error("Collection constructor requires a service.");
   }
-};
 
-function BulkKeyBundle(realm, collectionName) {
-  let log = Log4Moz.repository.getLogger("BulkKeyBundle");
-  log.info("BulkKeyBundle being created for " + collectionName);
-  KeyBundle.call(this, realm, collectionName);
-}
-
-BulkKeyBundle.prototype = {
-  __proto__: KeyBundle.prototype,
-
-  generateRandom: function generateRandom() {
-    let generatedHMAC = Svc.Crypto.generateRandomKey();
-    let generatedEncr = Svc.Crypto.generateRandomKey();
-    this.keyPair = [generatedEncr, generatedHMAC];
-  },
-
-  get keyPair() {
-    return [this._encrypt, btoa(this._hmac)];
-  },
-
-  /*
-   * Use keyPair = [enc, hmac], or generateRandom(), when
-   * you want to manage the two individual keys.
-   */
-  set keyPair(value) {
-    if (value.length && (value.length == 2)) {
-      let json = JSON.stringify(value);
-      let en = value[0];
-      let hm = value[1];
-
-      this.password = json;
-      this.hmacKey  = Utils.safeAtoB(hm);
-      this._encrypt = en;          // Store in base64.
-    }
-    else {
-      throw "Invalid keypair";
-    }
-  }
-};
-
-function SyncKeyBundle(realm, collectionName, syncKey) {
-  let log = Log4Moz.repository.getLogger("SyncKeyBundle");
-  log.info("SyncKeyBundle being created for " + collectionName);
-  KeyBundle.call(this, realm, collectionName, syncKey);
-  if (syncKey)
-    this.keyStr = syncKey;      // Accessor sets up keys.
-}
-
-SyncKeyBundle.prototype = {
-  __proto__: KeyBundle.prototype,
-
-  /*
-   * Use keyStr when you want to work with a key string that's
-   * hashed into individual keys.
-   */
-  get keyStr() {
-    return this.password;
-  },
-
-  set keyStr(value) {
-    this.password = value;
-    this._hmac    = null;
-    this._hmacObj = null;
-    this._encrypt = null;
-    this._sha256HMACHasher = null;
-  },
-
-  /*
-   * Can't rely on password being set through any of our setters:
-   * Identity does work under the hood.
-   *
-   * Consequently, make sure we derive keys if that work hasn't already been
-   * done.
-   */
-  get encryptionKey() {
-    if (!this._encrypt)
-      this.generateEntry();
-    return this._encrypt;
-  },
-
-  get hmacKey() {
-    if (!this._hmac)
-      this.generateEntry();
-    return this._hmac;
-  },
-
-  get hmacKeyObject() {
-    if (!this._hmacObj)
-      this.generateEntry();
-    return this._hmacObj;
-  },
-
-  get sha256HMACHasher() {
-    if (!this._sha256HMACHasher)
-      this.generateEntry();
-    return this._sha256HMACHasher;
-  },
-
-  /*
-   * If we've got a string, hash it into keys and store them.
-   */
-  generateEntry: function generateEntry() {
-    let syncKey = this.keyStr;
-    if (!syncKey)
-      return;
-
-    // Expand the base32 Sync Key to an AES 256 and 256 bit HMAC key.
-    let prk = Utils.decodeKeyBase32(syncKey);
-    let info = HMAC_INPUT + this.username;
-    let okm = Utils.hkdfExpand(prk, info, 32 * 2);
-    let enc = okm.slice(0, 32);
-    let hmac = okm.slice(32, 64);
-
-    // Save them.
-    this._encrypt = btoa(enc);
-    // Individual sets: cheaper than calling parent setter.
-    this._hmac = hmac;
-    this._hmacObj = Utils.makeHMACKey(hmac);
-    this._sha256HMACHasher = Utils.makeHMACHasher(
-      Ci.nsICryptoHMAC.SHA256, this._hmacObj);
-  }
-};
-
-
-function Collection(uri, recordObj) {
   Resource.call(this, uri);
+
+  // This is a bit hacky, but gets the job done.
+  let res = service.resource(uri);
+  this.authenticator = res.authenticator;
+
   this._recordObj = recordObj;
+  this._service = service;
 
   this._full = false;
   this._ids = null;
@@ -731,7 +528,7 @@ function Collection(uri, recordObj) {
 }
 Collection.prototype = {
   __proto__: Resource.prototype,
-  _logName: "Collection",
+  _logName: "Sync.Collection",
 
   _rebuildURL: function Coll__rebuildURL() {
     // XXX should consider what happens if it's not a URL...
@@ -828,5 +625,5 @@ Collection.prototype = {
         onRecord(record);
       }
     };
-  }
+  },
 };

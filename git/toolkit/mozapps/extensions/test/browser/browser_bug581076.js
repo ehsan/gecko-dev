@@ -27,13 +27,10 @@ function test() {
 }
 
 function end_test() {
-  Services.prefs.clearUserPref(PREF_GETADDONS_GETSEARCHRESULTS);
-
   // Test generates a lot of available installs so just cancel them all
   AddonManager.getAllInstalls(function(aInstalls) {
-    aInstalls.forEach(function(aInstall) {
-      aInstall.cancel();
-    });
+    for (let install of aInstalls)
+      install.cancel();
 
     close_manager(gManagerWindow, finish);
   });

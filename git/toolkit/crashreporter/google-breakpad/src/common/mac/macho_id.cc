@@ -37,7 +37,6 @@ extern "C" {  // necessary for Leopard
   #include <fcntl.h>
   #include <mach-o/loader.h>
   #include <mach-o/swap.h>
-  #include <openssl/sha.h>
   #include <stdio.h>
   #include <stdlib.h>
   #include <string.h>
@@ -46,26 +45,35 @@ extern "C" {  // necessary for Leopard
   #include <unistd.h>
 }
 
-#include "common/md5.h"
 #include "common/mac/macho_id.h"
 #include "common/mac/macho_walker.h"
 #include "common/mac/macho_utilities.h"
 
 namespace MacFileUtilities {
 
+using google_breakpad::MD5Init;
+using google_breakpad::MD5Update;
+using google_breakpad::MD5Final;
+
 MachoID::MachoID(const char *path)
-   : file_(0), 
+   : memory_(0),
+     memory_size_(0),
      crc_(0), 
      md5_context_(), 
-     sha1_context_(), 
      update_function_(NULL) {
   strlcpy(path_, path, sizeof(path_));
-  file_ = open(path, O_RDONLY);
+}
+
+MachoID::MachoID(const char *path, void *memory, size_t size)
+   : memory_(memory),
+     memory_size_(size),
+     crc_(0), 
+     md5_context_(), 
+     update_function_(NULL) {
+  strlcpy(path_, path, sizeof(path_));
 }
 
 MachoID::~MachoID() {
-  if (file_ != -1)
-    close(file_);
 }
 
 // The CRC info is from http://en.wikipedia.org/wiki/Adler-32
@@ -120,10 +128,6 @@ void MachoID::UpdateMD5(unsigned char *bytes, size_t size) {
   MD5Update(&md5_context_, bytes, size);
 }
 
-void MachoID::UpdateSHA1(unsigned char *bytes, size_t size) {
-  SHA_Update(&sha1_context_, bytes, size);
-}
-
 void MachoID::Update(MachoWalker *walker, off_t offset, size_t size) {
   if (!update_function_ || !size)
     return;
@@ -149,12 +153,12 @@ void MachoID::Update(MachoWalker *walker, off_t offset, size_t size) {
   }
 }
 
-bool MachoID::UUIDCommand(int cpu_type, unsigned char bytes[16]) {
+bool MachoID::UUIDCommand(cpu_type_t cpu_type,
+                          cpu_subtype_t cpu_subtype,
+                          unsigned char bytes[16]) {
   struct breakpad_uuid_command uuid_cmd;
-  MachoWalker walker(path_, UUIDWalkerCB, &uuid_cmd);
-
   uuid_cmd.cmd = 0;
-  if (!walker.WalkHeader(cpu_type))
+  if (!WalkHeader(cpu_type, cpu_subtype, UUIDWalkerCB, &uuid_cmd))
     return false;
 
   // If we found the command, we'll have initialized the uuid_command
@@ -167,12 +171,12 @@ bool MachoID::UUIDCommand(int cpu_type, unsigned char bytes[16]) {
   return false;
 }
 
-bool MachoID::IDCommand(int cpu_type, unsigned char identifier[16]) {
+bool MachoID::IDCommand(cpu_type_t cpu_type,
+                        cpu_subtype_t cpu_subtype,
+                        unsigned char identifier[16]) {
   struct dylib_command dylib_cmd;
-  MachoWalker walker(path_, IDWalkerCB, &dylib_cmd);
-
   dylib_cmd.cmd = 0;
-  if (!walker.WalkHeader(cpu_type))
+  if (!WalkHeader(cpu_type, cpu_subtype, IDWalkerCB, &dylib_cmd))
     return false;
 
   // If we found the command, we'll have initialized the dylib_command
@@ -210,42 +214,39 @@ bool MachoID::IDCommand(int cpu_type, unsigned char identifier[16]) {
   return false;
 }
 
-uint32_t MachoID::Adler32(int cpu_type) {
-  MachoWalker walker(path_, WalkerCB, this);
+uint32_t MachoID::Adler32(cpu_type_t cpu_type, cpu_subtype_t cpu_subtype) {
   update_function_ = &MachoID::UpdateCRC;
   crc_ = 0;
 
-  if (!walker.WalkHeader(cpu_type))
+  if (!WalkHeader(cpu_type, cpu_subtype, WalkerCB, this))
     return 0;
 
   return crc_;
 }
 
-bool MachoID::MD5(int cpu_type, unsigned char identifier[16]) {
-  MachoWalker walker(path_, WalkerCB, this);
+bool MachoID::MD5(cpu_type_t cpu_type, cpu_subtype_t cpu_subtype, unsigned char identifier[16]) {
   update_function_ = &MachoID::UpdateMD5;
 
   MD5Init(&md5_context_);
-  if (!walker.WalkHeader(cpu_type))
+
+  if (!WalkHeader(cpu_type, cpu_subtype, WalkerCB, this))
     return false;
 
   MD5Final(identifier, &md5_context_);
   return true;
 }
 
-bool MachoID::SHA1(int cpu_type, unsigned char identifier[16]) {
-  MachoWalker walker(path_, WalkerCB, this);
-  update_function_ = &MachoID::UpdateSHA1;
-
-  if (SHA_Init(&sha1_context_)) {
-    if (!walker.WalkHeader(cpu_type))
-      return false;
-
-    SHA_Final(identifier, &sha1_context_);
-    return true;
+bool MachoID::WalkHeader(cpu_type_t cpu_type,
+                         cpu_subtype_t cpu_subtype,
+                         MachoWalker::LoadCommandCallback callback,
+                         void *context) {
+  if (memory_) {
+    MachoWalker walker(memory_, memory_size_, callback, context);
+    return walker.WalkHeader(cpu_type, cpu_subtype);
+  } else {
+    MachoWalker walker(path_, callback, context);
+    return walker.WalkHeader(cpu_type, cpu_subtype);
   }
-
-  return false;
 }
 
 // static

@@ -1,47 +1,40 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications.
- * Portions created by the Initial Developer are Copyright (C) 2001
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Darin Fisher <darin@netscape.com> (original author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim: set sw=4 ts=8 et tw=80 : */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+// HttpLog.h should generally be included first
+#include "HttpLog.h"
 
 #include "nsHttpConnectionInfo.h"
-#include "nsPrintfCString.h"
-#include "nsIProtocolProxyService.h"
+
+nsHttpConnectionInfo::nsHttpConnectionInfo(const nsACString &host, int32_t port,
+                                           nsProxyInfo* proxyInfo,
+                                           bool usingSSL)
+    : mRef(0)
+    , mProxyInfo(proxyInfo)
+    , mUsingSSL(usingSSL)
+    , mUsingConnect(false)
+{
+    LOG(("Creating nsHttpConnectionInfo @%x\n", this));
+
+    mUsingHttpProxy = (proxyInfo && proxyInfo->IsHTTP());
+
+    if (mUsingHttpProxy) {
+        mUsingConnect = mUsingSSL;  // SSL always uses CONNECT
+        uint32_t resolveFlags = 0;
+        if (NS_SUCCEEDED(mProxyInfo->GetResolveFlags(&resolveFlags)) &&
+            resolveFlags & nsIProtocolProxyService::RESOLVE_ALWAYS_TUNNEL) {
+            mUsingConnect = true;
+        }
+    }
+
+    SetOriginServer(host, port);
+}
 
 void
-nsHttpConnectionInfo::SetOriginServer(const nsACString &host, PRInt32 port)
+nsHttpConnectionInfo::SetOriginServer(const nsACString &host, int32_t port)
 {
     mHost = host;
     mPort = port == -1 ? DefaultPort() : port;
@@ -57,9 +50,9 @@ nsHttpConnectionInfo::SetOriginServer(const nsACString &host, PRInt32 port)
     //
 
     const char *keyHost;
-    PRInt32 keyPort;
+    int32_t keyPort;
 
-    if (mUsingHttpProxy && !mUsingSSL) {
+    if (mUsingHttpProxy && !mUsingConnect) {
         keyHost = ProxyHost();
         keyPort = ProxyPort();
     }
@@ -68,7 +61,7 @@ nsHttpConnectionInfo::SetOriginServer(const nsACString &host, PRInt32 port)
         keyPort = Port();
     }
 
-    mHashKey.AssignLiteral("...");
+    mHashKey.AssignLiteral("....");
     mHashKey.Append(keyHost);
     mHashKey.Append(':');
     mHashKey.AppendInt(keyPort);
@@ -79,11 +72,23 @@ nsHttpConnectionInfo::SetOriginServer(const nsACString &host, PRInt32 port)
         mHashKey.SetCharAt('S', 1);
 
     // NOTE: for transparent proxies (e.g., SOCKS) we need to encode the proxy
-    // type in the hash key (this ensures that we will continue to speak the
+    // info in the hash key (this ensures that we will continue to speak the
     // right protocol even if our proxy preferences change).
-    if (!mUsingHttpProxy && ProxyHost()) {
+    //
+    // NOTE: for SSL tunnels add the proxy information to the cache key.
+    // We cannot use the proxy as the host parameter (as we do for non SSL)
+    // because this is a single host tunnel, but we need to include the proxy
+    // information so that a change in proxy config will mean this connection
+    // is not reused
+
+    if ((!mUsingHttpProxy && ProxyHost()) ||
+        (mUsingHttpProxy && mUsingConnect)) {
         mHashKey.AppendLiteral(" (");
         mHashKey.Append(ProxyType());
+        mHashKey.Append(':');
+        mHashKey.Append(ProxyHost());
+        mHashKey.Append(':');
+        mHashKey.AppendInt(ProxyPort());
         mHashKey.Append(')');
     }
 }
@@ -92,27 +97,19 @@ nsHttpConnectionInfo*
 nsHttpConnectionInfo::Clone() const
 {
     nsHttpConnectionInfo* clone = new nsHttpConnectionInfo(mHost, mPort, mProxyInfo, mUsingSSL);
-    if (!clone)
-        return nsnull;
 
-    // Make sure the anonymous flag is transferred!
-    clone->SetAnonymous(mHashKey.CharAt(2) == 'A');
-    
+    // Make sure the anonymous and private flags are transferred!
+    clone->SetAnonymous(GetAnonymous());
+    clone->SetPrivate(GetPrivate());
+
     return clone;
 }
 
-PRBool
-nsHttpConnectionInfo::ShouldForceConnectMethod()
+bool
+nsHttpConnectionInfo::UsingProxy()
 {
     if (!mProxyInfo)
-        return PR_FALSE;
-    
-    PRUint32 resolveFlags;
-    nsresult rv;
-    
-    rv = mProxyInfo->GetResolveFlags(&resolveFlags);
-    if (NS_FAILED(rv))
-        return PR_FALSE;
-
-    return resolveFlags & nsIProtocolProxyService::RESOLVE_ALWAYS_TUNNEL;
+        return false;
+    return !mProxyInfo->IsDirect();
 }
+

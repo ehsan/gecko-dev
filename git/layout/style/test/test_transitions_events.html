@@ -5,7 +5,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=531585
 -->
 <head>
   <title>Test for Bug 531585 (transitionend event)</title>
-  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -13,12 +12,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=531585
 
 .bar { margin: 10px; }
 
-#one { -moz-transition-duration: 500ms; -moz-transition-property: all; }
-#two { -moz-transition: margin-left 1s; }
-#three { -moz-transition: margin 0.5s 0.25s; }
+#one { transition-duration: 500ms; transition-property: all; }
+#two { transition: margin-left 1s; }
+#three { transition: margin 0.5s 0.25s; }
 
 #four, #five, #six, #seven::before, #seven::after {
-  -moz-transition: 500ms color;
+  transition: 500ms color;
   border-color: black; /* don't derive from color */
   -moz-column-rule-color: black; /* don't derive from color */
   -moz-text-decoration-color: black; /* don't derive from color */
@@ -27,14 +26,13 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=531585
 #four {
   /* give the reversing transition a long duration; the reversing will
      still be quick */
-  -moz-transition-duration: 30s;
-  -moz-transition-timing-function: cubic-bezier(0, 1, 1, 0);
+  transition-duration: 30s;
+  transition-timing-function: cubic-bezier(0, 1, 1, 0);
 }
 
-/* make sure we don't get events for the pseudo-elements */
 #seven::before, #seven::after {
   content: "x";
-  -moz-transition-duration: 50ms;
+  transition-duration: 50ms;
 }
 #seven[foo]::before, #seven[foo]::after { color: lime; }
 
@@ -81,6 +79,7 @@ var got_three_left = false;
 var got_four_root = false;
 var got_body = false;
 var did_stops = false;
+var got_before = false;
 
 document.documentElement.addEventListener("transitionend",
   function(event) {
@@ -111,10 +110,19 @@ document.documentElement.addEventListener("transitionend",
       is(event.propertyName, "some-unknown-prop",
          "propertyName for transitionend on body");
       // Reported time should (really?) be shortened by reversing.
-      is(event.elapsedTime, -4.75,
+      is(event.elapsedTime, 0.5,
          "elapsedTime for transitionend on body");
       got_body = true;
       finished_test();
+    } else if (event.target == $("seven")) {
+      if (!got_before) {
+        got_before = true;
+        is(event.pseudoElement, "::before");
+      } else {
+        is(event.pseudoElement, "::after");
+      }
+      is(event.propertyName, "color");
+      is(event.isTrusted, true);
     } else {
       if (!did_stops &&
           (event.target == $("five") || event.target == $("six"))) {
@@ -264,7 +272,8 @@ $("five").style.color = "lime";
 // then changing the value, so we should get no event.
 $("six").style.color = "lime";
 
-// We should get no events from transitions on pseudo-elements.
+started_test();
+started_test();
 $("seven").setAttribute("foo", "bar");
 
 setTimeout(function() {
@@ -273,9 +282,9 @@ setTimeout(function() {
                // The transition hasn't finished already.
                did_stops = true;
              }
-             $("five").style.MozTransitionProperty = "margin-left";
-             $("six").style.MozTransitionDuration = "0s";
-             $("six").style.MozTransitionDelay = "0s";
+             $("five").style.transitionProperty = "margin-left";
+             $("six").style.transitionDuration = "0s";
+             $("six").style.transitionDelay = "0s";
              $("six").style.color = "blue";
            }, 100);
 function poll_start_reversal() {
@@ -291,10 +300,23 @@ setTimeout(poll_start_reversal, 200);
 
 // And make our own event to dispatch to the body.
 started_test();
-var ev = document.createEvent("TransitionEvent"); // FIXME: un-specified
-ev.initTransitionEvent("transitionend", true, true,
-                       "some-unknown-prop", -4.75);
-document.body.dispatchEvent(ev);
+
+var e = new TransitionEvent("transitionend",
+                            {
+                              bubbles: true,
+                              cancelable: true,
+                              propertyName: "some-unknown-prop",
+                              elapsedTime: 0.5,
+                              pseudoElement: "pseudo"
+                            });
+is(e.bubbles, true);
+is(e.cancelable, true);
+is(e.propertyName, "some-unknown-prop");
+is(e.elapsedTime, "0.5");
+is(e.pseudoElement, "pseudo");
+is(e.isTrusted, false)
+
+document.body.dispatchEvent(e);
 
 </script>
 </pre>

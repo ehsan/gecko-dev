@@ -1,62 +1,10 @@
+/* Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/ */
+
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/service.js");
-Cu.import("resource://services-sync/status.js");
 Cu.import("resource://services-sync/util.js");
-
-function test_identities() {
-  _("Account related Service properties correspond to preference settings and update other object properties upon being set.");
-
-  try {
-    _("Verify initial state");
-    do_check_eq(Svc.Prefs.get("account"), undefined);
-    do_check_eq(Svc.Prefs.get("username"), undefined);
-    do_check_eq(ID.get("WeaveID").username, "");
-    do_check_eq(ID.get("WeaveCryptoID").username, "");
-
-    _("The 'username' attribute is normalized to lower case, updates preferences and identities.");
-    Service.username = "TarZan";
-    do_check_eq(Service.username, "tarzan");
-    do_check_eq(Svc.Prefs.get("username"), "tarzan");
-    do_check_eq(ID.get("WeaveID").username, "tarzan");
-    do_check_eq(ID.get("WeaveCryptoID").username, "tarzan");
-
-    _("If not set, the 'account attribute' falls back to the username for backwards compatibility.");
-    do_check_eq(Service.account, "tarzan");
-
-    _("Setting 'username' to a non-truthy value resets the pref.");
-    Service.username = null;
-    do_check_eq(Service.username, "");
-    do_check_eq(Service.account, "");
-    const default_marker = {};
-    do_check_eq(Svc.Prefs.get("username", default_marker), default_marker);
-    do_check_eq(ID.get("WeaveID").username, null);
-    do_check_eq(ID.get("WeaveCryptoID").username, null);
-
-    _("The 'account' attribute will set the 'username' if it doesn't contain characters that aren't allowed in the username.");
-    Service.account = "johndoe";
-    do_check_eq(Service.account, "johndoe");
-    do_check_eq(Service.username, "johndoe");
-    do_check_eq(Svc.Prefs.get("username"), "johndoe");
-    do_check_eq(ID.get("WeaveID").username, "johndoe");
-    do_check_eq(ID.get("WeaveCryptoID").username, "johndoe");
-
-    _("If 'account' contains disallowed characters such as @, 'username' will the base32 encoded SHA1 hash of 'account'");
-    Service.account = "John@Doe.com";
-    do_check_eq(Service.account, "john@doe.com");
-    do_check_eq(Service.username, "7wohs32cngzuqt466q3ge7indszva4of");
-
-    _("Setting 'account' to a non-truthy value resets the pref.");
-    Service.account = null;
-    do_check_eq(Service.account, "");
-    do_check_eq(Svc.Prefs.get("account", default_marker), default_marker);
-    do_check_eq(Service.username, "");
-    do_check_eq(Svc.Prefs.get("username", default_marker), default_marker);
-
-  } finally {
-    Svc.Prefs.resetBranch("");
-  }
-}
+Cu.import("resource://testing-common/services/sync/fakeservices.js");
 
 function test_urls() {
   _("URL related Service properties corresopnd to preference settings.");
@@ -69,7 +17,7 @@ function test_urls() {
     do_check_eq(Service.metaURL, undefined);
 
     _("The 'clusterURL' attribute updates preferences and cached URLs.");
-    Service.username = "johndoe";
+    Service.identity.username = "johndoe";
 
     // Since we don't have a cluster URL yet, these will still not be defined.
     do_check_eq(Service.infoURL, undefined);
@@ -94,22 +42,21 @@ function test_urls() {
     Svc.Prefs.set("userURL", "relative/user/");
     do_check_eq(Service.miscAPI,
                 "http://weave.server/relative/misc/1.0/");
-    do_check_eq(Service.userAPI,
+    do_check_eq(Service.userAPIURI,
                 "http://weave.server/relative/user/1.0/");
 
     Svc.Prefs.set("miscURL", "http://weave.misc.services/");
     Svc.Prefs.set("userURL", "http://weave.user.services/");
     do_check_eq(Service.miscAPI, "http://weave.misc.services/1.0/");
-    do_check_eq(Service.userAPI, "http://weave.user.services/1.0/");
+    do_check_eq(Service.userAPIURI, "http://weave.user.services/1.0/");
 
     do_check_eq(Service.pwResetURL,
                 "http://weave.server/weave-password-reset");
 
     _("Empty/false value for 'username' resets preference.");
-    Service.username = "";
+    Service.identity.username = "";
     do_check_eq(Svc.Prefs.get("username"), undefined);
-    do_check_eq(ID.get("WeaveID").username, "");
-    do_check_eq(ID.get("WeaveCryptoID").username, "");
+    do_check_eq(Service.identity.username, null);
 
     _("The 'serverURL' attributes updates/resets preferences.");
     // Identical value doesn't do anything
@@ -147,66 +94,6 @@ function test_syncID() {
   }
 }
 
-
-function test_prefAttributes() {
-  _("Test various attributes corresponding to preferences.");
-
-  const TIMESTAMP1 = 1275493471649;
-  const TIMESTAMP2 = 1275493741122;
-  const INTERVAL = 42 * 60 * 1000;   // 42 minutes
-  const THRESHOLD = 3142;
-  const SCORE = 2718;
-  const NUMCLIENTS = 42;
-
-  try {
-    _("The 'nextSync' and 'nextHeartbeat' attributes store a millisecond timestamp to the nearest second.");
-    do_check_eq(Service.nextSync, 0);
-    do_check_eq(Service.nextHeartbeat, 0);
-    Service.nextSync = TIMESTAMP1;
-    Service.nextHeartbeat = TIMESTAMP2;
-    do_check_eq(Service.nextSync, Math.floor(TIMESTAMP1/1000)*1000);
-    do_check_eq(Service.nextHeartbeat, Math.floor(TIMESTAMP2/1000)*1000);
-
-    _("'syncInterval' has a non-zero default value.");
-    do_check_eq(Svc.Prefs.get('syncInterval'), undefined);
-    do_check_true(Service.syncInterval > 0);
-
-    _("'syncInterval' corresponds to a preference setting.");
-    Service.syncInterval = INTERVAL;
-    do_check_eq(Service.syncInterval, INTERVAL);
-    do_check_eq(Svc.Prefs.get('syncInterval'), INTERVAL);
-
-    _("'syncInterval' ignored preference setting after partial sync..");
-    Status.partial = true;
-    do_check_eq(Service.syncInterval, PARTIAL_DATA_SYNC);
-
-    _("'syncThreshold' corresponds to preference, has non-zero default.");
-    do_check_eq(Svc.Prefs.get('syncThreshold'), undefined);
-    do_check_true(Service.syncThreshold > 0);
-    Service.syncThreshold = THRESHOLD;
-    do_check_eq(Service.syncThreshold, THRESHOLD);
-    do_check_eq(Svc.Prefs.get('syncThreshold'), THRESHOLD);
-
-    _("'globalScore' corresponds to preference, defaults to zero.");
-    do_check_eq(Svc.Prefs.get('globalScore'), undefined);
-    do_check_eq(Service.globalScore, 0);
-    Service.globalScore = SCORE;
-    do_check_eq(Service.globalScore, SCORE);
-    do_check_eq(Svc.Prefs.get('globalScore'), SCORE);
-
-    _("'numClients' corresponds to preference, defaults to zero.");
-    do_check_eq(Svc.Prefs.get('numClients'), undefined);
-    do_check_eq(Service.numClients, 0);
-    Service.numClients = NUMCLIENTS;
-    do_check_eq(Service.numClients, NUMCLIENTS);
-    do_check_eq(Svc.Prefs.get('numClients'), NUMCLIENTS);
-
-  } finally {
-    Svc.Prefs.resetBranch("");
-  }
-}
-
-
 function test_locked() {
   _("The 'locked' attribute can be toggled with lock() and unlock()");
 
@@ -224,9 +111,7 @@ function test_locked() {
 }
 
 function run_test() {
-  test_identities();
   test_urls();
   test_syncID();
-  test_prefAttributes();
   test_locked();
 }

@@ -23,6 +23,7 @@ function test() {
   requestLongerTimeout(2);
   // Turn on searching for this test
   Services.prefs.setIntPref(PREF_SEARCH_MAXRESULTS, 15);
+  Services.prefs.setBoolPref(PREF_STRICT_COMPAT, true);
 
   waitForExplicitFinish();
 
@@ -60,7 +61,8 @@ function test() {
     sourceURI: "http://example.com/fail-install1.xpi"
   }]);
 
-  installs.forEach(function(aInstall) { aInstall.install(); });
+  for (let install of installs )
+    install.install();
 
   open_manager("addons://list/extension", function(aWindow) {
     gManagerWindow = aWindow;
@@ -75,8 +77,7 @@ function end_test() {
     installedAddon.uninstall();
 
     AddonManager.getAllInstalls(function(aInstallsList) {
-      for (var i = 0; i < aInstallsList.length; i++) {
-        var install = aInstallsList[i];
+      for (var install of aInstallsList) {
         var sourceURI = install.sourceURI.spec;
         if (sourceURI == REMOTE_INSTALL_URL ||
             sourceURI.match(/^http:\/\/example\.com\/(.+)\.xpi$/) != null)
@@ -160,8 +161,7 @@ function get_actual_results() {
   var rows = list.getElementsByTagName("richlistitem");
 
   var results = [];
-  for (var i = 0; i < rows.length; i++) {
-    var item = rows[i];
+  for (var item of rows) {
 
     // Only consider items that are currently showing
     var style = gManagerWindow.document.defaultView.getComputedStyle(item, "");
@@ -264,10 +264,20 @@ function get_expected_results(aSortBy, aLocalExpected) {
  *         Boolean representing if local results are being shown
  */
 function check_results(aQuery, aSortBy, aReverseOrder, aShowLocal) {
-  var localFilterSelected = gManagerWindow.document.getElementById("search-filter-local").selected;
-  var remoteFilterSelected = gManagerWindow.document.getElementById("search-filter-remote").selected;
-  is(localFilterSelected, aShowLocal, "Local filter should be selected if showing local items");
-  is(remoteFilterSelected, !aShowLocal, "Remote filter should be selected if showing remote items");
+
+  var xpinstall_enabled = true;
+  try {
+    xpinstall_enabled = Services.prefs.getBoolPref(PREF_XPI_ENABLED);
+  }
+  catch (e) {};
+
+  // When XPI Instalation is disabled, those buttons are hidden and unused  
+  if (xpinstall_enabled) {
+    var localFilterSelected = gManagerWindow.document.getElementById("search-filter-local").selected;
+    var remoteFilterSelected = gManagerWindow.document.getElementById("search-filter-remote").selected;
+    is(localFilterSelected, aShowLocal, "Local filter should be selected if showing local items");
+    is(remoteFilterSelected, !aShowLocal, "Remote filter should be selected if showing remote items");
+  }
 
   // Get expected order assuming default order
   var expectedOrder = [], unknownOrder = [];
@@ -335,8 +345,10 @@ function check_results(aQuery, aSortBy, aReverseOrder, aShowLocal) {
  *         How the results are sorted (e.g. "name")
  * @param  aReverseOrder
  *         Boolean representing if the results are in reverse default order
+ * @param  aLocalOnly
+ *         Boolean representing if the results are local only, can be undefined
  */
-function check_filtered_results(aQuery, aSortBy, aReverseOrder) {
+function check_filtered_results(aQuery, aSortBy, aReverseOrder, aLocalOnly) {
   var localFilter = gManagerWindow.document.getElementById("search-filter-local");
   var remoteFilter = gManagerWindow.document.getElementById("search-filter-remote");
 
@@ -348,8 +360,9 @@ function check_filtered_results(aQuery, aSortBy, aReverseOrder) {
   check_results(aQuery, aSortBy, aReverseOrder, true);
 
   // Check with showing remote add-ons
+  aLocalOnly = aLocalOnly || false;
   EventUtils.synthesizeMouseAtCenter(remoteFilter, { }, gManagerWindow);
-  check_results(aQuery, aSortBy, aReverseOrder, false);
+  check_results(aQuery, aSortBy, aReverseOrder, aLocalOnly);
 }
 
 /*
@@ -363,8 +376,7 @@ function get_addon_item(aName) {
   var id = aName + "@tests.mozilla.org";
   var list = gManagerWindow.document.getElementById("search-list");
   var rows = list.getElementsByTagName("richlistitem");
-  for (var i = 0; i < rows.length; i++) {
-    var row = rows[i];
+  for (var row of rows) {
     if (row.mAddon && row.mAddon.id == id)
       return row;
   }
@@ -383,8 +395,7 @@ function get_install_item(aName) {
   var sourceURI = "http://example.com/" + aName + ".xpi";
   var list = gManagerWindow.document.getElementById("search-list");
   var rows = list.getElementsByTagName("richlistitem");
-  for (var i = 0; i < rows.length; i++) {
-    var row = rows[i];
+  for (var row of rows) {
     if (row.mInstall && row.mInstall.sourceURI.spec == sourceURI)
       return row;
   }
@@ -424,8 +435,7 @@ add_test(function() {
 
     var list = gManagerWindow.document.getElementById("search-list");
     var results = get_actual_results();
-    for (var i = 0; i < results.length; i++) {
-      var result = results[i];
+    for (var result of results) {
       var installBtn = get_install_button(result.item);
       is(installBtn.hidden, result.name.indexOf("remote") != 0,
          "Install button should only be showing for remote items");
@@ -589,6 +599,44 @@ add_test(function() {
   });
 });
 
+// Tests that incompatible add-ons are shown with a warning if compatibility checking is disabled
+add_test(function() {
+  AddonManager.checkCompatibility = false;
+  search("incompatible", false, function() {
+    var item = get_addon_item("remote5");
+    is_element_visible(item, "Incompatible addon should be visible");
+    is(item.getAttribute("notification"), "warning", "Compatibility warning should be shown");
+
+    item = get_addon_item("remote6");
+    is(item, null, "Addon incompatible with the product should not be visible");
+
+    AddonManager.checkCompatibility = true;
+    run_next_test();
+  });
+});
+
+// Tests that compatible-by-default addons are shown if strict compatibility checking is disabled
+add_test(function() {
+  restart_manager(gManagerWindow, null, function(aWindow) {
+    gManagerWindow = aWindow;
+    gCategoryUtilities = new CategoryUtilities(gManagerWindow);
+
+    Services.prefs.setBoolPref(PREF_STRICT_COMPAT, false);
+    search("incompatible", false, function() {
+      var item = get_addon_item("remote5");
+      is_element_visible(item, "Incompatible addon should be visible");
+      isnot(item.getAttribute("notification"), "warning", "Compatibility warning should not be shown");
+  
+      var item = get_addon_item("remote6");
+      is(item, null, "Addon incompatible with the product should not be visible");
+  
+      Services.prefs.setBoolPref(PREF_STRICT_COMPAT, true);
+      run_next_test();
+    });
+  });
+});
+
+
 // Tests that restarting the manager doesn't change search results
 add_test(function() {
   restart_manager(gManagerWindow, null, function(aWindow) {
@@ -610,5 +658,38 @@ add_test(function() {
       run_next_test();
     });
   });
+});
+
+function bug_815120_test_search(aLocalOnly) {
+  restart_manager(gManagerWindow, "addons://list/extension", function(aWindow) {
+    gManagerWindow = aWindow;
+    gCategoryUtilities = new CategoryUtilities(gManagerWindow);
+
+    // Installed add-on is considered local on new search
+    gAddonInstalled = true;
+
+    // The search buttons should be hidden in the LocalOnly setup
+    var localFilterButton = aWindow.document.getElementById("search-filter-local");
+    is(aLocalOnly, is_hidden(localFilterButton), "Local filter button visibility does not match, aLocalOnly = " + aLocalOnly);
+
+    var remoteFilterButton = aWindow.document.getElementById("search-filter-remote");
+    is(aLocalOnly, is_hidden(remoteFilterButton), "Remote filter button visibility does not match, aLocalOnly = " + aLocalOnly);
+
+    search(QUERY, false, function() {
+      check_filtered_results(QUERY, "relevancescore", false, aLocalOnly);
+      run_next_test();
+    });
+  });
+}
+
+// Tests for Bug 815120
+add_test(function() {
+  Services.prefs.setBoolPref(PREF_XPI_ENABLED, false);
+  bug_815120_test_search(true);
+});
+
+add_test(function() {
+  Services.prefs.setBoolPref(PREF_XPI_ENABLED, true);
+  bug_815120_test_search(false);
 });
 

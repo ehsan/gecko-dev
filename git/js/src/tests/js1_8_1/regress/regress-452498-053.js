@@ -24,7 +24,7 @@ function test()
 
 // ------- Comment #53 From Jason Orendorff
 
-// Assertion failure: (slot) < (uint32)(obj)->dslots[-1]
+// Assertion failure: (slot) < (uint32_t)(obj)->dslots[-1]
 // at ../jsobj.cpp:5559
 // On the last line of BindLet, we have
 //    JS_SetReservedSlot(cx, blockObj, index, PRIVATE_TO_JSVAL(pn));
@@ -33,14 +33,14 @@ function test()
   let (a=0, b=1, c=2) {}
 
 // In RecycleTree at ../jsparse.cpp:315, we hit
-//     JS_NOT_REACHED("RecycleUseDefKids");
+//     MOZ_ASSUME_UNREACHABLE("RecycleUseDefKids");
 // pn->pn_type is TOK_UNARYOP
 // pn->pn_op   is JSOP_XMLNAME
 // pn->pn_defn is 1
 // pn->pn_used is 1
   try
   {
-    @foo; 0;
+    true; 0;
   }
   catch(ex)
   {
@@ -61,7 +61,7 @@ function test()
 // Another case where some optimization is going on.
   try
   {
-    if (true && @foo) ;
+    if (true && foo) ;
   }
   catch(ex)
   {

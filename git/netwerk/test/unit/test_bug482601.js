@@ -1,4 +1,9 @@
-do_load_httpd_js();
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
+Cu.import("resource://testing-common/httpd.js");
 
 var httpserv = null;
 var test_nr = 0;
@@ -40,12 +45,12 @@ var listener = {
 };
 
 function run_test() {
-  httpserv = new nsHttpServer();
+  httpserv = new HttpServer();
   httpserv.registerPathHandler("/bug482601/nocache", bug482601_nocache);
   httpserv.registerPathHandler("/bug482601/partial", bug482601_partial);
   httpserv.registerPathHandler("/bug482601/cached", bug482601_cached);
   httpserv.registerPathHandler("/bug482601/only_from_cache", bug482601_only_from_cache);
-  httpserv.start(4444);
+  httpserv.start(-1);
 
   var obs = Cc["@mozilla.org/observer-service;1"].getService();
   obs = obs.QueryInterface(Ci.nsIObserverService);
@@ -83,17 +88,12 @@ function makeChan(url) {
   return chan;
 }
 
-function storeCache(aURL, aResponseHeads, aContent) {
-  var cache = Cc["@mozilla.org/network/cache-service;1"].
-              getService(Ci.nsICacheService);
+function storeCache(aCacheEntry, aResponseHeads, aContent) {
+  aCacheEntry.setMetaDataElement("request-method", "GET");
+  aCacheEntry.setMetaDataElement("response-head", aResponseHeads);
+  aCacheEntry.setMetaDataElement("charset", "ISO-8859-1");
 
-  var session = cache.createSession("HTTP", Ci.nsICache.STORE_ANYWHERE, Ci.nsICache.STREAM_BASED);
-  var cacheEntry = session.openCacheEntry(aURL, Ci.nsICache.ACCESS_READ_WRITE, false);
-  cacheEntry.setMetaDataElement("request-method", "GET");
-  cacheEntry.setMetaDataElement("response-head", aResponseHeads);
-  cacheEntry.setMetaDataElement("charset", "ISO-8859-1");
-
-  var oStream = cacheEntry.openOutputStream(0);
+  var oStream = aCacheEntry.openOutputStream(0);
   var written = oStream.write(aContent, aContent.length);
   if (written != aContent.length) {
     do_throw("oStream.write has not written all data!\n" +
@@ -101,18 +101,29 @@ function storeCache(aURL, aResponseHeads, aContent) {
              "  Actual: " + aContent.length + "\n");
   }
   oStream.close();
-  cacheEntry.close();
+  aCacheEntry.close();
 }
 
 function test_nocache() {
   observers_called = "";
 
-  var chan = makeChan("http://localhost:4444/bug482601/nocache");
+  var chan = makeChan("http://localhost:" + httpserv.identity.primaryPort +
+                      "/bug482601/nocache");
   chan.asyncOpen(listener, null);
 }
 
 function test_partial() {
-  storeCache("http://localhost:4444/bug482601/partial",
+   asyncOpenCacheEntry("http://localhost:" + httpserv.identity.primaryPort +
+                       "/bug482601/partial",
+                       "HTTP",
+                       Ci.nsICache.STORE_ANYWHERE,
+                       Ci.nsICache.ACCESS_READ_WRITE,
+                       test_partial2);
+}
+
+function test_partial2(status, entry) {
+  do_check_eq(status, Cr.NS_OK);
+  storeCache(entry,
              "HTTP/1.1 200 OK\r\n" +
              "Date: Thu, 1 Jan 2009 00:00:00 GMT\r\n" +
              "Server: httpd.js\r\n" +
@@ -124,12 +135,23 @@ function test_partial() {
 
   observers_called = "";
 
-  var chan = makeChan("http://localhost:4444/bug482601/partial");
+  var chan = makeChan("http://localhost:" + httpserv.identity.primaryPort +
+                      "/bug482601/partial");
   chan.asyncOpen(listener, null);
 }
 
 function test_cached() {
-  storeCache("http://localhost:4444/bug482601/cached",
+   asyncOpenCacheEntry("http://localhost:" + httpserv.identity.primaryPort +
+                       "/bug482601/cached",
+                       "HTTP",
+                       Ci.nsICache.STORE_ANYWHERE,
+                       Ci.nsICache.ACCESS_READ_WRITE,
+                       test_cached2);
+}
+
+function test_cached2(status, entry) {
+  do_check_eq(status, Cr.NS_OK);
+  storeCache(entry,
              "HTTP/1.1 200 OK\r\n" +
              "Date: Thu, 1 Jan 2009 00:00:00 GMT\r\n" +
              "Server: httpd.js\r\n" +
@@ -141,13 +163,24 @@ function test_cached() {
 
   observers_called = "";
 
-  var chan = makeChan("http://localhost:4444/bug482601/cached");
+  var chan = makeChan("http://localhost:" + httpserv.identity.primaryPort +
+                      "/bug482601/cached");
   chan.loadFlags = Ci.nsIRequest.VALIDATE_ALWAYS;
   chan.asyncOpen(listener, null);
 }
 
 function test_only_from_cache() {
-  storeCache("http://localhost:4444/bug482601/only_from_cache",
+   asyncOpenCacheEntry("http://localhost:" + httpserv.identity.primaryPort +
+                       "/bug482601/only_from_cache",
+                       "HTTP",
+                       Ci.nsICache.STORE_ANYWHERE,
+                       Ci.nsICache.ACCESS_READ_WRITE,
+                       test_only_from_cache2);
+}
+
+function test_only_from_cache2(status, entry) {
+  do_check_eq(status, Cr.NS_OK);
+  storeCache(entry,
              "HTTP/1.1 200 OK\r\n" +
              "Date: Thu, 1 Jan 2009 00:00:00 GMT\r\n" +
              "Server: httpd.js\r\n" +
@@ -159,7 +192,8 @@ function test_only_from_cache() {
 
   observers_called = "";
 
-  var chan = makeChan("http://localhost:4444/bug482601/only_from_cache");
+  var chan = makeChan("http://localhost:" + httpserv.identity.primaryPort +
+                      "/bug482601/only_from_cache");
   chan.loadFlags = Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE;
   chan.asyncOpen(listener, null);
 }

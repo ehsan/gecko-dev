@@ -1,53 +1,15 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim: set sw=4 ts=4 et lcs=trail\:.,tab\:>~ : */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2007
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *  Paul O'Shannessy <poshannessy@mozilla.com> (primary author)
- *  Mrinal Kant <mrinal.kant@gmail.com> (original sqlite related changes)
- *  Justin Dolske <dolske@mozilla.com> (encryption/decryption functions are
- *                                     a lift from Justin's storage-Legacy.js)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-const DB_VERSION = 4; // The database schema version
-
-const ENCTYPE_BASE64 = 0;
-const ENCTYPE_SDR = 1;
+const DB_VERSION = 5; // The database schema version
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
@@ -152,6 +114,10 @@ LoginManagerStorage_mozStorage.prototype = {
 
             moz_disabledHosts:  "id                 INTEGER PRIMARY KEY," +
                                 "hostname           TEXT UNIQUE ON CONFLICT REPLACE",
+
+            moz_deleted_logins: "id                  INTEGER PRIMARY KEY," +
+                                "guid                TEXT,"                +
+                                "timeDeleted         INTEGER",
         },
         indices: {
           moz_logins_hostname_index: {
@@ -223,7 +189,7 @@ LoginManagerStorage_mozStorage.prototype = {
      * necessary. Most of the work is done in _deferredInit.
      */
     init : function () {
-        this._dbStmts = [];
+        this._dbStmts = {};
 
         // Connect to the correct preferences branch.
         this._prefBranch = Services.prefs.getBranch("signon.");
@@ -280,10 +246,13 @@ LoginManagerStorage_mozStorage.prototype = {
         // Throws if there are bogus values.
         this._checkLoginValues(login);
 
+        // isEncrypted only set when importing from an legacy (signons3.txt)
+        // format, which only would have used SDR or BASE64 encoding. The
+        // latter of which is handled a little further down.
         if (isEncrypted)
-            [encUsername, encPassword] = [login.username, login.password];
+            [encUsername, encPassword, encType] = [login.username, login.password, Ci.nsILoginManagerCrypto.ENCTYPE_SDR];
         else
-            [encUsername, encPassword] = this._encryptLogin(login);
+            [encUsername, encPassword, encType] = this._encryptLogin(login);
 
         // Clone the login, so we don't modify the caller's object.
         let loginClone = login.clone();
@@ -297,11 +266,10 @@ LoginManagerStorage_mozStorage.prototype = {
             loginClone.guid = this._uuidService.generateUUID().toString();
         }
 
-        // Determine encryption type
-        let encType = ENCTYPE_SDR;
+        // If we're migrating legacy storage, check for base64 logins.
         if (isEncrypted &&
             (encUsername.charAt(0) == '~' || encPassword.charAt(0) == '~'))
-            encType = ENCTYPE_BASE64;
+            encType = this._crypto.ENCTYPE_BASE64;
 
         // Set timestamps
         let currentTime = Date.now();
@@ -349,7 +317,9 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("_addLogin failed: " + e.name + " : " + e.message);
             throw "Couldn't write to database, login not added.";
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
 
         // Send a notification that a login was added.
@@ -371,16 +341,21 @@ LoginManagerStorage_mozStorage.prototype = {
         let query  = "DELETE FROM moz_logins WHERE id = :id";
         let params = { id: idToDelete };
         let stmt;
+        let transaction = new Transaction(this._dbConnection);
         try {
             stmt = this._dbCreateStatement(query, params);
             stmt.execute();
+            this.storeDeletedLogin(storedLogin);
+            transaction.commit();
         } catch (e) {
             this.log("_removeLogin failed: " + e.name + " : " + e.message);
             throw "Couldn't write to database, login not removed.";
+            transaction.rollback();
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
-
         this._sendNotification("removeLogin", storedLogin);
     },
 
@@ -473,7 +448,7 @@ LoginManagerStorage_mozStorage.prototype = {
         this._checkLoginValues(newLogin);
 
         // Get the encrypted value of the username and password.
-        let [encUsername, encPassword] = this._encryptLogin(newLogin);
+        let [encUsername, encPassword, encType] = this._encryptLogin(newLogin);
 
         let query =
             "UPDATE moz_logins " +
@@ -502,7 +477,7 @@ LoginManagerStorage_mozStorage.prototype = {
             encryptedUsername:   encUsername,
             encryptedPassword:   encPassword,
             guid:                newLogin.guid,
-            encType:             ENCTYPE_SDR,
+            encType:             encType,
             timeCreated:         newLogin.timeCreated,
             timeLastUsed:        newLogin.timeLastUsed,
             timePasswordChanged: newLogin.timePasswordChanged,
@@ -517,7 +492,9 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("modifyLogin failed: " + e.name + " : " + e.message);
             throw "Couldn't write to database, login not modified.";
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
 
         this._sendNotification("modifyLogin", [oldStoredLogin, newLogin]);
@@ -595,7 +572,7 @@ LoginManagerStorage_mozStorage.prototype = {
     _searchLogins : function (matchData) {
         let conditions = [], params = {};
 
-        for (field in matchData) {
+        for (let field in matchData) {
             let value = matchData[field];
             switch (field) {
                 // Historical compatibility requires this special case
@@ -665,12 +642,38 @@ LoginManagerStorage_mozStorage.prototype = {
         } catch (e) {
             this.log("_searchLogins failed: " + e.name + " : " + e.message);
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
 
         this.log("_searchLogins: returning " + logins.length + " logins");
         return [logins, ids];
     },
+
+    /* storeDeletedLogin
+     *
+     * Moves a login to the deleted logins table
+     *
+     */
+     storeDeletedLogin : function(aLogin) {
+#ifdef ANDROID
+          let stmt = null; 
+          try {
+              this.log("Storing " + aLogin.guid + " in deleted passwords\n");
+              let query = "INSERT INTO moz_deleted_logins (guid, timeDeleted) VALUES (:guid, :timeDeleted)";
+              let params = { guid: aLogin.guid,
+                             timeDeleted: Date.now() };
+              let stmt = this._dbCreateStatement(query, params);
+              stmt.execute();
+          } catch(ex) {
+              throw ex;
+          } finally {
+              if (stmt)
+                  stmt.reset();
+          }		
+#endif
+     },
 
 
     /*
@@ -680,24 +683,33 @@ LoginManagerStorage_mozStorage.prototype = {
      */
     removeAllLogins : function () {
         this.log("Removing all logins");
+        let query;
+        let stmt;
+        let transaction = new Transaction(this._dbConnection);
+ 
         // Delete any old, unused files.
         this._removeOldSignonsFiles();
 
         // Disabled hosts kept, as one presumably doesn't want to erase those.
-        let query = "DELETE FROM moz_logins";
-        let stmt;
+        // TODO: Add these items to the deleted items table once we've sorted
+        //       out the issues from bug 756701
+        query = "DELETE FROM moz_logins";
         try {
             stmt = this._dbCreateStatement(query);
             stmt.execute();
+            transaction.commit();
         } catch (e) {
             this.log("_removeAllLogins failed: " + e.name + " : " + e.message);
+            transaction.rollback();
             throw "Couldn't write to database";
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
 
         this._sendNotification("removeAllLogins", null);
-    },
+   },
 
 
     /*
@@ -750,7 +762,9 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("setLoginSavingEnabled failed: " + e.name + " : " + e.message);
             throw "Couldn't write to database"
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
 
         this._sendNotification(enabled ? "hostSavingEnabled" : "hostSavingDisabled", hostname);
@@ -768,7 +782,7 @@ LoginManagerStorage_mozStorage.prototype = {
             httpRealm: httpRealm
         };
         let matchData = { };
-        for each (field in ["hostname", "formSubmitURL", "httpRealm"])
+        for each (let field in ["hostname", "formSubmitURL", "httpRealm"])
           if (loginData[field] != '')
               matchData[field] = loginData[field];
         let [logins, ids] = this._searchLogins(matchData);
@@ -805,7 +819,9 @@ LoginManagerStorage_mozStorage.prototype = {
         } catch (e) {
             this.log("_countLogins failed: " + e.name + " : " + e.message);
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
 
         this.log("_countLogins: counted logins: " + numLogins);
@@ -818,6 +834,14 @@ LoginManagerStorage_mozStorage.prototype = {
      */
     get uiBusy() {
         return this._crypto.uiBusy;
+    },
+
+
+    /*
+     * isLoggedIn
+     */
+    get isLoggedIn() {
+        return this._crypto.isLoggedIn;
     },
 
 
@@ -852,7 +876,7 @@ LoginManagerStorage_mozStorage.prototype = {
      */
     _getIdForLogin : function (login) {
         let matchData = { };
-        for each (field in ["hostname", "formSubmitURL", "httpRealm"])
+        for each (let field in ["hostname", "formSubmitURL", "httpRealm"])
             if (login[field] != '')
                 matchData[field] = login[field];
         let [logins, ids] = this._searchLogins(matchData);
@@ -905,7 +929,9 @@ LoginManagerStorage_mozStorage.prototype = {
         } catch (e) {
             this.log("_queryDisabledHosts failed: " + e.name + " : " + e.message);
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
 
         return disabledHosts;
@@ -1028,7 +1054,9 @@ LoginManagerStorage_mozStorage.prototype = {
         } catch (e) {
             this.log("_isGuidUnique failed: " + e.name + " : " + e.message);
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
 
         return (numLogins == 0);
@@ -1108,18 +1136,18 @@ LoginManagerStorage_mozStorage.prototype = {
     /*
      * _encryptLogin
      *
-     * Returns the encrypted username and password for the specified login,
-     * and a boolean indicating if the user canceled the master password entry
-     * (in which case no encrypted values are returned).
+     * Returns the encrypted username, password, and encrypton type for the specified
+     * login. Can throw if the user cancels a master password entry.
      */
     _encryptLogin : function (login) {
         let encUsername = this._crypto.encrypt(login.username);
         let encPassword = this._crypto.encrypt(login.password);
+        let encType     = this._crypto.defaultEncType;
 
         if (!this._base64checked)
             this._reencryptBase64Logins();
 
-        return [encUsername, encPassword];
+        return [encUsername, encPassword, encType];
     },
 
 
@@ -1170,13 +1198,14 @@ LoginManagerStorage_mozStorage.prototype = {
      * prompts for a master password, when set).
      */
     _reencryptBase64Logins : function () {
+        let base64Type = Ci.nsILoginManagerCrypto.ENCTYPE_BASE64;
         this._base64checked = true;
         // Ignore failures, will try again next session...
 
         this.log("Reencrypting Base64 logins");
         let transaction;
         try {
-            let [logins, ids] = this._searchLogins({ encType: ENCTYPE_BASE64 });
+            let [logins, ids] = this._searchLogins({ encType: base64Type });
 
             if (!logins.length)
                 return;
@@ -1192,7 +1221,7 @@ LoginManagerStorage_mozStorage.prototype = {
 
             let encUsername, encPassword, stmt;
             for each (let login in logins) {
-                [encUsername, encPassword] = this._encryptLogin(login);
+                [encUsername, encPassword, encType] = this._encryptLogin(login);
 
                 let query =
                     "UPDATE moz_logins " +
@@ -1203,7 +1232,7 @@ LoginManagerStorage_mozStorage.prototype = {
                 let params = {
                     encryptedUsername: encUsername,
                     encryptedPassword: encPassword,
-                    encType:           ENCTYPE_SDR,
+                    encType:           encType,
                     guid:              login.guid
                 };
                 try {
@@ -1213,7 +1242,9 @@ LoginManagerStorage_mozStorage.prototype = {
                     // Ignore singular errors, continue trying to update others.
                     this.log("_reencryptBase64Logins caught error: " + e);
                 } finally {
-                    stmt.reset();
+                    if (stmt) {
+                        stmt.reset();
+                    }
                 }
             }
         } catch (e) {
@@ -1279,9 +1310,19 @@ LoginManagerStorage_mozStorage.prototype = {
             this._dbCleanup(true);
             throw e;
         }
+
+        Services.obs.addObserver(this, "profile-before-change", false);
         return isFirstRun;
     },
 
+    observe: function (subject, topic, data) {
+        switch (topic) {
+            case "profile-before-change":
+                Services.obs.removeObserver(this, "profile-before-change");
+                this._dbClose();
+            break;
+        }
+    },
 
     _dbCreate: function () {
         this.log("Creating Database");
@@ -1386,7 +1427,9 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("Failed getting IDs: " + e);
             throw e;
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
 
         // Generate a GUID for each login and update the DB.
@@ -1404,7 +1447,9 @@ LoginManagerStorage_mozStorage.prototype = {
                 this.log("Failed setting GUID: " + e);
                 throw e;
             } finally {
-                stmt.reset();
+                if (stmt) {
+                    stmt.reset();
+                }
             }
         }
     },
@@ -1438,21 +1483,23 @@ LoginManagerStorage_mozStorage.prototype = {
                 let params = { id: stmt.row.id };
                 if (stmt.row.encryptedUsername.charAt(0) == '~' ||
                     stmt.row.encryptedPassword.charAt(0) == '~')
-                    params.encType = ENCTYPE_BASE64;
+                    params.encType = Ci.nsILoginManagerCrypto.ENCTYPE_BASE64;
                 else
-                    params.encType = ENCTYPE_SDR;
+                    params.encType = Ci.nsILoginManagerCrypto.ENCTYPE_SDR;
                 logins.push(params);
             }
         } catch (e) {
             this.log("Failed getting logins: " + e);
             throw e;
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
 
         // Determine encryption type for each login and update the DB.
         query = "UPDATE moz_logins SET encType = :encType WHERE id = :id";
-        for each (params in logins) {
+        for each (let params in logins) {
             try {
                 stmt = this._dbCreateStatement(query, params);
                 stmt.execute();
@@ -1460,7 +1507,9 @@ LoginManagerStorage_mozStorage.prototype = {
                 this.log("Failed setting encType: " + e);
                 throw e;
             } finally {
-                stmt.reset();
+                if (stmt) {
+                    stmt.reset();
+                }
             }
         }
     },
@@ -1495,7 +1544,9 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("Failed getting IDs: " + e);
             throw e;
         } finally {
-            stmt.reset();
+            if (stmt) {
+                stmt.reset();
+            }
         }
 
         // Initialize logins with current time.
@@ -1514,11 +1565,24 @@ LoginManagerStorage_mozStorage.prototype = {
                 this.log("Failed setting timestamps: " + e);
                 throw e;
             } finally {
-                stmt.reset();
+                if (stmt) {
+                    stmt.reset();
+                }
             }
         }
     },
 
+
+    /*
+     * _dbMigrateToVersion5
+     *
+     * Version 5 adds the moz_deleted_logins table
+     */
+    _dbMigrateToVersion5 : function () {
+        if (!this._dbConnection.tableExists("moz_deleted_logins")) {
+          this._dbConnection.createTable("moz_deleted_logins", this._dbSchema.tables.moz_deleted_logins);
+        }
+    },
 
     /*
      * _dbAreExpectedColumnsPresent
@@ -1585,6 +1649,23 @@ LoginManagerStorage_mozStorage.prototype = {
         }
     },
 
+    _dbClose : function () {
+        this.log("Closing the DB connection.");
+        // Finalize all statements to free memory, avoid errors later
+        for each (let stmt in this._dbStmts) {
+            stmt.finalize();
+        }
+        this._dbStmts = {};
+
+        if (this._dbConnection !== null) {
+            try {
+                this._dbConnection.close();
+            } catch (e) {
+                Components.utils.reportError(e);
+            }
+        }
+        this._dbConnection = null;
+    },
 
     /*
      * _dbCleanup
@@ -1601,18 +1682,11 @@ LoginManagerStorage_mozStorage.prototype = {
             this._storageService.backupDatabaseFile(this._signonsFile, backupFile);
         }
 
-        // Finalize all statements to free memory, avoid errors later
-        for each (let stmt in this._dbStmts)
-            stmt.finalize();
-        this._dbStmts = [];
-
-        // Close the connection, ignore 'already closed' error
-        try { this._dbConnection.close() } catch(e) {}
-        this._dbConnection = null;
+        this._dbClose();
         this._signonsFile.remove(false);
     }
 
 }; // end of nsLoginManagerStorage_mozStorage implementation
 
 let component = [LoginManagerStorage_mozStorage];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);

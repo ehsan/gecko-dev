@@ -41,11 +41,13 @@
 #include <map>
 #include <memory>
 #include <stack>
+#include <string>
 #include <utility>
 
 #include "common/dwarf/bytereader-inl.h"
 #include "common/dwarf/bytereader.h"
 #include "common/dwarf/line_state_machine.h"
+#include "common/using_std_string.h"
 
 namespace dwarf2reader {
 
@@ -75,7 +77,7 @@ void CompilationUnit::ReadAbbrevs() {
     iter = sections_.find("__debug_abbrev");
   assert(iter != sections_.end());
 
-  abbrevs_ = new vector<Abbrev>;
+  abbrevs_ = new std::vector<Abbrev>;
   abbrevs_->resize(1);
 
   // The only way to check whether we are reading over the end of the
@@ -122,7 +124,7 @@ void CompilationUnit::ReadAbbrevs() {
       const enum DwarfAttribute name =
         static_cast<enum DwarfAttribute>(nametemp);
       const enum DwarfForm form = static_cast<enum DwarfForm>(formtemp);
-      abbrev.attributes.push_back(make_pair(name, form));
+      abbrev.attributes.push_back(std::make_pair(name, form));
     }
     assert(abbrev.number == abbrevs_->size());
     abbrevs_->push_back(abbrev);
@@ -151,41 +153,35 @@ const char* CompilationUnit::SkipAttribute(const char* start,
                                                                      &len));
       start += len;
       return SkipAttribute(start, form);
-      break;
 
+    case DW_FORM_flag_present:
+      return start;
     case DW_FORM_data1:
     case DW_FORM_flag:
     case DW_FORM_ref1:
       return start + 1;
-      break;
     case DW_FORM_ref2:
     case DW_FORM_data2:
       return start + 2;
-      break;
     case DW_FORM_ref4:
     case DW_FORM_data4:
       return start + 4;
-      break;
     case DW_FORM_ref8:
     case DW_FORM_data8:
+    case DW_FORM_ref_sig8:
       return start + 8;
-      break;
     case DW_FORM_string:
       return start + strlen(start) + 1;
-      break;
     case DW_FORM_udata:
     case DW_FORM_ref_udata:
       reader_->ReadUnsignedLEB128(start, &len);
       return start + len;
-      break;
 
     case DW_FORM_sdata:
       reader_->ReadSignedLEB128(start, &len);
       return start + len;
-      break;
     case DW_FORM_addr:
       return start + reader_->AddressSize();
-      break;
     case DW_FORM_ref_addr:
       // DWARF2 and 3 differ on whether ref_addr is address size or
       // offset size.
@@ -195,27 +191,21 @@ const char* CompilationUnit::SkipAttribute(const char* start,
       } else if (header_.version == 3) {
         return start + reader_->OffsetSize();
       }
-      break;
 
     case DW_FORM_block1:
       return start + 1 + reader_->ReadOneByte(start);
-      break;
     case DW_FORM_block2:
       return start + 2 + reader_->ReadTwoBytes(start);
-      break;
     case DW_FORM_block4:
       return start + 4 + reader_->ReadFourBytes(start);
-      break;
-    case DW_FORM_block: {
+    case DW_FORM_block:
+    case DW_FORM_exprloc: {
       uint64 size = reader_->ReadUnsignedLEB128(start, &len);
       return start + size + len;
     }
-      break;
     case DW_FORM_strp:
-        return start + reader_->OffsetSize();
-      break;
-    default:
-      fprintf(stderr,"Unhandled form type");
+    case DW_FORM_sec_offset:
+      return start + reader_->OffsetSize();
   }
   fprintf(stderr,"Unhandled form type");
   return NULL;
@@ -327,85 +317,78 @@ const char* CompilationUnit::ProcessAttribute(
                                                                      &len));
       start += len;
       return ProcessAttribute(dieoffset, start, attr, form);
-      break;
 
+    case DW_FORM_flag_present:
+      handler_->ProcessAttributeUnsigned(dieoffset, attr, form, 1);
+      return start;
     case DW_FORM_data1:
     case DW_FORM_flag:
       handler_->ProcessAttributeUnsigned(dieoffset, attr, form,
                                          reader_->ReadOneByte(start));
       return start + 1;
-      break;
     case DW_FORM_data2:
       handler_->ProcessAttributeUnsigned(dieoffset, attr, form,
                                          reader_->ReadTwoBytes(start));
       return start + 2;
-      break;
     case DW_FORM_data4:
       handler_->ProcessAttributeUnsigned(dieoffset, attr, form,
                                          reader_->ReadFourBytes(start));
       return start + 4;
-      break;
     case DW_FORM_data8:
       handler_->ProcessAttributeUnsigned(dieoffset, attr, form,
                                          reader_->ReadEightBytes(start));
       return start + 8;
-      break;
     case DW_FORM_string: {
       const char* str = start;
       handler_->ProcessAttributeString(dieoffset, attr, form,
                                        str);
       return start + strlen(str) + 1;
     }
-      break;
     case DW_FORM_udata:
       handler_->ProcessAttributeUnsigned(dieoffset, attr, form,
                                          reader_->ReadUnsignedLEB128(start,
                                                                      &len));
       return start + len;
-      break;
 
     case DW_FORM_sdata:
       handler_->ProcessAttributeSigned(dieoffset, attr, form,
                                       reader_->ReadSignedLEB128(start, &len));
       return start + len;
-      break;
     case DW_FORM_addr:
       handler_->ProcessAttributeUnsigned(dieoffset, attr, form,
                                          reader_->ReadAddress(start));
       return start + reader_->AddressSize();
-      break;
+    case DW_FORM_sec_offset:
+      handler_->ProcessAttributeUnsigned(dieoffset, attr, form,
+                                         reader_->ReadOffset(start));
+      return start + reader_->OffsetSize();
 
     case DW_FORM_ref1:
       handler_->ProcessAttributeReference(dieoffset, attr, form,
                                           reader_->ReadOneByte(start)
                                           + offset_from_section_start_);
       return start + 1;
-      break;
     case DW_FORM_ref2:
       handler_->ProcessAttributeReference(dieoffset, attr, form,
                                           reader_->ReadTwoBytes(start)
                                           + offset_from_section_start_);
       return start + 2;
-      break;
     case DW_FORM_ref4:
       handler_->ProcessAttributeReference(dieoffset, attr, form,
                                           reader_->ReadFourBytes(start)
                                           + offset_from_section_start_);
       return start + 4;
-      break;
     case DW_FORM_ref8:
       handler_->ProcessAttributeReference(dieoffset, attr, form,
                                           reader_->ReadEightBytes(start)
                                           + offset_from_section_start_);
       return start + 8;
-      break;
     case DW_FORM_ref_udata:
       handler_->ProcessAttributeReference(dieoffset, attr, form,
                                           reader_->ReadUnsignedLEB128(start,
                                                                       &len)
                                           + offset_from_section_start_);
       return start + len;
-      break;
     case DW_FORM_ref_addr:
       // DWARF2 and 3 differ on whether ref_addr is address size or
       // offset size.
@@ -420,35 +403,36 @@ const char* CompilationUnit::ProcessAttribute(
         return start + reader_->OffsetSize();
       }
       break;
+    case DW_FORM_ref_sig8:
+      handler_->ProcessAttributeSignature(dieoffset, attr, form,
+                                          reader_->ReadEightBytes(start));
+      return start + 8;
 
     case DW_FORM_block1: {
       uint64 datalen = reader_->ReadOneByte(start);
       handler_->ProcessAttributeBuffer(dieoffset, attr, form, start + 1,
-                                      datalen);
+                                       datalen);
       return start + 1 + datalen;
     }
-      break;
     case DW_FORM_block2: {
       uint64 datalen = reader_->ReadTwoBytes(start);
       handler_->ProcessAttributeBuffer(dieoffset, attr, form, start + 2,
-                                      datalen);
+                                       datalen);
       return start + 2 + datalen;
     }
-      break;
     case DW_FORM_block4: {
       uint64 datalen = reader_->ReadFourBytes(start);
       handler_->ProcessAttributeBuffer(dieoffset, attr, form, start + 4,
-                                      datalen);
+                                       datalen);
       return start + 4 + datalen;
     }
-      break;
-    case DW_FORM_block: {
+    case DW_FORM_block:
+    case DW_FORM_exprloc: {
       uint64 datalen = reader_->ReadUnsignedLEB128(start, &len);
       handler_->ProcessAttributeBuffer(dieoffset, attr, form, start + len,
-                                      datalen);
+                                       datalen);
       return start + datalen + len;
     }
-      break;
     case DW_FORM_strp: {
       assert(string_buffer_ != NULL);
 
@@ -460,11 +444,8 @@ const char* CompilationUnit::ProcessAttribute(
                                        str);
       return start + reader_->OffsetSize();
     }
-      break;
-    default:
-      fprintf(stderr, "Unhandled form type");
   }
-  fprintf(stderr, "Unhandled form type");
+  fprintf(stderr, "Unhandled form type\n");
   return NULL;
 }
 
@@ -494,11 +475,8 @@ void CompilationUnit::ProcessDIEs() {
   else
     lengthstart += 4;
 
-  // we need semantics of boost scoped_ptr here - no intention of trasnferring
-  // ownership of the stack.  use const, but then we limit ourselves to not
-  // ever being able to call .reset() on the smart pointer.
-  std::auto_ptr<stack<uint64> > const die_stack(new stack<uint64>);
-
+  std::stack<uint64> die_stack;
+  
   while (dieptr < (lengthstart + header_.length)) {
     // We give the user the absolute offset from the beginning of
     // debug_info, since they need it to deal with ref_addr forms.
@@ -508,24 +486,28 @@ void CompilationUnit::ProcessDIEs() {
 
     dieptr += len;
 
-    // Abbrev == 0 represents the end of a list of children.
+    // Abbrev == 0 represents the end of a list of children, or padding
+    // at the end of the compilation unit.
     if (abbrev_num == 0) {
-      const uint64 offset = die_stack->top();
-      die_stack->pop();
+      if (die_stack.size() == 0)
+        // If it is padding, then we are done with the compilation unit's DIEs.
+        return;
+      const uint64 offset = die_stack.top();
+      die_stack.pop();
       handler_->EndDIE(offset);
       continue;
     }
 
     const Abbrev& abbrev = abbrevs_->at(static_cast<size_t>(abbrev_num));
     const enum DwarfTag tag = abbrev.tag;
-    if (!handler_->StartDIE(absolute_offset, tag, abbrev.attributes)) {
+    if (!handler_->StartDIE(absolute_offset, tag)) {
       dieptr = SkipDIE(dieptr, abbrev);
     } else {
       dieptr = ProcessDIE(absolute_offset, dieptr, abbrev);
     }
 
     if (abbrev.has_children) {
-      die_stack->push(absolute_offset);
+      die_stack.push(absolute_offset);
     } else {
       handler_->EndDIE(absolute_offset);
     }
@@ -583,7 +565,7 @@ void LineInfo::ReadHeader() {
   header_.opcode_base = reader_->ReadOneByte(lineptr);
   lineptr += 1;
 
-  header_.std_opcode_lengths = new vector<unsigned char>;
+  header_.std_opcode_lengths = new std::vector<unsigned char>;
   header_.std_opcode_lengths->resize(header_.opcode_base + 1);
   (*header_.std_opcode_lengths)[0] = 0;
   for (int i = 1; i < header_.opcode_base; i++) {
@@ -910,6 +892,21 @@ class CallFrameInfo::Rule {
   // If this is a base+offset rule, change its offset to OFFSET. Otherwise,
   // do nothing. (Ugly, but required for DW_CFA_def_cfa_offset.)
   virtual void SetOffset(long long offset) { }
+
+  // A RTTI workaround, to make it possible to implement equality
+  // comparisons on classes derived from this one.
+  enum CFIRTag {
+    CFIR_UNDEFINED_RULE,
+    CFIR_SAME_VALUE_RULE,
+    CFIR_OFFSET_RULE,
+    CFIR_VAL_OFFSET_RULE,
+    CFIR_REGISTER_RULE,
+    CFIR_EXPRESSION_RULE,
+    CFIR_VAL_EXPRESSION_RULE
+  };
+
+  // Produce the tag that identifies the child class of this object.
+  virtual CFIRTag getTag() const = 0;
 };
 
 // Rule: the value the register had in the caller cannot be recovered.
@@ -917,14 +914,13 @@ class CallFrameInfo::UndefinedRule: public CallFrameInfo::Rule {
  public:
   UndefinedRule() { }
   ~UndefinedRule() { }
+  CFIRTag getTag() const { return CFIR_UNDEFINED_RULE; }
   bool Handle(Handler *handler, uint64 address, int reg) const {
     return handler->UndefinedRule(address, reg);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
-    const UndefinedRule *our_rhs = dynamic_cast<const UndefinedRule *>(&rhs);
-    return (our_rhs != NULL);
+    if (rhs.getTag() != CFIR_UNDEFINED_RULE) return false;
+    return true;
   }
   Rule *Copy() const { return new UndefinedRule(*this); }
 };
@@ -934,14 +930,13 @@ class CallFrameInfo::SameValueRule: public CallFrameInfo::Rule {
  public:
   SameValueRule() { }
   ~SameValueRule() { }
+  CFIRTag getTag() const { return CFIR_SAME_VALUE_RULE; }
   bool Handle(Handler *handler, uint64 address, int reg) const {
     return handler->SameValueRule(address, reg);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
-    const SameValueRule *our_rhs = dynamic_cast<const SameValueRule *>(&rhs);
-    return (our_rhs != NULL);
+    if (rhs.getTag() != CFIR_SAME_VALUE_RULE) return false;
+    return true;
   }
   Rule *Copy() const { return new SameValueRule(*this); }
 };
@@ -953,15 +948,14 @@ class CallFrameInfo::OffsetRule: public CallFrameInfo::Rule {
   OffsetRule(int base_register, long offset)
       : base_register_(base_register), offset_(offset) { }
   ~OffsetRule() { }
+  CFIRTag getTag() const { return CFIR_OFFSET_RULE; }
   bool Handle(Handler *handler, uint64 address, int reg) const {
     return handler->OffsetRule(address, reg, base_register_, offset_);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
-    const OffsetRule *our_rhs = dynamic_cast<const OffsetRule *>(&rhs);
-    return (our_rhs &&
-            base_register_ == our_rhs->base_register_ &&
+    if (rhs.getTag() != CFIR_OFFSET_RULE) return false;
+    const OffsetRule *our_rhs = static_cast<const OffsetRule *>(&rhs);
+    return (base_register_ == our_rhs->base_register_ &&
             offset_ == our_rhs->offset_);
   }
   Rule *Copy() const { return new OffsetRule(*this); }
@@ -982,15 +976,14 @@ class CallFrameInfo::ValOffsetRule: public CallFrameInfo::Rule {
   ValOffsetRule(int base_register, long offset)
       : base_register_(base_register), offset_(offset) { }
   ~ValOffsetRule() { }
+  CFIRTag getTag() const { return CFIR_VAL_OFFSET_RULE; }
   bool Handle(Handler *handler, uint64 address, int reg) const {
     return handler->ValOffsetRule(address, reg, base_register_, offset_);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
-    const ValOffsetRule *our_rhs = dynamic_cast<const ValOffsetRule *>(&rhs);
-    return (our_rhs &&
-            base_register_ == our_rhs->base_register_ &&
+    if (rhs.getTag() != CFIR_VAL_OFFSET_RULE) return false;
+    const ValOffsetRule *our_rhs = static_cast<const ValOffsetRule *>(&rhs);
+    return (base_register_ == our_rhs->base_register_ &&
             offset_ == our_rhs->offset_);
   }
   Rule *Copy() const { return new ValOffsetRule(*this); }
@@ -1007,14 +1000,14 @@ class CallFrameInfo::RegisterRule: public CallFrameInfo::Rule {
   explicit RegisterRule(int register_number)
       : register_number_(register_number) { }
   ~RegisterRule() { }
+  CFIRTag getTag() const { return CFIR_REGISTER_RULE; }
   bool Handle(Handler *handler, uint64 address, int reg) const {
     return handler->RegisterRule(address, reg, register_number_);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
-    const RegisterRule *our_rhs = dynamic_cast<const RegisterRule *>(&rhs);
-    return (our_rhs && register_number_ == our_rhs->register_number_);
+    if (rhs.getTag() != CFIR_REGISTER_RULE) return false;
+    const RegisterRule *our_rhs = static_cast<const RegisterRule *>(&rhs);
+    return (register_number_ == our_rhs->register_number_);
   }
   Rule *Copy() const { return new RegisterRule(*this); }
  private:
@@ -1027,14 +1020,14 @@ class CallFrameInfo::ExpressionRule: public CallFrameInfo::Rule {
   explicit ExpressionRule(const string &expression)
       : expression_(expression) { }
   ~ExpressionRule() { }
+  CFIRTag getTag() const { return CFIR_EXPRESSION_RULE; }
   bool Handle(Handler *handler, uint64 address, int reg) const {
     return handler->ExpressionRule(address, reg, expression_);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
-    const ExpressionRule *our_rhs = dynamic_cast<const ExpressionRule *>(&rhs);
-    return (our_rhs && expression_ == our_rhs->expression_);
+    if (rhs.getTag() != CFIR_EXPRESSION_RULE) return false;
+    const ExpressionRule *our_rhs = static_cast<const ExpressionRule *>(&rhs);
+    return (expression_ == our_rhs->expression_);
   }
   Rule *Copy() const { return new ExpressionRule(*this); }
  private:
@@ -1047,15 +1040,15 @@ class CallFrameInfo::ValExpressionRule: public CallFrameInfo::Rule {
   explicit ValExpressionRule(const string &expression)
       : expression_(expression) { }
   ~ValExpressionRule() { }
+  CFIRTag getTag() const { return CFIR_VAL_EXPRESSION_RULE; }
   bool Handle(Handler *handler, uint64 address, int reg) const {
     return handler->ValExpressionRule(address, reg, expression_);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
+    if (rhs.getTag() != CFIR_VAL_EXPRESSION_RULE) return false;
     const ValExpressionRule *our_rhs =
-        dynamic_cast<const ValExpressionRule *>(&rhs);
-    return (our_rhs && expression_ == our_rhs->expression_);
+        static_cast<const ValExpressionRule *>(&rhs);
+    return (expression_ == our_rhs->expression_);
   }
   Rule *Copy() const { return new ValExpressionRule(*this); }
  private:
@@ -1096,7 +1089,7 @@ class CallFrameInfo::RuleMap {
 
  private:
   // A map from register numbers to Rules.
-  typedef map<int, Rule *> RuleByNumber;
+  typedef std::map<int, Rule *> RuleByNumber;
 
   // Remove all register rules and clear cfa_rule_.
   void Clear();
@@ -1341,7 +1334,7 @@ class CallFrameInfo::State {
 
   // A stack of saved states, for DW_CFA_remember_state and
   // DW_CFA_restore_state.
-  stack<RuleMap> saved_rules_;
+  std::stack<RuleMap> saved_rules_;
 };
 
 bool CallFrameInfo::State::InterpretCIE(const CIE &cie) {
@@ -1877,20 +1870,14 @@ bool CallFrameInfo::ReadCIEFields(CIE *cie) {
   cie->version = reader_->ReadOneByte(cursor);
   cursor++;
 
-  // If we don't recognize the version, we can't parse any more fields
-  // of the CIE. For DWARF CFI, we handle versions 1 through 3 (there
-  // was never a version 2 of CFI data). For .eh_frame, we handle only
-  // version 1.
-  if (eh_frame_) {
-    if (cie->version != 1) {
-      reporter_->UnrecognizedVersion(cie->offset, cie->version);
-      return false;
-    }
-  } else {
-    if (cie->version < 1 || cie->version > 3) {
-      reporter_->UnrecognizedVersion(cie->offset, cie->version);
-      return false;
-    }
+  // If we don't recognize the version, we can't parse any more fields of the
+  // CIE. For DWARF CFI, we handle versions 1 through 3 (there was never a
+  // version 2 of CFI data). For .eh_frame, we handle versions 1 and 3 as well;
+  // the difference between those versions seems to be the same as for
+  // .debug_frame.
+  if (cie->version < 1 || cie->version > 3) {
+    reporter_->UnrecognizedVersion(cie->offset, cie->version);
+    return false;
   }
 
   const char *augmentation_start = cursor;
@@ -1898,7 +1885,8 @@ bool CallFrameInfo::ReadCIEFields(CIE *cie) {
       memchr(augmentation_start, '\0', cie->end - augmentation_start);
   if (! augmentation_end) return ReportIncomplete(cie);
   cursor = static_cast<const char *>(augmentation_end);
-  cie->augmentation = string(augmentation_start, cursor - augmentation_start);
+  cie->augmentation = string(augmentation_start,
+                                  cursor - augmentation_start);
   // Skip the terminating '\0'.
   cursor++;
 

@@ -1,28 +1,21 @@
-Cu.import("resource://services-sync/main.js");
-Cu.import("resource://services-sync/service.js");
-Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/status.js");
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/tabs.js");
 Cu.import("resource://services-sync/engines/history.js");
-Cu.import("resource://services-sync/log4moz.js");
-  
-function test_locally_changed_keys() {
+Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/service.js");
+Cu.import("resource://services-sync/status.js");
+Cu.import("resource://services-sync/util.js");
+Cu.import("resource://testing-common/services/sync/utils.js");
+Cu.import("resource://gre/modules/Promise.jsm");
+
+add_task(function test_locally_changed_keys() {
   let passphrase = "abcdeabcdeabcdeabcdeabcdea";
 
-  // Tracking info/collections.
-  let collectionsHelper = track_collections_helper();
-  let upd = collectionsHelper.with_updated_collection;
-  let collections = collectionsHelper.collections;
-
-  let keysWBO = new ServerWBO("keys");
-  let clients = new ServerCollection();
-  let meta_global = new ServerWBO("global");
-  
-  let history = new ServerCollection();
-  
   let hmacErrorCount = 0;
   function counting(f) {
     return function() {
@@ -30,35 +23,22 @@ function test_locally_changed_keys() {
       return f.call(this);
     };
   }
-  
-  Weave.Service.handleHMACEvent = counting(Weave.Service.handleHMACEvent);
-  
-  do_test_pending();
-  let server = httpd_setup({
-    // Special.
-    "/1.1/johndoe/storage/meta/global": upd("meta", meta_global.handler()),
-    "/1.1/johndoe/info/collections": collectionsHelper.handler,
-    "/1.1/johndoe/storage/crypto/keys": upd("crypto", keysWBO.handler()),
-      
-    // Track modified times.
-    "/1.1/johndoe/storage/clients": upd("clients", clients.handler()),
-    "/1.1/johndoe/storage/clients/foobar": upd("clients", new ServerWBO("clients").handler()),
-    "/1.1/johndoe/storage/tabs": upd("tabs", new ServerCollection().handler()),
-    
-    // Just so we don't get 404s in the logs.
-    "/1.1/johndoe/storage/bookmarks": new ServerCollection().handler(),
-    "/1.1/johndoe/storage/forms": new ServerCollection().handler(),
-    "/1.1/johndoe/storage/passwords": new ServerCollection().handler(),
-    "/1.1/johndoe/storage/prefs": new ServerCollection().handler(),
-    
-    "/1.1/johndoe/storage/history": upd("history", history.handler()),
+
+  Service.handleHMACEvent = counting(Service.handleHMACEvent);
+
+  let server  = new SyncServer();
+  let johndoe = server.registerUser("johndoe", "password");
+  johndoe.createContents({
+    meta: {},
+    crypto: {},
+    clients: {}
   });
+  server.start();
 
   try {
-    
     Svc.Prefs.set("registerEngines", "Tab");
     _("Set up some tabs.");
-    let myTabs = 
+    let myTabs =
       {windows: [{tabs: [{index: 1,
                           entries: [{
                             url: "http://foo.com/",
@@ -74,60 +54,56 @@ function test_locally_changed_keys() {
     Svc.Session = {
       getBrowserState: function () JSON.stringify(myTabs)
     };
-    
-    Weave.Service.username = "johndoe";
-    Weave.Service.password = "ilovejane";
-    Weave.Service.passphrase = passphrase;
-    
-    Weave.Service.serverURL = "http://localhost:8080/";
-    Weave.Service.clusterURL = "http://localhost:8080/";
-    
-    Engines.register(HistoryEngine);
-    Weave.Service._registerEngines();
-    
+
+    setBasicCredentials("johndoe", "password", passphrase);
+    Service.serverURL = server.baseURI;
+    Service.clusterURL = server.baseURI;
+
+    Service.engineManager.register(HistoryEngine);
+
     function corrupt_local_keys() {
-      CollectionKeys._default.keyPair = [Svc.Crypto.generateRandomKey(),
-                                         Svc.Crypto.generateRandomKey()];
+      Service.collectionKeys._default.keyPair = [Svc.Crypto.generateRandomKey(),
+                                                 Svc.Crypto.generateRandomKey()];
     }
-    
+
     _("Setting meta.");
-    
+
     // Bump version on the server.
     let m = new WBORecord("meta", "global");
     m.payload = {"syncID": "foooooooooooooooooooooooooo",
                  "storageVersion": STORAGE_VERSION};
-    m.upload(Weave.Service.metaURL);
-    
-    _("New meta/global: " + JSON.stringify(meta_global));
-    
+    m.upload(Service.resource(Service.metaURL));
+
+    _("New meta/global: " + JSON.stringify(johndoe.collection("meta").wbo("global")));
+
     // Upload keys.
-    generateNewKeys();
-    let serverKeys = CollectionKeys.asWBO("crypto", "keys");
-    serverKeys.encrypt(Weave.Service.syncKeyBundle);
-    do_check_true(serverKeys.upload(Weave.Service.cryptoKeysURL).success);
-    
+    generateNewKeys(Service.collectionKeys);
+    let serverKeys = Service.collectionKeys.asWBO("crypto", "keys");
+    serverKeys.encrypt(Service.identity.syncKeyBundle);
+    do_check_true(serverKeys.upload(Service.resource(Service.cryptoKeysURL)).success);
+
     // Check that login works.
-    do_check_true(Weave.Service.login("johndoe", "ilovejane", passphrase));
-    do_check_true(Weave.Service.isLoggedIn);
-    
+    do_check_true(Service.login("johndoe", "ilovejane", passphrase));
+    do_check_true(Service.isLoggedIn);
+
     // Sync should upload records.
-    Weave.Service.sync();
-    
+    Service.sync();
+
     // Tabs exist.
-    _("Tabs modified: " + collections.tabs);
-    do_check_true(!!collections.tabs);
-    do_check_true(collections.tabs > 0);
-    
-    let coll_modified = CollectionKeys.lastModified;
-    
+    _("Tabs modified: " + johndoe.modified("tabs"));
+    do_check_true(johndoe.modified("tabs") > 0);
+
+    let coll_modified = Service.collectionKeys.lastModified;
+
     // Let's create some server side history records.
-    let liveKeys = CollectionKeys.keyForCollection("history");
+    let liveKeys = Service.collectionKeys.keyForCollection("history");
     _("Keys now: " + liveKeys.keyPair);
     let visitType = Ci.nsINavHistoryService.TRANSITION_LINK;
-    for (var i = 0; i < 5; i++) {
+    let history   = johndoe.createCollection("history");
+    for (let i = 0; i < 5; i++) {
       let id = 'record-no--' + i;
       let modified = Date.now()/1000 - 60*(i+10);
-      
+
       let w = new CryptoWrapper("history", "id");
       w.cleartext = {
         id: id,
@@ -136,57 +112,53 @@ function test_locally_changed_keys() {
         sortindex: i,
         visits: [{date: (modified - 5) * 1000000, type: visitType}],
         deleted: false};
-      w.encrypt();
-      
-      let wbo = new ServerWBO(id, {ciphertext: w.ciphertext,
-                                   IV: w.IV,
-                                   hmac: w.hmac});
-      wbo.modified = modified;
-      history.wbos[id] = wbo;
-      server.registerPathHandler(
-        "/1.1/johndoe/storage/history/record-no--" + i,
-        upd("history", wbo.handler()));
+      w.encrypt(liveKeys);
+
+      let payload = {ciphertext: w.ciphertext,
+                     IV:         w.IV,
+                     hmac:       w.hmac};
+      history.insert(id, payload, modified);
     }
-    
-    collections.history = Date.now()/1000;
-    let old_key_time = collections.crypto;
+
+    history.timestamp = Date.now() / 1000;
+    let old_key_time = johndoe.modified("crypto");
     _("Old key time: " + old_key_time);
-    
+
     // Check that we can decrypt one.
     let rec = new CryptoWrapper("history", "record-no--0");
-    rec.fetch(Weave.Service.storageURL + "history/record-no--0");
+    rec.fetch(Service.resource(Service.storageURL + "history/record-no--0"));
     _(JSON.stringify(rec));
-    do_check_true(!!rec.decrypt());
-    
+    do_check_true(!!rec.decrypt(liveKeys));
+
     do_check_eq(hmacErrorCount, 0);
-    
+
     // Fill local key cache with bad data.
     corrupt_local_keys();
-    _("Keys now: " + CollectionKeys.keyForCollection("history").keyPair);
-    
+    _("Keys now: " + Service.collectionKeys.keyForCollection("history").keyPair);
+
     do_check_eq(hmacErrorCount, 0);
-    
+
     _("HMAC error count: " + hmacErrorCount);
     // Now syncing should succeed, after one HMAC error.
-    Weave.Service.sync();
+    Service.sync();
     do_check_eq(hmacErrorCount, 1);
-    _("Keys now: " + CollectionKeys.keyForCollection("history").keyPair);
-    
+    _("Keys now: " + Service.collectionKeys.keyForCollection("history").keyPair);
+
     // And look! We downloaded history!
-    let store = Engines.get("history")._store;
-    do_check_true(store.urlExists("http://foo/bar?record-no--0"));
-    do_check_true(store.urlExists("http://foo/bar?record-no--1"));
-    do_check_true(store.urlExists("http://foo/bar?record-no--2"));
-    do_check_true(store.urlExists("http://foo/bar?record-no--3"));
-    do_check_true(store.urlExists("http://foo/bar?record-no--4"));
+    let store = Service.engineManager.get("history")._store;
+    do_check_true(yield promiseIsURIVisited("http://foo/bar?record-no--0"));
+    do_check_true(yield promiseIsURIVisited("http://foo/bar?record-no--1"));
+    do_check_true(yield promiseIsURIVisited("http://foo/bar?record-no--2"));
+    do_check_true(yield promiseIsURIVisited("http://foo/bar?record-no--3"));
+    do_check_true(yield promiseIsURIVisited("http://foo/bar?record-no--4"));
     do_check_eq(hmacErrorCount, 1);
-    
+
     _("Busting some new server values.");
     // Now what happens if we corrupt the HMAC on the server?
-    for (var i = 5; i < 10; i++) {
+    for (let i = 5; i < 10; i++) {
       let id = 'record-no--' + i;
-      let modified = 1 + (Date.now()/1000);
-      
+      let modified = 1 + (Date.now() / 1000);
+
       let w = new CryptoWrapper("history", "id");
       w.cleartext = {
         id: id,
@@ -195,50 +167,60 @@ function test_locally_changed_keys() {
         sortindex: i,
         visits: [{date: (modified - 5 ) * 1000000, type: visitType}],
         deleted: false};
-      w.encrypt();
+      w.encrypt(Service.collectionKeys.keyForCollection("history"));
       w.hmac = w.hmac.toUpperCase();
-      
-      let wbo = new ServerWBO(id, {ciphertext: w.ciphertext,
-                                   IV: w.IV,
-                                   hmac: w.hmac});
-      wbo.modified = modified;
-      history.wbos[id] = wbo;
-      server.registerPathHandler(
-        "/1.1/johndoe/storage/history/record-no--" + i,
-        upd("history", wbo.handler()));
+
+      let payload = {ciphertext: w.ciphertext,
+                     IV:         w.IV,
+                     hmac:       w.hmac};
+      history.insert(id, payload, modified);
     }
-    collections.history = Date.now()/1000;
-    
+    history.timestamp = Date.now() / 1000;
+
     _("Server key time hasn't changed.");
-    do_check_eq(collections.crypto, old_key_time);
-    
+    do_check_eq(johndoe.modified("crypto"), old_key_time);
+
     _("Resetting HMAC error timer.");
-    Weave.Service.lastHMACEvent = 0;
-    
+    Service.lastHMACEvent = 0;
+
     _("Syncing...");
-    Weave.Service.sync();
-    _("Keys now: " + CollectionKeys.keyForCollection("history").keyPair);
+    Service.sync();
+    _("Keys now: " + Service.collectionKeys.keyForCollection("history").keyPair);
     _("Server keys have been updated, and we skipped over 5 more HMAC errors without adjusting history.");
-    do_check_true(collections.crypto > old_key_time);
+    do_check_true(johndoe.modified("crypto") > old_key_time);
     do_check_eq(hmacErrorCount, 6);
-    do_check_false(store.urlExists("http://foo/bar?record-no--5"));
-    do_check_false(store.urlExists("http://foo/bar?record-no--6"));
-    do_check_false(store.urlExists("http://foo/bar?record-no--7"));
-    do_check_false(store.urlExists("http://foo/bar?record-no--8"));
-    do_check_false(store.urlExists("http://foo/bar?record-no--9"));
-    
-    // Clean up.
-    Weave.Service.startOver();
-    
+    do_check_false(yield promiseIsURIVisited("http://foo/bar?record-no--5"));
+    do_check_false(yield promiseIsURIVisited("http://foo/bar?record-no--6"));
+    do_check_false(yield promiseIsURIVisited("http://foo/bar?record-no--7"));
+    do_check_false(yield promiseIsURIVisited("http://foo/bar?record-no--8"));
+    do_check_false(yield promiseIsURIVisited("http://foo/bar?record-no--9"));
   } finally {
-    Weave.Svc.Prefs.resetBranch("");
-    server.stop(do_test_finished);
+    Svc.Prefs.resetBranch("");
+    let deferred = Promise.defer();
+    server.stop(deferred.resolve);
+    yield deferred.promise;
   }
-}
+});
 
 function run_test() {
   let logger = Log4Moz.repository.rootLogger;
   Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
-  
-  test_locally_changed_keys();
+
+  run_next_test();
+}
+
+/**
+ * Asynchronously check a url is visited.
+ * @param url the url
+ * @return {Promise}
+ * @resolves When the check has been added successfully.
+ * @rejects JavaScript exception.
+ */
+function promiseIsURIVisited(url) {
+  let deferred = Promise.defer();
+  PlacesUtils.asyncHistory.isURIVisited(Utils.makeURI(url), function(aURI, aIsVisited) {
+    deferred.resolve(aIsVisited);
+  });
+
+  return deferred.promise;
 }

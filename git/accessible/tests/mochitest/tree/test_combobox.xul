@@ -7,8 +7,6 @@
         title="Accessible XUL menulist and textbox @autocomplete hierarchy tests">
 
   <script type="application/javascript"
-          src="chrome://mochikit/content/MochiKit/packed.js" />
-  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
   <script type="application/javascript"
@@ -45,7 +43,11 @@
         ]
       };
 
-      testAccessibleTree("menulist", accTree);
+      if (!MAC) {
+        testAccessibleTree("menulist", accTree);
+      } else {
+        todo(false, "Make this test pass on OSX (bug 650366)");
+      }
 
       //////////////////////////////////////////////////////////////////////////
       // editable menulist
@@ -83,9 +85,10 @@
         ]
       };
 
-      // XXX Bug 551957
       if (!MAC) {
         testAccessibleTree("menulist2", accTree);
+      } else {
+        todo(false, "Make this test pass on OSX (bug 551957)");
       }
 
       //////////////////////////////////////////////////////////////////////////

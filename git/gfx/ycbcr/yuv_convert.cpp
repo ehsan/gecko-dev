@@ -31,6 +31,22 @@ const int kFractionBits = 16;
 const int kFractionMax = 1 << kFractionBits;
 const int kFractionMask = ((1 << kFractionBits) - 1);
 
+NS_GFX_(YUVType) TypeFromSize(int ywidth, 
+                              int yheight, 
+                              int cbcrwidth, 
+                              int cbcrheight)
+{
+  if (ywidth == cbcrwidth && yheight == cbcrheight) {
+    return YV24;
+  }
+  else if (ywidth / 2 == cbcrwidth && yheight == cbcrheight) {
+    return YV16;
+  }
+  else {
+    return YV12;
+  }
+}
+
 // Convert a frame of YUV to 32 bit ARGB.
 NS_GFX_(void) ConvertYCbCrToRGB32(const uint8* y_buf,
                                   const uint8* u_buf,
@@ -236,7 +252,7 @@ NS_GFX_(void) ScaleYCbCrToRGB32(const uint8* y_buf,
   // after the end for SSE2 version.
   uint8 yuvbuf[16 + kFilterBufferSize * 3 + 16];
   uint8* ybuf =
-      reinterpret_cast<uint8*>(reinterpret_cast<PRUptrdiff>(yuvbuf + 15) & ~15);
+      reinterpret_cast<uint8*>(reinterpret_cast<uintptr_t>(yuvbuf + 15) & ~15);
   uint8* ubuf = ybuf + kFilterBufferSize;
   uint8* vbuf = ubuf + kFilterBufferSize;
   // TODO(fbarchard): Fixed point math is off by 1 on negatives.
@@ -326,6 +342,7 @@ NS_GFX_(void) ScaleYCbCrToRGB32(const uint8* y_buf,
                              dest_pixel, width, source_dx);
       }
 #else
+      (void)source_dx_uv;
       ScaleYUVToRGB32Row(y_ptr, u_ptr, v_ptr,
                          dest_pixel, width, source_dx);
 #endif

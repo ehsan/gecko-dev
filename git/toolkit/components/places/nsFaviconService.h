@@ -1,40 +1,7 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Places.
- *
- * The Initial Developer of the Original Code is
- * Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2005
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Brett Wilson <brettw@gmail.com> (original author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef nsFaviconService_h_
 #define nsFaviconService_h_
@@ -46,11 +13,15 @@
 #include "nsString.h"
 #include "nsDataHashtable.h"
 #include "nsServiceManagerUtils.h"
-
+#include "nsTHashtable.h"
 #include "nsToolkitCompsCID.h"
-
+#include "nsURIHashKey.h"
+#include "nsITimer.h"
+#include "Database.h"
 #include "mozilla/storage.h"
-#include "mozilla/storage/StatementCache.h"
+#include "mozilla/Attributes.h"
+
+#include "AsyncFaviconHelpers.h"
 
 // Favicons bigger than this size should not be saved to the db to avoid
 // bloating it with large image blobs.
@@ -59,15 +30,30 @@
 
 // Most icons will be smaller than this rough estimate of the size of an
 // uncompressed 16x16 RGBA image of the same dimensions.
-#define MAX_ICON_FILESIZE(s) ((PRUint32) s*s*4)
+#define MAX_ICON_FILESIZE(s) ((uint32_t) s*s*4)
 
 // forward class definitions
 class mozIStorageStatementCallback;
-// forward definition for friend class
-class FaviconLoadListener;
 
-class nsFaviconService : public nsIFaviconService
-                       , public mozIAsyncFavicons
+class UnassociatedIconHashKey : public nsURIHashKey
+{
+public:
+  UnassociatedIconHashKey(const nsIURI* aURI)
+  : nsURIHashKey(aURI)
+  {
+  }
+  UnassociatedIconHashKey(const UnassociatedIconHashKey& aOther)
+  : nsURIHashKey(aOther)
+  {
+    NS_NOTREACHED("Do not call me!");
+  }
+  mozilla::places::IconData iconData;
+  PRTime created;
+};
+
+class nsFaviconService MOZ_FINAL : public nsIFaviconService
+                                 , public mozIAsyncFavicons
+                                 , public nsITimerCallback
 {
 public:
   nsFaviconService();
@@ -75,15 +61,12 @@ public:
   /**
    * Obtains the service's object.
    */
-  static nsFaviconService* GetSingleton();
+  static already_AddRefed<nsFaviconService> GetSingleton();
 
   /**
    * Initializes the service's object.  This should only be called once.
    */
   nsresult Init();
-
-  // called by nsNavHistory::Init
-  static nsresult InitTables(mozIStorageConnection* aDBConn);
 
   /**
    * Returns a cached pointer to the favicon service for consumers in the
@@ -94,26 +77,20 @@ public:
     if (!gFaviconService) {
       nsCOMPtr<nsIFaviconService> serv =
         do_GetService(NS_FAVICONSERVICE_CONTRACTID);
-      NS_ENSURE_TRUE(serv, nsnull);
+      NS_ENSURE_TRUE(serv, nullptr);
       NS_ASSERTION(gFaviconService, "Should have static instance pointer now");
     }
     return gFaviconService;
   }
 
-  // internal version called by history when done lazily
-  nsresult DoSetAndLoadFaviconForPage(nsIURI* aPageURI,
-                                      nsIURI* aFaviconURI,
-                                      PRBool aForceReload,
-                                      nsIFaviconDataCallback* aCallback);
-
   // addition to API for strings to prevent excessive parsing of URIs
   nsresult GetFaviconLinkForIconString(const nsCString& aIcon, nsIURI** aOutput);
   void GetFaviconSpecForIconString(const nsCString& aIcon, nsACString& aOutput);
 
-  nsresult OptimizeFaviconImage(const PRUint8* aData, PRUint32 aDataLen,
+  nsresult OptimizeFaviconImage(const uint8_t* aData, uint32_t aDataLen,
                                 const nsACString& aMimeType,
                                 nsACString& aNewData, nsACString& aNewMimeType);
-  PRInt32 GetOptimizedIconDimension() { return mOptimizedIconDimension; }
+  int32_t GetOptimizedIconDimension() { return mOptimizedIconDimension; }
 
   /**
    * Obtains the favicon data asynchronously.
@@ -129,51 +106,29 @@ public:
                                mozIStorageStatementCallback* aCallback);
 
   /**
-   * Checks to see if a favicon's URI has changed, and notifies callers if it
-   * has.
-   *
+   * Call to send out favicon changed notifications. Should only be called
+   * when there is data loaded for the favicon.
    * @param aPageURI
-   *        The URI of the page aFaviconURI is for.
+   *        The URI of the page to notify about.
    * @param aFaviconURI
-   *        The URI for the favicon we want to test for on aPageURI.
+   *        The moz-anno:favicon URI of the icon.
+   * @param aGUID
+   *        The unique ID associated with the page.
    */
-  void checkAndNotify(nsIURI* aPageURI, nsIURI* aFaviconURI);
-
-  /**
-   * Finalize all internal statements.
-   */
-  nsresult FinalizeStatements();
-
-  void SendFaviconNotifications(nsIURI* aPage, nsIURI* aFaviconURI);
-
-  /**
-   * This cache should be used only for background thread statements.
-   *
-   * @pre must be running on the background thread of mDBConn.
-   */
-  mozilla::storage::StatementCache<mozIStorageStatement> mSyncStatements;
+  void SendFaviconNotifications(nsIURI* aPageURI, nsIURI* aFaviconURI,
+                                const nsACString& aGUID);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIFAVICONSERVICE
   NS_DECL_MOZIASYNCFAVICONS
+  NS_DECL_NSITIMERCALLBACK
 
 private:
   ~nsFaviconService();
 
-  nsCOMPtr<mozIStorageConnection> mDBConn; // from history service
+  nsRefPtr<mozilla::places::Database> mDB;
 
-  /**
-   * Always use this getter and never use directly the statement nsCOMPtr.
-   */
-  mozIStorageStatement* GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt);
-  nsCOMPtr<mozIStorageStatement> mDBGetURL; // returns URL, data len given page
-  nsCOMPtr<mozIStorageStatement> mDBGetData; // returns actual data given URL
-  nsCOMPtr<mozIStorageStatement> mDBGetIconInfo;
-  nsCOMPtr<mozIStorageStatement> mDBInsertIcon;
-  nsCOMPtr<mozIStorageStatement> mDBUpdateIcon;
-  nsCOMPtr<mozIStorageStatement> mDBSetPageFavicon;
-  nsCOMPtr<mozIStorageStatement> mDBRemoveOnDiskReferences;
-  nsCOMPtr<mozIStorageStatement> mDBRemoveAllFavicons;
+  nsCOMPtr<nsITimer> mExpireUnassociatedIconsTimer;
 
   static nsFaviconService* gFaviconService;
 
@@ -185,33 +140,19 @@ private:
    */
   nsCOMPtr<nsIURI> mDefaultIcon;
 
-  // Set to true during favicons expiration, addition of new favicons won't be
-  // allowed till expiration has finished since those should then be expired.
-  bool mFaviconsExpirationRunning;
-
   // The target dimension, in pixels, for favicons we optimize.
   // If we find images that are as large or larger than an uncompressed RGBA
   // image of this size (mOptimizedIconDimension*mOptimizedIconDimension*4),
   // we will try to optimize it.
-  PRInt32 mOptimizedIconDimension;
+  int32_t mOptimizedIconDimension;
 
-  PRUint32 mFailedFaviconSerial;
-  nsDataHashtable<nsCStringHashKey, PRUint32> mFailedFavicons;
+  uint32_t mFailedFaviconSerial;
+  nsDataHashtable<nsCStringHashKey, uint32_t> mFailedFavicons;
 
-  nsresult SetFaviconUrlForPageInternal(nsIURI* aURI, nsIURI* aFavicon,
-                                        PRBool* aHasData);
-
-  friend class FaviconLoadListener;
-
-  bool mShuttingDown;
-
-  // Caches the content of the default favicon if it's not already cached and
-  // copies it into byteStr.
-  nsresult GetDefaultFaviconData(nsCString& byteStr);
-
-  // A string of bytes caching the default favicon's content.  Empty if not yet
-  // cached.  Rather than accessing this directly, use GetDefaultFaviconData.
-  nsCString mDefaultFaviconData;
+  // AsyncFetchAndSetIconForPage needs access to the icon cache
+  friend class mozilla::places::AsyncFetchAndSetIconForPage;
+  friend class mozilla::places::RemoveIconDataCacheEntry;
+  nsTHashtable<UnassociatedIconHashKey> mUnassociatedIcons;
 };
 
 #define FAVICON_ANNOTATION_NAME "favicon"

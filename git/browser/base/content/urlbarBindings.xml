@@ -1,47 +1,15 @@
 <?xml version="1.0"?>
 
 # -*- Mode: HTML -*-
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is mozilla.org browser.
-#
-# The Initial Developer of the Original Code is
-# Simon Bünzli <zeniko@gmail.com>
-# Portions created by the Initial Developer are Copyright (C) 2006
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#   Dão Gottwald <dao@design-noir.de>
-#   Drew Willcoxon <adw@mozilla.com>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 <!DOCTYPE bindings [
 <!ENTITY % notificationDTD SYSTEM "chrome://global/locale/notification.dtd">
 %notificationDTD;
+<!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
+%browserDTD;
 ]>
 
 <bindings id="urlbarBindings" xmlns="http://www.mozilla.org/xbl"
@@ -65,7 +33,7 @@
           <html:input anonid="input"
                       class="autocomplete-textbox urlbar-input textbox-input uri-element-right-align"
                       allowevents="true"
-                      xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey"/>
+                      xbl:inherits="tooltiptext=inputtooltiptext,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey"/>
         </xul:hbox>
         <children includes="hbox"/>
       </xul:hbox>
@@ -82,8 +50,7 @@
       <constructor><![CDATA[
         this._prefs = Components.classes["@mozilla.org/preferences-service;1"]
                                 .getService(Components.interfaces.nsIPrefService)
-                                .getBranch("browser.urlbar.")
-                                .QueryInterface(Components.interfaces.nsIPrefBranch2);
+                                .getBranch("browser.urlbar.");
 
         this._prefs.addObserver("", this, false);
         this.clickSelectsAll = this._prefs.getBoolPref("clickSelectsAll");
@@ -91,8 +58,7 @@
         this.completeDefaultIndex = this._prefs.getBoolPref("autoFill");
         this.timeout = this._prefs.getIntPref("delay");
         this._formattingEnabled = this._prefs.getBoolPref("formatting.enabled");
-
-        this._urlTooltip = document.getElementById("urlTooltip");
+        this._mayTrimURLs = this._prefs.getBoolPref("trimURLs");
 
         this.inputField.controllers.insertControllerAt(0, this._copyCutController);
         this.inputField.addEventListener("mousedown", this, false);
@@ -180,6 +146,16 @@
         ]]></body>
       </method>
 
+      <field name="_mayTrimURLs">true</field>
+      <method name="trimValue">
+        <parameter name="aURL"/>
+        <body><![CDATA[
+          // This method must not modify the given URL such that calling
+          // nsIURIFixup::createFixupURI with the result will produce a different URI.
+          return this._mayTrimURLs ? trimURL(aURL) : aURL;
+        ]]></body>
+      </method>
+
       <field name="_formattingEnabled">true</field>
       <method name="formatValue">
         <body><![CDATA[
@@ -192,27 +168,45 @@
 
           let textNode = this.editor.rootElement.firstChild;
           let value = textNode.textContent;
-          let matchedURL = value.match(/^((?:http|https|ftp):\/\/(?:[^\/]+@)?)(.+?)(?::\d+)?(?:\/|$)/);
+
+          let protocol = value.match(/^[a-z\d.+\-]+:(?=[^\d])/);
+          if (protocol &&
+              ["http:", "https:", "ftp:"].indexOf(protocol[0]) == -1)
+            return;
+          let matchedURL = value.match(/^((?:[a-z]+:\/\/)?(?:[^\/]+@)?)(.+?)(?::\d+)?(?:\/|$)/);
           if (!matchedURL)
             return;
 
           let [, preDomain, domain] = matchedURL;
           let baseDomain = domain;
-          try {
-            baseDomain = Services.eTLD.getBaseDomainFromHost(domain);
-          } catch (e) {}
-          let segments = function (s) s.replace(/[^.]*/g, "").length + 1;
-          let subSegments = segments(domain) - segments(baseDomain);
-          let subDomain = domain.match(new RegExp("(?:[^.]*\.){" + subSegments + "}"))[0];
+          let subDomain = "";
+          // getBaseDomainFromHost doesn't recognize IPv6 literals in brackets as IPs (bug 667159)
+          if (domain[0] != "[") {
+            try {
+              baseDomain = Services.eTLD.getBaseDomainFromHost(domain);
+              if (!domain.endsWith(baseDomain)) {
+                // getBaseDomainFromHost converts its resultant to ACE.
+                let IDNService = Cc["@mozilla.org/network/idn-service;1"]
+                                 .getService(Ci.nsIIDNService);
+                baseDomain = IDNService.convertACEtoUTF8(baseDomain);
+              }
+            } catch (e) {}
+          }
+          if (baseDomain != domain) {
+            subDomain = domain.slice(0, -baseDomain.length);
+          }
 
-          let range = document.createRange();
-          range.setStart(textNode, 0);
-          range.setEnd(textNode, preDomain.length + subDomain.length);
-          selection.addRange(range);
+          let rangeLength = preDomain.length + subDomain.length;
+          if (rangeLength) {
+            let range = document.createRange();
+            range.setStart(textNode, 0);
+            range.setEnd(textNode, rangeLength);
+            selection.addRange(range);
+          }
 
           let startRest = preDomain.length + domain.length;
           if (startRest < value.length) {
-            range = document.createRange();
+            let range = document.createRange();
             range.setStart(textNode, startRest);
             range.setEnd(textNode, value.length);
             selection.addRange(range);
@@ -264,152 +258,165 @@
           var postData = null;
 
           var action = this._parseActionUrl(url);
-          if (action) {
-            url = action.param;
-            if (this.hasAttribute("actiontype")) {
-              if (action.type == "switchtab") {
-                this.handleRevert();
-                let prevTab = gBrowser.selectedTab;
-                if (switchToTabHavingURI(url) &&
-                    isTabEmpty(prevTab))
-                  gBrowser.removeTab(prevTab);
+          let lastLocationChange = gBrowser.selectedBrowser.lastLocationChange;
+          Task.spawn(function() {
+            let matchLastLocationChange = true;
+            if (action) {
+              url = action.param;
+              if (this.hasAttribute("actiontype")) {
+                if (action.type == "switchtab") {
+                  this.handleRevert();
+                  let prevTab = gBrowser.selectedTab;
+                  if (switchToTabHavingURI(url) &&
+                      isTabEmpty(prevTab))
+                    gBrowser.removeTab(prevTab);
+                }
+                return;
               }
-              return;
             }
-          }
-          else {
-            [url, postData, mayInheritPrincipal] = this._canonizeURL(aTriggeringEvent);
-            if (!url)
-              return;
-          }
+            else {
+              [url, postData, mayInheritPrincipal] = yield this._canonizeURL(aTriggeringEvent);
+              matchLastLocationChange = (lastLocationChange ==
+                                         gBrowser.selectedBrowser.lastLocationChange);
+              if (!url)
+                return;
+            }
 
-          this.value = url;
-          gBrowser.userTypedValue = url;
-          try {
-            addToUrlbarHistory(url);
-          } catch (ex) {
-            // Things may go wrong when adding url to session history,
-            // but don't let that interfere with the loading of the url.
-            Cu.reportError(ex);
-          }
+            this.value = url;
+            gBrowser.userTypedValue = url;
+            try {
+              addToUrlbarHistory(url);
+            } catch (ex) {
+              // Things may go wrong when adding url to session history,
+              // but don't let that interfere with the loading of the url.
+              Cu.reportError(ex);
+            }
 
-          function loadCurrent() {
-            let flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
-            // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
-            // inheriting the currently loaded document's principal, unless this
-            // URL is marked as safe to inherit (e.g. came from a bookmark
-            // keyword).
-            if (!mayInheritPrincipal)
-              flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
-            gBrowser.loadURIWithFlags(url, flags, null, null, postData);
-          }
+            function loadCurrent() {
+              let flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
+              // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
+              // inheriting the currently loaded document's principal, unless this
+              // URL is marked as safe to inherit (e.g. came from a bookmark
+              // keyword).
+              if (!mayInheritPrincipal)
+                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
+              // If the value wasn't typed, we know that we decoded the value as
+              // UTF-8 (see losslessDecodeURI)
+              if (!this.valueIsTyped)
+                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_URI_IS_UTF8;
+              gBrowser.loadURIWithFlags(url, flags, null, null, postData);
+            }
 
-          if (aTriggeringEvent instanceof MouseEvent) {
-            // We have a mouse event (from the go button), so use the standard
-            // UI link behaviors
-            let where = whereToOpenLink(aTriggeringEvent, false, false);
-            if (where == "current") {
-              loadCurrent();
+            // Focus the content area before triggering loads, since if the load
+            // occurs in a new tab, we want focus to be restored to the content
+            // area when the current tab is re-selected.
+            gBrowser.selectedBrowser.focus();
+
+            let isMouseEvent = aTriggeringEvent instanceof MouseEvent;
+            let altEnter = !isMouseEvent && aTriggeringEvent && aTriggeringEvent.altKey;
+
+            if (altEnter) {
+              // XXX This was added a long time ago, and I'm not sure why it is
+              // necessary. Alt+Enter's default action might cause a system beep,
+              // or something like that?
+              aTriggeringEvent.preventDefault();
+              aTriggeringEvent.stopPropagation();
+            }
+
+            // If the current tab is empty, ignore Alt+Enter (just reuse this tab)
+            altEnter = altEnter && !isTabEmpty(gBrowser.selectedTab);
+
+            if (isMouseEvent || altEnter) {
+              // Use the standard UI link behaviors for clicks or Alt+Enter
+              let where = "tab";
+              if (isMouseEvent)
+                where = whereToOpenLink(aTriggeringEvent, false, false);
+
+              if (where == "current") {
+                if (matchLastLocationChange) {
+                  loadCurrent();
+                }
+              } else {
+                this.handleRevert();
+                let params = { allowThirdPartyFixup: true,
+                               postData: postData,
+                               initiatingDoc: document };
+                if (!this.valueIsTyped)
+                  params.isUTF8 = true;
+                openUILinkIn(url, where, params);
+              }
             } else {
-              this.handleRevert();
-              content.focus();
-              openUILinkIn(url, where,
-                           { allowThirdPartyFixup: true, postData: postData });
+              if (matchLastLocationChange) {
+                loadCurrent();
+              }
             }
-            return;
-          }
-
-          if (aTriggeringEvent &&
-              aTriggeringEvent.altKey &&
-              !isTabEmpty(gBrowser.selectedTab)) {
-            this.handleRevert();
-            content.focus();
-            gBrowser.loadOneTab(url, {
-                                postData: postData,
-                                inBackground: false,
-                                allowThirdPartyFixup: true});
-            aTriggeringEvent.preventDefault();
-            aTriggeringEvent.stopPropagation();
-          } else {
-            loadCurrent();
-          }
-
-          gBrowser.selectedBrowser.focus();
+          }.bind(this));
         ]]></body>
       </method>
 
       <method name="_canonizeURL">
         <parameter name="aTriggeringEvent"/>
         <body><![CDATA[
-          var url = this.value;
-          if (!url)
-            return ["", null, false];
+          return Task.spawn(function() {
+            var url = this.value;
+            if (!url)
+              throw new Task.Result(["", null, false]);
 
-          // Only add the suffix when the URL bar value isn't already "URL-like",
-          // and only if we get a keyboard event, to match user expectations.
-          if (!/^\s*(www|https?)\b|\/\s*$/i.test(url) &&
-              (aTriggeringEvent instanceof KeyEvent)) {
+            // Only add the suffix when the URL bar value isn't already "URL-like",
+            // and only if we get a keyboard event, to match user expectations.
+            if (/^\s*[^.:\/\s]+(?:\/.*|\s*)$/i.test(url) &&
+                (aTriggeringEvent instanceof KeyEvent)) {
 #ifdef XP_MACOSX
-            let accel = aTriggeringEvent.metaKey;
+              let accel = aTriggeringEvent.metaKey;
 #else
-            let accel = aTriggeringEvent.ctrlKey;
+              let accel = aTriggeringEvent.ctrlKey;
 #endif
-            let shift = aTriggeringEvent.shiftKey;
+              let shift = aTriggeringEvent.shiftKey;
 
-            let suffix = "";
+              let suffix = "";
 
-            switch (true) {
-              case (accel && shift):
-                suffix = ".org/";
-                break;
-              case (shift):
-                suffix = ".net/";
-                break;
-              case (accel):
-                try {
-                  suffix = gPrefService.getCharPref("browser.fixup.alternate.suffix");
-                  if (suffix.charAt(suffix.length - 1) != "/")
-                    suffix += "/";
-                } catch(e) {
-                  suffix = ".com/";
-                }
-                break;
-            }
+              switch (true) {
+                case (accel && shift):
+                  suffix = ".org/";
+                  break;
+                case (shift):
+                  suffix = ".net/";
+                  break;
+                case (accel):
+                  try {
+                    suffix = gPrefService.getCharPref("browser.fixup.alternate.suffix");
+                    if (suffix.charAt(suffix.length - 1) != "/")
+                      suffix += "/";
+                  } catch(e) {
+                    suffix = ".com/";
+                  }
+                  break;
+              }
 
-            if (suffix) {
-              // trim leading/trailing spaces (bug 233205)
-              url = url.trim();
+              if (suffix) {
+                // trim leading/trailing spaces (bug 233205)
+                url = url.trim();
 
-              // Tack www. and suffix on.  If user has appended directories, insert
-              // suffix before them (bug 279035).  Be careful not to get two slashes.
-              // Also, don't add the suffix if it's in the original url (bug 233853).
+                // Tack www. and suffix on.  If user has appended directories, insert
+                // suffix before them (bug 279035).  Be careful not to get two slashes.
 
-              let firstSlash = url.indexOf("/");
-              let existingSuffix = url.indexOf(suffix.substring(0, suffix.length - 1));
+                let firstSlash = url.indexOf("/");
 
-              // * Logic for slash and existing suffix (example)
-              // No slash, no suffix: Add suffix (mozilla)
-              // No slash, yes suffix: Add slash (mozilla.com)
-              // Yes slash, no suffix: Insert suffix (mozilla/stuff)
-              // Yes slash, suffix before slash: Do nothing (mozilla.com/stuff)
-              // Yes slash, suffix after slash: Insert suffix (mozilla/?stuff=.com)
-
-              if (firstSlash >= 0) {
-                if (existingSuffix == -1 || existingSuffix > firstSlash)
+                if (firstSlash >= 0) {
                   url = url.substring(0, firstSlash) + suffix +
                         url.substring(firstSlash + 1);
-              } else
-                url = url + (existingSuffix == -1 ? suffix : "/");
+                } else {
+                  url = url + suffix;
+                }
 
-              url = "http://www." + url;
+                url = "http://www." + url;
+              }
             }
-          }
 
-          var postData = {};
-          var mayInheritPrincipal = { value: false };
-          url = getShortcutOrURI(url, postData, mayInheritPrincipal);
+            let data = yield getShortcutOrURIAndPostData(url);
 
-          return [url, postData.value, mayInheritPrincipal.value];
+            throw new Task.Result([data.url, data.postData, data.mayInheritPrincipal]);
+          }.bind(this));
         ]]></body>
       </method>
 
@@ -419,26 +426,13 @@
         <body><![CDATA[
           if (this.focused || !this._contentIsCropped)
             return;
-          if (this._tooltipTimer)
-            clearTimeout(this._tooltipTimer);
-          this._tooltipTimer = setTimeout(function (self) {
-            self._tooltipTimer = 0;
-            var label = self._urlTooltip.firstChild;
-            label.value = self.value;
-            var bO = self.boxObject;
-            self._urlTooltip.maxWidth = bO.width;
-            self._urlTooltip.showPopup(self, bO.screenX, bO.screenY + bO.height, "tooltip");
-          }, 700, this);
+          this.inputField.setAttribute("tooltiptext", this.value);
         ]]></body>
       </method>
 
       <method name="_hideURLTooltip">
         <body><![CDATA[
-          if (this._tooltipTimer) {
-            clearTimeout(this._tooltipTimer);
-            this._tooltipTimer = 0;
-          }
-          this._urlTooltip.hidePopup();
+          this.inputField.removeAttribute("tooltiptext");
         ]]></body>
       </method>
 
@@ -467,7 +461,7 @@
             SetPageProxyState("invalid");
             this.focus();
             try {
-              urlSecurityCheck(this.value,
+              urlSecurityCheck(url,
                                gBrowser.contentPrincipal,
                                Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL);
             } catch (ex) {
@@ -482,26 +476,59 @@
         <body><![CDATA[
           // Grab the actual input field's value, not our value, which could include moz-action:
           var inputVal = this.inputField.value;
-          var val = inputVal.substring(this.selectionStart, this.selectionEnd);
+          var selectedVal = inputVal.substring(this.selectionStart, this.selectionEnd);
 
-          // If the entire value is selected and it's a valid non-javascript,
-          // non-data URI, encode it.
-          if (val == inputVal &&
-              this.getAttribute("pageproxystate") == "valid") {
-            let uri;
-            try {
-              uri = makeURI(val);
-            } catch (e) {}
-
-            if (uri && !uri.schemeIs("javascript") && !uri.schemeIs("data")) {
-              val = uri.spec;
-
-              // Parentheses are known to confuse third-party applications (bug 458565).
-              val = val.replace(/[()]/g, function (c) escape(c));
-            }
+          // If the selection doesn't start at the beginning or doesn't span the full domain or
+          // the URL bar is modified, nothing else to do here.
+          if (this.selectionStart > 0 || this.valueIsTyped)
+            return selectedVal;
+          // The selection doesn't span the full domain if it doesn't contain a slash and is
+          // followed by some character other than a slash.
+          if (!selectedVal.contains("/")) {
+            let remainder = inputVal.replace(selectedVal, "");
+            if (remainder != "" && remainder[0] != "/")
+              return selectedVal;
           }
 
-          return val;
+          let uriFixup = Cc["@mozilla.org/docshell/urifixup;1"].getService(Ci.nsIURIFixup);
+
+          let uri;
+          try {
+            uri = uriFixup.createFixupURI(inputVal, Ci.nsIURIFixup.FIXUP_FLAG_USE_UTF8);
+          } catch (e) {}
+          if (!uri)
+            return selectedVal;
+
+          // Only copy exposable URIs
+          try {
+            uri = uriFixup.createExposableURI(uri);
+          } catch (ex) {}
+
+          // If the entire URL is selected, just use the actual loaded URI.
+          if (inputVal == selectedVal) {
+            // ... but only if  isn't a javascript: or data: URI, since those
+            // are hard to read when encoded
+            if (!uri.schemeIs("javascript") && !uri.schemeIs("data")) {
+              // Parentheses are known to confuse third-party applications (bug 458565).
+              selectedVal = uri.spec.replace(/[()]/g, function (c) escape(c));
+            }
+
+            return selectedVal;
+          }
+
+          // Just the beginning of the URL is selected, check for a trimmed
+          // value
+          let spec = uri.spec;
+          let trimmedSpec = this.trimValue(spec);
+          if (spec != trimmedSpec) {
+            // Prepend the portion that trimValue removed from the beginning.
+            // This assumes trimValue will only truncate the URL at
+            // the beginning or end (or both).
+            let trimmedSegments = spec.split(trimmedSpec);
+            selectedVal = trimmedSegments[0] + selectedVal;
+          }
+
+          return selectedVal;
         ]]></body>
       </method>
 
@@ -517,16 +544,16 @@
             if (aCommand == "cmd_cut" && this.isCommandEnabled(aCommand)) {
               let start = urlbar.selectionStart;
               let end = urlbar.selectionEnd;
-              // This should reset any "moz-action:" prefix.
-              urlbar.value = urlbar.inputField.value.substring(0, start) +
-                             urlbar.inputField.value.substring(end);
+              urlbar.inputField.value = urlbar.inputField.value.substring(0, start) +
+                                        urlbar.inputField.value.substring(end);
               urlbar.selectionStart = urlbar.selectionEnd = start;
+              urlbar.removeAttribute("actiontype");
               SetPageProxyState("invalid");
             }
 
             Cc["@mozilla.org/widget/clipboardhelper;1"]
               .getService(Ci.nsIClipboardHelper)
-              .copyString(val);
+              .copyString(val, document);
           },
           supportsCommand: function(aCommand) {
             switch (aCommand) {
@@ -564,6 +591,9 @@
                 break;
               case "formatting.enabled":
                 this._formattingEnabled = this._prefs.getBoolPref(aData);
+                break;
+              case "trimURLs":
+                this._mayTrimURLs = this._prefs.getBoolPref(aData);
                 break;
             }
           }
@@ -605,7 +635,13 @@
           try {
             val = losslessDecodeURI(makeURI(val));
           } catch (ex) { }
+
+          // Trim popup selected values, but never trim results coming from
+          // autofill.
+          if (this.popup.selectedIndex == -1)
+            this._disableTrim = true;
           this.value = val;
+          this._disableTrim = false;
 
           // Completing a result should simulate the user typing the result, so
           // fire an input event.
@@ -623,7 +659,7 @@
       <method name="_parseActionUrl">
         <parameter name="aUrl"/>
         <body><![CDATA[
-          if (!/^moz-action:/.test(aUrl))
+          if (!aUrl.startsWith("moz-action:"))
             return null;
 
           // url is in the format moz-action:ACTION,PARAM
@@ -674,12 +710,7 @@
         this.formatValue();
       ]]></handler>
 
-      <handler event="draggesture" phase="capturing"><![CDATA[
-        // TODO: This should use dragstart but editor code is still using
-        //       the old drag & drop APIs, so we have to handle draggesture.
-        //       This can be changed once editor code is updated to the new API.
-        //       See bug 499008 for details.
-
+      <handler event="dragstart" phase="capturing"><![CDATA[
         // Drag only if the gesture starts from the input field.
         if (event.originalTarget != this.inputField)
           return;
@@ -723,7 +754,7 @@
 
         Cc["@mozilla.org/widget/clipboardhelper;1"]
           .getService(Ci.nsIClipboardHelper)
-          .copyStringToClipboard(val, Ci.nsIClipboard.kSelectionClipboard);
+          .copyStringToClipboard(val, Ci.nsIClipboard.kSelectionClipboard, document);
       ]]></handler>
     </handlers>
 
@@ -884,54 +915,10 @@
     </implementation>
   </binding>
 
-  <binding id="geolocation-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
-    <content align="start">
-      <xul:image class="popup-notification-icon"
-                 xbl:inherits="popupid"/>
-      <xul:vbox flex="1">
-        <xul:description class="popup-notification-description"
-                         xbl:inherits="xbl:text=label"/>
-        <xul:spacer flex="1"/>
-        <xul:hbox class="popup-notification-button-container"
-                  pack="end" align="center">
-          <xul:label anonid="learnmore" class="text-link geolocation-text-link"/>
-          <xul:spacer flex="1"/>
-          <xul:button anonid="button"
-                      type="menu-button"
-                      class="popup-notification-menubutton"
-                      xbl:inherits="oncommand=buttoncommand,label=buttonlabel,accesskey=buttonaccesskey">
-            <xul:menupopup anonid="menupopup"
-                           xbl:inherits="oncommand=menucommand">
-              <children/>
-              <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
-                            label="&closeNotificationItem.label;"
-                            xbl:inherits="oncommand=closeitemcommand"/>
-            </xul:menupopup>
-          </xul:button>
-        </xul:hbox>
-      </xul:vbox>
-      <xul:vbox pack="start">
-        <xul:toolbarbutton anonid="closebutton"
-                           class="messageCloseButton popup-notification-closebutton tabbable"
-                           xbl:inherits="oncommand=closebuttoncommand"
-                           tooltiptext="&closeNotification.tooltip;"/>
-      </xul:vbox>
-    </content>
-    <implementation>  
-      <constructor><![CDATA[
-        let link = document.getAnonymousElementByAttribute(this, "anonid", "learnmore");
-        link.value = gNavigatorBundle.getString("geolocation.learnMore");
-        
-        let formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].getService(Ci.nsIURLFormatter);
-        link.href = formatter.formatURLPref("browser.geolocation.warning.infoURL");
-      ]]></constructor>
-    </implementation>
-  </binding>
-
   <binding id="addon-progress-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
     <content align="start">
       <xul:image class="popup-notification-icon"
-                 xbl:inherits="popupid"/>
+                 xbl:inherits="popupid,src=icon"/>
       <xul:vbox flex="1">
         <xul:description class="popup-notification-description addon-progress-description"
                          xbl:inherits="xbl:text=label"/>
@@ -978,7 +965,7 @@
         // undetermined state and then schedule a proper check at the next
         // opportunity
         this.setProgress(0, -1);
-        setTimeout(this.updateProgress.bind(this), 0);
+        this._updateProgressTimeout = setTimeout(this.updateProgress.bind(this), 0);
       ]]></constructor>
 
       <destructor><![CDATA[
@@ -1005,6 +992,7 @@
           this.notification.options.installs.forEach(function(aInstall) {
             aInstall.removeListener(this);
           }, this);
+          clearTimeout(this._updateProgressTimeout);
         ]]></body>
       </method>
 
@@ -1144,6 +1132,746 @@
         ]]></body>
       </method>
     </implementation>
+  </binding>
+
+  <binding id="identity-request-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
+    <content align="start">
+
+      <xul:image class="popup-notification-icon"
+                 xbl:inherits="popupid,src=icon"/>
+
+      <xul:vbox flex="1">
+        <xul:vbox anonid="identity-deck">
+          <xul:vbox flex="1" pack="center"> <!-- 1: add an email -->
+            <html:input type="email" anonid="email" required="required" size="30"/>
+            <xul:description anonid="newidentitydesc"/>
+            <xul:spacer flex="1"/>
+            <xul:label class="text-link custom-link small-margin" anonid="chooseemail" hidden="true"/>
+          </xul:vbox>
+          <xul:vbox flex="1" hidden="true"> <!-- 2: choose an email -->
+            <xul:description anonid="chooseidentitydesc"/>
+            <xul:radiogroup anonid="identities">
+            </xul:radiogroup>
+            <xul:label class="text-link custom-link" anonid="newemail"/>
+          </xul:vbox>
+        </xul:vbox>
+        <xul:hbox class="popup-notification-button-container"
+                  pack="end" align="center">
+          <xul:label anonid="tos" class="text-link" hidden="true"/>
+          <xul:label anonid="privacypolicy" class="text-link" hidden="true"/>
+          <xul:spacer flex="1"/>
+          <xul:image anonid="throbber" src="chrome://browser/skin/tabbrowser/loading.png"
+                     style="visibility:hidden" width="16" height="16"/>
+          <xul:button anonid="button"
+                      type="menu-button"
+                      class="popup-notification-menubutton"
+                      xbl:inherits="oncommand=buttoncommand,label=buttonlabel,accesskey=buttonaccesskey">
+            <xul:menupopup anonid="menupopup"
+                           xbl:inherits="oncommand=menucommand">
+              <children/>
+              <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
+                            label="&closeNotificationItem.label;"
+                            xbl:inherits="oncommand=closeitemcommand"/>
+            </xul:menupopup>
+          </xul:button>
+        </xul:hbox>
+      </xul:vbox>
+      <xul:vbox pack="start">
+        <xul:toolbarbutton anonid="closebutton"
+                           class="messageCloseButton popup-notification-closebutton tabbable"
+                           xbl:inherits="oncommand=closebuttoncommand"
+                           tooltiptext="&closeNotification.tooltip;"/>
+      </xul:vbox>
+    </content>
+    <implementation>
+      <constructor><![CDATA[
+        // this.notification.options.identity is used to pass identity-specific info to the binding
+        let origin = this.identity.origin
+
+        // Populate text
+        this.emailField.placeholder = gNavigatorBundle.
+                                      getString("identity.newIdentity.email.placeholder");
+        this.newIdentityDesc.textContent = gNavigatorBundle.getFormattedString(
+                                             "identity.newIdentity.description", [origin]);
+        this.chooseIdentityDesc.textContent = gNavigatorBundle.getFormattedString(
+                                                "identity.chooseIdentity.description", [origin]);
+
+        // Show optional terms of service and privacy policy links
+        this._populateLink(this.identity.termsOfService, "tos", "identity.termsOfService");
+        this._populateLink(this.identity.privacyPolicy, "privacypolicy", "identity.privacyPolicy");
+
+        // Populate the list of identities to choose from. The origin is used to provide
+        // better suggestions.
+        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(origin);
+
+        this._populateIdentityList(identities);
+
+        if (typeof this.step == "undefined") {
+          // First opening of this notification
+          // Show the add email pane (0) if there are no existing identities otherwise show the list
+          this.step = "result" in identities && identities.result.length ? 1 : 0;
+        } else {
+          // Already opened so restore previous state
+          if (this.identity.typedEmail) {
+            this.emailField.value = this.identity.typedEmail;
+          }
+          if (this.identity.selected) {
+            // If the user already chose an identity then update the UI to reflect that
+            this.onIdentitySelected();
+          }
+          // Update the view for the step
+          this.step = this.step;
+        }
+
+        // Fire notification with the chosen identity when main button is clicked
+        this.button.addEventListener("command", this._onButtonCommand.bind(this), true);
+
+        // Do the same if enter is pressed in the email field
+        this.emailField.addEventListener("keypress", function emailFieldKeypress(aEvent) {
+          if (aEvent.keyCode != aEvent.DOM_VK_RETURN)
+            return;
+          this._onButtonCommand(aEvent);
+        }.bind(this));
+
+        this.addEmailLink.value = gNavigatorBundle.getString("identity.newIdentity.label");
+        this.addEmailLink.accessKey = gNavigatorBundle.getString("identity.newIdentity.accessKey");
+        this.addEmailLink.addEventListener("click", function addEmailClick(evt) {
+          this.step = 0;
+        }.bind(this));
+
+        this.chooseEmailLink.value = gNavigatorBundle.getString("identity.chooseIdentity.label");
+        this.chooseEmailLink.hidden = !("result" in identities && identities.result.length);
+        this.chooseEmailLink.addEventListener("click", function chooseEmailClick(evt) {
+          this.step = 1;
+        }.bind(this));
+
+        this.emailField.addEventListener("blur", function onEmailBlur() {
+          this.identity.typedEmail = this.emailField.value;
+        }.bind(this));
+      ]]></constructor>
+
+      <field name="SignInToWebsiteUX" readonly="true">
+        let sitw = {};
+        Components.utils.import("resource:///modules/SignInToWebsite.jsm", sitw);
+        sitw.SignInToWebsiteUX;
+      </field>
+
+      <field name="newIdentityDesc" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "newidentitydesc");
+      </field>
+
+      <field name="chooseIdentityDesc" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "chooseidentitydesc");
+      </field>
+
+      <field name="identityList" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "identities");
+      </field>
+
+      <field name="emailField" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "email");
+      </field>
+
+      <field name="addEmailLink" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "newemail");
+      </field>
+
+      <field name="chooseEmailLink" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "chooseemail");
+      </field>
+
+      <field name="throbber" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "throbber");
+      </field>
+
+      <field name="identity" readonly="true">
+        this.notification.options.identity;
+      </field>
+
+      <!-- persist the state on the identity object so we can re-create the
+           notification state upon re-opening -->
+      <property name="step">
+        <getter>
+          return this.identity.step;
+        </getter>
+        <setter><![CDATA[
+          let deck = document.getAnonymousElementByAttribute(this, "anonid", "identity-deck");
+          for (let i = 0; i < deck.children.length; i++) {
+            deck.children[i].hidden = (val != i);
+          }
+          this.identity.step = val;
+          switch (val) {
+            case 0:
+              this.emailField.focus();
+              break;
+          }]]>
+        </setter>
+      </property>
+
+      <method name="onIdentitySelected">
+        <body><![CDATA[
+          this.throbber.style.visibility = "visible";
+          this.button.disabled = true;
+          this.emailField.value = this.identity.selected
+          this.emailField.disabled = true;
+          this.identityList.disabled = true;
+        ]]></body>
+      </method>
+
+      <method name="_populateLink">
+        <parameter name="aURL"/>
+        <parameter name="aLinkId"/>
+        <parameter name="aStringId"/>
+        <body><![CDATA[
+          if (aURL) {
+            // Show optional link to aURL
+            let link = document.getAnonymousElementByAttribute(this, "anonid", aLinkId);
+            link.value = gNavigatorBundle.getString(aStringId);
+            link.href = aURL;
+            link.hidden = false;
+          }
+        ]]></body>
+      </method>
+
+      <method name="_populateIdentityList">
+        <parameter name="aIdentities"/>
+        <body><![CDATA[
+          let foundLastUsed = false;
+          let lastUsed = this.identity.selected || aIdentities.lastUsed;
+          for (let id in aIdentities.result) {
+            let label = aIdentities.result[id];
+            let opt = this.identityList.appendItem(label);
+            if (label == lastUsed) {
+              this.identityList.selectedItem = opt;
+              foundLastUsed = true;
+            }
+          }
+          if (!foundLastUsed) {
+            this.identityList.selectedIndex = -1;
+          }
+        ]]></body>
+      </method>
+
+      <method name="_onButtonCommand">
+        <parameter name="aEvent"/>
+        <body><![CDATA[
+          if (aEvent.target != aEvent.currentTarget)
+            return;
+          let chosenId;
+          switch (this.step) {
+            case 0:
+              aEvent.stopPropagation();
+              if (!this.emailField.validity.valid) {
+                this.emailField.focus();
+                return;
+              }
+              chosenId = this.emailField.value;
+              break;
+            case 1:
+              aEvent.stopPropagation();
+              let selectedItem = this.identityList.selectedItem
+              chosenId = selectedItem ? selectedItem.label : null;
+              if (!chosenId)
+                return;
+              break;
+            default:
+              throw new Error("Unknown case");
+              return;
+          }
+          // Actually select the identity
+          this.SignInToWebsiteUX.selectIdentity(this.identity.rpId, chosenId);
+          this.identity.selected = chosenId;
+          this.onIdentitySelected();
+        ]]></body>
+      </method>
+
+    </implementation>
+  </binding>
+
+  <binding id="plugin-popupnotification-center-item">
+    <content align="center">
+      <xul:vbox pack="center" anonid="itemBox" class="itemBox">
+        <xul:description anonid="center-item-label" class="center-item-label" />
+        <xul:hbox flex="1" pack="start" align="center" anonid="center-item-warning">
+          <xul:image anonid="center-item-warning-icon" class="center-item-warning-icon"/>
+          <xul:label anonid="center-item-warning-label"/>
+          <xul:label anonid="center-item-link" value="&checkForUpdates;" class="text-link"/>
+        </xul:hbox>
+      </xul:vbox>
+      <xul:vbox pack="center">
+        <xul:menulist class="center-item-menulist"
+                      anonid="center-item-menulist">
+          <xul:menupopup>
+            <xul:menuitem anonid="allownow" value="allownow"
+                          label="&pluginActivateNow.label;" />
+            <xul:menuitem anonid="allowalways" value="allowalways"
+                          label="&pluginActivateAlways.label;" />
+            <xul:menuitem anonid="block" value="block"
+                          label="&pluginBlockNow.label;" />
+          </xul:menupopup>
+        </xul:menulist>
+      </xul:vbox>
+    </content>
+    <resources>
+      <stylesheet src="chrome://global/skin/notification.css"/>
+    </resources>
+    <implementation>
+      <constructor><![CDATA[
+        document.getAnonymousElementByAttribute(this, "anonid", "center-item-label").value = this.action.pluginName;
+
+        let curState = "block";
+        if (this.action.fallbackType == Ci.nsIObjectLoadingContent.PLUGIN_ACTIVE) {
+          if (this.action.pluginPermissionType == Ci.nsIPermissionManager.EXPIRE_SESSION) {
+            curState = "allownow";
+          }
+          else {
+            curState = "allowalways";
+          }
+        }
+        document.getAnonymousElementByAttribute(this, "anonid", "center-item-menulist").value = curState;
+
+        let warningString = "";
+        let linkString = "";
+
+        let link = document.getAnonymousElementByAttribute(this, "anonid", "center-item-link");
+
+        let url;
+        let linkHandler;
+
+        if (this.action.pluginTag.enabledState == Ci.nsIPluginTag.STATE_DISABLED) {
+          document.getAnonymousElementByAttribute(this, "anonid", "center-item-menulist").hidden = true;
+          warningString = gNavigatorBundle.getString("pluginActivateDisabled.label");
+          linkString = gNavigatorBundle.getString("pluginActivateDisabled.manage");
+          linkHandler = function(event) {
+            event.preventDefault();
+            gPluginHandler.managePlugins();
+          };
+          document.getAnonymousElementByAttribute(this, "anonid", "center-item-warning-icon").hidden = true;
+        }
+        else {
+          url = this.action.detailsLink;
+
+          switch (this.action.blocklistState) {
+          case Ci.nsIBlocklistService.STATE_NOT_BLOCKED:
+            document.getAnonymousElementByAttribute(this, "anonid", "center-item-warning").hidden = true;
+            break;
+          case Ci.nsIBlocklistService.STATE_BLOCKED:
+            document.getAnonymousElementByAttribute(this, "anonid", "center-item-menulist").hidden = true;
+            warningString = gNavigatorBundle.getString("pluginActivateBlocked.label");
+            linkString = gNavigatorBundle.getString("pluginActivate.learnMore");
+            break;
+          case Ci.nsIBlocklistService.STATE_VULNERABLE_UPDATE_AVAILABLE:
+            warningString = gNavigatorBundle.getString("pluginActivateOutdated.label");
+            linkString = gNavigatorBundle.getString("pluginActivate.updateLabel");
+            break;
+          case Ci.nsIBlocklistService.STATE_VULNERABLE_NO_UPDATE:
+            warningString = gNavigatorBundle.getString("pluginActivateVulnerable.label");
+            linkString = gNavigatorBundle.getString("pluginActivate.riskLabel");
+            break;
+          }
+        }
+        document.getAnonymousElementByAttribute(this, "anonid", "center-item-warning-label").value = warningString;
+
+        if (url || linkHandler) {
+          link.value = linkString;
+          if (url) {
+            link.href = url;
+          }
+          if (linkHandler) {
+            link.addEventListener("click", linkHandler, false);
+          }
+        }
+        else {
+          link.hidden = true;
+        }
+      ]]></constructor>
+      <property name="value">
+        <getter>
+          return document.getAnonymousElementByAttribute(this, "anonid",
+                   "center-item-menulist").value;
+        </getter>
+        <setter><!-- This should be used only in automated tests -->
+          document.getAnonymousElementByAttribute(this, "anonid",
+                    "center-item-menulist").value = val;
+        </setter>
+      </property>
+    </implementation>
+  </binding>
+
+  <binding id="click-to-play-plugins-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
+    <content align="start" style="width: &pluginNotification.width;;">
+      <xul:vbox flex="1" align="stretch" class="popup-notification-main-box"
+                xbl:inherits="popupid">
+        <xul:hbox class="click-to-play-plugins-notification-description-box" flex="1" align="start">
+          <xul:description class="click-to-play-plugins-outer-description" flex="1">
+            <html:span anonid="click-to-play-plugins-notification-description" />
+            <xul:label class="text-link click-to-play-plugins-notification-link" anonid="click-to-play-plugins-notification-link" />
+          </xul:description>
+          <xul:toolbarbutton anonid="closebutton"
+                             class="messageCloseButton popup-notification-closebutton tabbable"
+                             xbl:inherits="oncommand=closebuttoncommand"
+                             tooltiptext="&closeNotification.tooltip;"/>
+        </xul:hbox>
+        <xul:grid anonid="click-to-play-plugins-notification-center-box"
+                  class="click-to-play-plugins-notification-center-box">
+          <xul:columns>
+            <xul:column flex="1"/>
+            <xul:column/>
+          </xul:columns>
+          <xul:rows>
+            <children includes="row"/>
+            <xul:hbox pack="start" anonid="plugin-notification-showbox">
+              <xul:button label="&pluginNotification.showAll.label;"
+                          accesskey="&pluginNotification.showAll.accesskey;"
+                          class="plugin-notification-showbutton"
+                          oncommand="document.getBindingParent(this)._setState(2)"/>
+            </xul:hbox>
+          </xul:rows>
+        </xul:grid>
+        <xul:hbox anonid="button-container"
+                  class="click-to-play-plugins-notification-button-container"
+                  pack="center" align="center">
+          <xul:button anonid="primarybutton"
+                      class="click-to-play-popup-button"
+                      oncommand="document.getBindingParent(this)._onButton(this)"
+                      flex="1"/>
+          <xul:button anonid="secondarybutton"
+                      class="click-to-play-popup-button"
+                      oncommand="document.getBindingParent(this)._onButton(this);"
+                      flex="1"/>
+        </xul:hbox>
+        <xul:box hidden="true">
+          <children/>
+        </xul:box>
+      </xul:vbox>
+    </content>
+    <resources>
+      <stylesheet src="chrome://global/skin/notification.css"/>
+    </resources>
+    <implementation>
+      <field name="_states">
+        ({SINGLE: 0, MULTI_COLLAPSED: 1, MULTI_EXPANDED: 2})
+      </field>
+      <field name="_primaryButton">
+        document.getAnonymousElementByAttribute(this, "anonid", "primarybutton");
+      </field>
+      <field name="_secondaryButton">
+        document.getAnonymousElementByAttribute(this, "anonid", "secondarybutton")
+      </field>
+      <field name="_buttonContainer">
+        document.getAnonymousElementByAttribute(this, "anonid", "button-container")
+      </field>
+      <field name="_brandShortName">
+        document.getElementById("bundle_brand").getString("brandShortName")
+      </field>
+      <field name="_items">[]</field>
+      <constructor><![CDATA[
+        const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+        for (let action of this.notification.options.centerActions) {
+          let item = document.createElementNS(XUL_NS, "row");
+          item.setAttribute("class", "plugin-popupnotification-centeritem");
+          item.action = action;
+          this.appendChild(item);
+          this._items.push(item);
+        }
+        switch (this.notification.options.centerActions.length) {
+          case 0:
+            PopupNotifications._dismiss();
+            break;
+          case 1:
+            this._setState(this._states.SINGLE);
+            break;
+          default:
+            if (this.notification.options.primaryPlugin) {
+              this._setState(this._states.MULTI_COLLAPSED);
+            } else {
+              this._setState(this._states.MULTI_EXPANDED);
+            }
+        }
+      ]]></constructor>
+      <method name="_setState">
+        <parameter name="state" />
+        <body><![CDATA[
+          var grid = document.getAnonymousElementByAttribute(this, "anonid", "click-to-play-plugins-notification-center-box");
+
+          if (this._states.SINGLE == state) {
+            grid.hidden = true;
+            this._setupSingleState();
+            return;
+          }
+
+          let host = gPluginHandler._getHostFromPrincipal(this.notification.browser.contentWindow.document.nodePrincipal);
+          this._setupDescription("pluginActivateMultiple.message", null, host);
+
+          var showBox = document.getAnonymousElementByAttribute(this, "anonid", "plugin-notification-showbox");
+
+          var dialogStrings = Services.strings.createBundle("chrome://global/locale/dialog.properties");
+          this._primaryButton.label = dialogStrings.GetStringFromName("button-accept");
+          this._primaryButton.setAttribute("default", "true");
+
+          this._secondaryButton.label = dialogStrings.GetStringFromName("button-cancel");
+          this._primaryButton.setAttribute("action", "_multiAccept");
+          this._secondaryButton.setAttribute("action", "_cancel");
+
+          grid.hidden = false;
+
+          if (this._states.MULTI_COLLAPSED == state) {
+            for (let child of this.childNodes) {
+              if (child.tagName != "row") {
+                continue;
+              }
+              child.hidden = this.notification.options.primaryPlugin !=
+                             child.action.permissionString;
+            }
+            showBox.hidden = false;
+          }
+          else {
+            for (let child of this.childNodes) {
+              if (child.tagName != "row") {
+                continue;
+              }
+              child.hidden = false;
+            }
+            showBox.hidden = true;
+          }
+          this._setupLink(null);
+        ]]></body>
+      </method>
+      <method name="_setupSingleState">
+        <body><![CDATA[
+          var action = this.notification.options.centerActions[0];
+          var host = action.pluginPermissionHost;
+
+          let label, linkLabel, linkUrl, button1, button2;
+
+          if (action.fallbackType == Ci.nsIObjectLoadingContent.PLUGIN_ACTIVE) {
+            button1 = {
+              label: "pluginBlockNow.label",
+              accesskey: "pluginBlockNow.accesskey",
+              action: "_singleBlock"
+            };
+            button2 = {
+              label: "pluginContinue.label",
+              accesskey: "pluginContinue.accesskey",
+              action: "_singleContinue",
+              default: true
+            };
+            switch (action.blocklistState) {
+            case Ci.nsIBlocklistService.STATE_NOT_BLOCKED:
+              label = "pluginEnabled.message";
+              linkLabel = "pluginActivate.learnMore";
+              break;
+
+            case Ci.nsIBlocklistService.STATE_BLOCKED:
+              Cu.reportError(Error("Cannot happen!"));
+              break;
+
+            case Ci.nsIBlocklistService.STATE_VULNERABLE_UPDATE_AVAILABLE:
+              label = "pluginEnabledOutdated.message";
+              linkLabel = "pluginActivate.updateLabel";
+              break;
+
+            case Ci.nsIBlocklistService.STATE_VULNERABLE_NO_UPDATE:
+              label = "pluginEnabledVulnerable.message";
+              linkLabel = "pluginActivate.riskLabel"
+              break;
+
+            default:
+              Cu.reportError(Error("Unexpected blocklist state"));
+            }
+          }
+          else if (action.pluginTag.enabledState == Ci.nsIPluginTag.STATE_DISABLED) {
+            let linkElement =
+              document.getAnonymousElementByAttribute(
+                         this, "anonid", "click-to-play-plugins-notification-link");
+            linkElement.textContent = gNavigatorBundle.getString("pluginActivateDisabled.manage");
+            linkElement.setAttribute("onclick", "gPluginHandler.managePlugins()");
+
+            let descElement = document.getAnonymousElementByAttribute(this, "anonid", "click-to-play-plugins-notification-description");
+            descElement.textContent = gNavigatorBundle.getFormattedString(
+              "pluginActivateDisabled.message", [action.pluginName, this._brandShortName]) + " ";
+            this._buttonContainer.hidden = true;
+            return;
+          }
+          else if (action.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED) {
+            let descElement = document.getAnonymousElementByAttribute(this, "anonid", "click-to-play-plugins-notification-description");
+            descElement.textContent = gNavigatorBundle.getFormattedString(
+              "pluginActivateBlocked.message", [action.pluginName, this._brandShortName]) + " ";
+            this._setupLink("pluginActivate.learnMore", action.detailsLink);
+            this._buttonContainer.hidden = true;
+            return;
+          }
+          else {
+            button1 = {
+              label: "pluginActivateNow.label",
+              accesskey: "pluginActivateNow.accesskey",
+              action: "_singleActivateNow"
+            };
+            button2 = {
+              label: "pluginActivateAlways.label",
+              accesskey: "pluginActivateAlways.accesskey",
+              action: "_singleActivateAlways"
+            };
+            switch (action.blocklistState) {
+            case Ci.nsIBlocklistService.STATE_NOT_BLOCKED:
+              label = "pluginActivateNew.message";
+              linkLabel = "pluginActivate.learnMore";
+              button2.default = true;
+              break;
+
+            case Ci.nsIBlocklistService.STATE_VULNERABLE_UPDATE_AVAILABLE:
+              label = "pluginActivateOutdated.message";
+              linkLabel = "pluginActivate.updateLabel";
+              button1.default = true;
+              break;
+
+            case Ci.nsIBlocklistService.STATE_VULNERABLE_NO_UPDATE:
+              label = "pluginActivateVulnerable.message";
+              linkLabel = "pluginActivate.riskLabel"
+              button1.default = true;
+              break;
+
+            default:
+              Cu.reportError(Error("Unexpected blocklist state"));
+            }
+          }
+          this._setupDescription(label, action.pluginName, host);
+          this._setupLink(linkLabel, action.detailsLink);
+
+          this._primaryButton.label = gNavigatorBundle.getString(button1.label);
+          this._primaryButton.accesskey = gNavigatorBundle.getString(button1.accesskey);
+          this._primaryButton.setAttribute("action", button1.action);
+
+          this._secondaryButton.label = gNavigatorBundle.getString(button2.label);
+          this._secondaryButton.accesskey = gNavigatorBundle.getString(button2.accesskey);
+          this._secondaryButton.setAttribute("action", button2.action);
+          if (button1.default) {
+            this._primaryButton.setAttribute("default", "true");
+          }
+          else if (button2.default) {
+            this._secondaryButton.setAttribute("default", "true");
+          }
+        ]]></body>
+      </method>
+      <method name="_setupDescription">
+        <parameter name="baseString" />
+        <parameter name="pluginName" /> <!-- null for the multiple-plugin case -->
+        <parameter name="host" />
+        <body><![CDATA[
+          var bsn = this._brandShortName;
+          var span = document.getAnonymousElementByAttribute(this, "anonid", "click-to-play-plugins-notification-description");
+          while (span.lastChild) {
+            span.removeChild(span.lastChild);
+          }
+
+          var args = ["__host__", this._brandShortName];
+          if (pluginName) {
+            args.unshift(pluginName);
+          }
+          var bases = gNavigatorBundle.getFormattedString(baseString, args).
+            split("__host__", 2);
+
+          span.appendChild(document.createTextNode(bases[0]));
+          var hostSpan = document.createElementNS("http://www.w3.org/1999/xhtml", "em");
+          hostSpan.appendChild(document.createTextNode(host));
+          span.appendChild(hostSpan);
+          span.appendChild(document.createTextNode(bases[1] + " "));
+        ]]></body>
+      </method>
+      <method name="_setupLink">
+        <parameter name="linkString"/>
+        <parameter name="linkUrl" />
+        <body><![CDATA[
+          var link = document.getAnonymousElementByAttribute(this, "anonid", "click-to-play-plugins-notification-link");
+          if (!linkString || !linkUrl) {
+            link.hidden = true;
+            return;
+          }
+
+          link.hidden = false;
+          link.textContent = gNavigatorBundle.getString(linkString);
+          link.href = linkUrl;
+        ]]></body>
+      </method>
+      <method name="_onButton">
+        <parameter name="aButton" />
+        <body><![CDATA[
+          let methodName = aButton.getAttribute("action");
+          this[methodName]();
+        ]]></body>
+      </method>
+      <method name="_singleActivateNow">
+        <body><![CDATA[
+          gPluginHandler._updatePluginPermission(this.notification,
+            this.notification.options.centerActions[0],
+            "allownow");
+          this._cancel();
+        ]]></body>
+      </method>
+      <method name="_singleBlock">
+        <body><![CDATA[
+          gPluginHandler._updatePluginPermission(this.notification,
+            this.notification.options.centerActions[0],
+            "block");
+            this._cancel();
+        ]]></body>
+      </method>
+      <method name="_singleActivateAlways">
+        <body><![CDATA[
+          gPluginHandler._updatePluginPermission(this.notification,
+            this.notification.options.centerActions[0],
+            "allowalways");
+          this._cancel();
+        ]]></body>
+      </method>
+      <method name="_singleContinue">
+        <body><![CDATA[
+          gPluginHandler._updatePluginPermission(this.notification,
+            this.notification.options.centerActions[0],
+            "continue");
+          this._cancel();
+        ]]></body>
+      </method>
+      <method name="_multiAccept">
+        <body><![CDATA[
+          for (let item of this._items) {
+            let action = item.action;
+            if (action.pluginTag.enabledState == Ci.nsIPluginTag.STATE_DISABLED ||
+                action.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED) {
+              continue;
+            }
+            gPluginHandler._updatePluginPermission(this.notification,
+              item.action, item.value);
+          }
+          this._cancel();
+        ]]></body>
+      </method>
+      <method name="_cancel">
+        <body><![CDATA[
+          PopupNotifications._dismiss();
+        ]]></body>
+      </method>
+      <method name="_accept">
+        <parameter name="aEvent" />
+        <body><![CDATA[
+          if (aEvent.defaultPrevented)
+            return;
+          aEvent.preventDefault();
+          if (this._primaryButton.getAttribute("default") == "true") {
+            this._primaryButton.click();
+          }
+          else if (this._secondaryButton.getAttribute("default") == "true") {
+            this._secondaryButton.click();
+          }
+        ]]></body>
+      </method>
+    </implementation>
+    <handlers>
+      <!-- The _accept method checks for .defaultPrevented so that if focus is in a button,
+           enter activates the button and not this default action -->
+      <handler event="keypress" keycode="VK_ENTER" group="system" action="this._accept(event);"/>
+      <handler event="keypress" keycode="VK_RETURN" group="system" action="this._accept(event);"/>
+    </handlers>
   </binding>
 
   <binding id="splitmenu">
@@ -1324,15 +2052,39 @@
       <field name="_brandBundle" readonly="true">
         Services.strings.createBundle("chrome://branding/locale/brand.properties");
       </field>
+      <property name="_viewsLeftMap">
+        <getter><![CDATA[
+          let viewsLeftMap = {};
+          try {
+            viewsLeftMap = JSON.parse(Services.prefs.getCharPref("browser.syncPromoViewsLeftMap"));
+          } catch (ex) {
+            // If the old preference exists, migrate it to the new one.
+            try {
+              let oldPref = Services.prefs.getIntPref("browser.syncPromoViewsLeft");
+              Services.prefs.clearUserPref("browser.syncPromoViewsLeft");
+              viewsLeftMap.bookmarks = oldPref;
+              viewsLeftMap.passwords = oldPref;
+              Services.prefs.setCharPref("browser.syncPromoViewsLeftMap",
+                                         JSON.stringify(viewsLeftMap));
+            } catch (ex2) {}
+          }
+          return viewsLeftMap;
+        ]]></getter>
+      </property>
       <property name="_viewsLeft">
         <getter><![CDATA[
-          try {
-            return Services.prefs.getIntPref("browser.syncPromoViewsLeft");
-          } catch(ex) {}
-          return 5;
+          let views = 5;
+          let map = this._viewsLeftMap;
+          if (this._notificationType in map) {
+            views = map[this._notificationType];
+          }
+          return views;
         ]]></getter>
         <setter><![CDATA[
-          Services.prefs.setIntPref("browser.syncPromoViewsLeft", val);
+          let map = this._viewsLeftMap;
+          map[this._notificationType] = val;
+          Services.prefs.setCharPref("browser.syncPromoViewsLeftMap",
+                                     JSON.stringify(map));
           return val;
         ]]></setter>
       </property>
@@ -1342,19 +2094,33 @@
           // otherwise just rely on the panel id for common arrowpanels.
           let type = this._panel.firstChild.getAttribute("popupid") ||
                      this._panel.id;
-          if (/^password-/.test(type))
+          if (type.startsWith("password-"))
             return "passwords";
           if (type == "editBookmarkPanel")
             return "bookmarks";
+          if (type == "addon-install-complete") {
+            if (!Services.prefs.prefHasUserValue("services.sync.username"))
+              return "addons";
+            if (!Services.prefs.getBoolPref("services.sync.engine.addons"))
+              return "addons-sync-disabled";
+          }
           return null;
         ]]></getter>
       </property>
       <property name="_notificationMessage">
         <getter><![CDATA[
           return gNavigatorBundle.getFormattedString(
-            "syncPromoNotification." + this._notificationType + ".label",
+            "syncPromoNotification." + this._notificationType + ".description",
             [this._brandBundle.GetStringFromName("syncBrandShortName")]
           );
+        ]]></getter>
+      </property>
+      <property name="_notificationLink">
+        <getter><![CDATA[
+          if (this._notificationType == "addons-sync-disabled") {
+            return "https://support.mozilla.org/kb/how-do-i-enable-add-sync";
+          }
+          return "https://services.mozilla.com/sync/";
         ]]></getter>
       </property>
       <method name="onCloseButtonCommand">
@@ -1387,7 +2153,8 @@
 
           let viewsLeft = this._viewsLeft;
           if (viewsLeft) {
-            if (Services.prefs.prefHasUserValue("services.sync.username")) {
+            if (Services.prefs.prefHasUserValue("services.sync.username") &&
+               this._notificationType != "addons-sync-disabled") {
               // If the user has already setup Sync, don't show the notification.
               this._viewsLeft = 0;
               // Be sure to hide the panel, in case it was visible and the user
@@ -1400,7 +2167,7 @@
               this._viewsLeft = viewsLeft - 1;
             }
 
-            this._promolink.setAttribute("href", "https://services.mozilla.com/sync/");
+            this._promolink.setAttribute("href", this._notificationLink);
             this._promolink.value = gNavigatorBundle.getString("syncPromoNotification.learnMoreLinkText");
 
             this.hidden = false;
@@ -1409,17 +2176,33 @@
             // thus set a width on it, based on the available space, before
             // setting its textContent.  Then set its height as well, to
             // fix wrong height calculation on Linux (bug 659578).
-            let self = this;
-            this._panel.addEventListener("popupshown", function (evt) {
-              self._panel.removeEventListener("popupshown", arguments.callee, true);
-              self._promomessage.width = self._promomessage.getBoundingClientRect().width;
-              self._promomessage.firstChild.textContent = self._notificationMessage + " ";
-              self._promomessage.height = self._promomessage.getBoundingClientRect().height;
-            }, true);
+            this._panel.addEventListener("popupshown", function panelShown() {
+              this._panel.removeEventListener("popupshown", panelShown, true);
+              // Previous popupShown events may close the panel or change
+              // its contents, so ensure this is still valid.
+              if (this._panel.state != "open" || !this._notificationType)
+                return;
+              this._promomessage.width = this._promomessage.getBoundingClientRect().width;
+              this._promomessage.firstChild.textContent = this._notificationMessage;
+              this._promomessage.height = this._promomessage.getBoundingClientRect().height;
+            }.bind(this), true);
           }
         ]]></body>
       </method>
     </implementation>
+  </binding>
+
+  <binding id="toolbarbutton-badged" display="xul:button"
+           extends="chrome://global/content/bindings/toolbarbutton.xml#toolbarbutton">
+    <content>
+      <children includes="observes|template|menupopup|panel|tooltip"/>
+      <xul:hbox class="toolbarbutton-badge-container" align="start" pack="end" flex="1">
+        <xul:hbox class="toolbarbutton-badge" xbl:inherits="badge"/>
+        <xul:image class="toolbarbutton-icon" xbl:inherits="validate,src=image,label"/>
+      </xul:hbox>
+      <xul:label class="toolbarbutton-text" crop="right" flex="1"
+                 xbl:inherits="value=label,accesskey,crop"/>
+    </content>
   </binding>
 
 </bindings>

@@ -1,45 +1,16 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is a COM aware array class.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corp.
- * Portions created by the Initial Developer are Copyright (C) 2002
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Alec Flett <alecf@netscape.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef nsCOMArray_h__
 #define nsCOMArray_h__
 
-#include "nsVoidArray.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/MemoryReporting.h"
+
+#include "nsCycleCollectionNoteChild.h"
+#include "nsTArray.h"
 #include "nsISupports.h"
 
 // See below for the definition of nsCOMArray<T>
@@ -51,82 +22,183 @@ class NS_COM_GLUE nsCOMArray_base
     friend class nsArray;
 protected:
     nsCOMArray_base() {}
-    nsCOMArray_base(PRInt32 aCount) : mArray(aCount) {}
+    nsCOMArray_base(int32_t aCount) : mArray(aCount) {}
     nsCOMArray_base(const nsCOMArray_base& other);
     ~nsCOMArray_base();
 
-    PRInt32 IndexOf(nsISupports* aObject) const {
-        return mArray.IndexOf(aObject);
+    int32_t IndexOf(nsISupports* aObject, uint32_t aStartIndex = 0) const;
+    bool Contains(nsISupports* aObject) const {
+        return IndexOf(aObject) != -1;
     }
 
-    PRInt32 IndexOfObject(nsISupports* aObject) const;
+    int32_t IndexOfObject(nsISupports* aObject) const;
+    bool ContainsObject(nsISupports* aObject) const {
+        return IndexOfObject(aObject) != -1;
+    }
 
-    PRBool EnumerateForwards(nsVoidArrayEnumFunc aFunc, void* aData) {
-        return mArray.EnumerateForwards(aFunc, aData);
-    }
+    typedef bool (* nsBaseArrayEnumFunc)
+        (void* aElement, void *aData);
     
-    PRBool EnumerateBackwards(nsVoidArrayEnumFunc aFunc, void* aData) {
-        return mArray.EnumerateBackwards(aFunc, aData);
-    }
+    // enumerate through the array with a callback.
+    bool EnumerateForwards(nsBaseArrayEnumFunc aFunc, void* aData) const;
     
-    void Sort(nsVoidArrayComparatorFunc aFunc, void* aData) {
-        mArray.Sort(aFunc, aData);
+    bool EnumerateBackwards(nsBaseArrayEnumFunc aFunc, void* aData) const;
+
+    typedef int (* nsBaseArrayComparatorFunc)
+        (nsISupports* aElement1, nsISupports* aElement2, void* aData);
+
+    struct nsCOMArrayComparatorContext {
+        nsBaseArrayComparatorFunc mComparatorFunc;
+        void* mData;
+    };
+
+    static int nsCOMArrayComparator(const void* aElement1, const void* aElement2, void* aData);
+    void Sort(nsBaseArrayComparatorFunc aFunc, void* aData);
+
+    bool InsertObjectAt(nsISupports* aObject, int32_t aIndex);
+    void InsertElementAt(uint32_t aIndex, nsISupports* aElement);
+    bool InsertObjectsAt(const nsCOMArray_base& aObjects, int32_t aIndex);
+    void InsertElementsAt(uint32_t aIndex, const nsCOMArray_base& aElements);
+    void InsertElementsAt(uint32_t aIndex, nsISupports* const* aElements, uint32_t aCount);
+    bool ReplaceObjectAt(nsISupports* aObject, int32_t aIndex);
+    void ReplaceElementAt(uint32_t aIndex, nsISupports* aElement) {
+        nsISupports* oldElement = mArray[aIndex];
+        NS_IF_ADDREF(mArray[aIndex] = aElement);
+        NS_IF_RELEASE(oldElement);
     }
-    
-    // any method which is not a direct forward to mArray should
-    // avoid inline bodies, so that the compiler doesn't inline them
-    // all over the place
-    void Clear();
-    PRBool InsertObjectAt(nsISupports* aObject, PRInt32 aIndex);
-    PRBool InsertObjectsAt(const nsCOMArray_base& aObjects, PRInt32 aIndex);
-    PRBool ReplaceObjectAt(nsISupports* aObject, PRInt32 aIndex);
-    PRBool AppendObject(nsISupports *aObject) {
+    bool AppendObject(nsISupports *aObject) {
         return InsertObjectAt(aObject, Count());
     }
-    PRBool AppendObjects(const nsCOMArray_base& aObjects) {
+    void AppendElement(nsISupports* aElement) {
+        InsertElementAt(Length(), aElement);
+    }
+    bool AppendObjects(const nsCOMArray_base& aObjects) {
         return InsertObjectsAt(aObjects, Count());
     }
-    PRBool RemoveObject(nsISupports *aObject);
-    PRBool RemoveObjectAt(PRInt32 aIndex);
-    PRBool RemoveObjectsAt(PRInt32 aIndex, PRInt32 aCount);
+    void AppendElements(const nsCOMArray_base& aElements) {
+        return InsertElementsAt(Length(), aElements);
+    }
+    void AppendElements(nsISupports* const* aElements, uint32_t aCount) {
+        return InsertElementsAt(Length(), aElements, aCount);
+    }
+    bool RemoveObject(nsISupports *aObject);
+    nsISupports** Elements() {
+        return mArray.Elements();
+    }
+    void SwapElements(nsCOMArray_base& aOther) {
+        mArray.SwapElements(aOther.mArray);
+    }
 
 public:
-    // override nsVoidArray stuff so that they can be accessed by
-    // consumers of nsCOMArray
-    PRInt32 Count() const {
-        return mArray.Count();
+    // elements in the array (including null elements!)
+    int32_t Count() const {
+        return mArray.Length();
     }
+    // nsTArray-compatible version
+    uint32_t Length() const {
+        return mArray.Length();
+    }
+    bool IsEmpty() const {
+        return mArray.IsEmpty();
+    }
+
     // If the array grows, the newly created entries will all be null;
     // if the array shrinks, the excess entries will all be released.
-    PRBool SetCount(PRInt32 aNewCount);
+    bool SetCount(int32_t aNewCount);
+    // nsTArray-compatible version
+    void TruncateLength(uint32_t aNewLength) {
+        if (mArray.Length() > aNewLength)
+            RemoveElementsAt(aNewLength, mArray.Length() - aNewLength);
+    }
 
-    nsISupports* ObjectAt(PRInt32 aIndex) const {
-        return static_cast<nsISupports*>(mArray.FastElementAt(aIndex));
+    // remove all elements in the array, and call NS_RELEASE on each one
+    void Clear();
+
+    nsISupports* ObjectAt(int32_t aIndex) const {
+        return mArray[aIndex];
+    }
+    // nsTArray-compatible version
+    nsISupports* ElementAt(uint32_t aIndex) const {
+        return mArray[aIndex];
     }
     
-    nsISupports* SafeObjectAt(PRInt32 aIndex) const {
-        return static_cast<nsISupports*>(mArray.SafeElementAt(aIndex));
+    nsISupports* SafeObjectAt(int32_t aIndex) const {
+        return mArray.SafeElementAt(aIndex, nullptr);
+    }
+    // nsTArray-compatible version
+    nsISupports* SafeElementAt(uint32_t aIndex) const {
+        return mArray.SafeElementAt(aIndex, nullptr);
     }
 
-    nsISupports* operator[](PRInt32 aIndex) const {
-        return ObjectAt(aIndex);
+    nsISupports* operator[](int32_t aIndex) const {
+        return mArray[aIndex];
+    }
+
+    // remove an element at a specific position, shrinking the array
+    // as necessary
+    bool RemoveObjectAt(int32_t aIndex);
+    // nsTArray-compatible version
+    void RemoveElementAt(uint32_t aIndex);
+
+    // remove a range of elements at a specific position, shrinking the array
+    // as necessary
+    bool RemoveObjectsAt(int32_t aIndex, int32_t aCount);
+    // nsTArray-compatible version
+    void RemoveElementsAt(uint32_t aIndex, uint32_t aCount);
+
+    void SwapElementsAt(uint32_t aIndex1, uint32_t aIndex2) {
+        nsISupports *tmp = mArray[aIndex1];
+        mArray[aIndex1] = mArray[aIndex2];
+        mArray[aIndex2] = tmp;
     }
 
     // Ensures there is enough space to store a total of aCapacity objects.
     // This method never deletes any objects.
-    PRBool SetCapacity(PRUint32 aCapacity) {
-      return aCapacity > 0 ? mArray.SizeTo(static_cast<PRInt32>(aCapacity))
-                           : PR_TRUE;
+    void SetCapacity(uint32_t aCapacity) {
+        mArray.SetCapacity(aCapacity);
     }
+    uint32_t Capacity() {
+        return mArray.Capacity();
+    }
+
+    typedef size_t (* nsBaseArraySizeOfElementIncludingThisFunc)
+        (nsISupports* aElement, mozilla::MallocSizeOf aMallocSizeOf, void *aData);
+
+    // Measures the size of the array's element storage, and if
+    // |aSizeOfElement| is non-NULL, measures the size of things pointed to by
+    // elements.
+    size_t SizeOfExcludingThis(
+             nsBaseArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis,
+             mozilla::MallocSizeOf aMallocSizeOf, void* aData = NULL) const;
 
 private:
     
     // the actual storage
-    nsVoidArray mArray;
+    nsTArray<nsISupports*> mArray;
 
     // don't implement these, defaults will muck with refcounts!
-    nsCOMArray_base& operator=(const nsCOMArray_base& other);
+    nsCOMArray_base& operator=(const nsCOMArray_base& other) MOZ_DELETE;
 };
+
+inline void
+ImplCycleCollectionUnlink(nsCOMArray_base& aField)
+{
+    aField.Clear();
+}
+
+inline void
+ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
+                            nsCOMArray_base& aField,
+                            const char* aName,
+                            uint32_t aFlags = 0)
+{
+    aFlags |= CycleCollectionEdgeNameArrayFlag;
+    size_t length = aField.Count();
+    for (size_t i = 0; i < length; ++i) {
+        CycleCollectionNoteChild(aCallback, aField[i], aName, aFlags);
+    }
+}
+
 
 // a non-XPCOM, refcounting array of XPCOM objects
 // used as a member variable or stack variable - this object is NOT
@@ -151,34 +223,46 @@ class nsCOMArray : public nsCOMArray_base
 {
  public:
     nsCOMArray() {}
-    nsCOMArray(PRInt32 aCount) : nsCOMArray_base(aCount) {}
+
+    explicit
+    nsCOMArray(int32_t aCount) : nsCOMArray_base(aCount) {}
     
-    // only to be used by trusted classes who are going to pass us the
-    // right type!
+    explicit
     nsCOMArray(const nsCOMArray<T>& aOther) : nsCOMArray_base(aOther) { }
 
     ~nsCOMArray() {}
 
     // these do NOT refcount on the way out, for speed
-    T* ObjectAt(PRInt32 aIndex) const {
+    T* ObjectAt(int32_t aIndex) const {
         return static_cast<T*>(nsCOMArray_base::ObjectAt(aIndex));
+    }
+    // nsTArray-compatible version
+    T* ElementAt(uint32_t aIndex) const {
+        return static_cast<T*>(nsCOMArray_base::ElementAt(aIndex));
     }
 
     // these do NOT refcount on the way out, for speed
-    T* SafeObjectAt(PRInt32 aIndex) const {
+    T* SafeObjectAt(int32_t aIndex) const {
         return static_cast<T*>(nsCOMArray_base::SafeObjectAt(aIndex));
+    }
+    // nsTArray-compatible version
+    T* SafeElementAt(uint32_t aIndex) const {
+        return static_cast<T*>(nsCOMArray_base::SafeElementAt(aIndex));
     }
 
     // indexing operator for syntactic sugar
-    T* operator[](PRInt32 aIndex) const {
+    T* operator[](int32_t aIndex) const {
         return ObjectAt(aIndex);
     }
 
     // index of the element in question.. does NOT refcount
     // note: this does not check COM object identity. Use
     // IndexOfObject() for that purpose
-    PRInt32 IndexOf(T* aObject) const {
-        return nsCOMArray_base::IndexOf(static_cast<nsISupports*>(aObject));
+    int32_t IndexOf(T* aObject, uint32_t aStartIndex = 0) const {
+        return nsCOMArray_base::IndexOf(aObject, aStartIndex);
+    }
+    bool Contains(nsISupports* aObject) const {
+        return nsCOMArray_base::Contains(aObject);
     }
 
     // index of the element in question.. be careful!
@@ -186,55 +270,60 @@ class nsCOMArray : public nsCOMArray_base
     // QueryInterface to determine actual COM identity of the object
     // if you need to do this frequently then consider enforcing
     // COM object identity before adding/comparing elements
-    PRInt32 IndexOfObject(T* aObject) const {
-        return nsCOMArray_base::IndexOfObject(static_cast<nsISupports*>(aObject));
+    int32_t IndexOfObject(T* aObject) const {
+        return nsCOMArray_base::IndexOfObject(aObject);
+    }
+    bool ContainsObject(nsISupports* aObject) const {
+        return nsCOMArray_base::ContainsObject(aObject);
     }
 
     // inserts aObject at aIndex, shifting the objects at aIndex and
     // later to make space
-    PRBool InsertObjectAt(T* aObject, PRInt32 aIndex) {
-        return nsCOMArray_base::InsertObjectAt(static_cast<nsISupports*>(aObject), aIndex);
+    bool InsertObjectAt(T* aObject, int32_t aIndex) {
+        return nsCOMArray_base::InsertObjectAt(aObject, aIndex);
+    }
+    // nsTArray-compatible version
+    void InsertElementAt(uint32_t aIndex, T* aElement) {
+        nsCOMArray_base::InsertElementAt(aIndex, aElement);
     }
 
     // inserts the objects from aObject at aIndex, shifting the
     // objects at aIndex and later to make space
-    PRBool InsertObjectsAt(const nsCOMArray<T>& aObjects, PRInt32 aIndex) {
+    bool InsertObjectsAt(const nsCOMArray<T>& aObjects, int32_t aIndex) {
         return nsCOMArray_base::InsertObjectsAt(aObjects, aIndex);
+    }
+    // nsTArray-compatible version
+    void InsertElementsAt(uint32_t aIndex, const nsCOMArray<T>& aElements) {
+        nsCOMArray_base::InsertElementsAt(aIndex, aElements);
+    }
+    void InsertElementsAt(uint32_t aIndex, T* const* aElements, uint32_t aCount) {
+        nsCOMArray_base::InsertElementsAt(aIndex, reinterpret_cast<nsISupports* const*>(aElements), aCount);
     }
 
     // replaces an existing element. Warning: if the array grows,
     // the newly created entries will all be null
-    PRBool ReplaceObjectAt(T* aObject, PRInt32 aIndex) {
-        return nsCOMArray_base::ReplaceObjectAt(static_cast<nsISupports*>(aObject), aIndex);
+    bool ReplaceObjectAt(T* aObject, int32_t aIndex) {
+        return nsCOMArray_base::ReplaceObjectAt(aObject, aIndex);
+    }
+    // nsTArray-compatible version
+    void ReplaceElementAt(uint32_t aIndex, T* aElement) {
+        nsCOMArray_base::ReplaceElementAt(aIndex, aElement);
     }
 
-    // override nsVoidArray stuff so that they can be accessed by
-    // other methods
-
-    // elements in the array (including null elements!)
-    PRInt32 Count() const {
-        return nsCOMArray_base::Count();
-    }
-
-    // remove all elements in the array, and call NS_RELEASE on each one
-    void Clear() {
-        nsCOMArray_base::Clear();
-    }
-
-    // Enumerator callback function. Return PR_FALSE to stop
+    // Enumerator callback function. Return false to stop
     // Here's a more readable form:
-    // PRBool enumerate(T* aElement, void* aData)
-    typedef PRBool (* nsCOMArrayEnumFunc)
+    // bool enumerate(T* aElement, void* aData)
+    typedef bool (* nsCOMArrayEnumFunc)
         (T* aElement, void *aData);
     
     // enumerate through the array with a callback. 
-    PRBool EnumerateForwards(nsCOMArrayEnumFunc aFunc, void* aData) {
-        return nsCOMArray_base::EnumerateForwards(nsVoidArrayEnumFunc(aFunc),
+    bool EnumerateForwards(nsCOMArrayEnumFunc aFunc, void* aData) {
+        return nsCOMArray_base::EnumerateForwards(nsBaseArrayEnumFunc(aFunc),
                                                   aData);
     }
 
-    PRBool EnumerateBackwards(nsCOMArrayEnumFunc aFunc, void* aData) {
-        return nsCOMArray_base::EnumerateBackwards(nsVoidArrayEnumFunc(aFunc),
+    bool EnumerateBackwards(nsCOMArrayEnumFunc aFunc, void* aData) {
+        return nsCOMArray_base::EnumerateBackwards(nsBaseArrayEnumFunc(aFunc),
                                                   aData);
     }
     
@@ -242,43 +331,87 @@ class nsCOMArray : public nsCOMArray_base
         (T* aElement1, T* aElement2, void* aData);
         
     void Sort(nsCOMArrayComparatorFunc aFunc, void* aData) {
-        nsCOMArray_base::Sort(nsVoidArrayComparatorFunc(aFunc), aData);
+        nsCOMArray_base::Sort(nsBaseArrayComparatorFunc(aFunc), aData);
     }
 
     // append an object, growing the array as necessary
-    PRBool AppendObject(T *aObject) {
-        return nsCOMArray_base::AppendObject(static_cast<nsISupports*>(aObject));
+    bool AppendObject(T *aObject) {
+        return nsCOMArray_base::AppendObject(aObject);
+    }
+    // nsTArray-compatible version
+    void AppendElement(T* aElement) {
+        nsCOMArray_base::AppendElement(aElement);
     }
 
     // append objects, growing the array as necessary
-    PRBool AppendObjects(const nsCOMArray<T>& aObjects) {
+    bool AppendObjects(const nsCOMArray<T>& aObjects) {
         return nsCOMArray_base::AppendObjects(aObjects);
+    }
+    // nsTArray-compatible version
+    void AppendElements(const nsCOMArray<T>& aElements) {
+        return nsCOMArray_base::AppendElements(aElements);
+    }
+    void AppendElements(T* const* aElements, uint32_t aCount) {
+        InsertElementsAt(Length(), aElements, aCount);
     }
     
     // remove the first instance of the given object and shrink the
     // array as necessary
     // Warning: if you pass null here, it will remove the first null element
-    PRBool RemoveObject(T *aObject) {
-        return nsCOMArray_base::RemoveObject(static_cast<nsISupports*>(aObject));
+    bool RemoveObject(T *aObject) {
+        return nsCOMArray_base::RemoveObject(aObject);
+    }
+    // nsTArray-compatible version
+    bool RemoveElement(T* aElement) {
+        return nsCOMArray_base::RemoveObject(aElement);
     }
 
-    // remove an element at a specific position, shrinking the array
-    // as necessary
-    PRBool RemoveObjectAt(PRInt32 aIndex) {
-        return nsCOMArray_base::RemoveObjectAt(aIndex);
+    T** Elements() {
+        return reinterpret_cast<T**>(nsCOMArray_base::Elements());
+    }
+    void SwapElements(nsCOMArray<T>& aOther) {
+        nsCOMArray_base::SwapElements(aOther);
     }
 
-    // remove a range of elements at a specific position, shrinking the array
-    // as necessary
-    PRBool RemoveObjectsAt(PRInt32 aIndex, PRInt32 aCount) {
-        return nsCOMArray_base::RemoveObjectsAt(aIndex, aCount);
+    // Each element in an nsCOMArray<T> is actually a T*, so this function is
+    // "IncludingThis" rather than "ExcludingThis" because it needs to measure
+    // the memory taken by the T itself as well as anything it points to.
+    typedef size_t (* nsCOMArraySizeOfElementIncludingThisFunc)
+        (T* aElement, mozilla::MallocSizeOf aMallocSizeOf, void *aData);
+    
+    size_t SizeOfExcludingThis(
+             nsCOMArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis, 
+             mozilla::MallocSizeOf aMallocSizeOf, void *aData = NULL) const {
+        return nsCOMArray_base::SizeOfExcludingThis(
+                 nsBaseArraySizeOfElementIncludingThisFunc(aSizeOfElementIncludingThis),
+                 aMallocSizeOf, aData);
     }
 
 private:
 
     // don't implement these!
-    nsCOMArray<T>& operator=(const nsCOMArray<T>& other);
+    nsCOMArray<T>& operator=(const nsCOMArray<T>& other) MOZ_DELETE;
 };
 
+template <typename T>
+inline void
+ImplCycleCollectionUnlink(nsCOMArray<T>& aField)
+{
+    aField.Clear();
+}
+
+template <typename E>
+inline void
+ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
+                            nsCOMArray<E>& aField,
+                            const char* aName,
+                            uint32_t aFlags = 0)
+{
+    aFlags |= CycleCollectionEdgeNameArrayFlag;
+    size_t length = aField.Count();
+    for (size_t i = 0; i < length; ++i) {
+        CycleCollectionNoteChild(aCallback, aField[i], aName, aFlags);
+    }
+}
 
 #endif

@@ -2,7 +2,6 @@
 <html>
 <head>
   <title>Media test: seeking off the end of a file</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
   <script type="text/javascript" src="manifest.js"></script>
@@ -10,6 +9,10 @@
 <body>
 <pre id="test">
 <script class="testbody" type="text/javascript">
+
+if (navigator.platform.startsWith("Win")) {
+  SimpleTest.expectAssertions(0, 10);
+}
 
 var manager = new MediaTestManager;
 
@@ -52,7 +55,7 @@ function playing(e) {
 }
 
 function initTest(test, token) {
-  var type = /^video/.test(test.type) ? "video" : "audio";
+  var type = getMajorMimeType(test.type);
   var v = document.createElement(type);
   v.token = token;
   manager.started(token);

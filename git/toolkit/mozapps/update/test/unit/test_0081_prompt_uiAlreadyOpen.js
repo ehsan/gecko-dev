@@ -7,15 +7,18 @@
  * showUpdateAvailable when there is already an application update window open.
  */
 
+const TEST_ID = "0081";
+
 function run_test() {
   do_test_pending();
   do_register_cleanup(end_test);
+
+  adjustGeneralPaths();
 
   logTestInfo("testing nsIUpdatePrompt notifications should not be seen when " +
               "there is already an application update window open");
 
   removeUpdateDirsAndFiles();
-  setUpdateChannel();
 
   Services.prefs.setBoolPref(PREF_APP_UPDATE_SILENT, false);
 
@@ -101,7 +104,7 @@ var WindowWatcherFactory = {
 
 var WindowMediator = {
   getMostRecentWindow: function(aWindowType) {
-    return { getInterface: XPCOMUtils.generateQI([AUS_Ci.nsIDOMWindowInternal]) };
+    return { getInterface: XPCOMUtils.generateQI([AUS_Ci.nsIDOMWindow]) };
   },
 
   QueryInterface: function(aIID) {

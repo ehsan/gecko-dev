@@ -1,56 +1,36 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=8 et :
  */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at:
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Code.
- *
- * The Initial Developer of the Original Code is
- *   The Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Chris Jones <jones.chris.g@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/ShadowLayersParent.h"
+#include "base/basictypes.h"
 
 #include "BasicLayers.h"
-#include "LayerManagerOGL.h"
-#include "RenderFrameParent.h"
-
 #include "gfx3DMatrix.h"
+#include "LayerManagerOGL.h"
+#ifdef MOZ_ENABLE_D3D9_LAYER
+# include "LayerManagerD3D9.h"
+#endif //MOZ_ENABLE_D3D9_LAYER
+#include "mozilla/BrowserElementParent.h"
+#include "mozilla/dom/TabParent.h"
+#include "mozilla/layers/APZCTreeManager.h"
+#include "mozilla/layers/CompositorParent.h"
+#include "mozilla/layers/LayerTransactionParent.h"
+#include "nsContentUtils.h"
 #include "nsFrameLoader.h"
-#include "nsViewportFrame.h"
-#include "nsSubDocumentFrame.h"
 #include "nsIObserver.h"
+#include "nsSubDocumentFrame.h"
+#include "nsView.h"
+#include "nsViewportFrame.h"
+#include "RenderFrameParent.h"
+#include "mozilla/layers/LayerManagerComposite.h"
+#include "mozilla/layers/CompositorChild.h"
+#include "ClientLayerManager.h"
 
 typedef nsContentView::ViewConfig ViewConfig;
+using namespace mozilla::dom;
 using namespace mozilla::layers;
 
 namespace mozilla {
@@ -58,28 +38,6 @@ namespace layout {
 
 typedef FrameMetrics::ViewID ViewID;
 typedef RenderFrameParent::ViewMap ViewMap;
-
-nsRefPtr<ImageContainer> sCheckerboard = nsnull;
-
-class CheckerBoardPatternDeleter : public nsIObserver
-{
-public:
-  NS_DECL_NSIOBSERVER
-  NS_DECL_ISUPPORTS
-};
-
-NS_IMPL_ISUPPORTS1(CheckerBoardPatternDeleter, nsIObserver)
-
-NS_IMETHODIMP
-CheckerBoardPatternDeleter::Observe(nsISupports* aSubject,
-                                    const char* aTopic,
-                                    const PRUnichar* aData)
-{
-  if (!strcmp(aTopic, "xpcom-shutdown")) {
-    sCheckerboard = nsnull;
-  }
-  return NS_OK;
-}
 
 // Represents (affine) transforms that are calculated from a content view.
 struct ViewTransform {
@@ -92,8 +50,8 @@ struct ViewTransform {
   operator gfx3DMatrix() const
   {
     return
-      gfx3DMatrix::Scale(mXScale, mYScale, 1) *
-      gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0);
+      gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0) *
+      gfx3DMatrix::ScalingMatrix(mXScale, mYScale, 1);
   }
 
   nsIntPoint mTranslation;
@@ -123,10 +81,10 @@ static void Scale(gfx3DMatrix& aTransform, double aXScale, double aYScale)
   aTransform._22 *= aYScale;
 }
 
-static void ReverseTranslate(gfx3DMatrix& aTransform, ViewTransform& aViewTransform)
+static void ReverseTranslate(gfx3DMatrix& aTransform, const gfxPoint& aOffset)
 {
-  aTransform._41 -= aViewTransform.mTranslation.x / aViewTransform.mXScale;
-  aTransform._42 -= aViewTransform.mTranslation.y / aViewTransform.mYScale;
+  aTransform._41 -= aOffset.x;
+  aTransform._42 -= aOffset.y;
 }
 
 
@@ -145,7 +103,7 @@ AssertInTopLevelChromeDoc(ContainerLayer* aContainer,
                           nsIFrame* aContainedFrame)
 {
   NS_ASSERTION(
-    (aContainer->Manager()->GetBackendType() != LayerManager::LAYERS_BASIC) ||
+    (aContainer->Manager()->GetBackendType() != mozilla::layers::LAYERS_BASIC) ||
     (aContainedFrame->GetNearestWidget() ==
      static_cast<BasicLayerManager*>(aContainer->Manager())->GetRetainerWidget()),
     "Expected frame to be in top-level chrome document");
@@ -166,15 +124,22 @@ GetFrameMetrics(Layer* aLayer)
   return container ? &container->GetFrameMetrics() : NULL;
 }
 
+/**
+ * Gets the layer-pixel offset of aContainerFrame's content rect top-left
+ * from the nearest display item reference frame (which we assume will be inducing
+ * a ContainerLayer).
+ */
 static nsIntPoint
-GetRootFrameOffset(nsIFrame* aContainerFrame, nsDisplayListBuilder* aBuilder)
+GetContentRectLayerOffset(nsIFrame* aContainerFrame, nsDisplayListBuilder* aBuilder)
 {
   nscoord auPerDevPixel = aContainerFrame->PresContext()->AppUnitsPerDevPixel();
 
   // Offset to the content rect in case we have borders or padding
-  nsPoint frameOffset =
-    (aBuilder->ToReferenceFrame(aContainerFrame->GetParent()) +
-     aContainerFrame->GetContentRect().TopLeft());
+  // Note that aContainerFrame could be a reference frame itself, so
+  // we need to be careful here to ensure that we call ToReferenceFrame
+  // on aContainerFrame and not its parent.
+  nsPoint frameOffset = aBuilder->ToReferenceFrame(aContainerFrame) +
+    (aContainerFrame->GetContentRect().TopLeft() - aContainerFrame->GetPosition());
 
   return frameOffset.ToNearestPixels(auPerDevPixel);
 }
@@ -189,8 +154,8 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
                            nsFrameLoader* aRootFrameLoader,
                            const FrameMetrics* aMetrics,
                            const ViewConfig& aConfig,
-                           float aInverseScaleX,
-                           float aInverseScaleY)
+                           float aTempScaleX = 1.0,
+                           float aTempScaleY = 1.0)
 {
   // |aMetrics->mViewportScrollOffset| The frame's scroll offset when it was
   //                                   painted, in content document pixels.
@@ -204,7 +169,7 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
   nscoord auPerDevPixel = aContainerFrame->PresContext()->AppUnitsPerDevPixel();
   nsIntPoint scrollOffset =
     aConfig.mScrollOffset.ToNearestPixels(auPerDevPixel);
-  nsIntPoint metricsScrollOffset = aMetrics->mViewportScrollOffset;
+  LayerIntPoint metricsScrollOffset = RoundedToInt(aMetrics->GetScrollOffsetInLayerPixels());
 
   if (aRootFrameLoader->AsyncScrollEnabled() && !aMetrics->mDisplayPort.IsEmpty()) {
     // Only use asynchronous scrolling if it is enabled and there is a
@@ -212,8 +177,8 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
     // synchronously scrolled for identifying a scroll area before it is
     // being actively scrolled.
     nsIntPoint scrollCompensation(
-      scrollOffset.x * aInverseScaleX - metricsScrollOffset.x * aConfig.mXScale,
-      scrollOffset.y * aInverseScaleY - metricsScrollOffset.y * aConfig.mYScale);
+      (scrollOffset.x / aTempScaleX - metricsScrollOffset.x),
+      (scrollOffset.y / aTempScaleY - metricsScrollOffset.y));
 
     return ViewTransform(-scrollCompensation, aConfig.mXScale, aConfig.mYScale);
   } else {
@@ -225,7 +190,7 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
 static void
 BuildListForLayer(Layer* aLayer,
                   nsFrameLoader* aRootFrameLoader,
-                  gfx3DMatrix aTransform,
+                  const gfx3DMatrix& aTransform,
                   nsDisplayListBuilder* aBuilder,
                   nsDisplayList& aShadowTree,
                   nsIFrame* aSubdocFrame)
@@ -245,6 +210,8 @@ BuildListForLayer(Layer* aLayer,
     // Calculate transform for this layer.
     nsContentView* view =
       aRootFrameLoader->GetCurrentRemoteFrame()->GetContentView(scrollId);
+    // XXX why don't we include aLayer->GetTransform() in the inverse-scale here?
+    // This seems wrong, but it doesn't seem to cause bugs!
     gfx3DMatrix applyTransform = ComputeShadowTreeTransform(
       aSubdocFrame, aRootFrameLoader, metrics, view->GetViewConfig(),
       1 / GetXScale(aTransform), 1 / GetYScale(aTransform));
@@ -252,15 +219,15 @@ BuildListForLayer(Layer* aLayer,
 
     // As mentioned above, bounds calculation also depends on the scale
     // of this layer.
-    Scale(aTransform, GetXScale(applyTransform), GetYScale(applyTransform));
+    gfx3DMatrix tmpTransform = aTransform;
+    Scale(tmpTransform, GetXScale(applyTransform), GetYScale(applyTransform));
 
     // Calculate rect for this layer based on aTransform.
     nsRect bounds;
     {
+      bounds = CSSRect::ToAppUnits(metrics->mViewport);
       nscoord auPerDevPixel = aSubdocFrame->PresContext()->AppUnitsPerDevPixel();
-      bounds = metrics->mViewport.ToAppUnits(auPerDevPixel);
-      ApplyTransform(bounds, aTransform, auPerDevPixel);
-
+      ApplyTransform(bounds, tmpTransform, auPerDevPixel);
     }
 
     aShadowTree.AppendToTop(
@@ -281,56 +248,82 @@ BuildListForLayer(Layer* aLayer,
 static void
 TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
                     nsIFrame* aFrame, Layer* aLayer,
-                    ViewTransform& aTransform)
+                    const ViewTransform& aTransform,
+                    float aTempScaleDiffX = 1.0,
+                    float aTempScaleDiffY = 1.0)
 {
-  ShadowLayer* shadow = aLayer->AsShadowLayer();
+  LayerComposite* shadow = aLayer->AsLayerComposite();
   shadow->SetShadowClipRect(aLayer->GetClipRect());
   shadow->SetShadowVisibleRegion(aLayer->GetVisibleRegion());
+  shadow->SetShadowOpacity(aLayer->GetOpacity());
 
   const FrameMetrics* metrics = GetFrameMetrics(aLayer);
 
-  gfx3DMatrix shadowTransform;
+  gfx3DMatrix shadowTransform = aLayer->GetTransform();
+  ViewTransform layerTransform = aTransform;
 
   if (metrics && metrics->IsScrollable()) {
     const ViewID scrollId = metrics->mScrollId;
     const nsContentView* view =
       aFrameLoader->GetCurrentRemoteFrame()->GetContentView(scrollId);
     NS_ABORT_IF_FALSE(view, "Array of views should be consistent with layer tree");
+    const gfx3DMatrix& currentTransform = aLayer->GetTransform();
 
+    const ViewConfig& config = view->GetViewConfig();
+    // With temporary scale we should compensate translation
+    // using temporary scale value
+    aTempScaleDiffX *= GetXScale(shadowTransform) * config.mXScale;
+    aTempScaleDiffY *= GetYScale(shadowTransform) * config.mYScale;
     ViewTransform viewTransform = ComputeShadowTreeTransform(
       aFrame, aFrameLoader, metrics, view->GetViewConfig(),
-      1 / aTransform.mXScale, 1 / aTransform.mYScale
+      aTempScaleDiffX, aTempScaleDiffY
     );
 
+    // Apply the layer's own transform *before* the view transform
+    shadowTransform = gfx3DMatrix(viewTransform) * currentTransform;
+
+    layerTransform = viewTransform;
     if (metrics->IsRootScrollable()) {
-      aTransform.mTranslation = viewTransform.mTranslation;
-      viewTransform.mTranslation += GetRootFrameOffset(aFrame, aBuilder);
+      // Apply the translation *before* we do the rest of the transforms.
+      nsIntPoint offset = GetContentRectLayerOffset(aFrame, aBuilder);
+      shadowTransform = shadowTransform *
+          gfx3DMatrix::Translation(float(offset.x), float(offset.y), 0.0);
     }
-
-    shadowTransform = gfx3DMatrix(viewTransform) * aLayer->GetTransform();
-
-  } else {
-    shadowTransform = aLayer->GetTransform();
   }
 
   if (aLayer->GetIsFixedPosition() &&
       !aLayer->GetParent()->GetIsFixedPosition()) {
-    ReverseTranslate(shadowTransform, aTransform);
+    // Alter the shadow transform of fixed position layers in the situation
+    // that the view transform's scroll position doesn't match the actual
+    // scroll position, due to asynchronous layer scrolling.
+    float offsetX = layerTransform.mTranslation.x;
+    float offsetY = layerTransform.mTranslation.y;
+    ReverseTranslate(shadowTransform, gfxPoint(offsetX, offsetY));
     const nsIntRect* clipRect = shadow->GetShadowClipRect();
     if (clipRect) {
       nsIntRect transformedClipRect(*clipRect);
-      transformedClipRect.MoveBy(shadowTransform._41, shadowTransform._42);
+      transformedClipRect.MoveBy(-offsetX, -offsetY);
       shadow->SetShadowClipRect(&transformedClipRect);
     }
   }
 
-  shadow->SetShadowTransform(shadowTransform);
-  aTransform.mXScale *= GetXScale(shadowTransform);
-  aTransform.mYScale *= GetYScale(shadowTransform);
+  // The transform already takes the resolution scale into account.  Since we
+  // will apply the resolution scale again when computing the effective
+  // transform, we must apply the inverse resolution scale here.
+  if (ContainerLayer* c = aLayer->AsContainerLayer()) {
+    shadowTransform.Scale(1.0f/c->GetPreXScale(),
+                          1.0f/c->GetPreYScale(),
+                          1);
+  }
+  shadowTransform.ScalePost(1.0f/aLayer->GetPostXScale(),
+                            1.0f/aLayer->GetPostYScale(),
+                            1);
 
+  shadow->SetShadowTransform(shadowTransform);
   for (Layer* child = aLayer->GetFirstChild();
        child; child = child->GetNextSibling()) {
-    TransformShadowTree(aBuilder, aFrameLoader, aFrame, child, aTransform);
+    TransformShadowTree(aBuilder, aFrameLoader, aFrame, child, layerTransform,
+                        aTempScaleDiffX, aTempScaleDiffY);
   }
 }
 
@@ -346,10 +339,10 @@ ClearContainer(ContainerLayer* aContainer)
 // used for small software rendering tasks, like drawWindow.  That's
 // currently implemented by a BasicLayerManager without a backing
 // widget, and hence in non-retained mode.
-static PRBool
+inline static bool
 IsTempLayerManager(LayerManager* aManager)
 {
-  return (LayerManager::LAYERS_BASIC == aManager->GetBackendType() &&
+  return (mozilla::layers::LAYERS_BASIC == aManager->GetBackendType() &&
           !static_cast<BasicLayerManager*>(aManager)->IsRetained());
 }
 
@@ -362,17 +355,22 @@ IsTempLayerManager(LayerManager* aManager)
 static void
 BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
              nsFrameLoader* aFrameLoader, Layer* aLayer,
-             float aXScale = 1, float aYScale = 1)
+             float aXScale = 1, float aYScale = 1,
+             float aAccConfigXScale = 1, float aAccConfigYScale = 1)
 {
   ContainerLayer* container = aLayer->AsContainerLayer();
   if (!container)
     return;
   const FrameMetrics metrics = container->GetFrameMetrics();
   const ViewID scrollId = metrics.mScrollId;
+  const gfx3DMatrix transform = aLayer->GetTransform();
+  aXScale *= GetXScale(transform);
+  aYScale *= GetYScale(transform);
 
   if (metrics.IsScrollable()) {
     nscoord auPerDevPixel = aFrameLoader->GetPrimaryFrameOfOwningContent()
                                         ->PresContext()->AppUnitsPerDevPixel();
+    nscoord auPerCSSPixel = auPerDevPixel * metrics.mDevPixelsPerCSSPixel.scale;
     nsContentView* view = FindViewForId(oldContentViews, scrollId);
     if (view) {
       // View already exists. Be sure to propagate scales for any values
@@ -380,94 +378,65 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
       ViewConfig config = view->GetViewConfig();
       aXScale *= config.mXScale;
       aYScale *= config.mYScale;
-      view->mOwnerContent = aFrameLoader->GetOwnerContent();
+      view->mFrameLoader = aFrameLoader;
+      // If scale has changed, then we should update
+      // current scroll offset to new scaled value
+      if (aAccConfigXScale != view->mParentScaleX ||
+          aAccConfigYScale != view->mParentScaleY) {
+        float xscroll = 0, yscroll = 0;
+        view->GetScrollX(&xscroll);
+        view->GetScrollY(&yscroll);
+        xscroll = xscroll * (aAccConfigXScale / view->mParentScaleX);
+        yscroll = yscroll * (aAccConfigYScale / view->mParentScaleY);
+        view->ScrollTo(xscroll, yscroll);
+        view->mParentScaleX = aAccConfigXScale;
+        view->mParentScaleY = aAccConfigYScale;
+      }
+      // Collect only config scale values for scroll compensation
+      aAccConfigXScale *= config.mXScale;
+      aAccConfigYScale *= config.mYScale;
     } else {
       // View doesn't exist, so generate one. We start the view scroll offset at
       // the same position as the framemetric's scroll offset from the layer.
       // The default scale is 1, so no need to propagate scale down.
       ViewConfig config;
       config.mScrollOffset = nsPoint(
-        NSIntPixelsToAppUnits(metrics.mViewportScrollOffset.x, auPerDevPixel) * aXScale,
-        NSIntPixelsToAppUnits(metrics.mViewportScrollOffset.y, auPerDevPixel) * aYScale);
-      view = new nsContentView(aFrameLoader->GetOwnerContent(), scrollId, config);
+        NSIntPixelsToAppUnits(metrics.mScrollOffset.x, auPerCSSPixel) * aXScale,
+        NSIntPixelsToAppUnits(metrics.mScrollOffset.y, auPerCSSPixel) * aYScale);
+      view = new nsContentView(aFrameLoader, scrollId, config);
+      view->mParentScaleX = aAccConfigXScale;
+      view->mParentScaleY = aAccConfigYScale;
     }
 
+    // I don't know what units mViewportSize is in, hence use ToUnknownRect
+    // here to mark the current frontier in type info propagation
+    gfx::Rect viewport = metrics.mViewport.ToUnknownRect();
     view->mViewportSize = nsSize(
-      NSIntPixelsToAppUnits(metrics.mViewport.width, auPerDevPixel) * aXScale,
-      NSIntPixelsToAppUnits(metrics.mViewport.height, auPerDevPixel) * aYScale);
+      NSIntPixelsToAppUnits(viewport.width, auPerDevPixel) * aXScale,
+      NSIntPixelsToAppUnits(viewport.height, auPerDevPixel) * aYScale);
     view->mContentSize = nsSize(
-      NSIntPixelsToAppUnits(metrics.mContentSize.width, auPerDevPixel) * aXScale,
-      NSIntPixelsToAppUnits(metrics.mContentSize.height, auPerDevPixel) * aYScale);
+      NSFloatPixelsToAppUnits(metrics.mScrollableRect.width, auPerCSSPixel) * aXScale,
+      NSFloatPixelsToAppUnits(metrics.mScrollableRect.height, auPerCSSPixel) * aYScale);
 
     newContentViews[scrollId] = view;
   }
 
   for (Layer* child = aLayer->GetFirstChild();
        child; child = child->GetNextSibling()) {
-    const gfx3DMatrix transform = aLayer->GetTransform();
-    aXScale *= GetXScale(transform);
-    aYScale *= GetYScale(transform);
     BuildViewMap(oldContentViews, newContentViews, aFrameLoader, child,
-                 aXScale, aYScale);
+                 aXScale, aYScale, aAccConfigXScale, aAccConfigYScale);
   }
-}
-
-#define BOARDSIZE 32
-#define CHECKERSIZE 16
-already_AddRefed<gfxASurface>
-GetBackgroundImage()
-{
-  static unsigned int data[BOARDSIZE * BOARDSIZE];
-  static bool initialized = false;
-  if (!initialized) {
-    initialized = true;
-    for (unsigned int y = 0; y < BOARDSIZE; y++) {
-      for (unsigned int x = 0; x < BOARDSIZE; x++) {
-        bool col_odd = (x / CHECKERSIZE) & 1;
-        bool row_odd = (y / CHECKERSIZE) & 1;
-        if (col_odd ^ row_odd) { // xor
-          data[y * BOARDSIZE + x] = 0xFFFFFFFF;
-        }
-        else {
-          data[y * BOARDSIZE + x] = 0xFFDDDDDD;
-        }
-      }
-    }
-  }
-
-  nsRefPtr<gfxASurface> s =
-    new gfxImageSurface((unsigned char*) data,
-                        gfxIntSize(BOARDSIZE, BOARDSIZE),
-                        BOARDSIZE * sizeof(unsigned int),
-                        gfxASurface::ImageFormatARGB32);
-  return s.forget();
 }
 
 static void
 BuildBackgroundPatternFor(ContainerLayer* aContainer,
-                          ContainerLayer* aShadowRoot,
-                          const FrameMetrics& aMetrics,
+                          Layer* aShadowRoot,
                           const ViewConfig& aConfig,
+                          const gfxRGBA& aColor,
                           LayerManager* aManager,
-                          nsIFrame* aFrame,
-                          nsDisplayListBuilder* aBuilder)
+                          nsIFrame* aFrame)
 {
-  // We tile a visible region that is the frame's area \setminus the
-  // rect in our frame onto which valid pixels from remote content
-  // will be drawn.  It's just a waste of CPU cycles to draw a
-  // checkerboard behind that content.
-  //
-  // We want to give the background the illusion of moving while the
-  // user pans, so we nudge the tiling area a bit based on the
-  // "desired" scroll offset.
-  //
-  // The background-image layer is added to the layer tree "behind"
-  // the shadow tree.  It doesn't matter in theory which is behind/in
-  // front, except that having the background in front of content
-  // means we have to be more careful about snapping boundaries,
-  // whereas having it behind allows us to trade off simplicity for
-  // "wasted" drawing of a few extra pixels.
-  ShadowLayer* shadowRoot = aShadowRoot->AsShadowLayer();
+  LayerComposite* shadowRoot = aShadowRoot->AsLayerComposite();
   gfxMatrix t;
   if (!shadowRoot->GetShadowTransform().Is2D(&t)) {
     return;
@@ -493,69 +462,181 @@ BuildBackgroundPatternFor(ContainerLayer* aContainer,
   if (localIntContentVis.Contains(frameRect)) {
     return;
   }
-
-  nsRefPtr<gfxASurface> bgImage = GetBackgroundImage();
-  gfxIntSize bgImageSize = bgImage->GetSize();
-
-  // Set up goop needed to get a cairo image into its own layer
-  if (!sCheckerboard) {
-    sCheckerboard = aManager->CreateImageContainer().get();
-    const Image::Format fmts[] = { Image::CAIRO_SURFACE };
-    nsRefPtr<Image> img = sCheckerboard->CreateImage(fmts, 1);
-    CairoImage::Data data = { bgImage.get(), bgImageSize };
-    static_cast<CairoImage*>(img.get())->SetData(data);
-    sCheckerboard->SetCurrentImage(img);
-    nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-    if (!observerService) {
-      return;
-    }
-    nsresult rv = observerService->AddObserver(new CheckerBoardPatternDeleter, "xpcom-shutdown", PR_FALSE);
-    if (NS_FAILED(rv)) {
-      return;
-    }
-  }
-
-  nsRefPtr<ImageLayer> layer = aManager->CreateImageLayer();
-  layer->SetContainer(sCheckerboard);
-
-  // The tile source is the entire background image
-  nsIntRect tileSource(0, 0, bgImageSize.width, bgImageSize.height);
-  layer->SetTileSourceRect(&tileSource);
-
-  // The origin of the tiling plane, top-left of the tile source rect,
-  // is at layer-space point <0,0>.  Set up a translation from that
-  // origin to the frame top-left, with the little nudge included.
-  nsIntPoint translation = frameRect.TopLeft();
-  nsIntPoint panNudge = aConfig.mScrollOffset.ToNearestPixels(auPerDevPixel);
-  // This offset must be positive to ensure that the tiling rect
-  // contains the frame's visible rect.  The "desired" scroll offset
-  // is allowed to be negative, however, so we fix that up here.
-  panNudge.x = (panNudge.x % bgImageSize.width);
-  if (panNudge.x < 0) panNudge.x += bgImageSize.width;
-  panNudge.y = (panNudge.y % bgImageSize.height);
-  if (panNudge.y < 0) panNudge.y += bgImageSize.height;
-
-  translation -= panNudge;
-  layer->SetTransform(gfx3DMatrix::Translation(translation.x, translation.y, 0));
+  nsRefPtr<ColorLayer> layer = aManager->CreateColorLayer();
+  layer->SetColor(aColor);
 
   // The visible area of the background is the frame's area minus the
   // content area
   nsIntRegion bgRgn(frameRect);
   bgRgn.Sub(bgRgn, localIntContentVis);
-  bgRgn.MoveBy(-translation);
+  bgRgn.MoveBy(-frameRect.TopLeft());
   layer->SetVisibleRegion(bgRgn);
-      
-  aContainer->InsertAfter(layer, nsnull);
+
+  aContainer->InsertAfter(layer, nullptr);
 }
 
-RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader)
-  : mFrameLoader(aFrameLoader)
+already_AddRefed<LayerManager>
+GetFrom(nsFrameLoader* aFrameLoader)
 {
-  NS_ABORT_IF_FALSE(aFrameLoader, "Need a frameloader here");
+  nsIDocument* doc = aFrameLoader->GetOwnerDoc();
+  return nsContentUtils::LayerManagerForDocument(doc);
+}
+
+class RemoteContentController : public GeckoContentController {
+public:
+  RemoteContentController(RenderFrameParent* aRenderFrame)
+    : mUILoop(MessageLoop::current())
+    , mRenderFrame(aRenderFrame)
+  { }
+
+  virtual void RequestContentRepaint(const FrameMetrics& aFrameMetrics) MOZ_OVERRIDE
+  {
+    // We always need to post requests into the "UI thread" otherwise the
+    // requests may get processed out of order.
+    mUILoop->PostTask(
+      FROM_HERE,
+      NewRunnableMethod(this, &RemoteContentController::DoRequestContentRepaint,
+                        aFrameMetrics));
+  }
+
+  virtual void HandleDoubleTap(const CSSIntPoint& aPoint) MOZ_OVERRIDE
+  {
+    if (MessageLoop::current() != mUILoop) {
+      // We have to send this message from the "UI thread" (main
+      // thread).
+      mUILoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &RemoteContentController::HandleDoubleTap,
+                          aPoint));
+      return;
+    }
+    if (mRenderFrame) {
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
+      browser->HandleDoubleTap(aPoint);
+    }
+  }
+
+  virtual void HandleSingleTap(const CSSIntPoint& aPoint) MOZ_OVERRIDE
+  {
+    if (MessageLoop::current() != mUILoop) {
+      // We have to send this message from the "UI thread" (main
+      // thread).
+      mUILoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &RemoteContentController::HandleSingleTap,
+                          aPoint));
+      return;
+    }
+    if (mRenderFrame) {
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
+      browser->HandleSingleTap(aPoint);
+    }
+  }
+
+  virtual void HandleLongTap(const CSSIntPoint& aPoint) MOZ_OVERRIDE
+  {
+    if (MessageLoop::current() != mUILoop) {
+      // We have to send this message from the "UI thread" (main
+      // thread).
+      mUILoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &RemoteContentController::HandleLongTap,
+                          aPoint));
+      return;
+    }
+    if (mRenderFrame) {
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
+      browser->HandleLongTap(aPoint);
+    }
+  }
+
+  void ClearRenderFrame() { mRenderFrame = nullptr; }
+
+  virtual void SendAsyncScrollDOMEvent(FrameMetrics::ViewID aScrollId,
+                                       const CSSRect& aContentRect,
+                                       const CSSSize& aContentSize) MOZ_OVERRIDE
+  {
+    if (MessageLoop::current() != mUILoop) {
+      mUILoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this,
+                          &RemoteContentController::SendAsyncScrollDOMEvent,
+                          aScrollId, aContentRect, aContentSize));
+      return;
+    }
+    if (mRenderFrame && aScrollId == FrameMetrics::ROOT_SCROLL_ID) {
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
+      BrowserElementParent::DispatchAsyncScrollEvent(browser, aContentRect,
+                                                     aContentSize);
+    }
+  }
+
+  virtual void PostDelayedTask(Task* aTask, int aDelayMs) MOZ_OVERRIDE
+  {
+    MessageLoop::current()->PostDelayedTask(FROM_HERE, aTask, aDelayMs);
+  }
+
+private:
+  void DoRequestContentRepaint(const FrameMetrics& aFrameMetrics)
+  {
+    if (mRenderFrame) {
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
+      browser->UpdateFrame(aFrameMetrics);
+    }
+  }
+
+  MessageLoop* mUILoop;
+  RenderFrameParent* mRenderFrame;
+};
+
+RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
+                                     ScrollingBehavior aScrollingBehavior,
+                                     TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                                     uint64_t* aId)
+  : mLayersId(0)
+  , mFrameLoader(aFrameLoader)
+  , mFrameLoaderDestroyed(false)
+  , mBackgroundColor(gfxRGBA(1, 1, 1))
+{
   mContentViews[FrameMetrics::ROOT_SCROLL_ID] =
-    new nsContentView(aFrameLoader->GetOwnerContent(),
-                      FrameMetrics::ROOT_SCROLL_ID);
+    new nsContentView(aFrameLoader, FrameMetrics::ROOT_SCROLL_ID);
+
+  *aId = 0;
+
+  nsRefPtr<LayerManager> lm = GetFrom(mFrameLoader);
+  // Perhaps the document containing this frame currently has no presentation?
+  if (lm && lm->GetBackendType() == LAYERS_CLIENT) {
+    *aTextureFactoryIdentifier = lm->GetTextureFactoryIdentifier();
+  } else {
+    *aTextureFactoryIdentifier = TextureFactoryIdentifier();
+  }
+
+  if (CompositorParent::CompositorLoop()) {
+    // Our remote frame will push layers updates to the compositor,
+    // and we'll keep an indirect reference to that tree.
+    *aId = mLayersId = CompositorParent::AllocateLayerTreeId();
+    if (lm && lm->GetBackendType() == LAYERS_CLIENT) {
+      ClientLayerManager *clientManager = static_cast<ClientLayerManager*>(lm.get());
+      clientManager->GetRemoteRenderer()->SendNotifyChildCreated(mLayersId);
+    }
+    if (aScrollingBehavior == ASYNC_PAN_ZOOM) {
+      mContentController = new RemoteContentController(this);
+      CompositorParent::SetControllerForLayerTree(mLayersId, mContentController);
+    }
+  }
+}
+
+APZCTreeManager*
+RenderFrameParent::GetApzcTreeManager()
+{
+  // We can't get a ref to the APZCTreeManager until after the child is
+  // created and the static getter knows which CompositorParent is
+  // instantiated with this layers ID. That's why try to fetch it when
+  // we first need it and cache the result.
+  if (!mApzcTreeManager) {
+    mApzcTreeManager = CompositorParent::GetAPZCTreeManager(mLayersId);
+  }
+  return mApzcTreeManager.get();
 }
 
 RenderFrameParent::~RenderFrameParent()
@@ -564,15 +645,17 @@ RenderFrameParent::~RenderFrameParent()
 void
 RenderFrameParent::Destroy()
 {
-  size_t numChildren = ManagedPLayersParent().Length();
+  size_t numChildren = ManagedPLayerTransactionParent().Length();
   NS_ABORT_IF_FALSE(0 == numChildren || 1 == numChildren,
                     "render frame must only have 0 or 1 layer manager");
 
   if (numChildren) {
-    ShadowLayersParent* layers =
-      static_cast<ShadowLayersParent*>(ManagedPLayersParent()[0]);
+    LayerTransactionParent* layers =
+      static_cast<LayerTransactionParent*>(ManagedPLayerTransactionParent()[0]);
     layers->Destroy();
   }
+
+  mFrameLoaderDestroyed = true;
 }
 
 nsContentView*
@@ -582,43 +665,33 @@ RenderFrameParent::GetContentView(ViewID aId)
 }
 
 void
-RenderFrameParent::ShadowLayersUpdated()
+RenderFrameParent::ContentViewScaleChanged(nsContentView* aView)
 {
-  mFrameLoader->SetCurrentRemoteFrame(this);
+  // Since the scale has changed for a view, it and its descendents need their
+  // shadow-space attributes updated. It's easiest to rebuild the view map.
+  BuildViewMap();
+}
 
+void
+RenderFrameParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
+                                       const TargetConfig& aTargetConfig,
+                                       bool isFirstPaint)
+{
   // View map must only contain views that are associated with the current
   // shadow layer tree. We must always update the map when shadow layers
   // are updated.
   BuildViewMap();
 
-  nsIFrame* docFrame = mFrameLoader->GetPrimaryFrameOfOwningContent();
-  if (!docFrame) {
-    // Bad, but nothing we can do about it (XXX/cjones: or is there?
-    // maybe bug 589337?).  When the new frame is created, we'll
-    // probably still be the current render frame and will get to draw
-    // our content then.  Or, we're shutting down and this update goes
-    // to /dev/null.
-    return;
-  }
-
-  // FIXME/cjones: we should collect the rects/regions updated for
-  // Painted*Layer() calls and pass that region to here, then only
-  // invalidate that rect
-  //
-  // We pass INVALIDATE_NO_THEBES_LAYERS here because we're
-  // invalidating the <browser> on behalf of its counterpart in the
-  // content process.  Not only do we not need to invalidate the
-  // shadow layers, things would just break if we did --- we have no
-  // way to repaint shadow layers from this process.
-  nsRect rect = nsRect(nsPoint(0, 0), docFrame->GetRect().Size());
-  docFrame->InvalidateWithFlags(rect, nsIFrame::INVALIDATE_NO_THEBES_LAYERS);
+  TriggerRepaint();
 }
 
 already_AddRefed<Layer>
 RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
                               nsIFrame* aFrame,
                               LayerManager* aManager,
-                              const nsIntRect& aVisibleRect)
+                              const nsIntRect& aVisibleRect,
+                              nsDisplayItem* aItem,
+                              const ContainerParameters& aContainerParameters)
 {
   NS_ABORT_IF_FALSE(aFrame,
                     "makes no sense to have a shadow tree without a frame");
@@ -627,24 +700,60 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
                     mContainer->Manager() == aManager,
                     "retaining manager changed out from under us ... HELP!");
 
-  if (mContainer && mContainer->Manager() != aManager) {
+  if (IsTempLayerManager(aManager) ||
+      (mContainer && mContainer->Manager() != aManager)) {
     // This can happen if aManager is a "temporary" manager, or if the
     // widget's layer manager changed out from under us.  We need to
     // FIXME handle the former case somehow, probably with an API to
     // draw a manager's subtree.  The latter is bad bad bad, but the
     // the NS_ABORT_IF_FALSE() above will flag it.  Returning NULL
     // here will just cause the shadow subtree not to be rendered.
-    return nsnull;
+    NS_WARNING("Remote iframe not rendered");
+    return nullptr;
+  }
+
+  uint64_t id = GetLayerTreeId();
+  if (0 != id) {
+    MOZ_ASSERT(!GetRootLayer());
+
+    nsRefPtr<Layer> layer =
+      (aManager->GetLayerBuilder()->GetLeafLayerFor(aBuilder, aItem));
+    if (!layer) {
+      layer = aManager->CreateRefLayer();
+    }
+    if (!layer) {
+      // Probably a temporary layer manager that doesn't know how to
+      // use ref layers.
+      return nullptr;
+    }
+    static_cast<RefLayer*>(layer.get())->SetReferentId(id);
+    nsIntPoint offset = GetContentRectLayerOffset(aFrame, aBuilder);
+    layer->SetVisibleRegion(aVisibleRect - offset);
+    // We can only have an offset if we're a child of an inactive
+    // container, but our display item is LAYER_ACTIVE_FORCE which
+    // forces all layers above to be active.
+    MOZ_ASSERT(aContainerParameters.mOffset == nsIntPoint());
+    gfx3DMatrix m =
+      gfx3DMatrix::Translation(offset.x, offset.y, 0.0);
+    // Remote content can't be repainted by us, so we multiply down
+    // the resolution that our container expects onto our container.
+    m.Scale(aContainerParameters.mXScale, aContainerParameters.mYScale, 1.0);
+    layer->SetBaseTransform(m);
+
+    return layer.forget();
   }
 
   if (mContainer) {
     ClearContainer(mContainer);
+    mContainer->SetPreScale(1.0f, 1.0f);
+    mContainer->SetPostScale(1.0f, 1.0f);
+    mContainer->SetInheritedScale(1.0f, 1.0f);
   }
 
-  ContainerLayer* shadowRoot = GetRootLayer();
+  Layer* shadowRoot = GetRootLayer();
   if (!shadowRoot) {
-    mContainer = nsnull;
-    return nsnull;
+    mContainer = nullptr;
+    return nullptr;
   }
 
   NS_ABORT_IF_FALSE(!shadowRoot || shadowRoot->Manager() == aManager,
@@ -657,20 +766,20 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
   NS_ABORT_IF_FALSE(!mContainer->GetFirstChild(),
                     "container of shadow tree shouldn't have a 'root' here");
 
-  mContainer->InsertAfter(shadowRoot, nsnull);
+  mContainer->InsertAfter(shadowRoot, nullptr);
 
   AssertInTopLevelChromeDoc(mContainer, aFrame);
   ViewTransform transform;
   TransformShadowTree(aBuilder, mFrameLoader, aFrame, shadowRoot, transform);
-  mContainer->SetClipRect(nsnull);
+  mContainer->SetClipRect(nullptr);
 
   if (mFrameLoader->AsyncScrollEnabled()) {
     const nsContentView* view = GetContentView(FrameMetrics::ROOT_SCROLL_ID);
     BuildBackgroundPatternFor(mContainer,
                               shadowRoot,
-                              shadowRoot->GetFrameMetrics(),
                               view->GetViewConfig(),
-                              aManager, aFrame, aBuilder);
+                              mBackgroundColor,
+                              aManager, aFrame);
   }
   mContainer->SetVisibleRegion(aVisibleRect);
 
@@ -686,42 +795,85 @@ RenderFrameParent::OwnerContentChanged(nsIContent* aContent)
 }
 
 void
+RenderFrameParent::NotifyInputEvent(const nsInputEvent& aEvent,
+                                    nsInputEvent* aOutEvent)
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->ReceiveInputEvent(aEvent, aOutEvent);
+  }
+}
+
+void
+RenderFrameParent::NotifyDimensionsChanged(ScreenIntSize size)
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->UpdateCompositionBounds(ScrollableLayerGuid(mLayersId),
+                                                  ScreenIntRect(ScreenIntPoint(), size));
+  }
+}
+
+void
 RenderFrameParent::ActorDestroy(ActorDestroyReason why)
 {
-  if (mFrameLoader->GetCurrentRemoteFrame() == this) {
+  if (mLayersId != 0) {
+    CompositorParent::DeallocateLayerTreeId(mLayersId);
+    if (mContentController) {
+      // Stop our content controller from requesting repaints of our
+      // content.
+      mContentController->ClearRenderFrame();
+      // TODO: notify the compositor?
+    }
+  }
+
+  if (mFrameLoader && mFrameLoader->GetCurrentRemoteFrame() == this) {
     // XXX this might cause some weird issues ... we'll just not
     // redraw the part of the window covered by this until the "next"
     // remote frame has a layer-tree transaction.  For
     // why==NormalShutdown, we'll definitely want to do something
     // better, especially as nothing guarantees another Update() from
     // the "next" remote layer tree.
-    mFrameLoader->SetCurrentRemoteFrame(nsnull);
+    mFrameLoader->SetCurrentRemoteFrame(nullptr);
   }
-  mFrameLoader = nsnull;
-}
-
-PLayersParent*
-RenderFrameParent::AllocPLayers()
-{
-  LayerManager* lm = GetLayerManager();
-  switch (lm->GetBackendType()) {
-  case LayerManager::LAYERS_BASIC: {
-    BasicShadowLayerManager* bslm = static_cast<BasicShadowLayerManager*>(lm);
-    return new ShadowLayersParent(bslm);
-  }
-  case LayerManager::LAYERS_OPENGL: {
-    LayerManagerOGL* lmo = static_cast<LayerManagerOGL*>(lm);
-    return new ShadowLayersParent(lmo);
-  }
-  default: {
-    NS_WARNING("shadow layers no sprechen D3D backend yet");
-    return nsnull;
-  }
-  }
+  mFrameLoader = nullptr;
 }
 
 bool
-RenderFrameParent::DeallocPLayers(PLayersParent* aLayers)
+RenderFrameParent::RecvNotifyCompositorTransaction()
+{
+  TriggerRepaint();
+  return true;
+}
+
+bool
+RenderFrameParent::RecvCancelDefaultPanZoom()
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->CancelDefaultPanZoom(ScrollableLayerGuid(mLayersId));
+  }
+  return true;
+}
+
+bool
+RenderFrameParent::RecvDetectScrollableSubframe()
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->DetectScrollableSubframe(ScrollableLayerGuid(mLayersId));
+  }
+  return true;
+}
+
+PLayerTransactionParent*
+RenderFrameParent::AllocPLayerTransactionParent()
+{
+  if (!mFrameLoader || mFrameLoaderDestroyed) {
+    return nullptr;
+  }
+  nsRefPtr<LayerManager> lm = GetFrom(mFrameLoader);
+  return new LayerTransactionParent(lm->AsLayerManagerComposite(), this, 0);
+}
+
+bool
+RenderFrameParent::DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers)
 {
   delete aLayers;
   return true;
@@ -737,13 +889,13 @@ RenderFrameParent::BuildViewMap()
     // tag them as inactive and to remove any chance of them using a dangling
     // pointer, we set mContentView to NULL.
     //
-    // BuildViewMap will restore mOwnerContent if the content view is still
+    // BuildViewMap will restore mFrameLoader if the content view is still
     // in our hash table.
 
     for (ViewMap::const_iterator iter = mContentViews.begin();
          iter != mContentViews.end();
          ++iter) {
-      iter->second->mOwnerContent = NULL;
+      iter->second->mFrameLoader = NULL;
     }
 
     mozilla::layout::BuildViewMap(mContentViews, newContentViews, mFrameLoader, GetRootLayer());
@@ -757,35 +909,52 @@ RenderFrameParent::BuildViewMap()
     newContentViews[FrameMetrics::ROOT_SCROLL_ID] =
       FindViewForId(mContentViews, FrameMetrics::ROOT_SCROLL_ID);
   }
-  
+
   mContentViews = newContentViews;
 }
 
-LayerManager*
-RenderFrameParent::GetLayerManager() const
+void
+RenderFrameParent::TriggerRepaint()
 {
-  nsIDocument* doc = mFrameLoader->GetOwnerDoc();
-  return doc->GetShell()->GetLayerManager();
+  mFrameLoader->SetCurrentRemoteFrame(this);
+
+  nsIFrame* docFrame = mFrameLoader->GetPrimaryFrameOfOwningContent();
+  if (!docFrame) {
+    // Bad, but nothing we can do about it (XXX/cjones: or is there?
+    // maybe bug 589337?).  When the new frame is created, we'll
+    // probably still be the current render frame and will get to draw
+    // our content then.  Or, we're shutting down and this update goes
+    // to /dev/null.
+    return;
+  }
+
+  docFrame->InvalidateLayer(nsDisplayItem::TYPE_REMOTE);
 }
 
-ShadowLayersParent*
+LayerTransactionParent*
 RenderFrameParent::GetShadowLayers() const
 {
-  const nsTArray<PLayersParent*>& shadowParents = ManagedPLayersParent();
+  const InfallibleTArray<PLayerTransactionParent*>& shadowParents = ManagedPLayerTransactionParent();
   NS_ABORT_IF_FALSE(shadowParents.Length() <= 1,
-                    "can only support at most 1 ShadowLayersParent");
+                    "can only support at most 1 LayerTransactionParent");
   return (shadowParents.Length() == 1) ?
-    static_cast<ShadowLayersParent*>(shadowParents[0]) : nsnull;
+    static_cast<LayerTransactionParent*>(shadowParents[0]) : nullptr;
 }
 
-ContainerLayer*
+uint64_t
+RenderFrameParent::GetLayerTreeId() const
+{
+  return mLayersId;
+}
+
+Layer*
 RenderFrameParent::GetRootLayer() const
 {
-  ShadowLayersParent* shadowLayers = GetShadowLayers();
-  return shadowLayers ? shadowLayers->GetRoot() : nsnull;
+  LayerTransactionParent* shadowLayers = GetShadowLayers();
+  return shadowLayers ? shadowLayers->GetRoot() : nullptr;
 }
 
-NS_IMETHODIMP
+void
 RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
                                     nsSubDocumentFrame* aFrame,
                                     const nsRect& aDirtyRect,
@@ -793,25 +962,49 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
 {
   // We're the subdoc for <browser remote="true"> and it has
   // painted content.  Display its shadow layer tree.
-  nsDisplayList shadowTree;
-  if (aBuilder->IsForEventDelivery()) {
-    nsRect bounds = aFrame->EnsureInnerView()->GetBounds();
+  DisplayListClipState::AutoSaveRestore clipState(aBuilder);
+
+  nsPoint offset = aBuilder->ToReferenceFrame(aFrame);
+  nsRect bounds = aFrame->EnsureInnerView()->GetBounds() + offset;
+  clipState.ClipContentDescendants(bounds);
+
+  Layer* container = GetRootLayer();
+  if (aBuilder->IsForEventDelivery() && container) {
     ViewTransform offset =
-      ViewTransform(GetRootFrameOffset(aFrame, aBuilder), 1, 1);
-    BuildListForLayer(GetRootLayer(), mFrameLoader, offset,
-                      aBuilder, shadowTree, aFrame);
+      ViewTransform(GetContentRectLayerOffset(aFrame, aBuilder));
+    BuildListForLayer(container, mFrameLoader, offset,
+                      aBuilder, *aLists.Content(), aFrame);
   } else {
-    shadowTree.AppendToTop(
+    aLists.Content()->AppendToTop(
       new (aBuilder) nsDisplayRemote(aBuilder, aFrame, this));
   }
+}
 
-  // Clip the shadow layers to subdoc bounds
-  nsPoint offset = aFrame->GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
-  nsRect bounds = aFrame->EnsureInnerView()->GetBounds() + offset;
+void
+RenderFrameParent::ZoomToRect(const CSSRect& aRect)
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->ZoomToRect(ScrollableLayerGuid(mLayersId),
+                                     aRect);
+  }
+}
 
-  return aLists.Content()->AppendNewToTop(
-    new (aBuilder) nsDisplayClip(aBuilder, aFrame, &shadowTree,
-                                 bounds));
+void
+RenderFrameParent::ContentReceivedTouch(bool aPreventDefault)
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->ContentReceivedTouch(ScrollableLayerGuid(mLayersId),
+                                               aPreventDefault);
+  }
+}
+
+void
+RenderFrameParent::UpdateZoomConstraints(bool aAllowZoom, float aMinZoom, float aMaxZoom)
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->UpdateZoomConstraints(ScrollableLayerGuid(mLayersId),
+                                                aAllowZoom, aMinZoom, aMaxZoom);
+  }
 }
 
 }  // namespace layout
@@ -819,11 +1012,13 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
 
 already_AddRefed<Layer>
 nsDisplayRemote::BuildLayer(nsDisplayListBuilder* aBuilder,
-                            LayerManager* aManager)
+                            LayerManager* aManager,
+                            const ContainerParameters& aContainerParameters)
 {
-  PRInt32 appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
+  int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
   nsIntRect visibleRect = GetVisibleRect().ToNearestPixels(appUnitsPerDevPixel);
-  nsRefPtr<Layer> layer = mRemoteFrame->BuildLayer(aBuilder, mFrame, aManager, visibleRect);
+  visibleRect += aContainerParameters.mOffset;
+  nsRefPtr<Layer> layer = mRemoteFrame->BuildLayer(aBuilder, mFrame, aManager, visibleRect, this, aContainerParameters);
   return layer.forget();
 }
 

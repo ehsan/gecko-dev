@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
 /**
@@ -48,20 +16,11 @@
  * of that particular token type gets detected in the 
  * input stream.
  *
- * CToken objects that are allocated from the heap _must_ be allocated
- * using the nsTokenAllocator: the nsTokenAllocator object uses an
- * arena to manage the tokens.
- *
- * The nsTokenAllocator object's arena implementation requires
- * object size at destruction time to properly recycle the object;
- * therefore, CToken::operator delete() is not public. Instead,
- * heap-allocated tokens should be destroyed using the static
- * Destroy() method, which accepts a token and the arena from which
- * the token was allocated.
- *
- * Leaf classes (that are actually instantiated from the heap) must
- * implement the SizeOf() method, which Destroy() uses to determine
- * the size of the token in order to properly recycle it.
+ * CToken objects that are allocated from the heap are allocated
+ * using the nsTokenAllocator object.  nsTokenAllocator used to use
+ * an arena-style allocator, but that is no longer necessary or helpful;
+ * it now uses a trivial drop-in replacement for the arena-style
+ * allocator called nsDummyAllocator, which just wraps malloc/free.
  */
 
 
@@ -71,28 +30,24 @@
 #include "prtypes.h"
 #include "nsString.h"
 #include "nsError.h"
-#include "nsFixedSizeAllocator.h"
-
-#define NS_HTMLTOKENS_NOT_AN_ENTITY \
-  NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_HTMLPARSER,2000)
 
 class nsScanner;
 class nsTokenAllocator;
+
+/**
+ * A trivial allocator.  See the comment at the top of this file.
+ */
+class nsDummyAllocator {
+public:
+  void* Alloc(size_t aSize) { return malloc(aSize); }
+  void Free(void* aPtr) { free(aPtr); }
+};
 
 enum eContainerInfo {
   eWellFormed,
   eMalformed,
   eFormUnknown
 };
-
-/**
- * Implement the SizeOf() method; leaf classes derived from CToken
- * must declare this.
- */
-#define CTOKEN_IMPL_SIZEOF                                \
-protected:                                                \
-  virtual size_t SizeOf() const { return sizeof(*this); } \
-public:
 
 /**
  *  Token objects represent sequences of characters as they
@@ -120,7 +75,7 @@ class CToken {
      * @param   aSize    - 
      * @param   aArena   - Allocate memory from this pool.
      */
-    static void * operator new (size_t aSize,nsFixedSizeAllocator& anArena) CPP_THROW_NEW
+    static void * operator new (size_t aSize, nsDummyAllocator& anArena) CPP_THROW_NEW
     {
       return anArena.Alloc(aSize);
     }
@@ -141,11 +96,10 @@ class CToken {
     /**
      * Destroy a token.
      */
-    static void Destroy(CToken* aToken,nsFixedSizeAllocator& aArenaPool)
+    static void Destroy(CToken* aToken, nsDummyAllocator& aArenaPool)
     {
-      size_t sz = aToken->SizeOf();
       aToken->~CToken();
-      aArenaPool.Free(aToken, sz);
+      aArenaPool.Free(aToken);
     }
 
   public:
@@ -162,7 +116,7 @@ class CToken {
      * Free yourself if no one is holding you.
      * @update	harishd 08/02/00
      */
-    void Release(nsFixedSizeAllocator& aArenaPool) {
+    void Release(nsDummyAllocator& aArenaPool) {
       --mUseCount;
       NS_LOG_RELEASE(this, mUseCount, "CToken");
       if (mUseCount==0)
@@ -173,7 +127,7 @@ class CToken {
      * Default constructor
      * @update	gess7/21/98
      */
-    CToken(PRInt32 aTag=0);
+    CToken(int32_t aTag=0);
 
     /**
      * Retrieve string value of the token
@@ -200,7 +154,7 @@ class CToken {
      * @update	gess5/11/98
      * @param   value is the new ord value for this token
      */
-    void SetTypeID(PRInt32 aValue) {
+    void SetTypeID(int32_t aValue) {
       mTypeID = aValue;
     }
     
@@ -209,14 +163,14 @@ class CToken {
      * @update	gess5/11/98
      * @return  current ordinal value 
      */
-    virtual PRInt32 GetTypeID(void);
+    virtual int32_t GetTypeID(void);
 
     /**
      * Getter which retrieves the current attribute count for this token
      * @update	gess5/11/98
      * @return  current attribute count 
      */
-    virtual PRInt16 GetAttributeCount(void);
+    virtual int16_t GetAttributeCount(void);
 
     /**
      * Causes token to consume data from given scanner.
@@ -226,62 +180,62 @@ class CToken {
      * @param   aScanner -- input source where token should get data
      * @return  error code (0 means ok)
      */
-    virtual nsresult Consume(PRUnichar aChar,nsScanner& aScanner,PRInt32 aMode);
+    virtual nsresult Consume(PRUnichar aChar,nsScanner& aScanner,int32_t aMode);
 
     /**
      * Getter which retrieves type of token
      * @update	gess5/11/98
      * @return  int containing token type
      */
-    virtual PRInt32 GetTokenType(void);
+    virtual int32_t GetTokenType(void);
 
     /**
      * For tokens who care, this can tell us whether the token is 
      * well formed or not.
      *
      * @update	gess 8/30/00
-     * @return  PR_FALSE; subclasses MUST override if they care.
+     * @return  false; subclasses MUST override if they care.
      */
-    virtual PRBool IsWellFormed(void) const {return PR_FALSE;}
+    virtual bool IsWellFormed(void) const {return false;}
 
-    virtual PRBool IsEmpty(void) { return PR_FALSE; }
+    virtual bool IsEmpty(void) { return false; }
     
     /**
      * If aValue is TRUE then the token represents a short-hand tag
      */
-    virtual void SetEmpty(PRBool aValue) { return ; }
+    virtual void SetEmpty(bool aValue) { return ; }
 
-    PRInt32 GetNewlineCount() 
+    int32_t GetNewlineCount() 
     { 
       return mNewlineCount; 
     }
 
-    void SetNewlineCount(PRInt32 aCount)
+    void SetNewlineCount(int32_t aCount)
     {
       mNewlineCount = aCount;
     }
 
-    PRInt32 GetLineNumber() 
+    int32_t GetLineNumber() 
     { 
       return mLineNumber;
     }
 
-    void SetLineNumber(PRInt32 aLineNumber) 
+    void SetLineNumber(int32_t aLineNumber) 
     { 
       mLineNumber = mLineNumber == 0 ? aLineNumber : mLineNumber;
     }
 
-    void SetInError(PRBool aInError)
+    void SetInError(bool aInError)
     {
       mInError = aInError;
     }
 
-    PRBool IsInError()
+    bool IsInError()
     {
       return mInError;
     }
 
-    void SetAttributeCount(PRInt16 aValue) {  mAttrCount = aValue; }
+    void SetAttributeCount(int16_t aValue) {  mAttrCount = aValue; }
 
     /**
      * perform self test.
@@ -294,17 +248,12 @@ class CToken {
     
 
 protected:
-    /**
-     * Returns the size of the token object.
-     */
-    virtual size_t SizeOf() const = 0;
-
-    PRInt32 mTypeID;
-    PRInt32 mUseCount;
-    PRInt32 mNewlineCount;
-    PRUint32 mLineNumber : 31;
-    PRUint32 mInError : 1;
-    PRInt16 mAttrCount;
+    int32_t mTypeID;
+    int32_t mUseCount;
+    int32_t mNewlineCount;
+    uint32_t mLineNumber : 31;
+    uint32_t mInError : 1;
+    int16_t mAttrCount;
 };
 
 

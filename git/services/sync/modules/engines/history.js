@@ -1,43 +1,8 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Weave
- *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2008
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Dan Mills <thunder@mozilla.com>
- *   Philipp von Weitershausen <philipp@weitershausen.de>
- *   Richard Newman <rnewman@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const EXPORTED_SYMBOLS = ['HistoryEngine', 'HistoryRec'];
+this.EXPORTED_SYMBOLS = ['HistoryEngine', 'HistoryRec'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -45,29 +10,29 @@ const Cu = Components.utils;
 const Cr = Components.results;
 
 const HISTORY_TTL = 5184000; // 60 days
-const TOPIC_UPDATEPLACES_COMPLETE = "places-updatePlaces-complete";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://services-common/async.js");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/log4moz.js");
 
-function HistoryRec(collection, id) {
+this.HistoryRec = function HistoryRec(collection, id) {
   CryptoWrapper.call(this, collection, id);
 }
 HistoryRec.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Record.History",
+  _logName: "Sync.Record.History",
   ttl: HISTORY_TTL
 };
 
 Utils.deferGetSet(HistoryRec, "cleartext", ["histUri", "title", "visits"]);
 
 
-function HistoryEngine() {
-  SyncEngine.call(this, "History");
+this.HistoryEngine = function HistoryEngine(service) {
+  SyncEngine.call(this, "History", service);
 }
 HistoryEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -75,21 +40,18 @@ HistoryEngine.prototype = {
   _storeObj: HistoryStore,
   _trackerObj: HistoryTracker,
   downloadLimit: MAX_HISTORY_DOWNLOAD,
-  applyIncomingBatchSize: HISTORY_STORE_BATCH_SIZE,
-
-  _findDupe: function _findDupe(item) {
-    return this._store.GUIDForUri(item.histUri);
-  }
+  applyIncomingBatchSize: HISTORY_STORE_BATCH_SIZE
 };
 
-function HistoryStore(name) {
-  Store.call(this, name);
+function HistoryStore(name, engine) {
+  Store.call(this, name, engine);
 
   // Explicitly nullify our references to our cached services so we don't leak
   Svc.Obs.add("places-shutdown", function() {
-    for each ([query, stmt] in Iterator(this._stmts))
+    for each ([query, stmt] in Iterator(this._stmts)) {
       stmt.finalize();
-    this._stmts = [];
+    }
+    this._stmts = {};
   }, this);
 }
 HistoryStore.prototype = {
@@ -106,8 +68,9 @@ HistoryStore.prototype = {
 
   _stmts: {},
   _getStmt: function(query) {
-    if (query in this._stmts)
+    if (query in this._stmts) {
       return this._stmts[query];
+    }
 
     this._log.trace("Creating SQL statement: " + query);
     let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
@@ -126,13 +89,14 @@ HistoryStore.prototype = {
   setGUID: function setGUID(uri, guid) {
     uri = uri.spec ? uri.spec : uri;
 
-    if (!guid)
+    if (!guid) {
       guid = Utils.makeGUID();
+    }
 
     let stmt = this._setGUIDStm;
     stmt.params.guid = guid;
     stmt.params.page_url = uri;
-    Utils.queryAsync(stmt);
+    Async.querySpinningly(stmt);
     return guid;
   },
 
@@ -149,7 +113,7 @@ HistoryStore.prototype = {
     stm.params.page_url = uri.spec ? uri.spec : uri;
 
     // Use the existing GUID if it exists
-    let result = Utils.queryAsync(stm, this._guidCols)[0];
+    let result = Async.querySpinningly(stm, this._guidCols)[0];
     if (result && result.guid)
       return result.guid;
 
@@ -160,6 +124,7 @@ HistoryStore.prototype = {
 
   get _visitStm() {
     return this._getStmt(
+      "/* do not warn (bug 599936) */ " +
       "SELECT visit_type type, visit_date date " +
       "FROM moz_historyvisits " +
       "WHERE place_id = (SELECT id FROM moz_places WHERE url = :url) " +
@@ -188,13 +153,13 @@ HistoryStore.prototype = {
   // See bug 320831 for why we use SQL here
   _getVisits: function HistStore__getVisits(uri) {
     this._visitStm.params.url = uri;
-    return Utils.queryAsync(this._visitStm, this._visitCols);
+    return Async.querySpinningly(this._visitStm, this._visitCols);
   },
 
   // See bug 468732 for why we use SQL here
   _findURLByGUID: function HistStore__findURLByGUID(guid) {
     this._urlStm.params.guid = guid;
-    return Utils.queryAsync(this._urlStm, this._urlCols)[0];
+    return Async.querySpinningly(this._urlStm, this._urlCols)[0];
   },
 
   changeItemID: function HStore_changeItemID(oldID, newID) {
@@ -207,7 +172,7 @@ HistoryStore.prototype = {
     this._allUrlStm.params.cutoff_date = (Date.now() - 2592000000) * 1000;
     this._allUrlStm.params.max_results = MAX_HISTORY_UPLOAD;
 
-    let urls = Utils.queryAsync(this._allUrlStm, this._allUrlCols);
+    let urls = Async.querySpinningly(this._allUrlStm, this._allUrlCols);
     let self = this;
     return urls.reduce(function(ids, item) {
       ids[self.GUIDForUri(item.url, true)] = item.url;
@@ -251,19 +216,15 @@ HistoryStore.prototype = {
       return failed;
     }
 
-    let cb = Utils.makeSyncCallback();
-    let onPlace = function onPlace(result, placeInfo) {
-      if (!Components.isSuccessCode(result)) {
+    let updatePlacesCallback = { 
+      handleResult: function handleResult() {},
+      handleError: function handleError(resultCode, placeInfo) {
         failed.push(placeInfo.guid);
-      }
+      },
+      handleCompletion: Async.makeSyncCallback()
     };
-    let onComplete = function onComplete(subject, topic, data) {
-      Svc.Obs.remove(TOPIC_UPDATEPLACES_COMPLETE, onComplete);
-      cb();
-    };
-    Svc.Obs.add(TOPIC_UPDATEPLACES_COMPLETE, onComplete);
-    this._asyncHistory.updatePlaces(records, onPlace);
-    Utils.waitForSyncCallback(cb);
+    this._asyncHistory.updatePlaces(records, updatePlacesCallback);
+    Async.waitForSyncCallback(updatePlacesCallback.handleCompletion);
     return failed;
   },
 
@@ -299,13 +260,13 @@ HistoryStore.prototype = {
     // To avoid creating new objects, we rewrite the query result so we
     // can simply check for containment below.
     let curVisits = this._getVisits(record.histUri);
-    for (let i = 0; i < curVisits.length; i++) {
+    let i, k;
+    for (i = 0; i < curVisits.length; i++) {
       curVisits[i] = curVisits[i].date + "," + curVisits[i].type;
     }
 
     // Walk through the visits, make sure we have sound data, and eliminate
     // dupes. The latter is done by rewriting the array in-place.
-    let k;
     for (i = 0, k = 0; i < record.visits.length; i++) {
       let visit = record.visits[k] = record.visits[i];
 
@@ -314,13 +275,15 @@ HistoryStore.prototype = {
                        + visit.date);
         throw "Visit has no date!";
       }
+
       if (!visit.type || !(visit.type >= PlacesUtils.history.TRANSITION_LINK &&
                            visit.type <= PlacesUtils.history.TRANSITION_FRAMED_LINK)) {
         this._log.warn("Encountered record with invalid visit type: "
                        + visit.type);
         throw "Invalid visit type!";
       }
-      // Dates need to be integers
+
+      // Dates need to be integers.
       visit.date = Math.round(visit.date);
 
       if (curVisits.indexOf(visit.date + "," + visit.type) != -1) {
@@ -360,16 +323,7 @@ HistoryStore.prototype = {
   },
 
   itemExists: function HistStore_itemExists(id) {
-    if (this._findURLByGUID(id))
-      return true;
-    return false;
-  },
-
-  urlExists: function HistStore_urlExists(url) {
-    if (typeof(url) == "string")
-      url = Utils.makeURI(url);
-    // Don't call isVisited on a null URL to work around crasher bug 492442.
-    return url ? PlacesUtils.history.isVisited(url) : false;
+    return !!this._findURLByGUID(id);
   },
 
   createRecord: function createRecord(id, collection) {
@@ -380,9 +334,9 @@ HistoryStore.prototype = {
       record.title = foo.title;
       record.sortindex = foo.frecency;
       record.visits = this._getVisits(record.histUri);
-    }
-    else
+    } else {
       record.deleted = true;
+    }
 
     return record;
   },
@@ -392,8 +346,8 @@ HistoryStore.prototype = {
   }
 };
 
-function HistoryTracker(name) {
-  Tracker.call(this, name);
+function HistoryTracker(name, engine) {
+  Tracker.call(this, name, engine);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
 }
@@ -418,57 +372,52 @@ HistoryTracker.prototype = {
     }
   },
 
-  _GUIDForUri: function _GUIDForUri(uri, create) {
-    // Isn't indirection fun...
-    return Engines.get("history")._store.GUIDForUri(uri, create);
-  },
-
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsINavHistoryObserver,
-    Ci.nsINavHistoryObserver_MOZILLA_1_9_1_ADDITIONS,
     Ci.nsISupportsWeakReference
   ]),
 
-  onBeginUpdateBatch: function HT_onBeginUpdateBatch() {},
-  onEndUpdateBatch: function HT_onEndUpdateBatch() {},
-  onPageChanged: function HT_onPageChanged() {},
-  onTitleChanged: function HT_onTitleChanged() {},
-
-  /* Every add or remove is worth 1 point.
-   * Clearing the whole history is worth 50 points (see below)
-   */
-  _upScore: function BMT__upScore() {
-    this.score += 1;
-  },
-
-  onVisit: function HT_onVisit(uri, vid, time, session, referrer, trans) {
-    if (this.ignoreAll)
+  onDeleteAffectsGUID: function (uri, guid, reason, source, increment) {
+    if (this.ignoreAll || reason == Ci.nsINavHistoryObserver.REASON_EXPIRED) {
       return;
-    this._log.trace("onVisit: " + uri.spec);
-    let self = this;
-    Utils.delay(function() {
-      if (self.addChangedID(self._GUIDForUri(uri, true))) {
-        self._upScore();
-      }
-    }, 0);
-  },
-  onDeleteVisits: function onDeleteVisits() {
-  },
-  onPageExpired: function HT_onPageExpired(uri, time, entry) {
-  },
-  onBeforeDeleteURI: function onBeforeDeleteURI(uri) {
-    if (this.ignoreAll)
-      return;
-    this._log.trace("onBeforeDeleteURI: " + uri.spec);
-    let self = this;
-    if (this.addChangedID(this._GUIDForUri(uri, true))) {
-      this._upScore();
+    }
+    this._log.trace(source + ": " + uri.spec + ", reason " + reason);
+    if (this.addChangedID(guid)) {
+      this.score += increment;
     }
   },
-  onDeleteURI: function HT_onDeleteURI(uri) {
+
+  onDeleteVisits: function (uri, visitTime, guid, reason) {
+    this.onDeleteAffectsGUID(uri, guid, reason, "onDeleteVisits", SCORE_INCREMENT_SMALL);
   },
-  onClearHistory: function HT_onClearHistory() {
+
+  onDeleteURI: function (uri, guid, reason) {
+    this.onDeleteAffectsGUID(uri, guid, reason, "onDeleteURI", SCORE_INCREMENT_XLARGE);
+  },
+
+  onVisit: function (uri, vid, time, session, referrer, trans, guid) {
+    if (this.ignoreAll) {
+      this._log.trace("ignoreAll: ignoring visit for " + guid);
+      return;
+    }
+
+    this._log.trace("onVisit: " + uri.spec);
+    if (this.addChangedID(guid)) {
+      this.score += SCORE_INCREMENT_SMALL;
+    }
+  },
+
+  onClearHistory: function () {
     this._log.trace("onClearHistory");
-    this.score += 500;
-  }
+    // Note that we're going to trigger a sync, but none of the cleared
+    // pages are tracked, so the deletions will not be propagated.
+    // See Bug 578694.
+    this.score += SCORE_INCREMENT_XLARGE;
+  },
+
+  onBeginUpdateBatch: function () {},
+  onEndUpdateBatch: function () {},
+  onPageChanged: function () {},
+  onTitleChanged: function () {},
+  onBeforeDeleteURI: function () {},
 };

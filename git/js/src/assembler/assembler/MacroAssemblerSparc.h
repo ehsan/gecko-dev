@@ -1,53 +1,18 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla SpiderMonkey JavaScript 1.9 code, released
- * May 28, 2008.
- *
- * The Initial Developer of the Original Code is
- * Leon Sha <leon.sha@oracle.com>
- * 
- * Portions created by the Initial Developer are Copyright (C) 2010-2011
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef MacroAssemblerSparc_h
-#define MacroAssemblerSparc_h
+#ifndef assembler_assembler_MacroAssemblerSparc_h
+#define assembler_assembler_MacroAssemblerSparc_h
 
-#include <wtf/Platform.h>
+#include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER && WTF_CPU_SPARC
 
-#include "SparcAssembler.h"
-#include "AbstractMacroAssembler.h"
+#include "assembler/assembler/SparcAssembler.h"
+#include "assembler/assembler/AbstractMacroAssembler.h"
 
 namespace JSC {
 
@@ -90,21 +55,21 @@ namespace JSC {
         static const RegisterID stackPointerRegister = SparcRegisters::sp;
 
         static const Scale ScalePtr = TimesFour;
-        static const unsigned int TotalRegisters = 32;
+        static const unsigned int TotalRegisters = 24;
 
         void add32(RegisterID src, RegisterID dest)
         {
             m_assembler.addcc_r(dest, src, dest);
         }
 
-        void add32(Imm32 imm, Address address)
+        void add32(TrustedImm32 imm, Address address)
         {
             load32(address, SparcRegisters::g2);
             add32(imm, SparcRegisters::g2);
             store32(SparcRegisters::g2, address);
         }
 
-        void add32(Imm32 imm, RegisterID dest)
+        void add32(TrustedImm32 imm, RegisterID dest)
         {
             if (m_assembler.isimm13(imm.m_value))
                 m_assembler.addcc_imm(dest, imm.m_value, dest);
@@ -126,7 +91,7 @@ namespace JSC {
             m_assembler.andcc_r(dest, SparcRegisters::g2, dest);
         }
 
-        void add32(Imm32 imm, RegisterID src, RegisterID dest)
+        void add32(TrustedImm32 imm, RegisterID src, RegisterID dest)
         {
             if (m_assembler.isimm13(imm.m_value))
                 m_assembler.addcc_imm(src, imm.m_value, dest);
@@ -194,7 +159,7 @@ namespace JSC {
             m_assembler.orcc_r(dest, src, dest);
         }
 
-        void or32(Imm32 imm, RegisterID dest)
+        void or32(TrustedImm32 imm, RegisterID dest)
         {
             if (m_assembler.isimm13(imm.m_value))
                 m_assembler.orcc_imm(dest, imm.m_value, dest);
@@ -240,7 +205,7 @@ namespace JSC {
             m_assembler.subcc_r(dest, src, dest);
         }
 
-        void sub32(Imm32 imm, RegisterID dest)
+        void sub32(TrustedImm32 imm, RegisterID dest)
         {
             if (m_assembler.isimm13(imm.m_value))
                 m_assembler.subcc_imm(dest, imm.m_value, dest);
@@ -250,7 +215,7 @@ namespace JSC {
             }
         }
 
-        void sub32(Imm32 imm, Address address)
+        void sub32(TrustedImm32 imm, Address address)
         {
             load32(address, SparcRegisters::g2);
             sub32(imm, SparcRegisters::g2);
@@ -268,7 +233,7 @@ namespace JSC {
             m_assembler.xorcc_r(src, dest, dest);
         }
 
-        void xor32(Imm32 imm, RegisterID dest)
+        void xor32(TrustedImm32 imm, RegisterID dest)
         {
             if (m_assembler.isimm13(imm.m_value))
                 m_assembler.xorcc_imm(dest, imm.m_value, dest);
@@ -548,7 +513,7 @@ namespace JSC {
             m_assembler.stw_r(src, address.base, SparcRegisters::g2);
         }
 
-        void store32(Imm32 imm, BaseIndex address)
+        void store32(TrustedImm32 imm, BaseIndex address)
         {
             m_assembler.sll_imm(address.index, address.scale, SparcRegisters::g2);
             add32(Imm32(address.offset), SparcRegisters::g2);
@@ -556,7 +521,7 @@ namespace JSC {
             m_assembler.stw_r(SparcRegisters::g3, SparcRegisters::g2, address.base);
         }
 
-        void store32(Imm32 imm, ImplicitAddress address)
+        void store32(TrustedImm32 imm, ImplicitAddress address)
         {
             m_assembler.move_nocheck(imm.m_value, SparcRegisters::g2);
             store32(SparcRegisters::g2, address);
@@ -568,7 +533,7 @@ namespace JSC {
             m_assembler.stw_r(src, SparcRegisters::g0, SparcRegisters::g3);
         }
 
-        void store32(Imm32 imm, void* address)
+        void store32(TrustedImm32 imm, void* address)
         {
             move(imm, SparcRegisters::g2);
             store32(SparcRegisters::g2, address);
@@ -598,7 +563,7 @@ namespace JSC {
             push(SparcRegisters::g2);
         }
 
-        void move(Imm32 imm, RegisterID dest)
+        void move(TrustedImm32 imm, RegisterID dest)
         {
             if (m_assembler.isimm13(imm.m_value))
                 m_assembler.or_imm(SparcRegisters::g0, imm.m_value, dest);
@@ -611,7 +576,7 @@ namespace JSC {
             m_assembler.or_r(src, SparcRegisters::g0, dest);
         }
 
-        void move(ImmPtr imm, RegisterID dest)
+        void move(TrustedImmPtr imm, RegisterID dest)
         {
             move(Imm32(imm), dest);
         }
@@ -641,20 +606,20 @@ namespace JSC {
             return branch32(cond, SparcRegisters::g2, right);
         }
 
-        Jump branch32_force32(Condition cond, RegisterID left, Imm32 right)
+        Jump branch32_force32(Condition cond, RegisterID left, TrustedImm32 right)
         {
             m_assembler.move_nocheck(right.m_value, SparcRegisters::g3);
             m_assembler.subcc_r(left, SparcRegisters::g3, SparcRegisters::g0);
             return Jump(m_assembler.branch(SparcCondition(cond)));
         }
 
-        Jump branch32FixedLength(Condition cond, RegisterID left, Imm32 right)
+        Jump branch32FixedLength(Condition cond, RegisterID left, TrustedImm32 right)
         {
             m_assembler.move_nocheck(right.m_value, SparcRegisters::g2);
             return branch32(cond, left, SparcRegisters::g2);
         }
 
-        Jump branch32WithPatch(Condition cond, RegisterID left, Imm32 right, DataLabel32 &dataLabel)
+        Jump branch32WithPatch(Condition cond, RegisterID left, TrustedImm32 right, DataLabel32 &dataLabel)
         {
             // Always use move_nocheck, since the value is to be patched.
             dataLabel = DataLabel32(this);
@@ -669,7 +634,7 @@ namespace JSC {
             return Jump(m_assembler.branch(SparcCondition(cond)));
         }
 
-        Jump branch32(Condition cond, RegisterID left, Imm32 right)
+        Jump branch32(Condition cond, RegisterID left, TrustedImm32 right)
         {
             if (m_assembler.isimm13(right.m_value))
                 m_assembler.subcc_imm(left, right.m_value, SparcRegisters::g0);
@@ -692,20 +657,20 @@ namespace JSC {
             return branch32(cond, SparcRegisters::g2, right);
         }
 
-        Jump branch32(Condition cond, Address left, Imm32 right)
+        Jump branch32(Condition cond, Address left, TrustedImm32 right)
         {
             load32(left, SparcRegisters::g2);
             return branch32(cond, SparcRegisters::g2, right);
         }
 
-        Jump branch32(Condition cond, BaseIndex left, Imm32 right)
+        Jump branch32(Condition cond, BaseIndex left, TrustedImm32 right)
         {
 
             load32(left, SparcRegisters::g2);
             return branch32(cond, SparcRegisters::g2, right);
         }
 
-        Jump branch32WithUnalignedHalfWords(Condition cond, BaseIndex left, Imm32 right)
+        Jump branch32WithUnalignedHalfWords(Condition cond, BaseIndex left, TrustedImm32 right)
         {
             load32WithUnalignedHalfWords(left, SparcRegisters::g4);
             return branch32(cond, SparcRegisters::g4, right);
@@ -1052,14 +1017,14 @@ namespace JSC {
             store32(SparcRegisters::g2, address.m_ptr);
         }
 
-        void sub32(Imm32 imm, AbsoluteAddress address)
+        void sub32(TrustedImm32 imm, AbsoluteAddress address)
         {
             load32(address.m_ptr, SparcRegisters::g2);
             sub32(imm, SparcRegisters::g2);
             store32(SparcRegisters::g2, address.m_ptr);
         }
 
-        void load32(void* address, RegisterID dest)
+        void load32(const void* address, RegisterID dest)
         {
             m_assembler.move_nocheck((int)address, SparcRegisters::g3);
             m_assembler.lduw_r(SparcRegisters::g3, SparcRegisters::g0, dest);
@@ -1071,7 +1036,7 @@ namespace JSC {
             return branch32(cond, SparcRegisters::g2, right);
         }
 
-        Jump branch32(Condition cond, AbsoluteAddress left, Imm32 right)
+        Jump branch32(Condition cond, AbsoluteAddress left, TrustedImm32 right)
         {
             load32(left.m_ptr, SparcRegisters::g2);
             return branch32(cond, SparcRegisters::g2, right);
@@ -1099,7 +1064,7 @@ namespace JSC {
             return Call::fromTailJump(oldJump);
         }
 
-        DataLabelPtr moveWithPatch(ImmPtr initialValue, RegisterID dest)
+        DataLabelPtr moveWithPatch(TrustedImmPtr initialValue, RegisterID dest)
         {
             DataLabelPtr dataLabel(this);
             Imm32 imm = Imm32(initialValue);
@@ -1107,7 +1072,7 @@ namespace JSC {
             return dataLabel;
         }
 
-        DataLabel32 moveWithPatch(Imm32 initialValue, RegisterID dest)
+        DataLabel32 moveWithPatch(TrustedImm32 initialValue, RegisterID dest)
         {
             DataLabel32 dataLabel(this);
             m_assembler.move_nocheck(initialValue.m_value, dest);
@@ -1129,7 +1094,7 @@ namespace JSC {
             return jump;
         }
 
-        DataLabelPtr storePtrWithPatch(ImmPtr initialValue, ImplicitAddress address)
+        DataLabelPtr storePtrWithPatch(TrustedImmPtr initialValue, ImplicitAddress address)
         {
             DataLabelPtr dataLabel = moveWithPatch(initialValue, SparcRegisters::g2);
             store32(SparcRegisters::g2, address);
@@ -1142,17 +1107,17 @@ namespace JSC {
         }
 
         // Floating point operators
-        bool supportsFloatingPoint() const
+        static bool supportsFloatingPoint()
         {
             return true;
         }
 
-        bool supportsFloatingPointTruncate() const
+        static bool supportsFloatingPointTruncate()
         {
             return true;
         }
 
-        bool supportsFloatingPointSqrt() const
+        static bool supportsFloatingPointSqrt()
         {
             return true;
         }
@@ -1235,7 +1200,7 @@ namespace JSC {
         {
             union {
                 float f;
-                uint32 u32;
+                uint32_t u32;
             } u;
             u.f = imm.u.d;
             store32(Imm32(u.u32), address);
@@ -1245,7 +1210,7 @@ namespace JSC {
         {
             union {
                 float f;
-                uint32 u32;
+                uint32_t u32;
             } u;
             u.f = imm.u.d;
             store32(Imm32(u.u32), address);
@@ -1328,6 +1293,11 @@ namespace JSC {
         {
             loadDouble(src, SparcRegisters::f30);
             m_assembler.fmuld_r(SparcRegisters::f30, dest, dest);
+        }
+
+        void absDouble(FPRegisterID src, FPRegisterID dest)
+        {
+            m_assembler.fabsd_r(src, dest);
         }
 
         void sqrtDouble(FPRegisterID src, FPRegisterID dest)
@@ -1448,7 +1418,7 @@ namespace JSC {
 
         void zeroDouble(FPRegisterID srcDest)
         {
-            m_assembler.fsubd_r(srcDest, srcDest, srcDest);
+            fastLoadDouble(SparcRegisters::g0, SparcRegisters::g0, srcDest);
         }
 
     protected:
@@ -1488,4 +1458,4 @@ namespace JSC {
 
 #endif // ENABLE(ASSEMBLER) && CPU(SPARC)
 
-#endif // MacroAssemblerSparc_h
+#endif /* assembler_assembler_MacroAssemblerSparc_h */

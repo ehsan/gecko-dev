@@ -1,9 +1,13 @@
-Cu.import("resource://services-sync/record.js");
+/* Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/ */
+
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/engines/bookmarks.js");
-Cu.import("resource://services-sync/identity.js");
-Cu.import("resource://services-sync/log4moz.js");
+Cu.import("resource://services-sync/keys.js");
+Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
-  
+
 function prepareBookmarkItem(collection, id) {
   let b = new Bookmark(collection, id);
   b.cleartext.stuff = "my payload here";
@@ -11,11 +15,11 @@ function prepareBookmarkItem(collection, id) {
 }
 
 function run_test() {
-  let keyBundle = ID.set("WeaveCryptoID", new SyncKeyBundle(null, "john@example.com"));
-  keyBundle.keyStr = "abcdeabcdeabcdeabcdeabcdea";
-  
-  generateNewKeys();
-  
+  Service.identity.username = "john@example.com";
+  Service.identity.syncKey = "abcdeabcdeabcdeabcdeabcdea";
+  generateNewKeys(Service.collectionKeys);
+  let keyBundle = Service.identity.syncKeyBundle;
+
   let log = Log4Moz.repository.getLogger("Test");
   Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
 
@@ -24,15 +28,15 @@ function run_test() {
   let u = "http://localhost:8080/storage/bookmarks/foo";
   let placesItem = new PlacesItem("bookmarks", "foo", "bookmark");
   let bookmarkItem = prepareBookmarkItem("bookmarks", "foo");
-  
+
   log.info("Checking getTypeObject");
   do_check_eq(placesItem.getTypeObject(placesItem.type), Bookmark);
   do_check_eq(bookmarkItem.getTypeObject(bookmarkItem.type), Bookmark);
-  
+
   bookmarkItem.encrypt(keyBundle);
   log.info("Ciphertext is " + bookmarkItem.ciphertext);
   do_check_true(bookmarkItem.ciphertext != null);
-  
+
   log.info("Decrypting the record");
 
   let payload = bookmarkItem.decrypt(keyBundle);

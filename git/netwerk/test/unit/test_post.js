@@ -2,12 +2,21 @@
 // POST test
 //
 
-do_load_httpd_js();
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
 
-var httpserver = new nsHttpServer();
+Cu.import("resource://testing-common/httpd.js");
+
+XPCOMUtils.defineLazyGetter(this, "URL", function() {
+  return "http://localhost:" + httpserver.identity.primaryPort;
+});
+
+var httpserver = new HttpServer();
 var testpath = "/simple";
 
-var testfile = getFile("XpcomLib");
+var testfile = do_get_file("../unit/data/test_readline6.txt");
 
 const BOUNDARY = "AaB03x";
 var teststring1 = "--" + BOUNDARY + "\r\n"
@@ -51,7 +60,7 @@ function run_test() {
   mime.addContentLength = true;
 
   httpserver.registerPathHandler(testpath, serverHandler);
-  httpserver.start(4444);
+  httpserver.start(-1);
 
   var channel = setupChannel(testpath);
 
@@ -66,7 +75,7 @@ function run_test() {
 
 function setupChannel(path) {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  return chan = ios.newChannel("http://localhost:4444" + path, "", null)
+  return chan = ios.newChannel(URL + path, "", null)
                    .QueryInterface(Ci.nsIHttpChannel);
 }
 
@@ -88,10 +97,4 @@ function serverHandler(metadata, response) {
 
 function checkRequest(request, data, context) {
   httpserver.stop(do_test_finished);
-}
-
-function getFile(key) {
-  var dirSvc = Components.classes["@mozilla.org/file/directory_service;1"]
-                         .getService(Components.interfaces.nsIProperties);
-  return dirSvc.get(key, Components.interfaces.nsILocalFile);
 }

@@ -1,30 +1,66 @@
-do_load_httpd_js();
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
 
-var httpserver = null;
+Cu.import("resource://testing-common/httpd.js");
+
+var httpserver = new HttpServer();
+httpserver.start(-1);
 
 // Need to randomize, because apparently no one clears our cache
 var suffix = Math.random();
-var httpBase = "http://localhost:4444";
+var httpBase = "http://localhost:" + httpserver.identity.primaryPort;
 var httpsBase = "http://localhost:4445";
 var shortexpPath = "/shortexp" + suffix;
-var longexpPath = "/longexp" + suffix;
+var longexpPath = "/longexp/" + suffix;
+var longexp2Path = "/longexp/2/" + suffix;
 var nocachePath = "/nocache" + suffix;
 var nostorePath = "/nostore" + suffix;
 
-function make_channel(url, flags) {
+// We attach this to channel when we want to test Private Browsing mode
+function LoadContext(usePrivateBrowsing) {
+  this.usePrivateBrowsing = usePrivateBrowsing;
+}
+
+LoadContext.prototype = {
+  usePrivateBrowsing: false,
+  // don't bother defining rest of nsILoadContext fields: don't need 'em
+
+  QueryInterface: function(iid) {
+    if (iid.equals(Ci.nsILoadContext))
+      return this;
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
+
+  getInterface: function(iid) {
+    if (iid.equals(Ci.nsILoadContext))
+      return this;
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  }
+};
+
+PrivateBrowsingLoadContext = new LoadContext(true);
+
+function make_channel(url, flags, usePrivateBrowsing) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
     getService(Ci.nsIIOService);
   var req = ios.newChannel(url, null, null);
   req.loadFlags = flags;
+  if (usePrivateBrowsing) {
+    req.notificationCallbacks = PrivateBrowsingLoadContext;    
+  }
   return req;
 }
 
-function Test(path, flags, expectSuccess, readFromCache, hitServer) {
+function Test(path, flags, expectSuccess, readFromCache, hitServer, 
+              usePrivateBrowsing /* defaults to false */) {
   this.path = path;
   this.flags = flags;
   this.expectSuccess = expectSuccess;
   this.readFromCache = readFromCache;
   this.hitServer = hitServer;
+  this.usePrivateBrowsing = usePrivateBrowsing;
 }
 
 Test.prototype = {
@@ -32,6 +68,7 @@ Test.prototype = {
   expectSuccess: true,
   readFromCache: false,
   hitServer: true,
+  usePrivateBrowsing: false,
   _buffer: "",
   _isFromCache: false,
 
@@ -44,7 +81,7 @@ Test.prototype = {
   },
 
   onStartRequest: function(request, context) {
-    var cachingChannel = request.QueryInterface(Ci.nsICachingChannel);
+    var cachingChannel = request.QueryInterface(Ci.nsICacheInfoChannel);
     this._isFromCache = request.isPending() && cachingChannel.isFromCache();
   },
 
@@ -68,7 +105,7 @@ Test.prototype = {
          "\n  " + this.readFromCache +
          "\n  " + this.hitServer + "\n");
     gHitServer = false;
-    var channel = make_channel(this.path, this.flags);
+    var channel = make_channel(this.path, this.flags, this.usePrivateBrowsing);
     channel.asyncOpen(this, null);
   }
 };
@@ -76,6 +113,12 @@ Test.prototype = {
 var gHitServer = false;
 
 var gTests = [
+
+  new Test(httpBase + shortexpPath, 0,
+           true,   // expect success
+           false,  // read from cache
+           true,   // hit server
+           true),  // USE PRIVATE BROWSING, so not cached for later requests
   new Test(httpBase + shortexpPath, 0,
            true,   // expect success
            false,  // read from cache
@@ -137,6 +180,15 @@ var gTests = [
            false,  // read from cache
            false), // hit server
   new Test(httpBase + longexpPath, Ci.nsIRequest.LOAD_FROM_CACHE,
+           true,   // expect success
+           true,   // read from cache
+           false), // hit server
+
+  new Test(httpBase + longexp2Path, 0,
+           true,   // expect success
+           false,  // read from cache
+           true),  // hit server
+  new Test(httpBase + longexp2Path, 0,
            true,   // expect success
            true,   // read from cache
            false), // hit server
@@ -254,13 +306,18 @@ function longexp_handler(metadata, response) {
   handler(metadata, response);
 }
 
+// test spaces around max-age value token
+function longexp2_handler(metadata, response) {
+  response.setHeader("Cache-Control", "max-age = 10000", false);
+  handler(metadata, response);
+}
+
 function run_test() {
-  httpserver = new nsHttpServer();
   httpserver.registerPathHandler(shortexpPath, shortexp_handler);
   httpserver.registerPathHandler(longexpPath, longexp_handler);
+  httpserver.registerPathHandler(longexp2Path, longexp2_handler);
   httpserver.registerPathHandler(nocachePath, nocache_handler);
   httpserver.registerPathHandler(nostorePath, nostore_handler);
-  httpserver.start(4444);
 
   run_next_test();
   do_test_pending();

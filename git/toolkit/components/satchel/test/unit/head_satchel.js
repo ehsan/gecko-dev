@@ -1,50 +1,28 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Form Autocomplete Test Code.
- *
- * The Initial Developer of the Original Code is
- * Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2008
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Mike Connor <mconnor@mozilla.com> (Original Author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/FormHistory.jsm");
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
+const Cu = Components.utils;
 
-const CURRENT_SCHEMA = 3;
+const CURRENT_SCHEMA = 4;
 const PR_HOURS = 60 * 60 * 1000000;
 
 do_get_profile();
 
 var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
              getService(Ci.nsIProperties);
+
+// Send the profile-after-change notification to the form history component to ensure
+// that it has been initialized.
+var formHistoryStartup = Cc["@mozilla.org/satchel/form-history-startup;1"].
+                         getService(Ci.nsIObserver);
+formHistoryStartup.observe(null, "profile-after-change", null);
 
 function getDBVersion(dbfile) {
     var ss = Cc["@mozilla.org/storage/service;1"].
@@ -58,10 +36,67 @@ function getDBVersion(dbfile) {
 
 const isGUID = /[A-Za-z0-9\+\/]{16}/;
 
-function getGUIDforID(conn, id) {
-    var stmt = conn.createStatement("SELECT guid from moz_formhistory WHERE id = " + id);
-    stmt.executeStep();
-    var guid = stmt.getString(0);
-    stmt.finalize();
-    return guid;
+// Find form history entries.
+function searchEntries(terms, params, iter) {
+  let results = [];
+  FormHistory.search(terms, params, { handleResult: function (result) results.push(result),
+                                      handleError: function (error) {
+                                        do_throw("Error occurred searching form history: " + error);
+                                      },
+                                      handleCompletion: function (reason) { if (!reason) iter.send(results); }
+                                    });
+}
+
+// Count the number of entries with the given name and value, and call then(number)
+// when done. If name or value is null, then the value of that field does not matter.
+function countEntries(name, value, then) {
+  var obj = {};
+  if (name !== null)
+    obj.fieldname = name;
+  if (value !== null)
+    obj.value = value;
+
+  let count = 0;
+  FormHistory.count(obj, { handleResult: function (result) count = result,
+                           handleError: function (error) {
+                             do_throw("Error occurred searching form history: " + error);
+                           },
+                           handleCompletion: function (reason) { if (!reason) then(count); }
+                         });
+}
+
+// Perform a single form history update and call then() when done.
+function updateEntry(op, name, value, then) {
+  var obj = { op: op };
+  if (name !== null)
+    obj.fieldname = name;
+  if (value !== null)
+    obj.value = value;
+  updateFormHistory(obj, then);
+}
+
+// Add a single form history entry with the current time and call then() when done.
+function addEntry(name, value, then) {
+  let now = Date.now() * 1000;
+  updateFormHistory({ op: "add", fieldname: name, value: value, timesUsed: 1,
+                      firstUsed: now, lastUsed: now }, then);
+}
+
+// Wrapper around FormHistory.update which handles errors. Calls then() when done.
+function updateFormHistory(changes, then) {
+  FormHistory.update(changes, { handleError: function (error) {
+                                  do_throw("Error occurred updating form history: " + error);
+                                },
+                                handleCompletion: function (reason) { if (!reason) then(); },
+                              });
+}
+
+/**
+ * Logs info to the console in the standard way (includes the filename).
+ *
+ * @param aMessage
+ *        The message to log to the console.
+ */
+function do_log_info(aMessage) {
+  print("TEST-INFO | " + _TEST_FILE + " | " + aMessage);
 }

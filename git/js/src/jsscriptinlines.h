@@ -1,149 +1,164 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=79 ft=cpp:
- *
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is SpiderMonkey JavaScript engine.
- *
- * The Initial Developer of the Original Code is
- * Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Jason Orendorff <jorendorff@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsscriptinlines_h___
-#define jsscriptinlines_h___
+#ifndef jsscriptinlines_h
+#define jsscriptinlines_h
+
+#include "jsscript.h"
 
 #include "jsautooplen.h"
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsopcode.h"
-#include "jsregexp.h"
-#include "jsscript.h"
-#include "jsscope.h"
+
+#include "jit/AsmJSLink.h"
+#include "vm/GlobalObject.h"
+#include "vm/RegExpObject.h"
+#include "vm/Shape.h"
+
+#include "jscompartmentinlines.h"
+
+#include "vm/Shape-inl.h"
 
 namespace js {
 
 inline
-Bindings::Bindings(JSContext *cx, EmptyShape *emptyCallShape)
-  : lastBinding(emptyCallShape), nargs(0), nvars(0), nupvars(0),
-    hasExtensibleParents(false)
+Bindings::Bindings()
+    : callObjShape_(NULL), bindingArrayAndFlag_(TEMPORARY_STORAGE_BIT), numArgs_(0), numVars_(0)
+{}
+
+inline
+AliasedFormalIter::AliasedFormalIter(JSScript *script)
+  : begin_(script->bindings.bindingArray()),
+    p_(begin_),
+    end_(begin_ + (script->funHasAnyAliasedFormal ? script->bindings.numArgs() : 0)),
+    slot_(CallObject::RESERVED_SLOTS)
 {
+    settle();
 }
 
 inline void
-Bindings::transfer(JSContext *cx, Bindings *bindings)
+ScriptCounts::destroy(FreeOp *fop)
 {
-    JS_ASSERT(lastBinding == cx->compartment->emptyCallShape);
-
-    *this = *bindings;
-#ifdef DEBUG
-    bindings->lastBinding = NULL;
-#endif
-
-    /* Preserve back-pointer invariants across the lastBinding transfer. */
-    if (lastBinding->inDictionary())
-        lastBinding->listp = &this->lastBinding;
+    fop->free_(pcCountsVector);
+    fop->delete_(ionCounts);
 }
 
-inline void
-Bindings::clone(JSContext *cx, Bindings *bindings)
-{
-    JS_ASSERT(lastBinding == cx->compartment->emptyCallShape);
-
-    /*
-     * Non-dictionary bindings are fine to share, as are dictionary bindings if
-     * they're copy-on-modification.
-     */
-    JS_ASSERT(!bindings->lastBinding->inDictionary() || bindings->lastBinding->frozen());
-
-    *this = *bindings;
-}
-
-Shape *
-Bindings::lastShape() const
-{
-    JS_ASSERT(lastBinding);
-    JS_ASSERT_IF(lastBinding->inDictionary(), lastBinding->frozen());
-    return lastBinding;
-}
-
-extern const char *
-CurrentScriptFileAndLineSlow(JSContext *cx, uintN *linenop);
-
-inline const char *
-CurrentScriptFileAndLine(JSContext *cx, uintN *linenop, LineOption opt)
-{
-    if (opt == CALLED_FROM_JSOP_EVAL) {
-        JS_ASSERT(*cx->regs().pc == JSOP_EVAL);
-        JS_ASSERT(*(cx->regs().pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
-        *linenop = GET_UINT16(cx->regs().pc + JSOP_EVAL_LENGTH);
-        return cx->fp()->script()->filename;
-    }
-
-    return CurrentScriptFileAndLineSlow(cx, linenop);
-}
+void
+SetFrameArgumentsObject(JSContext *cx, AbstractFramePtr frame,
+                        HandleScript script, JSObject *argsobj);
 
 } // namespace js
+
+inline void
+JSScript::setFunction(JSFunction *fun)
+{
+    JS_ASSERT(fun->isTenured());
+    function_ = fun;
+}
 
 inline JSFunction *
 JSScript::getFunction(size_t index)
 {
-    JSObject *funobj = getObject(index);
-    JS_ASSERT(funobj->isFunction());
-    JS_ASSERT(funobj == (JSObject *) funobj->getPrivate());
-    JSFunction *fun = (JSFunction *) funobj;
-    JS_ASSERT(FUN_INTERPRETED(fun));
+    JSFunction *fun = &getObject(index)->as<JSFunction>();
+#ifdef DEBUG
+    JS_ASSERT_IF(fun->isNative(), IsAsmJSModuleNative(fun->native()));
+#endif
     return fun;
 }
 
-inline JSObject *
+inline JSFunction *
+JSScript::getCallerFunction()
+{
+    JS_ASSERT(savedCallerFun);
+    return getFunction(0);
+}
+
+inline JSFunction *
+JSScript::functionOrCallerFunction()
+{
+    if (function())
+        return function();
+    if (savedCallerFun)
+        return getCallerFunction();
+    return NULL;
+}
+
+inline js::RegExpObject *
 JSScript::getRegExp(size_t index)
 {
-    JSObjectArray *arr = regexps();
-    JS_ASSERT((uint32) index < arr->length);
+    js::ObjectArray *arr = regexps();
+    JS_ASSERT(uint32_t(index) < arr->length);
     JSObject *obj = arr->vector[index];
-    JS_ASSERT(obj->getClass() == &js_RegExpClass);
-    return obj;
+    JS_ASSERT(obj->is<js::RegExpObject>());
+    return (js::RegExpObject *) obj;
 }
 
-inline bool
-JSScript::isEmpty() const
+inline js::GlobalObject &
+JSScript::global() const
 {
-    if (length > 3)
-        return false;
-
-    jsbytecode *pc = code;
-    if (noScriptRval && JSOp(*pc) == JSOP_FALSE)
-        ++pc;
-    return JSOp(*pc) == JSOP_STOP;
+    /*
+     * A JSScript always marks its compartment's global (via bindings) so we
+     * can assert that maybeGlobal is non-null here.
+     */
+    return *compartment()->maybeGlobal();
 }
 
-#endif /* jsscriptinlines_h___ */
+inline void
+JSScript::writeBarrierPre(JSScript *script)
+{
+#ifdef JSGC_INCREMENTAL
+    if (!script || !script->runtime()->needsBarrier())
+        return;
+
+    JS::Zone *zone = script->zone();
+    if (zone->needsBarrier()) {
+        JS_ASSERT(!zone->rt->isHeapMajorCollecting());
+        JSScript *tmp = script;
+        MarkScriptUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
+        JS_ASSERT(tmp == script);
+    }
+#endif
+}
+
+/* static */ inline void
+js::LazyScript::writeBarrierPre(js::LazyScript *lazy)
+{
+#ifdef JSGC_INCREMENTAL
+    if (!lazy)
+        return;
+
+    JS::Zone *zone = lazy->zone();
+    if (zone->needsBarrier()) {
+        JS_ASSERT(!zone->rt->isHeapMajorCollecting());
+        js::LazyScript *tmp = lazy;
+        MarkLazyScriptUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
+        JS_ASSERT(tmp == lazy);
+    }
+#endif
+}
+
+inline JSPrincipals *
+JSScript::principals()
+{
+    return compartment()->principals;
+}
+
+inline JSFunction *
+JSScript::originalFunction() const {
+    if (!isCallsiteClone)
+        return NULL;
+    return &enclosingScopeOrOriginalFunction_->as<JSFunction>();
+}
+
+inline void
+JSScript::setOriginalFunctionObject(JSObject *fun) {
+    JS_ASSERT(isCallsiteClone);
+    JS_ASSERT(fun->is<JSFunction>());
+    enclosingScopeOrOriginalFunction_ = fun;
+}
+
+#endif /* jsscriptinlines_h */

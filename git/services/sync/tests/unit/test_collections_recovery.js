@@ -1,11 +1,16 @@
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
 // Verify that we wipe the server if we have to regenerate keys.
 Cu.import("resource://services-sync/service.js");
+Cu.import("resource://services-sync/util.js");
+Cu.import("resource://testing-common/services/sync/utils.js");
 
 add_test(function test_missing_crypto_collection() {
   let johnHelper = track_collections_helper();
   let johnU      = johnHelper.with_updated_collection;
   let johnColls  = johnHelper.collections;
-  
+
   let empty = false;
   function maybe_empty(handler) {
     return function (request, response) {
@@ -19,11 +24,7 @@ add_test(function test_missing_crypto_collection() {
     };
   }
 
-  Service.serverURL = "http://localhost:8080/";
-  Service.clusterURL = "http://localhost:8080/";
-  Service.username = "johndoe";
-  Service.password = "ilovejane";
-  Service.passphrase = "a-aaaaa-aaaaa-aaaaa-aaaaa-aaaaa";
+  setBasicCredentials("johndoe", "ilovejane", "a-aaaaa-aaaaa-aaaaa-aaaaa-aaaaa");
 
   let handlers = {
     "/1.1/johndoe/info/collections": maybe_empty(johnHelper.handler),
@@ -37,6 +38,7 @@ add_test(function test_missing_crypto_collection() {
       johnU(coll, new ServerCollection({}, true).handler());
   }
   let server = httpd_setup(handlers);
+  Service.serverURL = server.baseURI;
 
   try {
     let fresh = 0;
@@ -46,7 +48,7 @@ add_test(function test_missing_crypto_collection() {
       orig.call(Service);
       fresh++;
     };
-    
+
     _("Startup, no meta/global: freshStart called once.");
     Service.sync();
     do_check_eq(fresh, 1);

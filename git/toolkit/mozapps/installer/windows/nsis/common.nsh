@@ -1,40 +1,6 @@
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is the Mozilla Installer code.
-#
-# The Initial Developer of the Original Code is Mozilla Foundation
-# Portions created by the Initial Developer are Copyright (C) 2006
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#  Robert Strong <robert.bugzilla@gmail.com>
-#  Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#  Amir Szekely <kichik@gmail.com>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
 ################################################################################
@@ -102,29 +68,10 @@
   !include WinMessages.nsh
 !endif
 
-!ifndef MUI_VERBOSE
-  !include MUI.nsh
-!endif
-
 ; When including WinVer.nsh check if ___WINVER__NSH___ is defined to prevent
-; loading the file a second time. NSIS versions prior to 2.21 didn't include
-; WinVer.nsh so include it with the /NOFATAL option.
+; loading the file a second time.
 !ifndef ___WINVER__NSH___
-  !include /NONFATAL WinVer.nsh
-!endif
-
-; Add Windows 7 / 2008 support for versions of WinVer.nsh that don't support
-; them. This can be removed after bug 571381 is fixed.
-!ifndef WINVER_7
-  !define WINVER_7 0x601
-
-  !macro __MOZ__WinVer_DefineOSTests Test
-    !insertmacro __WinVer_DefineOSTest ${Test} 7
-  !macroend
-
-  !insertmacro __MOZ__WinVer_DefineOSTests AtLeast
-  !insertmacro __MOZ__WinVer_DefineOSTests Is
-  !insertmacro __MOZ__WinVer_DefineOSTests AtMost
+  !include WinVer.nsh
 !endif
 
 !include x64.nsh
@@ -133,7 +80,14 @@
 !include overrides.nsh
 
 !define SHORTCUTS_LOG "shortcuts_log.ini"
+!define TO_BE_DELETED "to_be_deleted"
 
+; !define SHCNF_DWORD     0x0003
+; !define SHCNF_FLUSH     0x1000
+!define SHCNF_DWORDFLUSH  0x1003
+!ifndef SHCNE_ASSOCCHANGED
+  !define SHCNE_ASSOCCHANGED 0x08000000
+!endif
 
 ################################################################################
 # Macros for debugging
@@ -1139,9 +1093,9 @@
 
     Function CheckIfRegistryKeyExists
       ; stack: main key, key
-      Exch $R9 ; main key
-      Exch 1
-      Exch $R8 ; key
+      Exch $R9 ; main key, stack: old R9, key
+      Exch 1   ; stack: key, old R9
+      Exch $R8 ; key, stack: old R8, old R9
       Push $R7
       Push $R6
       Push $R5
@@ -1162,10 +1116,9 @@
 
       Pop $R5
       Pop $R6
-      Pop $R7
-      Exch $R8
-      Exch 1
-      Exch $R9
+      Pop $R7 ; stack: old R8, old R9
+      Pop $R8 ; stack: old R9
+      Exch $R9 ; stack: result
     FunctionEnd
 
     !verbose pop
@@ -1193,11 +1146,15 @@
  * @param   _VALOPEN
  *          The path and args to launch the application.
  * @param   _VALICON
- *          The path to an exe that contains an icon and the icon resource id.
+ *          The path to the binary that contains the icon group for the default icon
+ *          followed by a comma and either the icon group's resource index or the icon
+ *          group's resource id prefixed with a minus sign
  * @param   _DISPNAME
  *          The display name for the handler. If emtpy no value will be set.
  * @param   _ISPROTOCOL
  *          Sets protocol handler specific registry values when "true".
+ *          Deletes protocol handler specific registry values when "delete".
+ *          Otherwise doesn't touch handler specific registry values.
  * @param   _ISDDE
  *          Sets DDE specific registry values when "true".
  *
@@ -1237,10 +1194,11 @@
       WriteRegStr SHCTX "$R4" "" "$R7"
       WriteRegStr SHCTX "$R4" "FriendlyTypeName" "$R7"
 
-      StrCmp "$R8" "true" +1 +8
+      StrCmp "$R8" "true" +1 +2
       WriteRegStr SHCTX "$R4" "URL Protocol" ""
+      StrCmp "$R8" "delete" +1 +2
+      DeleteRegValue SHCTX "$R4" "URL Protocol"
       StrCpy $R3 ""
-      ClearErrors
       ReadRegDWord $R3 SHCTX "$R4" "EditFlags"
       StrCmp $R3 "" +1 +3  ; Only add EditFlags if a value doesn't exist
       DeleteRegValue SHCTX "$R4" "EditFlags"
@@ -1336,11 +1294,15 @@
  * @param   _VALOPEN
  *          The path and args to launch the application.
  * @param   _VALICON
- *          The path to an exe that contains an icon and the icon resource id.
+ *          The path to the binary that contains the icon group for the default icon
+ *          followed by a comma and either the icon group's resource index or the icon
+ *          group's resource id prefixed with a minus sign
  * @param   _DISPNAME
  *          The display name for the handler. If emtpy no value will be set.
  * @param   _ISPROTOCOL
  *          Sets protocol handler specific registry values when "true".
+ *          Deletes protocol handler specific registry values when "delete".
+ *          Otherwise doesn't touch handler specific registry values.
  * @param   _DDE_APPNAME
  *          Sets DDE specific registry values when not an empty string.
  *
@@ -1389,10 +1351,11 @@
       WriteRegStr SHCTX "$R0\$R2" "" "$R5"
       WriteRegStr SHCTX "$R0\$R2" "FriendlyTypeName" "$R5"
 
-      StrCmp "$R6" "true" +1 +8
+      StrCmp "$R6" "true" +1 +2
       WriteRegStr SHCTX "$R0\$R2" "URL Protocol" ""
+      StrCmp "$R6" "delete" +1 +2
+      DeleteRegValue SHCTX "$R0\$R2" "URL Protocol"
       StrCpy $R1 ""
-      ClearErrors
       ReadRegDWord $R1 SHCTX "$R0\$R2" "EditFlags"
       StrCmp $R1 "" +1 +3  ; Only add EditFlags if a value doesn't exist
       DeleteRegValue SHCTX "$R0\$R2" "EditFlags"
@@ -1478,6 +1441,159 @@
     !define _MOZFUNC_UN "un."
 
     !insertmacro AddDDEHandlerValues
+
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN
+    !verbose pop
+  !endif
+!macroend
+
+/**
+ * Writes common registry values for a handler that DOES NOT use DDE using SHCTX.
+ *
+ * @param   _KEY
+ *          The key name in relation to the HKCR root. SOFTWARE\Classes is
+ *          prefixed to this value when using SHCTX.
+ * @param   _VALOPEN
+ *          The path and args to launch the application.
+ * @param   _VALICON
+ *          The path to the binary that contains the icon group for the default icon
+ *          followed by a comma and either the icon group's resource index or the icon
+ *          group's resource id prefixed with a minus sign
+ * @param   _DISPNAME
+ *          The display name for the handler. If emtpy no value will be set.
+ * @param   _ISPROTOCOL
+ *          Sets protocol handler specific registry values when "true".
+ *          Deletes protocol handler specific registry values when "delete".
+ *          Otherwise doesn't touch handler specific registry values.
+ *
+ * $R3 = storage for SOFTWARE\Classes
+ * $R4 = string value of the current registry key path.
+ * $R5 = _KEY
+ * $R6 = _VALOPEN
+ * $R7 = _VALICON
+ * $R8 = _DISPNAME
+ * $R9 = _ISPROTOCOL
+ */
+!macro AddDisabledDDEHandlerValues
+
+  !ifndef ${_MOZFUNC_UN}AddDisabledDDEHandlerValues
+    !verbose push
+    !verbose ${_MOZFUNC_VERBOSE}
+    !define ${_MOZFUNC_UN}AddDisabledDDEHandlerValues "!insertmacro ${_MOZFUNC_UN}AddDisabledDDEHandlerValuesCall"
+
+    Function ${_MOZFUNC_UN}AddDisabledDDEHandlerValues
+      Exch $R9 ; _ISPROTOCOL
+      Exch 1
+      Exch $R8 ; FriendlyTypeName
+      Exch 2
+      Exch $R7 ; icon index
+      Exch 3
+      Exch $R6 ; shell\open\command
+      Exch 4
+      Exch $R5 ; reg key
+      Push $R4 ;
+      Push $R3 ; base reg class
+
+      StrCpy $R3 "SOFTWARE\Classes"
+      StrCmp "$R8" "" +6 +1
+      ReadRegStr $R4 SHCTX "$R5" "FriendlyTypeName"
+
+      StrCmp "$R4" "" +1 +3
+      WriteRegStr SHCTX "$R3\$R5" "" "$R8"
+      WriteRegStr SHCTX "$R3\$R5" "FriendlyTypeName" "$R8"
+
+      StrCmp "$R9" "true" +1 +2
+      WriteRegStr SHCTX "$R3\$R5" "URL Protocol" ""
+      StrCmp "$R9" "delete" +1 +2
+      DeleteRegValue SHCTX "$R3\$R5" "URL Protocol"
+      StrCpy $R4 ""
+      ReadRegDWord $R4 SHCTX "$R3\$R5" "EditFlags"
+      StrCmp $R4 "" +1 +3  ; Only add EditFlags if a value doesn't exist
+      DeleteRegValue SHCTX "$R3\$R5" "EditFlags"
+      WriteRegDWord SHCTX "$R3\$R5" "EditFlags" 0x00000002
+
+      StrCmp "$R7" "" +2 +1
+      WriteRegStr SHCTX "$R3\$R5\DefaultIcon" "" "$R7"
+
+      ; Main command handler for the app
+      WriteRegStr SHCTX "$R3\$R5\shell" "" "open"
+      WriteRegStr SHCTX "$R3\$R5\shell\open\command" "" "$R6"
+
+      ; Drop support for DDE (bug 491947), and remove old dde entries if
+      ; they exist.
+      ;
+      ; Note, changes in SHCTX should propegate to hkey classes root when
+      ; current user or local machine entries are written. Windows will also
+      ; attempt to propegate entries when a handler is used. CR entries are a
+      ; combination of LM and CU, with CU taking priority.
+      ;
+      ; To disable dde, an empty shell/ddeexec key must be created in current
+      ; user or local machine. Unfortunately, settings have various different
+      ; behaviors depending on the windows version. The following code attempts
+      ; to address these differences.
+      ;
+      ; On XP (no SP, SP1, SP2), Vista: An empty default string
+      ; must be set under ddeexec. Empty strings propagate to CR.
+      ;
+      ; Win7: IE does not configure ddeexec, so issues with left over ddeexec keys
+      ; in LM are reduced. We configure an empty ddeexec key with an empty default
+      ; string in CU to be sure.
+      ;
+      DeleteRegKey SHCTX "SOFTWARE\Classes\$R5\shell\open\ddeexec"
+      WriteRegStr SHCTX "SOFTWARE\Classes\$R5\shell\open\ddeexec" "" ""
+
+      ClearErrors
+
+      Pop $R3
+      Pop $R4
+      Exch $R5
+      Exch 4
+      Exch $R6
+      Exch 3
+      Exch $R7
+      Exch 2
+      Exch $R8
+      Exch 1
+      Exch $R9
+    FunctionEnd
+
+    !verbose pop
+  !endif
+!macroend
+
+!macro AddDisabledDDEHandlerValuesCall _KEY _VALOPEN _VALICON _DISPNAME _ISPROTOCOL
+  !verbose push
+  !verbose ${_MOZFUNC_VERBOSE}
+  Push "${_KEY}"
+  Push "${_VALOPEN}"
+  Push "${_VALICON}"
+  Push "${_DISPNAME}"
+  Push "${_ISPROTOCOL}"
+  Call AddDisabledDDEHandlerValues
+  !verbose pop
+!macroend
+
+!macro un.AddDisabledDDEHandlerValuesCall _KEY _VALOPEN _VALICON _DISPNAME _ISPROTOCOL
+  !verbose push
+  !verbose ${_MOZFUNC_VERBOSE}
+  Push "${_KEY}"
+  Push "${_VALOPEN}"
+  Push "${_VALICON}"
+  Push "${_DISPNAME}"
+  Push "${_ISPROTOCOL}"
+  Call un.AddDisabledDDEHandlerValues
+  !verbose pop
+!macroend
+
+!macro un.AddDisabledDDEHandlerValues
+  !ifndef un.AddDisabledDDEHandlerValues
+    !verbose push
+    !verbose ${_MOZFUNC_VERBOSE}
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN "un."
+
+    !insertmacro AddDisabledDDEHandlerValues
 
     !undef _MOZFUNC_UN
     !define _MOZFUNC_UN
@@ -2804,6 +2920,7 @@
       StrCmp "$R7" "$R8" +1 end
       DeleteRegValue HKLM "Software\Classes\$R9\DefaultIcon" ""
       DeleteRegValue HKLM "Software\Classes\$R9\shell\open" ""
+      DeleteRegValue HKLM "Software\Classes\$R9\shell\open\command" ""
       DeleteRegValue HKLM "Software\Classes\$R9\shell\ddeexec" ""
       DeleteRegValue HKLM "Software\Classes\$R9\shell\ddeexec\Application" ""
       DeleteRegValue HKLM "Software\Classes\$R9\shell\ddeexec\Topic" ""
@@ -3119,6 +3236,8 @@
 /**
  * If present removes the updates directory located in the profile's local
  * directory for this installation.
+ * This macro is obsolete and should no longer be used. Please see
+ * CleanUpdateDirectories.
  *
  * @param   _REL_PROFILE_PATH
  *          The relative path to the profile directory from $LOCALAPPDATA.
@@ -3218,6 +3337,171 @@
     !define _MOZFUNC_UN "un."
 
     !insertmacro CleanUpdatesDir
+
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN
+    !verbose pop
+  !endif
+!macroend
+
+/**
+ * If present removes the updates directory located in the profile's local
+ * directory for this installation.
+ *
+ * @param   _OLD_REL_PATH
+ *          The relative path to the profile directory from $LOCALAPPDATA.
+ *          Calculated for the old update directory not based on a hash.
+ * @param   _NEW_REL_PATH
+ *          The relative path to the profile directory from $LOCALAPPDATA.
+ *          Calculated for the new update directory based on a hash.
+ *
+ * $R8 = _NEW_REL_PATH
+ * $R7 = _OLD_REL_PATH
+ * $R1 = taskBar ID hash located in registry at SOFTWARE\_OLD_REL_PATH\TaskBarIDs
+ * $R2 = various path values.
+ * $R3 = length of the long path to $PROGRAMFILES
+ * $R4 = length of the long path to $INSTDIR
+ * $R5 = long path to $PROGRAMFILES
+ * $R6 = long path to $INSTDIR
+ * $R0 = path to the new update directory built from _NEW_REL_PATH and
+ *       the taskbar ID.
+ */
+!macro CleanUpdateDirectories
+
+  !ifndef ${_MOZFUNC_UN}CleanUpdateDirectories
+    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
+    !insertmacro ${_MOZFUNC_UN_TMP}GetLongPath
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
+    !undef _MOZFUNC_UN_TMP
+
+    !verbose push
+    !verbose ${_MOZFUNC_VERBOSE}
+    !define ${_MOZFUNC_UN}CleanUpdateDirectories "!insertmacro ${_MOZFUNC_UN}CleanUpdateDirectoriesCall"
+
+    Function ${_MOZFUNC_UN}CleanUpdateDirectories
+      Exch $R8
+      Exch 1
+      Exch $R7
+      Push $R6
+      Push $R5
+      Push $R4
+      Push $R3
+      Push $R2
+      Push $R1
+      Push $R0
+
+      ${${_MOZFUNC_UN}GetLongPath} "$INSTDIR" $R6
+      StrLen $R4 "$R6"
+
+      ${${_MOZFUNC_UN}GetLongPath} "$PROGRAMFILES" $R5
+      StrLen $R3 "$R5"
+
+      ${If} $R7 != "" ; _OLD_REL_PATH was passed
+      ${AndIf} $R6 != "" ; We have the install dir path
+      ${AndIf} $R5 != "" ; We the program files path
+      ${AndIf} $R4 > $R3 ; The length of $INSTDIR > the length of $PROGRAMFILES
+
+        ; Copy from the start of $INSTDIR the length of $PROGRAMFILES
+        StrCpy $R2 "$R6" $R3
+
+        ; Check if $INSTDIR is under $PROGRAMFILES
+        ${If} $R2 == $R5
+
+          ; Copy the relative path to $INSTDIR from $PROGRAMFILES
+          StrCpy $R2 "$R6" "" $R3
+
+          ; Concatenate the path $LOCALAPPDATA to the relative profile path and
+          ; the relative path to $INSTDIR from $PROGRAMFILES
+          StrCpy $R2 "$LOCALAPPDATA\$R7$R2"
+          ${${_MOZFUNC_UN}GetLongPath} "$R2" $R2
+
+          ${If} $R2 != ""
+            ; Backup the old update directory logs and delete the directory
+            ${If} ${FileExists} "$R2\updates\last-update.log"
+              Rename "$R2\updates\last-update.log" "$TEMP\moz-update-old-last-update.log"
+            ${EndIf}
+
+            ${If} ${FileExists} "$R2\updates\backup-update.log"
+              Rename "$R2\updates\backup-update.log" "$TEMP\moz-update-old-backup-update.log"
+            ${EndIf}
+
+            ${If} ${FileExists} "$R2\updates"
+                RmDir /r "$R2"
+            ${EndIf}
+          ${EndIf}
+
+          ; Get the taskbar ID hash for this installation path
+          ReadRegStr $R1 HKLM "SOFTWARE\$R7\TaskBarIDs" $R6
+          ${If} $R1 == ""
+            ReadRegStr $R1 HKCU "SOFTWARE\$R7\TaskBarIDs" $R6
+          ${EndIf}
+
+          ; If the taskbar ID hash exists then delete the new update directory
+          ; Backup its logs before deleting it.
+          ${If} $R1 != ""
+            StrCpy $R0 "$LOCALAPPDATA\$R8\$R1"
+
+            ${If} ${FileExists} "$R0\updates\last-update.log"
+              Rename "$R0\updates\last-update.log" "$TEMP\moz-update-new-last-update.log"
+            ${EndIf}
+
+            ${If} ${FileExists} "$R0\updates\backup-update.log"
+              Rename "$R0\updates\backup-update.log" "$TEMP\moz-update-new-backup-update.log"
+            ${EndIf}
+
+            ; Remove the old updates directory
+            ${If} ${FileExists} "$R0\updates"
+              RmDir /r "$R0"
+            ${EndIf}
+          ${EndIf}
+        ${EndIf}
+      ${EndIf}
+
+      ClearErrors
+
+      Pop $R0
+      Pop $R1
+      Pop $R2
+      Pop $R3
+      Pop $R4
+      Pop $R5
+      Pop $R6
+      Exch $R7
+      Exch 1
+      Exch $R8
+    FunctionEnd
+
+    !verbose pop
+  !endif
+!macroend
+
+!macro CleanUpdateDirectoriesCall _OLD_REL_PATH _NEW_REL_PATH
+  !verbose push
+  !verbose ${_MOZFUNC_VERBOSE}
+  Push "${_OLD_REL_PATH}"
+  Push "${_NEW_REL_PATH}"
+  Call CleanUpdateDirectories
+  !verbose pop
+!macroend
+
+!macro un.CleanUpdateDirectoriesCall _OLD_REL_PATH _NEW_REL_PATH
+  !verbose push
+  !verbose ${_MOZFUNC_VERBOSE}
+  Push "${_OLD_REL_PATH}"
+  Push "${_NEW_REL_PATH}"
+  Call un.CleanUpdateDirectories
+  !verbose pop
+!macroend
+
+!macro un.CleanUpdateDirectories
+  !ifndef un.CleanUpdateDirectories
+    !verbose push
+    !verbose ${_MOZFUNC_VERBOSE}
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN "un."
+
+    !insertmacro CleanUpdateDirectories
 
     !undef _MOZFUNC_UN
     !define _MOZFUNC_UN
@@ -4042,6 +4326,115 @@
 !macroend
 
 /**
+ * Parses the uninstall.log for the stub installer on install to first remove a
+ * previous installation's files prior to installing.
+ *
+ * When modifying this macro be aware that LineFind uses all registers except
+ * $R0-$R3 so be cautious. Callers of this macro are not affected.
+ */
+!macro OnStubInstallUninstall
+
+  !ifndef OnStubInstallUninstall
+    !insertmacro GetParent
+    !insertmacro LineFind
+    !insertmacro TrimNewLines
+
+    !verbose push
+    !verbose ${_MOZFUNC_VERBOSE}
+    !define OnStubInstallUninstall "!insertmacro OnStubInstallUninstallCall"
+
+    Function OnStubInstallUninstall
+      Push $R9
+      Push $R8
+      Push $R7
+      Push $R6
+      Push $R5
+      Push $R4
+      Push $R3
+      Push $R2
+      Push $R1
+      Push $R0
+      Push $TmpVal
+
+      IfFileExists "$INSTDIR\uninstall\uninstall.log" +1 end
+
+      ; Copy the uninstall log file to a temporary file
+      GetTempFileName $TmpVal
+      CopyFiles /SILENT /FILESONLY "$INSTDIR\uninstall\uninstall.log" "$TmpVal"
+
+      CreateDirectory "$INSTDIR\${TO_BE_DELETED}"
+
+      ; Delete files
+      ${LineFind} "$TmpVal" "/NUL" "1:-1" "StubRemoveFilesCallback"
+
+      ; Delete the temporary uninstall log file
+      Delete /REBOOTOK "$TmpVal"
+
+      RmDir /r /REBOOTOK "$INSTDIR\${TO_BE_DELETED}"
+
+      end:
+      ClearErrors
+
+      Pop $TmpVal
+      Pop $R0
+      Pop $R1
+      Pop $R2
+      Pop $R3
+      Pop $R4
+      Pop $R5
+      Pop $R6
+      Pop $R7
+      Pop $R8
+      Pop $R9
+    FunctionEnd
+
+    Function StubRemoveFilesCallback
+      ${TrimNewLines} "$R9" $R9
+      StrCpy $R1 "$R9" 5       ; Copy the first five chars
+
+      StrCmp "$R1" "File:" +1 end
+      StrCpy $R9 "$R9" "" 6    ; Copy string starting after the 6th char
+      StrCpy $R0 "$R9" 1       ; Copy the first char
+
+      StrCmp "$R0" "\" +1 end  ; If this isn't a relative path goto end
+      StrCmp "$R9" "\MapiProxy_InUse.dll" end +1 ; Skip the MapiProxy_InUse.dll
+      StrCmp "$R9" "\mozMapi32_InUse.dll" end +1 ; Skip the mozMapi32_InUse.dll
+
+      StrCpy $R1 "$INSTDIR$R9" ; Copy the install dir path and suffix it with the string
+      IfFileExists "$R1" +1 end
+
+      ClearErrors
+      Delete "$R1"
+      ${Unless} ${Errors}
+        Goto end
+      ${EndUnless}
+
+      GetTempFileName $R2 "$INSTDIR\${TO_BE_DELETED}"
+      Delete "$R2"
+      ClearErrors
+      Rename "$R1" "$R2"
+      ${If} ${Errors}
+        Delete /REBOOTOK "$R1"
+      ${EndUnless}
+
+      end:
+      ClearErrors
+
+      Push 0
+    FunctionEnd
+
+    !verbose pop
+  !endif
+!macroend
+
+!macro OnStubInstallUninstallCall
+  !verbose push
+  !verbose ${_MOZFUNC_VERBOSE}
+  Call OnStubInstallUninstall
+  !verbose pop
+!macroend
+
+/**
  * Parses the uninstall.log to unregister dll's, remove files, and remove
  * empty directories for this installation.
  *
@@ -4591,7 +4984,8 @@
  * $R6 = general string values, return value from GetTempFileName, return
  *       value from the GetSize macro
  * $R7 = full path to the configuration ini file
- * $R8 = return value from the GetParameters macro
+ * $R8 = used for OS Version and Service Pack detection and the return value
+ *       from the GetParameters macro
  * $R9 = _WARN_UNSUPPORTED_MSG
  */
 !macro InstallOnInitCommon
@@ -4623,12 +5017,23 @@
 
         SetRegView 64
       !else
-        ${Unless} ${AtLeastWin2000}
-          ; XXX-rstrong - some systems fail the AtLeastWin2000 test for an
-          ; unknown reason. To work around this also check if the Windows NT
-          ; registry Key exists and if it does if the first char in
-          ; CurrentVersion is equal to 3 (Windows NT 3.5 and 3.5.1) or 4
-          ; (Windows NT 4).
+        StrCpy $R8 "0"
+        ${If} ${AtMostWin2000}
+          StrCpy $R8 "1"
+        ${EndIf}
+
+        ${If} ${IsWinXP}
+        ${AndIf} ${AtMostServicePack} 1
+          StrCpy $R8 "1"
+        ${EndIf}
+
+        ${If} $R8 == "1"
+          ; XXX-rstrong - some systems failed the AtLeastWin2000 test that we
+          ; used to use for an unknown reason and likely fail the AtMostWin2000
+          ; and possibly the IsWinXP test as well. To work around this also
+          ; check if the Windows NT registry Key exists and if it does if the
+          ; first char in CurrentVersion is equal to 3 (Windows NT 3.5 and
+          ; 3.5.1), to 4 (Windows NT 4) or 5 (Windows 2000 and Windows XP).
           StrCpy $R8 ""
           ClearErrors
           ReadRegStr $R8 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentVersion"
@@ -4636,6 +5041,7 @@
           ${If} ${Errors}
           ${OrIf} "$R8" == "3"
           ${OrIf} "$R8" == "4"
+          ${OrIf} "$R8" == "5"
             MessageBox MB_OK|MB_ICONSTOP "$R9" IDOK
             ; Nothing initialized so no need to call OnEndCommon
             Quit
@@ -4732,6 +5138,11 @@
               StrCpy $AddStartMenuSC "1"
             ${EndIf}
 
+            ReadINIStr $R8 $R7 "Install" "MaintenanceService"
+            ${If} $R8 == "false"
+              StrCpy $InstallMaintenanceService "0"
+            ${EndIf}
+
             !ifndef NO_STARTMENU_DIR
               ReadINIStr $R8 $R7 "Install" "StartMenuDirectoryName"
               ${If} $R8 != ""
@@ -4800,6 +5211,13 @@
       IfFileExists "$INSTDIR\${FileMainEXE}" +2 +1
       Quit ; Nothing initialized so no need to call OnEndCommon
 
+!ifmacrodef InitHashAppModelId
+      ; setup the application model id registration value
+      !ifdef AppName
+      ${InitHashAppModelId} "$INSTDIR" "Software\Mozilla\${AppName}\TaskBarIDs"
+      !endif
+!endif
+
       ; Prevents breaking apps that don't use SetBrandNameVars
       !ifdef SetBrandNameVars
         ${SetBrandNameVars} "$INSTDIR\distribution\setup.ini"
@@ -4831,8 +5249,13 @@
       ClearErrors
       ${GetOptions} "$R0" "/UpdateShortcutAppUserModelIds" $R2
       IfErrors hideshortcuts +1
-      ${UpdateShortcutAppModelIDs}  "$INSTDIR\${FileMainEXE}" "${AppUserModelID}" $R2
-      StrCmp "$R2" "true" finish +1 ; true indicates that shortcuts have been updated
+      StrCpy $R2 ""
+!ifmacrodef InitHashAppModelId
+      ${If} "$AppUserModelID" != ""
+        ${UpdateShortcutAppModelIDs}  "$INSTDIR\${FileMainEXE}" "$AppUserModelID" $R2
+      ${EndIf}
+!endif
+      StrCmp "$R2" "false" +1 finish ; true indicates that shortcuts have been updated
       Quit ; Nothing initialized so no need to call OnEndCommon
 
       ; Require elevation if the user can elevate
@@ -4908,7 +5331,7 @@
 
       finish:
       ${UnloadUAC}
-      System::Call "shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)"
+      System::Call "shell32::SHChangeNotify(i ${SHCNE_ASSOCCHANGED}, i 0, i 0, i 0)"
       Quit ; Nothing initialized so no need to call OnEndCommon
 
       continue:
@@ -5598,16 +6021,18 @@
       ${LogMsg} "App Version: $R8"
       ${LogMsg} "GRE Version: $R9"
 
-      ${If} ${IsWin2000}
-        ${LogMsg} "OS Name    : Windows 2000"
-      ${ElseIf} ${IsWinXP}
+      ${If} ${IsWinXP}
         ${LogMsg} "OS Name    : Windows XP"
       ${ElseIf} ${IsWin2003}
         ${LogMsg} "OS Name    : Windows 2003"
       ${ElseIf} ${IsWinVista}
         ${LogMsg} "OS Name    : Windows Vista"
-      ${ElseIf} ${AtLeastWinVista} ; Workaround for NSIS 2.33 WinVer.nsh not knowing Win7
-        ${LogMsg} "OS Name    : Windows 7 or above"
+      ${ElseIf} ${IsWin7}
+        ${LogMsg} "OS Name    : Windows 7"
+      ${ElseIf} ${IsWin8}
+        ${LogMsg} "OS Name    : Windows 8"
+      ${ElseIf} ${AtLeastWin8}
+        ${LogMsg} "OS Name    : Above Windows 8"
       ${Else}
         ${LogMsg} "OS Name    : Unable to detect"
       ${EndIf}
@@ -6675,3 +7100,698 @@
   Pop ${_RESULT}
   !verbose pop
 !macroend
+
+!macro IsUserAdmin
+  ; Copied from: http://nsis.sourceforge.net/IsUserAdmin
+  Function IsUserAdmin
+    Push $R0
+    Push $R1
+    Push $R2
+
+    ClearErrors
+    UserInfo::GetName
+    IfErrors Win9x
+    Pop $R1
+    UserInfo::GetAccountType
+    Pop $R2
+
+    StrCmp $R2 "Admin" 0 Continue
+    StrCpy $R0 "true"
+    Goto Done
+
+    Continue:
+
+    StrCmp $R2 "" Win9x
+    StrCpy $R0 "false"
+    Goto Done
+
+    Win9x:
+    StrCpy $R0 "true"
+
+    Done:
+    Pop $R2
+    Pop $R1
+    Exch $R0
+  FunctionEnd
+!macroend
+
+/**
+ * Retrieve if present or generate and store a 64 bit hash of an install path
+ * using the City Hash algorithm.  On return the resulting id is saved in the
+ * $AppUserModelID variable declared by inserting this macro. InitHashAppModelId
+ * will attempt to load from HKLM/_REG_PATH first, then HKCU/_REG_PATH. If found
+ * in either it will return the hash it finds. If not found it will generate a
+ * new hash and attempt to store the hash in HKLM/_REG_PATH, then HKCU/_REG_PATH.
+ * Subsequent calls will then retreive the stored hash value. On any failure,
+ * $AppUserModelID will be set to an empty string.
+ *
+ * Registry format: root/_REG_PATH/"_EXE_PATH" = "hash"
+ *
+ * @param   _EXE_PATH
+ *          The main application executable path
+ * @param   _REG_PATH
+ *          The HKLM/HKCU agnostic registry path where the key hash should
+ *          be stored. ex: "Software\Mozilla\Firefox\TaskBarIDs"
+ * @result  (Var) $AppUserModelID contains the app model id.
+ */
+!macro InitHashAppModelId
+  !ifndef ${_MOZFUNC_UN}InitHashAppModelId
+    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
+    !insertmacro ${_MOZFUNC_UN_TMP}GetLongPath
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
+    !undef _MOZFUNC_UN_TMP
+
+    !ifndef InitHashAppModelId
+      Var AppUserModelID
+    !endif
+
+    !verbose push
+    !verbose ${_MOZFUNC_VERBOSE}
+    !define ${_MOZFUNC_UN}InitHashAppModelId "!insertmacro ${_MOZFUNC_UN}InitHashAppModelIdCall"
+
+    Function ${_MOZFUNC_UN}InitHashAppModelId
+      ; stack: apppath, regpath
+      Exch $R9 ; stack: $R9, regpath | $R9 = apppath
+      Exch 1   ; stack: regpath, $R9
+      Exch $R8 ; stack: $R8, $R9   | $R8 = regpath
+      Push $R7
+
+      ${If} ${AtLeastWin7}
+        ${${_MOZFUNC_UN}GetLongPath} "$R9" $R9
+        ; Always create a new AppUserModelID and overwrite the existing one
+        ; for the current installation path.
+        CityHash::GetCityHash64 "$R9"
+        Pop $AppUserModelID
+        ${If} $AppUserModelID == "error"
+          GoTo end
+        ${EndIf}
+        ClearErrors
+        WriteRegStr HKLM "$R8" "$R9" "$AppUserModelID"
+        ${If} ${Errors}
+          ClearErrors
+          WriteRegStr HKCU "$R8" "$R9" "$AppUserModelID"
+          ${If} ${Errors}
+            StrCpy $AppUserModelID "error"
+          ${EndIf}
+        ${EndIf}
+      ${EndIf}
+
+      end:
+      ${If} "$AppUserModelID" == "error"
+        StrCpy $AppUserModelID ""
+      ${EndIf}
+
+      ClearErrors
+      Pop $R7
+      Exch $R8
+      Exch 1
+      Exch $R9
+    FunctionEnd
+
+    !verbose pop
+  !endif
+!macroend
+
+!macro InitHashAppModelIdCall _EXE_PATH _REG_PATH
+  !verbose push
+  !verbose ${_MOZFUNC_VERBOSE}
+  Push "${_REG_PATH}"
+  Push "${_EXE_PATH}"
+  Call InitHashAppModelId
+  !verbose pop
+!macroend
+
+!macro un.InitHashAppModelIdCall _EXE_PATH _REG_PATH
+  !verbose push
+  !verbose ${_MOZFUNC_VERBOSE}
+  Push "${_REG_PATH}"
+  Push "${_EXE_PATH}"
+  Call un.InitHashAppModelId
+  !verbose pop
+!macroend
+
+!macro un.InitHashAppModelId
+  !ifndef un.InitHashAppModelId
+    !verbose push
+    !verbose ${_MOZFUNC_VERBOSE}
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN "un."
+
+    !insertmacro InitHashAppModelId
+
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN
+    !verbose pop
+  !endif
+!macroend
+
+
+################################################################################
+# Helpers for the new user interface
+
+!define MAXDWORD 0xffffffff
+
+!define DT_WORDBREAK 0x0010
+!define DT_SINGLELINE 0x0020
+!define DT_NOCLIP 0x0100
+!define DT_CALCRECT 0x0400
+!define DT_EDITCONTROL 0x2000
+!define DT_RTLREADING 0x00020000
+!define DT_NOFULLWIDTHCHARBREAK 0x00080000
+
+!define WS_EX_NOINHERITLAYOUT 0x00100000
+!define WS_EX_LAYOUTRTL 0x00400000
+
+!define PBS_MARQUEE 0x08
+
+!define /math PBM_SETRANGE32 ${WM_USER} + 6
+
+!define SHACF_FILESYSTEM 1
+
+!define MOZ_LOADTRANSPARENT ${LR_LOADFROMFILE}|${LR_LOADTRANSPARENT}|${LR_LOADMAP3DCOLORS}
+
+; Extend nsDialogs.nsh to support creating centered labels if it is already
+; included
+!ifmacrodef __NSD_DefineControl
+!insertmacro __NSD_DefineControl LabelCenter
+!define __NSD_LabelCenter_CLASS STATIC
+!define __NSD_LabelCenter_STYLE ${DEFAULT_STYLES}|${SS_NOTIFY}|${SS_CENTER}
+!define __NSD_LabelCenter_EXSTYLE ${WS_EX_TRANSPARENT}
+!endif
+
+/**
+ * Modified version of the __NSD_SetStretchedImage macro from nsDialogs.nsh that
+ * supports transparency. See nsDialogs documentation for additional info.
+ */
+!macro __SetStretchedTransparentImage CONTROL IMAGE HANDLE
+  Push $0
+  Push $1
+  Push $2
+  Push $R0
+
+  StrCpy $R0 ${CONTROL} ; in case ${CONTROL} is $0
+  StrCpy $1 ""
+  StrCpy $2 ""
+
+  System::Call '*(i, i, i, i) i.s'
+  Pop $0
+
+  ${If} $0 <> 0
+    System::Call 'user32::GetClientRect(i R0, i r0)'
+    System::Call '*$0(i, i, i .s, i .s)'
+    System::Free $0
+    Pop $1
+    Pop $2
+  ${EndIf}
+
+  System::Call 'user32::LoadImageW(i 0, t s, i ${IMAGE_BITMAP}, i r1, i r2, \
+                                   i ${MOZ_LOADTRANSPARENT}) i .s' "${IMAGE}"
+  Pop $0
+  SendMessage $R0 ${STM_SETIMAGE} ${IMAGE_BITMAP} $0
+
+  SetCtlColors $R0 "" transparent
+  ${NSD_AddExStyle} $R0 ${WS_EX_TRANSPARENT}|${WS_EX_TOPMOST}
+
+  Pop $R0
+  Pop $2
+  Pop $1
+  Exch $0
+  Pop ${HANDLE}
+!macroend
+!define SetStretchedTransparentImage `!insertmacro __SetStretchedTransparentImage`
+
+/**
+ * Removes a single style from a control.
+ *
+ * _HANDLE the handle of the control
+ * _STYLE  the style to remove
+ */
+!macro _RemoveStyle _HANDLE _STYLE
+  Push $0
+
+  System::Call 'user32::GetWindowLongW(i ${_HANDLE}, i ${GWL_STYLE}) i .r0'
+  IntOp $0 $0 | ${_STYLE}
+  IntOp $0 $0 - ${_STYLE}
+  System::Call 'user32::SetWindowLongW(i ${_HANDLE}, i ${GWL_STYLE}, i r0)'
+
+  Pop $0
+!macroend
+!define RemoveStyle "!insertmacro _RemoveStyle"
+
+/**
+ * Removes a single extended style from a control.
+ *
+ * _HANDLE  the handle of the control
+ * _EXSTYLE the extended style to remove
+ */
+!macro _RemoveExStyle _HANDLE _EXSTYLE
+  Push $0
+
+  System::Call 'user32::GetWindowLongW(i ${_HANDLE}, i ${GWL_EXSTYLE}) i .r0'
+  IntOp $0 $0 | ${_EXSTYLE}
+  IntOp $0 $0 - ${_EXSTYLE}
+  System::Call 'user32::SetWindowLongW(i ${_HANDLE}, i ${GWL_EXSTYLE}, i r0)'
+
+  Pop $0
+!macroend
+!define RemoveExStyle "!insertmacro _RemoveExStyle"
+
+/**
+ * Gets the extent of the specified text in pixels for sizing a control.
+ *
+ * _TEXT       the text to get the text extent for
+ * _FONT       the font to use when getting the text extent
+ * _RES_WIDTH  return value - control width for the text
+ * _RES_HEIGHT return value - control height for the text
+ */
+!macro GetTextExtentCall _TEXT _FONT _RES_WIDTH _RES_HEIGHT
+  Push "${_TEXT}"
+  Push "${_FONT}"
+  ${CallArtificialFunction} GetTextExtent_
+  Pop ${_RES_WIDTH}
+  Pop ${_RES_HEIGHT}
+!macroend
+
+!define GetTextExtent "!insertmacro GetTextExtentCall"
+!define un.GetTextExtent "!insertmacro GetTextExtentCall"
+
+!macro GetTextExtent_
+  Exch $0 ; font
+  Exch 1
+  Exch $1 ; text
+  Push $2
+  Push $3
+  Push $4
+  Push $5
+  Push $6
+  Push $7
+
+  ; Reuse the existing NSIS control which is used for BrandingText instead of
+  ; creating a new control.
+  GetDlgItem $2 $HWNDPARENT 1028
+
+  System::Call 'user32::GetDC(i r2) i .r3'
+  System::Call 'gdi32::SelectObject(i r3, i r0)'
+
+  StrLen $4 "$1"
+
+  System::Call '*(i, i) i .r5'
+  System::Call 'gdi32::GetTextExtentPoint32W(i r3, t$\"$1$\", i r4, i r5)'
+  System::Call '*$5(i .r6, i .r7)'
+  System::Free $5
+
+  System::Call 'user32::ReleaseDC(i r2, i r3)'
+
+  StrCpy $1 $7
+  StrCpy $0 $6
+
+  Pop $7
+  Pop $6
+  Pop $5
+  Pop $4
+  Pop $3
+  Pop $2
+  Exch $1 ; return height
+  Exch 1
+  Exch $0 ; return width
+!macroend
+
+/**
+ * Gets the width and the height of a control in pixels.
+ *
+ * _HANDLE     the handle of the control
+ * _RES_WIDTH  return value - control width for the text
+ * _RES_HEIGHT return value - control height for the text
+ */
+!macro GetDlgItemWidthHeightCall _HANDLE _RES_WIDTH _RES_HEIGHT
+  Push "${_HANDLE}"
+  ${CallArtificialFunction} GetDlgItemWidthHeight_
+  Pop ${_RES_WIDTH}
+  Pop ${_RES_HEIGHT}
+!macroend
+
+!define GetDlgItemWidthHeight "!insertmacro GetDlgItemWidthHeightCall"
+!define un.GetDlgItemWidthHeight "!insertmacro GetDlgItemWidthHeightCall"
+
+!macro GetDlgItemWidthHeight_
+  Exch $0 ; handle for the control
+  Push $1
+  Push $2
+
+  System::Call '*(i, i, i, i) i .r2'
+  ; The left and top values will always be 0 so the right and bottom values
+  ; will be the width and height.
+  System::Call 'user32::GetClientRect(i r0, i r2)'
+  System::Call '*$2(i, i, i .r0, i .r1)'
+  System::Free $2
+
+  Pop $2
+  Exch $1 ; return height
+  Exch 1
+  Exch $0 ; return width
+!macroend
+
+/**
+ * Gets the number of pixels from the beginning of the dialog to the end of a
+ * control in a RTL friendly manner.
+ *
+ * _HANDLE the handle of the control
+ * _RES_PX return value - pixels from the beginning of the dialog to the end of
+ *         the control
+ */
+!macro GetDlgItemEndPXCall _HANDLE _RES_PX
+  Push "${_HANDLE}"
+  ${CallArtificialFunction} GetDlgItemEndPX_
+  Pop ${_RES_PX}
+!macroend
+
+!define GetDlgItemEndPX "!insertmacro GetDlgItemEndPXCall"
+!define un.GetDlgItemEndPX "!insertmacro GetDlgItemEndPXCall"
+
+!macro GetDlgItemEndPX_
+  Exch $0 ; handle of the control
+  Push $1
+  Push $2
+
+  ; #32770 is the dialog class
+  FindWindow $1 "#32770" "" $HWNDPARENT
+  System::Call '*(i, i, i, i) i .r2'
+  System::Call 'user32::GetWindowRect(i r0, i r2)'
+  System::Call 'user32::MapWindowPoints(i 0, i r1,i r2, i 2)'
+  System::Call '*$2(i, i, i .r0, i)'
+  System::Free $2
+
+  Pop $2
+  Pop $1
+  Exch $0 ; pixels from the beginning of the dialog to the end of the control
+!macroend
+
+/**
+ * Gets the width and height for sizing a control that has the specified text.
+ * If the text has embedded newlines then the width and height will be
+ * determined without trying to optimize the control's width and height. If the
+ * text doesn't contain newlines the control's height and width will be
+ * dynamically determined using a minimum of 3 lines (incrementing the
+ * number of lines if necessary) for the height and the maximum width specified.
+ *
+ * _TEXT       the text
+ * _FONT       the font to use when getting the width and height
+ * _MAX_WIDTH  the maximum width for the control
+ * _RES_WIDTH  return value - control width for the text
+ * _RES_HEIGHT return value - control height for the text
+ */
+!macro GetTextWidthHeight
+
+  !ifndef ${_MOZFUNC_UN}GetTextWidthHeight
+    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
+    !insertmacro ${_MOZFUNC_UN_TMP}WordFind
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
+    !undef _MOZFUNC_UN_TMP
+
+    !verbose push
+    !verbose ${_MOZFUNC_VERBOSE}
+    !define ${_MOZFUNC_UN}GetTextWidthHeight "!insertmacro ${_MOZFUNC_UN}GetTextWidthHeightCall"
+
+    Function ${_MOZFUNC_UN}GetTextWidthHeight
+      Exch $0  ; maximum width use to calculate the control's width and height
+      Exch 1
+      Exch $1  ; font
+      Exch 2
+      Exch $2  ; text
+      Push $3
+      Push $4
+      Push $5
+      Push $6
+      Push $7
+      Push $8
+      Push $9
+      Push $R0
+      Push $R1
+      Push $R2
+
+      StrCpy $R2 "${DT_NOCLIP}|${DT_CALCRECT}"
+      !ifdef ${AB_CD}_rtl
+        StrCpy $R2 "$R2|${DT_RTLREADING}"
+      !endif
+
+      ; Reuse the existing NSIS control which is used for BrandingText instead
+      ; of creating a new control.
+      GetDlgItem $3 $HWNDPARENT 1028
+
+      System::Call 'user32::GetDC(i r3) i .r4'
+      System::Call 'gdi32::SelectObject(i r4, i r1)'
+
+      StrLen $5 "$2" ; text length
+      System::Call '*(i, i, i, i) i .r6'
+
+      ClearErrors
+      ${${_MOZFUNC_UN}WordFind} "$2" "$\n" "E#" $R0
+      ${If} ${Errors}
+        ; When there aren't newlines in the text calculate the size of the
+        ; rectangle needed for the text with a minimum of three lines of text.
+        ClearErrors
+        System::Call 'user32::DrawTextW(i r4, t $\"$2$\", i r5, i r6, \
+                                        i $R2|${DT_SINGLELINE})'
+        System::Call '*$6(i, i, i .r8, i .r7)'
+        System::Free $6
+
+        ; Get the approximate number height needed to display the text starting
+        ; with a minimum of 3 lines of text.
+        StrCpy $9 $8
+        StrCpy $R1 2 ; set the number of lines initially to 2
+        ${While} $9 > $0
+          IntOp $R1 $R1 + 1 ; increment the number of lines
+          IntOp $9 $8 / $R1
+        ${EndWhile}
+        IntOp $7 $7 * $R1
+
+        StrCpy $R0 $9
+        ${Do}
+          IntOp $R0 $R0 + 20
+          System::Call '*(i, i, i R0, i r7) i .r6'
+          System::Call 'user32::DrawTextW(i r4, t $\"$2$\", i r5, i r6, \
+                                          i $R2|${DT_WORDBREAK}|${DT_NOFULLWIDTHCHARBREAK}) i .R1'
+          System::Call '*$6(i, i, i .r8, i .r9)'
+          System::Free $6
+        ${LoopUntil} $7 >= $R1
+      ${Else}
+        ; When there are newlines in the text just return the size of the
+        ; rectangle for the text.
+        System::Call 'user32::DrawTextW(i r4, t $\"$2$\", i r5, i r6, i $R2)'
+        System::Call '*$6(i, i, i .r8, i .r9)'
+        System::Free $6
+      ${EndIf}
+
+      ; Reselect the original DC
+      System::Call 'gdi32::SelectObject(i r4, i r1)'
+      System::Call 'user32::ReleaseDC(i r3, i r4)'
+
+      StrCpy $1 $9
+      StrCpy $0 $8
+
+      Pop $R2
+      Pop $R1
+      Pop $R0
+      Pop $9
+      Pop $8
+      Pop $7
+      Pop $6
+      Pop $5
+      Pop $4
+      Pop $3
+      Exch $2
+      Exch 2
+      Exch $1 ; return height
+      Exch 1
+      Exch $0 ; return width
+    FunctionEnd
+
+    !verbose pop
+  !endif
+!macroend
+
+!macro GetTextWidthHeightCall _TEXT _FONT _MAX_WIDTH _RES_WIDTH _RES_HEIGHT
+  !verbose push
+  !verbose ${_MOZFUNC_VERBOSE}
+  Push "${_TEXT}"
+  Push "${_FONT}"
+  Push "${_MAX_WIDTH}"
+  Call GetTextWidthHeight
+  Pop ${_RES_WIDTH}
+  Pop ${_RES_HEIGHT}
+  !verbose pop
+!macroend
+
+!macro un.GetTextWidthHeightCall _TEXT _FONT _MAX_WIDTH _RES_WIDTH _RES_HEIGHT
+  !verbose push
+  !verbose ${_MOZFUNC_VERBOSE}
+  Push "${_TEXT}"
+  Push "${_FONT}"
+  Push "${_MAX_WIDTH}"
+  Call un.GetTextWidthHeight
+  Pop ${_RES_WIDTH}
+  Pop ${_RES_HEIGHT}
+  !verbose pop
+!macroend
+
+!macro un.GetTextWidthHeight
+  !ifndef un.GetTextWidthHeight
+    !verbose push
+    !verbose ${_MOZFUNC_VERBOSE}
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN "un."
+
+    !insertmacro GetTextWidthHeight
+
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN
+    !verbose pop
+  !endif
+!macroend
+
+/**
+ * Gets the elapsed time in seconds between two values in milliseconds stored as
+ * an int64. The caller will typically get the millisecond values using
+ * GetTickCount with a long return value as follows.
+ * System::Call "kernel32::GetTickCount()l .s"
+ * Pop $varname
+ *
+ * _START_TICK_COUNT    
+ * _FINISH_TICK_COUNT   
+ * _RES_ELAPSED_SECONDS return value - elapsed time between _START_TICK_COUNT
+ *                      and _FINISH_TICK_COUNT in seconds.
+ */
+!macro GetSecondsElapsedCall _START_TICK_COUNT _FINISH_TICK_COUNT _RES_ELAPSED_SECONDS
+  Push "${_START_TICK_COUNT}"
+  Push "${_FINISH_TICK_COUNT}"
+  ${CallArtificialFunction} GetSecondsElapsed_
+  Pop ${_RES_ELAPSED_SECONDS}
+!macroend
+
+!define GetSecondsElapsed "!insertmacro GetSecondsElapsedCall"
+!define un.GetSecondsElapsed "!insertmacro GetSecondsElapsedCall"
+
+!macro GetSecondsElapsed_
+  Exch $0 ; finish tick count
+  Exch 1
+  Exch $1 ; start tick count
+
+  System::Int64Op $0 - $1
+  Pop $0
+  ; Discard the top bits of the int64 by bitmasking with MAXDWORD
+  System::Int64Op $0 & ${MAXDWORD}
+  Pop $0
+
+  ; Convert from milliseconds to seconds
+  System::Int64Op $0 / 1000
+  Pop $0
+
+  Pop $1
+  Exch $0 ; return elapsed seconds
+!macroend
+
+!ifdef MOZ_METRO
+; Removes the CEH registration if it's set to our installation directory.
+; If it's set to some other installation directory, then it should be removed
+; by that installation. 
+!macro RemoveDEHRegistrationIfMatchingCall un
+  Function ${un}RemoveDEHRegistrationIfMatchingCall
+    ; Move the old $R0 on the stack and set it to DEH ID
+    Exch $R0
+    ; Backup the old values of R8 and R7 on the stack
+    Push $R8
+    Push $R7
+
+    ; Conditionally remove the DEH as long as we are the default (HKCU)
+    ReadRegStr $R8 HKCU "Software\Classes\CLSID\$R0\LocalServer32" ""
+    ${${un}GetLongPath} "$INSTDIR" $R7
+    StrCmp "$R8" "" next +1
+    IfFileExists "$R8" +1 clearHKCU
+    ${${un}GetParent} "$R8" $R8
+    ${${un}GetLongPath} "$R8" $R8
+    StrCmp "$R7" "$R8" clearHKCU next
+    clearHKCU:
+    DeleteRegKey HKCU "Software\Classes\CLSID\$R0"
+    next:
+
+    ; Conditionally remove the DEH as long as we are the default (HKLM)
+    ReadRegStr $R8 HKLM "Software\Classes\CLSID\$R0\LocalServer32" ""
+    ${${un}GetLongPath} "$INSTDIR" $R7
+    StrCmp "$R8" "" done +1
+    IfFileExists "$R8" +1 clearHKLM
+    ${${un}GetParent} "$R8" $R8
+    ${${un}GetLongPath} "$R8" $R8
+    StrCmp "$R7" "$R8" clearHKLM done
+    clearHKLM:
+    DeleteRegKey HKLM "Software\Classes\CLSID\$R0"
+    done:
+
+    ; Always remove the AppUserModelID keys for this installation
+    DeleteRegKey HKCU "Software\Classes\$AppUserModelID"
+    DeleteRegKey HKLM "Software\Classes\$AppUserModelID"
+
+    ; Restore the stack back to its original state
+    Pop $R7
+    Pop $R8
+    Pop $R0
+  FunctionEnd
+!macroend
+
+!macro RemoveDEHRegistrationIfMatching
+  !insertmacro RemoveDEHRegistrationIfMatchingCall ""
+!macroend
+
+!macro un.RemoveDEHRegistrationIfMatching
+  !insertmacro RemoveDEHRegistrationIfMatchingCall "un."
+!macroend
+
+!macro CleanupMetroBrowserHandlerValues un DELEGATE_EXECUTE_HANDLER_ID
+  Push ${DELEGATE_EXECUTE_HANDLER_ID}
+  Call ${un}RemoveDEHRegistrationIfMatchingCall
+!macroend
+!define CleanupMetroBrowserHandlerValues '!insertmacro CleanupMetroBrowserHandlerValues ""'
+!define un.CleanupMetroBrowserHandlerValues '!insertmacro CleanupMetroBrowserHandlerValues "un."'
+
+!macro AddMetroBrowserHandlerValues DELEGATE_EXECUTE_HANDLER_ID \
+                                    DELEGATE_EXECUTE_HANDLER_PATH \
+                                    APP_USER_MODEL_ID \
+                                    PROTOCOL_ACTIVATION_ID \
+                                    FILE_ACTIVATION_ID
+  ; Win8 doesn't use conventional progid command data to launch anymore.
+  ; Instead it uses a delegate execute handler which is a light weight COM
+  ; server for choosing the metro or desktop browser to launch depending
+  ; on the current environment (metro/desktop) it was activated in.
+  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}" "" ""
+  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}\.exe" "" ""
+  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}\.exe\shell" "" "open"
+  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}\.exe\shell\open" "CommandId" "open"
+  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}\.exe\shell\open\command" "" "$2"
+  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}\.exe\shell\open\command" "DelegateExecute" "${DELEGATE_EXECUTE_HANDLER_ID}"
+
+  ; Augment the url handler registrations with additional data needed for Metro
+  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}" "AppUserModelID" "${APP_USER_MODEL_ID}"
+  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\Application" "AppUserModelID" "${APP_USER_MODEL_ID}"
+  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\Application" "ApplicationName" "$BrandShortName"
+  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\Application" "ApplicationIcon" "$INSTDIR\${FileMainEXE},0"
+  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\Application" "ApplicationCompany" "${CompanyName}"
+  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\Application" "ApplicationDescription" "$(REG_APP_DESC)"
+  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\shell" "" "open"
+  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\shell\open" "CommandId" "open"
+  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\shell\open\command" "DelegateExecute" "${DELEGATE_EXECUTE_HANDLER_ID}"
+
+  ; Augment the file handler registrations with additional data needed for Metro
+  WriteRegStr SHCTX "Software\Classes\${FILE_ACTIVATION_ID}" "AppUserModelID" "${APP_USER_MODEL_ID}"
+  WriteRegStr SHCTX "Software\Classes\${FILE_ACTIVATION_ID}\shell" "" "open"
+  WriteRegStr SHCTX "Software\Classes\${FILE_ACTIVATION_ID}\shell\open" "CommandId" "open"
+  WriteRegStr SHCTX "Software\Classes\${FILE_ACTIVATION_ID}\shell\open\command" "DelegateExecute" "${DELEGATE_EXECUTE_HANDLER_ID}"
+
+  ; Win8 Metro delegate execute handler registration
+  WriteRegStr SHCTX "Software\Classes\CLSID\${DELEGATE_EXECUTE_HANDLER_ID}" "" "$BrandShortName CommandExecuteHandler"
+  WriteRegStr SHCTX "Software\Classes\CLSID\${DELEGATE_EXECUTE_HANDLER_ID}" "AppId" "${DELEGATE_EXECUTE_HANDLER_ID}"
+  WriteRegStr SHCTX "Software\Classes\CLSID\${DELEGATE_EXECUTE_HANDLER_ID}\LocalServer32" "" "${DELEGATE_EXECUTE_HANDLER_PATH}"
+!macroend
+!define AddMetroBrowserHandlerValues "!insertmacro AddMetroBrowserHandlerValues"
+!endif ;end MOZ_METRO
+

@@ -1,42 +1,9 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla code.
- *
- * The Initial Developer of the Original Code is Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2006
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *  Darin Fisher <darin@meer.net>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsIProxyObjectManager.h"
 #include "nsIClassInfoImpl.h"
 #include "nsThreadPool.h"
 #include "nsThreadManager.h"
@@ -49,9 +16,16 @@
 using namespace mozilla;
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo *sLog = PR_NewLogModule("nsThreadPool");
+static PRLogModuleInfo *
+GetThreadPoolLog()
+{
+  static PRLogModuleInfo *sLog;
+  if (!sLog)
+    sLog = PR_NewLogModule("nsThreadPool");
+  return sLog;
+}
 #endif
-#define LOG(args) PR_LOG(sLog, PR_LOG_DEBUG, args)
+#define LOG(args) PR_LOG(GetThreadPoolLog(), PR_LOG_DEBUG, args)
 
 // DESIGN:
 //  o  Allocate anonymous threads.
@@ -63,8 +37,26 @@ static PRLogModuleInfo *sLog = PR_NewLogModule("nsThreadPool");
 #define DEFAULT_IDLE_THREAD_LIMIT 1
 #define DEFAULT_IDLE_THREAD_TIMEOUT PR_SecondsToInterval(60)
 
-NS_IMPL_THREADSAFE_ADDREF(nsThreadPool)
-NS_IMPL_THREADSAFE_RELEASE(nsThreadPool)
+class ShutdownHelper MOZ_FINAL : public nsRunnable
+{
+public:
+  NS_DECL_NSIRUNNABLE
+
+  ShutdownHelper(nsCOMArray<nsIThread>& aThreads,
+                 already_AddRefed<nsIThreadPoolListener> aListener)
+  : mListener(aListener)
+  {
+    MOZ_ASSERT(!aThreads.IsEmpty());
+    mThreads.SwapElements(aThreads);
+  }
+
+private:
+  nsCOMArray<nsIThread> mThreads;
+  nsCOMPtr<nsIThreadPoolListener> mListener;
+};
+
+NS_IMPL_ADDREF(nsThreadPool)
+NS_IMPL_RELEASE(nsThreadPool)
 NS_IMPL_CLASSINFO(nsThreadPool, NULL, nsIClassInfo::THREADSAFE,
                   NS_THREADPOOL_CID)
 NS_IMPL_QUERY_INTERFACE3_CI(nsThreadPool, nsIThreadPool, nsIEventTarget,
@@ -76,13 +68,34 @@ nsThreadPool::nsThreadPool()
   , mIdleThreadLimit(DEFAULT_IDLE_THREAD_LIMIT)
   , mIdleThreadTimeout(DEFAULT_IDLE_THREAD_TIMEOUT)
   , mIdleCount(0)
-  , mShutdown(PR_FALSE)
+  , mShutdown(false)
 {
 }
 
 nsThreadPool::~nsThreadPool()
 {
-  Shutdown();
+  // Calling Shutdown() directly is not safe since it will spin the event loop
+  // (perhaps during a GC). Instead we try to delay-shutdown each thread that is
+  // still alive.
+  nsCOMArray<nsIThread> threads;
+  nsCOMPtr<nsIThreadPoolListener> listener;
+  {
+    ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
+    if (!mShutdown) {
+      NS_WARNING("nsThreadPool destroyed before Shutdown() was called!");
+
+      mThreads.SwapElements(threads);
+      mListener.swap(listener);
+    }
+  }
+
+  if (!threads.IsEmpty()) {
+    nsRefPtr<ShutdownHelper> helper =
+      new ShutdownHelper(threads, listener.forget());
+    if (NS_FAILED(NS_DispatchToMainThread(helper, NS_DISPATCH_NORMAL))) {
+      NS_WARNING("Unable to shut down threads in this thread pool!");
+    }
+  }
 }
 
 nsresult
@@ -90,17 +103,17 @@ nsThreadPool::PutEvent(nsIRunnable *event)
 {
   // Avoid spawning a new thread while holding the event queue lock...
  
-  PRBool spawnThread = PR_FALSE;
+  bool spawnThread = false;
   {
     ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
 
     LOG(("THRD-P(%p) put [%d %d %d]\n", this, mIdleCount, mThreads.Count(),
          mThreadLimit));
-    NS_ASSERTION(mIdleCount <= (PRUint32) mThreads.Count(), "oops");
+    MOZ_ASSERT(mIdleCount <= (uint32_t) mThreads.Count(), "oops");
 
     // Make sure we have a thread to service this event.
-    if (mIdleCount == 0 && mThreads.Count() < (PRInt32) mThreadLimit)
-      spawnThread = PR_TRUE;
+    if (mIdleCount == 0 && mThreads.Count() < (int32_t) mThreadLimit)
+      spawnThread = true;
 
     mEvents.PutEvent(event);
   }
@@ -110,21 +123,31 @@ nsThreadPool::PutEvent(nsIRunnable *event)
     return NS_OK;
 
   nsCOMPtr<nsIThread> thread;
-  nsThreadManager::get()->NewThread(0, getter_AddRefs(thread));
+  nsThreadManager::get()->NewThread(0,
+                                    nsIThreadManager::DEFAULT_STACK_SIZE,
+                                    getter_AddRefs(thread));
   NS_ENSURE_STATE(thread);
 
-  PRBool killThread = PR_FALSE;
+  bool killThread = false;
   {
     ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
-    if (mThreads.Count() < (PRInt32) mThreadLimit) {
+    if (mThreads.Count() < (int32_t) mThreadLimit) {
       mThreads.AppendObject(thread);
     } else {
-      killThread = PR_TRUE;  // okay, we don't need this thread anymore
+      killThread = true;  // okay, we don't need this thread anymore
     }
   }
   LOG(("THRD-P(%p) put [%p kill=%d]\n", this, thread.get(), killThread));
   if (killThread) {
-    thread->Shutdown();
+    // Pending events are processed on the current thread during
+    // nsIThread::Shutdown() execution, so if nsThreadPool::Dispatch() is called
+    // under caller's lock then deadlock could occur. This happens e.g. in case
+    // of nsStreamCopier. To prevent this situation, dispatch a shutdown event
+    // to the current thread instead of calling nsIThread::Shutdown() directly.
+
+    nsRefPtr<nsIRunnable> r = NS_NewRunnableMethod(thread,
+                                                   &nsIThread::Shutdown);
+    NS_DispatchToCurrentThread(r);
   } else {
     thread->Dispatch(this, NS_DISPATCH_NORMAL);
   }
@@ -140,16 +163,10 @@ nsThreadPool::ShutdownThread(nsIThread *thread)
   // This method is responsible for calling Shutdown on |thread|.  This must be
   // done from some other thread, so we use the main thread of the application.
 
-  NS_ASSERTION(!NS_IsMainThread(), "wrong thread");
+  MOZ_ASSERT(!NS_IsMainThread(), "wrong thread");
 
-  nsCOMPtr<nsIThread> doomed;
-  NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, NS_GET_IID(nsIThread), thread,
-                       NS_PROXY_ASYNC, getter_AddRefs(doomed));
-  if (doomed) {
-    doomed->Shutdown();
-  } else {
-    NS_WARNING("failed to construct proxy to main thread");
-  }
+  nsRefPtr<nsIRunnable> r = NS_NewRunnableMethod(thread, &nsIThread::Shutdown);
+  NS_DispatchToMainThread(r);
 }
 
 NS_IMETHODIMP
@@ -157,12 +174,14 @@ nsThreadPool::Run()
 {
   LOG(("THRD-P(%p) enter\n", this));
 
+  mThreadNaming.SetThreadPoolName(mName);
+
   nsCOMPtr<nsIThread> current;
   nsThreadManager::get()->GetCurrentThread(getter_AddRefs(current));
 
-  PRBool shutdownThreadOnExit = PR_FALSE;
-  PRBool exitThread = PR_FALSE;
-  PRBool wasIdle = PR_FALSE;
+  bool shutdownThreadOnExit = false;
+  bool exitThread = false;
+  bool wasIdle = false;
   PRIntervalTime idleSince;
 
   nsCOMPtr<nsIThreadPoolListener> listener;
@@ -185,20 +204,20 @@ nsThreadPool::Run()
 
         // If we are shutting down, then don't keep any idle threads
         if (mShutdown) {
-          exitThread = PR_TRUE;
+          exitThread = true;
         } else {
           if (wasIdle) {
             // if too many idle threads or idle for too long, then bail.
             if (mIdleCount > mIdleThreadLimit || (now - idleSince) >= timeout)
-              exitThread = PR_TRUE;
+              exitThread = true;
           } else {
             // if would be too many idle threads...
             if (mIdleCount == mIdleThreadLimit) {
-              exitThread = PR_TRUE;
+              exitThread = true;
             } else {
               ++mIdleCount;
               idleSince = now;
-              wasIdle = PR_TRUE;
+              wasIdle = true;
             }
           }
         }
@@ -213,7 +232,7 @@ nsThreadPool::Run()
           mon.Wait(delta);
         }
       } else if (wasIdle) {
-        wasIdle = PR_FALSE;
+        wasIdle = false;
         --mIdleCount;
       }
     }
@@ -236,7 +255,7 @@ nsThreadPool::Run()
 }
 
 NS_IMETHODIMP
-nsThreadPool::Dispatch(nsIRunnable *event, PRUint32 flags)
+nsThreadPool::Dispatch(nsIRunnable *event, uint32_t flags)
 {
   LOG(("THRD-P(%p) dispatch [%p %x]\n", this, event, flags));
 
@@ -261,13 +280,13 @@ nsThreadPool::Dispatch(nsIRunnable *event, PRUint32 flags)
 }
 
 NS_IMETHODIMP
-nsThreadPool::IsOnCurrentThread(PRBool *result)
+nsThreadPool::IsOnCurrentThread(bool *result)
 {
   // No one should be calling this method.  If this assertion gets hit, then we
   // need to think carefully about what this method should be returning.
   NS_NOTREACHED("implement me");
 
-  *result = PR_FALSE;
+  *result = false;
   return NS_OK;
 }
 
@@ -278,7 +297,7 @@ nsThreadPool::Shutdown()
   nsCOMPtr<nsIThreadPoolListener> listener;
   {
     ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
-    mShutdown = PR_TRUE;
+    mShutdown = true;
     mon.NotifyAll();
 
     threads.AppendObjects(mThreads);
@@ -293,61 +312,73 @@ nsThreadPool::Shutdown()
   // It's important that we shutdown the threads while outside the event queue
   // monitor.  Otherwise, we could end up dead-locking.
 
-  for (PRInt32 i = 0; i < threads.Count(); ++i)
+  for (int32_t i = 0; i < threads.Count(); ++i)
     threads[i]->Shutdown();
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThreadPool::GetThreadLimit(PRUint32 *value)
+nsThreadPool::GetThreadLimit(uint32_t *value)
 {
   *value = mThreadLimit;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThreadPool::SetThreadLimit(PRUint32 value)
+nsThreadPool::SetThreadLimit(uint32_t value)
 {
   ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
   mThreadLimit = value;
   if (mIdleThreadLimit > mThreadLimit)
     mIdleThreadLimit = mThreadLimit;
-  mon.NotifyAll();  // wake up threads so they observe this change
+
+  if (static_cast<uint32_t>(mThreads.Count()) > mThreadLimit) {
+    mon.NotifyAll();  // wake up threads so they observe this change
+  }
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThreadPool::GetIdleThreadLimit(PRUint32 *value)
+nsThreadPool::GetIdleThreadLimit(uint32_t *value)
 {
   *value = mIdleThreadLimit;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThreadPool::SetIdleThreadLimit(PRUint32 value)
+nsThreadPool::SetIdleThreadLimit(uint32_t value)
 {
   ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
   mIdleThreadLimit = value;
   if (mIdleThreadLimit > mThreadLimit)
     mIdleThreadLimit = mThreadLimit;
-  mon.NotifyAll();  // wake up threads so they observe this change
+
+  // Do we need to kill some idle threads?
+  if (mIdleCount > mIdleThreadLimit) {
+    mon.NotifyAll();  // wake up threads so they observe this change
+  }
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThreadPool::GetIdleThreadTimeout(PRUint32 *value)
+nsThreadPool::GetIdleThreadTimeout(uint32_t *value)
 {
   *value = mIdleThreadTimeout;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThreadPool::SetIdleThreadTimeout(PRUint32 value)
+nsThreadPool::SetIdleThreadTimeout(uint32_t value)
 {
   ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
+  uint32_t oldTimeout = mIdleThreadTimeout;
   mIdleThreadTimeout = value;
-  mon.NotifyAll();  // wake up threads so they observe this change
+
+  // Do we need to notify any idle threads that their sleep time has shortened?
+  if (mIdleThreadTimeout < oldTimeout && mIdleCount > 0) {
+    mon.NotifyAll();  // wake up threads so they observe this change
+  }
   return NS_OK;
 }
 
@@ -367,5 +398,32 @@ nsThreadPool::SetListener(nsIThreadPoolListener* aListener)
     ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
     mListener.swap(swappedListener);
   }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsThreadPool::SetName(const nsACString& aName)
+{
+  {
+    ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
+    if (mThreads.Count())
+      return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  mName = aName;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+ShutdownHelper::Run()
+{
+  MOZ_ASSERT(!mThreads.IsEmpty());
+
+  for (int32_t i = 0; i < mThreads.Count(); ++i)
+    mThreads[i]->Shutdown();
+
+  mThreads.Clear();
+
+  mListener = nullptr;
   return NS_OK;
 }
