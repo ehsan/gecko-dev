@@ -884,22 +884,29 @@ NS_IMETHODIMP nsLocalFile::SetLastModifiedTimeOfLink(PRInt64 aLastModifiedTimeOf
 
 NS_IMETHODIMP nsLocalFile::GetFileSize(PRInt64 *aFileSize)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   NS_ENSURE_ARG_POINTER(aFileSize);
   *aFileSize = 0;
-
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
+  
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
-
-  struct STAT buf;
-  if (STAT(path.get(), &buf) != 0)
-    return NSRESULT_FOR_ERRNO();
-
-  if (!S_ISDIR(buf.st_mode))
-    *aFileSize = (PRInt64)buf.st_size;
-
+      
+  FSCatalogInfo catalogInfo;
+  OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoNodeFlags + kFSCatInfoDataSizes, &catalogInfo,
+                                  nsnull, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  
+  // FSGetCatalogInfo can return a bogus size for directories sometimes, so only
+  // rely on the answer for files
+  if ((catalogInfo.nodeFlags & kFSNodeIsDirectoryMask) == 0)
+      *aFileSize = catalogInfo.dataLogicalSize;
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsLocalFile::SetFileSize(PRInt64 aFileSize)
@@ -998,16 +1005,17 @@ NS_IMETHODIMP nsLocalFile::GetNativePath(nsACString& aNativePath)
 
 NS_IMETHODIMP nsLocalFile::Exists(PRBool *_retval)
 {
+  // Check we are correctly initialized.
+  CHECK_mBaseURL();
+
   NS_ENSURE_ARG_POINTER(_retval);
-
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
-  if (NS_FAILED(rv))
-    return rv;
-
-  struct STAT buf;
-  *_retval = (STAT(path.get(), &buf) == 0);
-
+  *_retval = PR_FALSE;
+  
+  FSRef fsRef;
+  if (NS_SUCCEEDED(GetFSRefInternal(fsRef))) {
+    *_retval = PR_TRUE;
+  }
+  
   return NS_OK;
 }
 
@@ -1858,6 +1866,20 @@ NS_IMETHODIMP nsLocalFile::SetFileCreator(OSType aFileCreator)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+NS_IMETHODIMP nsLocalFile::SetFileTypeAndCreatorFromMIMEType(const char *aMIMEType)
+{
+  // XXX - This should be cut from the API. Would create an evil dependency.
+  NS_ERROR("NS_ERROR_NOT_IMPLEMENTED");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsLocalFile::SetFileTypeAndCreatorFromExtension(const char *aExtension)
+{
+  // XXX - This should be cut from the API. Would create an evil dependency.
+  NS_ERROR("NS_ERROR_NOT_IMPLEMENTED");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 NS_IMETHODIMP nsLocalFile::LaunchWithDoc(nsILocalFile *aDocToLoad, PRBool aLaunchInBackground)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -2401,42 +2423,62 @@ static nsresult MacErrorMapper(OSErr inErr)
 // Normalization Form C (composed Unicode). We need this because
 // Mac OS X file system uses NFD (Normalization Form D : decomposed Unicode)
 // while most other OS', server-side programs usually expect NFC.
+
+typedef void (*UnicodeNormalizer) (CFMutableStringRef, CFStringNormalizationForm);
 static void CopyUTF8toUTF16NFC(const nsACString& aSrc, nsAString& aResult)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  const nsAFlatCString &inFlatSrc = PromiseFlatCString(aSrc);
+    static PRBool sChecked = PR_FALSE;
+    static UnicodeNormalizer sUnicodeNormalizer = NULL;
 
-  // The number of 16bit code units in a UTF-16 string will never be
-  // larger than the number of bytes in the corresponding UTF-8 string.
-  CFMutableStringRef inStr = ::CFStringCreateMutable(NULL, inFlatSrc.Length());
-
-  if (!inStr) {
-    CopyUTF8toUTF16(aSrc, aResult);
-    return;
-  }
-
-  ::CFStringAppendCString(inStr, inFlatSrc.get(), kCFStringEncodingUTF8);
-
-  ::CFStringNormalize(inStr, kCFStringNormalizationFormC);
-
-  CFIndex length = ::CFStringGetLength(inStr);
-  const UniChar* chars = ::CFStringGetCharactersPtr(inStr);
-
-  if (chars) {
-    aResult.Assign(chars, length);
-  }
-  else {
-    nsAutoTArray<UniChar, FILENAME_BUFFER_SIZE> buffer;
-    if (!buffer.SetLength(length)) {
-      CopyUTF8toUTF16(aSrc, aResult);
+    // CFStringNormalize was not introduced until Mac OS 10.2
+    if (!sChecked) {
+        CFBundleRef carbonBundle =
+            CFBundleGetBundleWithIdentifier(CFSTR("com.apple.Carbon"));
+        if (carbonBundle)
+            sUnicodeNormalizer = (UnicodeNormalizer)
+                ::CFBundleGetFunctionPointerForName(carbonBundle,
+                                                    CFSTR("CFStringNormalize"));
+        sChecked = PR_TRUE;
     }
+
+    if (!sUnicodeNormalizer) {  // OS X 10.2 or earlier
+        CopyUTF8toUTF16(aSrc, aResult);
+        return;  
+    }
+
+    const nsAFlatCString &inFlatSrc = PromiseFlatCString(aSrc);
+
+    // The number of 16bit code units in a UTF-16 string will never be
+    // larger than the number of bytes in the corresponding UTF-8 string.
+    CFMutableStringRef inStr =
+        ::CFStringCreateMutable(NULL, inFlatSrc.Length());
+
+    if (!inStr) {
+        CopyUTF8toUTF16(aSrc, aResult);
+        return;  
+    }
+     
+    ::CFStringAppendCString(inStr, inFlatSrc.get(), kCFStringEncodingUTF8); 
+
+    sUnicodeNormalizer(inStr, kCFStringNormalizationFormC);
+
+    CFIndex length = CFStringGetLength(inStr);
+    const UniChar* chars = CFStringGetCharactersPtr(inStr);
+
+    if (chars) 
+        aResult.Assign(chars, length);
     else {
-      ::CFStringGetCharacters(inStr, ::CFRangeMake(0, length), buffer.Elements());
-      aResult.Assign(buffer.Elements(), length);
+        nsAutoTArray<UniChar, FILENAME_BUFFER_SIZE> buffer;
+        if (!buffer.SetLength(length))
+            CopyUTF8toUTF16(aSrc, aResult);
+        else {
+            CFStringGetCharacters(inStr, CFRangeMake(0, length), buffer.Elements());
+            aResult.Assign(buffer.Elements(), length);
+        }
     }
-  }
-  ::CFRelease(inStr);
+    CFRelease(inStr);
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+    NS_OBJC_END_TRY_ABORT_BLOCK;
 }

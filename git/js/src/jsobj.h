@@ -654,7 +654,10 @@ js_DefineProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
 
 #ifdef __cplusplus /* FIXME: bug 442399 removes this LiveConnect requirement. */
 
-extern JSBool
+/*
+ * If cacheResult is false, return JS_NO_PROP_CACHE_FILL on success.
+ */
+extern JSPropCacheEntry *
 js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                         JSPropertyOp getter, JSPropertyOp setter, uintN attrs,
                         uintN flags, intN shortid, JSProperty **propp,
@@ -733,7 +736,10 @@ js_GetMethod(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
 extern JS_FRIEND_API(JSBool)
 js_CheckUndeclaredVarAssignment(JSContext *cx);
 
-extern JSBool
+/*
+ * If cacheResult is false, return JS_NO_PROP_CACHE_FILL on success.
+ */
+extern JSPropCacheEntry *
 js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
                      jsval *vp);
 

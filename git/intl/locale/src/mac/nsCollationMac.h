@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: sw=4 ts=4 et :
+
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -21,7 +22,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Chris Jones <jones.chris.g@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -36,9 +36,34 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+#ifndef nsCollationMac_h__
+#define nsCollationMac_h__
 
-#include "DeadlockDetector.h"
 
-namespace mozilla {
-const CallStack CallStack::kNone((CallStack::callstack_id) -1);
-}
+#include "nsICollation.h"
+#include "nsCollation.h"  // static library
+#include "plstr.h"
+
+
+
+class nsCollationMac : public nsICollation {
+
+protected:
+  nsCollation   *mCollation;            // XP collation class
+  
+  short         m_scriptcode;           // Macintosh platform script code
+  unsigned char m_mac_sort_tbl[256];    // Mapping table from a character code to a collation key value.
+
+public: 
+  nsCollationMac();
+  ~nsCollationMac();
+
+  // nsISupports interface
+  NS_DECL_ISUPPORTS
+
+  // nsICollation interface
+  NS_DECL_NSICOLLATION
+
+};
+
+#endif  /* nsCollationMac_h__ */

@@ -85,7 +85,7 @@ protected:
   nsresult MakeInputStream(nsIInputStream** _retval, PRBool nonBlocking);
 
   // Functions specific to Vista and above
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+#ifndef MOZ_DISABLE_VISTA_SDK_REQUIREMENTS
 protected:
   nsresult GetStockHIcon(nsIMozIconURI *aIconURI, HICON *hIcon);
 #endif

@@ -39,7 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.idl"
-#include "gfxidltypes.idl"
+#include "gfxtypes.idl"
 #include "gfxIFormats.idl"
 
 interface gfxIImageFrame;

@@ -1390,7 +1390,7 @@ struct BoxToBorderRect : public nsLayoutUtils::BoxCallback {
   nsLayoutUtils::RectCallback* mCallback;
 
   BoxToBorderRect(nsIFrame* aRelativeTo, nsLayoutUtils::RectCallback* aCallback)
-    : mRelativeTo(aRelativeTo), mCallback(aCallback) {}
+    : mCallback(aCallback), mRelativeTo(aRelativeTo) {}
 
   virtual void AddBox(nsIFrame* aFrame) {
 #ifdef MOZ_SVG

@@ -147,7 +147,7 @@ public:
    */
   static JSNative sEvalNative;
 
-  enum FunctionObjectSlot {
+  typedef enum FunctionObjectSlot {
     eWrappedFunctionSlot = 0,
     eAllAccessSlot = 1
   };

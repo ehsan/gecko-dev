@@ -108,18 +108,18 @@ js_GenerateShape(JSContext *cx, JSBool gcLocked)
 }
 
 JS_REQUIRES_STACK JSPropCacheEntry *
-js_FillPropertyCache(JSContext *cx, JSObject *obj,
-                     uintN scopeIndex, uintN protoIndex, JSObject *pobj,
-                     JSScopeProperty *sprop, JSBool addedSprop)
+js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
+                     uintN scopeIndex, uintN protoIndex,
+                     JSObject *pobj, JSScopeProperty *sprop)
 {
     JSPropertyCache *cache;
     jsbytecode *pc;
     JSScope *scope;
-    jsuword kshape, khash;
     JSOp op;
     const JSCodeSpec *cs;
     jsuword vword;
     ptrdiff_t pcoff;
+    jsuword khash;
     JSAtom *atom;
     JSPropCacheEntry *entry;
 
@@ -192,7 +192,6 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj,
     pc = cx->fp->regs->pc;
     op = js_GetOpcode(cx, cx->fp->script, pc);
     cs = &js_CodeSpec[op];
-    kshape = 0;
 
     do {
         /*
@@ -224,12 +223,12 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj,
                         PCMETER(cache->brandfills++);
 #ifdef DEBUG_notme
                         fprintf(stderr,
-                            "branding %p (%s) for funobj %p (%s), shape %lu\n",
+                            "branding %p (%s) for funobj %p (%s), kshape %lu\n",
                             pobj, LOCKED_OBJ_GET_CLASS(pobj)->name,
                             JSVAL_TO_OBJECT(v),
                             JS_GetFunctionName(GET_FUNCTION_PRIVATE(cx,
                                                  JSVAL_TO_OBJECT(v))),
-                            OBJ_SHAPE(obj));
+                            kshape);
 #endif
                         js_MakeScopeShapeUnique(cx, scope);
                         if (js_IsPropertyCacheDisabled(cx)) {
@@ -240,6 +239,8 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj,
                             return JS_NO_PROP_CACHE_FILL;
                         }
                         SCOPE_SET_BRANDED(scope);
+                        if (OBJ_SCOPE(obj) == scope)
+                            kshape = scope->shape;
                     }
                     vword = JSVAL_OBJECT_TO_PCVAL(v);
                     break;
@@ -256,60 +257,33 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj,
         } else {
             /* Best we can do is to cache sprop (still a nice speedup). */
             vword = SPROP_TO_PCVAL(sprop);
-            if (addedSprop &&
-                sprop == scope->lastProp &&
-                scope->shape == sprop->shape) {
-                /*
-                 * Our caller added a new property. We also know that a setter
-                 * that js_NativeSet could have run has not mutated the scope
-                 * so the added property is still the last one added and the
-                 * scope is not branded.
-                 *
-                 * We want to cache under scope's shape before the property
-                 * addition to bias for the case when the mutator opcode
-                 * always adds the same property. It allows to optimize
-                 * periodic execution of object initializers or explicit
-                 * initialization sequences like
-                 *
-                 *   obj = {}; obj.x = 1; obj.y = 2;
-                 *
-                 * We assume that on average the win from this optimization is
-                 * bigger that the cost of an extra mismatch per loop due to
-                 * the bias for the following case:
-                 *
-                 *   obj = {}; ... for (...) { ... obj.x = ... }
-                 *
-                 * On the first iteration JSOP_SETPROP fills the cache with
-                 * the shape of newly created object, not the shape after
-                 * obj.x is assigned. That mismatches obj's shape on the
-                 * second iteration. Note that on third and the following
-                 * iterations the cache will be hit since the shape no longer
-                 * mutates.
-                 */
-                JS_ASSERT(scope->object == obj);
-                if (sprop->parent) {
-                    kshape = sprop->parent->shape;
-                } else {
-                    JSObject *proto = STOBJ_GET_PROTO(obj);
-                    if (proto && OBJ_IS_NATIVE(proto))
-                        kshape = OBJ_SHAPE(proto);
-                }
-            }
         }
     } while (0);
 
-    if (kshape == 0)
-        kshape = OBJ_SHAPE(obj);
+    /*
+     * Our caller preserved the scope shape prior to the js_GetPropertyHelper
+     * or similar call out of the interpreter. We want to cache under that
+     * shape if op is overtly mutating, to bias for the case where the mutator
+     * udpates shape predictably.
+     *
+     * Note that an apparently non-mutating op such as JSOP_NAME may still
+     * mutate the base object via, e.g., lazy standard class initialization,
+     * but that is a one-time event and we'll have to miss the old shape and
+     * re-fill under the new one.
+     */
+    if (!(cs->format & (JOF_SET | JOF_INCDEC)) && obj == pobj)
+        kshape = scope->shape;
+
     khash = PROPERTY_CACHE_HASH_PC(pc, kshape);
     if (obj == pobj) {
+        JS_ASSERT(kshape != 0 || scope->shape != 0);
         JS_ASSERT(scopeIndex == 0 && protoIndex == 0);
         JS_ASSERT(OBJ_SCOPE(obj)->object == obj);
-        JS_ASSERT(kshape != 0);
     } else {
         if (op == JSOP_LENGTH) {
             atom = cx->runtime->atomState.lengthAtom;
         } else {
-            pcoff = (JOF_TYPE(cs->format) == JOF_SLOTATOM) ? SLOTNO_LEN : 0;
+            pcoff = (JOF_TYPE(cs->format) == JOF_SLOTATOM) ? 2 : 0;
             GET_ATOM_FROM_BYTECODE(cx->fp->script, pc, pcoff, atom);
         }
         JS_ASSERT_IF(scopeIndex == 0,
@@ -336,7 +310,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj,
     }
 
     entry = &cache->table[khash];
-    PCMETER(PCVAL_IS_NULL(entry->vword) || cache->recycles++);
+    PCMETER(if (!PCVAL_IS_NULL(entry->vword)) cache->recycles++);
     entry->kpc = pc;
     entry->kshape = kshape;
     entry->vcap = PCVCAP_MAKE(scope->shape, scopeIndex, protoIndex);
@@ -344,13 +318,6 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj,
 
     cache->empty = JS_FALSE;
     PCMETER(cache->fills++);
-
-    /*
-     * The modfills counter is not exact. It increases if a getter or setter
-     * recurse into the interpreter.
-     */
-    PCMETER(entry == cache->pctestentry || cache->modfills++);
-    PCMETER(cache->pctestentry = NULL);
     return entry;
 }
 
@@ -375,7 +342,7 @@ js_FullTestPropertyCache(JSContext *cx, jsbytecode *pc,
     if (op == JSOP_LENGTH) {
         atom = cx->runtime->atomState.lengthAtom;
     } else {
-        pcoff = (JOF_TYPE(cs->format) == JOF_SLOTATOM) ? SLOTNO_LEN : 0;
+        pcoff = (JOF_TYPE(cs->format) == JOF_SLOTATOM) ? 2 : 0;
         GET_ATOM_FROM_BYTECODE(cx->fp->script, pc, pcoff, atom);
     }
 
@@ -504,7 +471,6 @@ js_PurgePropertyCache(JSContext *cx, JSPropertyCache *cache)
         P(rofills);
         P(disfills);
         P(oddfills);
-        P(modfills);
         P(brandfills);
         P(noprotos);
         P(longchains);
@@ -3046,23 +3012,15 @@ js_Interpret(JSContext *cx)
 #ifdef JS_TRACER
             TraceRecorder* tr = TRACE_RECORDER(cx);
             if (tr) {
-                JSRecordingStatus status = TraceRecorder::monitorRecording(cx, tr, op);
-                switch (status) {
-                case JSRS_CONTINUE:
+                JSMonitorRecordingStatus status = TraceRecorder::monitorRecording(cx, tr, op);
+                if (status == JSMRS_CONTINUE) {
                     moreInterrupts = true;
-                    break;
-                case JSRS_IMACRO:
+                } else if (status == JSMRS_IMACRO) {
                     atoms = COMMON_ATOMS_START(&rt->atomState);
                     op = JSOp(*regs.pc);
                     DO_OP();    /* keep interrupting for op. */
-                    break;
-                case JSRS_ERROR:
-                    // The code at 'error:' aborts the recording.
-                    goto error;
-                case JSRS_STOP:
-                    break;
-                default:
-                    JS_NOT_REACHED("Bad recording status");
+                } else {
+                    JS_ASSERT(status == JSMRS_STOP);
                 }
             }
 #endif /* !JS_TRACER */
@@ -3576,9 +3534,8 @@ js_Interpret(JSContext *cx)
         }                                                                     \
     JS_END_MACRO
 
-#define NATIVE_SET(cx,obj,sprop,entry,vp)                                     \
+#define NATIVE_SET(cx,obj,sprop,vp)                                           \
     JS_BEGIN_MACRO                                                            \
-        TRACE_2(SetPropHit, entry, sprop);                                    \
         if (SPROP_HAS_STUB_SETTER(sprop) &&                                   \
             (sprop)->slot != SPROP_INVALID_SLOT) {                            \
             /* Fast path for, e.g., Object instance properties. */            \
@@ -4617,7 +4574,6 @@ js_Interpret(JSContext *cx)
                      * in native object o.
                      */
                     entry = &cache->table[PROPERTY_CACHE_HASH_PC(regs.pc, kshape)];
-                    PCMETER(cache->pctestentry = entry);
                     PCMETER(cache->tests++);
                     PCMETER(cache->settests++);
                     if (entry->kpc == regs.pc && entry->kshape == kshape) {
@@ -4641,8 +4597,9 @@ js_Interpret(JSContext *cx)
                                     SCOPE_HAS_PROPERTY(scope, sprop)) {
                                     PCMETER(cache->pchits++);
                                     PCMETER(cache->setpchits++);
-                                    NATIVE_SET(cx, obj, sprop, entry, &rval);
+                                    NATIVE_SET(cx, obj, sprop, &rval);
                                     JS_UNLOCK_SCOPE(cx, scope);
+                                    TRACE_2(SetPropHit, entry, sprop);
                                     break;
                                 }
                             } else {
@@ -4732,7 +4689,6 @@ js_Interpret(JSContext *cx)
                                 GC_WRITE_BARRIER(cx, scope,
                                                  LOCKED_OBJ_GET_SLOT(obj, slot),
                                                  rval);
-                                TRACE_2(SetPropHit, entry, sprop);
                                 LOCKED_OBJ_SET_SLOT(obj, slot, rval);
                                 JS_UNLOCK_SCOPE(cx, scope);
 
@@ -4743,6 +4699,8 @@ js_Interpret(JSContext *cx)
                                  * scope to avoid lock nesting.
                                  */
                                 js_PurgeScopeChain(cx, obj, sprop->id);
+
+                                TRACE_2(SetPropHit, entry, sprop);
                                 break;
                             }
 
@@ -4766,11 +4724,13 @@ js_Interpret(JSContext *cx)
                             sprop = PCVAL_TO_SPROP(entry->vword);
                             JS_ASSERT(!(sprop->attrs & JSPROP_READONLY));
                             JS_ASSERT(!SCOPE_IS_SEALED(OBJ_SCOPE(obj2)));
-                            NATIVE_SET(cx, obj, sprop, entry, &rval);
+                            NATIVE_SET(cx, obj, sprop, &rval);
                         }
                         JS_UNLOCK_OBJ(cx, obj2);
-                        if (sprop)
+                        if (sprop) {
+                            TRACE_2(SetPropHit, entry, sprop);
                             break;
+                        }
                     }
                 }
 
@@ -4778,8 +4738,10 @@ js_Interpret(JSContext *cx)
                     LOAD_ATOM(0);
                 id = ATOM_TO_JSID(atom);
                 if (entry) {
-                    if (!js_SetPropertyHelper(cx, obj, id, true, &rval))
+                    entry = js_SetPropertyHelper(cx, obj, id, true, &rval);
+                    if (!entry)
                         goto error;
+                    TRACE_1(SetPropMiss, entry);
                 } else {
                     if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
                         goto error;
@@ -6318,7 +6280,6 @@ js_Interpret(JSContext *cx)
                 kshape = scope->shape;
                 cache = &JS_PROPERTY_CACHE(cx);
                 entry = &cache->table[PROPERTY_CACHE_HASH_PC(regs.pc, kshape)];
-                PCMETER(cache->pctestentry = entry);
                 PCMETER(cache->tests++);
                 PCMETER(cache->initests++);
 
@@ -6401,9 +6362,10 @@ js_Interpret(JSContext *cx)
                     GC_WRITE_BARRIER(cx, scope,
                                      LOCKED_OBJ_GET_SLOT(obj, slot),
                                      rval);
-                    TRACE_2(SetPropHit, entry, sprop);
                     LOCKED_OBJ_SET_SLOT(obj, slot, rval);
                     JS_UNLOCK_SCOPE(cx, scope);
+
+                    TRACE_2(SetPropHit, entry, sprop);
                     break;
                 }
 
@@ -6421,12 +6383,14 @@ js_Interpret(JSContext *cx)
                     goto error;
                 }
 
-                if (!(JS_UNLIKELY(atom == cx->runtime->atomState.protoAtom)
-                      ? js_SetPropertyHelper(cx, obj, id, true, &rval)
-                      : js_DefineNativeProperty(cx, obj, id, rval, NULL, NULL,
-                                                JSPROP_ENUMERATE, 0, 0, NULL,
-                                                true)))
+                entry = JS_UNLIKELY(atom == cx->runtime->atomState.protoAtom)
+                        ? js_SetPropertyHelper(cx, obj, id, true, &rval)
+                        : js_DefineNativeProperty(cx, obj, id, rval, NULL, NULL,
+                                                  JSPROP_ENUMERATE, 0, 0, NULL,
+                                                  true);
+                if (!entry)
                     goto error;
+                TRACE_1(SetPropMiss, entry);
             } while (0);
 
             /* Common tail for property cache hit and miss cases. */

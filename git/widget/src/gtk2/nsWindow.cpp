@@ -6707,8 +6707,7 @@ IM_commit_cb(GtkIMContext *aContext,
     // if gFocusWindow is null, use the last focused gIMEFocusWindow
     nsRefPtr<nsWindow> window = gFocusWindow ? gFocusWindow : gIMEFocusWindow;
 
-    if (!window || IM_get_input_context(window) != aContext &&
-        !(window->mIMEData && window->mIMEData->mEnabled == nsIWidget::IME_STATUS_PASSWORD)) 
+    if (!window || IM_get_input_context(window) != aContext)
         return;
 
     /* If IME doesn't change they keyevent that generated this commit,

@@ -42,7 +42,7 @@
  * @file gfxIFormats.idl
  */
 
-#include "gfxidltypes.idl"
+#include "gfxtypes.idl"
 
 /**
  * gfxIFormats interface
