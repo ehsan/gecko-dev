@@ -591,25 +591,19 @@ nsHTMLCanvasElement::UpdateContext(nsIPropertyBag *aNewContextOptions)
     return NS_OK;
 
   nsresult rv = NS_OK;
-  nsIntSize sz = GetWidthHeight();
 
   rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
-  if (NS_FAILED(rv)) {
-    mCurrentContext = nsnull;
+  if (NS_FAILED(rv))
     return rv;
-  }
 
   rv = mCurrentContext->SetContextOptions(aNewContextOptions);
-  if (NS_FAILED(rv)) {
-    mCurrentContext = nsnull;
+  if (NS_FAILED(rv))
     return rv;
-  }
 
+  nsIntSize sz = GetWidthHeight();
   rv = mCurrentContext->SetDimensions(sz.width, sz.height);
-  if (NS_FAILED(rv)) {
-    mCurrentContext = nsnull;
+  if (NS_FAILED(rv))
     return rv;
-  }
 
   return rv;
 }

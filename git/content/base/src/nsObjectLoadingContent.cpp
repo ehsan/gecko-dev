@@ -423,12 +423,11 @@ IsSupportedImage(const nsCString& aMimeType)
 static PRBool
 IsSupportedPlugin(const nsCString& aMIMEType)
 {
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if (!pluginHost) {
+  nsCOMPtr<nsIPluginHost> host(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  if (!host) {
     return PR_FALSE;
   }
-  nsresult rv = pluginHost->IsPluginEnabledForType(aMIMEType.get());
+  nsresult rv = host->IsPluginEnabledForType(aMIMEType.get());
   return NS_SUCCEEDED(rv);
 }
 
@@ -459,18 +458,13 @@ IsPluginEnabledByExtension(nsIURI* uri, nsCString& mimeType)
   nsCAutoString ext;
   GetExtensionFromURI(uri, ext);
 
-  if (ext.IsEmpty()) {
+  if (ext.IsEmpty())
     return PR_FALSE;
-  }
 
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if (!pluginHost) {
-    return PR_FALSE;
-  }
-
+  nsCOMPtr<nsIPluginHost> host(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
   const char* typeFromExt;
-  if (NS_SUCCEEDED(pluginHost->IsPluginEnabledForExtension(ext.get(), typeFromExt))) {
+  if (host &&
+      NS_SUCCEEDED(host->IsPluginEnabledForExtension(ext.get(), typeFromExt))) {
     mimeType = typeFromExt;
     return PR_TRUE;
   }
@@ -1728,8 +1722,8 @@ nsresult
 nsObjectLoadingContent::TypeForClassID(const nsAString& aClassID,
                                        nsACString& aType)
 {
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
+  // Need a plugin host for any class id support
+  nsCOMPtr<nsIPluginHost> pluginHost(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
   if (!pluginHost) {
     return NS_ERROR_NOT_AVAILABLE;
   }
@@ -1968,13 +1962,11 @@ nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
 /* static */ PluginSupportState
 nsObjectLoadingContent::GetPluginDisabledState(const nsCString& aContentType)
 {
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if (!pluginHost) {
+  nsCOMPtr<nsIPluginHost> host(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  if (!host) {
     return ePluginUnsupported;
   }
-
-  nsresult rv = pluginHost->IsPluginEnabledForType(aContentType.get());
+  nsresult rv = host->IsPluginEnabledForType(aContentType.get());
   if (rv == NS_ERROR_PLUGIN_DISABLED)
     return ePluginDisabled;
   if (rv == NS_ERROR_PLUGIN_BLOCKLISTED)
@@ -2014,6 +2006,18 @@ nsObjectLoadingContent::GetPrintFrame(nsIFrame** aFrame)
 {
   *aFrame = mPrintFrame.GetFrame();
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsObjectLoadingContent::SetAbsoluteScreenPosition(nsIDOMElement* element,
+                                                  nsIDOMClientRect* position,
+                                                  nsIDOMClientRect* clip)
+{
+  nsIObjectFrame* frame = GetExistingFrame(eFlushLayout);
+  if (!frame)
+    return NS_ERROR_NOT_AVAILABLE;
+
+  return frame->SetAbsoluteScreenPosition(element, position, clip);
 }
 
 NS_IMETHODIMP

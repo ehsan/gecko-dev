@@ -2161,7 +2161,6 @@ nsNodeSelectorTearoff::QuerySelectorAll(const nsAString& aSelector,
 //----------------------------------------------------------------------
 nsGenericElement::nsDOMSlots::nsDOMSlots()
   : nsINode::nsSlots(),
-    mDataset(nsnull),
     mBindingParent(nsnull)
 {
 }

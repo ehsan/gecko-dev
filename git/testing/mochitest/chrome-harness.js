@@ -133,9 +133,6 @@ function getMochitestJarListing(aBasePath, aTestPath, aDir)
     else if (zReader.hasEntry(pathToCheck + "/")) {
       base = pathToCheck + "/";
     }
-    else {
-      return [];
-    }
   }
   var [links, count] = zList(base, zReader, basePath, true);
   return [links, null];

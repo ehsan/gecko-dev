@@ -78,9 +78,6 @@ const PREF_INSTALL_DISTRO_ADDONS      = "extensions.installDistroAddons";
 const PREF_BRANCH_INSTALLED_ADDON     = "extensions.installedDistroAddon.";
 
 const URI_EXTENSION_UPDATE_DIALOG     = "chrome://mozapps/content/extensions/update.xul";
-const URI_EXTENSION_STRINGS           = "chrome://mozapps/locale/extensions/extensions.properties";
-
-const STRING_TYPE_NAME                = "type.%ID%.name";
 
 const DIR_EXTENSIONS                  = "extensions";
 const DIR_STAGE                       = "staged";
@@ -154,8 +151,6 @@ const TYPES = {
   locale: 8,
   multipackage: 32
 };
-
-const MSG_JAR_FLUSH = "AddonJarFlush";
 
 /**
  * Valid IDs fit this pattern.
@@ -903,18 +898,6 @@ function buildJarURI(aJarfile, aPath) {
   let uri = Services.io.newFileURI(aJarfile);
   uri = "jar:" + uri.spec + "!/" + aPath;
   return NetUtil.newURI(uri);
-}
-
-/**
- * Sends local and remote notifications to flush a JAR file cache entry
- *
- * @param aJarFile
- *        The ZIP/XPI/JAR file as a nsIFile
- */
-function flushJarCache(aJarFile) {
-  Services.obs.notifyObservers(aJarFile, "flush-cache-entry", null);
-  Cc["@mozilla.org/globalmessagemanager;1"].getService(Ci.nsIChromeFrameMessageManager)
-    .sendAsyncMessage(MSG_JAR_FLUSH, aJarFile.path);
 }
 
 /**
@@ -5452,7 +5435,7 @@ AddonInstall.prototype = {
       LOG("Cancelling install of " + this.addon.id);
       let xpi = this.installLocation.getStagingDir();
       xpi.append(this.addon.id + ".xpi");
-      flushJarCache(xpi);
+      Services.obs.notifyObservers(xpi, "flush-cache-entry", null);
       cleanStagingDir(this.installLocation.getStagingDir(),
                       [this.addon.id, this.addon.id + ".xpi",
                        this.addon.id + ".json"]);
@@ -7377,7 +7360,7 @@ DirectoryInstallLocation.prototype = {
       file = self._directory.clone().QueryInterface(Ci.nsILocalFile);
       file.append(aId + ".xpi");
       if (file.exists()) {
-        flushJarCache(file);
+        Services.obs.notifyObservers(file, "flush-cache-entry", null);
         transaction.move(file, trashDir);
       }
     }
@@ -7394,7 +7377,7 @@ DirectoryInstallLocation.prototype = {
       }
       else {
         if (aSource.isFile())
-          flushJarCache(aSource);
+          Services.obs.notifyObservers(aSource, "flush-cache-entry", null);
 
         transaction.move(aSource, this._directory);
       }
@@ -7457,7 +7440,7 @@ DirectoryInstallLocation.prototype = {
     let trashDir = this.getTrashDir();
 
     if (file.leafName != aId)
-      flushJarCache(file);
+      Services.obs.notifyObservers(file, "flush-cache-entry", null);
 
     let transaction = new SafeInstallOperation();
 
@@ -7672,15 +7655,4 @@ WinRegInstallLocation.prototype = {
 };
 #endif
 
-AddonManagerPrivate.registerProvider(XPIProvider, [
-  new AddonManagerPrivate.AddonType("extension", URI_EXTENSION_STRINGS,
-                                    STRING_TYPE_NAME,
-                                    AddonManager.VIEW_TYPE_LIST, 4000),
-  new AddonManagerPrivate.AddonType("theme", URI_EXTENSION_STRINGS,
-                                    STRING_TYPE_NAME,
-                                    AddonManager.VIEW_TYPE_LIST, 5000),
-  new AddonManagerPrivate.AddonType("locale", URI_EXTENSION_STRINGS,
-                                    STRING_TYPE_NAME,
-                                    AddonManager.VIEW_TYPE_LIST, 2000,
-                                    AddonManager.TYPE_UI_HIDE_EMPTY)
-]);
+AddonManagerPrivate.registerProvider(XPIProvider);

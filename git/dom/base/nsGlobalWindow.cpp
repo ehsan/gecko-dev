@@ -79,8 +79,6 @@
 #include "nsICachingChannel.h"
 #include "nsPluginArray.h"
 #include "nsIPluginHost.h"
-#include "nsPluginHost.h"
-#include "nsIPluginInstanceOwner.h"
 #include "nsGeolocation.h"
 #include "nsDesktopNotification.h"
 #include "nsContentCID.h"
@@ -6550,17 +6548,20 @@ nsGlobalWindow::InitJavaProperties()
   // can fail. If it fails, we won't try again...
   mDidInitJavaProperties = PR_TRUE;
 
+  // Check whether the plugin supports NPRuntime, if so, init through
+  // it.
+
+  nsCOMPtr<nsIPluginHost> host(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  if (!host) {
+    return;
+  }
+
   mDummyJavaPluginOwner = new nsDummyJavaPluginOwner(mDoc);
   if (!mDummyJavaPluginOwner) {
     return;
   }
 
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if (!pluginHost) {
-    return;
-  }  
-  pluginHost->InstantiateDummyJavaPlugin(mDummyJavaPluginOwner);
+  host->InstantiateDummyJavaPlugin(mDummyJavaPluginOwner);
 
   // It's possible for us (or the Java plugin, rather) to process
   // events during the above call, which can lead to this window being

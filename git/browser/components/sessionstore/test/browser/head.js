@@ -130,26 +130,22 @@ function waitForSaveState(aSaveStateCallback) {
   let sessionSaveTimeout = 1000 +
     Services.prefs.getIntPref("browser.sessionstore.interval");
 
-  function removeObserver() {
-    if (!observing)
-      return;
-    Services.obs.removeObserver(observer, topic, false);
-    observing = false;
-  }
-
   let timeout = setTimeout(function () {
-    removeObserver();
+    Services.obs.removeObserver(observer, topic, false);
     aSaveStateCallback();
   }, sessionSaveTimeout);
 
   function observer(aSubject, aTopic, aData) {
-    removeObserver();
+    Services.obs.removeObserver(observer, topic, false);
     timeout = clearTimeout(timeout);
+    observing = false;
     executeSoon(aSaveStateCallback);
   }
 
   registerCleanupFunction(function() {
-    removeObserver();
+    if (observing) {
+      Services.obs.removeObserver(observer, topic, false);
+    }
     if (timeout) {
       clearTimeout(timeout);
     }

@@ -49,7 +49,6 @@
 #include "nsNetCID.h"
 #include "nsPluginLogging.h"
 #include "nsIURI.h"
-#include "nsIURL.h"
 #include "nsPluginHost.h"
 #include "nsIByteRangeRequest.h"
 #include "nsIMultiPartChannel.h"
@@ -59,8 +58,6 @@
 #include "nsIDocument.h"
 #include "nsIWebNavigation.h"
 #include "nsContentUtils.h"
-#include "nsNetUtil.h"
-#include "nsPluginNativeWindow.h"
 
 #define MAGIC_REQUEST_CONTEXT 0x01020304
 

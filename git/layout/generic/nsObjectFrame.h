@@ -275,6 +275,10 @@ protected:
                              const nsPoint& aPluginOrigin,
                              nsTArray<nsIWidget::Configuration>* aConfigurations);
 
+  nsresult SetAbsoluteScreenPosition(nsIDOMElement* element,
+                                     nsIDOMClientRect* position,
+                                     nsIDOMClientRect* clip);
+
   void NotifyPluginReflowObservers();
 
   friend class nsPluginInstanceOwner;

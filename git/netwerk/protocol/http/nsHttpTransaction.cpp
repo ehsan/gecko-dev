@@ -360,18 +360,6 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
     LOG(("nsHttpTransaction::OnSocketStatus [this=%x status=%x progress=%llu]\n",
         this, status, progress));
 
-    if (TimingEnabled()) {
-        if (status == nsISocketTransport::STATUS_RESOLVING) {
-            mTimings.domainLookupStart = mozilla::TimeStamp::Now();
-        } else if (status == nsISocketTransport::STATUS_RESOLVED) {
-            mTimings.domainLookupEnd = mozilla::TimeStamp::Now();
-        } else if (status == nsISocketTransport::STATUS_CONNECTING_TO) {
-            mTimings.connectStart = mozilla::TimeStamp::Now();
-        } else if (status == nsISocketTransport::STATUS_CONNECTED_TO) {
-            mTimings.connectEnd = mozilla::TimeStamp::Now();
-        }
-    }
-
     if (!mTransportSink)
         return;
 
@@ -462,10 +450,6 @@ nsHttpTransaction::ReadRequestSegment(nsIInputStream *stream,
     nsresult rv = trans->mReader->OnReadSegment(buf, count, countRead);
     if (NS_FAILED(rv)) return rv;
 
-    if (trans->TimingEnabled() && trans->mTimings.requestStart.IsNull()) {
-        // First data we're sending -> this is requestStart
-        trans->mTimings.requestStart = mozilla::TimeStamp::Now();
-    }
     trans->mSentData = PR_TRUE;
     return NS_OK;
 }
@@ -524,10 +508,6 @@ nsHttpTransaction::WritePipeSegment(nsIOutputStream *stream,
 
     if (trans->mTransactionDone)
         return NS_BASE_STREAM_CLOSED; // stop iterating
-
-    if (trans->TimingEnabled() && trans->mTimings.responseStart.IsNull()) {
-        trans->mTimings.responseStart = mozilla::TimeStamp::Now();
-    }
 
     nsresult rv;
     //
@@ -590,8 +570,6 @@ nsHttpTransaction::Close(nsresult reason)
         LOG(("  already closed\n"));
         return;
     }
-
-    mTimings.responseEnd = mozilla::TimeStamp::Now();
 
     if (mActivityDistributor) {
         // report the reponse is complete if not already reported

@@ -1014,7 +1014,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
   }
 
   if (aType == eGetBefore) {
-    finalEndOffset = aOffset;
+    endOffset = aOffset;
   }
   else {
     // Start moving forward from the start so that we don't get 

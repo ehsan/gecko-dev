@@ -108,10 +108,14 @@ protected:
   // nsAccessible
   virtual void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
 
+  // nsLinkableAccessible
+
   /**
-   * Parent accessible that provides an action for this linkable accessible.
+   * Return an accessible for cached action node.
    */
-  nsAccessible* mActionAcc;
+  nsAccessible *GetActionAccessible() const;
+
+  nsCOMPtr<nsIContent> mActionContent;
   PRPackedBool mIsLink;
   PRPackedBool mIsOnclick;
 };

@@ -62,7 +62,6 @@
 #include "nsExceptionHandler.h"
 #endif
 #include "nsNPAPIPlugin.h"
-#include "nsILocalFile.h"
 
 using base::KillProcess;
 
