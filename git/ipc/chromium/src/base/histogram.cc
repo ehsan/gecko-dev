@@ -1049,15 +1049,6 @@ FlagHistogram::AddSampleSet(const SampleSet& sample) {
   }
 }
 
-void
-FlagHistogram::Clear() {
-  Histogram::Clear();
-
-  mSwitched = false;
-  size_t zero_index = BucketIndex(0);
-  LinearHistogram::Accumulate(0, 1, zero_index);
-}
-
 //------------------------------------------------------------------------------
 // CountHistogram:
 //------------------------------------------------------------------------------

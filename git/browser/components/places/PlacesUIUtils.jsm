@@ -22,8 +22,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
-                                  "resource:///modules/RecentWindow.jsm");
 
 // PlacesUtils exposes multiple symbols, so we can't use defineLazyModuleGetter.
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
@@ -475,7 +473,7 @@ this.PlacesUIUtils = {
   },
 
   _getTopBrowserWin: function PUIU__getTopBrowserWin() {
-    return RecentWindow.getMostRecentBrowserWindow();
+    return Services.wm.getMostRecentWindow("navigator:browser");
   },
 
   /**
@@ -620,10 +618,6 @@ this.PlacesUIUtils = {
       // direct non-bookmark children of bookmark folders.
       return !PlacesUtils.nodeIsFolder(parentNode);
     }
-
-    // Generally it's always possible to remove children of a query.
-    if (PlacesUtils.nodeIsQuery(parentNode))
-      return true;
 
     // Otherwise it has to be a child of an editable folder.
     return !this.isContentsReadOnly(parentNode);

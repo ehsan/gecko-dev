@@ -939,8 +939,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
           return (
             loop.standaloneRoomViews.StandaloneRoomView({
               activeRoomStore: this.props.activeRoomStore, 
-              dispatcher: this.props.dispatcher, 
-              helper: this.props.helper}
+              dispatcher: this.props.dispatcher}
             )
           );
         }

@@ -13,7 +13,6 @@
 #include "nsCaret.h"
 #include "nsContentUtils.h"
 #include "nsDebug.h"
-#include "nsDocShell.h"
 #include "nsDOMTokenList.h"
 #include "nsFocusManager.h"
 #include "nsFrame.h"
@@ -125,8 +124,6 @@ SelectionCarets::Init()
 
   docShell->AddWeakReflowObserver(this);
   docShell->AddWeakScrollObserver(this);
-
-  mDocShell = static_cast<nsDocShell*>(docShell);
 }
 
 SelectionCarets::~SelectionCarets()
@@ -150,7 +147,10 @@ SelectionCarets::~SelectionCarets()
 void
 SelectionCarets::Terminate()
 {
-  nsRefPtr<nsDocShell> docShell(mDocShell.get());
+  nsPresContext* presContext = mPresShell->GetPresContext();
+  MOZ_ASSERT(presContext, "PresContext should be given in PresShell::Init()");
+
+  nsIDocShell* docShell = presContext->GetDocShell();
   if (docShell) {
     docShell->RemoveWeakReflowObserver(this);
     docShell->RemoveWeakScrollObserver(this);
@@ -211,13 +211,13 @@ SelectionCarets::HandleEvent(WidgetEvent* aEvent)
 
     mActiveTouchId = nowTouchId;
     mDownPoint = ptInRoot;
-    if (IsOnStartFrameInner(ptInRoot)) {
+    if (IsOnStartFrame(ptInRoot)) {
       mDragMode = START_FRAME;
       mCaretCenterToDownPointOffsetY = GetCaretYCenterPosition() - ptInRoot.y;
       SetSelectionDirection(false);
       SetSelectionDragState(true);
       return nsEventStatus_eConsumeNoDefault;
-    } else if (IsOnEndFrameInner(ptInRoot)) {
+    } else if (IsOnEndFrame(ptInRoot)) {
       mDragMode = END_FRAME;
       mCaretCenterToDownPointOffsetY = GetCaretYCenterPosition() - ptInRoot.y;
       SetSelectionDirection(true);
@@ -367,6 +367,16 @@ SetCaretDirection(dom::Element* aElement, bool aIsRight)
   }
 }
 
+static bool
+IsRightToLeft(nsIFrame* aFrame)
+{
+  MOZ_ASSERT(aFrame);
+
+  return aFrame->IsFrameOfType(nsIFrame::eLineParticipant) ?
+    (nsBidiPresUtils::GetFrameEmbeddingLevel(aFrame) & 1) :
+    aFrame->StyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
+}
+
 static nsIFrame*
 FindFirstNodeWithFrame(nsIDocument* aDocument,
                        nsRange* aRange,
@@ -486,6 +496,9 @@ SelectionCarets::UpdateSelectionCarets()
     return;
   }
 
+  bool startFrameIsRTL = IsRightToLeft(startFrame);
+  bool endFrameIsRTL = IsRightToLeft(endFrame);
+
   mPresShell->FlushPendingNotifications(Flush_Layout);
   nsRect firstRectInRootFrame =
     nsCaret::GetGeometryForFrame(startFrame, startOffset, nullptr);
@@ -529,13 +542,46 @@ SelectionCarets::UpdateSelectionCarets()
   SetEndFramePos(lastRectInCanvasFrame.BottomRight());
   SetVisibility(true);
 
-  nsRect rectStart = GetStartFrameRect();
-  nsRect rectEnd = GetEndFrameRect();
-  bool isTilt = rectStart.Intersects(rectEnd);
-  if (isTilt) {
-    SetCaretDirection(mPresShell->GetSelectionCaretsStartElement(), rectStart.x > rectEnd.x);
-    SetCaretDirection(mPresShell->GetSelectionCaretsEndElement(), rectStart.x <= rectEnd.x);
+  // If range select only one character, append tilt class name to it.
+  bool isTilt = false;
+  if (startFrame && endFrame) {
+    // In this case <textarea>abc</textarea> and we select 'c' character,
+    // EndContent would be HTMLDivElement and mResultContent which get by
+    // calling startFrame->PeekOffset() with selecting next cluster would be
+    // TextNode. Although the position is same, nsContentUtils::ComparePoints
+    // still shows HTMLDivElement is after TextNode. So that we cannot use
+    // EndContent or StartContent to compare with result of PeekOffset().
+    // So we compare between next charater of startFrame and previous character
+    // of endFrame.
+    nsPeekOffsetStruct posNext(eSelectCluster,
+                               eDirNext,
+                               startOffset,
+                               0,
+                               false,
+                               true,  //limit on scrolled views
+                               false,
+                               false);
+
+    nsPeekOffsetStruct posPrev(eSelectCluster,
+                               eDirPrevious,
+                               endOffset,
+                               0,
+                               false,
+                               true,  //limit on scrolled views
+                               false,
+                               false);
+    startFrame->PeekOffset(&posNext);
+    endFrame->PeekOffset(&posPrev);
+
+    if (posNext.mResultContent && posPrev.mResultContent &&
+        nsContentUtils::ComparePoints(posNext.mResultContent, posNext.mContentOffset,
+                                      posPrev.mResultContent, posPrev.mContentOffset) > 0) {
+      isTilt = true;
+    }
   }
+
+  SetCaretDirection(mPresShell->GetSelectionCaretsStartElement(), startFrameIsRTL);
+  SetCaretDirection(mPresShell->GetSelectionCaretsEndElement(), !endFrameIsRTL);
   SetTilted(isTilt);
 }
 
@@ -850,18 +896,18 @@ SelectionCarets::SetEndFramePos(const nsPoint& aPosition)
 }
 
 bool
-SelectionCarets::IsOnStartFrameInner(const nsPoint& aPosition)
+SelectionCarets::IsOnStartFrame(const nsPoint& aPosition)
 {
   return mVisible &&
-    nsLayoutUtils::ContainsPoint(GetStartFrameRectInner(), aPosition,
+    nsLayoutUtils::ContainsPoint(GetStartFrameRect(), aPosition,
                                  SelectionCaretsInflateSize());
 }
 
 bool
-SelectionCarets::IsOnEndFrameInner(const nsPoint& aPosition)
+SelectionCarets::IsOnEndFrame(const nsPoint& aPosition)
 {
   return mVisible &&
-    nsLayoutUtils::ContainsPoint(GetEndFrameRectInner(), aPosition,
+    nsLayoutUtils::ContainsPoint(GetEndFrameRect(), aPosition,
                                  SelectionCaretsInflateSize());
 }
 
@@ -879,24 +925,6 @@ SelectionCarets::GetEndFrameRect()
   dom::Element* element = mPresShell->GetSelectionCaretsEndElement();
   nsIFrame* rootFrame = mPresShell->GetRootFrame();
   return nsLayoutUtils::GetRectRelativeToFrame(element, rootFrame);
-}
-
-nsRect
-SelectionCarets::GetStartFrameRectInner()
-{
-  dom::Element* element = mPresShell->GetSelectionCaretsStartElement();
-  dom::Element* childElement = element->GetFirstElementChild();
-  nsIFrame* rootFrame = mPresShell->GetRootFrame();
-  return nsLayoutUtils::GetRectRelativeToFrame(childElement, rootFrame);
-}
-
-nsRect
-SelectionCarets::GetEndFrameRectInner()
-{
-  dom::Element* element = mPresShell->GetSelectionCaretsEndElement();
-  dom::Element* childElement = element->GetFirstElementChild();
-  nsIFrame* rootFrame = mPresShell->GetRootFrame();
-  return nsLayoutUtils::GetRectRelativeToFrame(childElement, rootFrame);
 }
 
 nsIContent*

@@ -45,7 +45,3 @@ EXTRA_JS_MODULES.devtools += [
     'Loader.jsm',
     'Require.jsm',
 ]
-
-EXTRA_JS_MODULES.devtools.server.actors += [
-    'server/actors/highlighter.css'
-]

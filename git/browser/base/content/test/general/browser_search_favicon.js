@@ -4,7 +4,6 @@
 let gOriginalEngine;
 let gEngine;
 let gUnifiedCompletePref = "browser.urlbar.unifiedcomplete";
-let gRestyleSearchesPref = "browser.urlbar.restyleSearches";
 
 /**
  * Asynchronously adds visits to a page.
@@ -78,7 +77,6 @@ function* promiseAutocompleteResultPopup(inputText) {
 
 registerCleanupFunction(() => {
   Services.prefs.clearUserPref(gUnifiedCompletePref);
-  Services.prefs.clearUserPref(gRestyleSearchesPref);
   Services.search.currentEngine = gOriginalEngine;
   Services.search.removeEngine(gEngine);
   return promiseClearHistory();
@@ -86,7 +84,6 @@ registerCleanupFunction(() => {
 
 add_task(function*() {
   Services.prefs.setBoolPref(gUnifiedCompletePref, true);
-  Services.prefs.setBoolPref(gRestyleSearchesPref, true);
 });
 
 add_task(function*() {

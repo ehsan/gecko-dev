@@ -34,8 +34,7 @@ describe("loop.standaloneRoomViews", function() {
       return TestUtils.renderIntoDocument(
         loop.standaloneRoomViews.StandaloneRoomView({
           dispatcher: dispatcher,
-          activeRoomStore: activeRoomStore,
-          helper: new loop.shared.utils.Helper()
+          activeRoomStore: activeRoomStore
         }));
     }
 
@@ -129,16 +128,6 @@ describe("loop.standaloneRoomViews", function() {
           });
       });
 
-      describe("Full room message", function() {
-        it("should display a full room message on FULL",
-          function() {
-            activeRoomStore.setStoreState({roomState: ROOM_STATES.FULL});
-
-            expect(view.getDOMNode().querySelector(".full-room-message"))
-              .not.eql(null);
-          });
-      });
-
       describe("Join button", function() {
         function getJoinButton(view) {
           return view.getDOMNode().querySelector(".btn-join");
@@ -182,13 +171,6 @@ describe("loop.standaloneRoomViews", function() {
         it("should disable the Leave button when the room state is FAILED",
           function() {
             activeRoomStore.setStoreState({roomState: ROOM_STATES.FAILED});
-
-            expect(getLeaveButton(view).disabled).eql(true);
-          });
-
-        it("should disable the Leave button when the room state is FULL",
-          function() {
-            activeRoomStore.setStoreState({roomState: ROOM_STATES.FULL});
 
             expect(getLeaveButton(view).disabled).eql(true);
           });

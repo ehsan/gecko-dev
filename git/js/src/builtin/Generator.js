@@ -83,6 +83,7 @@ function LegacyGeneratorCloseInternal() {
     assert(IsObject(this), "Not an object: " + ToString(this));
     assert(IsLegacyGeneratorObject(this), "Not a legacy generator object: " + ToString(this));
     assert(!LegacyGeneratorObjectIsClosed(this), "Already closed: " + ToString(this));
+    assert(!CloseNewbornLegacyGeneratorObject(this), "Newborn: " + ToString(this));
 
     if (GeneratorIsRunning(this))
         ThrowError(JSMSG_NESTING_GENERATOR);
@@ -96,7 +97,7 @@ function LegacyGeneratorClose() {
     if (!IsObject(this) || !IsLegacyGeneratorObject(this))
         return callFunction(CallLegacyGeneratorMethodIfWrapped, this, "LegacyGeneratorClose");
 
-    if (LegacyGeneratorObjectIsClosed(this))
+    if (LegacyGeneratorObjectIsClosed(this) || CloseNewbornLegacyGeneratorObject(this))
         return;
 
     callFunction(LegacyGeneratorCloseInternal, this);

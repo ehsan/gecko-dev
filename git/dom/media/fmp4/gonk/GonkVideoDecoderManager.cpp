@@ -22,10 +22,6 @@
 #include <stagefright/foundation/AString.h>
 #include <stagefright/foundation/ALooper.h>
 #include "mp4_demuxer/AnnexB.h"
-#include "GonkNativeWindow.h"
-#include "GonkNativeWindowClient.h"
-#include "mozilla/layers/GrallocTextureClient.h"
-#include "mozilla/layers/TextureClient.h"
 
 #define READ_OUTPUT_BUFFER_TIMEOUT_US  3000
 
@@ -50,14 +46,12 @@ enum {
 };
 
 GonkVideoDecoderManager::GonkVideoDecoderManager(
-                           mozilla::layers::ImageContainer* aImageContainer,
-		           const mp4_demuxer::VideoDecoderConfig& aConfig)
+                                  mozilla::layers::ImageContainer* aImageContainer,
+		                  const mp4_demuxer::VideoDecoderConfig& aConfig)
   : mImageContainer(aImageContainer)
   , mConfig(aConfig)
   , mReaderCallback(nullptr)
   , mColorConverterBufferSize(0)
-  , mNativeWindow(nullptr)
-  , mPendingVideoBuffersLock("GonkVideoDecoderManager::mPendingVideoBuffersLock")
 {
   NS_ASSERTION(!NS_IsMainThread(), "Should not be on main thread.");
   MOZ_ASSERT(mImageContainer);
@@ -104,21 +98,14 @@ GonkVideoDecoderManager::Init(MediaDataDecoderCallback* aCallback)
   }
   // Create ALooper
   mLooper = new ALooper;
-  mManagerLooper = new ALooper;
-  mManagerLooper->setName("GonkVideoDecoderManager");
+  mLooper->setName("GonkVideoDecoderManager");
   // Register AMessage handler to ALooper.
-  mManagerLooper->registerHandler(mHandler);
+  mLooper->registerHandler(mHandler);
   // Start ALooper thread.
-  if (mLooper->start() != OK || mManagerLooper->start() != OK ) {
+  if (mLooper->start() != OK) {
     return nullptr;
   }
   mDecoder = MediaCodecProxy::CreateByType(mLooper, "video/avc", false, true, mVideoListener);
-  uint32_t capability = MediaCodecProxy::kEmptyCapability;
-  if (mDecoder->getCapability(&capability) == OK && (capability &
-      MediaCodecProxy::kCanExposeGraphicBuffer)) {
-    mNativeWindow = new GonkNativeWindow();
-  }
-
   return mDecoder;
 }
 
@@ -129,7 +116,7 @@ GonkVideoDecoderManager::CreateVideoData(int64_t aStreamOffset, VideoData **v)
   int64_t timeUs;
   int32_t keyFrame;
 
-  if (mVideoBuffer == nullptr) {
+  if (!(mVideoBuffer != nullptr && mVideoBuffer->data() != nullptr)) {
     ALOG("Video Buffer is not valid!");
     return NS_ERROR_UNEXPECTED;
   }
@@ -163,97 +150,70 @@ GonkVideoDecoderManager::CreateVideoData(int64_t aStreamOffset, VideoData **v)
     picture.height = (mFrameInfo.mHeight * mPicture.height) / mInitialFrame.height;
   }
 
-  RefPtr<mozilla::layers::TextureClient> textureClient;
+  uint8_t *yuv420p_buffer = (uint8_t *)mVideoBuffer->data();
+  int32_t stride = mFrameInfo.mStride;
+  int32_t slice_height = mFrameInfo.mSliceHeight;
 
-  if ((mVideoBuffer->graphicBuffer().get())) {
-    textureClient = mNativeWindow->getTextureClientFromBuffer(mVideoBuffer->graphicBuffer().get());
+  // Converts to OMX_COLOR_FormatYUV420Planar
+  if (mFrameInfo.mColorFormat != OMX_COLOR_FormatYUV420Planar) {
+    ARect crop;
+    crop.top = 0;
+    crop.bottom = mFrameInfo.mHeight;
+    crop.left = 0;
+    crop.right = mFrameInfo.mWidth;
+    yuv420p_buffer = GetColorConverterBuffer(mFrameInfo.mWidth, mFrameInfo.mHeight);
+    if (mColorConverter.convertDecoderOutputToI420(mVideoBuffer->data(),
+        mFrameInfo.mWidth, mFrameInfo.mHeight, crop, yuv420p_buffer) != OK) {
+        ReleaseVideoBuffer();
+        ALOG("Color conversion failed!");
+        return NS_ERROR_UNEXPECTED;
+    }
+      stride = mFrameInfo.mWidth;
+      slice_height = mFrameInfo.mHeight;
   }
 
-  if (textureClient) {
-    GrallocTextureClientOGL* grallocClient = static_cast<GrallocTextureClientOGL*>(textureClient.get());
-    grallocClient->SetMediaBuffer(mVideoBuffer);
-    textureClient->SetRecycleCallback(GonkVideoDecoderManager::RecycleCallback, this);
+  size_t yuv420p_y_size = stride * slice_height;
+  size_t yuv420p_u_size = ((stride + 1) / 2) * ((slice_height + 1) / 2);
+  uint8_t *yuv420p_y = yuv420p_buffer;
+  uint8_t *yuv420p_u = yuv420p_y + yuv420p_y_size;
+  uint8_t *yuv420p_v = yuv420p_u + yuv420p_u_size;
 
-    *v = VideoData::Create(mInfo.mVideo,
-                          mImageContainer,
-                          aStreamOffset,
-                          timeUs,
-                          1, // We don't know the duration.
-                          textureClient,
-                          keyFrame,
-                          -1,
-                          picture);
+  // This is the approximate byte position in the stream.
+  int64_t pos = aStreamOffset;
 
-  } else {
-    if (!mVideoBuffer->data()) {
-      ALOG("No data in Video Buffer!");
-      return NS_ERROR_UNEXPECTED;
-    }
-    uint8_t *yuv420p_buffer = (uint8_t *)mVideoBuffer->data();
-    int32_t stride = mFrameInfo.mStride;
-    int32_t slice_height = mFrameInfo.mSliceHeight;
+  VideoData::YCbCrBuffer b;
+  b.mPlanes[0].mData = yuv420p_y;
+  b.mPlanes[0].mWidth = mFrameInfo.mWidth;
+  b.mPlanes[0].mHeight = mFrameInfo.mHeight;
+  b.mPlanes[0].mStride = stride;
+  b.mPlanes[0].mOffset = 0;
+  b.mPlanes[0].mSkip = 0;
 
-    // Converts to OMX_COLOR_FormatYUV420Planar
-    if (mFrameInfo.mColorFormat != OMX_COLOR_FormatYUV420Planar) {
-      ARect crop;
-      crop.top = 0;
-      crop.bottom = mFrameInfo.mHeight;
-      crop.left = 0;
-      crop.right = mFrameInfo.mWidth;
-      yuv420p_buffer = GetColorConverterBuffer(mFrameInfo.mWidth, mFrameInfo.mHeight);
-      if (mColorConverter.convertDecoderOutputToI420(mVideoBuffer->data(),
-          mFrameInfo.mWidth, mFrameInfo.mHeight, crop, yuv420p_buffer) != OK) {
-          ReleaseVideoBuffer();
-          ALOG("Color conversion failed!");
-          return NS_ERROR_UNEXPECTED;
-      }
-        stride = mFrameInfo.mWidth;
-        slice_height = mFrameInfo.mHeight;
-    }
+  b.mPlanes[1].mData = yuv420p_u;
+  b.mPlanes[1].mWidth = (mFrameInfo.mWidth + 1) / 2;
+  b.mPlanes[1].mHeight = (mFrameInfo.mHeight + 1) / 2;
+  b.mPlanes[1].mStride = (stride + 1) / 2;
+  b.mPlanes[1].mOffset = 0;
+  b.mPlanes[1].mSkip = 0;
 
-    size_t yuv420p_y_size = stride * slice_height;
-    size_t yuv420p_u_size = ((stride + 1) / 2) * ((slice_height + 1) / 2);
-    uint8_t *yuv420p_y = yuv420p_buffer;
-    uint8_t *yuv420p_u = yuv420p_y + yuv420p_y_size;
-    uint8_t *yuv420p_v = yuv420p_u + yuv420p_u_size;
+  b.mPlanes[2].mData = yuv420p_v;
+  b.mPlanes[2].mWidth =(mFrameInfo.mWidth + 1) / 2;
+  b.mPlanes[2].mHeight = (mFrameInfo.mHeight + 1) / 2;
+  b.mPlanes[2].mStride = (stride + 1) / 2;
+  b.mPlanes[2].mOffset = 0;
+  b.mPlanes[2].mSkip = 0;
 
-    // This is the approximate byte position in the stream.
-    int64_t pos = aStreamOffset;
-
-    VideoData::YCbCrBuffer b;
-    b.mPlanes[0].mData = yuv420p_y;
-    b.mPlanes[0].mWidth = mFrameInfo.mWidth;
-    b.mPlanes[0].mHeight = mFrameInfo.mHeight;
-    b.mPlanes[0].mStride = stride;
-    b.mPlanes[0].mOffset = 0;
-    b.mPlanes[0].mSkip = 0;
-
-    b.mPlanes[1].mData = yuv420p_u;
-    b.mPlanes[1].mWidth = (mFrameInfo.mWidth + 1) / 2;
-    b.mPlanes[1].mHeight = (mFrameInfo.mHeight + 1) / 2;
-    b.mPlanes[1].mStride = (stride + 1) / 2;
-    b.mPlanes[1].mOffset = 0;
-    b.mPlanes[1].mSkip = 0;
-
-    b.mPlanes[2].mData = yuv420p_v;
-    b.mPlanes[2].mWidth =(mFrameInfo.mWidth + 1) / 2;
-    b.mPlanes[2].mHeight = (mFrameInfo.mHeight + 1) / 2;
-    b.mPlanes[2].mStride = (stride + 1) / 2;
-    b.mPlanes[2].mOffset = 0;
-    b.mPlanes[2].mSkip = 0;
-
-    *v = VideoData::Create(
-        mInfo.mVideo,
-        mImageContainer,
-        pos,
-        timeUs,
-        1, // We don't know the duration.
-        b,
-        keyFrame,
-        -1,
-        picture);
-    ReleaseVideoBuffer();
-  }
+  *v = VideoData::Create(
+      mInfo.mVideo,
+      mImageContainer,
+      pos,
+      timeUs,
+      1, // We don't know the duration.
+      b,
+      keyFrame,
+      -1,
+      picture);
+  ReleaseVideoBuffer();
   return NS_OK;
 }
 
@@ -294,10 +254,8 @@ GonkVideoDecoderManager::SetVideoFormat()
       ALOG("It is not a valid region");
       return false;
     }
-    return true;
   }
-  ALOG("Fail to get output format");
-  return false;
+  return true;
 }
 
 // Blocks until decoded sample is produced by the deoder.
@@ -376,8 +334,12 @@ GonkVideoDecoderManager::Output(int64_t aStreamOffset,
 
 void GonkVideoDecoderManager::ReleaseVideoBuffer() {
   if (mVideoBuffer) {
-    mDecoder->ReleaseMediaBuffer(mVideoBuffer);
+    sp<MetaData> metaData = mVideoBuffer->meta_data();
+    int32_t index;
+    metaData->findInt32(android::MediaCodecProxy::kKeyBufferIndex, &index);
+    mVideoBuffer->release();
     mVideoBuffer = nullptr;
+    mDecoder->releaseOutputBuffer(index);
   }
 }
 
@@ -409,16 +371,12 @@ void
 GonkVideoDecoderManager::codecReserved()
 {
   sp<AMessage> format = new AMessage;
-  sp<Surface> surface;
-
   // Fixed values
   format->setString("mime", "video/avc");
   format->setInt32("width", mVideoWidth);
   format->setInt32("height", mVideoHeight);
-  if (mNativeWindow != nullptr) {
-    surface = new Surface(mNativeWindow->getBufferQueue());
-  }
-  status_t err = mDecoder->configure(format, surface, nullptr, 0);
+
+  mDecoder->configure(format, nullptr, nullptr, 0);
   mDecoder->Prepare();
   SetVideoFormat();
 
@@ -441,7 +399,7 @@ GonkVideoDecoderManager::codecCanceled()
 
 }
 
-// Called on GonkVideoDecoderManager::mManagerLooper thread.
+// Called on GonkVideoDecoderManager::mLooper thread.
 void
 GonkVideoDecoderManager::onMessageReceived(const sp<AMessage> &aMessage)
 {
@@ -457,12 +415,6 @@ GonkVideoDecoderManager::onMessageReceived(const sp<AMessage> &aMessage)
     case kNotifyCodecCanceled:
     {
       mReaderCallback->ReleaseMediaResources();
-      break;
-    }
-
-    case kNotifyPostReleaseBuffer:
-    {
-      ReleaseAllPendingVideoBuffersLocked();
       break;
     }
 
@@ -530,53 +482,6 @@ GonkVideoDecoderManager::GetColorConverterBuffer(int32_t aWidth, int32_t aHeight
     mColorConverterBufferSize = yuv420p_size;
   }
   return mColorConverterBuffer.get();
-}
-
-/* static */
-void
-GonkVideoDecoderManager::RecycleCallback(TextureClient* aClient, void* aClosure)
-{
-  GonkVideoDecoderManager* videoManager = static_cast<GonkVideoDecoderManager*>(aClosure);
-  GrallocTextureClientOGL* client = static_cast<GrallocTextureClientOGL*>(aClient);
-  aClient->ClearRecycleCallback();
-  videoManager->PostReleaseVideoBuffer(client->GetMediaBuffer());
-}
-
-void GonkVideoDecoderManager::PostReleaseVideoBuffer(
-                                android::MediaBuffer *aBuffer)
-{
-  {
-    MutexAutoLock autoLock(mPendingVideoBuffersLock);
-    if (aBuffer) {
-      mPendingVideoBuffers.append(aBuffer);
-    }
-  }
-  sp<AMessage> notify =
-            new AMessage(kNotifyPostReleaseBuffer, mHandler->id());
-  notify->post();
-
-}
-
-void GonkVideoDecoderManager::ReleaseAllPendingVideoBuffersLocked()
-{
-  Vector<android::MediaBuffer*> releasingVideoBuffers;
-  {
-    MutexAutoLock autoLock(mPendingVideoBuffersLock);
-    int size = mPendingVideoBuffers.length();
-    for (int i = 0; i < size; i++) {
-      releasingVideoBuffers.append(mPendingVideoBuffers[i]);
-    }
-    mPendingVideoBuffers.clear();
-  }
-  // Free all pending video buffers without holding mPendingVideoBuffersLock.
-  int size = releasingVideoBuffers.length();
-  for (int i = 0; i < size; i++) {
-    android::MediaBuffer *buffer;
-    buffer = releasingVideoBuffers[i];
-    mDecoder->ReleaseMediaBuffer(buffer);
-    buffer = nullptr;
-  }
-  releasingVideoBuffers.clear();
 }
 
 } // namespace mozilla

@@ -400,9 +400,6 @@ struct JSCompartment
     bool callObjectMetadataCallback(JSContext *cx, JSObject **obj) const {
         return objectMetadataCallback(cx, obj);
     }
-    const void *addressOfMetadataCallback() const {
-        return &objectMetadataCallback;
-    }
 
     js::SavedStacks &savedStacks() { return savedStacks_; }
 

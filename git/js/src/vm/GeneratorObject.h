@@ -137,7 +137,12 @@ class GeneratorObject : public NativeObject
     }
     bool isSuspended() const {
         MOZ_ASSERT(!isClosed());
+        // Note that newborn objects also count as suspended.
         return !isRunning() && !isClosing();
+    }
+    bool isNewborn() const {
+        MOZ_ASSERT(!isClosed());
+        return getFixedSlot(YIELD_INDEX_SLOT).toInt32() == 0;
     }
     void setRunning() {
         MOZ_ASSERT(isSuspended());
@@ -196,6 +201,17 @@ class LegacyGeneratorObject : public GeneratorObject
     static const Class class_;
 
     static bool close(JSContext *cx, HandleObject obj);
+
+    // Unlike most other methods returning boolean, if this returns false, it
+    // doesn't mean that an error was raised -- it just means that the object
+    // wasn't newborn.
+    static bool maybeCloseNewborn(LegacyGeneratorObject *genObj) {
+        if (genObj->isNewborn()) {
+            genObj->setClosed();
+            return true;
+        }
+        return false;
+    }
 };
 
 class StarGeneratorObject : public GeneratorObject
@@ -204,7 +220,7 @@ class StarGeneratorObject : public GeneratorObject
     static const Class class_;
 };
 
-bool GeneratorThrowOrClose(JSContext *cx, HandleObject obj, HandleValue val, uint32_t resumeKind);
+bool GeneratorThrow(JSContext *cx, HandleObject obj, HandleValue val);
 
 } // namespace js
 
