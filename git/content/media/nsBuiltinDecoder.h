@@ -196,11 +196,8 @@ destroying the nsBuiltinDecoder object.
 #include "nsMediaDecoder.h"
 #include "nsHTMLMediaElement.h"
 #include "mozilla/ReentrantMonitor.h"
-#include "ImageLayers.h"
-class nsAudioStream;
 
-typedef mozilla::layers::Image Image;
-typedef mozilla::layers::ImageContainer ImageContainer;
+class nsAudioStream;
 
 static inline bool IsCurrentThread(nsIThread* aThread) {
   return NS_GetCurrentThread() == aThread;

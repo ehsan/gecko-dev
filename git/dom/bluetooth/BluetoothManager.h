@@ -11,7 +11,6 @@
 #include "nsDOMEventTargetHelper.h"
 #include "nsIDOMBluetoothManager.h"
 #include "mozilla/Observer.h"
-#include "nsIEventTarget.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 

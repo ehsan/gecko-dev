@@ -133,7 +133,6 @@ class Emulator(object):
                          '-partition-size', '512',
                          '-verbose',
                          '-skin', self.res,
-                         '-gpu', 'on',
                          '-qemu'] + self.tail_args)
         return qemuArgs
 
