@@ -166,10 +166,7 @@ ServiceInfo.prototype = {
   }
 };
 
-function WebContentConverterRegistrar() {
-  this._contentTypes = { };
-  this._autoHandleContentTypes = { };
-}
+function WebContentConverterRegistrar() {}
 
 WebContentConverterRegistrar.prototype = {
   get stringBundle() {
@@ -187,6 +184,14 @@ WebContentConverterRegistrar.prototype = {
   _getString: function WCCR_getString(key) {
     return this.stringBundle.GetStringFromName(key);
   },
+
+  _contentTypes: { },
+
+  /**
+   * Track auto handlers for various content types using a content-type to 
+   * handler map.
+   */
+  _autoHandleContentTypes: { },
 
   /**
    * See nsIWebContentConverterService

@@ -1170,10 +1170,7 @@ nsTreeBodyFrame::GetCoordsForCellItem(PRInt32 aRow, nsITreeColumn* aCol, const n
 
     // The Rect for the current cell.
     nscoord colWidth;
-#ifdef DEBUG
-    nsresult rv =
-#endif
-      currCol->GetWidthInTwips(this, &colWidth);
+    nsresult rv = currCol->GetWidthInTwips(this, &colWidth);
     NS_ASSERTION(NS_SUCCEEDED(rv), "invalid column");
 
     nsRect cellRect(currX, mInnerBox.y + mRowHeight * (aRow - mTopRowIndex),
@@ -3745,10 +3742,7 @@ nsTreeBodyFrame::PaintDropFeedback(const nsRect&        aDropFeedbackRect,
   nsTreeColumn* primaryCol = mColumns->GetPrimaryColumn();
 
   if (primaryCol) {
-#ifdef DEBUG
-    nsresult rv =
-#endif
-      primaryCol->GetXInTwips(this, &currX);
+    nsresult rv = primaryCol->GetXInTwips(this, &currX);
     NS_ASSERTION(NS_SUCCEEDED(rv), "primary column is invalid?");
 
     currX += aPt.x - mHorzPosition;

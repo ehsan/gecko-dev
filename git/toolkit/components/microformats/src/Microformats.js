@@ -439,15 +439,6 @@ var Microformats = {
       if (Microformats.matchClass(propnode, "value")) {
         return Microformats.parser.textGetter(parentnode, parentnode);
       } else {
-        /* Virtual case */
-        if (!parentnode && (Microformats.getElementsByClassName(propnode, "type").length > 0)) {
-          var tempNode = propnode.cloneNode(true);
-          var typeNodes = Microformats.getElementsByClassName(tempNode, "type");
-          for (let i=0; i < typeNodes.length; i++) {
-            typeNodes[i].parentNode.removeChild(typeNodes[i]);
-          }
-          return Microformats.parser.textGetter(tempNode);
-        }
         return Microformats.parser.textGetter(propnode, parentnode);
       }
     },
@@ -478,15 +469,6 @@ var Microformats = {
         if (Microformats.matchClass(propnode, "value")) {
           return Microformats.parser.textGetter(parentnode, parentnode);
         } else {
-          /* Virtual case */
-          if (!parentnode && (Microformats.getElementsByClassName(propnode, "type").length > 0)) {
-            var tempNode = propnode.cloneNode(true);
-            var typeNodes = Microformats.getElementsByClassName(tempNode, "type");
-            for (let i=0; i < typeNodes.length; i++) {
-              typeNodes[i].parentNode.removeChild(typeNodes[i]);
-            }
-            return Microformats.parser.textGetter(tempNode);
-          }
           return Microformats.parser.textGetter(propnode, parentnode);
         }
       }
@@ -542,6 +524,9 @@ var Microformats = {
     datatypeHelper: function(prop, node, parentnode) {
       var result;
       var datatype = prop.datatype;
+      if (prop.implied) {
+        datatype = prop.subproperties[prop.implied].datatype;
+      }
       switch (datatype) {
         case "dateTime":
           result = Microformats.parser.dateTimeGetter(node, parentnode);
@@ -569,18 +554,10 @@ var Microformats = {
           break;
         case "microformat":
           try {
-            result = new Microformats[prop.microformat].mfObject(node, true);
+            result = new Microformats[prop.microformat].mfObject(node);
           } catch (ex) {
-            /* There are two reasons we get here, one because the node is not */
-            /* a microformat and two because the node is a microformat and */
-            /* creation failed. If the node is not a microformat, we just fall */
-            /* through and use the default getter since there are some cases */
-            /* (location in hCalendar) where a property can be either a microformat */
-            /* or a string. If creation failed, we break and simply don't add the */
-            /* microformat property to the parent microformat */
-            if (ex != "Node is not a microformat (" + prop.microformat + ")") {
-              break;
-            }
+            /* We can swallow this exception. If the creation of the */
+            /* mf object fails, then the node isn't a microformat */
           }
           if (result != undefined) {
             if (prop.microformat_property) {
@@ -594,11 +571,15 @@ var Microformats = {
       }
       /* This handles the case where one property implies another property */
       /* For instance, org by itself is actually org.organization-name */
+      if (prop.implied && (result != undefined)) {
+        var temp = result;
+        result = {};
+        result[prop.implied] = temp;
+      }
       if (prop.values && (result != undefined)) {
         var validType = false;
         for (let value in prop.values) {
           if (result.toLowerCase() == prop.values[value]) {
-            result = result.toLowerCase();
             validType = true;
             break;
           }
@@ -702,6 +683,8 @@ var Microformats = {
           } else {
             result = Microformats.parser.datatypeHelper(propobj, propnode);
           }
+        } else if (propobj.implied) {
+          result = Microformats.parser.datatypeHelper(propobj, propnode);
         }
       } else if (!result) {
         result = Microformats.parser.datatypeHelper(propobj, propnode, parentnode);
@@ -1374,13 +1357,13 @@ var hCard_definition = {
     "org" : {
       subproperties: {
         "organization-name" : {
-          virtual: true
         },
         "organization-unit" : {
           plural: true
         }
       },
-      plural: true
+      plural: true,
+      implied: "organization-name"
     },
     "photo" : {
       plural: true,
@@ -1409,11 +1392,11 @@ var hCard_definition = {
           values: ["msg", "home", "work", "pref", "voice", "fax", "cell", "video", "pager", "bbs", "car", "isdn", "pcs"]
         },
         "value" : {
-          datatype: "tel",
-          virtual: true
+          datatype: "tel"
         }
       },
-      plural: true
+      plural: true,
+      implied: "value"
     },
     "tz" : {
     },

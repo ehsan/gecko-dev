@@ -3460,14 +3460,11 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
          (displayData.mTransformOrigin.mXValue.GetIntValue()));
     else {
       /* Convert lengths, percents, and inherit.  Default value is 50%. */
-#ifdef DEBUG
-      PRBool result =
-#endif
-        SetCoord(displayData.mTransformOrigin.mXValue,
-                 display->mTransformOrigin[0],
-                 parentDisplay->mTransformOrigin[0],
-                 SETCOORD_LPH | SETCOORD_INITIAL_HALF,
-                 aContext, mPresContext, aInherited);
+      PRBool result = SetCoord(displayData.mTransformOrigin.mXValue,
+                               display->mTransformOrigin[0],
+                               parentDisplay->mTransformOrigin[0],
+                               SETCOORD_LPH | SETCOORD_INITIAL_HALF,
+                               aContext, mPresContext, aInherited);
       NS_ASSERTION(result, "Malformed -moz-transform-origin parse!");
     }
 
@@ -3478,14 +3475,11 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
          (displayData.mTransformOrigin.mYValue.GetIntValue()));
     else {
       /* Convert lengths, percents, initial, inherit. */
-#ifdef DEBUG
-      PRBool result =
-#endif
-        SetCoord(displayData.mTransformOrigin.mYValue,
-                 display->mTransformOrigin[1],
-                 parentDisplay->mTransformOrigin[1],
-                 SETCOORD_LPH | SETCOORD_INITIAL_HALF,
-                 aContext, mPresContext, aInherited);
+      PRBool result = SetCoord(displayData.mTransformOrigin.mYValue,
+                               display->mTransformOrigin[1],
+                               parentDisplay->mTransformOrigin[1],
+                               SETCOORD_LPH | SETCOORD_INITIAL_HALF,
+                               aContext, mPresContext, aInherited);
       NS_ASSERTION(result, "Malformed -moz-transform-origin parse!");
     }
   }
