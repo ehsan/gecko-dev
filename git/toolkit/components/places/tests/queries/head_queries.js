@@ -131,14 +131,8 @@ function populateDB(aArray) {
 
           if (qdata.isDetails) {
             // Then we add extraneous page details for testing
-            PlacesUtils.history.addVisit(uri(qdata.uri),
-                                         qdata.lastVisit,
-                                         null,
-                                         TRANSITION_LINK,
-                                         false,
-                                         0);
-            PlacesUtils.ghistory2.setPageTitle(uri(qdata.uri),
-                                               qdata.title);
+            PlacesUtils.history.addPageWithDetails(uri(qdata.uri),
+                                                   qdata.title, qdata.lastVisit);
           }
 
           if (qdata.markPageAsTyped){

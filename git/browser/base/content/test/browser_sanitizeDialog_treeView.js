@@ -501,12 +501,10 @@ function addFormEntryWithMinutesAgo(aMinutesAgo) {
  */
 function addHistoryWithMinutesAgo(aMinutesAgo) {
   let pURI = makeURI("http://" + aMinutesAgo + "-minutes-ago.com/");
-  PlacesUtils.history.addVisit(pURI,
-                               now_uSec - (aMinutesAgo * 60 * 1000 * 1000),
-                               null,
-                               Ci.nsINavHistoryService.TRANSITION_LINK,
-                               false,
-                               0);
+  PlacesUtils.bhistory
+             .addPageWithDetails(pURI,
+                                 aMinutesAgo + " minutes ago",
+                                 now_uSec - (aMinutesAgo * 60 * 1000 * 1000));
   is(PlacesUtils.bhistory.isVisited(pURI), true,
      "Sanity check: history visit " + pURI.spec +
      " should exist after creating it");

@@ -48,18 +48,15 @@ var AccessFu = {
     } catch (x) {
     }
 
-    this._processPreferences(accessPref);
+    if (this.amINeeded(accessPref))
+      this.enable();
   },
 
   /**
    * Start AccessFu mode, this primarily means controlling the virtual cursor
    * with arrow keys.
    */
-  _enable: function _enable() {
-    if (this._enabled)
-      return;
-    this._enabled = true;
-
+  enable: function enable() {
     dump('AccessFu enable');
     this.addPresenter(new VisualPresenter());
 
@@ -79,11 +76,7 @@ var AccessFu = {
   /**
    * Disable AccessFu and return to default interaction mode.
    */
-  _disable: function _disable() {
-    if (!this._enabled)
-      return;
-    this._enabled = false;
-
+  disable: function disable() {
     dump('AccessFu disable');
 
     this.presenters.forEach(function(p) { p.detach(); });
@@ -98,29 +91,26 @@ var AccessFu = {
     this.chromeWin.removeEventListener('TabOpen', this, true);
   },
 
-  _processPreferences: function _processPreferences(aPref) {
-    if (Services.appinfo.OS == 'Android') {
-      if (aPref == ACCESSFU_AUTO) {
-        if (!this._observingSystemSettings) {
-          Services.obs.addObserver(this, 'Accessibility:Settings', false);
-          this._observingSystemSettings = true;
+  amINeeded: function(aPref) {
+    switch (aPref) {
+      case ACCESSFU_ENABLE:
+        return true;
+      case ACCESSFU_AUTO:
+        if (Services.appinfo.OS == 'Android') {
+          let msg = Cc['@mozilla.org/android/bridge;1'].
+            getService(Ci.nsIAndroidBridge).handleGeckoMessage(
+              JSON.stringify(
+                { gecko: {
+                    type: 'Accessibility:IsEnabled',
+                    eventType: 1,
+                    text: []
+                  }
+                }));
+          return JSON.parse(msg).enabled;
         }
-        Cc['@mozilla.org/android/bridge;1'].
-          getService(Ci.nsIAndroidBridge).handleGeckoMessage(
-            JSON.stringify({ gecko: { type: 'Accessibility:Ready' } }));
-        return;
-      }
-
-      if (this._observingSystemSettings) {
-        Services.obs.removeObserver(this, 'Accessibility:Settings');
-        this._observingSystemSettings = false;
-      }
+      default:
+        return false;
     }
-
-    if (aPref == ACCESSFU_ENABLE)
-      this._enable();
-    else
-      this._disable();
   },
 
   addPresenter: function addPresenter(presenter) {
@@ -169,21 +159,19 @@ var AccessFu = {
 
   observe: function observe(aSubject, aTopic, aData) {
     switch (aTopic) {
-      case 'Accessibility:Settings':
-        if (JSON.parse(aData).enabled)
-          this._enable();
-        else
-          this._disable();
-        break;
       case 'nsPref:changed':
-        if (aData == 'accessfu')
-          this._processPreferences(this.prefsBranch.getIntPref('accessfu'));
+        if (aData == 'accessfu') {
+          if (this.amINeeded(this.prefsBranch.getIntPref('accessfu')))
+            this.enable();
+          else
+            this.disable();
+        }
         break;
       case 'accessible-event':
         let event;
         try {
           event = aSubject.QueryInterface(Ci.nsIAccessibleEvent);
-          this._handleAccEvent(event);
+          this.handleAccEvent(event);
         } catch (ex) {
           dump(ex);
           return;
@@ -191,7 +179,7 @@ var AccessFu = {
     }
   },
 
-  _handleAccEvent: function _handleAccEvent(aEvent) {
+  handleAccEvent: function handleAccEvent(aEvent) {
     switch (aEvent.eventType) {
       case Ci.nsIAccessibleEvent.EVENT_VIRTUALCURSOR_CHANGED:
         {
@@ -251,13 +239,13 @@ var AccessFu = {
               let state = {};
               docAcc.getState(state, {});
               if (state.value & Ci.nsIAccessibleStates.STATE_BUSY &&
-                  this._isNotChromeDoc(docAcc))
+                  this.isNotChromeDoc(docAcc))
                 this.presenters.forEach(
                   function(p) { p.tabStateChanged(docAcc, 'loading'); }
                 );
               delete this._pendingDocuments[aEvent.DOMNode];
             }
-            if (this._isBrowserDoc(docAcc))
+            if (this.isBrowserDoc(docAcc))
               // A new top-level content document has been attached
               this.presenters.forEach(
                 function(p) { p.tabStateChanged(docAcc, 'newdoc'); }
@@ -267,7 +255,7 @@ var AccessFu = {
         }
       case Ci.nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_COMPLETE:
         {
-          if (this._isNotChromeDoc(aEvent.accessible)) {
+          if (this.isNotChromeDoc(aEvent.accessible)) {
             this.presenters.forEach(
               function(p) {
                 p.tabStateChanged(aEvent.accessible, 'loaded');
@@ -296,7 +284,7 @@ var AccessFu = {
         }
       case Ci.nsIAccessibleEvent.EVENT_FOCUS:
         {
-          if (this._isBrowserDoc(aEvent.accessible)) {
+          if (this.isBrowserDoc(aEvent.accessible)) {
             // The document recieved focus, call tabSelected to present current tab.
             this.presenters.forEach(
               function(p) { p.tabSelected(aEvent.accessible); });
@@ -342,7 +330,7 @@ var AccessFu = {
    * @param {nsIAccessible} aDocAcc the accessible to check.
    * @return {boolean} true if this is a top-level content document.
    */
-  _isBrowserDoc: function _isBrowserDoc(aDocAcc) {
+  isBrowserDoc: function isBrowserDoc(aDocAcc) {
     let parent = aDocAcc.parent;
     if (!parent)
       return false;
@@ -360,7 +348,7 @@ var AccessFu = {
    * @param {nsIDOMDocument} aDocument the document to check.
    * @return {boolean} true if this is not a chrome document.
    */
-  _isNotChromeDoc: function _isNotChromeDoc(aDocument) {
+  isNotChromeDoc: function isNotChromeDoc(aDocument) {
     let location = aDocument.DOMNode.location;
     if (!location)
       return false;
@@ -404,13 +392,7 @@ var AccessFu = {
   },
 
   // A hash of documents that don't yet have an accessible tree.
-  _pendingDocuments: {},
-
-  // So we don't enable/disable twice
-  _enabled: false,
-
-  // Observing accessibility settings
-  _observingSystemSettings: false
+  _pendingDocuments: {}
 };
 
 function getAccessible(aNode) {

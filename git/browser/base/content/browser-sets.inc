@@ -126,7 +126,6 @@
 
     <command id="Tools:Search" oncommand="BrowserSearch.webSearch();"/>
     <command id="Tools:Downloads" oncommand="BrowserDownloadsUI();"/>
-    <command id="Tools:DevToolbar" oncommand="DeveloperToolbar.toggle();" disabled="true"/>
     <command id="Tools:WebConsole" oncommand="HUDConsoleUI.toggleHUD();"/>
     <command id="Tools:Inspect" oncommand="InspectorUI.toggleInspectorUI();" disabled="true"/>
     <command id="Tools:Debugger" oncommand="DebuggerUI.toggleDebugger();" disabled="true"/>
@@ -165,10 +164,6 @@
              oncommand="InspectorUI.copyOuterHTML();"/>
     <command id="Inspector:DeleteNode"
              oncommand="InspectorUI.deleteNode();"/>
-    <command id="Inspector:ToggleVeil"
-             oncommand="InspectorUI.toggleVeil();"/>
-    <command id="Inspector:ToggleInfobar"
-             oncommand="InspectorUI.toggleInfobar();"/>
   </commandset>
 
   <broadcasterset id="mainBroadcasterSet">
@@ -262,13 +257,6 @@
 #endif
     <key id="key_openAddons" key="&addons.commandkey;" command="Tools:Addons" modifiers="accel,shift"/>
     <key id="key_errorConsole" key="&errorConsoleCmd.commandkey;" oncommand="toJavaScriptConsole();" modifiers="accel,shift" disabled="true"/>
-    <key id="key_devToolbar" key="&devToolbar.commandkey;" command="Tools:DevToolbar"
-#ifdef XP_MACOSX
-         modifiers="accel,alt"
-#else
-         modifiers="accel,shift"
-#endif
-    />
     <key id="key_webConsole" key="&webConsoleCmd.commandkey;" oncommand="HUDConsoleUI.toggleHUD();"
 #ifdef XP_MACOSX
         modifiers="accel,alt"
@@ -341,8 +329,7 @@
     <key keycode="VK_F6" command="Browser:FocusNextFrame" modifiers="shift"/>
     <key id="key_fullScreen" keycode="VK_F11" command="View:FullScreen"/>
 #else
-    <key id="key_fullScreen" key="&fullScreenCmd.macCommandKey;" command="View:FullScreen" modifiers="accel,control"/>
-    <key id="key_fullScreen_old" key="&fullScreenCmd.macCommandKey;" command="View:FullScreen" modifiers="accel,shift"/>
+    <key id="key_fullScreen" key="&fullScreenCmd.macCommandKey;" command="View:FullScreen" modifiers="accel,shift"/>
     <key keycode="VK_F11" command="View:FullScreen"/>
 #endif
     <key key="&reloadCmd.commandkey;" command="Browser:Reload" modifiers="accel" id="key_reload"/>

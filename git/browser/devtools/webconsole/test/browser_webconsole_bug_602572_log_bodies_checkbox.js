@@ -16,20 +16,21 @@ function test()
   addTab("data:text/html;charset=utf-8,Web Console test for bug 602572: log bodies checkbox. tab 1");
   tabs.push(tab);
 
-  browser.addEventListener("load", function onLoad1(aEvent) {
-    browser.removeEventListener(aEvent.type, onLoad1, true);
+  browser.addEventListener("load", function(aEvent) {
+    browser.removeEventListener(aEvent.type, arguments.callee, true);
 
-    openConsole(null, function() {
-      // open tab 2
-      addTab("data:text/html;charset=utf-8,Web Console test for bug 602572: log bodies checkbox. tab 2");
-      tabs.push(tab);
+    openConsole();
 
-      browser.addEventListener("load", function onLoad2(aEvent) {
-        browser.removeEventListener(aEvent.type, onLoad2, true);
+    // open tab 2
+    addTab("data:text/html;charset=utf-8,Web Console test for bug 602572: log bodies checkbox. tab 2");
+    tabs.push(tab);
 
-        openConsole(null, startTest);
-      }, true);
-    });
+    browser.addEventListener("load", function(aEvent) {
+      browser.removeEventListener(aEvent.type, arguments.callee, true);
+
+      openConsole();
+      executeSoon(startTest);
+    }, true);
   }, true);
 }
 
@@ -51,7 +52,7 @@ function startTest()
 
 function onpopupshown2(aEvent)
 {
-  menupopups[1].removeEventListener(aEvent.type, onpopupshown2, false);
+  menupopups[1].removeEventListener(aEvent.type, arguments.callee, false);
 
   // By default bodies are not logged.
   isnot(menuitems[1].getAttribute("checked"), "true",
@@ -62,8 +63,8 @@ function onpopupshown2(aEvent)
   // Enable body logging.
   HUDService.saveRequestAndResponseBodies = true;
 
-  menupopups[1].addEventListener("popuphidden", function _onhidden(aEvent) {
-    menupopups[1].removeEventListener(aEvent.type, _onhidden, false);
+  menupopups[1].addEventListener("popuphidden", function(aEvent) {
+    menupopups[1].removeEventListener(aEvent.type, arguments.callee, false);
 
     // Reopen the context menu.
     menupopups[1].addEventListener("popupshown", onpopupshown2b, false);
@@ -74,11 +75,11 @@ function onpopupshown2(aEvent)
 
 function onpopupshown2b(aEvent)
 {
-  menupopups[1].removeEventListener(aEvent.type, onpopupshown2b, false);
+  menupopups[1].removeEventListener(aEvent.type, arguments.callee, false);
   is(menuitems[1].getAttribute("checked"), "true", "menuitems[1] is checked");
 
-  menupopups[1].addEventListener("popuphidden", function _onhidden(aEvent) {
-    menupopups[1].removeEventListener(aEvent.type, _onhidden, false);
+  menupopups[1].addEventListener("popuphidden", function(aEvent) {
+    menupopups[1].removeEventListener(aEvent.type, arguments.callee, false);
 
     // Switch to tab 1 and open the Web Console context menu from there.
     gBrowser.selectedTab = tabs[0];
@@ -101,7 +102,7 @@ function onpopupshown2b(aEvent)
 
 function onpopupshown1(aEvent)
 {
-  menupopups[0].removeEventListener(aEvent.type, onpopupshown1, false);
+  menupopups[0].removeEventListener(aEvent.type, arguments.callee, false);
 
   // The menuitem checkbox must be in sync with the other tabs.
   is(menuitems[0].getAttribute("checked"), "true", "menuitems[0] is checked");
@@ -110,8 +111,8 @@ function onpopupshown1(aEvent)
   HUDService.saveRequestAndResponseBodies = false;
 
   // Close the menu, and switch back to tab 2.
-  menupopups[0].addEventListener("popuphidden", function _onhidden(aEvent) {
-    menupopups[0].removeEventListener(aEvent.type, _onhidden, false);
+  menupopups[0].addEventListener("popuphidden", function(aEvent) {
+    menupopups[0].removeEventListener(aEvent.type, arguments.callee, false);
 
     gBrowser.selectedTab = tabs[1];
     waitForFocus(function() {
@@ -125,20 +126,19 @@ function onpopupshown1(aEvent)
 
 function onpopupshown2c(aEvent)
 {
-  menupopups[1].removeEventListener(aEvent.type, onpopupshown2c, false);
+  menupopups[1].removeEventListener(aEvent.type, arguments.callee, false);
 
   isnot(menuitems[1].getAttribute("checked"), "true",
         "menuitems[1] is not checked");
 
-  menupopups[1].addEventListener("popuphidden", function _onhidden(aEvent) {
-    menupopups[1].removeEventListener(aEvent.type, _onhidden, false);
+  menupopups[1].addEventListener("popuphidden", function(aEvent) {
+    menupopups[1].removeEventListener(aEvent.type, arguments.callee, false);
 
     // Done!
     huds = menuitems = menupopups = tabs = null;
-    closeConsole(gBrowser.selectedTab, function() {
-      gBrowser.removeCurrentTab();
-      executeSoon(finishTest);
-    });
+    HUDService.deactivateHUDForContext(gBrowser.selectedTab);
+    gBrowser.removeCurrentTab();
+    executeSoon(finishTest);
   }, false);
   menupopups[1].hidePopup();
 }

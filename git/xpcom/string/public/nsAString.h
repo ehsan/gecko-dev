@@ -58,8 +58,6 @@
 #include <string.h>
 #include <stdarg.h>
 
-#include "mozilla/fallible.h"
-
 #define kNotFound -1
 
   // declare nsAString

@@ -779,10 +779,9 @@ struct JSRuntime : js::RuntimeFriendFields
     /* Tables of strings that are pre-allocated in the atomsCompartment. */
     js::StaticStrings   staticStrings;
 
-    JSWrapObjectCallback                   wrapObjectCallback;
-    JSSameCompartmentWrapObjectCallback    sameCompartmentWrapObjectCallback;
-    JSPreWrapCallback                      preWrapObjectCallback;
-    js::PreserveWrapperCallback            preserveWrapperCallback;
+    JSWrapObjectCallback wrapObjectCallback;
+    JSPreWrapCallback    preWrapObjectCallback;
+    js::PreserveWrapperCallback preserveWrapperCallback;
 
     js::ScriptFilenameTable scriptFilenameTable;
 

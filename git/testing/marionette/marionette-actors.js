@@ -3,27 +3,31 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 "use strict";
-
 /**
  * Gecko-specific actors.
  */
 
-let {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
+let Ci = Components.interfaces;
+let Cc = Components.classes;
+let Cu = Components.utils;
 
 let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
-               .getService(Ci.mozIJSSubScriptLoader);
+             .getService(Ci.mozIJSSubScriptLoader);
 loader.loadSubScript("chrome://marionette/content/marionette-simpletest.js");
 loader.loadSubScript("chrome://marionette/content/marionette-log-obj.js");
 Cu.import("chrome://marionette/content/marionette-elements.js");
 let utils = {};
 loader.loadSubScript("chrome://marionette/content/EventUtils.js", utils);
 loader.loadSubScript("chrome://marionette/content/ChromeUtils.js", utils);
+
+let prefs = Cc["@mozilla.org/preferences-service;1"]
+            .getService(Ci.nsIPrefBranch);
+prefs.setBoolPref("marionette.contentListener", false);
+
+let xulAppInfo = Cc["@mozilla.org/xre/app-info;1"]
+                 .getService(Ci.nsIXULAppInfo);
+let appName = xulAppInfo.name;
 loader.loadSubScript("chrome://marionette/content/atoms.js", utils);
-
-Cu.import("resource://gre/modules/Services.jsm");
-
-Services.prefs.setBoolPref("marionette.contentListener", false);
-let appName = Services.appinfo.name;
 
 // import logger
 Cu.import("resource://gre/modules/services-common/log4moz.js");
@@ -102,11 +106,12 @@ MarionetteRootActor.prototype.requestTypes = {
 function MarionetteDriverActor(aConnection)
 {
   this.uuidGen = Cc["@mozilla.org/uuid-generator;1"]
-                   .getService(Ci.nsIUUIDGenerator);
+                 .getService(Ci.nsIUUIDGenerator);
 
   this.conn = aConnection;
-  this.messageManager = Cc["@mozilla.org/globalmessagemanager;1"]
-                          .getService(Ci.nsIChromeFrameMessageManager);
+  this.messageManager = Cc["@mozilla.org/globalmessagemanager;1"].
+                             getService(Ci.nsIChromeFrameMessageManager);
+  this.windowMediator = Cc['@mozilla.org/appshell/window-mediator;1'].getService(Ci.nsIWindowMediator);
   this.browsers = {}; //holds list of BrowserObjs
   this.curBrowser = null; // points to current browser
   this.context = "content";
@@ -220,7 +225,7 @@ MarionetteDriverActor.prototype = {
       if (appName != "B2G" && this.context == "content") {
         type = 'navigator:browser';
       }
-      return Services.wm.getMostRecentWindow(type);
+      return this.windowMediator.getMostRecentWindow(type);
     }
     else {
       return this.curFrame;
@@ -237,7 +242,7 @@ MarionetteDriverActor.prototype = {
     if (appName != "B2G" && this.context == "content") {
       type = 'navigator:browser';
     }
-    return Services.wm.getEnumerator(type);
+    return this.windowMediator.getEnumerator(type);
   },
 
   /**
@@ -331,20 +336,8 @@ MarionetteDriverActor.prototype = {
    *
    */
   newSession: function MDA_newSession() {
-
-    function waitForWindow() {
-      let checkTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-      let win = this.getCurrentWindow();
-      if (!win || (appName != "B2G" && !win.gBrowser)) { 
-        checkTimer.initWithCallback(waitForWindow.bind(this), 100, Ci.nsITimer.TYPE_ONE_SHOT);
-      }
-      else {
-        this.startBrowser(win, true);
-      }
-    }
-
-    if (!Services.prefs.getBoolPref("marionette.contentListener")) {
-      waitForWindow.call(this);
+    if (!prefs.getBoolPref("marionette.contentListener")) {
+      this.startBrowser(this.getCurrentWindow(), true);
     }
     else if ((appName == "B2G") && (this.curBrowser == null)) {
       //if there is a content listener, then we just wake it up
@@ -675,21 +668,11 @@ MarionetteDriverActor.prototype = {
    *        'value' member holds the url to navigate to
    */
   goUrl: function MDA_goUrl(aRequest) {
-    if (this.context != "chrome") {
-      this.sendAsync("goUrl", aRequest);
-      return;
+    if (this.context == "chrome") {
+      this.getCurrentWindow().location.href = aRequest.value;
+      this.sendOk();
     }
-
-    this.getCurrentWindow().location.href = aRequest.value;
-    let checkTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    function checkLoad() { 
-      if (curWindow.document.readyState == "complete") { 
-        sendOk();
-        return;
-      } 
-      checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
-    }
-    checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
+    this.sendAsync("goUrl", aRequest);
   },
 
   /**
@@ -1146,7 +1129,7 @@ MarionetteDriverActor.prototype = {
       }
       else {
         //don't set this pref for B2G since the framescript can be safely reused
-        Services.prefs.setBoolPref("marionette.contentListener", false);
+        prefs.setBoolPref("marionette.contentListener", false);
       }
       this.curBrowser.closeTab();
       //delete session in each frame in each browser
@@ -1355,9 +1338,9 @@ BrowserObj.prototype = {
    *        frame to load the script in
    */
   loadFrameScript: function BO_loadFrameScript(script, frame) {
-    if (!Services.prefs.getBoolPref("marionette.contentListener")) {
+    if (!prefs.getBoolPref("marionette.contentListener")) {
       frame.window.messageManager.loadFrameScript(script, true);
-      Services.prefs.setBoolPref("marionette.contentListener", true);
+      prefs.setBoolPref("marionette.contentListener", true);
     }
   },
 

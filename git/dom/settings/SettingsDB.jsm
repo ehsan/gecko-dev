@@ -24,7 +24,7 @@ SettingsDB.prototype = {
 
   __proto__: IndexedDBHelper.prototype,
 
-  upgradeSchema: function upgradeSchema(aTransaction, aDb, aOldVersion, aNewVersion) {
+  createSchema: function createSchema(aDb) {
     let objectStore = aDb.createObjectStore(SETTINGSSTORE_NAME, { keyPath: "settingName" });
     objectStore.createIndex("settingValue", "settingValue", { unique: false });
     debug("Created object stores and indexes");

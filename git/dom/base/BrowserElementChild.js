@@ -7,7 +7,6 @@
 let Cu = Components.utils;
 let Ci = Components.interfaces;
 let Cc = Components.classes;
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 function debug(msg) {
   //dump("BrowserElementChild - " + msg + "\n");
@@ -15,10 +14,6 @@ function debug(msg) {
 
 function sendAsyncMsg(msg, data) {
   sendAsyncMessage('browser-element-api:' + msg, data);
-}
-
-function sendSyncMsg(msg, data) {
-  return sendSyncMessage('browser-element-api:' + msg, data);
 }
 
 /**
@@ -45,20 +40,6 @@ BrowserElementChild.prototype = {
             .addProgressListener(this._progressListener,
                                  Ci.nsIWebProgress.NOTIFY_LOCATION |
                                  Ci.nsIWebProgress.NOTIFY_STATE_WINDOW);
-
-    // A mozbrowser iframe contained inside a mozapp iframe should return false
-    // for nsWindowUtils::IsPartOfApp (unless the mozbrowser iframe is itself
-    // also mozapp).  That is, mozapp is transitive down to its children, but
-    // mozbrowser serves as a barrier.
-    //
-    // This is because mozapp iframes have some privileges which we don't want
-    // to extend to untrusted mozbrowser content.
-    //
-    // Set the window's isApp state by asking our parent if our iframe has the
-    // 'mozapp' attribute.
-    content.QueryInterface(Ci.nsIInterfaceRequestor)
-           .getInterface(Components.interfaces.nsIDOMWindowUtils)
-           .setIsApp(sendSyncMsg('get-mozapp')[0]);
 
     addEventListener('DOMTitleChanged',
                      this._titleChangedHandler.bind(this),

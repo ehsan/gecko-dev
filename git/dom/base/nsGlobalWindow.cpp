@@ -692,7 +692,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mShowFocusRingForContent(false),
     mFocusByKeyOccurred(false),
     mNotifiedIDDestroyed(false),
-    mIsApp(TriState_Unknown),
     mTimeoutInsertionPoint(nsnull),
     mTimeoutPublicIdCounter(1),
     mTimeoutFiringDepth(0),
@@ -1827,11 +1826,13 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       nsWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
     }
 
-    // We're reusing the inner window, but this still counts as a navigation,
-    // so all expandos and such defined on the outer window should go away. Force
-    // all Xray wrappers to be recomputed.
+    // The API we're really looking for here is to go clear all of the
+    // Xray wrappers associated with our outer window. However, we
+    // don't expose that API because the implementation would be
+    // identical to that of JS_TransplantObject, so we just call that
+    // instead.
     xpc_UnmarkGrayObject(mJSObject);
-    if (!JS_RefreshCrossCompartmentWrappers(cx, mJSObject)) {
+    if (!JS_TransplantObject(cx, mJSObject, mJSObject)) {
       return NS_ERROR_FAILURE;
     }
   } else {
@@ -5328,7 +5329,12 @@ nsGlobalWindow::ScrollTo(PRInt32 aXScroll, PRInt32 aYScroll)
     if (aYScroll > maxpx) {
       aYScroll = maxpx;
     }
-    sf->ScrollToCSSPixels(nsIntPoint(aXScroll, aYScroll));
+    nsPoint pt(nsPresContext::CSSPixelsToAppUnits(aXScroll),
+               nsPresContext::CSSPixelsToAppUnits(aYScroll));
+    nscoord halfPixel = nsPresContext::CSSPixelsToAppUnits(0.5f);
+    // Don't allow pt.x/y + halfPixel since that would round up to the next CSS pixel.
+    nsRect range(pt.x - halfPixel, pt.y - halfPixel, halfPixel*2 - 1, halfPixel*2 - 1);
+    sf->ScrollTo(pt, nsIScrollableFrame::INSTANT, &range);
   }
 
   return NS_OK;
@@ -10007,33 +10013,6 @@ nsGlobalWindow::SizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
   aWindowSizes->mDOM +=
     mNavigator ?
       mNavigator->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf) : 0;
-}
-
-void
-nsGlobalWindow::SetIsApp(bool aValue)
-{
-  FORWARD_TO_OUTER_VOID(SetIsApp, (aValue));
-
-  mIsApp = aValue ? TriState_True : TriState_False;
-}
-
-bool
-nsGlobalWindow::IsPartOfApp()
-{
-  FORWARD_TO_OUTER(IsPartOfApp, (), TriState_False);
-
-  // We go trough all window parents until we find one with |mIsApp| set to
-  // something. If none is found, we are not part of an application.
-  for (nsGlobalWindow* w = this; w;
-       w = static_cast<nsGlobalWindow*>(w->GetParentInternal())) {
-    if (w->mIsApp == TriState_True) {
-      return true;
-    } else if (w->mIsApp == TriState_False) {
-      return false;
-    }
-  }
-
-  return false;
 }
 
 // nsGlobalChromeWindow implementation

@@ -212,39 +212,27 @@
 .macro pixld1_s elem_size, reg1, mem_operand
 .if elem_size == 16
     mov     TMP1, VX, asr #16
-    adds    VX, VX, UNIT_X
-5:  subpls  VX, VX, SRC_WIDTH_FIXED
-    bpl     5b
+    add     VX, VX, UNIT_X
     add     TMP1, mem_operand, TMP1, asl #1
     mov     TMP2, VX, asr #16
-    adds    VX, VX, UNIT_X
-5:  subpls  VX, VX, SRC_WIDTH_FIXED
-    bpl     5b
+    add     VX, VX, UNIT_X
     add     TMP2, mem_operand, TMP2, asl #1
     vld1.16 {d&reg1&[0]}, [TMP1, :16]
     mov     TMP1, VX, asr #16
-    adds    VX, VX, UNIT_X
-5:  subpls  VX, VX, SRC_WIDTH_FIXED
-    bpl     5b
+    add     VX, VX, UNIT_X
     add     TMP1, mem_operand, TMP1, asl #1
     vld1.16 {d&reg1&[1]}, [TMP2, :16]
     mov     TMP2, VX, asr #16
-    adds    VX, VX, UNIT_X
-5:  subpls  VX, VX, SRC_WIDTH_FIXED
-    bpl     5b
+    add     VX, VX, UNIT_X
     add     TMP2, mem_operand, TMP2, asl #1
     vld1.16 {d&reg1&[2]}, [TMP1, :16]
     vld1.16 {d&reg1&[3]}, [TMP2, :16]
 .elseif elem_size == 32
     mov     TMP1, VX, asr #16
-    adds    VX, VX, UNIT_X
-5:  subpls  VX, VX, SRC_WIDTH_FIXED
-    bpl     5b
+    add     VX, VX, UNIT_X
     add     TMP1, mem_operand, TMP1, asl #2
     mov     TMP2, VX, asr #16
-    adds    VX, VX, UNIT_X
-5:  subpls  VX, VX, SRC_WIDTH_FIXED
-    bpl     5b
+    add     VX, VX, UNIT_X
     add     TMP2, mem_operand, TMP2, asl #2
     vld1.32 {d&reg1&[0]}, [TMP1, :32]
     vld1.32 {d&reg1&[1]}, [TMP2, :32]
@@ -254,7 +242,7 @@
 .endm
 
 .macro pixld2_s elem_size, reg1, reg2, mem_operand
-.if 0 /* elem_size == 32 */
+.if elem_size == 32
     mov     TMP1, VX, asr #16
     add     VX, VX, UNIT_X, asl #1
     add     TMP1, mem_operand, TMP1, asl #2
@@ -280,16 +268,12 @@
 .macro pixld0_s elem_size, reg1, idx, mem_operand
 .if elem_size == 16
     mov     TMP1, VX, asr #16
-    adds    VX, VX, UNIT_X
-5:  subpls  VX, VX, SRC_WIDTH_FIXED
-    bpl     5b
+    add     VX, VX, UNIT_X
     add     TMP1, mem_operand, TMP1, asl #1
     vld1.16 {d&reg1&[idx]}, [TMP1, :16]
 .elseif elem_size == 32
     mov     TMP1, VX, asr #16
-    adds    VX, VX, UNIT_X
-5:  subpls  VX, VX, SRC_WIDTH_FIXED
-    bpl     5b
+    add     VX, VX, UNIT_X
     add     TMP1, mem_operand, TMP1, asl #2
     vld1.32 {d&reg1&[idx]}, [TMP1, :32]
 .endif
@@ -980,17 +964,15 @@ fname:
     TMP1        .req        r4
     TMP2        .req        r5
     DST_R       .req        r6
-    SRC_WIDTH_FIXED .req        r7
 
     .macro pixld_src x:vararg
         pixld_s x
     .endm
 
     ldr         UNIT_X, [sp]
-    push        {r4-r8, lr}
-    ldr         SRC_WIDTH_FIXED, [sp, #(24 + 4)]
+    push        {r4-r6, lr}
     .if mask_bpp != 0
-    ldr         MASK, [sp, #(24 + 8)]
+    ldr         MASK, [sp, #(16 + 4)]
     .endif
 .else
     /*
@@ -1062,7 +1044,7 @@ fname:
 
     cleanup
 .if use_nearest_scaling != 0
-    pop         {r4-r8, pc}  /* exit */
+    pop         {r4-r6, pc}  /* exit */
 .else
     bx          lr  /* exit */
 .endif
@@ -1076,7 +1058,7 @@ fname:
     cleanup
 
 .if use_nearest_scaling != 0
-    pop         {r4-r8, pc}  /* exit */
+    pop         {r4-r6, pc}  /* exit */
 
     .unreq      DST_R
     .unreq      SRC
@@ -1087,7 +1069,6 @@ fname:
     .unreq      TMP2
     .unreq      DST_W
     .unreq      MASK
-    .unreq      SRC_WIDTH_FIXED
 
 .else
     bx          lr  /* exit */

@@ -75,8 +75,6 @@ public class BrowserDB {
 
         public Cursor getRecentHistory(ContentResolver cr, int limit);
 
-        public void removeHistoryEntry(ContentResolver cr, int id);
-
         public void clearHistory(ContentResolver cr);
 
         public Cursor getBookmarksInFolder(ContentResolver cr, long folderId);
@@ -102,8 +100,6 @@ public class BrowserDB {
         public byte[] getThumbnailForUrl(ContentResolver cr, String uri);
 
         public void registerBookmarkObserver(ContentResolver cr, ContentObserver observer);
-
-        public void registerHistoryObserver(ContentResolver cr, ContentObserver observer);
     }
 
     static {
@@ -142,10 +138,6 @@ public class BrowserDB {
 
     public static Cursor getRecentHistory(ContentResolver cr, int limit) {
         return sDb.getRecentHistory(cr, limit);
-    }
-
-    public static void removeHistoryEntry(ContentResolver cr, int id) {
-        sDb.removeHistoryEntry(cr, id);
     }
 
     public static void clearHistory(ContentResolver cr) {
@@ -200,11 +192,7 @@ public class BrowserDB {
         sDb.registerBookmarkObserver(cr, observer);
     }
 
-    public static void registerHistoryObserver(ContentResolver cr, ContentObserver observer) {
-        sDb.registerHistoryObserver(cr, observer);
-    }
-
-    public static void unregisterContentObserver(ContentResolver cr, ContentObserver observer) {
+    public static void unregisterBookmarkObserver(ContentResolver cr, ContentObserver observer) {
         cr.unregisterContentObserver(observer);
     }
 }

@@ -900,14 +900,20 @@ nsHTMLTableAccessible::GetCellAt(PRInt32 aRow, PRInt32 aColumn,
   return NS_OK;
 }
 
-PRInt32
-nsHTMLTableAccessible::CellIndexAt(PRUint32 aRowIdx, PRUint32 aColIdx)
+NS_IMETHODIMP
+nsHTMLTableAccessible::GetCellIndexAt(PRInt32 aRow, PRInt32 aColumn,
+                                      PRInt32 *aIndex)
 {
-  nsITableLayout* tableLayout = GetTableLayout();
+  NS_ENSURE_ARG_POINTER(aIndex);
 
-  PRInt32 index = -1;
-  tableLayout->GetIndexByRowAndColumn(aRowIdx, aColIdx, &index);
-  return index;
+  nsITableLayout *tableLayout = GetTableLayout();
+  NS_ENSURE_STATE(tableLayout);
+
+  nsresult rv = tableLayout->GetIndexByRowAndColumn(aRow, aColumn, aIndex);
+  if (rv == NS_TABLELAYOUT_CELL_NOT_FOUND)
+    return NS_ERROR_INVALID_ARG;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

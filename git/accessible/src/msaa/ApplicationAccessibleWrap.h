@@ -38,16 +38,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_a11y_ApplicationAccessibleWrap_h__
-#define mozilla_a11y_ApplicationAccessibleWrap_h__
+#ifndef MOZILLA_A11Y_APPLICATION_ACCESSIBLE_WRAP_H__
+#define MOZILLA_A11Y_APPLICATION_ACCESSIBLE_WRAP_H__
 
 #include "ApplicationAccessible.h"
 
 #include "AccessibleApplication.h"
 
-namespace mozilla {
-namespace a11y {
- 
 class ApplicationAccessibleWrap: public ApplicationAccessible,
                                  public IAccessibleApplication
 {
@@ -78,9 +75,6 @@ public:
   static void PreCreate();
   static void Unload();
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif
 

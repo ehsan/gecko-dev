@@ -246,7 +246,6 @@ public class BrowserToolbar {
             mTabsCount.setVisibility(View.VISIBLE);
             // Set image to more tabs dropdown "v"
             mTabs.setImageLevel(count);
-            mTabs.setContentDescription(mContext.getString(R.string.num_tabs, count));
         }
 
         mHandler.postDelayed(new Runnable() {
@@ -264,7 +263,6 @@ public class BrowserToolbar {
                     // Set image to new tab button "+"
                     mTabs.setImageLevel(1);
                     mTabsCount.setVisibility(View.GONE);
-                    mTabs.setContentDescription(mContext.getString(R.string.new_tab));
                 }
                 ((TextView) mTabsCount.getCurrentView()).setTextColor(mCounterColor);
             }
@@ -274,13 +272,7 @@ public class BrowserToolbar {
     public void updateTabCount(int count) {
         mTabsCount.setCurrentText(String.valueOf(count));
         mTabs.setImageLevel(count);
-        if (count > 1) {
-            mTabsCount.setVisibility(View.VISIBLE);
-            mTabs.setContentDescription(mContext.getString(R.string.num_tabs, count));
-        } else {
-            mTabsCount.setVisibility(View.INVISIBLE);
-            mTabs.setContentDescription(mContext.getString(R.string.new_tab));
-        }
+        mTabsCount.setVisibility(count > 1 ? View.VISIBLE : View.INVISIBLE);
     }
 
     public void setProgressVisibility(boolean visible) {

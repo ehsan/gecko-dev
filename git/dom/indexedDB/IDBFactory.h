@@ -57,7 +57,7 @@ struct DatabaseInfo;
 class IDBDatabase;
 struct ObjectStoreInfo;
 
-class IDBFactory MOZ_FINAL : public nsIIDBFactory
+class IDBFactory : public nsIIDBFactory
 {
   typedef nsTArray<nsRefPtr<ObjectStoreInfo> > ObjectStoreInfoArray;
 

@@ -153,13 +153,9 @@ public:
     // Read and write class of transaction that is carried on this connection
     virtual nsAHttpTransaction::Classifier Classification() = 0;
     virtual void Classify(nsAHttpTransaction::Classifier newclass) = 0;
-
-    // The number of transaction bytes written out on this HTTP Connection, does
-    // not count CONNECT tunnel setup
-    virtual PRInt64 BytesWritten() = 0;
 };
 
-#define NS_DECL_NSAHTTPCONNECTION(fwdObject)                    \
+#define NS_DECL_NSAHTTPCONNECTION \
     nsresult OnHeadersAvailable(nsAHttpTransaction *, nsHttpRequestHead *, nsHttpResponseHead *, bool *reset); \
     nsresult ResumeSend(); \
     nsresult ResumeRecv(); \
@@ -180,8 +176,6 @@ public:
     nsISocketTransport *Transport();        \
     PRUint32 CancelPipeline(nsresult originalReason);   \
     nsAHttpTransaction::Classifier Classification();    \
-    void Classify(nsAHttpTransaction::Classifier);      \
-    PRInt64 BytesWritten() \
-    {     return fwdObject ? (fwdObject)->BytesWritten() : 0; }
+    void Classify(nsAHttpTransaction::Classifier);
 
 #endif // nsAHttpConnection_h__

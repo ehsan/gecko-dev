@@ -97,7 +97,7 @@ function runSelectionTests()
   });
 }
 
-function performTestComparisons()
+function performTestComparisons(evt)
 {
   InspectorUI.highlighter.removeListener("nodeselected", performTestComparisons);
 
@@ -105,11 +105,9 @@ function performTestComparisons()
   is(InspectorUI.highlighter.node, h1, "node selected");
   is(InspectorUI.selection, h1, "selection matches node");
 
-  openConsole(gBrowser.selectedTab, performWebConsoleTests);
-}
-
-function performWebConsoleTests(hud)
-{
+  HUDService.activateHUDForContext(gBrowser.selectedTab);
+  let hudId = HUDService.getHudIdByWindow(content);
+  let hud = HUDService.hudReferences[hudId];
   let jsterm = hud.jsterm;
   outputNode = hud.outputNode;
 
@@ -129,11 +127,17 @@ function performWebConsoleTests(hud)
 
 function finishUp() {
   InspectorUI.closeInspectorUI();
-  finishTest();
+  gBrowser.removeCurrentTab();
+  finish();
 }
+
+registerCleanupFunction(function() {
+  Services.prefs.clearUserPref("devtools.gcli.enable");
+});
 
 function test()
 {
+  Services.prefs.setBoolPref("devtools.gcli.enable", false);
   waitForExplicitFinish();
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.selectedBrowser.addEventListener("load", function() {

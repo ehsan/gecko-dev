@@ -15,8 +15,6 @@
 
 #include "methodjit/MethodJIT.h"
 
-#include "vm/Stack-inl.h"
-
 using namespace js;
 using namespace JS;
 

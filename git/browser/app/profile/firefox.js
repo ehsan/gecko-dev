@@ -1042,17 +1042,12 @@ pref("services.sync.prefs.sync.xpinstall.whitelist.required", true);
 // Disable the error console
 pref("devtools.errorconsole.enabled", false);
 
-// Enable the developer toolbar
-pref("devtools.toolbar.enabled", false);
-
 // Enable the Inspector
 pref("devtools.inspector.enabled", true);
 pref("devtools.inspector.htmlHeight", 112);
 pref("devtools.inspector.htmlPanelOpen", false);
 pref("devtools.inspector.sidebarOpen", false);
 pref("devtools.inspector.activeSidebar", "ruleview");
-pref("devtools.inspector.highlighterShowVeil", true);
-pref("devtools.inspector.highlighterShowInfobar", true);
 
 // Enable the Layout View
 pref("devtools.layoutview.enabled", false);
@@ -1093,14 +1088,8 @@ pref("devtools.styleeditor.transitions", true);
 // Enable tools for Chrome development.
 pref("devtools.chrome.enabled", false);
 
-// Display the introductory text
-pref("devtools.gcli.hideIntro", false);
-
-// How eager are we to show help: never=1, sometimes=2, always=3
-pref("devtools.gcli.eagerHelper", 2);
-
-// Do we allow the 'pref set' command
-pref("devtools.gcli.allowSet", false);
+// Disable the GCLI enhanced command line.
+pref("devtools.gcli.enable", false);
 
 // The last Web Console height. This is initially 0 which means that the Web
 // Console will use the default height next time it shows.

@@ -55,8 +55,7 @@ CompileFunctionBody(JSContext *cx, JSFunction *fun,
 JSScript *
 CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerFrame,
               JSPrincipals *principals, JSPrincipals *originPrincipals,
-              bool compileAndGo, bool noScriptRval, bool needScriptGlobal,
-              const jschar *chars, size_t length,
+              uint32_t tcflags, const jschar *chars, size_t length,
               const char *filename, unsigned lineno, JSVersion version,
               JSString *source = NULL, unsigned staticLevel = 0);
 

@@ -73,6 +73,7 @@ import android.webkit.MimeTypeMap;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
 import android.provider.Settings;
+import android.view.accessibility.AccessibilityManager;
 import android.opengl.GLES20;
 
 import android.util.*;
@@ -119,10 +120,6 @@ public class GeckoAppShell
     static public final int SCREENSHOT_WHOLE_PAGE = 1;
     static public final int SCREENSHOT_UPDATE = 2;
 
-    static public final int RESTORE_NONE = 0;
-    static public final int RESTORE_OOM = 1;
-    static public final int RESTORE_CRASH = 2;
-
     static private File sCacheFile = null;
     static private int sFreeSpace = -1;
     static File sHomeDir = null;
@@ -160,8 +157,6 @@ public class GeckoAppShell
     private static boolean mLocationHighAccuracy = false;
 
     private static Handler sGeckoHandler;
-
-    private static boolean sDisableScreenshot = false;
 
     /* The Android-side API: API methods that Android calls */
 
@@ -237,6 +232,8 @@ public class GeckoAppShell
     public static native void scheduleComposite();
     public static native void schedulePauseComposition();
     public static native void scheduleResumeComposition(int width, int height);
+
+    public static native void unlockDatabaseFile(String databasePath);
 
     public static native SurfaceBits getSurfaceBits(Surface surface);
 
@@ -466,7 +463,7 @@ public class GeckoAppShell
         }
     }
 
-    public static void runGecko(String apkPath, String args, String url, String type, int restoreMode) {
+    public static void runGecko(String apkPath, String args, String url, String type, boolean restoreSession) {
         Looper.prepare();
         sGeckoHandler = new Handler();
         
@@ -488,8 +485,8 @@ public class GeckoAppShell
             combinedArgs += " -url " + url;
         if (type != null)
             combinedArgs += " " + type;
-        if (restoreMode != RESTORE_NONE)
-            combinedArgs += " -restoremode " + restoreMode;
+        if (restoreSession)
+            combinedArgs += " -restoresession";
 
         DisplayMetrics metrics = new DisplayMetrics();
         GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
@@ -1847,6 +1844,16 @@ public class GeckoAppShell
                 return promptServiceResult;
             }
 
+            if (type.equals("Accessibility:IsEnabled")) {
+                JSONObject ret = new JSONObject();
+                AccessibilityManager accessibilityManager =
+                    (AccessibilityManager) GeckoApp.mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
+                try {
+                    ret.put("enabled", accessibilityManager.isEnabled());
+                } catch (Exception ex) { }
+                return ret.toString();
+            }
+
             CopyOnWriteArrayList<GeckoEventListener> listeners;
             synchronized (mEventListeners) {
                 listeners = mEventListeners.get(type);
@@ -2236,15 +2243,7 @@ public class GeckoAppShell
         return Math.max(Math.min(max, val), min);
     }
 
-    // Invoked via reflection from robocop test
-    public static void disableScreenshot() {
-        sDisableScreenshot = true;
-    }
-
     public static void screenshotWholePage(Tab tab) {
-        if (sDisableScreenshot) {
-            return;
-        }
         if (GeckoApp.mAppContext.isApplicationInBackground())
             return;
 

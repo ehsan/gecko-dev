@@ -112,15 +112,9 @@ nsHTMLVideoElement::~nsHTMLVideoElement()
 {
 }
 
-nsresult nsHTMLVideoElement::GetVideoSize(nsIntSize* size)
+nsIntSize nsHTMLVideoElement::GetVideoSize(nsIntSize aDefaultSize)
 {
-  if (mMediaSize.width == -1 && mMediaSize.height == -1) {
-    return NS_ERROR_FAILURE;
-  }
-
-  size->height = mMediaSize.height;
-  size->width = mMediaSize.width;
-  return NS_OK;
+  return mMediaSize.width == -1 && mMediaSize.height == -1 ? aDefaultSize : mMediaSize;
 }
 
 bool

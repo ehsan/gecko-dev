@@ -67,17 +67,17 @@ BrowserElementParent.prototype = {
     }
   },
 
-  _observeInProcessBrowserFrameShown: function(frameLoader, data) {
+  _observeInProcessBrowserFrameShown: function(frameLoader) {
     debug("In-process browser frame shown " + frameLoader);
-    this._setUpMessageManagerListeners(frameLoader, data);
+    this._setUpMessageManagerListeners(frameLoader);
   },
 
-  _observeRemoteBrowserFrameShown: function(frameLoader, data) {
+  _observeRemoteBrowserFrameShown: function(frameLoader) {
     debug("Remote browser frame shown " + frameLoader);
-    this._setUpMessageManagerListeners(frameLoader, data);
+    this._setUpMessageManagerListeners(frameLoader);
   },
 
-  _setUpMessageManagerListeners: function(frameLoader, data) {
+  _setUpMessageManagerListeners: function(frameLoader) {
     let frameElement = frameLoader.QueryInterface(Ci.nsIFrameLoader).ownerElement;
     if (!frameElement) {
       debug("No frame element?");
@@ -89,9 +89,8 @@ BrowserElementParent.prototype = {
     // Messages we receive are handled by functions with parameters
     // (frameElement, data), where |data| is the message manager's data object.
 
-    let self = this;
     function addMessageListener(msg, handler) {
-      mm.addMessageListener('browser-element-api:' + msg, handler.bind(self, frameElement));
+      mm.addMessageListener('browser-element-api:' + msg, handler.bind(this, frameElement));
     }
 
     addMessageListener("hello", this._recvHello);
@@ -100,7 +99,6 @@ BrowserElementParent.prototype = {
     addMessageListener("loadend", this._fireEventFromMsg);
     addMessageListener("titlechange", this._fireEventFromMsg);
     addMessageListener("iconchange", this._fireEventFromMsg);
-    addMessageListener("get-mozapp", this._sendAppState);
 
     mm.loadFrameScript("chrome://global/content/BrowserElementChild.js",
                        /* allowDelayedLoad = */ true);
@@ -135,10 +133,6 @@ BrowserElementParent.prototype = {
     frameElement.dispatchEvent(evt);
   },
 
-  _sendAppState: function(frameElement, data) {
-    return frameElement.hasAttribute('mozapp');
-  },
-
   observe: function(subject, topic, data) {
     switch(topic) {
     case 'app-startup':
@@ -150,10 +144,10 @@ BrowserElementParent.prototype = {
       }
       break;
     case 'remote-browser-frame-shown':
-      this._observeRemoteBrowserFrameShown(subject, data);
+      this._observeRemoteBrowserFrameShown(subject);
       break;
     case 'in-process-browser-frame-shown':
-      this._observeInProcessBrowserFrameShown(subject, data);
+      this._observeInProcessBrowserFrameShown(subject);
       break;
     case 'content-document-global-created':
       this._observeContentGlobalCreated(subject);

@@ -612,7 +612,7 @@ struct LifetimeVariable
         return offset;
     }
 
-#ifdef JS_METHODJIT_SPEW
+#ifdef DEBUG
     void print() const;
 #endif
 };

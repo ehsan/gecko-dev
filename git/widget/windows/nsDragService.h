@@ -90,6 +90,7 @@ protected:
                          nsIScriptableRegion *aRegion,
                          SHDRAGIMAGE *psdi);
 
+  IDropSource * mNativeDragSrc;
   nsNativeDragTarget * mNativeDragTarget;
   IDataObject * mDataObject;
   bool mSentLocalDropEvent;

@@ -3449,6 +3449,7 @@ IncrementalMarkSlice(JSRuntime *rt, int64_t budget, JSGCInvocationKind gckind, b
 
     *shouldSweep = false;
     if (rt->gcIncrementalState == MARK) {
+        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_MARK);
         SliceBudget sliceBudget(budget);
 
         /* If we needed delayed marking for gray roots, then collect until done. */
@@ -3465,11 +3466,7 @@ IncrementalMarkSlice(JSRuntime *rt, int64_t budget, JSGCInvocationKind gckind, b
         }
 #endif
 
-        bool finished;
-        {
-            gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_MARK);
-            finished = rt->gcMarker.drainMarkStack(sliceBudget);
-        }
+        bool finished = rt->gcMarker.drainMarkStack(sliceBudget);
         if (finished) {
             JS_ASSERT(rt->gcMarker.isDrained());
             if (initialState == MARK && !rt->gcLastMarkSlice && budget != SliceBudget::Unlimited) {
@@ -3541,24 +3538,24 @@ BudgetIncrementalGC(JSRuntime *rt, int64_t *budget)
         return;
     }
 
-    bool reset = false;
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
         if (c->gcBytes > c->gcTriggerBytes) {
             *budget = SliceBudget::Unlimited;
             rt->gcStats.nonincremental("allocation trigger");
+            return;
         }
 
         if (c->isTooMuchMalloc()) {
             *budget = SliceBudget::Unlimited;
             rt->gcStats.nonincremental("malloc bytes trigger");
+            return;
         }
 
-        if (c->isCollecting() != c->needsBarrier())
-            reset = true;
+        if (c->isCollecting() != c->needsBarrier()) {
+            ResetIncrementalGC(rt, "compartment change");
+            return;
+        }
     }
-
-    if (reset)
-        ResetIncrementalGC(rt, "compartment change");
 }
 
 /*

@@ -50,11 +50,10 @@ MODULE		= xremoteclient
 LIBRARY_NAME = xremote_client_s
 FORCE_STATIC_LIB = 1
 
+
 DEFINES += -DXPCOM_GLUE
 
-LIBCPPSRCS = XRemoteClient.cpp
-
-OBJS = $(LIBCPPSRCS:.cpp=.$(OBJ_SUFFIX))
+CPPSRCS		+= XRemoteClient.cpp
 
 EXTRA_DSO_LDOPTS = \
 		$(XLIBS) $(XLDFLAGS)  \
@@ -63,17 +62,15 @@ EXTRA_DSO_LDOPTS = \
 
 PROGRAM         = mozilla-xremote-client$(BIN_SUFFIX)
 
-PROGCPPSRCS = \
-  mozilla-xremote-client.cpp \
-  XRemoteClient.cpp \
-  $(NULL)
-
-PROGOBJS = $(PROGCPPSRCS:.cpp=.$(OBJ_SUFFIX))
-
-CPPSRCS = $(filter-out $(LIBCPPSRCS),$(PROGCPPSRCS)) $(LIBCPPSRCS)
+PROGOBJS        = mozilla-xremote-client.$(OBJ_SUFFIX) \
+		XRemoteClient_standalone.$(OBJ_SUFFIX) \
+		$(NULL)
 
 LIBS            = \
 		$(NSPR_LIBS) \
 		$(XLDFLAGS) $(XLIBS)
 
 include $(topsrcdir)/config/rules.mk
+
+XRemoteClient_standalone.$(OBJ_SUFFIX): XRemoteClient.cpp
+	$(CXX) $(OUTOPTION)$@ -c $(COMPILE_CXXFLAGS) $<

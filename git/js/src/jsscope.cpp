@@ -115,7 +115,7 @@ Shape::makeOwnBaseShape(JSContext *cx)
     if (!nbase)
         return false;
 
-    new (nbase) BaseShape(StackBaseShape(self));
+    new (nbase) BaseShape(*self->base());
     nbase->setOwned(self->base()->toUnowned());
 
     self->base_ = nbase;

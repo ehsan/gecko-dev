@@ -75,12 +75,14 @@ NS_IMETHODIMP nsNetAddr::GetAddress(nsACString & aAddress)
   switch(mAddr.raw.family) {
   /* PR_NetAddrToString can handle INET and INET6, but not LOCAL. */
   case PR_AF_INET: 
-    aAddress.SetCapacity(16);
+    if(!aAddress.SetCapacity(16))
+      return NS_ERROR_OUT_OF_MEMORY;
     PR_NetAddrToString(&mAddr, aAddress.BeginWriting(), 16);
     aAddress.SetLength(strlen(aAddress.BeginReading()));
     break;
   case PR_AF_INET6:
-    aAddress.SetCapacity(46);
+    if(!aAddress.SetCapacity(46))
+      return NS_ERROR_OUT_OF_MEMORY;
     PR_NetAddrToString(&mAddr, aAddress.BeginWriting(), 46);
     aAddress.SetLength(strlen(aAddress.BeginReading()));
     break;

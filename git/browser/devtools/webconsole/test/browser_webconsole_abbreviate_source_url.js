@@ -15,7 +15,7 @@ function test() {
 }
 
 function testAbbreviation(aFullURL, aAbbreviatedURL) {
-  is(WebConsoleUtils.abbreviateSourceURL(aFullURL), aAbbreviatedURL, aFullURL +
+  is(ConsoleUtils.abbreviateSourceURL(aFullURL), aAbbreviatedURL, aFullURL +
      " is abbreviated to " + aAbbreviatedURL);
 }
 

@@ -44,84 +44,45 @@
 #include "frontend/Parser.h"
 #include "frontend/TreeContext.h"
 
-#include "frontend/ParseMaps-inl.h"
-
 namespace js {
 
 inline
-SharedContext::SharedContext(JSContext *cx, bool inFunction)
-  : context(cx),
-    flags(0),
-    bodyid(0),
-    blockidGen(0),
-    topStmt(NULL),
-    topScopeStmt(NULL),
-    blockChain(cx),
-    fun_(cx),
-    scopeChain_(cx),
-    staticLevel(0),
-    funbox(NULL),
-    functionList(NULL),
-    bindings(cx),
-    bindingsRoot(cx, &bindings),
-    inFunction(inFunction),
-    inForInit(false)
+TreeContext::TreeContext(Parser *prs)
+  : context(prs->context), flags(0), bodyid(0), blockidGen(0), parenDepth(0), yieldCount(0),
+    topStmt(NULL), topScopeStmt(NULL), blockChain(context), blockNode(NULL),
+    decls(context), yieldNode(NULL), argumentsNode(NULL), parserTC(&prs->tc),
+    fun_(context), scopeChain_(context),
+    lexdeps(context), parent(prs->tc), staticLevel(0), funbox(NULL), functionList(NULL),
+    innermostWith(NULL), bindings(context), bindingsRoot(context, &bindings),
+    funcStmts(NULL)
 {
+    prs->tc = this;
 }
 
 inline unsigned
-SharedContext::blockid()
+TreeContext::blockid()
 {
     return topStmt ? topStmt->blockid : bodyid;
 }
 
 inline bool
-SharedContext::atBodyLevel()
+TreeContext::atBodyLevel()
 {
     return !topStmt || (topStmt->flags & SIF_BODY_BLOCK);
 }
 
 inline bool
-SharedContext::needStrictChecks() {
+TreeContext::needStrictChecks() {
     return context->hasStrictOption() || inStrictMode();
 }
 
 inline unsigned
-SharedContext::argumentsLocalSlot() const {
+TreeContext::argumentsLocalSlot() const {
     PropertyName *arguments = context->runtime->atomState.argumentsAtom;
     unsigned slot;
     DebugOnly<BindingKind> kind = bindings.lookup(context, arguments, &slot);
     JS_ASSERT(kind == VARIABLE || kind == CONSTANT);
     return slot;
-}
-
-inline
-TreeContext::TreeContext(Parser *prs, SharedContext *sc)
-  : sc(sc),
-    parenDepth(0),
-    yieldCount(0),
-    blockNode(NULL),
-    decls(prs->context),
-    yieldNode(NULL),
-    argumentsNode(NULL),
-    parserTC(&prs->tc),
-    lexdeps(prs->context),
-    parent(prs->tc),
-    innermostWith(NULL),
-    funcStmts(NULL),
-    hasReturnExpr(false),
-    hasReturnVoid(false),
-    inDeclDestructuring(false)
-{
-    prs->tc = this;
-}
-
-inline bool
-TreeContext::init(JSContext *cx)
-{
-    if (cx->hasRunOption(JSOPTION_STRICT_MODE))
-        sc->flags |= TCF_STRICT_MODE_CODE;
-    return decls.init() && lexdeps.ensureMap(sc->context);
 }
 
 // For functions the tree context is constructed and destructed a second
@@ -134,7 +95,7 @@ TreeContext::~TreeContext()
     // die, make |*parserTC| point to this object's parent.
     JS_ASSERT(*parserTC == this);
     *parserTC = this->parent;
-    sc->context->delete_(funcStmts);
+    context->delete_(funcStmts);
 }
 
 } // namespace js

@@ -48,7 +48,6 @@
 
 #include "jsobjinlines.h"
 #include "jsstrinlines.h"
-
 #include "RegExpStatics-inl.h"
 
 inline js::RegExpObject &

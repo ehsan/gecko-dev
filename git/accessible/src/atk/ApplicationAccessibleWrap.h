@@ -38,39 +38,31 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_a11y_ApplicationAccessibleWrap_h__
-#define mozilla_a11y_ApplicationAccessibleWrap_h__
+#ifndef MOZILLA_A11Y_APPLICATION_ACCESSIBLE_WRAP_H__
+#define MOZILLA_A11Y_APPLICATION_ACCESSIBLE_WRAP_H__
 
 #include "ApplicationAccessible.h"
 
-namespace mozilla {
-namespace a11y {
- 
 class ApplicationAccessibleWrap: public ApplicationAccessible
 {
 public:
-  static void Unload();
-  static void PreCreate();
+    static void Unload();
+    static void PreCreate();
 
 public:
-  ApplicationAccessibleWrap();
-  virtual ~ApplicationAccessibleWrap();
+    ApplicationAccessibleWrap();
+    virtual ~ApplicationAccessibleWrap();
 
-  // nsAccessNode
-  virtual bool Init();
+    // nsAccessNode
+    virtual bool Init();
 
-  // nsAccessible
-  virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
-  virtual bool AppendChild(nsAccessible* aChild);
-  virtual bool RemoveChild(nsAccessible* aChild);
+    // nsAccessible
+    virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
+    virtual bool AppendChild(nsAccessible* aChild);
+    virtual bool RemoveChild(nsAccessible* aChild);
 
-  /**
-   * Return the atk object for app root accessible.
-   */
-  NS_IMETHOD GetNativeInterface(void** aOutAccessible);
+    // return the atk object for app root accessible
+    NS_IMETHOD GetNativeInterface(void **aOutAccessible);
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif   /* __NS_APP_ROOT_ACCESSIBLE_H__ */
