@@ -77,7 +77,7 @@ protected:
   virtual ~nsDOMClassInfo();
 
 public:
-  explicit nsDOMClassInfo(nsDOMClassInfoData* aData);
+  nsDOMClassInfo(nsDOMClassInfoData* aData);
 
   NS_DECL_NSIXPCSCRIPTABLE
 
@@ -214,7 +214,7 @@ typedef nsDOMClassInfo nsDOMGenericSH;
 class nsEventTargetSH : public nsDOMGenericSH
 {
 protected:
-  explicit nsEventTargetSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
+  nsEventTargetSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
   {
   }
 
@@ -240,7 +240,7 @@ public:
 class nsWindowSH : public nsDOMGenericSH
 {
 protected:
-  explicit nsWindowSH(nsDOMClassInfoData *aData) : nsDOMGenericSH(aData)
+  nsWindowSH(nsDOMClassInfoData *aData) : nsDOMGenericSH(aData)
   {
   }
 
@@ -306,7 +306,7 @@ public:
 class nsDOMConstructorSH : public nsDOMGenericSH
 {
 protected:
-  explicit nsDOMConstructorSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
+  nsDOMConstructorSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
   {
   }
 
@@ -339,7 +339,7 @@ public:
 class nsNonDOMObjectSH : public nsDOMGenericSH
 {
 protected:
-  explicit nsNonDOMObjectSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
+  nsNonDOMObjectSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
   {
   }
 

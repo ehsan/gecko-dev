@@ -22,7 +22,7 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIUDPSOCKETLISTENER
 
-  explicit UDPSocketParent(nsIUDPSocketFilter* filter) :
+  UDPSocketParent(nsIUDPSocketFilter* filter) :
     mIPCOpen(true),
     mFilter(filter) {}
 

@@ -114,14 +114,6 @@ dictionary EcKeyGenParams : Algorithm {
   NamedCurve namedCurve;
 };
 
-dictionary AesDerivedKeyParams : Algorithm {
-  [EnforceRange] unsigned long length;
-};
-
-dictionary HmacDerivedKeyParams : HmacImportParams {
-  [EnforceRange] unsigned long length;
-};
-
 dictionary EcdhKeyDeriveParams : Algorithm {
   CryptoKey public;
 };

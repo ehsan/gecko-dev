@@ -38,9 +38,11 @@ class TransportLayer : public sigslot::has_slots<> {
   // The state of the transport flow
   // We can't use "ERROR" because Windows has a macro named "ERROR"
   enum State { TS_NONE, TS_INIT, TS_CONNECTING, TS_OPEN, TS_CLOSED, TS_ERROR };
+  enum Mode { STREAM, DGRAM };
 
   // Is this a stream or datagram flow
-  TransportLayer() :
+  TransportLayer(Mode mode = STREAM) :
+    mode_(mode),
     state_(TS_NONE),
     flow_id_(),
     downward_(nullptr) {}
@@ -94,6 +96,7 @@ class TransportLayer : public sigslot::has_slots<> {
     NS_ABORT_IF_FALSE(CheckThreadInt(), "Wrong thread");
   }
 
+  Mode mode_;
   State state_;
   std::string flow_id_;
   TransportLayer *downward_; // The next layer in the stack

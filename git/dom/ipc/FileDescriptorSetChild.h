@@ -33,7 +33,7 @@ public:
   ForgetFileDescriptors(nsTArray<FileDescriptor>& aFileDescriptors);
 
 private:
-  explicit FileDescriptorSetChild(const FileDescriptor& aFileDescriptor);
+  FileDescriptorSetChild(const FileDescriptor& aFileDescriptor);
   ~FileDescriptorSetChild();
 
   virtual bool

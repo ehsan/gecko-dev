@@ -974,27 +974,31 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
 
     NS_IF_RELEASE(gDebug);
 
-    delete sIOThread;
-    sIOThread = nullptr;
-
-    delete sMessageLoop;
-    sMessageLoop = nullptr;
-
+    if (sIOThread) {
+        delete sIOThread;
+        sIOThread = nullptr;
+    }
+    if (sMessageLoop) {
+        delete sMessageLoop;
+        sMessageLoop = nullptr;
+    }
     if (sCommandLineWasInitialized) {
         CommandLine::Terminate();
         sCommandLineWasInitialized = false;
     }
-
-    delete sExitManager;
-    sExitManager = nullptr;
+    if (sExitManager) {
+        delete sExitManager;
+        sExitManager = nullptr;
+    }
 
     Omnijar::CleanUp();
 
     HangMonitor::Shutdown();
 
-    delete sMainHangMonitor;
-    sMainHangMonitor = nullptr;
-
+    if (sMainHangMonitor) {
+        delete sMainHangMonitor;
+        sMainHangMonitor = nullptr;
+    }
     BackgroundHangMonitor::Shutdown();
 
 #ifdef MOZ_VISUAL_EVENT_TRACER

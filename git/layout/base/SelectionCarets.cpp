@@ -520,14 +520,14 @@ SelectionCarets::SelectWord()
   nsLayoutUtils::TransformPoint(canvasFrame, ptFrame, ptInFrame);
 
   nsIFrame* caretFocusFrame = GetCaretFocusFrame();
-  SetSelectionDragState(true);
+  nsRefPtr<nsFrameSelection> fs = caretFocusFrame->GetFrameSelection();
+  fs->SetDragState(true);
   nsFrame* frame = static_cast<nsFrame*>(ptFrame);
   nsresult rs = frame->SelectByTypeAtPoint(mPresShell->GetPresContext(), ptInFrame,
                                            eSelectWord, eSelectWord, 0);
-  SetSelectionDragState(false);
+  fs->SetDragState(false);
 
   // Clear maintain selection otherwise we cannot select less than a word
-  nsRefPtr<nsFrameSelection> fs = caretFocusFrame->GetFrameSelection();
   fs->MaintainSelection();
   return rs;
 }

@@ -202,8 +202,8 @@ MapHashAlgorithmNameToBlockSize(const nsString& aName)
 }
 
 inline nsresult
-GetKeyLengthForAlgorithm(JSContext* aCx, const ObjectOrString& aAlgorithm,
-                         size_t& aLength)
+GetKeySizeForAlgorithm(JSContext* aCx, const ObjectOrString& aAlgorithm,
+                       size_t& aLength)
 {
   aLength = 0;
 
@@ -218,7 +218,7 @@ GetKeyLengthForAlgorithm(JSContext* aCx, const ObjectOrString& aAlgorithm,
       algName.EqualsLiteral(WEBCRYPTO_ALG_AES_CTR) ||
       algName.EqualsLiteral(WEBCRYPTO_ALG_AES_GCM) ||
       algName.EqualsLiteral(WEBCRYPTO_ALG_AES_KW)) {
-    RootedDictionary<AesDerivedKeyParams> params(aCx);
+    RootedDictionary<AesKeyGenParams> params(aCx);
     if (NS_FAILED(Coerce(aCx, params, aAlgorithm)) ||
         !params.mLength.WasPassed()) {
       return NS_ERROR_DOM_SYNTAX_ERR;
@@ -233,19 +233,12 @@ GetKeyLengthForAlgorithm(JSContext* aCx, const ObjectOrString& aAlgorithm,
     return NS_OK;
   }
 
-  // Read HMAC key length from given algorithm object or
-  // determine key length as the block size of the given hash.
+  // Determine HMAC key length as the block size of the given hash.
   if (algName.EqualsLiteral(WEBCRYPTO_ALG_HMAC)) {
-    RootedDictionary<HmacDerivedKeyParams> params(aCx);
+    RootedDictionary<HmacImportParams> params(aCx);
     if (NS_FAILED(Coerce(aCx, params, aAlgorithm)) ||
         !params.mHash.WasPassed()) {
       return NS_ERROR_DOM_SYNTAX_ERR;
-    }
-
-    // Return the passed length, if any.
-    if (params.mLength.WasPassed()) {
-      aLength = params.mLength.Value();
-      return NS_OK;
     }
 
     nsString hashName;
@@ -253,7 +246,6 @@ GetKeyLengthForAlgorithm(JSContext* aCx, const ObjectOrString& aAlgorithm,
       return NS_ERROR_DOM_SYNTAX_ERR;
     }
 
-    // Return the given hash algorithm's block size as the key length.
     size_t length = MapHashAlgorithmNameToBlockSize(hashName);
     if (length == 0) {
       return NS_ERROR_DOM_SYNTAX_ERR;
@@ -1950,7 +1942,7 @@ public:
         algName.EqualsLiteral(WEBCRYPTO_ALG_AES_CTR) ||
         algName.EqualsLiteral(WEBCRYPTO_ALG_AES_GCM) ||
         algName.EqualsLiteral(WEBCRYPTO_ALG_AES_KW)) {
-      mEarlyRv = GetKeyLengthForAlgorithm(aCx, aAlgorithm, mLength);
+      mEarlyRv = GetKeySizeForAlgorithm(aCx, aAlgorithm, mLength);
       if (NS_FAILED(mEarlyRv)) {
         return;
       }
@@ -2275,7 +2267,7 @@ public:
     : mSymKey(aKey.GetSymKey())
   {
     size_t length;
-    mEarlyRv = GetKeyLengthForAlgorithm(aCx, aTargetAlgorithm, length);
+    mEarlyRv = GetKeySizeForAlgorithm(aCx, aTargetAlgorithm, length);
 
     if (NS_SUCCEEDED(mEarlyRv)) {
       Init(aCx, aAlgorithm, aKey, length);
@@ -2434,7 +2426,7 @@ public:
                      CryptoKey& aKey, const ObjectOrString& aTargetAlgorithm)
     : mPrivKey(aKey.GetPrivateKey())
   {
-    mEarlyRv = GetKeyLengthForAlgorithm(aCx, aTargetAlgorithm, mLength);
+    mEarlyRv = GetKeySizeForAlgorithm(aCx, aTargetAlgorithm, mLength);
     if (NS_SUCCEEDED(mEarlyRv)) {
       Init(aCx, aAlgorithm, aKey);
     }

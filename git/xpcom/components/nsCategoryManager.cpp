@@ -83,7 +83,9 @@ protected:
 
   virtual ~BaseStringEnumerator()
   {
-    delete [] mArray;
+    if (mArray) {
+      delete[] mArray;
+    }
   }
 
   void Sort();

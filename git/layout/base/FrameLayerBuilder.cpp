@@ -2096,7 +2096,6 @@ ContainerState::PopThebesLayerData()
     nsIntRect emptyRect;
     data->mLayer->SetClipRect(&emptyRect);
     data->mLayer->SetVisibleRegion(nsIntRegion());
-    data->mLayer->InvalidateRegion(data->mLayer->GetValidRegion().GetBounds());
     data->mLayer->SetEventRegions(EventRegions());
   } else {
     layer = data->mLayer;

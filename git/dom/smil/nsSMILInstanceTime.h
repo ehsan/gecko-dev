@@ -50,10 +50,10 @@ public:
     SOURCE_EVENT
   };
 
-  explicit nsSMILInstanceTime(const nsSMILTimeValue& aTime,
-                              nsSMILInstanceTimeSource aSource = SOURCE_NONE,
-                              nsSMILTimeValueSpec* aCreator = nullptr,
-                              nsSMILInterval* aBaseInterval = nullptr);
+  nsSMILInstanceTime(const nsSMILTimeValue& aTime,
+                     nsSMILInstanceTimeSource aSource = SOURCE_NONE,
+                     nsSMILTimeValueSpec* aCreator = nullptr,
+                     nsSMILInterval* aBaseInterval = nullptr);
 
   void Unlink();
   void HandleChangedInterval(const nsSMILTimeContainer* aSrcContainer,

@@ -7,7 +7,7 @@
 
 class nsPIDOMWindow;
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
+#include "PCOMContentPermissionRequestChild.h"
 
 #include "DOMRequest.h"
 #include "DOMCursor.h"
@@ -28,6 +28,7 @@ class nsPIDOMWindow;
 #include "mozilla/Mutex.h"
 #include "prtime.h"
 #include "DeviceStorage.h"
+#include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
 #include "mozilla/StaticPtr.h"
 
 namespace mozilla {
@@ -190,6 +191,7 @@ private:
 class nsDOMDeviceStorageCursor MOZ_FINAL
   : public mozilla::dom::DOMCursor
   , public nsIContentPermissionRequest
+  , public PCOMContentPermissionRequestChild
   , public mozilla::dom::devicestorage::DeviceStorageRequestChildCallback
 {
 public:
@@ -209,6 +211,10 @@ public:
   nsTArray<nsRefPtr<DeviceStorageFile> > mFiles;
   bool mOkToCallContinue;
   PRTime mSince;
+
+  virtual bool Recv__delete__(const bool& allow,
+                              const InfallibleTArray<PermissionChoice>& choices) MOZ_OVERRIDE;
+  virtual void IPDLRelease() MOZ_OVERRIDE;
 
   void GetStorageType(nsAString & aType);
 

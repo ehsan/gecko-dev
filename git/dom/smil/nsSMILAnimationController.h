@@ -44,7 +44,7 @@ class nsSMILAnimationController : public nsSMILTimeContainer,
                                   public nsARefreshObserver
 {
 public:
-  explicit nsSMILAnimationController(nsIDocument* aDoc);
+  nsSMILAnimationController(nsIDocument* aDoc);
 
   // Clears mDocument pointer. (Called by our nsIDocument when it's going away)
   void Disconnect();

@@ -33,7 +33,7 @@ public:
   ForgetFileDescriptors(nsTArray<FileDescriptor>& aFileDescriptors);
 
 private:
-  explicit FileDescriptorSetParent(const FileDescriptor& aFileDescriptor);
+  FileDescriptorSetParent(const FileDescriptor& aFileDescriptor);
   ~FileDescriptorSetParent();
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
