@@ -77,6 +77,9 @@ class MethodHandler(object):
         # Description of the purpose of this command.
         'description',
 
+        # Whether to allow all arguments from the parser.
+        'allow_all_arguments',
+
         # Functions used to 'skip' commands if they don't meet the conditions
         # in a given context.
         'conditions',
@@ -91,13 +94,15 @@ class MethodHandler(object):
     )
 
     def __init__(self, cls, method, name, category=None, description=None,
-        conditions=None, parser=None, arguments=None, pass_context=False):
+        allow_all_arguments=False, conditions=None, parser=None, arguments=None,
+        pass_context=False):
 
         self.cls = cls
         self.method = method
         self.name = name
         self.category = category
         self.description = description
+        self.allow_all_arguments = allow_all_arguments
         self.conditions = conditions or []
         self.parser = parser
         self.arguments = arguments or []

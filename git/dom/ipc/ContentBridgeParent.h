@@ -39,7 +39,7 @@ public:
                           const bool& aIsForApp,
                           const bool& aIsForBrowser) MOZ_OVERRIDE;
 
-  jsipc::JavaScriptShared* GetCPOWManager() MOZ_OVERRIDE;
+  jsipc::JavaScriptParent* GetCPOWManager();
 
   virtual uint64_t ChildID() MOZ_OVERRIDE
   {

@@ -14,11 +14,6 @@
 #include "nsFrameMessageManager.h"
 
 namespace mozilla {
-
-namespace dom {
-class CPOWManagerGetter;
-}
-
 namespace jsipc {
 
 class ObjectId {
@@ -68,7 +63,11 @@ class JavaScriptShared;
 class CpowIdHolder : public CpowHolder
 {
   public:
-    CpowIdHolder(dom::CPOWManagerGetter *managerGetter, const InfallibleTArray<CpowEntry> &cpows);
+    CpowIdHolder(JavaScriptShared *js, const InfallibleTArray<CpowEntry> &cpows)
+      : js_(js),
+        cpows_(cpows)
+    {
+    }
 
     bool ToObject(JSContext *cx, JS::MutableHandleObject objp);
 

@@ -25,6 +25,7 @@ from mach.decorators import (
 @CommandProvider
 class MachCommands(MachCommandBase):
     @Command('python', category='devenv',
+        allow_all_args=True,
         description='Run Python.')
     @CommandArgument('args', nargs=argparse.REMAINDER)
     def python(self, args):

@@ -9,7 +9,6 @@
 #include <dlfcn.h>
 #include <signal.h>
 #include "mozilla/RefPtr.h"
-#include "mozilla/UniquePtr.h"
 #include "Zip.h"
 #include "Elfxx.h"
 #include "Mappable.h"
@@ -63,9 +62,6 @@ MFBT_API bool
 IsSignalHandlingBroken();
 
 }
-
-/* Forward declaration because BaseElf.h includes ElfLoader.h */
-class BaseElf;
 
 /**
  * Specialize RefCounted template for LibHandle. We may get references to
@@ -443,13 +439,6 @@ protected:
 private:
   ~ElfLoader();
 
-  /* Initialization code that can't run during static initialization. */
-  void Init();
-
-  /* System loader handle for the library/program containing our code. This
-   * is used to resolve wrapped functions. */
-  mozilla::UniquePtr<BaseElf> self_elf;
-
   /* Bookkeeping */
   typedef std::vector<LibHandle *> LibHandleList;
   LibHandleList handles;
@@ -568,20 +557,12 @@ private:
     } r_state;
   };
 
-  /* Memory representation of ELF Auxiliary Vectors */
-  struct AuxVector {
-    Elf::Addr type;
-    Elf::Addr value;
-  };
-
   /* Helper class used to integrate libraries loaded by this linker in
    * r_debug */
   class DebuggerHelper
   {
   public:
     DebuggerHelper();
-
-    void Init(AuxVector *auvx);
 
     operator bool()
     {
