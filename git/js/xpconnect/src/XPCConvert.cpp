@@ -155,7 +155,7 @@ XPCConvert::NativeData2JS(MutableHandleValue d, const void* s,
     case nsXPTType::T_JSVAL :
         {
             d.set(*((Value*)s));
-            if (!JS_WrapValue(cx, d))
+            if (!JS_WrapValue(cx, d.address()))
                 return false;
             break;
         }

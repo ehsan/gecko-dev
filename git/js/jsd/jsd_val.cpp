@@ -196,7 +196,7 @@ jsd_GetValueString(JSDContext* jsdc, JSDValue* jsdval)
     if(string) {
         stringval = STRING_TO_JSVAL(string);
     }
-    if(!string || !JS_WrapValue(cx, &stringval)) {
+    if(!string || !JS_WrapValue(cx, stringval.address())) {
         return nullptr;
     }
 
@@ -253,7 +253,7 @@ jsd_NewValue(JSDContext* jsdc, jsval value)
 
         ok = JS_AddNamedValueRoot(cx, &jsdval->val, "JSDValue");
         if(ok && JSVAL_IS_STRING(val)) {
-            if(!JS_WrapValue(cx, &val)) {
+            if(!JS_WrapValue(cx, val.address())) {
                 ok = false;
             }
         }

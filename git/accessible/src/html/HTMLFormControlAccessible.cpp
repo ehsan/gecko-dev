@@ -533,7 +533,9 @@ HTMLFileInputAccessible::HandleAccEvent(AccEvent* aEvent)
     if (button && button->Role() == roles::PUSHBUTTON) {
       nsRefPtr<AccStateChangeEvent> childEvent =
         new AccStateChangeEvent(button, event->GetState(),
-                                event->IsStateEnabled(), event->FromUserInput());
+                                event->IsStateEnabled(),
+                                (event->IsFromUserInput() ? eFromUserInput
+                                                          : eNoUserInput));
       nsEventShell::FireEvent(childEvent);
     }
   }

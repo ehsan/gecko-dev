@@ -17,8 +17,7 @@ BytecodeAnalysis::BytecodeAnalysis(JSScript *script)
   : script_(script),
     infos_(),
     usesScopeChain_(false),
-    hasTryFinally_(false),
-    hasSetArg_(false)
+    hasTryFinally_(false)
 {
 }
 

@@ -194,16 +194,6 @@ class ToDoublePolicy : public BoxInputsPolicy
     }
 };
 
-// Box objects, strings and undefined as input to a ToInt32 instruction.
-class ToInt32Policy : public BoxInputsPolicy
-{
-  public:
-    static bool staticAdjustInputs(MInstruction *def);
-    bool adjustInputs(MInstruction *def) {
-        return staticAdjustInputs(def);
-    }
-};
-
 template <unsigned Op>
 class ObjectPolicy : public BoxInputsPolicy
 {

@@ -1210,14 +1210,6 @@ function synthUpKey(aNodeOrID, aCheckerOrEventSeq, aArgs)
 }
 
 /**
- * Left arrow key invoker.
- */
-function synthLeftKey(aNodeOrID, aCheckerOrEventSeq)
-{
-  this.__proto__ = new synthKey(aNodeOrID, "VK_LEFT", null, aCheckerOrEventSeq);
-}
-
-/**
  * Right arrow key invoker.
  */
 function synthRightKey(aNodeOrID, aCheckerOrEventSeq)
@@ -1666,17 +1658,6 @@ function invokerChecker(aEventType, aTargetOrFunc, aTargetFuncArg, aIsAsync)
 }
 
 /**
- * Generic invoker checker for unexpected events.
- */
-function unexpectedInvokerChecker(aEventType, aTargetOrFunc, aTargetFuncArg)
-{
-  this.__proto__ = new invokerChecker(aEventType, aTargetOrFunc,
-                                      aTargetFuncArg, true);
-
-  this.unexpected = true;
-}
-
-/**
  * Common invoker checker for async events.
  */
 function asyncInvokerChecker(aEventType, aTargetOrFunc, aTargetFuncArg)
@@ -1752,19 +1733,6 @@ function caretMoveChecker(aCaretOffset, aTargetOrFunc, aTargetFuncArg)
     is(aEvent.QueryInterface(nsIAccessibleCaretMoveEvent).caretOffset,
        aCaretOffset,
        "Wrong caret offset for " + prettyName(aEvent.accessible));
-  }
-}
-
-/**
- * Text selection change checker.
- */
-function textSelectionChecker(aID, aStartOffset, aEndOffset)
-{
-  this.__proto__ = new invokerChecker(EVENT_TEXT_SELECTION_CHANGED, aID);
-
-  this.check = function textSelectionChecker_check(aEvent)
-  {
-    testTextGetSelection(aID, aStartOffset, aEndOffset, 0);
   }
 }
 

@@ -1591,7 +1591,7 @@ Navigator::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
     }
   }
 
-  if (!JS_WrapValue(aCx, &prop_val)) {
+  if (!JS_WrapValue(aCx, prop_val.address())) {
     return Throw(aCx, NS_ERROR_UNEXPECTED);
   }
 
