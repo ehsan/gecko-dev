@@ -2896,9 +2896,7 @@ LIRGenerator::visitClampToUint8(MClampToUint8 *ins)
         break;
 
       case MIRType_Double:
-        // LClampDToUint8 clobbers its input register. Making it available as
-        // a temp copy describes this behavior to the register allocator.
-        define(new(alloc()) LClampDToUint8(useRegisterAtStart(in), tempCopy(in, 0)), ins);
+        define(new(alloc()) LClampDToUint8(useRegisterAtStart(in)), ins);
         break;
 
       case MIRType_Value:

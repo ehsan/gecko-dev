@@ -708,7 +708,8 @@ RegExpCompartment::createMatchResultTemplateObject(JSContext *cx)
 
     // Create a new group for the template.
     Rooted<TaggedProto> proto(cx, templateObject->getTaggedProto());
-    ObjectGroup *group = ObjectGroupCompartment::makeGroup(cx, templateObject->getClass(), proto);
+    types::ObjectGroup *group =
+        cx->compartment()->types.newObjectGroup(cx, templateObject->getClass(), proto);
     if (!group)
         return matchResultTemplateObject_; // = nullptr
     templateObject->setGroup(group);

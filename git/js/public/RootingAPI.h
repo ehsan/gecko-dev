@@ -145,41 +145,6 @@ template<typename T>
 struct PersistentRootedMarker;
 } /* namespace gc */
 
-#define DECLARE_POINTER_COMPARISON_OPS(T)                                                \
-    bool operator==(const T &other) const { return get() == other; }                              \
-    bool operator!=(const T &other) const { return get() != other; }
-
-// Important: Return a reference so passing a Rooted<T>, etc. to
-// something that takes a |const T&| is not a GC hazard.
-#define DECLARE_POINTER_CONSTREF_OPS(T)                                                  \
-    operator const T &() const { return get(); }                                                  \
-    const T &operator->() const { return get(); }
-
-// Assignment operators on a base class are hidden by the implicitly defined
-// operator= on the derived class. Thus, define the operator= directly on the
-// class as we would need to manually pass it through anyway.
-#define DECLARE_POINTER_ASSIGN_OPS(Wrapper, T)                                                    \
-    Wrapper<T> &operator=(const T &p) {                                                           \
-        set(p);                                                                                   \
-        return *this;                                                                             \
-    }                                                                                             \
-    Wrapper<T> &operator=(const Wrapper<T> &other) {                                              \
-        set(other.get());                                                                         \
-        return *this;                                                                             \
-    }                                                                                             \
-
-#define DELETE_ASSIGNMENT_OPS(Wrapper, T)                                                 \
-    template <typename S> Wrapper<T> &operator=(S) = delete;                                      \
-    Wrapper<T> &operator=(const Wrapper<T> &) = delete;
-
-#define DECLARE_NONPOINTER_ACCESSOR_METHODS(ptr)                                                  \
-    const T *address() const { return &(ptr); }                                                   \
-    const T &get() const { return (ptr); }                                                        \
-
-#define DECLARE_NONPOINTER_MUTABLE_ACCESSOR_METHODS(ptr)                                          \
-    T *address() { return &(ptr); }                                                               \
-    T &get() { return (ptr); }                                                                    \
-
 } /* namespace js */
 
 namespace JS {
@@ -262,11 +227,41 @@ class Heap : public js::HeapBase<T>
             relocate();
     }
 
-    DECLARE_POINTER_CONSTREF_OPS(T);
-    DECLARE_POINTER_ASSIGN_OPS(Heap, T);
-    DECLARE_NONPOINTER_ACCESSOR_METHODS(ptr);
+    bool operator==(const Heap<T> &other) { return ptr == other.ptr; }
+    bool operator!=(const Heap<T> &other) { return ptr != other.ptr; }
+
+    bool operator==(const T &other) const { return ptr == other; }
+    bool operator!=(const T &other) const { return ptr != other; }
+
+    operator T() const { return ptr; }
+    T operator->() const { return ptr; }
+    const T *address() const { return &ptr; }
+    const T &get() const { return ptr; }
 
     T *unsafeGet() { return &ptr; }
+
+    Heap<T> &operator=(T p) {
+        set(p);
+        return *this;
+    }
+
+    Heap<T> &operator=(const Heap<T>& other) {
+        set(other.get());
+        return *this;
+    }
+
+    void set(T newPtr) {
+        MOZ_ASSERT(!js::GCMethods<T>::poisoned(newPtr));
+        if (js::GCMethods<T>::needsPostBarrier(newPtr)) {
+            ptr = newPtr;
+            post();
+        } else if (js::GCMethods<T>::needsPostBarrier(ptr)) {
+            relocate();  /* Called before overwriting ptr. */
+            ptr = newPtr;
+        } else {
+            ptr = newPtr;
+        }
+    }
 
     /*
      * Set the pointer to a value which will cause a crash if it is
@@ -286,19 +281,6 @@ class Heap : public js::HeapBase<T>
         ptr = newPtr;
         if (js::GCMethods<T>::needsPostBarrier(ptr))
             post();
-    }
-
-    void set(T newPtr) {
-        MOZ_ASSERT(!js::GCMethods<T>::poisoned(newPtr));
-        if (js::GCMethods<T>::needsPostBarrier(newPtr)) {
-            ptr = newPtr;
-            post();
-        } else if (js::GCMethods<T>::needsPostBarrier(ptr)) {
-            relocate();  /* Called before overwriting ptr. */
-            ptr = newPtr;
-        } else {
-            ptr = newPtr;
-        }
     }
 
     void post() {
@@ -490,19 +472,30 @@ class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
     Handle(MutableHandle<S> &root,
            typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
 
-    DECLARE_POINTER_COMPARISON_OPS(T);
-    DECLARE_POINTER_CONSTREF_OPS(T);
-    DECLARE_NONPOINTER_ACCESSOR_METHODS(*ptr);
+    const T *address() const { return ptr; }
+    const T& get() const { return *ptr; }
+
+    /*
+     * Return a reference so passing a Handle<T> to something that
+     * takes a |const T&| is not a GC hazard.
+     */
+    operator const T&() const { return get(); }
+    T operator->() const { return get(); }
+
+    bool operator!=(const T &other) const { return *ptr != other; }
+    bool operator==(const T &other) const { return *ptr == other; }
 
   private:
     Handle() {}
-    DELETE_ASSIGNMENT_OPS(Handle, T);
 
     enum Disambiguator { DeliberatelyChoosingThisOverload = 42 };
     enum CallerIdentity { ImUsingThisOnlyInFromFromMarkedLocation = 17 };
     MOZ_CONSTEXPR Handle(const T *p, Disambiguator, CallerIdentity) : ptr(p) {}
 
     const T *ptr;
+
+    template <typename S> void operator=(S) = delete;
+    void operator=(Handle) = delete;
 };
 
 /*
@@ -543,15 +536,23 @@ class MOZ_STACK_CLASS MutableHandle : public js::MutableHandleBase<T>
         return h;
     }
 
-    DECLARE_POINTER_CONSTREF_OPS(T);
-    DECLARE_NONPOINTER_ACCESSOR_METHODS(*ptr);
-    DECLARE_NONPOINTER_MUTABLE_ACCESSOR_METHODS(*ptr);
+    T *address() const { return ptr; }
+    const T& get() const { return *ptr; }
+
+    /*
+     * Return a reference so passing a MutableHandle<T> to something that takes
+     * a |const T&| is not a GC hazard.
+     */
+    operator const T&() const { return get(); }
+    T operator->() const { return get(); }
 
   private:
     MutableHandle() {}
-    DELETE_ASSIGNMENT_OPS(MutableHandle, T);
 
     T *ptr;
+
+    template <typename S> void operator=(S v) = delete;
+    void operator=(MutableHandle other) = delete;
 };
 
 } /* namespace JS */
@@ -785,19 +786,34 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
     Rooted<T> *previous() { return reinterpret_cast<Rooted<T>*>(prev); }
 
     /*
-     * This method is public for Rooted so that Codegen.py can use a Rooted
-     * interchangeably with a MutableHandleValue.
+     * Important: Return a reference here so passing a Rooted<T> to
+     * something that takes a |const T&| is not a GC hazard.
      */
+    operator const T&() const { return ptr; }
+    T operator->() const { return ptr; }
+    T *address() { return &ptr; }
+    const T *address() const { return &ptr; }
+    T &get() { return ptr; }
+    const T &get() const { return ptr; }
+
+    T &operator=(T value) {
+        MOZ_ASSERT(!js::GCMethods<T>::poisoned(value));
+        ptr = value;
+        return ptr;
+    }
+
+    T &operator=(const Rooted &value) {
+        ptr = value;
+        return ptr;
+    }
+
     void set(T value) {
         MOZ_ASSERT(!js::GCMethods<T>::poisoned(value));
         ptr = value;
     }
 
-    DECLARE_POINTER_COMPARISON_OPS(T);
-    DECLARE_POINTER_CONSTREF_OPS(T);
-    DECLARE_POINTER_ASSIGN_OPS(Rooted, T);
-    DECLARE_NONPOINTER_ACCESSOR_METHODS(ptr);
-    DECLARE_NONPOINTER_MUTABLE_ACCESSOR_METHODS(ptr);
+    bool operator!=(const T &other) const { return ptr != other; }
+    bool operator==(const T &other) const { return ptr == other; }
 
   private:
     /*
@@ -879,19 +895,30 @@ class FakeRooted : public RootedBase<T>
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    DECLARE_POINTER_COMPARISON_OPS(T);
-    DECLARE_POINTER_CONSTREF_OPS(T);
-    DECLARE_POINTER_ASSIGN_OPS(FakeRooted, T);
-    DECLARE_NONPOINTER_ACCESSOR_METHODS(ptr);
-    DECLARE_NONPOINTER_MUTABLE_ACCESSOR_METHODS(ptr);
+    operator T() const { return ptr; }
+    T operator->() const { return ptr; }
+    T *address() { return &ptr; }
+    const T *address() const { return &ptr; }
+    T &get() { return ptr; }
+    const T &get() const { return ptr; }
+
+    FakeRooted<T> &operator=(T value) {
+        MOZ_ASSERT(!GCMethods<T>::poisoned(value));
+        ptr = value;
+        return *this;
+    }
+
+    FakeRooted<T> &operator=(const FakeRooted<T> &other) {
+        MOZ_ASSERT(!GCMethods<T>::poisoned(other.ptr));
+        ptr = other.ptr;
+        return *this;
+    }
+
+    bool operator!=(const T &other) const { return ptr != other; }
+    bool operator==(const T &other) const { return ptr == other; }
 
   private:
     T ptr;
-
-    void set(const T &value) {
-        MOZ_ASSERT(!GCMethods<T>::poisoned(value));
-        ptr = value;
-    }
 
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
@@ -916,15 +943,21 @@ class FakeMutableHandle : public js::MutableHandleBase<T>
         *ptr = v;
     }
 
-    DECLARE_POINTER_CONSTREF_OPS(T);
-    DECLARE_NONPOINTER_ACCESSOR_METHODS(*ptr);
-    DECLARE_NONPOINTER_MUTABLE_ACCESSOR_METHODS(*ptr);
+    T *address() const { return ptr; }
+    T get() const { return *ptr; }
+
+    operator T() const { return get(); }
+    T operator->() const { return get(); }
 
   private:
     FakeMutableHandle() {}
-    DELETE_ASSIGNMENT_OPS(FakeMutableHandle, T);
 
     T *ptr;
+
+    template <typename S>
+    void operator=(S v) = delete;
+
+    void operator=(const FakeMutableHandle<T>& other) = delete;
 };
 
 /*
@@ -1128,7 +1161,8 @@ class PersistentRooted : public js::PersistentRootedBase<T>,
         init(cx, js::GCMethods<T>::initial());
     }
 
-    void init(JSContext *cx, T initial) {
+    void init(JSContext *cx, T initial)
+    {
         ptr = initial;
         registerWithRuntime(js::GetRuntime(cx));
     }
@@ -1137,7 +1171,8 @@ class PersistentRooted : public js::PersistentRootedBase<T>,
         init(rt, js::GCMethods<T>::initial());
     }
 
-    void init(JSRuntime *rt, T initial) {
+    void init(JSRuntime *rt, T initial)
+    {
         ptr = initial;
         registerWithRuntime(rt);
     }
@@ -1149,19 +1184,37 @@ class PersistentRooted : public js::PersistentRootedBase<T>,
         }
     }
 
-    DECLARE_POINTER_COMPARISON_OPS(T);
-    DECLARE_POINTER_CONSTREF_OPS(T);
-    DECLARE_POINTER_ASSIGN_OPS(PersistentRooted, T);
-    DECLARE_NONPOINTER_ACCESSOR_METHODS(ptr);
-    DECLARE_NONPOINTER_MUTABLE_ACCESSOR_METHODS(ptr);
+    /*
+     * Important: Return a reference here so passing a Rooted<T> to
+     * something that takes a |const T&| is not a GC hazard.
+     */
+    operator const T&() const { return ptr; }
+    T operator->() const { return ptr; }
+    T *address() { return &ptr; }
+    const T *address() const { return &ptr; }
+    T &get() { return ptr; }
+    const T &get() const { return ptr; }
 
-  private:
+    T &operator=(T value) {
+        set(value);
+        return ptr;
+    }
+
+    T &operator=(const PersistentRooted &other) {
+        set(other.ptr);
+        return ptr;
+    }
+
     void set(T value) {
         MOZ_ASSERT(initialized());
         MOZ_ASSERT(!js::GCMethods<T>::poisoned(value));
         ptr = value;
     }
 
+    bool operator!=(const T &other) const { return ptr != other; }
+    bool operator==(const T &other) const { return ptr == other; }
+
+  private:
     T ptr;
 };
 
@@ -1225,10 +1278,7 @@ CallTraceCallbackOnNonHeap(T *v, const TraceCallbacks &aCallbacks, const char *a
 }
 
 } /* namespace gc */
-} /* namespace js */
 
-#undef DELETE_ASSIGNMENT_OPS
-#undef DECLARE_NONPOINTER_MUTABLE_ACCESSOR_METHODS
-#undef DECLARE_NONPOINTER_ACCESSOR_METHODS
+} /* namespace js */
 
 #endif  /* js_RootingAPI_h */

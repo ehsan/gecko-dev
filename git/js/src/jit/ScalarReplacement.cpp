@@ -13,7 +13,6 @@
 #include "jit/MIR.h"
 #include "jit/MIRGenerator.h"
 #include "jit/MIRGraph.h"
-#include "vm/UnboxedObject.h"
 
 namespace js {
 namespace jit {

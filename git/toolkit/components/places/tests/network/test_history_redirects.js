@@ -62,12 +62,7 @@ function PathHandler(aMeta, aResponse, aChannelEvent, aRedirURL) {
 function run_test() {
   do_test_pending();
 
-  var chan = NetUtil.ioService.newChannelFromURI2(uri(PERMA_REDIR_URL),
-                                                  null,      // aLoadingNode
-                                                  Services.scriptSecurityManager.getSystemPrincipal(),
-                                                  null,      // aTriggeringPrincipal
-                                                  Ci.nsILoadInfo.SEC_NORMAL,
-                                                  Ci.nsIContentPolicy.TYPE_OTHER);
+  var chan = NetUtil.ioService.newChannelFromURI(uri(PERMA_REDIR_URL));
   var listener = new ChannelListener();
   chan.notificationCallbacks = listener;
   chan.asyncOpen(listener, null);

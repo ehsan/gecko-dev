@@ -47,7 +47,7 @@ TestHeapPostBarriers(T initialObj)
     JS::Heap<T> *heapData = new JS::Heap<T>();
     CHECK(heapData);
     CHECK(Passthrough(heapData->get() == nullptr));
-    *heapData = initialObj;
+    heapData->set(initialObj);
 
     /* Store the pointer as an integer so that the hazard analysis will miss it. */
     uintptr_t initialObjAsInt = uintptr_t(initialObj);

@@ -7,7 +7,6 @@
 #ifndef jit_Disassembler_h
 #define jit_Disassembler_h
 
-#include "jit/MacroAssembler.h"
 #include "jit/Registers.h"
 
 namespace js {

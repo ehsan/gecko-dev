@@ -118,7 +118,7 @@ class JSObject : public js::gc::Cell
                                           bool *succeeded);
 
     // Make a new group to use for a singleton object.
-    static js::ObjectGroup *makeLazyGroup(JSContext *cx, js::HandleObject obj);
+    static js::types::ObjectGroup *makeLazyGroup(JSContext *cx, js::HandleObject obj);
 
   public:
     js::Shape * lastProperty() const {
@@ -143,12 +143,12 @@ class JSObject : public js::gc::Cell
         return &getClass()->ops;
     }
 
-    js::ObjectGroup *group() const {
+    js::types::ObjectGroup *group() const {
         MOZ_ASSERT(!hasLazyGroup());
         return groupRaw();
     }
 
-    js::ObjectGroup *groupRaw() const {
+    js::types::ObjectGroup *groupRaw() const {
         return group_;
     }
 
@@ -323,7 +323,9 @@ class JSObject : public js::gc::Cell
      */
     static inline bool setSingleton(js::ExclusiveContext *cx, js::HandleObject obj);
 
-    inline js::ObjectGroup* getGroup(JSContext *cx);
+    // uninlinedGetGroup() is the same as getGroup(), but not inlined.
+    inline js::types::ObjectGroup* getGroup(JSContext *cx);
+    js::types::ObjectGroup* uninlinedGetGroup(JSContext *cx);
 
     const js::HeapPtrObjectGroup &groupFromGC() const {
         /* Direct field access for use by GC. */
@@ -353,7 +355,9 @@ class JSObject : public js::gc::Cell
 
     JSObject *getProto() const {
         MOZ_ASSERT(!uninlinedIsProxy());
-        return getTaggedProto().toObjectOrNull();
+        JSObject *proto = getTaggedProto().toObjectOrNull();
+        MOZ_ASSERT_IF(proto && proto->isNative(), proto->isDelegate());
+        return proto;
     }
 
     // Normal objects and a subset of proxies have uninteresting [[Prototype]].
@@ -386,7 +390,13 @@ class JSObject : public js::gc::Cell
         return lastProperty()->hasObjectFlag(js::BaseShape::IMMUTABLE_PROTOTYPE);
     }
 
-    inline void setGroup(js::ObjectGroup *group);
+    // uninlinedSetGroup() is the same as setGroup(), but not inlined.
+    inline void setGroup(js::types::ObjectGroup *group);
+    void uninlinedSetGroup(js::types::ObjectGroup *group);
+
+#ifdef DEBUG
+    bool hasNewGroup(const js::Class *clasp, js::types::ObjectGroup *group);
+#endif
 
     /*
      * Mark an object that has been iterated over and is a singleton. We need
@@ -914,10 +924,6 @@ DeleteElement(JSContext *cx, js::HandleObject obj, uint32_t index, bool *succeed
  */
 extern bool
 SetImmutablePrototype(js::ExclusiveContext *cx, JS::HandleObject obj, bool *succeeded);
-
-extern bool
-GetPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
-                      MutableHandle<PropertyDescriptor> desc);
 
 /*
  * Deprecated. A version of HasProperty that also returns the object on which
