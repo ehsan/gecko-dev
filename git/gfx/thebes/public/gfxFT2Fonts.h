@@ -65,6 +65,9 @@ public:
 protected:
     virtual PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
                                        PRBool anItalic, PRInt16 aStretch);
+
+public:
+    nsString mName;
 };
 
 class FontEntry : public gfxFontEntry
@@ -73,7 +76,6 @@ public:
     FontEntry(const nsAString& aFaceName) :
         gfxFontEntry(aFaceName)
     {
-        mFTFace = nsnull;
         mFontFace = nsnull;
         mFTFontIndex = 0;
     }
@@ -86,18 +88,14 @@ public:
     }
 
     static FontEntry* 
-    CreateFontEntry(const gfxProxyFontEntry &aProxyEntry,
+    CreateFontEntry(const gfxProxyFontEntry &aProxyEntry, nsISupports *aLoader,
                     const PRUint8 *aFontData, PRUint32 aLength);
-
+    
     static FontEntry* 
-    CreateFontEntryFromFace(FT_Face aFace, const PRUint8 *aFontData = nsnull);
-        // aFontData is NS_Malloc'ed data that aFace depends on, to be freed
-        // after the face is destroyed; null if there is no such buffer
-
+    CreateFontEntryFromFace(FT_Face aFace);
+    
     cairo_font_face_t *CairoFontFace();
-    nsresult ReadCMAP();
 
-    FT_Face mFTFace;
     cairo_font_face_t *mFontFace;
 
     nsString mFaceName;
@@ -126,49 +124,8 @@ public: // new functions
 
     static already_AddRefed<gfxFT2Font>
     GetOrMakeFont(const nsAString& aName, const gfxFontStyle *aStyle);
-    static already_AddRefed<gfxFT2Font>
-    GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle);
 
-    struct CachedGlyphData {
-        CachedGlyphData()
-            : glyphIndex(0xffffffffU) { }
-
-        CachedGlyphData(PRUint32 gid)
-            : glyphIndex(gid) { }
-
-        PRUint32 glyphIndex;
-        PRInt32 lsbDelta;
-        PRInt32 rsbDelta;
-        PRInt32 xAdvance;
-    };
-
-    const CachedGlyphData* GetGlyphDataForChar(PRUint32 ch) {
-        CharGlyphMapEntryType *entry = mCharGlyphCache.PutEntry(ch);
-
-        if (!entry)
-            return nsnull;
-
-        if (entry->mData.glyphIndex == 0xffffffffU) {
-            // this is a new entry, fill it
-            FillGlyphDataForChar(ch, &entry->mData);
-        }
-
-        return &entry->mData;
-    }
-
-    class FaceLock {
-    public:
-        FaceLock(gfxFT2Font *font);
-        ~FaceLock();
-
-        FT_Face Face() { return mFace; }
-
-    protected:
-        cairo_scaled_font_t *mScaledFont;
-        FT_Face mFace;
-    };
-
-protected:
+private:
     cairo_scaled_font_t *mScaledFont;
 
     PRBool mHasSpaceGlyph;
@@ -176,12 +133,6 @@ protected:
     PRBool mHasMetrics;
     Metrics mMetrics;
     gfxFloat mAdjustedSize;
-
-    void FillGlyphDataForChar(PRUint32 ch, CachedGlyphData *gd);
-
-    typedef nsBaseHashtableET<nsUint32HashKey, CachedGlyphData> CharGlyphMapEntryType;
-    typedef nsTHashtable<CharGlyphMapEntryType> CharGlyphMap;
-    CharGlyphMap mCharGlyphCache;
 };
 
 class THEBES_API gfxFT2FontGroup : public gfxFontGroup {
@@ -229,18 +180,17 @@ protected: // new functions
                                 void *closure);
     PRBool mEnableKerning;
 
-    void GetPrefFonts(const char *aLangGroup,
-                      nsTArray<nsRefPtr<FontEntry> >& aFontEntryList);
-    void GetCJKPrefFonts(nsTArray<nsRefPtr<FontEntry> >& aFontEntryList);
-    void FamilyListToArrayList(const nsString& aFamilies,
-                               const nsCString& aLangGroup,
-                               nsTArray<nsRefPtr<FontEntry> > *aFontEntryList);
-    already_AddRefed<gfxFT2Font> WhichFontSupportsChar(const nsTArray<nsRefPtr<FontEntry> >& aFontEntryList,
-                                                       PRUint32 aCh);
-    already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
-    already_AddRefed<gfxFont> WhichSystemFontSupportsChar(PRUint32 aCh);
+    gfxFT2Font *FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRUint32 nextCh, gfxFT2Font *aFont);
+    PRUint32 ComputeRanges();
 
-    nsTArray<gfxTextRange> mRanges;
+    struct TextRange {
+        TextRange(PRUint32 aStart,  PRUint32 aEnd) : start(aStart), end(aEnd) { }
+        PRUint32 Length() const { return end - start; }
+        nsRefPtr<gfxFT2Font> font;
+        PRUint32 start, end;
+    };
+
+    nsTArray<TextRange> mRanges;
     nsString mString;
 };
 

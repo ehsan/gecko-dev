@@ -560,6 +560,15 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt)
   if (!aSkipPrompt)
     useDownloadDir = false;
 
+  var inPrivateBrowsing = false;
+  try {
+    var pbs = Components.classes["@mozilla.org/privatebrowsing;1"]
+                        .getService(Components.interfaces.nsIPrivateBrowsingService);
+    inPrivateBrowsing = pbs.privateBrowsingEnabled;
+  }
+  catch (e) {
+  }
+
   // Default to the user's default downloads directory configured
   // through download prefs.
   var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
@@ -581,7 +590,11 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt)
     // file picker if it is still valid. Otherwise, keep the default of the
     // user's default downloads directory. If it doesn't exist, it will be
     // changed to the user's desktop later.
-    var lastDir = gDownloadLastDir.file;
+    var lastDir;
+    if (inPrivateBrowsing && gDownloadLastDir.file)
+      lastDir = gDownloadLastDir.file;
+    else
+      lastDir = prefs.getComplexValue("lastDir", nsILocalFile);
     if (lastDir.exists()) {
       dir = lastDir;
       dirExists = true;
@@ -626,7 +639,10 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt)
 
   // Do not store the last save directory as a pref inside the private browsing mode
   var directory = fp.file.parent.QueryInterface(nsILocalFile);
-  gDownloadLastDir.file = directory;
+  if (inPrivateBrowsing)
+    gDownloadLastDir.file = directory;
+  else
+    prefs.setComplexValue("lastDir", nsILocalFile, directory);
 
   fp.file.leafName = validateFileName(fp.file.leafName);
   

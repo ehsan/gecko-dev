@@ -70,8 +70,6 @@ NS_NewHTMLVideoFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsVideoFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsVideoFrame)
-
 nsVideoFrame::nsVideoFrame(nsStyleContext* aContext) :
   nsContainerFrame(aContext)
 {
@@ -83,6 +81,9 @@ nsVideoFrame::~nsVideoFrame()
 
 NS_QUERYFRAME_HEAD(nsVideoFrame)
   NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
+#ifdef DEBUG
+  NS_QUERYFRAME_ENTRY(nsIFrameDebug)
+#endif
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 nsresult
@@ -158,7 +159,7 @@ CorrectForAspectRatio(const gfxRect& aRect, const nsIntSize& aRatio)
                "Nothing to draw");
   // Choose scale factor that scales aRatio to just fit into aRect
   gfxFloat scale =
-    NS_MIN(aRect.Width()/aRatio.width, aRect.Height()/aRatio.height);
+    PR_MIN(aRect.Width()/aRatio.width, aRect.Height()/aRatio.height);
   gfxSize scaledRatio(scale*aRatio.width, scale*aRatio.height);
   gfxPoint topLeft((aRect.Width() - scaledRatio.width)/2,
                    (aRect.Height() - scaledRatio.height)/2);

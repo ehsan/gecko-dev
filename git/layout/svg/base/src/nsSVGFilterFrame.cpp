@@ -54,8 +54,6 @@ NS_NewSVGFilterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsSVGFilterFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGFilterFrame)
-
 static nsIntRect
 MapDeviceRectToFilterSpace(const gfxMatrix& aMatrix,
                            const gfxIntSize& aFilterSize,

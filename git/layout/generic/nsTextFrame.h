@@ -51,7 +51,6 @@
 #define nsTextFrame_h__
 
 #include "nsFrame.h"
-#include "nsSplittableFrame.h"
 #include "nsLineBox.h"
 #include "gfxFont.h"
 #include "gfxSkipChars.h"
@@ -70,8 +69,6 @@ class PropertyProvider;
 
 class nsTextFrame : public nsFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend class nsContinuingTextFrame;
 
   nsTextFrame(nsStyleContext* aContext) : nsFrame(aContext)

@@ -94,6 +94,7 @@
 #include "nsNetUtil.h"
 
 #ifdef NS_DEBUG
+#include "nsIFrameDebug.h"
 #include "nsIDOMCharacterData.h"
 #endif
 
@@ -1048,11 +1049,6 @@ nsAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   if (frame && (frame->GetStateBits() & NS_FRAME_OUT_OF_FLOW))
     *aState |= nsIAccessibleStates::STATE_FLOATING;
 
-  // Check if a XUL element has the popup attribute (an attached popup menu).
-  if (content->IsNodeOfType(nsINode::eXUL))
-    if (content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::popup))
-      *aState |= nsIAccessibleStates::STATE_HASPOPUP;
-
   // Add 'linked' state for simple xlink.
   if (nsCoreUtils::IsXLink(content))
     *aState |= nsIAccessibleStates::STATE_LINKED;
@@ -1748,8 +1744,8 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
     nsAutoString live;
     nsAccUtils::GetAccAttr(attributes, nsAccessibilityAtoms::live, live);
     if (live.IsEmpty()) {
-      if (nsAccUtils::GetLiveAttrValue(mRoleMapEntry->liveAttRule, live))
-        nsAccUtils::SetAccAttr(attributes, nsAccessibilityAtoms::live, live);
+      nsAccUtils::GetLiveAttrValue(mRoleMapEntry->liveAttRule, live);
+      nsAccUtils::SetAccAttr(attributes, nsAccessibilityAtoms::live, live);
     }
   }
 
@@ -2030,12 +2026,9 @@ nsAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
   }
 
   if (mRoleMapEntry) {
-
-    // We only force the readonly bit off if we have a real mapping for the aria
-    // role. This preserves the ability for screen readers to use readonly
-    // (primarily on the document) as the hint for creating a virtual buffer.
-    if (mRoleMapEntry->role != nsIAccessibleRole::ROLE_NOTHING)
-      *aState &= ~nsIAccessibleStates::STATE_READONLY;
+    // Once an ARIA role is used, default to not-readonly. This can be overridden
+    // by aria-readonly, or if the ARIA role is mapped to readonly by default
+    *aState &= ~nsIAccessibleStates::STATE_READONLY;
 
     if (content->HasAttr(kNameSpaceID_None, content->GetIDAttributeName())) {
       // If has a role & ID and aria-activedescendant on the container, assume focusable
@@ -3229,11 +3222,6 @@ nsAccessible::GetActionRule(PRUint32 aStates)
   // Check if it's simple xlink.
   if (nsCoreUtils::IsXLink(content))
     return eJumpAction;
-
-  // Return "click" action on elements that have an attached popup menu.
-  if (content->IsNodeOfType(nsINode::eXUL))
-    if (content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::popup))
-      return eClickAction;
 
   // Has registered 'click' event handler.
   PRBool isOnclick = nsCoreUtils::HasListener(content,

@@ -44,7 +44,6 @@
 #include "nsARIAGridAccessible.h"
 
 typedef class nsARIAGridAccessible nsARIAGridAccessibleWrap;
-typedef class nsARIAGridCellAccessible nsARIAGridCellAccessibleWrap;
 
 #endif
 

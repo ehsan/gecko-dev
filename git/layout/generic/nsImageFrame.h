@@ -94,8 +94,6 @@ private:
 
 class nsImageFrame : public ImageFrameSuper, public nsIImageFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsImageFrame(nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
@@ -215,8 +213,7 @@ protected:
                       const nsRect&        aRect);
 
   void PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
-                  const nsRect& aDirtyRect, imgIContainer* aImage,
-                  PRUint32 aFlags);
+                  const nsRect& aDirtyRect, imgIContainer* aImage);
                   
 protected:
   friend class nsImageListener;

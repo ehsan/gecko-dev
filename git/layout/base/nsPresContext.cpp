@@ -1123,13 +1123,6 @@ nsPresContext::SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
     }
   }
 }
-
-void
-nsPresContext::SMILOverrideStyleChanged(nsIContent* aContent)
-{
-  mShell->FrameConstructor()->PostRestyleEvent(aContent, eReStyle_Self,
-                                               NS_STYLE_HINT_NONE);
-}
 #endif // MOZ_SMIL
 
 void
@@ -1275,10 +1268,9 @@ nsPresContext::SetupBackgroundImageLoaders(nsIFrame* aFrame,
 {
   nsRefPtr<nsImageLoader> loaders;
   NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, aStyleBackground) {
-    if (aStyleBackground->mLayers[i].mImage.GetType() == eStyleImageType_Image) {
-      PRUint32 actions = nsImageLoader::ACTION_REDRAW_ON_DECODE;
+    if (aStyleBackground->mLayers[i].mImage.GetType() == eBackgroundImage_Image) {
       imgIRequest *image = aStyleBackground->mLayers[i].mImage.GetImageData();
-      loaders = nsImageLoader::Create(aFrame, image, actions, loaders);
+      loaders = nsImageLoader::Create(aFrame, image, PR_FALSE, loaders);
     }
   }
   SetImageLoaders(aFrame, BACKGROUND_IMAGE, loaders);
@@ -1288,12 +1280,9 @@ void
 nsPresContext::SetupBorderImageLoaders(nsIFrame* aFrame,
                                        const nsStyleBorder* aStyleBorder)
 {
-  PRUint32 actions = nsImageLoader::ACTION_REDRAW_ON_LOAD;
-  if (aStyleBorder->ImageBorderDiffers())
-    actions |= nsImageLoader::ACTION_REFLOW_ON_LOAD;
   nsRefPtr<nsImageLoader> loader =
     nsImageLoader::Create(aFrame, aStyleBorder->GetBorderImage(),
-                          actions, nsnull);
+                          aStyleBorder->ImageBorderDiffers(), nsnull);
   SetImageLoaders(aFrame, BORDER_IMAGE, loader);
 }
 
@@ -1743,9 +1732,7 @@ InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet,
         while (i + 1 < numSrc && (val = srcArr->Item(i+1), 
                  val.GetUnit() == eCSSUnit_Font_Format)) {
           nsDependentString valueString(val.GetStringBufferValue());
-          if (valueString.LowerCaseEqualsASCII("woff")) {
-            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_WOFF; 
-          } else if (valueString.LowerCaseEqualsASCII("opentype")) {
+          if (valueString.LowerCaseEqualsASCII("opentype")) {
             face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_OPENTYPE; 
           } else if (valueString.LowerCaseEqualsASCII("truetype")) {
             face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_TRUETYPE; 
@@ -2312,17 +2299,17 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
     if (gDumpPluginList) {
       fprintf(stderr, "Plugins --- before optimization (bounds %d,%d,%d,%d):\n",
           bounds.x, bounds.y, bounds.width, bounds.height);
-      nsFrame::PrintDisplayList(&builder, list);
+      nsIFrameDebug::PrintDisplayList(&builder, list);
     }
 #endif
-
+  
     nsRegion visibleRegion(bounds);
     list.OptimizeVisibility(&builder, &visibleRegion);
 
 #ifdef DEBUG
     if (gDumpPluginList) {
       fprintf(stderr, "Plugins --- after optimization:\n");
-      nsFrame::PrintDisplayList(&builder, list);
+      nsIFrameDebug::PrintDisplayList(&builder, list);
     }
 #endif
 

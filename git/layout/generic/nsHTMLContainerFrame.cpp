@@ -182,7 +182,7 @@ nsDisplayTextShadow::Paint(nsDisplayListBuilder* aBuilder,
                            nsIRenderingContext* aCtx,
                            const nsRect& aDirtyRect)
 {
-  mBlurRadius = NS_MAX(mBlurRadius, 0);
+  mBlurRadius = PR_MAX(mBlurRadius, 0);
 
   nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(mFrame, getter_AddRefs(fm));
@@ -737,5 +737,3 @@ nsHTMLContainerFrame::CreateViewForFrame(nsIFrame* aFrame,
                 aFrame));
   return NS_OK;
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsHTMLContainerFrame)

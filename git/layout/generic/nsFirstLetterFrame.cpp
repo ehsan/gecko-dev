@@ -54,8 +54,6 @@ NS_NewFirstLetterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsFirstLetterFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsFirstLetterFrame)
-
 #ifdef NS_DEBUG
 NS_IMETHODIMP
 nsFirstLetterFrame::GetFrameName(nsAString& aResult) const

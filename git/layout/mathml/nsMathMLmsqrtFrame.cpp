@@ -61,8 +61,6 @@ NS_NewMathMLmsqrtFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmsqrtFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmsqrtFrame)
-
 nsMathMLmsqrtFrame::nsMathMLmsqrtFrame(nsStyleContext* aContext) :
   nsMathMLmencloseFrame(aContext)
 {

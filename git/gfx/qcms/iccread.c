@@ -87,9 +87,7 @@ static uint32_t read_u32(struct mem_source *mem, size_t offset)
 		invalid_source(mem, "Invalid offset");
 		return 0;
 	} else {
-		__be32 k;
-		memcpy(&k, mem->buf + offset, sizeof(__be32));
-		return be32_to_cpu(k);
+		return be32_to_cpu(*(__be32*)(mem->buf + offset));
 	}
 }
 
@@ -99,9 +97,7 @@ static uint16_t read_u16(struct mem_source *mem, size_t offset)
 		invalid_source(mem, "Invalid offset");
 		return 0;
 	} else {
-		__be16 k;
-		memcpy(&k, mem->buf + offset, sizeof(__be16));
-		return be16_to_cpu(k);
+		return be16_to_cpu(*(__be16*)(mem->buf + offset));
 	}
 }
 

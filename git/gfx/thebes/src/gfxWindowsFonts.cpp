@@ -515,14 +515,15 @@ public:
 /* static */
 FontEntry* 
 FontEntry::LoadFont(const gfxProxyFontEntry &aProxyEntry, 
-                    const PRUint8 *aFontData, 
-                    PRUint32 aLength)
-{
+                    nsISupports *aLoader,const PRUint8 *aFontData, 
+                    PRUint32 aLength) {
     // if calls aren't available, bail
     if (!TTLoadEmbeddedFontPtr || !TTDeleteEmbeddedFontPtr)
         return nsnull;
 
-    PRBool isCFF = gfxFontUtils::IsCffFont(aFontData);
+    PRBool isCFF;
+    if (!gfxFontUtils::ValidateSFNTHeaders(aFontData, aLength, &isCFF))
+        return nsnull;
         
     nsresult rv;
     HANDLE fontRef = nsnull;
@@ -2422,7 +2423,7 @@ gfxWindowsFontGroup::WhichFontSupportsChar(const nsTArray<nsRefPtr<FontEntry> >&
             continue;
         if (fe->HasCharacter(ch)) {
             nsRefPtr<gfxWindowsFont> font =
-                gfxWindowsFont::GetOrMakeFont(fe, &mStyle);
+                gfxWindowsFont::GetOrMakeFont(fe, &mStyle, mFontNeedsBold[i]);
             // Check that the font is still usable.
             if (!font->IsValid())
                 continue;

@@ -42,14 +42,9 @@
 interface nsIPluginInstance;
 interface nsIDocument;
 
-%{C++
-#include "npapi.h"
-class nsPluginEvent;
-%}
+[ref] native nsIPluginInstanceRef(nsIPluginInstance *);
 
-[ref] native nsIPluginInstanceRef(nsIPluginInstance*);
-
-[uuid(0E0E465C-C081-4E43-B2DF-D4DCA6B8E8CF)]
+[uuid(2e6cc23b-7d4e-4b0a-ad45-f2281c937f5c)]
 interface nsIPluginInstanceOwner : nsISupports
 {
   /**
@@ -66,12 +61,13 @@ interface nsIPluginInstanceOwner : nsISupports
    * Get a handle to the window structure of the owner.
    * This pointer cannot be made persistent by the caller.
    */
-  void getWindow(in NPWindowStarRef aWindow);
+  void getWindow(in nsPluginWindowStarRef aWindow);
 
   /**
    * Get the display mode for the plugin instance.
    */
-  readonly attribute PRInt32 mode;
+  //void getMode(nsPluginMode *aMode);
+  readonly attribute nsPluginMode mode;
 
   /**
    * Create a place for the plugin to live in the owner's
@@ -91,31 +87,34 @@ interface nsIPluginInstanceOwner : nsISupports
          void *aPostData, PRUint32 aPostDataLen, 
          void *aHeadersData, PRUint32 aHeadersDataLen, 
          PRBool aIsFile = PR_FALSE) = 0;
-%}
 
+%}
   /**
    * Show a status message in the host environment.
    */
   void showStatus(in string aStatusMsg);
 
 %{C++
-  NS_IMETHOD ShowStatus(const PRUnichar *aStatusMsg) = 0;
+  NS_IMETHOD
+  ShowStatus(const PRUnichar *aStatusMsg) = 0;
+
 %}
 
   /**
    * Get the associated document.
    */
+  //void getDocument(nsIDocument* *aDocument);
   readonly attribute nsIDocument document;
 
   /**
    * Invalidate the rectangle
    */
-  void invalidateRect(in NPRectPtr aRect);
+  void invalidateRect(in nsPluginRectPtr aRect);
 
   /**
    * Invalidate the region
    */
-  void invalidateRegion(in NPRegion aRegion);
+  void invalidateRegion(in nsPluginRegion aRegion);
 
   /**
    * Force a redraw
@@ -126,13 +125,4 @@ interface nsIPluginInstanceOwner : nsISupports
    * Get NetscapeWindow, corresponds to NPNVnetscapeWindow
    */
   void getNetscapeWindow(in voidPtr aValue);
-
-  /**
-   * Show native context menu
-   */
-%{C++
-  virtual NPError ShowNativeContextMenu(NPMenu* menu, void* event) = 0;
-  virtual NPBool  ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
-                               double *destX, double *destY, NPCoordinateSpace destSpace) = 0;
-%}
 };

@@ -704,6 +704,11 @@ public:
         IDX_PROTO                   ,
         IDX_ITERATOR                ,
         IDX_PARENT                  ,
+#ifdef XPC_IDISPATCH_SUPPORT
+        IDX_ACTIVEX_OBJECT          ,
+        IDX_COM_OBJECT              ,
+        IDX_ACTIVEX_SUPPORTS        ,
+#endif
         IDX_TOTAL_COUNT // just a count of the above
     };
 
@@ -1198,14 +1203,7 @@ public:
         : mCallBeginRequest(DONT_CALL_BEGINREQUEST),
           mCcx(&ccx),
           mCcxToDestroy(nsnull)
-#ifdef DEBUG
-          , mCx(nsnull)
-          , mCallerLanguage(JS_CALLER)
-          , mObj(nsnull)
-          , mCurrentJSObject(nsnull)
-          , mWrapper(nsnull)
-          , mTearOff(nsnull)
-#endif
+          
     {
     }
     XPCLazyCallContext(XPCContext::LangType callerLanguage, JSContext* cx,
@@ -1262,9 +1260,6 @@ public:
     }
     JSObject *GetCurrentJSObject() const
     {
-        if(mCcx)
-            return mCcx->GetCurrentJSObject();
-
         return mCurrentJSObject;
     }
     XPCCallContext &GetXPCCallContext()

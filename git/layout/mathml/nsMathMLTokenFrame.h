@@ -48,8 +48,6 @@
 
 class nsMathMLTokenFrame : public nsMathMLContainerFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLTokenFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual eMathMLFrameType GetMathMLFrameType();

@@ -433,8 +433,6 @@ class nsHashKey;
 // Event to gesture notification
 #define NS_GESTURENOTIFY_EVENT_START 3900
 
-#define NS_ORIENTATION_EVENT         4000
-
 /**
  * Return status for event processors, nsEventStatus, is defined in
  * nsEvent.h.

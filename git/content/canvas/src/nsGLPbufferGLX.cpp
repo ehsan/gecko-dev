@@ -37,19 +37,14 @@
  * ***** END LICENSE BLOCK ***** */
 
 // this must be first, else windows.h breaks us
-#include "nsICanvasRenderingContextWebGL.h"
+#include "nsICanvasRenderingContextGL.h"
 
 #include "nsIPrefService.h"
-#include "nsServiceManagerUtils.h"
-
-#include "glwrap.h"
 
 #include "nsGLPbuffer.h"
-#include "WebGLContext.h"
+#include "nsCanvasRenderingContextGL.h"
 
 #include "gfxContext.h"
-
-using namespace mozilla;
 
 #if defined(MOZ_WIDGET_GTK2) && defined(MOZ_X11)
 #include <gdk/gdkx.h>
@@ -132,18 +127,18 @@ nsGLPbufferGLX::nsGLPbufferGLX()
 }
 
 PRBool
-nsGLPbufferGLX::Init(WebGLContext *priv)
+nsGLPbufferGLX::Init(nsCanvasRenderingContextGLPrivate *priv)
 {
     nsresult rv;
     const char *s;
 
     if (!gGLXWrap.OpenLibrary("libGL.so.1")) {
-        LogMessage("Canvas 3D: Couldn't find libGL.so.1");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: Couldn't find libGL.so.1"));
         return PR_FALSE;
     }
 
     if (!gGLXWrap.Init()) {
-        LogMessage("Canvas 3D: gGLXWrap.Init() failed");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: gGLXWrap.Init() failed"));
         return PR_FALSE;
     }
 
@@ -153,20 +148,20 @@ nsGLPbufferGLX::Init(WebGLContext *priv)
     mDisplay = XOpenDisplay(NULL);
 #endif
     if (!mDisplay) {
-        LogMessage("Canvas 3D: XOpenDisplay failed");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: XOpenDisplay failed"));
         return PR_FALSE;
     }
 
     // Make sure that everyone agrees that pbuffers are supported
     s = gGLXWrap.fQueryExtensionsString(mDisplay, DefaultScreen(mDisplay));
     if (strstr(s, "GLX_SGIX_pbuffer") == NULL) {
-        LogMessage("Canvas 3D: GLX_SGIX_pbuffer not supported");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: GLX_SGIX_pbuffer not supported"));
         return PR_FALSE;
     }
 
     s = gGLXWrap.fQueryServerString(mDisplay, DefaultScreen(mDisplay), GLX_EXTENSIONS);
     if (strstr(s, "GLX_SGIX_pbuffer") == NULL) {
-        LogMessage("Canvas 3D: GLX_SGIX_pbuffer not supported by server");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: GLX_SGIX_pbuffer not supported by server"));
         return PR_FALSE;
     }
 
@@ -202,7 +197,7 @@ nsGLPbufferGLX::Init(WebGLContext *priv)
 
     fprintf(stderr, "CANVAS3D FBCONFIG: %d %p\n", num, (void*) configs);
     if (!configs) {
-        LogMessage("Canvas 3D: No GLXFBConfig found");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: No GLXFBConfig found"));
         return PR_FALSE;
     }
 
@@ -224,14 +219,14 @@ nsGLPbufferGLX::Init(WebGLContext *priv)
     fprintf (stderr, "nsGLPbufferGLX::Init!\n");
 
     if (!mGLWrap.OpenLibrary("libGL.so.1")) {
-        LogMessage("Canvas 3D: GLWrap init failed, couldn't find libGL.so.1");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: GLWrap init failed, couldn't find libGL.so.1"));
         return PR_FALSE;
     }
 
     mGLWrap.SetLookupFunc((LibrarySymbolLoader::PlatformLookupFunction) gGLXWrap.fGetProcAddress);
 
     if (!mGLWrap.Init(GLES20Wrap::TRY_NATIVE_GL)) {
-        LogMessage("Canvas 3D: GLWrap init failed");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: GLWrap init failed"));
         return PR_FALSE;
     }
 
@@ -255,7 +250,7 @@ nsGLPbufferGLX::Resize(PRInt32 width, PRInt32 height)
 
     Destroy();
 
-    mThebesSurface = new gfxImageSurface(gfxIntSize(width, height), gfxASurface::ImageFormatARGB32);
+    mThebesSurface = CanvasGLThebes::CreateImageSurface(gfxIntSize(width, height), gfxASurface::ImageFormatARGB32);
     if (mThebesSurface->CairoStatus() != 0) {
         fprintf (stderr, "image surface failed\n");
         return PR_FALSE;
@@ -328,7 +323,7 @@ void
 nsGLPbufferGLX::SwapBuffers()
 {
     MakeContextCurrent();
-    mGLWrap.fReadPixels (0, 0, mWidth, mHeight, LOCAL_GL_BGRA, LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV, mThebesSurface->Data());
+    mGLWrap.fReadPixels (0, 0, mWidth, mHeight, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, mThebesSurface->Data());
     unsigned int len = mWidth*mHeight*4;
     unsigned char *src = mThebesSurface->Data();
     // Premultiply the image

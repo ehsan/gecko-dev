@@ -41,9 +41,7 @@
   <dialog id="app-picker"
     xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
     onload="g_dialog.appPickerLoad();"
-    buttons="accept,cancel,extra2"
-    buttonlabelextra2="&BrowseButton.label;"
-    ondialogextra2="g_dialog.appPickerBrowse();"
+    buttons="accept,cancel"
     defaultButton="cancel"
     ondialogaccept="return g_dialog.appPickerOK();"
     ondialogcancel="return g_dialog.appPickerCancel();"
@@ -51,18 +49,25 @@
 
     <script type="application/javascript" src="chrome://global/content/appPicker.js"/>
 
-    <hbox id="file-info" align="center">
-      <image id="content-icon" src=""/>
-      <vbox flex="1">
-        <label id="content-description" crop="center" value=""/>
-        <label id="suggested-filename" crop="center" value=""/>
-      </vbox>
-    </hbox>
+    <vbox>
+      <hbox id="file-info" align="left">
+        <image id="content-icon" src="" />
+        <vbox flex="1">
+          <label id="content-description" crop="center" value=""/>
+          <label id="suggested-filename" crop="center" value=""/>
+        </vbox>
+      </hbox>
+      <spacer height="10px"/>
+      <label id="sendto-message" value="&SendMsg.label;"/>
 
-    <label id="sendto-message" value="&SendMsg.label;" for="app-picker-listbox"/>
+      <richlistbox id="app-picker-list">
+      </richlistbox>
 
-    <listbox id="app-picker-listbox" rows="5"
-             ondblclick="g_dialog.appDoubleClick();"/>
+      <label id="app-picker-notfound" value="&NoAppFound.label;" hidden="true"/>
 
-    <label id="app-picker-notfound" value="&NoAppFound.label;" hidden="true"/>
+      <hbox>
+        <spacer flex="1"/>
+        <button id="browse-button" onclick="g_dialog.appPickerBrowse();" label="&BrowseButton.label;" align="center"/>
+      </hbox>
+    </vbox>
   </dialog>

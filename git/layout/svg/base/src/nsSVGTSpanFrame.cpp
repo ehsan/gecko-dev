@@ -51,8 +51,6 @@ NS_NewSVGTSpanFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsSVGTSpanFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGTSpanFrame)
-
 nsIAtom *
 nsSVGTSpanFrame::GetType() const
 {

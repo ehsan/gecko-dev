@@ -44,6 +44,11 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = javaxpcom
 
+REQUIRES = \
+			xpcom \
+			string \
+			necko \
+			$(NULL)
 
 CPPSRCS = GenerateJavaInterfaces.cpp
 

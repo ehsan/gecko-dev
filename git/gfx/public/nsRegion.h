@@ -205,16 +205,6 @@ public:
    */
   void SimpleSubtract (const nsRegion& aRegion);
 
-  /**
-   * Initialize any static data associated with nsRegion.
-   */
-  static nsresult InitStatic();
-
-  /**
-   * Deinitialize static data.
-   */
-  static void ShutdownStatic();
-
 private:
   PRUint32    mRectCount;
   RgnRect*    mCurRect;

@@ -158,16 +158,10 @@ NS_NewTreeContentView(nsITreeView** aResult)
   return NS_OK;
 }
 
-NS_IMPL_CYCLE_COLLECTION_4(nsTreeContentView,
-                           mBoxObject,
-                           mSelection,
-                           mRoot,
-                           mBody)
+NS_IMPL_ADDREF(nsTreeContentView)
+NS_IMPL_RELEASE(nsTreeContentView)
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTreeContentView)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTreeContentView)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTreeContentView)
+NS_INTERFACE_MAP_BEGIN(nsTreeContentView)
   NS_INTERFACE_MAP_ENTRY(nsITreeView)
   NS_INTERFACE_MAP_ENTRY(nsITreeContentView)
   NS_INTERFACE_MAP_ENTRY(nsIDocumentObserver)
@@ -555,7 +549,6 @@ nsTreeContentView::SetTree(nsITreeBoxObject* aTree)
     boxObject->GetElement(getter_AddRefs(element));
 
     mRoot = do_QueryInterface(element);
-    NS_ENSURE_STATE(mRoot);
 
     // Add ourselves to document's observers.
     nsIDocument* document = mRoot->GetDocument();

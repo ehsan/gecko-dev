@@ -347,8 +347,8 @@ nsPluginDocument::Print()
     objectFrame->GetPluginInstance(*getter_AddRefs(pi));
 
     if (pi) {
-      NPPrint npprint;
-      npprint.mode = NP_FULL;
+      nsPluginPrint npprint;
+      npprint.mode = nsPluginMode_Full;
       npprint.print.fullPrint.pluginPrinted = PR_FALSE;
       npprint.print.fullPrint.printOne = PR_FALSE;
       npprint.print.fullPrint.platformPrint = nsnull;

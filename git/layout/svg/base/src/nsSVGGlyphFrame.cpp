@@ -190,8 +190,6 @@ NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsSVGGlyphFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGGlyphFrame)
-
 //----------------------------------------------------------------------
 // nsQueryFrame methods
 
@@ -397,11 +395,10 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
     return nsnull;
 
   PRBool events = PR_FALSE;
-  switch (GetStyleVisibility()->mPointerEvents) {
+  switch (GetStyleSVG()->mPointerEvents) {
     case NS_STYLE_POINTER_EVENTS_NONE:
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED:
-    case NS_STYLE_POINTER_EVENTS_AUTO:
       if (GetStyleVisibility()->IsVisible() &&
           (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None ||
            GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None))
@@ -1353,8 +1350,8 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
       textRunSize = PRECISE_SIZE;
     } else {
       textRunSize = size*contextScale;
-      textRunSize = NS_MAX(textRunSize, double(CLAMP_MIN_SIZE));
-      textRunSize = NS_MIN(textRunSize, double(CLAMP_MAX_SIZE));
+      textRunSize = PR_MAX(textRunSize, CLAMP_MIN_SIZE);
+      textRunSize = PR_MIN(textRunSize, CLAMP_MAX_SIZE);
     }
 
     const nsFont& font = fontData->mFont;

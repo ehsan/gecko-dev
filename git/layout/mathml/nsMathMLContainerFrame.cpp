@@ -69,8 +69,6 @@
 // nsMathMLContainerFrame implementation
 //
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLContainerFrame)
-
 NS_QUERYFRAME_HEAD(nsMathMLContainerFrame)
   NS_QUERYFRAME_ENTRY(nsMathMLFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
@@ -1466,12 +1464,8 @@ NS_NewMathMLmathBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
   return it;
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmathBlockFrame)
-
 nsIFrame*
 NS_NewMathMLmathInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsMathMLmathInlineFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmathInlineFrame)

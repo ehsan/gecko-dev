@@ -44,9 +44,14 @@ relativesrcdir  = widget/tests
 include $(DEPTH)/config/autoconf.mk
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-ifdef NS_ENABLE_TSF
+ifneq ($(OS_ARCH), WINCE)
 CPP_UNIT_TESTS += TestWinTSF.cpp  \
                   $(NULL)
+REQUIRES += appshell content docshell \
+            dom embed_base gfx layout locale \
+            necko string thebes uriloader view \
+            webbrwsr widget xpcom \
+            $(NULL)
 endif
 endif
 

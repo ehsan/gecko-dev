@@ -177,8 +177,7 @@ function run_test() {
   }
 
   gEM.update(items, items.length, Ci.nsIExtensionManager.UPDATE_NOTIFY_NEWVERSION,
-             updateListener, Ci.nsIExtensionManager.UPDATE_WHEN_USER_REQUESTED,
-             "3", "3");
+             updateListener, "3", "3");
 
   do_test_pending();
 }

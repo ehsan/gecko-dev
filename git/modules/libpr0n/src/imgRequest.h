@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Stuart Parmenter <pavlov@netscape.com>
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -40,6 +39,8 @@
 
 #ifndef imgRequest_h__
 #define imgRequest_h__
+
+#include "imgILoad.h"
 
 #include "imgIContainer.h"
 #include "imgIDecoder.h"
@@ -66,13 +67,16 @@ class imgRequestProxy;
 class imgCacheEntry;
 
 enum {
-  stateRequestStarted    = PR_BIT(0),
-  stateHasSize           = PR_BIT(1),
-  stateDecodeStarted     = PR_BIT(2),
-  stateRequestStopped    = PR_BIT(4)
+  onStartRequest   = PR_BIT(0),
+  onStartDecode    = PR_BIT(1),
+  onStartContainer = PR_BIT(2),
+  onStopContainer  = PR_BIT(3),
+  onStopDecode     = PR_BIT(4),
+  onStopRequest    = PR_BIT(5)
 };
 
-class imgRequest : public imgIDecoderObserver,
+class imgRequest : public imgILoad,
+                   public imgIDecoderObserver,
                    public nsIStreamListener,
                    public nsSupportsWeakReference,
                    public nsIChannelEventSink,
@@ -110,14 +114,6 @@ public:
   // only when the channel has failed to open, and so calling Cancel() on it
   // won't be sufficient.
   void CancelAndAbort(nsresult aStatus);
-
-  nsresult GetImage(imgIContainer **aImage);
-
-  // Methods that get forwarded to the imgContainer, or deferred until it's
-  // instantiated.
-  nsresult LockImage();
-  nsresult UnlockImage();
-  nsresult RequestDecode();
 
 private:
   friend class imgCacheEntry;
@@ -173,10 +169,8 @@ private:
   // try to update or modify the image cache.
   void SetIsInCache(PRBool cacheable);
 
-  // Update the cache entry size based on the image container
-  void UpdateCacheEntrySize();
-
 public:
+  NS_DECL_IMGILOAD
   NS_DECL_IMGIDECODEROBSERVER
   NS_DECL_IMGICONTAINEROBSERVER
   NS_DECL_NSISTREAMLISTENER
@@ -192,6 +186,7 @@ private:
   nsCOMPtr<nsIURI> mKeyURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMPtr<imgIContainer> mImage;
+  nsCOMPtr<imgIDecoder> mDecoder;
   nsCOMPtr<nsIProperties> mProperties;
   nsCOMPtr<nsISupports> mSecurityInfo;
   nsCOMPtr<nsIChannel> mChannel;
@@ -213,13 +208,9 @@ private:
   imgCacheValidator *mValidator;
   nsCategoryCache<nsIContentSniffer> mImageSniffers;
 
-  // Sometimes consumers want to do things before the image is ready. Let them,
-  // and apply the action when the image becomes available.
-  PRUint32 mDeferredLocks;
-  PRPackedBool mDecodeRequested : 1;
-
   PRPackedBool mIsMultiPartChannel : 1;
   PRPackedBool mLoading : 1;
+  PRPackedBool mProcessing : 1;
   PRPackedBool mHadLastPart : 1;
   PRPackedBool mGotData : 1;
   PRPackedBool mIsInCache : 1;

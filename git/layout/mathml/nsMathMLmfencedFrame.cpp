@@ -59,8 +59,6 @@ NS_NewMathMLmfencedFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmfencedFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmfencedFrame)
-
 nsMathMLmfencedFrame::~nsMathMLmfencedFrame()
 {
   RemoveFencesAndSeparators();
@@ -386,7 +384,7 @@ nsMathMLmfencedFrame::doReflow(nsPresContext*          aPresContext,
 
   // we need to center around the axis
   if (firstChild) { // do nothing for an empty <mfenced></mfenced>
-    nscoord delta = NS_MAX(containerSize.ascent - axisHeight, 
+    nscoord delta = PR_MAX(containerSize.ascent - axisHeight, 
                            containerSize.descent + axisHeight);
     containerSize.ascent = delta + axisHeight;
     containerSize.descent = delta - axisHeight;

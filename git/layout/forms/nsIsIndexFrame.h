@@ -82,7 +82,6 @@ public:
   NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent); // we only care when a key is pressed
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // nsISupports
   NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);

@@ -50,8 +50,6 @@ NS_QUERYFRAME_HEAD(nsSVGTextContainerFrame)
   NS_QUERYFRAME_ENTRY(nsSVGTextContainerFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsSVGDisplayContainerFrame)
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGTextContainerFrame)
-
 void
 nsSVGTextContainerFrame::NotifyGlyphMetricsChange()
 {
@@ -289,13 +287,13 @@ nsSVGTextContainerFrame::GetSubStringLength(PRUint32 charnum, PRUint32 nchars)
   while (node) {
     PRUint32 count = node->GetNumberOfChars();
     if (count > charnum) {
-      PRUint32 fragmentChars = NS_MIN(nchars, count);
+      PRUint32 fragmentChars = PR_MIN(nchars, count);
       float fragmentLength = node->GetSubStringLength(charnum, fragmentChars);
       length += fragmentLength;
       nchars -= fragmentChars;
       if (nchars == 0) break;
     }
-    charnum -= NS_MIN(charnum, count);
+    charnum -= PR_MIN(charnum, count);
     node = GetNextGlyphFragmentChildNode(node);
   }
 

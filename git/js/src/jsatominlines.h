@@ -43,10 +43,12 @@
 #include "jsatom.h"
 #include "jsnum.h"
 
+JS_BEGIN_EXTERN_C
+
 /*
  * Convert v to an atomized string and wrap it as an id.
  */
-inline JSBool
+static inline JSBool
 js_ValueToStringId(JSContext *cx, jsval v, jsid *idp)
 {
     JSString *str;
@@ -78,7 +80,7 @@ js_ValueToStringId(JSContext *cx, jsval v, jsid *idp)
     return JS_TRUE;
 }
 
-inline JSBool
+static inline JSBool
 js_Int32ToId(JSContext* cx, int32 index, jsid* id)
 {
     if (INT_FITS_IN_JSVAL(index)) {
@@ -91,5 +93,7 @@ js_Int32ToId(JSContext* cx, int32 index, jsid* id)
         return JS_FALSE;
     return js_ValueToStringId(cx, STRING_TO_JSVAL(str), id);
 }
+
+JS_END_EXTERN_C
 
 #endif /* jsatom_inlines_h___ */

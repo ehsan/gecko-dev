@@ -46,6 +46,33 @@ MODULE		= widget
 LIBRARY_NAME	= widget_windows
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= xpcom \
+			string \
+			dom \
+			accessibility \
+			content \
+			content_xul \
+			gfx \
+			necko \
+			pref \
+			plugin \
+			timer \
+			uconv \
+			intl \
+			locale \
+			webshell \
+			docshell \
+			layout \
+			xuldoc \
+			view \
+			imglib2 \
+			uriloader \
+			webbrowserpersist \
+			unicharutil \
+			thebes \
+			cairo \
+			qcms \
+			$(NULL)
 
 CPPSRCS		= \
 	nsWindow.cpp \
@@ -64,7 +91,6 @@ CPPSRCS		= \
 	nsSound.cpp \
 	nsIMM32Handler.cpp \
 	WindowHook.cpp \
-	nsAccelerometerWin.cpp \
 	$(NULL)
 
 ifdef NS_PRINTING
@@ -92,10 +118,8 @@ CPPSRCS += \
 	nsClipboard.cpp      \
 	nsImageClipboard.cpp \
 	nsBidiKeyboard.cpp   \
+	nsTextStore.cpp \
 	$(NULL)
-ifdef NS_ENABLE_TSF
-CPPSRCS		+= nsTextStore.cpp
-endif
 endif
 
 

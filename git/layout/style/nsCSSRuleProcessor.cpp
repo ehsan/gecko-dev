@@ -584,7 +584,7 @@ void RuleHash::EnumerateAllRules(PRInt32 aNameSpace, nsIAtom* aTag,
 
   if (mEnumListSize < testCount) {
     delete [] mEnumList;
-    mEnumListSize = NS_MAX(testCount, MIN_ENUM_LIST_SIZE);
+    mEnumListSize = PR_MAX(testCount, MIN_ENUM_LIST_SIZE);
     mEnumList = new RuleValue*[mEnumListSize];
   }
 
@@ -1903,12 +1903,11 @@ static PRBool SelectorMatchesTree(RuleProcessorData& aPrevData,
       // combinator is different, but we can make an exception for
       // sibling, then parent, since a sibling's parent is always the
       // same.
-      if (NS_IS_GREEDY_OPERATOR(selector->mOperator) &&
-          selector->mNext &&
-          selector->mNext->mOperator != selector->mOperator &&
+      if ((NS_IS_GREEDY_OPERATOR(selector->mOperator)) &&
+          (selector->mNext) &&
+          (selector->mNext->mOperator != selector->mOperator) &&
           !(selector->mOperator == '~' &&
-            (selector->mNext->mOperator == PRUnichar(0) ||
-             selector->mNext->mOperator == PRUnichar('>')))) {
+            selector->mNext->mOperator == PRUnichar(0))) {
 
         // pretend the selector didn't match, and step through content
         // while testing the same selector

@@ -54,6 +54,8 @@ NSDISTMODE = copy
 GRE_MODULE	= 1
 MOZILLA_INTERNAL_API = 1
 
+REQUIRES	= string \
+		  $(NULL)
 
 LOCAL_INCLUDES	= -I$(srcdir)/../build
 

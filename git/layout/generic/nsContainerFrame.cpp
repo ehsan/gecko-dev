@@ -80,8 +80,6 @@
 #undef NOISY
 #endif
 
-NS_IMPL_FRAMEARENA_HELPERS(nsContainerFrame)
-
 nsContainerFrame::~nsContainerFrame()
 {
 }
@@ -599,13 +597,37 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
     aStyleContext = aFrame->GetStyleContext();
   }
 
-  // Make sure visibility is correct. This only affects nsSubdocumentFrame.
-  if (0 == (aFlags & NS_FRAME_NO_VISIBILITY) &&
-      !aFrame->SupportsVisibilityHidden()) {
+  // Make sure visibility is correct
+  if (0 == (aFlags & NS_FRAME_NO_VISIBILITY)) {
     // See if the view should be hidden or visible
-    vm->SetViewVisibility(aView,
-        aStyleContext->GetStyleVisibility()->IsVisible()
-            ? nsViewVisibility_kShow : nsViewVisibility_kHide);
+    PRBool  viewIsVisible = PR_TRUE;
+
+    if (!aStyleContext->GetStyleVisibility()->IsVisible() &&
+        !aFrame->SupportsVisibilityHidden()) {
+      // If it's a subdocument frame or a plugin, hide the view and
+      // any associated widget.
+      // These are leaf elements so this is OK, no descendant can be
+      // visibility:visible.
+      viewIsVisible = PR_FALSE;
+    } else if (IsMenuPopup(aFrame)) {
+      // if the view is for a popup, don't show the view if the popup is closed
+      nsIWidget* widget = aView->GetWidget();
+      if (widget) {
+        nsWindowType windowType;
+        widget->GetWindowType(windowType);
+        if (windowType == eWindowType_popup) {
+          widget->IsVisible(viewIsVisible);
+        }
+      }
+      else {
+        // widgets for popups can be created later when the popup is opened,
+        // so if there is no widget, the popup won't be open.
+        viewIsVisible = PR_FALSE;
+      }
+    }
+
+    vm->SetViewVisibility(aView, viewIsVisible ? nsViewVisibility_kShow :
+                          nsViewVisibility_kHide);
   }
 
   // See if the frame is being relatively positioned or absolutely
@@ -1044,8 +1066,6 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
     }
     else {
       tracker.Skip(frame, aStatus);
-      if (aReflowState.mFloatManager)
-        nsBlockFrame::RecoverFloatsFor(frame, *aReflowState.mFloatManager);
     }
     ConsiderChildOverflow(aOverflowRect, frame);
   }
@@ -1609,7 +1629,10 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
         NS_ASSERTION(kid->GetParent() == (nsIFrame*)this, "bad parent frame pointer");
 
         // Have the child frame list
-        kid->List(out, aIndent + 1);
+        nsIFrameDebug *frameDebug = do_QueryFrame(kid);
+        if (frameDebug) {
+          frameDebug->List(out, aIndent + 1);
+        }
         kid = kid->GetNextSibling();
       }
       IndentBy(out, aIndent);

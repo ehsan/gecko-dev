@@ -66,6 +66,11 @@ endif
 endif
 endif
 
+REQUIRES = \
+	xpcom \
+	string \
+	storage \
+	$(NULL)
 
 LOCAL_INCLUDES = \
   -I$(srcdir)/../src \

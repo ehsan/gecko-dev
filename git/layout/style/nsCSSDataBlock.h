@@ -44,7 +44,6 @@
 
 #include "nsCSSStruct.h"
 #include "nsCSSProps.h"
-#include "nsCSSPropertySet.h"
 
 struct nsRuleData;
 
@@ -258,17 +257,24 @@ private:
 
     static const PropertyOffsetInfo kOffsetTable[];
 
+    typedef PRUint8 property_set_type;
+    enum { kPropertiesSetChunkSize = 8 }; // number of bits in
+                                          // |property_set_type|.
+    // number of |property_set_type|s in the set
+    enum { kPropertiesSetChunkCount =
+             (eCSSProperty_COUNT_no_shorthands + (kPropertiesSetChunkSize-1)) /
+             kPropertiesSetChunkSize };
     /*
      * mPropertiesSet stores a bit for every property that is present,
      * to optimize compression of blocks with small numbers of
      * properties (the norm) and to allow quickly checking whether a
      * property is set in this block.
      */
-    nsCSSPropertySet mPropertiesSet;
+    property_set_type mPropertiesSet[kPropertiesSetChunkCount];
     /*
      * mPropertiesImportant indicates which properties are '!important'.
      */
-    nsCSSPropertySet mPropertiesImportant;
+    property_set_type mPropertiesImportant[kPropertiesSetChunkCount];
 
 public:
     /*
@@ -301,33 +307,51 @@ public:
                                (cssstruct + offsets.ruledata_member_offset);
     }
 
+    void AssertInSetRange(nsCSSProperty aProperty) {
+        NS_ASSERTION(0 <= aProperty &&
+                     aProperty < eCSSProperty_COUNT_no_shorthands,
+                     "out of bounds");
+    }
+
     void SetPropertyBit(nsCSSProperty aProperty) {
-        mPropertiesSet.AddProperty(aProperty);
+        AssertInSetRange(aProperty);
+        mPropertiesSet[aProperty / kPropertiesSetChunkSize] |=
+            property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
     }
 
     void ClearPropertyBit(nsCSSProperty aProperty) {
-        mPropertiesSet.RemoveProperty(aProperty);
+        AssertInSetRange(aProperty);
+        mPropertiesSet[aProperty / kPropertiesSetChunkSize] &=
+            ~property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
     }
 
     PRBool HasPropertyBit(nsCSSProperty aProperty) {
-        return mPropertiesSet.HasProperty(aProperty);
+        AssertInSetRange(aProperty);
+        return (mPropertiesSet[aProperty / kPropertiesSetChunkSize] &
+                (1 << (aProperty % kPropertiesSetChunkSize))) != 0;
     }
 
     void SetImportantBit(nsCSSProperty aProperty) {
-        mPropertiesImportant.AddProperty(aProperty);
+        AssertInSetRange(aProperty);
+        mPropertiesImportant[aProperty / kPropertiesSetChunkSize] |=
+            property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
     }
 
     void ClearImportantBit(nsCSSProperty aProperty) {
-        mPropertiesImportant.RemoveProperty(aProperty);
+        AssertInSetRange(aProperty);
+        mPropertiesImportant[aProperty / kPropertiesSetChunkSize] &=
+            ~property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
     }
 
     PRBool HasImportantBit(nsCSSProperty aProperty) {
-        return mPropertiesImportant.HasProperty(aProperty);
+        AssertInSetRange(aProperty);
+        return (mPropertiesImportant[aProperty / kPropertiesSetChunkSize] &
+                (1 << (aProperty % kPropertiesSetChunkSize))) != 0;
     }
 
     void ClearSets() {
-        mPropertiesSet.Empty();
-        mPropertiesImportant.Empty();
+        memset(mPropertiesSet, 0, sizeof(mPropertiesSet));
+        memset(mPropertiesImportant, 0, sizeof(mPropertiesImportant));
     }
 };
 

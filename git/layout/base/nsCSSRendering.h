@@ -198,10 +198,7 @@ struct nsCSSRendering {
      * When this flag is passed, the element's nsDisplayBorder will be
      * painted immediately on top of this background.
      */
-    PAINTBG_WILL_PAINT_BORDER = 0x01,
-    /**
-     * When this flag is passed, images are synchronously decoded. */
-    PAINTBG_SYNC_DECODE_IMAGES = 0x02
+    PAINT_WILL_PAINT_BORDER = 0x01
   };
   static void PaintBackground(nsPresContext* aPresContext,
                               nsIRenderingContext& aRenderingContext,

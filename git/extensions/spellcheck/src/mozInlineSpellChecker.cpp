@@ -1128,13 +1128,8 @@ mozInlineSpellChecker::SkipSpellCheckForNode(nsIEditor* aEditor,
 
       if (parentTagName.Equals(NS_LITERAL_STRING("blockquote"), nsCaseInsensitiveStringComparator()))
       {
-        nsAutoString quotetype;
-        parentElement->GetAttribute(NS_LITERAL_STRING("type"), quotetype);
-        if (quotetype.Equals(NS_LITERAL_STRING("cite"), nsCaseInsensitiveStringComparator()))
-        {
-          *checkSpelling = PR_FALSE;
-          break;
-        }
+        *checkSpelling = PR_FALSE;
+        break;
       }
       else if (parentTagName.Equals(NS_LITERAL_STRING("pre"), nsCaseInsensitiveStringComparator()))
       {
@@ -1184,7 +1179,7 @@ mozInlineSpellChecker::ScheduleSpellCheck(const mozInlineSpellStatus& aStatus)
 //
 //    FIXME-PERFORMANCE: This takes as long as it takes and is not resumable.
 //    Typically, checking this small amount of text is relatively fast, but
-//    for large numbers of words, a lag may be noticeable.
+//    for large numbers of words, a lag may be noticable.
 
 nsresult
 mozInlineSpellChecker::DoSpellCheckSelection(mozInlineSpellWordUtil& aWordUtil,
@@ -1665,7 +1660,7 @@ mozInlineSpellChecker::HandleNavigationEvent(nsIDOMEvent* aEvent,
 
   // If we already handled the navigation event and there is no possibility
   // anything has changed since then, we don't have to do anything. This
-  // optimization makes a noticeable difference when you hold down a navigation
+  // optimization makes a noticable difference when you hold down a navigation
   // key like Page Down.
   if (! mNeedsCheckAfterNavigation)
     return NS_OK;

@@ -64,10 +64,6 @@ namespace nanojit
     {}
 
     CodeAlloc::~CodeAlloc() {
-        reset();
-    }
-
-    void CodeAlloc::reset() {
         // give all memory back to gcheap.  Assumption is that all
         // code is done being used by now.
         for (CodeList* b = heapblocks; b != 0; ) {
@@ -79,8 +75,6 @@ namespace nanojit
             totalAllocated -= bytesPerAlloc;
             b = next;
         }
-        NanoAssert(!totalAllocated);
-        heapblocks = availblocks = 0;
     }
 
     CodeList* CodeAlloc::firstBlock(CodeList* term) {

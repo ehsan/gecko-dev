@@ -143,6 +143,7 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsIWebBrowserChrome.h"
 #include "nsIDocShell.h"
 #include "nsIBaseWindow.h"
+#include "nsIFrameDebug.h"
 #include "nsILayoutHistoryState.h"
 #include "nsFrameManager.h"
 #include "nsIParser.h"
@@ -258,7 +259,7 @@ nsPrintEngine::nsPrintEngine() :
   mIsDoingPrintPreview(PR_FALSE),
   mProgressDialogIsShown(PR_FALSE),
   mContainer(nsnull),
-  mScreenDPI(115.0f),
+  mDeviceContext(nsnull),
   mPrt(nsnull),
   mPagePrintTimer(nsnull),
   mPageSeqFrame(nsnull),
@@ -316,18 +317,20 @@ void nsPrintEngine::DestroyPrintingData()
 nsresult nsPrintEngine::Initialize(nsIDocumentViewerPrint* aDocViewerPrint, 
                                    nsISupports*            aContainer,
                                    nsIDocument*            aDocument,
-                                   float                   aScreenDPI,
+                                   nsIDeviceContext*       aDevContext,
                                    nsIWidget*              aParentWidget,
                                    FILE*                   aDebugFile)
 {
   NS_ENSURE_ARG_POINTER(aDocViewerPrint);
   NS_ENSURE_ARG_POINTER(aContainer);
   NS_ENSURE_ARG_POINTER(aDocument);
+  NS_ENSURE_ARG_POINTER(aDevContext);
+  NS_ENSURE_ARG_POINTER(aParentWidget);
 
   mDocViewerPrint = aDocViewerPrint;
   mContainer      = aContainer;      // weak reference
   mDocument       = aDocument;
-  mScreenDPI      = aScreenDPI;
+  mDeviceContext  = aDevContext;     // weak reference
   mParentWidget   = aParentWidget;    
 
   mDebugFile      = aDebugFile;      // ok to be NULL
@@ -1666,7 +1669,7 @@ nsPrintEngine::SetupToPrintContent()
     // Only Shrink if we are smaller
     if (mPrt->mShrinkRatio < 0.998f) {
       // Clamp Shrink to Fit to 60%
-      mPrt->mShrinkRatio = NS_MAX(mPrt->mShrinkRatio, 0.60f);
+      mPrt->mShrinkRatio = PR_MAX(mPrt->mShrinkRatio, 0.60f);
 
       for (PRUint32 i=0;i<mPrt->mPrintDocList.Length();i++) {
         nsPrintObject* po = mPrt->mPrintDocList.ElementAt(i);
@@ -1989,7 +1992,9 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
   // Calculate scale factor from printer to screen
   float printDPI = float(mPrt->mPrintDC->AppUnitsPerInch()) /
                    float(mPrt->mPrintDC->AppUnitsPerDevPixel());
-  aPO->mPresContext->SetPrintPreviewScale(mScreenDPI / printDPI);
+  float screenDPI = float(mDeviceContext->AppUnitsPerInch()) /
+                    float(mDeviceContext->AppUnitsPerDevPixel());
+  aPO->mPresContext->SetPrintPreviewScale(screenDPI / printDPI);
 
   rv = aPO->mPresShell->InitialReflow(adjSize.width, adjSize.height);
 
@@ -2171,7 +2176,10 @@ nsPrintEngine::DoPrint(nsPrintObject * aPO)
 #ifdef NS_DEBUG
       // output the regression test
       nsIFrame* root = poPresShell->FrameManager()->GetRootFrame();
-      root->DumpRegressionData(poPresContext, mPrt->mDebugFilePtr, 0);
+      nsIFrameDebug* fdbg = do_QueryFrame(root);
+      if (fdbg) {
+        fdbg->DumpRegressionData(poPresContext, mPrt->mDebugFilePtr, 0);
+      }
       fclose(mPrt->mDebugFilePtr);
       SetIsPrinting(PR_FALSE);
 #endif
@@ -2234,13 +2242,13 @@ nsPrintEngine::DoPrint(nsPrintObject * aPO)
                 if (startRect.y < 0) {
                   // Reduce height to be the height of the positive-territory
                   // region of original rect
-                  startRect.height = NS_MAX(0, startRect.YMost());
+                  startRect.height = PR_MAX(0, startRect.YMost());
                   startRect.y = 0;
                 }
                 if (endRect.y < 0) {
                   // Reduce height to be the height of the positive-territory
                   // region of original rect
-                  endRect.height = NS_MAX(0, endRect.YMost());
+                  endRect.height = PR_MAX(0, endRect.YMost());
                   endRect.y = 0;
                 }
                 NS_ASSERTION(endRect.y >= startRect.y,
@@ -3330,7 +3338,9 @@ static void RootFrameList(nsPresContext* aPresContext, FILE* out, PRInt32 aInden
   if (shell) {
     nsIFrame* frame = shell->FrameManager()->GetRootFrame();
     if (frame) {
-      frame->List(aPresContext, out, aIndent);
+      nsIFrameDebug* debugFrame = do_QueryFrame(frame);
+      if (debugFrame)
+        debugFrame->List(aPresContext, out, aIndent);
     }
   }
 }
@@ -3355,7 +3365,11 @@ static void DumpFrames(FILE*                 out,
      fprintf(out, "  ");
     }
     nsAutoString tmp;
-    child->GetFrameName(tmp);
+
+    nsIFrameDebug* frameDebug = do_QueryFrame(child);
+    if (frameDebug) {
+      frameDebug->GetFrameName(tmp);
+    }
     fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
     PRBool isSelected;
     if (NS_SUCCEEDED(child->IsVisibleForPainting(aPresContext, *aRendContext, PR_TRUE, &isSelected))) {

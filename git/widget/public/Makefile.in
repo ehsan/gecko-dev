@@ -52,6 +52,7 @@ EXPORTS		= \
 		nsEvent.h \
 		nsNativeWidget.h \
 		nsWidgetInitData.h \
+		nsIEventListener.h \
 		nsWidgetsCID.h \
 		nsILookAndFeel.h \
 		nsIPluginWidget.h \
@@ -80,7 +81,6 @@ EXPORTS		+= \
 endif
 
 XPIDLSRCS	= \
-		nsIAccelerometer.idl \
 		nsIAppShell.idl \
 		nsIFilePicker.idl \
 		nsIToolkit.idl \

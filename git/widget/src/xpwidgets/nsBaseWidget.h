@@ -39,6 +39,7 @@
 
 #include "nsRect.h"
 #include "nsIWidget.h"
+#include "nsIEventListener.h"
 #include "nsIToolkit.h"
 #include "nsIAppShell.h"
 #include "nsILocalFile.h"
@@ -73,6 +74,7 @@ public:
   
   // nsIWidget interface
   NS_IMETHOD              CaptureMouse(PRBool aCapture);
+  NS_IMETHOD              Validate();
   NS_IMETHOD              GetClientData(void*& aClientData);
   NS_IMETHOD              SetClientData(void* aClientData);
   NS_IMETHOD              Destroy();
@@ -115,6 +117,7 @@ public:
   NS_IMETHOD              SetModal(PRBool aModal); 
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
   NS_IMETHOD              SetBorderStyle(nsBorderStyle aBorderStyle); 
+  NS_IMETHOD              AddEventListener(nsIEventListener * aListener);
   NS_IMETHOD              SetBounds(const nsIntRect &aRect);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
@@ -178,6 +181,7 @@ protected:
   EVENT_CALLBACK    mEventCallback;
   nsIDeviceContext  *mContext;
   nsIToolkit        *mToolkit;
+  nsIEventListener  *mEventListener;
   nscolor           mBackground;
   nscolor           mForeground;
   nsCursor          mCursor;

@@ -74,8 +74,6 @@ NS_NewHTMLButtonControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsHTMLButtonControlFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsHTMLButtonControlFrame)
-
 nsHTMLButtonControlFrame::nsHTMLButtonControlFrame(nsStyleContext* aContext)
   : nsHTMLContainerFrame(aContext)
 {
@@ -319,12 +317,12 @@ nsHTMLButtonControlFrame::ReflowButtonContents(nsPresContext* aPresContext,
     NS_ASSERTION(extraright >=0, "How'd that happen?");
     
     // Do not allow the extras to be bigger than the relevant padding
-    extraleft = NS_MIN(extraleft, aReflowState.mComputedPadding.left);
-    extraright = NS_MIN(extraright, aReflowState.mComputedPadding.right);
+    extraleft = PR_MIN(extraleft, aReflowState.mComputedPadding.left);
+    extraright = PR_MIN(extraright, aReflowState.mComputedPadding.right);
     xoffset -= extraleft;
     availSize.width += extraleft + extraright;
   }
-  availSize.width = NS_MAX(availSize.width,0);
+  availSize.width = PR_MAX(availSize.width,0);
   
   nsHTMLReflowState reflowState(aPresContext, aReflowState, aFirstKid,
                                 availSize);
@@ -338,7 +336,7 @@ nsHTMLButtonControlFrame::ReflowButtonContents(nsPresContext* aPresContext,
   // XXXbz this assumes border-box sizing.
   nscoord minInternalHeight = aReflowState.mComputedMinHeight -
     aReflowState.mComputedBorderPadding.TopBottom();
-  minInternalHeight = NS_MAX(minInternalHeight, 0);
+  minInternalHeight = PR_MAX(minInternalHeight, 0);
 
   // center child vertically
   nscoord yoff = 0;

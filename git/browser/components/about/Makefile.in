@@ -49,6 +49,7 @@ ifndef MOZ_MEMORY
 USE_STATIC_LIBS = 1
 endif
 
+REQUIRES = xpcom string necko caps
 
 EXPORTS_NAMESPACES = mozilla/browser
 
@@ -57,9 +58,5 @@ EXPORTS_mozilla/browser = AboutRedirector.h
 CPPSRCS = AboutRedirector.cpp
 
 LOCAL_INCLUDES = -I$(srcdir)/../build
-
-ifdef MOZILLA_OFFICIAL
-DEFINES += -DOFFICIAL_BUILD=1
-endif
 
 include $(topsrcdir)/config/rules.mk

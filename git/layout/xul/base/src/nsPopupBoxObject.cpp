@@ -232,9 +232,6 @@ nsPopupBoxObject::EnableKeyboardNavigator(PRBool aEnableKeyboardNavigator)
 NS_IMETHODIMP
 nsPopupBoxObject::GetPopupState(nsAString& aState)
 {
-  // set this here in case there's no frame for the popup
-  aState.AssignLiteral("closed");
-
   nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
     switch (menuPopupFrame->PopupState()) {
@@ -250,6 +247,7 @@ nsPopupBoxObject::GetPopupState(nsAString& aState)
         aState.AssignLiteral("hiding");
         break;
       case ePopupClosed:
+        aState.AssignLiteral("closed");
         break;
       default:
         NS_NOTREACHED("Bad popup state");

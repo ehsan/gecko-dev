@@ -161,8 +161,6 @@ NS_NewImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsImageFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsImageFrame)
-
 
 nsImageFrame::nsImageFrame(nsStyleContext* aContext) :
   ImageFrameSuper(aContext),
@@ -779,7 +777,7 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
     aMetrics.width = GetPrevInFlow()->GetSize().width;
     nscoord y = GetContinuationOffset();
     aMetrics.height -= y + aReflowState.mComputedBorderPadding.top;
-    aMetrics.height = NS_MAX(0, aMetrics.height);
+    aMetrics.height = PR_MAX(0, aMetrics.height);
   }
 
 
@@ -802,7 +800,7 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
       aMetrics.height > aReflowState.availableHeight) { 
     // our desired height was greater than 0, so to avoid infinite
     // splitting, use 1 pixel as the min
-    aMetrics.height = NS_MAX(nsPresContext::CSSPixelsToAppUnits(1), aReflowState.availableHeight);
+    aMetrics.height = PR_MAX(nsPresContext::CSSPixelsToAppUnits(1), aReflowState.availableHeight);
     aStatus = NS_FRAME_NOT_COMPLETE;
   }
 
@@ -987,6 +985,9 @@ nsImageFrame::DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
   // We should definitely have a gIconLoad here.
   NS_ABORT_IF_FALSE(gIconLoad, "How did we succeed in Init then?");
 
+  // We always call this function with an image
+  NS_ABORT_IF_FALSE(aRequest, "Calling DisplayAltFeedback without an image");
+
   // Calculate the inner area
   nsRect  inner = GetInnerArea() + aPt;
 
@@ -1032,16 +1033,15 @@ nsImageFrame::DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
     // If we weren't previously displaying an icon, register ourselves
     // as an observer for load and animation updates and flag that we're
     // doing so now.
-    if (aRequest && !mDisplayingIcon) {
+    if (!mDisplayingIcon) {
       gIconLoad->AddIconObserver(this);
       mDisplayingIcon = PR_TRUE;
     }
 
 
     // If the image in question is loaded and decoded, draw it
-    PRUint32 imageStatus = 0;
-    if (aRequest)
-      aRequest->GetImageStatus(&imageStatus);
+    PRUint32 imageStatus;
+    aRequest->GetImageStatus(&imageStatus);
     if (imageStatus & imgIRequest::STATUS_FRAME_COMPLETE) {
       nsCOMPtr<imgIContainer> imgCon;
       aRequest->GetImage(getter_AddRefs(imgCon));
@@ -1050,8 +1050,7 @@ nsImageFrame::DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
                   inner.XMost() - size : inner.x,
                   inner.y, size, size);
       nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
-        nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect,
-        imgIContainer::FLAG_NONE);
+        nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect);
       iconUsed = PR_TRUE;
     }
 
@@ -1145,16 +1144,12 @@ void
 nsDisplayImage::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
   static_cast<nsImageFrame*>(mFrame)->
-    PaintImage(*aCtx, aBuilder->ToReferenceFrame(mFrame), aDirtyRect, mImage,
-               aBuilder->ShouldSyncDecodeImages()
-                 ? (PRUint32) imgIContainer::FLAG_SYNC_DECODE
-                 : (PRUint32) imgIContainer::FLAG_NONE);
+    PaintImage(*aCtx, aBuilder->ToReferenceFrame(mFrame), aDirtyRect, mImage);
 }
 
 void
 nsImageFrame::PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
-                         const nsRect& aDirtyRect, imgIContainer* aImage,
-                         PRUint32 aFlags)
+                         const nsRect& aDirtyRect, imgIContainer* aImage)
 {
   // Render the image into our content area (the area inside
   // the borders and padding)
@@ -1164,8 +1159,7 @@ nsImageFrame::PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
   dest.y -= GetContinuationOffset();
 
   nsLayoutUtils::DrawSingleImage(&aRenderingContext, aImage,
-    nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect,
-    aFlags);
+    nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect);
 
   nsPresContext* presContext = PresContext();
   nsImageMap* map = GetImageMap(presContext);
@@ -1407,12 +1401,6 @@ nsImageFrame::GetContentForEvent(nsPresContext* aPresContext,
                                  nsIContent** aContent)
 {
   NS_ENSURE_ARG_POINTER(aContent);
-
-  nsIFrame* f = nsLayoutUtils::GetNonGeneratedAncestor(this);
-  if (f != this) {
-    return f->GetContentForEvent(aPresContext, aEvent, aContent);
-  }
-
   nsImageMap* map;
   map = GetImageMap(aPresContext);
 
@@ -1851,12 +1839,6 @@ nsImageFrame::IconLoad::OnStopRequest(imgIRequest *aRequest,
     frame->Invalidate(frame->GetRect());
   }
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnDiscard(imgIRequest *aRequest)
-{
   return NS_OK;
 }
 

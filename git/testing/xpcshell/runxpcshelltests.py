@@ -44,7 +44,7 @@ from optparse import OptionParser
 from subprocess import Popen, PIPE, STDOUT
 from tempfile import mkdtemp
 
-from automationutils import addCommonOptions, checkForCrashes, dumpLeakLog
+from automationutils import addCommonOptions, checkForCrashes
 
 # Init logging
 log = logging.getLogger()
@@ -107,6 +107,23 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
   leakLogFile = os.path.join(tempfile.gettempdir(), "runxpcshelltests_leaks.log")
   env["XPCOM_MEM_LEAK_LOG"] = leakLogFile
 
+  def processLeakLog(leakLogFile):
+    """Process the leak log."""
+    # For the time being, don't warn (nor "info") if the log file is not there. (Bug 469523)
+    if not os.path.exists(leakLogFile):
+      return None
+
+    leaks = open(leakLogFile, "r")
+    leakReport = leaks.read()
+    leaks.close()
+
+    # Only check whether an actual leak was reported.
+    if "0 TOTAL " in leakReport:
+      # For the time being, simply copy the log. (Bug 469523)
+      print leakReport.rstrip("\n")
+
+    return leakReport
+
   if xrePath is None:
     xrePath = os.path.dirname(xpcshell)
   else:
@@ -141,6 +158,7 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
   xpcsCmd = [xpcshell, '-g', xrePath, '-j', '-s'] + \
             ['-e', 'const _HTTPD_JS_PATH = "%s";' % httpdJSPath,
              '-f', os.path.join(testharnessdir, 'head.js')]
+  xpcsTailFile = [os.path.join(testharnessdir, 'tail.js')]
 
   # |testPath| will be the optional path only, or |None|.
   # |singleFile| will be the optional test only, or |None|.
@@ -196,7 +214,7 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
     cmdH = ", ".join(['"' + f.replace('\\', '/') + '"'
                        for f in testHeadFiles])
     cmdT = ", ".join(['"' + f.replace('\\', '/') + '"'
-                       for f in testTailFiles])
+                       for f in (testTailFiles + xpcsTailFile)])
     cmdH = xpcsCmd + \
            ['-e', 'const _HEAD_FILES = [%s];' % cmdH] + \
            ['-e', 'const _TAIL_FILES = [%s];' % cmdT]
@@ -232,17 +250,14 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
         print "TEST-PASS | %s | test passed" % test
         passCount += 1
 
-      dumpLeakLog(leakLogFile, True)
+      leakReport = processLeakLog(leakLogFile)
 
       if stdout is not None:
         try:
           f = open(test + '.log', 'w')
           f.write(stdout)
-
-          if os.path.exists(leakLogFile):
-            leaks = open(leakLogFile, "r")
-            f.write(leaks.read())
-            leaks.close()
+          if leakReport:
+            f.write(leakReport)
         finally:
           if f:
             f.close()

@@ -723,9 +723,9 @@ public:
                                  nsAString& aEncoding,
                                  nsAString& Standalone) = 0;
 
-  PRBool IsHTML() const
+  virtual PRBool IsCaseSensitive()
   {
-    return mIsRegularHTML;
+    return PR_TRUE;
   }
 
   virtual PRBool IsScriptEnabled() = 0;
@@ -1232,8 +1232,6 @@ protected:
   PRPackedBool mIsInitialDocumentInWindow;
 
   PRPackedBool mShellsAreHidden;
-
-  PRPackedBool mIsRegularHTML;
 
   // True if we're loaded as data and therefor has any dangerous stuff, such
   // as scripts and plugins, disabled.

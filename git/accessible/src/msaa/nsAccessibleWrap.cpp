@@ -1688,7 +1688,8 @@ nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
 
   // See if we're in a scrollable area with its own window
   nsCOMPtr<nsIAccessible> newAccessible;
-  if (eventType == nsIAccessibleEvent::EVENT_HIDE) {
+  if (eventType == nsIAccessibleEvent::EVENT_ASYNCH_HIDE ||
+      eventType == nsIAccessibleEvent::EVENT_DOM_DESTROY) {
     // Don't use frame from current accessible when we're hiding that
     // accessible.
     accessible->GetParent(getter_AddRefs(newAccessible));

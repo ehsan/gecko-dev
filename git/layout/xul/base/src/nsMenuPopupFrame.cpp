@@ -100,8 +100,6 @@ NS_NewMenuPopupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMenuPopupFrame (aPresShell, aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMenuPopupFrame)
-
 //
 // nsMenuPopupFrame ctor
 //

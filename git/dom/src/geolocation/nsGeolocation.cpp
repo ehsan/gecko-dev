@@ -166,7 +166,7 @@ nsGeolocationRequest::Init()
   nsRefPtr<nsGeolocationService> geoService = nsGeolocationService::GetInstance();
   if (!geoService->HasGeolocationProvider()) {
     NotifyError(nsIDOMGeoPositionError::POSITION_UNAVAILABLE);
-    return NS_ERROR_FAILURE;
+    return NS_ERROR_FAILURE;;
   }
 
   return NS_OK;
@@ -363,13 +363,12 @@ GeoEnabledChangedCallback(const char *aPrefName, void *aClosure)
   return 0;
 }
 
-nsresult nsGeolocationService::Init()
+nsGeolocationService::nsGeolocationService()
 {
   nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
-  if (!obs)
-    return NS_ERROR_FAILURE;
-
-  obs->AddObserver(this, "quit-application", false);
+  if (obs) {
+    obs->AddObserver(this, "quit-application", false);
+  }
 
   mTimeout = nsContentUtils::GetIntPref("geo.timeout", 6000);
 
@@ -380,16 +379,17 @@ nsresult nsGeolocationService::Init()
   GeoEnabledChangedCallback("geo.enabled", nsnull);
 
   if (sGeoEnabled == PR_FALSE)
-    return NS_ERROR_FAILURE;
+    return;
 
   nsCOMPtr<nsIGeolocationProvider> provider = do_GetService(NS_GEOLOCATION_PROVIDER_CONTRACTID);
   if (provider)
     mProviders.AppendObject(provider);
 
+
   // look up any providers that were registered via the category manager
   nsCOMPtr<nsICategoryManager> catMan(do_GetService("@mozilla.org/categorymanager;1"));
   if (!catMan)
-    return NS_ERROR_FAILURE;
+    return;
 
   nsCOMPtr<nsISimpleEnumerator> geoproviders;
   catMan->EnumerateCategory("geolocation-provider", getter_AddRefs(geoproviders));
@@ -416,13 +416,19 @@ nsresult nsGeolocationService::Init()
 
   // we should move these providers outside of this file! dft
 
+  // if NS_MAEMO_LOCATION, see if we should try the MAEMO location provider
+#ifdef NS_MAEMO_LOCATION
+  provider = new MaemoLocationProvider();
+  if (provider)
+    mProviders.AppendObject(provider);
+#endif
+
   // if WINCE, see if we should try the WINCE location provider
 #ifdef WINCE_WINDOWS_MOBILE
   provider = new WinMobileLocationProvider();
   if (provider)
     mProviders.AppendObject(provider);
 #endif
-  return NS_OK;
 }
 
 nsGeolocationService::~nsGeolocationService()
@@ -540,17 +546,11 @@ nsGeolocationService::IsBetterPosition(nsIDOMGeoPosition *aSomewhere)
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   // check to see if there has been a large movement
-  // Use spherical law of cosines to calculate difference
-  // Not quite as correct as the Haversine but simpler and cheaper
-  double radsInDeg = 3.14159265 / 180.0;
+  double delta = fabs(newLat - oldLat) + fabs(newLon + oldLon);
 
-  double rNewLat = newLat * radsInDeg;
-  double rNewLon = newLon * radsInDeg;
-  double rOldLat = oldLat * radsInDeg;
-  double rOldLon = oldLon * radsInDeg;
-
-  // WGS84 equatorial radius of earth = 6378137m
-  double delta = acos( (sin(rNewLat) * sin(rOldLat)) + (cos(rNewLat) * cos(rOldLat) * cos(rOldLon - rNewLon)) ) * 6378137; 
+  // Convert to meters. 1 second of arc of latitude (or longitude at the
+  // equator) is 1 nautical mile or 1852m.
+  delta *= 60 * 1852;
 
   // The threshold is when the distance between the two positions exceeds the
   // worse (larger value) of the two accuracies.
@@ -652,13 +652,6 @@ nsGeolocationService::GetInstance()
   if (!nsGeolocationService::gService) {
     nsGeolocationService::gService = new nsGeolocationService();
     NS_ASSERTION(nsGeolocationService::gService, "null nsGeolocationService.");
-
-    if (nsGeolocationService::gService) {
-      if (NS_FAILED(nsGeolocationService::gService->Init())) {
-        delete nsGeolocationService::gService;
-        nsGeolocationService::gService = nsnull;
-      }        
-    }
   }
   return nsGeolocationService::gService;
 }
@@ -667,7 +660,7 @@ nsGeolocationService*
 nsGeolocationService::GetGeolocationService()
 {
   nsGeolocationService* inst = nsGeolocationService::GetInstance();
-  NS_IF_ADDREF(inst);
+  NS_ADDREF(inst);
   return inst;
 }
 

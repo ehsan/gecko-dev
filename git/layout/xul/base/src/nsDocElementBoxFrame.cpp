@@ -72,7 +72,6 @@ public:
     :nsBoxFrame(aShell, aContext, PR_TRUE) {}
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
@@ -100,8 +99,6 @@ NS_NewDocElementBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsDocElementBoxFrame (aPresShell, aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsDocElementBoxFrame)
 
 void
 nsDocElementBoxFrame::Destroy()

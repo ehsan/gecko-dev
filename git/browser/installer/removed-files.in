@@ -1,7 +1,5 @@
 chrome/classic.jar
 chrome/classic.manifest
-chrome/comm.jar
-chrome/comm.manifest
 chrome/reporter.jar
 chrome/reporter.manifest
 chrome/US.jar
@@ -567,12 +565,6 @@ extensions/talkback@mozilla.org/components/talkback/talkback.so
 #endif
 components/airbag.xpt
 components/nsUrlClassifierTable.js
-res/charsetalias.properties
-res/charsetData.properties
-res/os2charset.properties
-res/wincharset.properties
-res/maccharset.properties
-res/unixcharset.properties
 res/cmessage.txt
 res/html/gopher-audio.gif
 res/html/gopher-binary.gif
@@ -779,11 +771,6 @@ components/xulapp.xpt
 components/xuldoc.xpt
 components/xultmpl.xpt
 components/zipwriter.xpt
-components/firefox.xpt
-run-mozilla.sh
-firefox
-dependentlibs.list
-components/nsProgressDialog.js
 #endif
 #ifdef XP_UNIX
 #ifndef XP_MACOSX

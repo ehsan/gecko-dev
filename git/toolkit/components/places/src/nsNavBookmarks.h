@@ -134,18 +134,7 @@ private:
   nsresult AdjustIndices(PRInt64 aFolder,
                          PRInt32 aStartIndex, PRInt32 aEndIndex,
                          PRInt32 aDelta);
-
-  /**
-   * Calculates number of children for the given folder.
-   *
-   * @param aFolderId Folder to count children for.
-   *
-   * @return aFolderCount The number of children in this folder.
-   *
-   * @throws If folder does not exist.
-   */
-  nsresult FolderCount(PRInt64 aFolderId, PRInt32 *aFolderCount);
-
+  PRInt32 FolderCount(PRInt64 aFolder);
   nsresult GetFolderType(PRInt64 aFolder, nsACString &aType);
 
   nsresult GetLastChildId(PRInt64 aFolder, PRInt64* aItemId);

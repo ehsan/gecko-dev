@@ -41,12 +41,6 @@
 #define jsnum_h___
 
 #include <math.h>
-#if defined(XP_WIN) || defined(XP_OS2)
-#include <float.h>
-#endif
-#ifdef SOLARIS
-#include <ieeefp.h>
-#endif
 
 /*
  * JS number (IEEE double) interface.
@@ -82,82 +76,66 @@ typedef union jsdpun {
     jsdouble d;
 } jsdpun;
 
-static inline int
-JSDOUBLE_IS_NaN(jsdouble d)
-{
-#ifdef WIN32
-    return _isnan(d);
-#else
-    return isnan(d);
-#endif
-}
+#if (__GNUC__ == 2 && __GNUC_MINOR__ > 95) || __GNUC__ > 2
+/*
+ * This version of the macros is safe for the alias optimizations that gcc
+ * does, but uses gcc-specific extensions.
+ */
 
-static inline int
-JSDOUBLE_IS_FINITE(jsdouble d)
-{
-#ifdef WIN32
-    return _finite(d);
-#else
-    return finite(d);
-#endif
-}
+#define JSDOUBLE_HI32(x) (__extension__ ({ jsdpun u; u.d = (x); u.s.hi; }))
+#define JSDOUBLE_LO32(x) (__extension__ ({ jsdpun u; u.d = (x); u.s.lo; }))
+#define JSDOUBLE_SET_HI32(x, y) \
+    (__extension__ ({ jsdpun u; u.d = (x); u.s.hi = (y); (x) = u.d; }))
+#define JSDOUBLE_SET_LO32(x, y) \
+    (__extension__ ({ jsdpun u; u.d = (x); u.s.lo = (y); (x) = u.d; }))
 
-static inline int
-JSDOUBLE_IS_INFINITE(jsdouble d)
-{
-#ifdef WIN32
-    int c = _fpclass(d);
-    return c == _FPCLASS_NINF || c == _FPCLASS_PINF;
-#elif defined(SOLARIS)
-    return !finite(d) && !isnan(d);
-#else
-    return isinf(d);
-#endif
-}
+#else /* not or old GNUC */
 
-static inline int
-JSDOUBLE_IS_NEGZERO(jsdouble d)
-{
-#ifdef WIN32
-    return (d == 0 && (_fpclass(d) & _FPCLASS_NZ));
-#elif defined(SOLARIS)
-    return (d == 0 && copysign(1, d) < 0);
+/*
+ * We don't know of any non-gcc compilers that perform alias optimization,
+ * so this code should work.
+ */
+
+#if defined(IS_LITTLE_ENDIAN) && !defined(FPU_IS_ARM_FPA)
+#define JSDOUBLE_HI32(x)        (((uint32 *)&(x))[1])
+#define JSDOUBLE_LO32(x)        (((uint32 *)&(x))[0])
 #else
-    return (d == 0 && signbit(d));
+#define JSDOUBLE_HI32(x)        (((uint32 *)&(x))[0])
+#define JSDOUBLE_LO32(x)        (((uint32 *)&(x))[1])
 #endif
-}
+
+#define JSDOUBLE_SET_HI32(x, y) (JSDOUBLE_HI32(x)=(y))
+#define JSDOUBLE_SET_LO32(x, y) (JSDOUBLE_LO32(x)=(y))
+
+#endif /* not or old GNUC */
 
 #define JSDOUBLE_HI32_SIGNBIT   0x80000000
 #define JSDOUBLE_HI32_EXPMASK   0x7ff00000
 #define JSDOUBLE_HI32_MANTMASK  0x000fffff
 
-static inline int
-JSDOUBLE_IS_INT(jsdouble d, jsint& i)
-{
-    if (JSDOUBLE_IS_NEGZERO(d))
-        return false;
-    return d == (i = jsint(d));
-}
+#define JSDOUBLE_IS_NaN(x)                                                    \
+    ((JSDOUBLE_HI32(x) & JSDOUBLE_HI32_EXPMASK) == JSDOUBLE_HI32_EXPMASK &&   \
+     (JSDOUBLE_LO32(x) || (JSDOUBLE_HI32(x) & JSDOUBLE_HI32_MANTMASK)))
 
-static inline int
-JSDOUBLE_IS_NEG(jsdouble d)
-{
-#ifdef WIN32
-    return JSDOUBLE_IS_NEGZERO(d) || d < 0;
-#elif defined(SOLARIS)
-    return copysign(1, d) < 0;
-#else
-    return signbit(d);
-#endif
-}
+#define JSDOUBLE_IS_INFINITE(x)                                               \
+    ((JSDOUBLE_HI32(x) & ~JSDOUBLE_HI32_SIGNBIT) == JSDOUBLE_HI32_EXPMASK &&  \
+     !JSDOUBLE_LO32(x))
 
-static inline uint32
-JS_HASH_DOUBLE(jsdouble d)
-{
-    jsdpun u;
-    u.d = d;
-    return u.s.lo ^ u.s.hi;
-}
+#define JSDOUBLE_IS_FINITE(x)                                                 \
+    ((JSDOUBLE_HI32(x) & JSDOUBLE_HI32_EXPMASK) != JSDOUBLE_HI32_EXPMASK)
+
+#define JSDOUBLE_IS_NEGZERO(d)  (JSDOUBLE_HI32(d) == JSDOUBLE_HI32_SIGNBIT && \
+                                 JSDOUBLE_LO32(d) == 0)
+
+/*
+ * JSDOUBLE_IS_INT first checks that d is neither NaN nor infinite, to avoid
+ * raising SIGFPE on platforms such as Alpha Linux, then (only if the cast is
+ * safe) leaves i as (jsint)d.  This also avoid anomalous NaN floating point
+ * comparisons under MSVC.
+ */
+#define JSDOUBLE_IS_INT(d, i) (JSDOUBLE_IS_FINITE(d)                          \
+                               && !JSDOUBLE_IS_NEGZERO(d)                     \
+                               && ((d) == (i = (jsint)(d))))
 
 #if defined(XP_WIN)
 #define JSDOUBLE_COMPARE(LVAL, OP, RVAL, IFNAN)                               \
@@ -377,23 +355,8 @@ js_ValueToUint16(JSContext *cx, jsval *vp);
  * Convert a jsdouble to an integral number, stored in a jsdouble.
  * If d is NaN, return 0.  If d is an infinity, return it without conversion.
  */
-static inline jsdouble
-js_DoubleToInteger(jsdouble d)
-{
-    if (d == 0)
-        return d;
-
-    if (!JSDOUBLE_IS_FINITE(d)) {
-        if (JSDOUBLE_IS_NaN(d))
-            return 0;
-        return d;
-    }
-
-    JSBool neg = (d < 0);
-    d = floor(neg ? -d : d);
-
-    return neg ? -d : d;
-}
+extern jsdouble
+js_DoubleToInteger(jsdouble d);
 
 /*
  * Similar to strtod except that it replaces overflows with infinities of the

@@ -766,8 +766,11 @@ DumpContext(nsIFrame* aFrame, nsStyleContext* aContext)
   if (aFrame) {
     fputs("frame: ", stdout);
     nsAutoString  name;
-    aFrame->GetFrameName(name);
-    fputs(NS_LossyConvertUTF16toASCII(name).get(), stdout);
+    nsIFrameDebug *frameDebug = do_QueryFrame(aFrame);
+    if (frameDebug) {
+      frameDebug->GetFrameName(name);
+      fputs(NS_LossyConvertUTF16toASCII(name).get(), stdout);
+    }
     fprintf(stdout, " (%p)", static_cast<void*>(aFrame));
   }
   if (aContext) {
@@ -1200,11 +1203,12 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     }
     
     // do primary context
-    nsRefPtr<nsStyleContext> newContext;
+    // XXXbz newContext should just be an nsRefPtr
+    nsStyleContext* newContext = nsnull;
     if (pseudoTag == nsCSSAnonBoxes::mozNonElement) {
       NS_ASSERTION(localContent,
                    "non pseudo-element frame without content node");
-      newContext = styleSet->ResolveStyleForNonElement(parentContext);
+      newContext = styleSet->ResolveStyleForNonElement(parentContext).get();
     }
     else if (pseudoTag) {
       // XXXldb This choice of pseudoContent seems incorrect for anon
@@ -1218,7 +1222,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
         // XXX what other pseudos do we need to treat like this?
         newContext = styleSet->ProbePseudoStyleFor(pseudoContent,
                                                    pseudoTag,
-                                                   parentContext);
+                                                   parentContext).get();
         if (!newContext) {
           // This pseudo should no longer exist; gotta reframe
           NS_UpdateHint(aMinChange, nsChangeHint_ReconstructFrame);
@@ -1226,6 +1230,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                     nsChangeHint_ReconstructFrame);
           // We're reframing anyway; just keep the same context
           newContext = oldContext;
+          newContext->AddRef();
         }
       } else {
         if (pseudoTag == nsCSSPseudoElements::firstLetter) {
@@ -1238,13 +1243,13 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
         }
         newContext = styleSet->ResolvePseudoStyleFor(pseudoContent,
                                                      pseudoTag,
-                                                     parentContext);
+                                                     parentContext).get();
       }
     }
     else {
       NS_ASSERTION(localContent,
                    "non pseudo-element frame without content node");
-      newContext = styleSet->ResolveStyleFor(content, parentContext);
+      newContext = styleSet->ResolveStyleFor(content, parentContext).get();
     }
     NS_ASSERTION(newContext, "failed to get new style context");
     if (newContext) {
@@ -1255,7 +1260,9 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
           // we can use FindChildWithRules to keep a lot of the old
           // style contexts around.  However, we need to start from the
           // same root.
+          newContext->Release();
           newContext = oldContext;
+          newContext->AddRef();
         }
       }
 
@@ -1272,7 +1279,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     }
     else {
       NS_ERROR("resolve style context failed");
-      newContext = oldContext;  // new context failed, recover...
+      newContext = oldContext;  // new context failed, recover... (take ref)
+      oldContext = nsnull;
     }
 
     // do additional contexts 
@@ -1281,14 +1289,14 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       nsStyleContext* oldExtraContext = nsnull;
       oldExtraContext = aFrame->GetAdditionalStyleContext(++contextIndex);
       if (oldExtraContext) {
-        nsRefPtr<nsStyleContext> newExtraContext;
+        nsStyleContext* newExtraContext = nsnull;
         nsIAtom* const extraPseudoTag = oldExtraContext->GetPseudoType();
         NS_ASSERTION(extraPseudoTag &&
                      extraPseudoTag != nsCSSAnonBoxes::mozNonElement,
                      "extra style context is not pseudo element");
         newExtraContext = styleSet->ResolvePseudoStyleFor(content,
                                                           extraPseudoTag,
-                                                          newContext);
+                                                          newContext).get();
         if (newExtraContext) {
           if (oldExtraContext != newExtraContext) {
             aMinChange = CaptureChange(oldExtraContext, newExtraContext,
@@ -1298,6 +1306,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
               aFrame->SetAdditionalStyleContext(contextIndex, newExtraContext);
             }
           }
+          newExtraContext->Release();
         }
       }
       else {
@@ -1419,12 +1428,11 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       nsCOMPtr<nsIAccessibilityService> accService = 
         do_GetService("@mozilla.org/accessibilityService;1");
       if (accService) {
-        PRUint32 changeType = isVisible ?
-          nsIAccessibilityService::FRAME_HIDE :
-          nsIAccessibilityService::FRAME_SHOW;
-
+        PRUint32 event = isVisible ?
+          nsIAccessibleEvent::EVENT_ASYNCH_HIDE :
+          nsIAccessibleEvent::EVENT_ASYNCH_SHOW;
         accService->InvalidateSubtreeFor(mPresShell, aFrame->GetContent(),
-                                         changeType);
+                                         event);
         fireAccessibilityEvents = PR_FALSE;
       }
     }
@@ -1498,6 +1506,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       // XXX need to do overflow frames???
     }
 
+    newContext->Release();
   }
 
   return aMinChange;

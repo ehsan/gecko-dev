@@ -341,6 +341,9 @@ private:
 
   // calls PostPluginUnloadEvent for each library in mUnusedLibraries
   void UnloadUnusedLibraries();
+
+  // Add our pref observer
+  nsresult AddPrefObserver();
   
   char *mPluginPath;
   nsRefPtr<nsPluginTag> mPlugins;
@@ -357,6 +360,9 @@ private:
 
   // set by pref plugin.default_plugin_disabled
   PRPackedBool mDefaultPluginDisabled;
+
+  // Whether java is enabled
+  PRPackedBool mJavaEnabled;
 
   nsPluginInstanceTagList mPluginInstanceTagList;
   nsTArray<PRLibrary*> mUnusedLibraries;

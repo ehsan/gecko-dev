@@ -48,8 +48,6 @@
 
 class nsMathMLmspaceFrame : public nsMathMLContainerFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLmspaceFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual PRBool IsLeaf() const;

@@ -71,9 +71,30 @@ VPATH		:= $(srcdir) $(srcdir)/$(OSDIR)
 MODULE = exthandler
 LIBRARY_NAME    = exthandler_s
 LIBXUL_LIBRARY  = 1
+REQUIRES	= xpcom \
+		  string \
+		  unicharutil \
+		  mimetype \
+		  uriloader \
+		  necko \
+		  webshell \
+		  plugin \
+		  pref \
+		  intl \
+		  uconv \
+		  docshell \
+		  windowwatcher \
+		  embed_base \
+		  dom \
+		  $(NULL)
 
+ifdef MOZ_PHOENIX
+REQUIRES	+= toolkitcomps
+endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+REQUIRES		+= windowwatcher \
+	             $(NULL)
 
 CMMSRCS	= nsOSHelperAppService.mm \
 			nsMIMEInfoMac.mm \
@@ -106,6 +127,7 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 OSHELPER  += nsMIMEInfoOS2.cpp
+REQUIRES  += widget
 endif
 
 EXPORTS = \
@@ -139,10 +161,6 @@ ifdef MOZ_PLATFORM_HILDON
 ifdef MOZ_ENABLE_GNOMEVFS
 LOCAL_INCLUDES   += $(MOZ_GNOMEVFS_CFLAGS)
 EXTRA_DSO_LDOPTS += $(MOZ_GNOMEVFS_LIBS)
-endif
-ifdef MOZ_ENABLE_GIO
-LOCAL_INCLUDES   += $(MOZ_GIO_CFLAGS)
-EXTRA_DSO_LDOPTS += $(MOZ_GIO_LIBS)
 endif
 endif
 
