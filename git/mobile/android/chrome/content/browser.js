@@ -319,6 +319,9 @@ var BrowserApp = {
       loadParams.showProgress = (url != "about:home");
       loadParams.pinned = pinned;
       this.addTab(url, loadParams);
+
+      // show telemetry door hanger if we aren't restoring a session
+      this._showTelemetryPrompt();
     }
 
     if (this.isAppUpdated())
@@ -338,11 +341,6 @@ var BrowserApp = {
         "value": Services.prefs.getBoolPref("gfx.show_checkerboard_pattern")
       }
     });
-
-    // disable telemetry for beta
-    Services.prefs.clearUserPref("toolkit.telemetry.enabled");
-    Services.prefs.clearUserPref("toolkit.telemetry.prompted");
-    Services.prefs.clearUserPref("toolkit.telemetry.rejected");
   },
 
   isAppUpdated: function() {
@@ -2256,12 +2254,10 @@ Tab.prototype = {
     let documentURI = contentWin.document.documentURIObject.spec;
     let contentType = contentWin.document.contentType;
     
-    // If fixedURI matches browser.lastURI, we assume this isn't a real location
+    // XXX If fixedURI matches browser.lastURI, we assume this isn't a real location
     // change but rather a spurious addition like a wyciwyg URI prefix. See Bug 747883.
-    // Note that we have to ensure fixedURI is not the same as aLocationURI so we
-    // don't false-positive page reloads as spurious additions.
     let sameDocument = (aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) != 0 ||
-                       ((this.browser.lastURI != null) && fixedURI.equals(this.browser.lastURI) && !fixedURI.equals(aLocationURI));
+                       ((this.browser.lastURI != null) && fixedURI.equals(this.browser.lastURI));
     this.browser.lastURI = fixedURI;
 
     // Reset state of click-to-play plugin notifications.
@@ -3387,12 +3383,6 @@ var FormAssistant = {
     if (!this._isAutoComplete(aElement))
       return false;
 
-    // Don't display the form auto-complete popup after the user starts typing
-    // to avoid confusing the IME. See bug 758820 and bug 632744.
-    if (aElement.value.length > 0) {
-        return false;
-    }
-
     let autoCompleteSuggestions = this._getAutoCompleteSuggestions(aElement.value, aElement);
     let listSuggestions = this._getListSuggestions(aElement);
 
@@ -3641,7 +3631,7 @@ var ViewportHandler = {
         let document = target.ownerDocument;
         let browser = BrowserApp.getBrowserForDocument(document);
         let tab = BrowserApp.getTabForBrowser(browser);
-        if (tab && tab.contentDocumentIsDisplayed)
+        if (tab)
           this.updateMetadata(tab);
         break;
 
@@ -3715,7 +3705,7 @@ var ViewportHandler = {
     let allowZoom = !/^(0|no|false)$/.test(allowZoomStr); // WebKit allows 0, "no", or "false"
 
 
-    if (isNaN(scale) && isNaN(minScale) && isNaN(maxScale) && allowZoomStr == "" && widthStr == "" && heightStr == "") {
+    if (scale == NaN && minScale == NaN && maxScale == NaN && allowZoomStr == "" && widthStr == "" && heightStr == "") {
 	// Only check for HandheldFriendly if we don't have a viewport meta tag
 	let handheldFriendly = windowUtils.getDocumentMetadata("HandheldFriendly");
 
