@@ -41,12 +41,10 @@
 #include "nsStyleConsts.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
-#include "nsConstraintValidation.h"
 
 
 class nsHTMLFieldSetElement : public nsGenericHTMLFormElement,
-                              public nsIDOMHTMLFieldSetElement,
-                              public nsConstraintValidation
+                              public nsIDOMHTMLFieldSetElement
 {
 public:
   nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -70,12 +68,10 @@ public:
   // nsIFormControl
   NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_FIELDSET; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                               nsIContent* aSubmitElement);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual nsXPCClassInfo* GetClassInfo();
-
-  // nsConstraintValidation
-  PRBool IsBarredFromConstraintValidation() { return PR_TRUE; };
 };
 
 // construction, destruction
@@ -111,8 +107,6 @@ NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLFieldSetElement)
 
 // nsIDOMHTMLFieldSetElement
 
-// nsConstraintValidation
-NS_IMPL_NSCONSTRAINTVALIDATION(nsHTMLFieldSetElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLFieldSetElement)
 
@@ -134,7 +128,8 @@ nsHTMLFieldSetElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLFieldSetElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
+nsHTMLFieldSetElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                                         nsIContent* aSubmitElement)
 {
   return NS_OK;
 }

@@ -112,7 +112,6 @@ SDK_XPIDLSRCS =					\
 	nsIDOMHTMLVideoElement.idl		\
 	nsIDOMHTMLAudioElement.idl		\
 	nsIDOMHTMLVoidCallback.idl		\
-	nsIDOMValidityState.idl		\
 	$(NULL)
 
 XPIDLSRCS = 					\

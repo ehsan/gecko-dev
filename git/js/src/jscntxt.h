@@ -1921,6 +1921,9 @@ struct JSContext
     /* Top-level object and pointer to top stack frame's scope chain. */
     JSObject            *globalObject;
 
+    /* Storage to root recently allocated GC things and script result. */
+    JSWeakRoots         weakRoots;
+
     /* Regular expression class statics. */
     js::RegExpStatics   regExpStatics;
 
@@ -2011,8 +2014,8 @@ struct JSContext
     JSStackFrame *findFrameAtLevel(uintN targetLevel) {
         JSStackFrame *fp = this->fp;
         while (true) {
-            JS_ASSERT(fp && fp->hasScript());
-            if (fp->getScript()->staticLevel == targetLevel)
+            JS_ASSERT(fp && fp->script);
+            if (fp->script->staticLevel == targetLevel)
                 break;
             fp = fp->down;
         }
@@ -2296,14 +2299,14 @@ JS_ALWAYS_INLINE JSObject *
 JSStackFrame::varobj(js::StackSegment *seg) const
 {
     JS_ASSERT(seg->contains(this));
-    return hasFunction() ? maybeCallObj() : seg->getInitialVarObj();
+    return fun ? maybeCallObj() : seg->getInitialVarObj();
 }
 
 JS_ALWAYS_INLINE JSObject *
 JSStackFrame::varobj(JSContext *cx) const
 {
     JS_ASSERT(cx->activeSegment()->contains(this));
-    return hasFunction() ? maybeCallObj() : cx->activeSegment()->getInitialVarObj();
+    return fun ? maybeCallObj() : cx->activeSegment()->getInitialVarObj();
 }
 
 JS_ALWAYS_INLINE jsbytecode *
@@ -2345,16 +2348,15 @@ class AutoCheckRequestDepth {
 static inline uintN
 FramePCOffset(JSContext *cx, JSStackFrame* fp)
 {
-    jsbytecode *pc = fp->hasIMacroPC() ? fp->getIMacroPC() : fp->pc(cx);
-    return uintN(pc - fp->getScript()->code);
+    return uintN((fp->imacpc ? fp->imacpc : fp->pc(cx)) - fp->script->code);
 }
 
 static inline JSAtom **
 FrameAtomBase(JSContext *cx, JSStackFrame *fp)
 {
-    return fp->hasIMacroPC()
+    return fp->imacpc
            ? COMMON_ATOMS_START(&cx->runtime->atomState)
-           : fp->getScript()->atomMap.vector;
+           : fp->script->atomMap.vector;
 }
 
 namespace js {
@@ -2408,25 +2410,48 @@ class AutoGCRooter {
     enum {
         JSVAL =        -1, /* js::AutoValueRooter */
         SPROP =        -2, /* js::AutoScopePropertyRooter */
-        PARSER =       -3, /* js::Parser */
-        SCRIPT =       -4, /* js::AutoScriptRooter */
-        ENUMERATOR =   -5, /* js::AutoEnumStateRooter */
-        IDARRAY =      -6, /* js::AutoIdArray */
-        DESCRIPTORS =  -7, /* js::AutoPropDescArrayRooter */
-        NAMESPACES =   -8, /* js::AutoNamespaceArray */
-        XML =          -9, /* js::AutoXMLRooter */
-        OBJECT =      -10, /* js::AutoObjectRooter */
-        ID =          -11, /* js::AutoIdRooter */
-        VALVECTOR =   -12, /* js::AutoValueVector */
-        DESCRIPTOR =  -13, /* js::AutoPropertyDescriptorRooter */
-        STRING =      -14, /* js::AutoStringRooter */
-        IDVECTOR =    -15  /* js::AutoIdVector */
+        WEAKROOTS =    -3, /* js::AutoSaveWeakRoots */
+        PARSER =       -4, /* js::Parser */
+        SCRIPT =       -5, /* js::AutoScriptRooter */
+        ENUMERATOR =   -6, /* js::AutoEnumStateRooter */
+        IDARRAY =      -7, /* js::AutoIdArray */
+        DESCRIPTORS =  -8, /* js::AutoPropDescArrayRooter */
+        NAMESPACES =   -9, /* js::AutoNamespaceArray */
+        XML =         -10, /* js::AutoXMLRooter */
+        OBJECT =      -11, /* js::AutoObjectRooter */
+        ID =          -12, /* js::AutoIdRooter */
+        VALVECTOR =   -13, /* js::AutoValueVector */
+        DESCRIPTOR =  -14, /* js::AutoPropertyDescriptorRooter */
+        STRING =      -15, /* js::AutoStringRooter */
+        IDVECTOR =    -16  /* js::AutoIdVector */
     };
 
     private:
     /* No copy or assignment semantics. */
     AutoGCRooter(AutoGCRooter &ida);
     void operator=(AutoGCRooter &ida);
+};
+
+class AutoPreserveWeakRoots : private AutoGCRooter
+{
+  public:
+    explicit AutoPreserveWeakRoots(JSContext *cx
+                                   JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, WEAKROOTS), savedRoots(cx->weakRoots)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    ~AutoPreserveWeakRoots()
+    {
+        context->weakRoots = savedRoots;
+    }
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+
+  private:
+    JSWeakRoots savedRoots;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /* FIXME(bug 332648): Move this into a public header. */

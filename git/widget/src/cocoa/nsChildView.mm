@@ -965,17 +965,6 @@ nsChildView::GetParent()
   return mParentWidget;
 }
 
-float
-nsChildView::GetDPI()
-{
-  NSWindow* window = [mView window];
-  if (window && [window isKindOfClass:[BaseWindow class]]) {
-    return [(BaseWindow*)window getDPI];
-  }
-
-  return 96.0;
-}
-
 LayerManager*
 nsChildView::GetLayerManager()
 {

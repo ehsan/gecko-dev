@@ -241,7 +241,7 @@ public:
    * submission. In that case the form will defer the submission until the
    * script handler returns and the return value is known.
    */
-  void OnSubmitClickBegin(nsIContent* aOriginatingElement);
+  void OnSubmitClickBegin();
   void OnSubmitClickEnd();
 
   virtual nsXPCClassInfo* GetClassInfo();
@@ -304,8 +304,10 @@ protected:
    * their data pumped into the FormSubmitter.
    *
    * @param aFormSubmission the form submission object
+   * @param aSubmitElement the element that was clicked on (nsnull if none)
    */
-  nsresult WalkFormElements(nsFormSubmission* aFormSubmission);
+  nsresult WalkFormElements(nsFormSubmission* aFormSubmission,
+                            nsIContent* aSubmitElement);
 
   /**
    * Notify any submit observers of the submit.
@@ -326,9 +328,8 @@ protected:
    * Get the full URL to submit to.  Do not submit if the returned URL is null.
    *
    * @param aActionURL the full, unadulterated URL you'll be submitting to [OUT]
-   * @param aOriginatingElement the originating element of the form submission [IN]
    */
-  nsresult GetActionURL(nsIURI** aActionURL, nsIContent* aOriginatingElement);
+  nsresult GetActionURL(nsIURI** aActionURL);
 
 public:
   /**

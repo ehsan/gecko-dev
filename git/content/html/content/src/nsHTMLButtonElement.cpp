@@ -45,7 +45,6 @@
 #include "nsIFormControl.h"
 #include "nsIForm.h"
 #include "nsFormSubmission.h"
-#include "nsFormSubmissionConstants.h"
 #include "nsIURL.h"
 
 #include "nsIFrame.h"
@@ -62,7 +61,6 @@
 #include "nsLayoutErrors.h"
 #include "nsFocusManager.h"
 #include "nsHTMLFormElement.h"
-#include "nsConstraintValidation.h"
 
 #define NS_IN_SUBMIT_CLICK      (1 << 0)
 #define NS_OUTER_ACTIVATE_EVENT (1 << 1)
@@ -78,8 +76,7 @@ static const nsAttrValue::EnumTable kButtonTypeTable[] = {
 static const nsAttrValue::EnumTable* kButtonDefaultType = &kButtonTypeTable[2];
 
 class nsHTMLButtonElement : public nsGenericHTMLFormElement,
-                            public nsIDOMHTMLButtonElement,
-                            public nsConstraintValidation
+                            public nsIDOMHTMLButtonElement
 {
 public:
   nsHTMLButtonElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -103,11 +100,10 @@ public:
   // overriden nsIFormControl methods
   NS_IMETHOD_(PRUint32) GetType() const { return mType; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                               nsIContent* aSubmitElement);
   NS_IMETHOD SaveState();
   PRBool RestoreState(nsPresState* aState);
-
-  PRInt32 IntrinsicState() const;
 
   /**
    * Called when an attribute is about to be changed
@@ -132,10 +128,6 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual void DoneCreatingElement();
   virtual nsXPCClassInfo* GetClassInfo();
-
-  // nsConstraintValidation
-  PRBool IsBarredFromConstraintValidation();
-
 protected:
   virtual PRBool AcceptAutofocus() const
   {
@@ -189,9 +181,6 @@ NS_INTERFACE_TABLE_HEAD(nsHTMLButtonElement)
                                                nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLButtonElement)
 
-// nsConstraintValidation
-NS_IMPL_NSCONSTRAINTVALIDATION(nsHTMLButtonElement)
-
 // nsIDOMHTMLButtonElement
 
 
@@ -209,12 +198,6 @@ nsHTMLButtonElement::GetForm(nsIDOMHTMLFormElement** aForm)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, AccessKey, accesskey)
 NS_IMPL_BOOL_ATTR(nsHTMLButtonElement, Autofocus, autofocus)
 NS_IMPL_BOOL_ATTR(nsHTMLButtonElement, Disabled, disabled)
-NS_IMPL_STRING_ATTR(nsHTMLButtonElement, FormAction, formaction)
-NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, FormEnctype, formenctype,
-                                kFormDefaultEnctype->tag)
-NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, FormMethod, formmethod,
-                                kFormDefaultMethod->tag)
-NS_IMPL_STRING_ATTR(nsHTMLButtonElement, FormTarget, formtarget)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, Name, name)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, Value, value)
@@ -290,26 +273,17 @@ nsHTMLButtonElement::ParseAttribute(PRInt32 aNamespaceID,
                                     const nsAString& aValue,
                                     nsAttrValue& aResult)
 {
-  if (aNamespaceID == kNameSpaceID_None) {
-    if (aAttribute == nsGkAtoms::type) {
-      // XXX ARG!! This is major evilness. ParseAttribute
-      // shouldn't set members. Override SetAttr instead
-      PRBool success = aResult.ParseEnumValue(aValue, kButtonTypeTable, PR_FALSE);
-      if (success) {
-        mType = aResult.GetEnumValue();
-      } else {
-        mType = kButtonDefaultType->value;
-      }
-
-      return success;
+  if (aAttribute == nsGkAtoms::type && kNameSpaceID_None == aNamespaceID) {
+    // XXX ARG!! This is major evilness. ParseAttribute
+    // shouldn't set members. Override SetAttr instead
+    PRBool success = aResult.ParseEnumValue(aValue, kButtonTypeTable, PR_FALSE);
+    if (success) {
+      mType = aResult.GetEnumValue();
+    } else {
+      mType = kButtonDefaultType->value;
     }
 
-    if (aAttribute == nsGkAtoms::formmethod) {
-      return aResult.ParseEnumValue(aValue, kFormMethodTable, PR_FALSE);
-    }
-    if (aAttribute == nsGkAtoms::formenctype) {
-      return aResult.ParseEnumValue(aValue, kFormEnctypeTable, PR_FALSE);
-    }
+    return success;
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
@@ -356,7 +330,7 @@ nsHTMLButtonElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
       // tell the form that we are about to enter a click handler.
       // that means that if there are scripted submissions, the
       // latest one will be deferred until after the exit point of the handler.
-      mForm->OnSubmitClickBegin(this);
+      mForm->OnSubmitClickBegin();
     }
   }
 
@@ -541,14 +515,15 @@ nsHTMLButtonElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLButtonElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
+nsHTMLButtonElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                                       nsIContent* aSubmitElement)
 {
   nsresult rv = NS_OK;
 
   //
   // We only submit if we were the button pressed
   //
-  if (aFormSubmission->GetOriginatingElement() != this) {
+  if (aSubmitElement != this) {
     return NS_OK;
   }
 
@@ -647,19 +622,3 @@ nsHTMLButtonElement::RestoreState(nsPresState* aState)
 
   return PR_FALSE;
 }
-
-PRInt32
-nsHTMLButtonElement::IntrinsicState() const
-{
-  return NS_EVENT_STATE_OPTIONAL | nsGenericHTMLFormElement::IntrinsicState();
-}
-
-// nsConstraintValidation
-
-PRBool
-nsHTMLButtonElement::IsBarredFromConstraintValidation()
-{
-  return (mType == NS_FORM_BUTTON_BUTTON ||
-          mType == NS_FORM_BUTTON_RESET);
-}
-
