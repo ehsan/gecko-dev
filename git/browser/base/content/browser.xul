@@ -620,11 +620,11 @@
                           label="&subscribeToPageMenuitem.label;"
                           oncommand="return FeedHandler.subscribeToFeed(null, event);"
                           onclick="checkForMiddleClick(this, event);"
-                          disabled="true"/>
+                          observes="singleFeedMenuitemState"/>
                 <menu id="appmenu_subscribeToPageMenu"
                       class="menu-iconic"
                       label="&subscribeToPageMenupopup.label;"
-                      hidden="true">
+                      observes="multipleFeedsMenuState">
                   <menupopup id="appmenu_subscribeToPageMenupopup"
                              onpopupshowing="return FeedHandler.buildFeedList(event.target);"
                              oncommand="return FeedHandler.subscribeToFeed(null, event);"
@@ -1114,6 +1114,9 @@
     </toolbar>
 
     <toolbarpalette id="BrowserToolbarPalette">
+
+# Update primaryToolbarButtons in browser/themes/browserShared.inc when adding
+# or removing default items with the toolbarbutton-1 class.
 
       <toolbarbutton id="print-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                      label="&printButton.label;" command="cmd_print"
