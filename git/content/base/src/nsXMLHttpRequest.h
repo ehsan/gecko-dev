@@ -449,8 +449,8 @@ protected:
   PRUint32 mState;
 
   nsRefPtr<nsXMLHttpRequestUpload> mUpload;
-  PRUint64 mUploadTransferred;
-  PRUint64 mUploadTotal;
+  PRUint32 mUploadTransferred;
+  PRUint32 mUploadTotal;
   PRPackedBool mUploadComplete;
   PRUint64 mUploadProgress; // For legacy
   PRUint64 mUploadProgressMax; // For legacy
