@@ -18,6 +18,7 @@
 #include "vm/NativeObject-inl.h"
 
 using namespace js;
+using namespace JS;
 
 const Class WeakSetObject::class_ = {
     "WeakSet",
@@ -72,7 +73,7 @@ WeakSetObject::create(JSContext *cx)
     if (!obj)
         return nullptr;
 
-    RootedObject map(cx, JS::NewWeakMapObject(cx));
+    RootedObject map(cx, NewWeakMapObject(cx));
     if (!map)
         return nullptr;
 
@@ -98,7 +99,7 @@ WeakSetObject::construct(JSContext *cx, unsigned argc, Value *vp)
     if (args.hasDefined(0)) {
         RootedObject map(cx, &obj->getReservedSlot(WEAKSET_MAP_SLOT).toObject());
 
-        JS::ForOfIterator iter(cx);
+        ForOfIterator iter(cx);
         if (!iter.init(args[0]))
             return false;
 

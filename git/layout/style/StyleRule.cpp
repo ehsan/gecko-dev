@@ -1177,6 +1177,9 @@ DOMCSSDeclarationImpl::DocToUpdate()
   return nullptr;
 }
 
+// needs to be outside the namespace
+DOMCI_DATA(CSSStyleRule, css::DOMCSSStyleRule)
+
 namespace mozilla {
 namespace css {
 

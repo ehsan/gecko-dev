@@ -25,6 +25,7 @@
 #include "nsDOMAttributeMap.h"
 #include "nsIDOMXPathNSResolver.h"
 #include "nsPresContext.h"
+#include "nsDOMClassInfoID.h" // DOMCI_DATA
 #include "mozilla/CORSMode.h"
 #include "mozilla/Attributes.h"
 #include "nsIScrollableFrame.h"

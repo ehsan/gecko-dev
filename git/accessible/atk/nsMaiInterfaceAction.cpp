@@ -39,7 +39,8 @@ getActionDescriptionCB(AtkAction *aAction, gint aActionIndex)
     return nullptr;
 
   nsAutoString description;
-  accWrap->ActionDescriptionAt(aActionIndex, description);
+  nsresult rv = accWrap->GetActionDescription(aActionIndex, description);
+  NS_ENSURE_SUCCESS(rv, nullptr);
   return AccessibleWrap::ReturnString(description);
 }
 

@@ -94,10 +94,14 @@ NS_IMPL_CYCLE_COLLECTION(Accessible,
                          mContent, mParent, mChildren)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(Accessible)
+  NS_INTERFACE_MAP_ENTRY(nsIAccessible)
   if (aIID.Equals(NS_GET_IID(Accessible)))
-    foundInterface = this;
+    foundInterface = static_cast<nsIAccessible*>(this);
   else
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, Accessible)
+  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIAccessibleSelectable, IsSelect())
+  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIAccessibleValue, HasNumericValue())
+  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIAccessibleHyperLink, IsLink())
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIAccessible)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Accessible)
@@ -921,7 +925,7 @@ Accessible::NativeAttributes()
   // documents, or text in an input.
   if (HasNumericValue()) {
     nsAutoString valuetext;
-    Value(valuetext);
+    GetValue(valuetext);
     attributes->SetStringProperty(NS_LITERAL_CSTRING("valuetext"), valuetext,
                                   unused);
   }
@@ -1714,9 +1718,10 @@ Accessible::RelationByType(RelationType aType)
   }
 }
 
-void
-Accessible::GetNativeInterface(void** aNativeAccessible)
+/* [noscript] void getNativeInterface(out voidPtr aOutAccessible); */
+NS_IMETHODIMP Accessible::GetNativeInterface(void **aOutAccessible)
 {
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 void
@@ -2199,13 +2204,19 @@ Accessible::AnchorURIAt(uint32_t aAnchorIndex)
 ////////////////////////////////////////////////////////////////////////////////
 // SelectAccessible
 
-void
-Accessible::SelectedItems(nsTArray<Accessible*>* aItems)
+already_AddRefed<nsIArray>
+Accessible::SelectedItems()
 {
+  nsCOMPtr<nsIMutableArray> selectedItems = do_CreateInstance(NS_ARRAY_CONTRACTID);
+  if (!selectedItems)
+    return nullptr;
+
   AccIterator iter(this, filters::GetSelected);
-  Accessible* selected = nullptr;
+  nsIAccessible* selected = nullptr;
   while ((selected = iter.Next()))
-    aItems->AppendElement(selected);
+    selectedItems->AppendElement(selected, false);
+
+  return selectedItems.forget();
 }
 
 uint32_t

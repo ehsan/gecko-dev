@@ -586,25 +586,23 @@ AudioNodeStream::FinishOutput()
 }
 
 double
-AudioNodeStream::FractionalTicksFromDestinationTime(AudioNodeStream* aDestination,
-                                                    double aSeconds)
+AudioNodeStream::TimeFromDestinationTime(AudioNodeStream* aDestination,
+                                         double aSeconds)
 {
   MOZ_ASSERT(aDestination->SampleRate() == SampleRate());
-  MOZ_ASSERT(SampleRate() == GraphRate());
 
   double destinationSeconds = std::max(0.0, aSeconds);
-  double destinationFractionalTicks = destinationSeconds * SampleRate();
-  MOZ_ASSERT(destinationFractionalTicks < STREAM_TIME_MAX);
-  StreamTime destinationStreamTime = destinationFractionalTicks; // round down
+  StreamTime streamTime =
+    aDestination->SecondsToStreamTimeRoundDown(destinationSeconds);
   // MediaTime does not have the resolution of double
-  double offset = destinationFractionalTicks - destinationStreamTime;
+  double offset =
+    destinationSeconds - aDestination->StreamTimeToSeconds(streamTime);
 
-  GraphTime graphTime =
-    aDestination->StreamTimeToGraphTime(destinationStreamTime);
+  GraphTime graphTime = aDestination->StreamTimeToGraphTime(streamTime);
   StreamTime thisStreamTime = GraphTimeToStreamTimeOptimistic(graphTime);
-  double thisFractionalTicks = thisStreamTime + offset;
-  MOZ_ASSERT(thisFractionalTicks >= 0.0);
-  return thisFractionalTicks;
+  double thisSeconds = StreamTimeToSeconds(thisStreamTime) + offset;
+  MOZ_ASSERT(thisSeconds >= 0.0);
+  return thisSeconds;
 }
 
 TrackTicks
@@ -614,10 +612,9 @@ AudioNodeStream::TicksFromDestinationTime(MediaStream* aDestination,
   AudioNodeStream* destination = aDestination->AsAudioNodeStream();
   MOZ_ASSERT(destination);
 
-  double thisSeconds =
-    FractionalTicksFromDestinationTime(destination, aSeconds);
+  double thisSeconds = TimeFromDestinationTime(destination, aSeconds);
   // Round to nearest
-  TrackTicks ticks = thisSeconds + 0.5;
+  TrackTicks ticks = thisSeconds * SampleRate() + 0.5;
   return ticks;
 }
 

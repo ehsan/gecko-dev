@@ -33,6 +33,7 @@
 #include "vm/ScopeObject-inl.h"
 
 using namespace js;
+using namespace JS;
 
 using mozilla::Move;
 using mozilla::PodArrayZero;
@@ -1093,13 +1094,13 @@ JS::WasIncrementalGC(JSRuntime *rt)
 }
 
 char16_t *
-JS::GCDescription::formatMessage(JSRuntime *rt) const
+GCDescription::formatMessage(JSRuntime *rt) const
 {
     return rt->gc.stats.formatMessage();
 }
 
 char16_t *
-JS::GCDescription::formatJSON(JSRuntime *rt, uint64_t timestamp) const
+GCDescription::formatJSON(JSRuntime *rt, uint64_t timestamp) const
 {
     return rt->gc.stats.formatJSON(timestamp);
 }

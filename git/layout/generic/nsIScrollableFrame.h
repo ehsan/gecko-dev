@@ -27,7 +27,6 @@ class nsPresContext;
 class nsIContent;
 class nsRenderingContext;
 class nsIAtom;
-class nsDisplayListBuilder;
 
 namespace mozilla {
 struct ContainerLayerParameters;
@@ -295,7 +294,7 @@ public:
    * This basically means that we should allocate resources in the
    * expectation that scrolling is going to happen.
    */
-  virtual bool IsScrollingActive(nsDisplayListBuilder* aBuilder) = 0;
+  virtual bool IsScrollingActive() = 0;
   /**
    * Returns true if the scrollframe is currently processing an async
    * or smooth scroll.

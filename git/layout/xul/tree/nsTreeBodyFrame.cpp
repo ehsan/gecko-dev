@@ -2802,9 +2802,8 @@ nsTreeBodyFrame::PaintTreeBody(nsRenderingContext& aRenderingContext,
   gfxContext* gfx = aRenderingContext.ThebesContext();
 
   gfx->Save();
-  gfx->Clip(NSRectToSnappedRect(mInnerBox + aPt,
-                                PresContext()->AppUnitsPerDevPixel(),
-                                *drawTarget));
+  gfx->Clip(NSRectToRect(mInnerBox + aPt, PresContext()->AppUnitsPerDevPixel(),
+                         *drawTarget));
   int32_t oldPageCount = mPageLength;
   if (!mHasFixedRowCount)
     mPageLength = mInnerBox.height/mRowHeight;
@@ -3629,23 +3628,20 @@ nsTreeBodyFrame::PaintText(int32_t              aRowIndex,
     fontMet->GetUnderline(offset, size);
     if (decorations & NS_FONT_DECORATION_OVERLINE) {
       nsRect r(textRect.x, textRect.y, textRect.width, size);
-      Rect devPxRect =
-        NSRectToSnappedRect(r, appUnitsPerDevPixel, *drawTarget);
+      Rect devPxRect = NSRectToRect(r, appUnitsPerDevPixel, *drawTarget);
       drawTarget->FillRect(devPxRect, color);
     }
     if (decorations & NS_FONT_DECORATION_UNDERLINE) {
       nsRect r(textRect.x, textRect.y + baseline - offset,
                textRect.width, size);
-      Rect devPxRect =
-        NSRectToSnappedRect(r, appUnitsPerDevPixel, *drawTarget);
+      Rect devPxRect = NSRectToRect(r, appUnitsPerDevPixel, *drawTarget);
       drawTarget->FillRect(devPxRect, color);
     }
   }
   if (decorations & NS_FONT_DECORATION_LINE_THROUGH) {
     fontMet->GetStrikeout(offset, size);
     nsRect r(textRect.x, textRect.y + baseline - offset, textRect.width, size);
-    Rect devPxRect =
-      NSRectToSnappedRect(r, appUnitsPerDevPixel, *drawTarget);
+    Rect devPxRect = NSRectToRect(r, appUnitsPerDevPixel, *drawTarget);
     drawTarget->FillRect(devPxRect, color);
   }
   nsStyleContext* cellContext = GetPseudoStyleContext(nsCSSAnonBoxes::moztreecell);
@@ -3792,9 +3788,9 @@ nsTreeBodyFrame::PaintProgressMeter(int32_t              aRowIndex,
     } else {
       DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
       int32_t appUnitsPerDevPixel = PresContext()->AppUnitsPerDevPixel();
-      Rect rect =
-        NSRectToSnappedRect(meterRect, appUnitsPerDevPixel, *drawTarget);
-      ColorPattern color(ToDeviceColor(meterContext->StyleColor()->mColor));
+      Rect rect = NSRectToRect(meterRect, appUnitsPerDevPixel, *drawTarget);
+      ColorPattern color(ToDeviceColor(
+                           GetVisitedDependentColor(eCSSProperty_color)));
       drawTarget->FillRect(rect, color);
     }
   }

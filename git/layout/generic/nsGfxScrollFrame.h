@@ -284,8 +284,7 @@ public:
   nscoord GetNondisappearingScrollbarWidth(nsBoxLayoutState* aState);
   bool IsLTR() const;
   bool IsScrollbarOnRight() const;
-  bool IsScrollingActive(nsDisplayListBuilder* aBuilder) const;
-  bool IsMaybeScrollingActive() const;
+  bool IsScrollingActive() const { return mScrollingActive || mShouldBuildScrollableLayer; }
   bool IsProcessingAsyncScroll() const {
     return mAsyncScroll != nullptr || mAsyncSmoothMSDScroll != nullptr;
   }
@@ -319,8 +318,8 @@ public:
   bool ShouldClampScrollPosition() const;
 
   bool IsAlwaysActive() const;
-  void MarkRecentlyScrolled();
-  void MarkNotRecentlyScrolled();
+  void MarkActive();
+  void MarkInactive();
   nsExpirationState* GetExpirationState() { return &mActivityExpirationState; }
 
   void ScheduleSyntheticMouseMove();
@@ -443,7 +442,7 @@ public:
   bool mUpdateScrollbarAttributes:1;
   // If true, we should be prepared to scroll using this scrollframe
   // by placing descendant content into its own layer(s)
-  bool mHasBeenScrolledRecently:1;
+  bool mScrollingActive:1;
   // If true, the resizer is collapsed and not displayed
   bool mCollapsedResizer:1;
 
@@ -693,8 +692,8 @@ public:
     mHelper.PostScrolledAreaEvent();
     return NS_OK;
   }
-  virtual bool IsScrollingActive(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE {
-    return mHelper.IsScrollingActive(aBuilder);
+  virtual bool IsScrollingActive() MOZ_OVERRIDE {
+    return mHelper.IsScrollingActive();
   }
   virtual bool IsProcessingAsyncScroll() MOZ_OVERRIDE {
     return mHelper.IsProcessingAsyncScroll();
@@ -1051,8 +1050,8 @@ public:
     mHelper.PostScrolledAreaEvent();
     return NS_OK;
   }
-  virtual bool IsScrollingActive(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE {
-    return mHelper.IsScrollingActive(aBuilder);
+  virtual bool IsScrollingActive() MOZ_OVERRIDE {
+    return mHelper.IsScrollingActive();
   }
   virtual bool IsProcessingAsyncScroll() MOZ_OVERRIDE {
     return mHelper.IsProcessingAsyncScroll();

@@ -14,6 +14,7 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsJSUtils.h"
 #include "nsTArray.h"
+#include "nsIJSNativeInitializer.h"
 #include "prtime.h"
 #include "nsITimer.h"
 #include "nsIAsyncInputStream.h"

@@ -246,8 +246,7 @@ nsDisplayCanvasBackgroundColor::Paint(nsDisplayListBuilder* aBuilder,
   if (NS_GET_A(mColor) > 0) {
     DrawTarget* drawTarget = aCtx->GetDrawTarget();
     int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
-    Rect devPxRect =
-      NSRectToSnappedRect(bgClipRect, appUnitsPerDevPixel, *drawTarget);
+    Rect devPxRect = NSRectToRect(bgClipRect, appUnitsPerDevPixel, *drawTarget);
     drawTarget->FillRect(devPxRect, ColorPattern(ToDeviceColor(mColor)));
   }
 }

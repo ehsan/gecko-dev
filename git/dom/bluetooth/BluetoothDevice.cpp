@@ -10,6 +10,7 @@
 #include "BluetoothService.h"
 #include "BluetoothUtils.h"
 
+#include "nsDOMClassInfo.h"
 #include "nsTArrayHelpers.h"
 
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
@@ -17,6 +18,8 @@
 #include "mozilla/dom/ScriptSettings.h"
 
 USING_BLUETOOTH_NAMESPACE
+
+DOMCI_DATA(BluetoothDevice, BluetoothDevice)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(BluetoothDevice)
 

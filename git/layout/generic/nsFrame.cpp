@@ -1850,9 +1850,9 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder,
 }
 
 static bool
-IsScrollFrameActive(nsDisplayListBuilder* aBuilder, nsIScrollableFrame* aScrollableFrame)
+IsScrollFrameActive(nsIScrollableFrame* aScrollableFrame)
 {
-  return aScrollableFrame && aScrollableFrame->IsScrollingActive(aBuilder);
+  return aScrollableFrame && aScrollableFrame->IsScrollingActive();
 }
 
 static nsresult
@@ -1930,10 +1930,6 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     return;
   }
 
-  if (disp->mWillChangeBitField != 0) {
-    aBuilder->AddToWillChangeBudget(this, GetSize());
-  }
-
   nsRect dirtyRect = aDirtyRect;
 
   bool inTransform = aBuilder->IsInTransform();
@@ -1978,8 +1974,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   bool useOpacity = HasVisualOpacity() && !nsSVGUtils::CanOptimizeOpacity(this);
   bool useBlendMode = disp->mMixBlendMode != NS_STYLE_BLEND_NORMAL;
   bool useStickyPosition = disp->mPosition == NS_STYLE_POSITION_STICKY &&
-    IsScrollFrameActive(aBuilder,
-                        nsLayoutUtils::GetNearestScrollableFrame(GetParent(),
+    IsScrollFrameActive(nsLayoutUtils::GetNearestScrollableFrame(GetParent(),
                         nsLayoutUtils::SCROLLABLE_SAME_DOC |
                         nsLayoutUtils::SCROLLABLE_INCLUDE_HIDDEN));
 
