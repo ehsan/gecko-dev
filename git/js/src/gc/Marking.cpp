@@ -1628,7 +1628,7 @@ GCMarker::drainMarkStack(SliceBudget &budget)
 
     struct AutoCheckCompartment {
         JSRuntime *runtime;
-        explicit AutoCheckCompartment(JSRuntime *rt) : runtime(rt) {
+        AutoCheckCompartment(JSRuntime *rt) : runtime(rt) {
             JS_ASSERT(!rt->gc.strictCompartmentChecking);
             runtime->gc.strictCompartmentChecking = true;
         }

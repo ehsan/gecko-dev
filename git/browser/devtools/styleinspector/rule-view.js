@@ -1469,25 +1469,23 @@ CssRuleView.prototype = {
   /**
    * Update the rules for the currently highlighted element.
    */
-  refreshPanel: function() {
+  nodeChanged: function() {
     // Ignore refreshes during editing or when no element is selected.
     if (this.isEditing || !this._elementStyle) {
       return;
     }
 
+    this._clearRules();
+
     // Repopulate the element style.
-    this._populate(true);
+    this._populate();
   },
 
-  _populate: function(clearRules = false) {
+  _populate: function() {
     let elementStyle = this._elementStyle;
     return this._elementStyle.populate().then(() => {
       if (this._elementStyle != elementStyle) {
         return;
-      }
-
-      if (clearRules) {
-        this._clearRules();
       }
       this._createEditors();
 

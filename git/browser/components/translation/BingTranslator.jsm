@@ -156,16 +156,9 @@ this.BingTranslation.prototype = {
     let error = false;
     for (let i = 0; i < len; i++) {
       try {
-        let result = results[i].firstChild.nodeValue;
-        let root = bingRequest.translationData[i][0];
-
-        if (root.isSimpleRoot) {
-          // Workaround for Bing's service problem in which "&" chars in
-          // plain-text TranslationItems are double-escaped.
-          result = result.replace("&amp;", "&", "g");
-        }
-
-        root.parseResult(result);
+        bingRequest.translationData[i][0].parseResult(
+          results[i].firstChild.nodeValue
+        );
       } catch (e) { error = true; }
     }
 

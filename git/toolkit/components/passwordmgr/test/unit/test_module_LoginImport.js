@@ -170,8 +170,10 @@ add_task(function test_import()
 
   // Verify that disabled hosts have been imported.
   do_check_eq(store.data.disabledHosts.length, 2);
-  do_check_true(store.data.disabledHosts.indexOf("http://www.example.com") != -1);
-  do_check_true(store.data.disabledHosts.indexOf("https://www.example.org") != -1);
+  do_check_true(store.data.disabledHosts.some(
+                dataItem => dataItem.hostname == "http://www.example.com"));
+  do_check_true(store.data.disabledHosts.some(
+                dataItem => dataItem.hostname == "https://www.example.org"));
 });
 
 /**

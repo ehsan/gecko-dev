@@ -3717,6 +3717,17 @@ LIRGenerator::visitBlock(MBasicBlock *block)
 }
 
 bool
+LIRGenerator::precreatePhi(LBlock *block, MPhi *phi)
+{
+    LPhi *lir = LPhi::New(gen, phi);
+    if (!lir)
+        return false;
+    if (!block->addPhi(lir))
+        return false;
+    return true;
+}
+
+bool
 LIRGenerator::generate()
 {
     // Create all blocks and prep all phis beforehand.
@@ -3727,8 +3738,20 @@ LIRGenerator::generate()
         current = LBlock::New(alloc(), *block);
         if (!current)
             return false;
-        lirGraph_.setBlock(block->id(), current);
+        if (!lirGraph_.addBlock(current))
+            return false;
         block->assignLir(current);
+
+        // For each MIR phi, add LIR phis as appropriate. We'll fill in their
+        // operands on each incoming edge, and set their definitions at the
+        // start of their defining block.
+        for (MPhiIterator phi(block->phisBegin()); phi != block->phisEnd(); phi++) {
+            int numPhis = (phi->type() == MIRType_Value) ? BOX_PIECES : 1;
+            for (int i = 0; i < numPhis; i++) {
+                if (!precreatePhi(block->lir(), *phi))
+                    return false;
+            }
+        }
     }
 
     for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++) {
@@ -3738,6 +3761,9 @@ LIRGenerator::generate()
         if (!visitBlock(*block))
             return false;
     }
+
+    if (graph.osrBlock())
+        lirGraph_.setOsrBlock(graph.osrBlock()->lir());
 
     lirGraph_.setArgumentSlotCount(maxargslots_);
     return true;

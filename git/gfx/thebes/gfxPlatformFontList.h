@@ -114,6 +114,9 @@ public:
                       const nsACString& aGenericFamily,
                       nsTArray<nsString>& aListOfFonts);
 
+    virtual bool ResolveFontName(const nsAString& aFontName,
+                                   nsAString& aResolvedFontName);
+
     void UpdateFontList();
 
     void ClearPrefFonts() { mPrefFonts.Clear(); }

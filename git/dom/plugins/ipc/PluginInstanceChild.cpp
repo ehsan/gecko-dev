@@ -13,10 +13,7 @@
 #include "PluginProcessChild.h"
 #include "gfxASurface.h"
 #include "gfxContext.h"
-#include "gfxPlatform.h"
-#include "gfx2DGlue.h"
 #include "nsNPAPIPluginInstance.h"
-#include "mozilla/gfx/2D.h"
 #ifdef MOZ_X11
 #include "gfxXlibSurface.h"
 #endif
@@ -94,31 +91,6 @@ struct RunnableMethodTraits<PluginInstanceChild>
     static void RetainCallee(PluginInstanceChild* obj) { }
     static void ReleaseCallee(PluginInstanceChild* obj) { }
 };
-
-/**
- * We can't use gfxPlatform::CreateDrawTargetForSurface() because calling
- * gfxPlatform::GetPlatform() instantiates the prefs service, and that's not
- * allowed from processes other than the main process. So we have our own
- * version here.
- */
-static RefPtr<DrawTarget>
-CreateDrawTargetForSurface(gfxASurface *aSurface)
-{
-  SurfaceFormat format;
-  if (aSurface->GetContentType() == gfxContentType::ALPHA) {
-    format = SurfaceFormat::A8;
-  } else if (aSurface->GetContentType() == gfxContentType::COLOR) {
-    format = SurfaceFormat::B8G8R8X8;
-  } else {
-    format = SurfaceFormat::B8G8R8A8;
-  }
-  RefPtr<DrawTarget> drawTarget =
-    Factory::CreateDrawTargetForCairoSurface(aSurface->CairoSurface(),
-                                             ToIntSize(gfxIntSize(aSurface->GetSize())),
-                                             &format);
-  aSurface->SetData(&kDrawTarget, drawTarget, nullptr);
-  return drawTarget;
-}
 
 PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
     : mPluginIface(aPluginIface)
@@ -3199,23 +3171,23 @@ PluginInstanceChild::PaintRectToSurface(const nsIntRect& aRect,
 #endif
 
     if (mIsTransparent && !CanPaintOnBackground()) {
-        // Clear surface content for transparent rendering
-        ColorPattern color(ToColor(aColor));
-        RefPtr<DrawTarget> dt = CreateDrawTargetForSurface(renderSurface);
-        dt->FillRect(gfx::Rect(plPaintRect.x, plPaintRect.y,
-                               plPaintRect.width, plPaintRect.height),
-                     color,
-                     DrawOptions(1.f, CompositionOp::OP_SOURCE));
+       // Clear surface content for transparent rendering
+       nsRefPtr<gfxContext> ctx = new gfxContext(renderSurface);
+       ctx->SetDeviceColor(aColor);
+       ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+       ctx->Rectangle(GfxFromNsRect(plPaintRect));
+       ctx->Fill();
     }
 
     PaintRectToPlatformSurface(plPaintRect, renderSurface);
 
     if (renderSurface != aSurface) {
         // Copy helper surface content to target
-        RefPtr<DrawTarget> dt = CreateDrawTargetForSurface(aSurface);
-        RefPtr<SourceSurface> surface =
-            gfxPlatform::GetSourceSurfaceForSurface(dt, renderSurface);
-        dt->CopySurface(surface, ToIntRect(aRect), ToIntPoint(aRect.TopLeft()));
+        nsRefPtr<gfxContext> ctx = new gfxContext(aSurface);
+        ctx->SetSource(renderSurface);
+        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+        ctx->Rectangle(GfxFromNsRect(aRect));
+        ctx->Fill();
     }
 }
 
@@ -3270,10 +3242,12 @@ PluginInstanceChild::PaintRectWithAlphaExtraction(const nsIntRect& aRect,
     // background and copy the result
     PaintRectToSurface(rect, aSurface, gfxRGBA(1.0, 1.0, 1.0));
     {
-        RefPtr<DrawTarget> dt = CreateDrawTargetForSurface(whiteImage);
-        RefPtr<SourceSurface> surface =
-            gfxPlatform::GetSourceSurfaceForSurface(dt, aSurface);
-        dt->CopySurface(surface, ToIntRect(rect), IntPoint());
+        gfxRect copyRect(gfxPoint(0, 0), targetRect.Size());
+        nsRefPtr<gfxContext> ctx = new gfxContext(whiteImage);
+        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+        ctx->SetSource(aSurface, deviceOffset);
+        ctx->Rectangle(copyRect);
+        ctx->Fill();
     }
 
     // Paint the plugin directly onto the target, with a black
@@ -3314,12 +3288,11 @@ PluginInstanceChild::PaintRectWithAlphaExtraction(const nsIntRect& aRect,
     // If we had to use a temporary black surface, copy the pixels
     // with alpha back to the target
     if (!useSurfaceSubimageForBlack) {
-        RefPtr<DrawTarget> dt = CreateDrawTargetForSurface(aSurface);
-        RefPtr<SourceSurface> surface =
-            gfxPlatform::GetSourceSurfaceForSurface(dt, blackImage);
-        dt->CopySurface(surface,
-                        IntRect(0, 0, rect.width, rect.height),
-                        ToIntPoint(rect.TopLeft()));
+        nsRefPtr<gfxContext> ctx = new gfxContext(aSurface);
+        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+        ctx->SetSource(blackImage);
+        ctx->Rectangle(targetRect);
+        ctx->Fill();
     }
 }
 

@@ -82,6 +82,9 @@ MIRGraph::removeBlocksAfter(MBasicBlock *start)
         if (block->id() <= start->id())
             continue;
 
+        // removeBlock will not remove the resumepoints, since
+        // it can be shared with outer blocks. So remove them now.
+        block->discardAllResumePoints();
         removeBlock(block);
     }
 }
@@ -89,7 +92,9 @@ MIRGraph::removeBlocksAfter(MBasicBlock *start)
 void
 MIRGraph::removeBlock(MBasicBlock *block)
 {
-    // Remove a block from the graph. It will also cleanup the block.
+    // Remove a block from the graph. It will also cleanup the block,
+    // except for removing the resumepoints, since multiple blocks can
+    // share the same resumepoints and we cannot distinguish between them.
 
     if (block == osrBlock_)
         osrBlock_ = nullptr;
@@ -104,7 +109,6 @@ MIRGraph::removeBlock(MBasicBlock *block)
         }
     }
 
-    block->discardAllResumePoints();
     block->discardAllInstructions();
 
     // Note: phis are disconnected from the rest of the graph, but are not
@@ -787,8 +791,6 @@ MBasicBlock::discardAllResumePoints(bool discardEntry)
             iter = resumePoints_.removeAt(iter);
         }
     }
-    if (discardEntry)
-        clearEntryResumePoint();
 }
 
 void
@@ -942,7 +944,16 @@ MBasicBlock::dominates(const MBasicBlock *other) const
 {
     uint32_t high = domIndex() + numDominated();
     uint32_t low  = domIndex();
-    return other->domIndex() >= low && other->domIndex() < high;
+    return other->domIndex() >= low && other->domIndex() <= high;
+}
+
+void
+MBasicBlock::setUnreachable()
+{
+    unreachable_ = true;
+    size_t numDom = numImmediatelyDominatedBlocks();
+    for (size_t d = 0; d < numDom; d++)
+        getImmediatelyDominatedBlock(d)->unreachable_ = true;
 }
 
 AbortReason

@@ -136,9 +136,6 @@ nsHTTPDownloadEvent::Run()
   nsCOMPtr<nsIHttpChannel> hchan = do_QueryInterface(chan);
   NS_ENSURE_STATE(hchan);
 
-  rv = hchan->SetAllowSTS(false);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   rv = hchan->SetRequestMethod(mRequestSession->mRequestMethod);
   NS_ENSURE_SUCCESS(rv, rv);
 

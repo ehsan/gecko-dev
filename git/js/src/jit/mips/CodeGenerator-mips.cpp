@@ -40,33 +40,16 @@ CodeGeneratorMIPS::CodeGeneratorMIPS(MIRGenerator *gen, LIRGraph *graph, MacroAs
 bool
 CodeGeneratorMIPS::generatePrologue()
 {
-    MOZ_ASSERT(!gen->compilingAsmJS());
-    // Note that this automatically sets MacroAssembler::framePushed().
-    masm.reserveStack(frameSize());
-    masm.checkStackAlignment();
-    return true;
-}
-
-bool
-CodeGeneratorMIPS::generateAsmJSPrologue(Label *stackOverflowLabel)
-{
-    JS_ASSERT(gen->compilingAsmJS());
-
-    masm.push(ra);
-
-    // The asm.js over-recursed handler wants to be able to assume that SP
-    // points to the return address, so perform the check after pushing ra but
-    // before pushing frameDepth.
-    if (!omitOverRecursedCheck()) {
-        masm.branchPtr(Assembler::AboveOrEqual,
-                       AsmJSAbsoluteAddress(AsmJSImm_StackLimit),
-                       StackPointer,
-                       stackOverflowLabel);
+    if (gen->compilingAsmJS()) {
+        masm.Push(ra);
+        // Note that this automatically sets MacroAssembler::framePushed().
+        masm.reserveStack(frameDepth_);
+    } else {
+        // Note that this automatically sets MacroAssembler::framePushed().
+        masm.reserveStack(frameSize());
+        masm.checkStackAlignment();
     }
 
-    // Note that this automatically sets MacroAssembler::framePushed().
-    masm.reserveStack(frameDepth_);
-    masm.checkStackAlignment();
     return true;
 }
 
@@ -84,12 +67,18 @@ CodeGeneratorMIPS::generateEpilogue()
     }
 #endif
 
-    if (gen->compilingAsmJS())
+    if (gen->compilingAsmJS()) {
+        // Pop the stack we allocated at the start of the function.
         masm.freeStack(frameDepth_);
-    else
+        masm.Pop(ra);
+        masm.abiret();
+        MOZ_ASSERT(masm.framePushed() == 0);
+    } else {
+        // Pop the stack we allocated at the start of the function.
         masm.freeStack(frameSize());
-    JS_ASSERT(masm.framePushed() == 0);
-    masm.ret();
+        MOZ_ASSERT(masm.framePushed() == 0);
+        masm.ret();
+    }
     return true;
 }
 
@@ -983,8 +972,14 @@ CodeGeneratorMIPS::toMoveOperand(const LAllocation *a) const
     if (a->isFloatReg()) {
         return MoveOperand(ToFloatRegister(a));
     }
+    MOZ_ASSERT((ToStackOffset(a) & 3) == 0);
     int32_t offset = ToStackOffset(a);
-    MOZ_ASSERT((offset & 3) == 0);
+
+    // The way the stack slots work, we assume that everything from
+    // depth == 0 downwards is writable. However, since our frame is included
+    // in this, ensure that the frame gets skipped.
+    if (gen->compilingAsmJS())
+        offset -= AlignmentMidPrologue;
 
     return MoveOperand(StackPointer, offset);
 }
@@ -1193,80 +1188,6 @@ CodeGeneratorMIPS::visitFloorF(LFloorF *lir)
 
     masm.bind(&done);
 
-    return true;
-}
-
-bool
-CodeGeneratorMIPS::visitCeil(LCeil *lir)
-{
-    FloatRegister input = ToFloatRegister(lir->input());
-    FloatRegister scratch = ScratchFloatReg;
-    Register output = ToRegister(lir->output());
-
-    Label performCeil, done;
-
-    // If x < -1 or x > 0 then perform ceil.
-    masm.loadConstantDouble(0, scratch);
-    masm.branchDouble(Assembler::DoubleGreaterThan, input, scratch, &performCeil);
-    masm.loadConstantDouble(-1, scratch);
-    masm.branchDouble(Assembler::DoubleLessThanOrEqual, input, scratch, &performCeil);
-
-    // If high part is not zero, the input was not 0, so we bail.
-    masm.moveFromDoubleHi(input, SecondScratchReg);
-    if (!bailoutCmp32(Assembler::NotEqual, SecondScratchReg, Imm32(0), lir->snapshot()))
-        return false;
-
-    // Input was zero, so return zero.
-    masm.move32(Imm32(0), output);
-    masm.ma_b(&done, ShortJump);
-
-    masm.bind(&performCeil);
-    masm.as_ceilwd(scratch, input);
-    masm.moveFromDoubleLo(scratch, output);
-
-    if (!bailoutCmp32(Assembler::Equal, output, Imm32(INT_MIN), lir->snapshot()))
-        return false;
-    if (!bailoutCmp32(Assembler::Equal, output, Imm32(INT_MAX), lir->snapshot()))
-        return false;
-
-    masm.bind(&done);
-    return true;
-}
-
-bool
-CodeGeneratorMIPS::visitCeilF(LCeilF *lir)
-{
-    FloatRegister input = ToFloatRegister(lir->input());
-    FloatRegister scratch = ScratchFloatReg;
-    Register output = ToRegister(lir->output());
-
-    Label performCeil, done;
-
-    // If x < -1 or x > 0 then perform ceil.
-    masm.loadConstantFloat32(0, scratch);
-    masm.branchFloat(Assembler::DoubleGreaterThan, input, scratch, &performCeil);
-    masm.loadConstantFloat32(-1, scratch);
-    masm.branchFloat(Assembler::DoubleLessThanOrEqual, input, scratch, &performCeil);
-
-    // If binary value is not zero, the input was not 0, so we bail.
-    masm.moveFromFloat32(input, SecondScratchReg);
-    if (!bailoutCmp32(Assembler::NotEqual, SecondScratchReg, Imm32(0), lir->snapshot()))
-        return false;
-
-    // Input was zero, so return zero.
-    masm.move32(Imm32(0), output);
-    masm.ma_b(&done, ShortJump);
-
-    masm.bind(&performCeil);
-    masm.as_ceilws(scratch, input);
-    masm.moveFromFloat32(scratch, output);
-
-    if (!bailoutCmp32(Assembler::Equal, output, Imm32(INT_MIN), lir->snapshot()))
-        return false;
-    if (!bailoutCmp32(Assembler::Equal, output, Imm32(INT_MAX), lir->snapshot()))
-        return false;
-
-    masm.bind(&done);
     return true;
 }
 
@@ -1999,7 +1920,7 @@ CodeGeneratorMIPS::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
     }
     masm.bind(&done);
 
-    return masm.append(AsmJSHeapAccess(bo.getOffset()));
+    return gen->noteHeapAccess(AsmJSHeapAccess(bo.getOffset()));
 }
 
 bool
@@ -2075,7 +1996,7 @@ CodeGeneratorMIPS::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
     }
     masm.bind(&rejoin);
 
-    return masm.append(AsmJSHeapAccess(bo.getOffset()));
+    return gen->noteHeapAccess(AsmJSHeapAccess(bo.getOffset()));
 }
 
 bool

@@ -1564,13 +1564,6 @@ pageTranslatedCountsByLanguage
     language. Each language entry will be an object containing a "total" member
     along with individual counts for each language translated to.
 
-Other properties:
-
-detectLanguageEnabled
-    Whether automatic language detection is enabled. This is an integer, 0 or 1.
-showTranslationUI
-    Whether the translation feature UI will be shown. This is an integer, 0 or 1.
-
 Example
 ^^^^^^^
 
@@ -1578,8 +1571,6 @@ Example
 
     "org.mozilla.translation.translation": {
       "_v": 1,
-      "detectLanguageEnabled": 1,
-      "showTranslationUI": 1,
       "translationOpportunityCount": 134,
       "pageTranslatedCount": 6,
       "charactersTranslatedCount": "1126",

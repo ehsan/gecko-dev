@@ -347,11 +347,10 @@ ContentClientRemoteBuffer::SwapBuffers(const nsIntRegion& aFrontUpdatedRegion)
 void
 ContentClientDoubleBuffered::DestroyFrontBuffer()
 {
-  if (mFrontClient) {
-    mOldTextures.AppendElement(mFrontClient);
-    mFrontClient = nullptr;
-  }
+  MOZ_ASSERT(mFrontClient);
 
+  mOldTextures.AppendElement(mFrontClient);
+  mFrontClient = nullptr;
   if (mFrontClientOnWhite) {
     mOldTextures.AppendElement(mFrontClientOnWhite);
     mFrontClientOnWhite = nullptr;
@@ -368,7 +367,7 @@ ContentClientDoubleBuffered::Updated(const nsIntRegion& aRegionToDraw,
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
   if (mFrontClient && CompositorChild::ChildProcessHasCompositor()) {
     // remove old buffer from CompositableHost
-    RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker();
+    RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker(this);
     // Hold TextureClient until transaction complete.
     tracker->SetTextureClient(mFrontClient);
     mFrontClient->SetRemoveFromCompositableTracker(tracker);
@@ -378,7 +377,7 @@ ContentClientDoubleBuffered::Updated(const nsIntRegion& aRegionToDraw,
 
   if (mFrontClientOnWhite && CompositorChild::ChildProcessHasCompositor()) {
     // remove old buffer from CompositableHost
-    RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker();
+    RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker(this);
     // Hold TextureClient until transaction complete.
     tracker->SetTextureClient(mFrontClientOnWhite);
     mFrontClientOnWhite->SetRemoveFromCompositableTracker(tracker);
@@ -459,9 +458,6 @@ ContentClientDoubleBuffered::FinalizeFrame(const nsIntRegion& aRegionToDraw)
     return;
   }
   MOZ_ASSERT(mFrontClient);
-  if (!mFrontClient) {
-    return;
-  }
 
   MOZ_LAYERS_LOG(("BasicShadowableThebes(%p): reading back <x=%d,y=%d,w=%d,h=%d>",
                   this,

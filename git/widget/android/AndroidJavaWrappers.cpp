@@ -9,7 +9,6 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsIWidget.h"
 #include "mozilla/BasicEvents.h"
-#include "mozilla/TimeStamp.h"
 #include "mozilla/TouchEvents.h"
 
 using namespace mozilla;
@@ -755,7 +754,7 @@ AndroidGeckoEvent::MakeMultiTouchInput(nsIWidget* widget)
         }
     }
 
-    MultiTouchInput event(type, Time(), TimeStamp(), 0);
+    MultiTouchInput event(type, Time(), 0);
     event.modifiers = DOMModifiers();
 
     if (type < 0) {

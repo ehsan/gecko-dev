@@ -15,7 +15,6 @@
 #include "mozilla/css/Loader.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ShadowRoot.h"
-#include "mozilla/Preferences.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
@@ -121,21 +120,6 @@ nsStyleLinkElement::SetLineNumber(uint32_t aLineNumber)
   mLineNumber = aLineNumber;
 }
 
-/* static */ bool
-nsStyleLinkElement::IsImportEnabled()
-{
-  static bool sAdded = false;
-  static bool sImportEnabled;
-  if (!sAdded) {
-    // This part runs only once because of the static flag.
-    Preferences::AddBoolVarCache(&sImportEnabled,
-                                 "dom.webcomponents.enabled",
-                                 false);
-    sAdded = true;
-  }
-  return sImportEnabled;
-}
-
 static uint32_t ToLinkMask(const nsAString& aLink)
 { 
   if (aLink.EqualsLiteral("prefetch"))
@@ -148,7 +132,7 @@ static uint32_t ToLinkMask(const nsAString& aLink)
     return nsStyleLinkElement::eNEXT;
   else if (aLink.EqualsLiteral("alternate"))
     return nsStyleLinkElement::eALTERNATE;
-  else if (aLink.EqualsLiteral("import") && nsStyleLinkElement::IsImportEnabled())
+  else if (aLink.EqualsLiteral("import"))
     return nsStyleLinkElement::eHTMLIMPORT;
   else 
     return 0;

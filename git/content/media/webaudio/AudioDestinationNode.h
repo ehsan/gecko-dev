@@ -12,6 +12,7 @@
 #include "nsIDOMEventListener.h"
 #include "nsIAudioChannelAgent.h"
 #include "AudioChannelCommon.h"
+#include "nsWeakReference.h"
 
 namespace mozilla {
 namespace dom {
@@ -21,6 +22,7 @@ class AudioContext;
 class AudioDestinationNode : public AudioNode
                            , public nsIDOMEventListener
                            , public nsIAudioChannelAgentCallback
+                           , public nsSupportsWeakReference
                            , public MainThreadMediaStreamListener
 {
 public:
@@ -99,7 +101,6 @@ private:
   AudioChannel mAudioChannel;
   bool mIsOffline;
   bool mHasFinished;
-  bool mAudioChannelAgentPlaying;
 
   TimeStamp mStartedBlockingDueToBeingOnlyNode;
   double mExtraCurrentTime;
