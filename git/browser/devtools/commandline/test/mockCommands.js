@@ -472,7 +472,7 @@ mockCommands.tslong = {
           name: 'sel2',
           type: {
             name: 'selection',
-            data: [ 'collapse', 'basic', 'with space', 'with two spaces' ]
+            data: ['collapse', 'expand', 'end-expand', 'expand-strict']
           },
           description: 'sel2 Desc',
           defaultValue: "collapse"

@@ -45,6 +45,7 @@ let DebuggerView = {
 
     this._initializePanes();
     this._initializeEditor(aCallback)
+    this._isInitialized = true;
   },
 
   /**
@@ -156,11 +157,8 @@ let DebuggerView = {
    *        The script url.
    * @param string aContentType [optional]
    *        The script content type.
-   * @param string aTextContent [optional]
-   *        The script text content.
    */
-  setEditorMode:
-  function DV_setEditorMode(aUrl, aContentType = "", aTextContent = "") {
+  setEditorMode: function DV_setEditorMode(aUrl, aContentType) {
     if (!this.editor) {
       return;
     }
@@ -173,16 +171,12 @@ let DebuggerView = {
       } else {
         this.editor.setMode(SourceEditor.MODES.HTML);
       }
-    } else if (aTextContent.match(/^\s*</)) {
-      // Use HTML mode for files in which the first non whitespace character is
-      // &lt;, regardless of extension.
-      this.editor.setMode(SourceEditor.MODES.HTML);
     } else {
       // Use JS mode for files with .js and .jsm extensions.
       if (/\.jsm?$/.test(SourceUtils.trimUrlQuery(aUrl))) {
         this.editor.setMode(SourceEditor.MODES.JAVASCRIPT);
       } else {
-        this.editor.setMode(SourceEditor.MODES.TEXT);
+        this.editor.setMode(SourceEditor.MODES.HTML);
       }
     }
   },
@@ -222,9 +216,7 @@ let DebuggerView = {
     // If the source is already loaded, display it immediately.
     else {
       if (aSource.text.length < SOURCE_SYNTAX_HIGHLIGHT_MAX_FILE_SIZE) {
-        this.setEditorMode(aSource.url, aSource.contentType, aSource.text);
-      } else {
-        this.editor.setMode(SourceEditor.MODES.TEXT);
+        this.setEditorMode(aSource.url, aSource.contentType);
       }
       this.editor.setText(aSource.text);
       this.editor.resetUndo();
@@ -427,7 +419,6 @@ let DebuggerView = {
   _stackframesAndBreakpoints: null,
   _variables: null,
   _isInitialized: false,
-  _isDestroyed: false
 };
 
 /**
@@ -761,7 +752,7 @@ MenuContainer.prototype = {
    * @param string aLabel
    */
   set selectedLabel(aLabel) {
-    let item = this._itemsByLabel.get(aLabel);
+    let item = this._itemsByLabel.get(aValue);
     if (item) {
       this._container.selectedItem = item.target;
     }

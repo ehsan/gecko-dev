@@ -173,7 +173,6 @@ const UnsolicitedNotifications = {
   "locationChange": "locationChange",
   "networkEvent": "networkEvent",
   "networkEventUpdate": "networkEventUpdate",
-  "newGlobal": "newGlobal",
   "newScript": "newScript",
   "tabDetached": "tabDetached",
   "tabNavigated": "tabNavigated",

@@ -83,17 +83,10 @@ function test() {
     });
 
     let iframe = gTab.linkedBrowser.contentWindow.wrappedJSObject.frames[0];
+
     is(iframe.document.title, "Browser Debugger Test Tab", "Found the iframe");
 
-    function handler() {
-      if (iframe.document.readyState != "complete") {
-        return;
-      }
-      iframe.window.removeEventListener("load", handler, false);
-      executeSoon(iframe.runDebuggerStatement);
-    };
-    iframe.window.addEventListener("load", handler, false);
-    handler();
+    iframe.runDebuggerStatement();
   },
   function beforeTabAdded() {
     if (!DebuggerServer.initialized) {

@@ -16,16 +16,16 @@ function createRootActor()
           this.conn.removeActor(aActor);
         }.bind(this);
         let hooks = {
-          addToParentPool: addBreakpoint,
-          removeFromParentPool: removeBreakpoint
+          addToBreakpointPool: addBreakpoint,
+          removeFromBreakpointPool: removeBreakpoint
         };
         let actor = new ThreadActor(hooks);
         actor.addDebuggee(g);
-        actor.global = g;
+        actor._global = g;
         actor.json = function() {
           return { actor: actor.actorID,
                    threadActor: actor.actorID,
-                   global: actor.global.__name };
+                   global: actor._global.__name };
         };
         this.conn.addActor(actor);
         this._globalActors.push(actor);
