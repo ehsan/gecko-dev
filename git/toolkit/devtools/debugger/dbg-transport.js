@@ -123,11 +123,7 @@ DebuggerTransport.prototype = {
                                                         aStream.available());
       while (this._processIncoming()) {};
     } catch(e) {
-      let msg = "Unexpected error reading from debugging connection: " + e + " - " + e.stack;
-      if (Cu.reportError) {
-        Cu.reportError(msg);
-      }
-      dump(msg + "\n");
+      dumpn("Unexpected error reading from debugging connection: " + e + " - " + e.stack);
       this.close();
       return;
     }
@@ -162,11 +158,7 @@ DebuggerTransport.prototype = {
       packet = this._converter.ConvertToUnicode(packet);
       var parsed = JSON.parse(packet);
     } catch(e) {
-      let msg = "Error parsing incoming packet: " + packet + " (" + e + " - " + e.stack + ")";
-      if (Cu.reportError) {
-        Cu.reportError(msg);
-      }
-      dump(msg + "\n");
+      dumpn("Error parsing incoming packet: " + packet + " (" + e + " - " + e.stack + ")");
       return true;
     }
 
@@ -177,11 +169,7 @@ DebuggerTransport.prototype = {
         self.hooks.onPacket(parsed);
       }}, 0);
     } catch(e) {
-      let msg = "Error handling incoming packet: " + e + " - " + e.stack;
-      if (Cu.reportError) {
-        Cu.reportError(msg);
-      }
-      dump(msg + "\n");
+      dumpn("Error handling incoming packet: " + e + " - " + e.stack);
       dumpn("Packet was: " + packet);
     }
 
@@ -224,12 +212,8 @@ LocalDebuggerTransport.prototype = {
         self.other.hooks.onPacket(aPacket);
       }}, 0);
     } catch(e) {
-      let msg = "Error handling incoming packet: " + e + " - " + e.stack;
-      if (Cu.reportError) {
-        Cu.reportError(msg);
-      }
-      dump(msg + "\n");
-      dumpn("Packet was: " + aPacket + "\n");
+      dumpn("Error handling incoming packet: " + e + " - " + e.stack);
+      dumpn("Packet was: " + aPacket);
     }
   },
 
