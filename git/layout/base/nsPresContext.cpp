@@ -264,7 +264,7 @@ nsPresContext::~nsPresContext()
 
   // Disconnect the refresh driver *after* the transition manager, which
   // needs it.
-  if (mRefreshDriver && mRefreshDriver->PresContext() == this) {
+  if (mRefreshDriver) {
     mRefreshDriver->Disconnect();
   }
 
@@ -891,35 +891,9 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
   if (!mTransitionManager)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  if (mDocument->GetDisplayDocument()) {
-    NS_ASSERTION(mDocument->GetDisplayDocument()->GetShell() &&
-                 mDocument->GetDisplayDocument()->GetShell()->GetPresContext(),
-                 "Why are we being initialized?");
-    mRefreshDriver = mDocument->GetDisplayDocument()->GetShell()->
-      GetPresContext()->RefreshDriver();
-  } else {
-    // We don't have our container set yet at this point
-    nsCOMPtr<nsISupports> ourContainer = mDocument->GetContainer();
-    nsCOMPtr<nsIDocShellTreeItem> ourItem = do_QueryInterface(ourContainer);
-    if (ourItem) {
-      nsCOMPtr<nsIDocShellTreeItem> parentItem;
-      ourItem->GetSameTypeParent(getter_AddRefs(parentItem));
-      nsCOMPtr<nsIDocShell> parentDocShell = do_QueryInterface(parentItem);
-      if (parentDocShell) {
-        nsCOMPtr<nsIPresShell> parentPresShell;
-        parentDocShell->GetPresShell(getter_AddRefs(parentPresShell));
-        if (parentPresShell) {
-          mRefreshDriver = parentPresShell->GetPresContext()->RefreshDriver();
-        }
-      }
-    }
-
-    if (!mRefreshDriver) {
-      mRefreshDriver = new nsRefreshDriver(this);
-      if (!mRefreshDriver)
-        return NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
+  mRefreshDriver = new nsRefreshDriver(this);
+  if (!mRefreshDriver)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   mLangService = do_GetService(NS_LANGUAGEATOMSERVICE_CONTRACTID);
 
@@ -2536,7 +2510,7 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
 #endif
 
     nsRegion visibleRegion(bounds);
-    list.ComputeVisibility(&builder, &visibleRegion);
+    list.ComputeVisibility(&builder, &visibleRegion, nsnull);
 
 #ifdef DEBUG
     if (gDumpPluginList) {

@@ -172,7 +172,6 @@ public:
   PRBool HasNameContentList() {
     return mNameContentList != nsnull;
   }
-  PRBool IsEmpty();
   nsBaseContentList* GetNameContentList() {
     return mNameContentList;
   }
@@ -183,11 +182,6 @@ public:
    * id. Otherwise returns null.
    */
   Element* GetIdElement();
-  /**
-   * If this entry has a non-null image element set (using SetImageElement),
-   * the image element will be returned, otherwise the same as GetIdElement().
-   */
-  Element* GetImageIdElement();
   /**
    * Append all the elements with this id to aElements
    */
@@ -200,19 +194,13 @@ public:
   PRBool AddIdElement(Element* aElement);
   /**
    * This can fire ID change callbacks.
+   * @return true if this map entry should be removed
    */
-  void RemoveIdElement(Element* aElement);
-  /**
-   * Set the image element override for this ID. This will be returned by
-   * GetIdElement(PR_TRUE) if non-null.
-   */
-  void SetImageElement(Element* aElement);
+  PRBool RemoveIdElement(Element* aElement);
 
   PRBool HasContentChangeCallback() { return mChangeCallbacks != nsnull; }
-  void AddContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
-                                void* aData, PRBool aForImage);
-  void RemoveContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
-                                void* aData, PRBool aForImage);
+  void AddContentChangeCallback(nsIDocument::IDTargetObserver aCallback, void* aData);
+  void RemoveContentChangeCallback(nsIDocument::IDTargetObserver aCallback, void* aData);
 
   void Traverse(nsCycleCollectionTraversalCallback* aCallback);
 
@@ -222,7 +210,6 @@ public:
   struct ChangeCallback {
     nsIDocument::IDTargetObserver mCallback;
     void* mData;
-    PRBool mForImage;
   };
 
   struct ChangeCallbackEntry : public PLDHashEntryHdr {
@@ -237,8 +224,7 @@ public:
     KeyType GetKey() const { return mKey; }
     PRBool KeyEquals(KeyTypePointer aKey) const {
       return aKey->mCallback == mKey.mCallback &&
-             aKey->mData == mKey.mData &&
-             aKey->mForImage == mKey.mForImage;
+             aKey->mData == mKey.mData;
     }
 
     static KeyTypePointer KeyToPointer(KeyType& aKey) { return &aKey; }
@@ -253,8 +239,7 @@ public:
   };
 
 private:
-  void FireChangeCallbacks(Element* aOldElement, Element* aNewElement,
-                           PRBool aImageOnly = PR_FALSE);
+  void FireChangeCallbacks(Element* aOldElement, Element* aNewElement);
 
   // empty if there are no elementswith this ID.
   // The elementsnodes are stored addrefed.
@@ -264,7 +249,6 @@ private:
   nsBaseContentList *mNameContentList;
   nsRefPtr<nsContentList> mDocAllList;
   nsAutoPtr<nsTHashtable<ChangeCallbackEntry> > mChangeCallbacks;
-  nsCOMPtr<Element> mImageElement;
 };
 
 class nsDocHeaderData
@@ -390,12 +374,6 @@ public:
     nsCOMPtr<nsIContentViewer> mViewer;
     nsCOMPtr<nsILoadGroup> mLoadGroup;
   };
-
-  // Hide all our viewers
-  void HideViewers();
-
-  // Show all our viewers
-  void ShowViewers();
 
 protected:
   class PendingLoad : public ExternalResourceLoad,
@@ -589,9 +567,9 @@ public:
   virtual void RemoveCharSetObserver(nsIObserver* aObserver);
 
   virtual Element* AddIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
-                                       void* aData, PRBool aForImage);
-  virtual void RemoveIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
-                                      void* aData, PRBool aForImage);
+                                       void* aData);
+  virtual void RemoveIDTargetObserver(nsIAtom* aID,
+                                      IDTargetObserver aObserver, void* aData);
 
   /**
    * Access HTTP header data (this may also get set from other sources, like
@@ -610,7 +588,6 @@ public:
                                nsIViewManager* aViewManager,
                                nsStyleSet* aStyleSet,
                                nsIPresShell** aInstancePtrResult);
-  virtual void DeleteShell();
 
   virtual nsresult SetSubDocumentFor(nsIContent *aContent,
                                      nsIDocument* aSubDoc);
@@ -682,10 +659,13 @@ public:
   /**
    * Add/Remove an element to the document's id and name hashes
    */
-  virtual void AddToIdTable(Element* aElement, nsIAtom* aId);
-  virtual void RemoveFromIdTable(Element* aElement, nsIAtom* aId);
-  virtual void AddToNameTable(Element* aElement, nsIAtom* aName);
-  virtual void RemoveFromNameTable(Element* aElement, nsIAtom* aName);
+  virtual void AddToIdTable(mozilla::dom::Element* aElement, nsIAtom* aId);
+  virtual void RemoveFromIdTable(mozilla::dom::Element* aElement,
+                                 nsIAtom* aId);
+  virtual void AddToNameTable(mozilla::dom::Element* aElement,
+                              nsIAtom* aName);
+  virtual void RemoveFromNameTable(mozilla::dom::Element* aElement,
+                                   nsIAtom* aName);
 
   /**
    * Add a new observer of document change notifications. Whenever
@@ -972,9 +952,7 @@ public:
     GetElementsByTagNameNS(const nsAString& aNamespaceURI,
                            const nsAString& aLocalName);
 
-  virtual Element *GetElementById(const nsAString& aElementId);
-
-  virtual Element *LookupImageElement(const nsAString& aElementId);
+  virtual mozilla::dom::Element *GetElementById(const nsAString& aElementId);
 
 protected:
   friend class nsNodeUtils;

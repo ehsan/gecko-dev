@@ -789,8 +789,12 @@ static PRBool SetStyleSheetReference(nsICSSRule* aRule, void* aSheet)
 static PRBool
 CloneRuleInto(nsICSSRule* aRule, void* aArray)
 {
-  nsCOMPtr<nsICSSRule> clone = aRule->Clone();
-  static_cast<nsCOMArray<nsICSSRule>*>(aArray)->AppendObject(clone);
+  nsICSSRule* clone = nsnull;
+  aRule->Clone(clone);
+  if (clone) {
+    static_cast<nsCOMArray<nsICSSRule>*>(aArray)->AppendObject(clone);
+    NS_RELEASE(clone);
+  }
   return PR_TRUE;
 }
 

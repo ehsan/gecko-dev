@@ -174,7 +174,7 @@ nsStyledElement::SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify)
     modification = !!mAttrsAndChildren.GetAttr(nsGkAtoms::style);
   }
 
-  nsAttrValue attrValue(aStyleRule, nsnull);
+  nsAttrValue attrValue(aStyleRule);
 
   // XXXbz do we ever end up with ADDITION here?  I doubt it.
   PRUint8 modType = modification ?
@@ -322,7 +322,7 @@ nsStyledElement::ParseStyleAttribute(const nsAString& aValue,
                                       NodePrincipal(),
                                       getter_AddRefs(rule));
         if (rule) {
-          aResult.SetTo(rule, &aValue);
+          aResult.SetTo(rule);
           return;
         }
       }

@@ -352,6 +352,7 @@ private:
     };
     gfx::SharedDIBWin mSharedSurfaceDib;
     struct {
+      PRUint32        doublePassEvent;
       PRUint16        doublePass;
       HDC             hdc;
       HBITMAP         bmp;

@@ -95,7 +95,6 @@ window.onload = function () {
   // Update the other sections.
   populatePreferencesSection();
   populateExtensionsSection();
-  populateGraphicsSection();
 }
 
 function populateExtensionsSection() {
@@ -139,18 +138,6 @@ function populatePreferencesSection() {
 
   appendChildren(document.getElementById("prefs-tbody"), trPrefs);
 }
-
-function populateGraphicsSection() {
-  try {
-    // nsIGfxInfo is currently only implemented on Windows
-    var d2d = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfo).D2DEnabled;
-  } catch (e) {
-    d2d = false;
-  }
-
-  document.getElementById("direct2d").textContent = d2d;
-}
-
 
 function formatPrefValue(prefValue) {
   // Some pref values are really long and don't have spaces.  This can cause
