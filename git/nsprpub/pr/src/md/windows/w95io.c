@@ -90,6 +90,7 @@ _PR_MD_WAIT(PRThread *thread, PRIntervalTime ticks)
     {
         case WAIT_OBJECT_0:
             return PR_SUCCESS;
+            break;
         case WAIT_TIMEOUT:
             _PR_THREAD_LOCK(thread);
             if (thread->state == _PR_IO_WAIT) {
@@ -109,8 +110,10 @@ _PR_MD_WAIT(PRThread *thread, PRIntervalTime ticks)
                 }
             }
             return PR_SUCCESS;
+            break;
         default:
             return PR_FAILURE;
+            break;
     }
 }
 PRStatus

@@ -4062,15 +4062,6 @@ CodeGenerator::visitComputeThis(LComputeThis *lir)
 }
 
 bool
-CodeGenerator::visitLoadArrowThis(LLoadArrowThis *lir)
-{
-    Register callee = ToRegister(lir->callee());
-    ValueOperand output = ToOutValue(lir);
-    masm.loadValue(Address(callee, FunctionExtended::offsetOfArrowThisSlot()), output);
-    return true;
-}
-
-bool
 CodeGenerator::visitArrayLength(LArrayLength *lir)
 {
     Address length(ToRegister(lir->elements()), ObjectElements::offsetOfLength());

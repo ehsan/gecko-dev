@@ -791,13 +791,7 @@ this.DownloadIntegration = {
 
     if (this.dontOpenFileAndFolder) {
       deferred.then((value) => { this._deferTestShowDir.resolve("success"); },
-                    (error) => {
-                      // Ensure that _deferTestShowDir has at least one consumer
-                      // for the error, otherwise the error will be reported as
-                      // uncaught.
-                      this._deferTestShowDir.promise.then(null, function() {});
-                      this._deferTestShowDir.reject(error);
-                    });
+                    (error) => { this._deferTestShowDir.reject(error); });
     }
 
     return deferred;

@@ -727,12 +727,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
             mLayerRendererInitialized = true;
         }
 
-        try {
-            return mLayerRenderer.createFrame(mFrameMetrics);
-        } catch (Exception e) {
-            Log.w(LOGTAG, e);
-            return null;
-        }
+        return mLayerRenderer.createFrame(mFrameMetrics);
     }
 
     @WrapElementForJNI(allowMultithread = true)

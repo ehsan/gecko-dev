@@ -1374,8 +1374,7 @@ class CGConstructNavigatorObject(CGAbstractMethod):
   }
   JS::Rooted<JS::Value> v(aCx);
   if (!WrapNewBindingObject(aCx, aObj, result, &v)) {
-    //XXX Assertion disabled for now, see bug 991271.
-    MOZ_ASSERT(true || JS_IsExceptionPending(aCx));
+    MOZ_ASSERT(JS_IsExceptionPending(aCx));
     return nullptr;
   }
   return &v.toObject();"""
@@ -4730,8 +4729,7 @@ if (!returnArray) {
             if not descriptor.hasXPConnectImpls:
                 # Can only fail to wrap as a new-binding object
                 # if they already threw an exception.
-                #XXX Assertion disabled for now, see bug 991271.
-                failed = ("MOZ_ASSERT(true || JS_IsExceptionPending(cx));\n" +
+                failed = ("MOZ_ASSERT(JS_IsExceptionPending(cx));\n" +
                           "%s" % exceptionCode)
             else:
                 if descriptor.notflattened:
@@ -11269,8 +11267,7 @@ nsCOMPtr<nsIGlobalObject> globalHolder = do_QueryInterface(window);
 JS::Rooted<JSObject*> scopeObj(cx, globalHolder->GetGlobalJSObject());
 JS::Rooted<JS::Value> wrappedVal(cx);
 if (!WrapNewBindingObject(cx, scopeObj, impl, &wrappedVal)) {
-  //XXX Assertion disabled for now, see bug 991271.
-  MOZ_ASSERT(true || JS_IsExceptionPending(cx));
+  MOZ_ASSERT(JS_IsExceptionPending(cx));
   aRv.Throw(NS_ERROR_UNEXPECTED);
   return nullptr;
 }
