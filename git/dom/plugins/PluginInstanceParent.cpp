@@ -214,10 +214,8 @@ PluginInstanceParent::AnswerNPN_GetValue_NPNVnetscapeWindow(NativeWindowHandle* 
     HWND id;
 #elif defined(MOZ_X11)
     XID id;
-#elif defined(XP_MACOSX)
-    intptr_t id;
 #else
-#warning Implement me
+    return false;
 #endif
 
     *result = mNPNIface->getvalue(mNPP, NPNVnetscapeWindow, &id);
@@ -526,11 +524,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-#if defined(XP_MACOSX)
-    NPCocoaEvent* npevent = reinterpret_cast<NPCocoaEvent*>(event);
-#else
     NPEvent* npevent = reinterpret_cast<NPEvent*>(event);
-#endif
     NPRemoteEvent npremoteevent;
     npremoteevent.event = *npevent;
     int16_t handled = 0;
