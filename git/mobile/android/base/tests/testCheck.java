@@ -1,6 +1,5 @@
 package org.mozilla.gecko.tests;
 
-
 public class testCheck extends PixelTest {
     private void pause(int length) {
         try {
@@ -11,8 +10,8 @@ public class testCheck extends PixelTest {
     }
 
     @Override
-    protected Type getTestType() {
-        return Type.TALOS;
+    protected int getTestType() {
+        return TEST_TALOS;
     }
 
     public void testCheck() {

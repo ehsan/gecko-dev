@@ -22,7 +22,7 @@ BEGIN_INDEXEDDB_NAMESPACE
 
 class FileInfo;
 
-class FileManager MOZ_FINAL
+class FileManager
 {
   friend class FileInfo;
 
@@ -36,6 +36,9 @@ public:
   : mPersistenceType(aPersistenceType), mGroup(aGroup), mOrigin(aOrigin),
     mPrivilege(aPrivilege), mDatabaseName(aDatabaseName), mLastFileId(0),
     mInvalidated(false)
+  { }
+
+  ~FileManager()
   { }
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(FileManager)
@@ -97,11 +100,6 @@ public:
   static nsresult GetUsage(nsIFile* aDirectory, uint64_t* aUsage);
 
 private:
-  // Private destructor, to discourage deletion outside of Release():
-  ~FileManager()
-  {
-  }
-
   PersistenceType mPersistenceType;
   nsCString mGroup;
   nsCString mOrigin;

@@ -350,7 +350,7 @@ AsmJSModule::staticallyLink(ExclusiveContext *cx)
     }
 }
 
-AsmJSModule::AsmJSModule(ScriptSource *scriptSource, uint32_t funcStart, uint32_t offsetToEndOfUseAsm)
+AsmJSModule::AsmJSModule(ScriptSource *scriptSource, uint32_t charsBegin)
   : globalArgumentName_(nullptr),
     importArgumentName_(nullptr),
     bufferArgumentName_(nullptr),
@@ -358,8 +358,7 @@ AsmJSModule::AsmJSModule(ScriptSource *scriptSource, uint32_t funcStart, uint32_
     interruptExit_(nullptr),
     dynamicallyLinked_(false),
     loadedFromCache_(false),
-    funcStart_(funcStart),
-    offsetToEndOfUseAsm_(offsetToEndOfUseAsm),
+    charsBegin_(charsBegin),
     scriptSource_(scriptSource),
     codeIsProtected_(false)
 {
@@ -898,7 +897,7 @@ AsmJSModule::clone(JSContext *cx, ScopedJSDeletePtr<AsmJSModule> *moduleOut) con
 {
     AutoUnprotectCodeForClone cloneGuard(cx, *this);
 
-    *moduleOut = cx->new_<AsmJSModule>(scriptSource_, funcStart_, offsetToEndOfUseAsm_);
+    *moduleOut = cx->new_<AsmJSModule>(scriptSource_, charsBegin_);
     if (!*moduleOut)
         return false;
 
@@ -1097,7 +1096,7 @@ class ModuleCharsForStore : ModuleChars
     js::Vector<char, 0, SystemAllocPolicy> compressedBuffer_;
 
   public:
-    bool init(AsmJSParser &parser) {
+    bool init(AsmJSParser &parser, const AsmJSModule &module) {
         JS_ASSERT(beginOffset(parser) < endOffset(parser));
 
         uncompressedSize_ = (endOffset(parser) - beginOffset(parser)) * sizeof(jschar);
@@ -1249,7 +1248,7 @@ js::StoreAsmJSModuleInCache(AsmJSParser &parser,
         return false;
 
     ModuleCharsForStore moduleChars;
-    if (!moduleChars.init(parser))
+    if (!moduleChars.init(parser, module))
         return false;
 
     size_t serializedSize = machineId.serializedSize() +
@@ -1333,10 +1332,8 @@ js::LookupAsmJSModuleInCache(ExclusiveContext *cx,
     if (!moduleChars.match(parser))
         return true;
 
-    uint32_t funcStart = parser.pc->maybeFunction->pn_body->pn_pos.begin;
-    uint32_t offsetToEndOfUseAsm = parser.tokenStream.currentToken().pos.end;
     ScopedJSDeletePtr<AsmJSModule> module(
-        cx->new_<AsmJSModule>(parser.ss, funcStart, offsetToEndOfUseAsm));
+        cx->new_<AsmJSModule>(parser.ss, parser.offsetOfCurrentAsmJSModule()));
     if (!module)
         return false;
     cursor = module->deserialize(cx, cursor);
@@ -1350,7 +1347,7 @@ js::LookupAsmJSModuleInCache(ExclusiveContext *cx,
 
     module->staticallyLink(cx);
 
-    parser.tokenStream.advance(module->funcEndBeforeCurly());
+    parser.tokenStream.advance(module->charsEnd());
 
     int64_t usecAfter = PRMJ_Now();
     int ms = (usecAfter - usecBefore) / PRMJ_USEC_PER_MSEC;

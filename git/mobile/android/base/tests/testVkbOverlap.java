@@ -1,8 +1,6 @@
 package org.mozilla.gecko.tests;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.PaintedSurface;
-
+import org.mozilla.gecko.*;
 import android.net.Uri;
 
 /**
@@ -16,6 +14,11 @@ public class testVkbOverlap extends PixelTest {
     private static final int CURSOR_BLINK_PERIOD = 500;
     private static final int LESS_THAN_CURSOR_BLINK_PERIOD = CURSOR_BLINK_PERIOD - 50;
     private static final int PAGE_SETTLE_TIME = 5000;
+
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
+    }
 
     public void testVkbOverlap() {
         blockForGeckoReady();

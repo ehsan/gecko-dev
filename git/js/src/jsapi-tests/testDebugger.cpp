@@ -258,8 +258,7 @@ BEGIN_TEST(testDebugger_singleStepThrow)
         CallArgs args = CallArgsFromVp(argc, vp);
 
         NonBuiltinScriptFrameIter iter(cx);
-        JS::RootedScript script(cx, iter.script());
-        if (!JS_SetSingleStepMode(cx, script, true))
+        if (!JS_SetSingleStepMode(cx, iter.script(), true))
             return false;
 
         args.rval().set(UndefinedValue());

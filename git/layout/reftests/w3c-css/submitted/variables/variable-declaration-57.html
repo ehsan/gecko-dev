@@ -9,7 +9,7 @@
 <link rel="match" href="support/color-green-ref.html">
 <style>
 body {
-  --a: green;
+  var-a: green;
   color: crimson;
 }
 p {
@@ -17,8 +17,8 @@ p {
 }
 p {
   color: orange;
-  --a: unset;
-  color: var(--a);
+  var-a: unset;
+  color: var(a);
 }
 </style>
 <p>This text must be green.</p>

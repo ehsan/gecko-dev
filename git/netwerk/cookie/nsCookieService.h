@@ -66,13 +66,13 @@ public:
     , mInBrowserElement(inBrowser)
   {}
 
-  nsCookieKey(KeyTypePointer other)
+  nsCookieKey(const KeyTypePointer other)
     : mBaseDomain(other->mBaseDomain)
     , mAppId(other->mAppId)
     , mInBrowserElement(other->mInBrowserElement)
   {}
 
-  nsCookieKey(KeyType other)
+  nsCookieKey(const KeyType other)
     : mBaseDomain(other.mBaseDomain)
     , mAppId(other.mAppId)
     , mInBrowserElement(other.mInBrowserElement)
@@ -155,19 +155,12 @@ struct CookieDomainTuple
 
 // encapsulates in-memory and on-disk DB states, so we can
 // conveniently switch state when entering or exiting private browsing.
-struct DBState MOZ_FINAL
+struct DBState
 {
   DBState() : cookieCount(0), cookieOldestTime(INT64_MAX), corruptFlag(OK)
   {
   }
 
-private:
-  // Private destructor, to discourage deletion outside of Release():
-  ~DBState()
-  {
-  }
-
-public:
   NS_INLINE_DECL_REFCOUNTING(DBState)
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;

@@ -20,7 +20,7 @@
 using namespace mozilla;
 using namespace mozilla::a11y;
 
-struct mozilla::a11y::SelData MOZ_FINAL
+struct mozilla::a11y::SelData
 {
   SelData(Selection* aSel, int32_t aReason) :
     mSel(aSel), mReason(aReason) {}
@@ -28,11 +28,7 @@ struct mozilla::a11y::SelData MOZ_FINAL
   nsRefPtr<Selection> mSel;
   int16_t mReason;
 
-  NS_INLINE_DECL_REFCOUNTING(SelData)
-
-private:
-  // Private destructor, to discourage deletion outside of Release():
-  ~SelData() {}
+  NS_INLINE_DECL_REFCOUNTING(SelData);
 };
 
 void

@@ -6,8 +6,6 @@
 
 from __future__ import with_statement
 import sys, os, unittest, tempfile, shutil
-import mozinfo
-
 from StringIO import StringIO
 from xml.etree.ElementTree import ElementTree
 
@@ -15,8 +13,6 @@ from mozbuild.base import MozbuildObject
 build_obj = MozbuildObject.from_environment()
 
 from runxpcshelltests import XPCShellTests
-
-mozinfo.find_and_update_from_json()
 
 objdir = build_obj.topobjdir.encode("utf-8")
 xpcshellBin = os.path.join(objdir, "dist", "bin", "xpcshell")
@@ -276,7 +272,7 @@ tail =
         self.assertEquals(expected,
                           self.x.runTests(xpcshellBin,
                                           manifest=self.manifest,
-                                          mozInfo=mozinfo.info,
+                                          mozInfo={},
                                           shuffle=shuffle,
                                           testsRootDir=self.tempdir,
                                           verbose=verbose,

@@ -484,6 +484,11 @@ class TypedObjectModuleObject : public JSObject {
     };
 
     static const Class class_;
+
+    static bool getSuitableClaspAndProto(JSContext *cx,
+                                         TypeDescr::Kind kind,
+                                         const Class **clasp,
+                                         MutableHandleObject proto);
 };
 
 /*

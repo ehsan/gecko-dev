@@ -35,7 +35,7 @@ class ChannelEvent
 
 class AutoEventEnqueuerBase;
 
-class ChannelEventQueue MOZ_FINAL
+class ChannelEventQueue
 {
   NS_INLINE_DECL_REFCOUNTING(ChannelEventQueue)
 
@@ -46,6 +46,8 @@ class ChannelEventQueue MOZ_FINAL
     , mForced(false)
     , mFlushing(false)
     , mOwner(owner) {}
+
+  ~ChannelEventQueue() {}
 
   // Checks to determine if an IPDL-generated channel event can be processed
   // immediately, or needs to be queued using Enqueue().
@@ -75,11 +77,6 @@ class ChannelEventQueue MOZ_FINAL
   nsresult RetargetDeliveryTo(nsIEventTarget* aTargetThread);
 
  private:
-  // Private destructor, to discourage deletion outside of Release():
-  ~ChannelEventQueue()
-  {
-  }
-
   inline void MaybeFlushQueue();
   void FlushQueue();
   inline void CompleteResume();

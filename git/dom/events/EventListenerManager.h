@@ -8,12 +8,12 @@
 
 #include "mozilla/BasicEvents.h"
 #include "mozilla/dom/EventListenerBinding.h"
-#include "mozilla/JSEventHandler.h"
 #include "mozilla/MemoryReporting.h"
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMEventListener.h"
+#include "nsIJSEventListener.h"
 #include "nsTObserverArray.h"
 
 class nsIDOMEvent;
@@ -174,10 +174,10 @@ public:
 
     EventListenerFlags mFlags;
 
-    JSEventHandler* GetJSEventHandler() const
+    nsIJSEventListener* GetJSListener() const
     {
       return (mListenerType == eJSEventListener) ?
-        static_cast<JSEventHandler*>(mListener.GetXPCOMCallback()) :
+        static_cast<nsIJSEventListener *>(mListener.GetXPCOMCallback()) :
         nullptr;
     }
 
@@ -190,7 +190,7 @@ public:
     ~Listener()
     {
       if ((mListenerType == eJSEventListener) && mListener) {
-        static_cast<JSEventHandler*>(
+        static_cast<nsIJSEventListener*>(
           mListener.GetXPCOMCallback())->Disconnect();
       }
     }
@@ -449,7 +449,7 @@ protected:
    */
   Listener* SetEventHandlerInternal(nsIAtom* aName,
                                     const nsAString& aTypeString,
-                                    const TypedEventHandler& aHandler,
+                                    const nsEventHandler& aHandler,
                                     bool aPermitUntrustedEvents);
 
   bool IsDeviceType(uint32_t aType);
@@ -479,24 +479,27 @@ public:
   dom::EventHandlerNonNull* GetEventHandler(nsIAtom* aEventName,
                                             const nsAString& aTypeString)
   {
-    const TypedEventHandler* typedHandler =
-      GetTypedEventHandler(aEventName, aTypeString);
-    return typedHandler ? typedHandler->NormalEventHandler() : nullptr;
+    const nsEventHandler* handler =
+      GetEventHandlerInternal(aEventName, aTypeString);
+    return handler ? handler->EventHandler() : nullptr;
   }
 
   dom::OnErrorEventHandlerNonNull* GetOnErrorEventHandler()
   {
-    const TypedEventHandler* typedHandler = mIsMainThreadELM ?
-      GetTypedEventHandler(nsGkAtoms::onerror, EmptyString()) :
-      GetTypedEventHandler(nullptr, NS_LITERAL_STRING("error"));
-    return typedHandler ? typedHandler->OnErrorEventHandler() : nullptr;
+    const nsEventHandler* handler;
+    if (mIsMainThreadELM) {
+      handler = GetEventHandlerInternal(nsGkAtoms::onerror, EmptyString());
+    } else {
+      handler = GetEventHandlerInternal(nullptr, NS_LITERAL_STRING("error"));
+    }
+    return handler ? handler->OnErrorEventHandler() : nullptr;
   }
 
   dom::OnBeforeUnloadEventHandlerNonNull* GetOnBeforeUnloadEventHandler()
   {
-    const TypedEventHandler* typedHandler =
-      GetTypedEventHandler(nsGkAtoms::onbeforeunload, EmptyString());
-    return typedHandler ? typedHandler->OnBeforeUnloadEventHandler() : nullptr;
+    const nsEventHandler* handler =
+      GetEventHandlerInternal(nsGkAtoms::onbeforeunload, EmptyString());
+    return handler ? handler->OnBeforeUnloadEventHandler() : nullptr;
   }
 
 protected:
@@ -504,7 +507,7 @@ protected:
    * Helper method for implementing the various Get*EventHandler above.  Will
    * return null if we don't have an event handler for this event name.
    */
-  const TypedEventHandler* GetTypedEventHandler(nsIAtom* aEventName,
+  const nsEventHandler* GetEventHandlerInternal(nsIAtom* aEventName,
                                                 const nsAString& aTypeString);
 
   void AddEventListener(const nsAString& aType,

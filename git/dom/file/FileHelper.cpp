@@ -110,12 +110,7 @@ FileHelper::OnStopRequest(nsIRequest* aRequest, nsISupports* aCtxt,
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (NS_FAILED(aStatus)) {
-    if (aStatus == NS_ERROR_FILE_NO_DEVICE_SPACE) {
-      mResultCode = NS_ERROR_DOM_FILEHANDLE_QUOTA_ERR;
-    }
-    else {
-      mResultCode = NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR;
-    }
+    mResultCode = NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR;
   }
 
   Finish();

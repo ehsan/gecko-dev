@@ -7,8 +7,6 @@ package org.mozilla.gecko.fxa.sync;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.NoSuchAlgorithmException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -84,12 +82,17 @@ public class FxAccountSyncAdapter extends AbstractThreadedSyncAdapter {
   }
 
   protected static class SyncDelegate {
+    protected final Context context;
     protected final CountDownLatch latch;
     protected final SyncResult syncResult;
     protected final AndroidFxAccount fxAccount;
-    protected final Collection<String> stageNamesToSync;
+    protected final FxAccountNotificationManager notificationManager;
 
-    public SyncDelegate(CountDownLatch latch, SyncResult syncResult, AndroidFxAccount fxAccount, Collection<String> stageNamesToSync) {
+    public SyncDelegate(Context context, CountDownLatch latch, SyncResult syncResult, AndroidFxAccount fxAccount,
+        FxAccountNotificationManager notificationManager) {
+      if (context == null) {
+        throw new IllegalArgumentException("context must not be null");
+      }
       if (latch == null) {
         throw new IllegalArgumentException("latch must not be null");
       }
@@ -99,10 +102,14 @@ public class FxAccountSyncAdapter extends AbstractThreadedSyncAdapter {
       if (fxAccount == null) {
         throw new IllegalArgumentException("fxAccount must not be null");
       }
+      if (notificationManager == null) {
+        throw new IllegalArgumentException("notificationManager must not be null");
+      }
+      this.context = context;
       this.latch = latch;
       this.syncResult = syncResult;
       this.fxAccount = fxAccount;
-      this.stageNamesToSync = Collections.unmodifiableCollection(stageNamesToSync);
+      this.notificationManager = notificationManager;
     }
 
     /**
@@ -194,10 +201,6 @@ public class FxAccountSyncAdapter extends AbstractThreadedSyncAdapter {
      */
     public void rejectSync() {
       latch.countDown();
-    }
-
-    public Collection<String> getStageNamesToSync() {
-      return this.stageNamesToSync;
     }
   }
 
@@ -368,10 +371,7 @@ public class FxAccountSyncAdapter extends AbstractThreadedSyncAdapter {
           final Context context = getContext();
           final SyncConfiguration syncConfig = new SyncConfiguration(token.uid, authHeaderProvider, sharedPrefs, syncKeyBundle);
 
-          Collection<String> knownStageNames = SyncConfiguration.validEngineNames();
-          syncConfig.stagesToSync = Utils.getStagesToSyncFromBundle(knownStageNames, extras);
-
-          globalSession = new FxAccountGlobalSession(token.endpoint, syncConfig, callback, context, clientsDataDelegate);
+          globalSession = new FxAccountGlobalSession(token.endpoint, syncConfig, callback, context, extras, clientsDataDelegate);
           globalSession.start();
         } catch (Exception e) {
           callback.handleError(globalSession, e);
@@ -456,11 +456,7 @@ public class FxAccountSyncAdapter extends AbstractThreadedSyncAdapter {
     });
 
     final CountDownLatch latch = new CountDownLatch(1);
-
-    Collection<String> knownStageNames = SyncConfiguration.validEngineNames();
-    Collection<String> stageNamesToSync = Utils.getStagesToSyncFromBundle(knownStageNames, extras);
-
-    final SyncDelegate syncDelegate = new SyncDelegate(latch, syncResult, fxAccount, stageNamesToSync);
+    final SyncDelegate syncDelegate = new SyncDelegate(context, latch, syncResult, fxAccount, notificationManager);
 
     try {
       final State state;

@@ -261,14 +261,16 @@ Count the number of tests that timed out in a testsuite::
 
    from mozlog.structured import reader
 
-   count = 0;
+   class TestCounter(object):
+       def count(filename):
+           self.count = 0
+           with open(filename) as f:
+               reader.map_action(reader.read(f),
+                                 {"test_end":self.process_test_end})
+          return self.count
 
-   def handle_test_end(data):
-       global count
-       if data["status"] == "TIMEOUT":
-           count += 1
+       def process_test_end(self, data):
+           if data["status"] == "TIMEOUT":
+               self.count += 1
 
-   reader.each_log(reader.read("my_test_run.log"),
-                   {"test_end": handle_test_end})
-
-   print count
+   print TestCounter().count("my_test_run.log")

@@ -206,6 +206,9 @@ class TreeMetadataEmitter(LoggingMixin):
                         'doesn\'t exist in %s (%s) in %s'
                         % (symbol, src, sandbox['RELATIVEDIR']))
 
+        if sandbox.get('LIBXUL_LIBRARY') and sandbox.get('FORCE_STATIC_LIB'):
+            raise SandboxValidationError('LIBXUL_LIBRARY implies FORCE_STATIC_LIB')
+
         # Proxy some variables as-is until we have richer classes to represent
         # them. We should aim to keep this set small because it violates the
         # desired abstraction of the build definition away from makefiles.
@@ -234,6 +237,7 @@ class TreeMetadataEmitter(LoggingMixin):
             'IS_GYP_DIR',
             'JS_MODULES_PATH',
             'LIBS',
+            'LIBXUL_LIBRARY',
             'MSVC_ENABLE_PGO',
             'NO_DIST_INSTALL',
             'OS_LIBS',

@@ -4,14 +4,16 @@
 
 package org.mozilla.gecko.tests.helpers;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertNotNull;
+import static org.mozilla.gecko.tests.helpers.AssertionHelper.*;
 
-import org.mozilla.gecko.tests.UITestContext;
-import org.mozilla.gecko.tests.UITestContext.ComponentType;
 import org.mozilla.gecko.tests.components.AppMenuComponent;
 import org.mozilla.gecko.tests.components.ToolbarComponent;
+import org.mozilla.gecko.tests.UITestContext;
+import org.mozilla.gecko.tests.UITestContext.ComponentType;
 
 import com.jayway.android.robotium.solo.Solo;
+
+import android.text.TextUtils;
 
 /**
  * Provides helper functionality for navigating around the Firefox UI. These functions will often

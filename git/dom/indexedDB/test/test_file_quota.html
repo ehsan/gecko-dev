@@ -40,8 +40,7 @@
     let objectStore = trans.objectStore(objectStoreName);
 
     request = objectStore.add(fileData.file, fileData.key);
-    request.addEventListener("error",
-                             new ExpectError("QuotaExceededError", true));
+    request.addEventListener("error", new ExpectError("UnknownError", true));
     request.onsuccess = unexpectedSuccessHandler;
     event = yield undefined;
 

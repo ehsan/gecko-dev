@@ -68,7 +68,7 @@ private:
   int64_t mSize;
 };
 
-class OriginInfo MOZ_FINAL
+class OriginInfo
 {
   friend class GroupInfo;
   friend class QuotaManager;
@@ -83,6 +83,11 @@ public:
     MOZ_COUNT_CTOR(OriginInfo);
   }
 
+  ~OriginInfo()
+  {
+    MOZ_COUNT_DTOR(OriginInfo);
+  }
+
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(OriginInfo)
 
   int64_t
@@ -92,12 +97,6 @@ public:
   }
 
 private:
-  // Private destructor, to discourage deletion outside of Release():
-  ~OriginInfo()
-  {
-    MOZ_COUNT_DTOR(OriginInfo);
-  }
-
   void
   LockedDecreaseUsage(int64_t aSize);
 
@@ -147,7 +146,7 @@ public:
   }
 };
 
-class GroupInfo MOZ_FINAL
+class GroupInfo
 {
   friend class GroupInfoPair;
   friend class OriginInfo;
@@ -159,6 +158,11 @@ public:
   : mPersistenceType(aPersistenceType), mGroup(aGroup), mUsage(0)
   {
     MOZ_COUNT_CTOR(GroupInfo);
+  }
+
+  ~GroupInfo()
+  {
+    MOZ_COUNT_DTOR(GroupInfo);
   }
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GroupInfo)
@@ -176,12 +180,6 @@ public:
   }
 
 private:
-  // Private destructor, to discourage deletion outside of Release():
-  ~GroupInfo()
-  {
-    MOZ_COUNT_DTOR(GroupInfo);
-  }
-
   already_AddRefed<OriginInfo>
   LockedGetOriginInfo(const nsACString& aOrigin);
 

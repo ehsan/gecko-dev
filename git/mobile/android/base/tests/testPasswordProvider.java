@@ -1,14 +1,13 @@
 package org.mozilla.gecko.tests;
 
-import java.io.File;
-
 import org.mozilla.gecko.db.BrowserContract.Passwords;
 
-import android.content.ContentResolver;
 import android.content.ContentValues;
-import android.content.Context;
+import android.content.ContentResolver;
 import android.database.Cursor;
+import android.content.Context;
 import android.net.Uri;
+import java.io.File;
 
 /**
  * A basic password contentprovider test.
@@ -19,6 +18,11 @@ import android.net.Uri;
  */
 public class testPasswordProvider extends BaseTest {
     private static final String DB_NAME = "signons.sqlite";
+
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
+    }
 
     public void testPasswordProvider() {
         Context context = (Context)getActivity();

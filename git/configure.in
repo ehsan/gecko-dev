@@ -8281,7 +8281,7 @@ case "$OS_TARGET" in
       NECKO_WIFI=1
     fi
     ;;
-  Darwin|FreeBSD|SunOS|WINNT)
+  Darwin|SunOS|WINNT)
     NECKO_WIFI=1
     ;;
   Linux)

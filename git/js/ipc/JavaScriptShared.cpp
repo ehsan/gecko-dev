@@ -158,7 +158,7 @@ JavaScriptShared::convertGeckoStringToId(JSContext *cx, const nsString &from, JS
     if (!str)
         return false;
 
-    return JS_StringToId(cx, str, to);
+    return JS_ValueToId(cx, StringValue(str), to);
 }
 
 bool

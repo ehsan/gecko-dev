@@ -96,7 +96,7 @@ PostToRIL(JSContext *aCx,
     void *data;
     size_t size;
     if (JSVAL_IS_STRING(v)) {
-        JS::Rooted<JSString*> str(aCx, v.toString());
+        JSString *str = JSVAL_TO_STRING(v);
         if (!abs.encodeUtf8(aCx, str)) {
             return false;
         }

@@ -683,9 +683,11 @@ JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallba
 }
 
 JS_FRIEND_API(JSObject *)
-JS_CloneObject(JSContext *cx, HandleObject obj, HandleObject protoArg, HandleObject parent)
+JS_CloneObject(JSContext *cx, JSObject *obj_, JSObject *proto_, JSObject *parent_)
 {
-    Rooted<js::TaggedProto> proto(cx, protoArg.get());
+    RootedObject obj(cx, obj_);
+    Rooted<js::TaggedProto> proto(cx, proto_);
+    RootedObject parent(cx, parent_);
     return CloneObject(cx, obj, proto, parent);
 }
 

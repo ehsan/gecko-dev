@@ -5346,10 +5346,11 @@ nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
     return result;
 
   mozilla::gfx::IntSize size;
-  result.mSourceSurface = container->GetCurrentAsSourceSurface(&size);
-  if (!result.mSourceSurface)
+  nsRefPtr<gfxASurface> surf = container->DeprecatedGetCurrentAsSurface(&size);
+  if (!surf)
     return result;
 
+  result.mSourceSurface = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(aTarget, surf);
   result.mCORSUsed = aElement->GetCORSMode() != CORS_NONE;
   result.mSize = ThebesIntSize(size);
   result.mPrincipal = principal.forget();

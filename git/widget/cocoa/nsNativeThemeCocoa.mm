@@ -2152,7 +2152,14 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
 
   switch (aWidgetType) {
     case NS_THEME_DIALOG: {
-      HIThemeSetFill(kThemeBrushDialogBackgroundActive, NULL, cgContext, HITHEME_ORIENTATION);
+      CGContextClearRect(cgContext, macRect);
+      if (IsWindowSheet(aFrame)) {
+        HIThemeSetFill(kThemeBrushSheetBackgroundTransparent, NULL, cgContext, HITHEME_ORIENTATION);
+      }
+      else {
+        HIThemeSetFill(kThemeBrushDialogBackgroundActive, NULL, cgContext, HITHEME_ORIENTATION);
+      }
+
       CGContextFillRect(cgContext, macRect);
     }
       break;
@@ -3422,6 +3429,18 @@ nsNativeThemeCocoa::WidgetAppearanceDependsOnWindowFocus(uint8_t aWidgetType)
   }
 }
 
+bool
+nsNativeThemeCocoa::IsWindowSheet(nsIFrame* aFrame)
+{
+  NSWindow* win = NativeWindowForFrame(aFrame);
+  id winDelegate = [win delegate];
+  nsIWidget* widget = [(WindowDelegate *)winDelegate geckoWidget];
+  if (!widget) {
+    return false;
+  }
+  return (widget->WindowType() == eWindowType_sheet);
+}
+
 nsITheme::Transparency
 nsNativeThemeCocoa::GetWidgetTransparency(nsIFrame* aFrame, uint8_t aWidgetType)
 {
@@ -3429,6 +3448,9 @@ nsNativeThemeCocoa::GetWidgetTransparency(nsIFrame* aFrame, uint8_t aWidgetType)
   case NS_THEME_MENUPOPUP:
   case NS_THEME_TOOLTIP:
     return eTransparent;
+
+  case NS_THEME_DIALOG:
+    return IsWindowSheet(aFrame) ? eTransparent : eOpaque;
 
   case NS_THEME_SCROLLBAR_SMALL:
   case NS_THEME_SCROLLBAR:

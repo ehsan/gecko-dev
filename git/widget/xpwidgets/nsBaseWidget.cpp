@@ -19,7 +19,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
-#include "nsIPresShell.h"
 #include "nsIServiceManager.h"
 #include "mozilla/Preferences.h"
 #include "BasicLayers.h"

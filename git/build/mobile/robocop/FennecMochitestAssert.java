@@ -5,7 +5,6 @@
 package org.mozilla.gecko;
 
 import java.util.LinkedList;
-
 import android.os.SystemClock;
 
 public class FennecMochitestAssert implements Assert {

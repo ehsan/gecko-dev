@@ -1,8 +1,9 @@
 package org.mozilla.gecko.tests;
 
-import org.mozilla.gecko.Actions;
+import org.mozilla.gecko.*;
 import org.mozilla.gecko.util.Clipboard;
 
+import android.content.ContentResolver;
 import android.util.DisplayMetrics;
 
 
