@@ -36,8 +36,8 @@ function test() {
         is(e.target.defaultView.location, TEST_IFRAME_URL, "got the load event for the iframe");
         is(ZoomManager.zoom, zoomLevel, "zoom is retained after sub-document load");
 
-        FullZoomHelper.removeTabAndWaitForLocationChange().
-          then(() => deferred.resolve());
+        gBrowser.removeCurrentTab();
+        deferred.resolve();
       }, true);
       content.document.querySelector("iframe").src = TEST_IFRAME_URL;
     });
