@@ -853,6 +853,7 @@ CodeGenerator::visitLambdaPar(LLambdaPar *lir)
 bool
 CodeGenerator::visitLabel(LLabel *lir)
 {
+    masm.bind(lir->label());
     return true;
 }
 
@@ -2842,7 +2843,14 @@ CodeGenerator::generateBody()
 
     for (size_t i = 0; i < graph.numBlocks(); i++) {
         current = graph.getBlock(i);
-        masm.bind(current->label());
+
+        LInstructionIterator iter = current->begin();
+
+        // Separately visit the label at the start of every block, so that
+        // count instrumentation is inserted after the block label is bound.
+        if (!iter->accept(this))
+            return false;
+        iter++;
 
         mozilla::Maybe<ScriptCountBlockState> blockCounts;
         if (counts) {
@@ -2855,7 +2863,7 @@ CodeGenerator::generateBody()
         perfSpewer->startBasicBlock(current->mir(), masm);
 #endif
 
-        for (LInstructionIterator iter = current->begin(); iter != current->end(); iter++) {
+        for (; iter != current->end(); iter++) {
             IonSpewStart(IonSpew_Codegen, "instruction %s", iter->opName());
 #ifdef DEBUG
             if (const char *extra = iter->extraName())

@@ -75,13 +75,7 @@ void
 ResolvePromiseCallback::Call(JS::Handle<JS::Value> aValue)
 {
   // Run resolver's algorithm with value and the synchronous flag set.
-  JSContext *cx = nsContentUtils::GetDefaultJSContextForThread();
-
-  Maybe<AutoCxPusher> pusher;
-  if (NS_IsMainThread()) {
-    pusher.construct(cx);
-  }
-
+  AutoJSContext cx;
   Maybe<JSAutoCompartment> ac;
   EnterCompartment(ac, cx, aValue);
 
@@ -116,13 +110,7 @@ void
 RejectPromiseCallback::Call(JS::Handle<JS::Value> aValue)
 {
   // Run resolver's algorithm with value and the synchronous flag set.
-  JSContext *cx = nsContentUtils::GetDefaultJSContextForThread();
-
-  Maybe<AutoCxPusher> pusher;
-  if (NS_IsMainThread()) {
-    pusher.construct(cx);
-  }
-
+  AutoJSContext cx;
   Maybe<JSAutoCompartment> ac;
   EnterCompartment(ac, cx, aValue);
 
@@ -158,17 +146,7 @@ WrapperPromiseCallback::~WrapperPromiseCallback()
 void
 WrapperPromiseCallback::Call(JS::Handle<JS::Value> aValue)
 {
-  // AutoCxPusher and co. interact with xpconnect, which crashes on
-  // workers. On workers we'll get the right context from
-  // GetDefaultJSContextForThread(), and since there is only one context, we
-  // don't need to push or pop it from the stack.
-  JSContext* cx = nsContentUtils::GetDefaultJSContextForThread();
-
-  Maybe<AutoCxPusher> pusher;
-  if (NS_IsMainThread()) {
-    pusher.construct(cx);
-  }
-
+  AutoJSContext cx;
   Maybe<JSAutoCompartment> ac;
   EnterCompartment(ac, cx, aValue);
 

@@ -178,6 +178,9 @@ function testOnWindow(aIsPrivate, aCallback) {
 }
 
 function waitForTabLoad(aWin, aURL, aCallback) {
-  whenBrowserLoaded(aWin.gBrowser.selectedBrowser, aCallback);
+  aWin.gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
+    aWin.gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
+    executeSoon(aCallback);
+  }, true);
   aWin.gBrowser.selectedBrowser.loadURI(aURL);
 }

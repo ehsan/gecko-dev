@@ -55,7 +55,7 @@ FindKeyword(const jschar *s, size_t length)
 {
     JS_ASSERT(length != 0);
 
-    size_t i;
+    register size_t i;
     const KeywordInfo *kw;
     const char *chars;
 

@@ -1812,31 +1812,31 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   aBuilder->SetContainsBlendMode(false);
  
   if (isTransformed) {
-    const nsRect overflow = GetVisualOverflowRectRelativeToSelf();
     if (aBuilder->IsForPainting() &&
         nsDisplayTransform::ShouldPrerenderTransformedContent(aBuilder, this)) {
-      dirtyRect = overflow;
+      dirtyRect = GetVisualOverflowRectRelativeToSelf();
     } else {
-      if (overflow.IsEmpty() && !Preserves3DChildren()) {
-        return;
-      }
-      // Trying to back-transform arbitrary rects gives us really weird results. I believe 
-      // this is from points that lie beyond the vanishing point. As a workaround we transform
-      // the overflow rect into screen space and compare in that coordinate system.
+      // Trying to  back-transform arbitrary rects gives us really weird results. I believe 
+      // this is from points that lie beyond the vanishing point. As a workaround we transform t
+      // he overflow rect into screen space and compare in that coordinate system.
 
-      // Transform the overflow rect into screen space.
+      // Transform the overflow rect into screen space
+      nsRect overflow = GetVisualOverflowRectRelativeToSelf();
       nsPoint offset = aBuilder->ToReferenceFrame(this);
-      nsRect trans = nsDisplayTransform::TransformRect(overflow + offset, this, offset);
+      overflow += offset;
+      overflow = nsDisplayTransform::TransformRect(overflow, this, offset);
+
       dirtyRect += offset;
-      if (dirtyRect.Intersects(trans)) {
+
+      if (dirtyRect.Intersects(overflow)) {
         // If they intersect, we take our whole overflow rect. We could instead take the intersection
         // and then reverse transform it but I doubt this extra work is worthwhile.
-        dirtyRect = overflow;
+        dirtyRect = GetVisualOverflowRectRelativeToSelf();
       } else {
-        if (!Preserves3DChildren()) {
-          return;
-        }
         dirtyRect.SetEmpty();
+      }
+      if (!Preserves3DChildren() && !dirtyRect.Intersects(GetVisualOverflowRectRelativeToSelf())) {
+        return;
       }
     }
     inTransform = true;

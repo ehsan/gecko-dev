@@ -5,33 +5,9 @@
 const TAB_STATE_NEEDS_RESTORE = 1;
 const TAB_STATE_RESTORING = 2;
 
-const FRAME_SCRIPT = "chrome://mochitests/content/browser/browser/components/" +
-                     "sessionstore/test/content.js";
-
-let mm = Cc["@mozilla.org/globalmessagemanager;1"]
-           .getService(Ci.nsIMessageListenerManager);
-mm.loadFrameScript(FRAME_SCRIPT, true);
-mm.addMessageListener("SessionStore:setupSyncHandler", onSetupSyncHandler);
-
-/**
- * This keeps track of all SyncHandlers passed to chrome from frame scripts.
- * We need this to let tests communicate with frame scripts and cause (a)sync
- * flushes.
- */
-let SyncHandlers = new WeakMap();
-function onSetupSyncHandler(msg) {
-  SyncHandlers.set(msg.target, msg.objects.handler);
-}
-
-registerCleanupFunction(() => {
-  mm.removeDelayedFrameScript(FRAME_SCRIPT);
-  mm.removeMessageListener("SessionStore:setupSyncHandler", onSetupSyncHandler);
-});
-
 let tmp = {};
-Cu.import("resource://gre/modules/Promise.jsm", tmp);
 Cu.import("resource:///modules/sessionstore/SessionStore.jsm", tmp);
-let {Promise, SessionStore} = tmp;
+let SessionStore = tmp.SessionStore;
 
 let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
 
@@ -183,22 +159,36 @@ function waitForTabState(aTab, aState, aCallback) {
 /**
  * Wait for a content -> chrome message.
  */
-function promiseContentMessage(browser, name) {
-  let deferred = Promise.defer();
-  let mm = browser.messageManager;
-
-  function removeListener() {
-    mm.removeMessageListener(name, listener);
+function waitForContentMessage(aBrowser, aTopic, aTimeout, aCallback) {
+  let mm = aBrowser.messageManager;
+  let observing = false;
+  function removeObserver() {
+    if (!observing)
+      return;
+    mm.removeMessageListener(aTopic, observer);
+    observing = false;
   }
 
-  function listener(msg) {
-    removeListener();
-    deferred.resolve(msg);
+  let timeout = setTimeout(function () {
+    removeObserver();
+    aCallback(false);
+  }, aTimeout);
+
+  function observer(aSubject, aTopic, aData) {
+    removeObserver();
+    timeout = clearTimeout(timeout);
+    executeSoon(() => aCallback(true));
   }
 
-  mm.addMessageListener(name, listener);
-  registerCleanupFunction(removeListener);
-  return deferred.promise;
+  registerCleanupFunction(function() {
+    removeObserver();
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  });
+
+  observing = true;
+  mm.addMessageListener(aTopic, observer);
 }
 
 function waitForTopic(aTopic, aTimeout, aCallback) {
@@ -311,15 +301,6 @@ function whenWindowLoaded(aWindow, aCallback = next) {
   }, false);
 }
 
-function whenTabRestored(aTab, aCallback = next) {
-  aTab.addEventListener("SSTabRestored", function onRestored(aEvent) {
-    aTab.removeEventListener("SSTabRestored", onRestored, true);
-    executeSoon(function executeWhenTabRestored() {
-      aCallback();
-    });
-  }, true);
-}
-
 var gUniqueCounter = 0;
 function r() {
   return Date.now() + "-" + (++gUniqueCounter);
@@ -358,7 +339,7 @@ let gProgressListener = {
   function gProgressListener_onStateChange(aBrowser, aWebProgress, aRequest,
                                            aStateFlags, aStatus) {
     if ((!this._checkRestoreState ||
-         (aBrowser.__SS_restoreState && aBrowser.__SS_restoreState == TAB_STATE_RESTORING)) &&
+         aBrowser.__SS_restoreState == TAB_STATE_RESTORING) &&
         aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
         aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
         aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW) {
@@ -373,12 +354,12 @@ let gProgressListener = {
     for (let win in BrowserWindowIterator()) {
       for (let i = 0; i < win.gBrowser.tabs.length; i++) {
         let browser = win.gBrowser.tabs[i].linkedBrowser;
-        if (!browser.__SS_restoreState)
-          wasRestored++;
-        else if (browser.__SS_restoreState == TAB_STATE_RESTORING)
+        if (browser.__SS_restoreState == TAB_STATE_RESTORING)
           isRestoring++;
         else if (browser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE)
           needsRestore++;
+        else
+          wasRestored++;
       }
     }
     return [needsRestore, isRestoring, wasRestored];
@@ -474,20 +455,4 @@ let TestRunner = {
 
 function next() {
   TestRunner.next();
-}
-
-function promiseTabRestored(tab) {
-  let deferred = Promise.defer();
-
-  tab.addEventListener("SSTabRestored", function onRestored() {
-    tab.removeEventListener("SSTabRestored", onRestored);
-    deferred.resolve();
-  });
-
-  return deferred.promise;
-}
-
-function sendMessage(browser, name, data = {}) {
-  browser.messageManager.sendAsyncMessage(name, data);
-  return promiseContentMessage(browser, name);
 }

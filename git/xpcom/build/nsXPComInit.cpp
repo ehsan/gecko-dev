@@ -106,7 +106,6 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "mozilla/Omnijar.h"
 #include "mozilla/HangMonitor.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/BackgroundHangMonitor.h"
 
 #include "nsChromeRegistry.h"
 #include "nsChromeProtocolHandler.h"
@@ -588,7 +587,6 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     mozilla::Telemetry::Init();
 
     mozilla::HangMonitor::Startup();
-    mozilla::BackgroundHangMonitor::Startup();
 
 #ifdef MOZ_VISUAL_EVENT_TRACER
     mozilla::eventtracer::Init();
@@ -834,7 +832,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     Omnijar::CleanUp();
 
     HangMonitor::Shutdown();
-    BackgroundHangMonitor::Shutdown();
 
 #ifdef MOZ_VISUAL_EVENT_TRACER
     eventtracer::Shutdown();

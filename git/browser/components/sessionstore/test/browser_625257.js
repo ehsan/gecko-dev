@@ -21,7 +21,12 @@ let {Task, Promise} = Scope;
 const URI_TO_LOAD = "about:mozilla";
 
 function waitForLoadStarted(aTab) {
-  return promiseContentMessage(aTab.linkedBrowser, "SessionStore:loadStart");
+  let deferred = Promise.defer();
+  waitForContentMessage(aTab.linkedBrowser,
+    "SessionStore:loadStart",
+    1000,
+    deferred.resolve);
+  return deferred.promise;
 }
 
 function waitForTabLoaded(aTab) {

@@ -80,7 +80,7 @@ class StackEntry : public js::ProfileEntry
 {
 public:
 
-  bool isCopyLabel() const volatile {
+  bool isCopyLabel() volatile {
     return !((uintptr_t)stackAddress() & 0x1);
   }
 

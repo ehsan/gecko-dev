@@ -6,5 +6,6 @@
 LIBS = \
   $(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
   $(LIBS_DIR) \
+  $(MOZ_JS_LIBS) \
   $(MOZ_COMPONENT_LIBS) \
   $(NULL)

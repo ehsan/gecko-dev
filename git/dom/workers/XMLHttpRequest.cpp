@@ -1965,12 +1965,8 @@ XMLHttpRequest::Send(const nsAString& aBody, ErrorResult& aRv)
 void
 XMLHttpRequest::Send(JSObject* aBody, ErrorResult& aRv)
 {
-  JSContext* cx = mWorkerPrivate->GetJSContext();
-
-  MOZ_ASSERT(aBody);
-  JS::Rooted<JSObject*> body(cx, aBody);
-
   mWorkerPrivate->AssertIsOnWorkerThread();
+  MOZ_ASSERT(aBody);
 
   if (mCanceled) {
     aRv.Throw(UNCATCHABLE_EXCEPTION);
@@ -1982,13 +1978,15 @@ XMLHttpRequest::Send(JSObject* aBody, ErrorResult& aRv)
     return;
   }
 
+  JSContext* cx = mWorkerPrivate->GetJSContext();
+
   JS::Rooted<JS::Value> valToClone(cx);
-  if (JS_IsArrayBufferObject(body) || JS_IsArrayBufferViewObject(body) ||
-      file::GetDOMBlobFromJSObject(body)) {
-    valToClone.setObject(*body);
+  if (JS_IsArrayBufferObject(aBody) || JS_IsArrayBufferViewObject(aBody) ||
+      file::GetDOMBlobFromJSObject(aBody)) {
+    valToClone.setObject(*aBody);
   }
   else {
-    JS::Rooted<JS::Value> obj(cx, JS::ObjectValue(*body));
+    JS::Rooted<JS::Value> obj(cx, JS::ObjectValue(*aBody));
     JSString* bodyStr = JS::ToString(cx, obj);
     if (!bodyStr) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);

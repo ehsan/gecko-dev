@@ -22,7 +22,6 @@ EXTRA_COMPONENTS += [
     'PaymentsUI.js',
     'PromptService.js',
     'SiteSpecificUserAgent.js',
-    'Snippets.js',
     'XPIDialogService.js',
 ]
 

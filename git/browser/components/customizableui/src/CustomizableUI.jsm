@@ -559,13 +559,6 @@ let CustomizableUIInternal = {
 
     let document = aPanel.ownerDocument;
 
-    aPanel.toolbox = document.getElementById("navigator-toolbox");
-    aPanel.customizationTarget = aPanel;
-
-    this.addPanelCloseListeners(aPanel);
-
-    let placements = gPlacements.get(CustomizableUI.AREA_PANEL);
-    this.buildArea(CustomizableUI.AREA_PANEL, placements, aPanel);
     for (let btn of aPanel.querySelectorAll("toolbarbutton")) {
       btn.setAttribute("tabindex", "0");
       this.ensureButtonContextMenu(btn, aPanel);
@@ -574,6 +567,13 @@ let CustomizableUIInternal = {
       }
     }
 
+    aPanel.toolbox = document.getElementById("navigator-toolbox");
+    aPanel.customizationTarget = aPanel;
+
+    this.addPanelCloseListeners(aPanel);
+
+    let placements = gPlacements.get(CustomizableUI.AREA_PANEL);
+    this.buildArea(CustomizableUI.AREA_PANEL, placements, aPanel);
     this.registerBuildArea(CustomizableUI.AREA_PANEL, aPanel);
   },
 

@@ -621,6 +621,7 @@ interface WebGLRenderingContext {
 
     any getTexParameter(GLenum target, GLenum pname);
 
+    [Throws]
     any getUniform(WebGLProgram? program, WebGLUniformLocation? location);
 
     [NewObject]

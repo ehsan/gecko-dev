@@ -14,12 +14,15 @@ function test() {
 
   // restore a blank tab
   let tab = gBrowser.addTab("about:");
-  whenBrowserLoaded(tab.linkedBrowser, function() {
+  tab.linkedBrowser.addEventListener("load", function(aEvent) {
+    this.removeEventListener("load", arguments.callee, true);
+
     let history = tab.linkedBrowser.webNavigation.sessionHistory;
     ok(history.count >= 1, "the new tab does have at least one history entry");
 
     ss.setTabState(tab, JSON.stringify({ entries: [] }));
-    whenTabRestored(tab, function() {
+    tab.linkedBrowser.addEventListener("load", function(aEvent) {
+      this.removeEventListener("load", arguments.callee, true);
       ok(history.count == 0, "the tab was restored without any history whatsoever");
 
       gBrowser.removeTab(tab);
@@ -30,6 +33,6 @@ function test() {
       if (gPrefService.prefHasUserValue("browser.sessionstore.max_tabs_undo"))
         gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
       finish();
-    });
-  });
+    }, true);
+  }, true);
 }

@@ -51,9 +51,7 @@ NS_IMPL_CI_INTERFACE_GETTER5(
 class StatementClassInfo : public nsIClassInfo
 {
 public:
-  MOZ_CONSTEXPR StatementClassInfo() {}
-
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   NS_IMETHODIMP
   GetInterfaces(uint32_t *_count, nsIID ***_array)

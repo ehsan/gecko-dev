@@ -30,7 +30,6 @@
 #include "mozilla/dom/Element.h"
 #include "xpcpublic.h"
 #include "nsObserverService.h"
-#include "nsFocusManager.h"
 
 using namespace mozilla::dom;
 
@@ -211,16 +210,6 @@ MarkContentViewer(nsIContentViewer* aViewer, bool aCleanupJS,
         EnumerateAll(MarkUserData, &nsCCUncollectableMarker::sGeneration);
     }
   }
-  if (doc) {
-    nsPIDOMWindow* inner = doc->GetInnerWindow();
-    if (inner) {
-      inner->MarkUncollectableForCCGeneration(nsCCUncollectableMarker::sGeneration);
-    }
-    nsPIDOMWindow* outer = doc->GetWindow();
-    if (outer) {
-      outer->MarkUncollectableForCCGeneration(nsCCUncollectableMarker::sGeneration);
-    }
-  }
 }
 
 void MarkDocShell(nsIDocShellTreeNode* aNode, bool aCleanupJS,
@@ -346,8 +335,6 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
   if (!++sGeneration) {
     ++sGeneration;
   }
-
-  nsFocusManager::MarkUncollectableForCCGeneration(sGeneration);
 
   nsresult rv;
 

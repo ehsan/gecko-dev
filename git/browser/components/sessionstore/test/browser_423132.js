@@ -27,7 +27,9 @@ function test() {
 
     newWin.gBrowser.loadURI(testURL, null, null);
 
-    whenBrowserLoaded(newWin.gBrowser.selectedBrowser, function() {
+    newWin.gBrowser.addEventListener("load", function (aEvent) {
+      newWin.gBrowser.removeEventListener("load", arguments.callee, true);
+
       // get the sessionstore state for the window
       let state = ss.getWindowState(newWin);
 
@@ -65,7 +67,7 @@ function test() {
       cs.removeAll();
       newWin.close();
       finish();
-    });
+    }, true);
   }, false);
 }
 

@@ -6,8 +6,6 @@
 #ifndef MOZILLA_GFX_BASEPOINT_H_
 #define MOZILLA_GFX_BASEPOINT_H_
 
-#include "mozilla/Attributes.h"
-
 namespace mozilla {
 namespace gfx {
 
@@ -21,8 +19,8 @@ struct BasePoint {
   T x, y;
 
   // Constructors
-  MOZ_CONSTEXPR BasePoint() : x(0), y(0) {}
-  MOZ_CONSTEXPR BasePoint(T aX, T aY) : x(aX), y(aY) {}
+  BasePoint() : x(0), y(0) {}
+  BasePoint(T aX, T aY) : x(aX), y(aY) {}
 
   void MoveTo(T aX, T aY) { x = aX; y = aY; }
   void MoveBy(T aDx, T aDy) { x += aDx; y += aDy; }

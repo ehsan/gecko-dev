@@ -5,10 +5,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 SOURCES += [
-    'nsAuthFactory.cpp',       # forces NSPR logging
-    'nsAuthGSSAPI.cpp',        # forces NSPR logging
+    'nsAuthFactory.cpp',
+    'nsAuthGSSAPI.cpp',
     'nsAuthSASL.cpp',
-    'nsHttpNegotiateAuth.cpp', # contains constants whose names conflict with constants in other files
+    'nsHttpNegotiateAuth.cpp',
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
@@ -18,7 +18,7 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     DEFINES['USE_SSPI'] = True
 else:
     SOURCES += [
-        'nsAuthSambaNTLM.cpp', # forces NSPR logging
+        'nsAuthSambaNTLM.cpp',
     ]
 
 FINAL_LIBRARY = 'xul'

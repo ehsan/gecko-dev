@@ -1945,7 +1945,7 @@ GlobalObject::initIteratorClasses(JSContext *cx, Handle<GlobalObject *> global)
         if (!DefineConstructorAndPrototype(cx, global, JSProto_StopIteration, proto, proto))
             return false;
 
-        global->setConstructor(JSProto_StopIteration, ObjectValue(*proto));
+        global->markStandardClassInitializedNoProto(&StopIterationObject::class_);
     }
 
     return true;
