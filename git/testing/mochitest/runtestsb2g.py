@@ -18,8 +18,6 @@ except ImportError:
 here = os.path.abspath(os.path.dirname(sys.argv[0]))
 sys.path.insert(0, here)
 
-from b2gautomation import B2GDesktopAutomation
-from runtests import Mochitest
 from runtests import MochitestUtilsMixin
 from runtests import MochitestOptions
 from runtests import MochitestServer
@@ -28,7 +26,7 @@ from mochitest_options import B2GOptions, MochitestOptions
 from marionette import Marionette
 
 from mozdevice import DeviceManagerADB
-from mozprofile import Profile, Preferences
+from mozprofile import Profile, Preferences, DEFAULT_PORTS
 from mozrunner import B2GRunner
 import mozlog
 import mozinfo
@@ -223,23 +221,16 @@ class B2GDeviceMochitest(B2GMochitest):
         return retVal
 
 
-class B2GDesktopMochitest(B2GMochitest, Mochitest):
+class B2GDesktopMochitest(B2GMochitest):
 
-    def __init__(self, automation, marionette, profile_data_dir):
-        B2GMochitest.__init__(self, marionette, out_of_process=False, profile_data_dir=profile_data_dir)
-        Mochitest.__init__(self, automation)
+    def __init__(self, marionette, profile_data_dir):
+        B2GMochitest.__init__(self, out_of_process=False, profile_data_dir=profile_data_dir)
 
-    def runMarionetteScript(self, marionette, test_script, test_script_args):
+    def runMarionetteScript(self, marionette, test_script):
         assert(marionette.wait_for_port())
         marionette.start_session()
         marionette.set_context(marionette.CONTEXT_CHROME)
-
-        if os.path.isfile(test_script):
-            f = open(test_script, 'r')
-            test_script = f.read()
-            f.close()
-        self.marionette.execute_script(test_script,
-                                       script_args=test_script_args)
+        marionette.execute_script(test_script)
 
     def startTests(self):
         # This is run in a separate thread because otherwise, the app's
@@ -247,8 +238,7 @@ class B2GDesktopMochitest(B2GMochitest, Mochitest):
         # function returns, by waitForFinish), which causes the app to hang.
         thread = threading.Thread(target=self.runMarionetteScript,
                                   args=(self.marionette,
-                                        self.test_script,
-                                        self.test_script_args))
+                                        self.test_script))
         thread.start()
 
     def buildURLOptions(self, options, env):
@@ -267,9 +257,6 @@ class B2GDesktopMochitest(B2GMochitest, Mochitest):
                             os.path.join(bundlesDir, filename))
 
         return retVal
-
-    def buildProfile(self, options):
-        return self.build_profile(options)
 
 
 def run_remote_mochitests(parser, options):
@@ -337,8 +324,6 @@ def run_remote_mochitests(parser, options):
     sys.exit(retVal)
 
 def run_desktop_mochitests(parser, options):
-    automation = B2GDesktopAutomation()
-
     # create our Marionette instance
     kwargs = {}
     if options.marionette:
@@ -346,9 +331,8 @@ def run_desktop_mochitests(parser, options):
         kwargs['host'] = host
         kwargs['port'] = int(port)
     marionette = Marionette.getMarionetteOrExit(**kwargs)
-    automation.marionette = marionette
 
-    mochitest = B2GDesktopMochitest(automation, marionette, options.profile_data_dir)
+    mochitest = B2GDesktopMochitest(marionette, options.profile_data_dir)
 
     # b2g desktop builds don't always have a b2g-bin file
     if options.app[-4:] == '-bin':
@@ -361,10 +345,6 @@ def run_desktop_mochitests(parser, options):
     if options.desktop and not options.profile:
         raise Exception("must specify --profile when specifying --desktop")
 
-    automation.setServerInfo(options.webServer,
-                             options.httpPort,
-                             options.sslPort,
-                             options.webSocketPort)
     sys.exit(mochitest.runTests(options, onLaunch=mochitest.startTests))
 
 def main():
